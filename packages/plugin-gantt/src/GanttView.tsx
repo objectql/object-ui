@@ -19,6 +19,8 @@ import {
   PanelLeftClose,
   PanelLeft,
   CalendarDays,
+  Maximize2,
+  Minimize2,
 } from "lucide-react"
 import { 
   cn, 
@@ -127,6 +129,19 @@ function startOfUnit(date: Date, mode: GanttViewMode): Date {
   return d;
 }
 
+/**
+ * Index range of cells visible in [from, to] px. `offsets` is a prefix-sum
+ * array of length n+1 (offsets[i] = left edge of cell i, offsets[n] = total).
+ */
+function visibleRange(offsets: number[], from: number, to: number): { start: number; end: number } {
+  const n = offsets.length - 1;
+  let start = 0;
+  while (start < n && offsets[start + 1] < from) start++;
+  let end = start;
+  while (end < n && offsets[end] < to) end++;
+  return { start, end };
+}
+
 /** Add whole column units; month/quarter clamp the day (Jan 31 + 1mo = Feb 28). */
 function addUnits(date: Date, units: number, mode: GanttViewMode): Date {
   const d = new Date(date);
@@ -145,12 +160,21 @@ function addUnits(date: Date, units: number, mode: GanttViewMode): Date {
   return d;
 }
 
+/** Custom vertical timeline marker (deadline, sprint boundary, release…). */
+export interface GanttMarker {
+  date: Date | string
+  label?: string
+  color?: string
+}
+
 export interface GanttViewProps {
   tasks: GanttTask[]
   /** Initial timeline granularity (also switchable from the toolbar). */
   viewMode?: GanttViewMode
   startDate?: Date
   endDate?: Date
+  /** Extra vertical marker lines rendered like the Today marker. */
+  markers?: GanttMarker[]
   onTaskClick?: (task: GanttTask) => void
   onTaskUpdate?: (task: GanttTask, changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>) => void
   onTaskDelete?: (task: GanttTask) => void
@@ -177,6 +201,7 @@ export function GanttView({
   viewMode: viewModeProp,
   startDate,
   endDate,
+  markers,
   onTaskClick,
   onTaskUpdate,
   onTaskDelete,
@@ -566,6 +591,15 @@ export function GanttView({
         ? Math.min(rows.length - 1, idx + 1)
         : Math.max(0, idx <= 0 ? 0 : idx - 1);
       setSelectedTaskId(rows[next].task.id);
+      // Keep the selected (possibly virtualized-out) row in view.
+      const el = scrollAreaRef.current;
+      if (el) {
+        const top = next * rowHeight;
+        if (top < el.scrollTop) el.scrollTop = top;
+        else if (top + rowHeight > el.scrollTop + el.clientHeight) {
+          el.scrollTop = top + rowHeight - el.clientHeight;
+        }
+      }
       return;
     }
     if (idx < 0) return;
@@ -585,7 +619,7 @@ export function GanttView({
       e.preventDefault();
       toggleCollapsed(row.task.id);
     }
-  }, [rows, selectedTaskId, onTaskClick, onTaskDelete, collapsedIds, toggleCollapsed]);
+  }, [rows, selectedTaskId, onTaskClick, onTaskDelete, collapsedIds, toggleCollapsed, rowHeight]);
 
   // Calculate timeline range
   const timelineRange = React.useMemo(() => {
@@ -649,15 +683,26 @@ export function GanttView({
     return cols;
   }, [timelineRange, viewMode, pxPerDay]);
 
-  const totalWidth = React.useMemo(
-    () => timeColumns.reduce((sum, col) => sum + col.width, 0),
-    [timeColumns]
-  );
+  // Prefix sums of column widths — left edge of column i, used both for
+  // positioning the virtualized cells and for the visible-range search.
+  const colOffsets = React.useMemo(() => {
+    const offs = new Array<number>(timeColumns.length + 1);
+    let acc = 0;
+    for (let i = 0; i < timeColumns.length; i++) {
+      offs[i] = acc;
+      acc += timeColumns[i].width;
+    }
+    offs[timeColumns.length] = acc;
+    return offs;
+  }, [timeColumns]);
+
+  const totalWidth = colOffsets[colOffsets.length - 1];
 
   // Upper scale row: month groups under day/week, year groups under month/quarter.
   const headerGroups = React.useMemo(() => {
-    const groups: { key: string; label: string; width: number }[] = [];
+    const groups: { key: string; label: string; width: number; offset: number }[] = [];
     const byYear = viewMode === 'month' || viewMode === 'quarter';
+    let acc = 0;
     for (const col of timeColumns) {
       const key = byYear
         ? String(col.date.getFullYear())
@@ -672,11 +717,30 @@ export function GanttView({
             ? String(col.date.getFullYear())
             : col.date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
           width: col.width,
+          offset: acc,
         });
       }
+      acc += col.width;
     }
     return groups;
   }, [timeColumns, viewMode]);
+
+  // Normalized custom markers (invalid/out-of-range dates dropped), with the
+  // same linear ms→px mapping the bars and the Today line use.
+  const resolvedMarkers = React.useMemo(() => {
+    return (markers ?? [])
+      .map((m, i) => {
+        const date = m.date instanceof Date ? m.date : new Date(m.date);
+        return {
+          index: i,
+          label: m.label,
+          color: m.color || 'hsl(var(--primary))',
+          left: Math.round(((date.getTime() - timelineRange.start.getTime()) / MS_PER_DAY) * pxPerDay),
+          valid: !isNaN(date.getTime()) && date >= timelineRange.start && date <= timelineRange.end,
+        };
+      })
+      .filter((m) => m.valid);
+  }, [markers, timelineRange, pxPerDay]);
 
   const taskListWidth_LEGACY_REMOVED = null; // taskListWidth now derived from useResizeObserver above
   
@@ -686,6 +750,69 @@ export function GanttView({
   // Wrapper around the scroll-syncing timeline body, so the pinch handler
   // and the "Today" button can target a stable node.
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
+
+  // --- Virtualization ------------------------------------------------------
+  // Rows and timeline columns render only what's in (or near) the viewport,
+  // so the chart stays responsive with thousands of tasks / multi-year day
+  // scales. Fallbacks cover jsdom (client sizes report 0 there).
+  const [scrollPos, setScrollPos] = React.useState({ top: 0, left: 0 });
+  const [viewport, setViewport] = React.useState({ width: 4000, height: 600 });
+  const measureViewport = React.useCallback(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+    const width = el.clientWidth || 4000;
+    const height = el.clientHeight || 600;
+    setViewport((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+  }, []);
+  React.useLayoutEffect(() => {
+    measureViewport();
+    const el = scrollAreaRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measureViewport);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measureViewport]);
+
+  // Visible windows. Overscan keeps scrolling seamless; the column margin is
+  // in px (columns have calendar-variable widths), the row margin in rows.
+  const COL_OVERSCAN_PX = 240;
+  const ROW_OVERSCAN = 6;
+  const colWindow = React.useMemo(
+    () => visibleRange(colOffsets, scrollPos.left - COL_OVERSCAN_PX, scrollPos.left + viewport.width + COL_OVERSCAN_PX),
+    [colOffsets, scrollPos.left, viewport.width]
+  );
+  const groupOffsets = React.useMemo(() => {
+    const offs = headerGroups.map((g) => g.offset);
+    offs.push(totalWidth);
+    return offs;
+  }, [headerGroups, totalWidth]);
+  const groupWindow = React.useMemo(
+    () => visibleRange(groupOffsets, scrollPos.left - COL_OVERSCAN_PX, scrollPos.left + viewport.width + COL_OVERSCAN_PX),
+    [groupOffsets, scrollPos.left, viewport.width]
+  );
+  const rowWindow = React.useMemo(() => {
+    const startIdx = Math.max(0, Math.floor(scrollPos.top / rowHeight) - ROW_OVERSCAN);
+    const endIdx = Math.min(rows.length, Math.ceil((scrollPos.top + viewport.height) / rowHeight) + ROW_OVERSCAN);
+    return { startIdx, endIdx };
+  }, [scrollPos.top, viewport.height, rowHeight, rows.length]);
+  const totalRowsHeight = rows.length * rowHeight;
+
+  // --- Fullscreen -----------------------------------------------------------
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  React.useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const toggleFullscreen = React.useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen?.();
+    } else {
+      void el.requestFullscreen?.();
+    }
+  }, []);
 
   // Pinch-to-zoom state. Track distance between two touch points; deltas
   // adjust the column width within [15, 120].
@@ -726,14 +853,22 @@ export function GanttView({
   }, [todayLeftPx]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
     // Sync horizontal scroll to header
     if (headerRef.current) {
-        headerRef.current.scrollLeft = e.currentTarget.scrollLeft;
+        headerRef.current.scrollLeft = el.scrollLeft;
     }
     // Sync vertical scroll to task list
     if (listRef.current) {
-        listRef.current.scrollTop = e.currentTarget.scrollTop;
+        listRef.current.scrollTop = el.scrollTop;
     }
+    // Drive the virtualization windows.
+    setScrollPos((prev) =>
+      prev.top === el.scrollTop && prev.left === el.scrollLeft
+        ? prev
+        : { top: el.scrollTop, left: el.scrollLeft }
+    );
+    measureViewport();
   };
 
   const styleFor = (start: Date, end: Date) => {
@@ -947,6 +1082,17 @@ export function GanttView({
           >
             <CalendarDays className="h-4 w-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? t('gantt.toolbar.exitFullscreen') : t('gantt.toolbar.enterFullscreen')}
+            aria-pressed={isFullscreen}
+            data-testid="gantt-fullscreen"
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
         </div>
       </div>
 
@@ -976,33 +1122,36 @@ export function GanttView({
           {/* Timeline Header — two scale rows: group (month/year) over units */}
           <div className="flex-1 overflow-hidden" ref={headerRef}>
             <div className="flex flex-col h-full" style={{ width: totalWidth }}>
-              <div className="flex h-[45%] border-b" data-testid="gantt-header-groups">
-                {headerGroups.map((group) => (
+              <div className="relative h-[45%] border-b" data-testid="gantt-header-groups">
+                {headerGroups.slice(groupWindow.start, groupWindow.end).map((group) => (
                   <div
                     key={group.key}
-                    className="flex items-center justify-center border-r text-[10px] font-medium text-muted-foreground overflow-hidden"
-                    style={{ width: group.width, minWidth: group.width }}
+                    className="absolute top-0 bottom-0 flex items-center justify-center border-r text-[10px] font-medium text-muted-foreground overflow-hidden"
+                    style={{ left: group.offset, width: group.width }}
                   >
                     <span className="truncate px-1">{group.label}</span>
                   </div>
                 ))}
               </div>
-              <div className="flex flex-1" data-testid="gantt-header-units">
-                {timeColumns.map((col, i) => (
+              <div className="relative flex-1" data-testid="gantt-header-units">
+                {timeColumns.slice(colWindow.start, colWindow.end).map((col, i) => {
+                  const idx = colWindow.start + i;
+                  return (
                   <div
-                    key={i}
+                    key={idx}
                     className={cn(
-                      "flex items-center justify-center gap-1 border-r text-xs text-muted-foreground h-full overflow-hidden",
+                      "absolute top-0 bottom-0 flex items-center justify-center gap-1 border-r text-xs text-muted-foreground overflow-hidden",
                       col.isWeekend && "bg-muted/50"
                     )}
-                    style={{ width: col.width, minWidth: col.width }}
+                    style={{ left: colOffsets[idx], width: col.width }}
                   >
                     <span className="font-medium text-foreground truncate">{col.label}</span>
                     {col.sublabel && columnWidth >= 32 && (
                       <span className="text-[10px] opacity-70">{col.sublabel}</span>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1018,7 +1167,10 @@ export function GanttView({
             role="tree"
             aria-label={t('gantt.aria.taskList')}
           >
-            {rows.map((row) => {
+            {rowWindow.startIdx > 0 && (
+              <div style={{ height: rowWindow.startIdx * rowHeight }} aria-hidden="true" />
+            )}
+            {rows.slice(rowWindow.startIdx, rowWindow.endIdx).map((row) => {
               const task = row.task;
               const isEditing = inlineEdit && editingTask === task.id;
               const isCollapsed = collapsedIds.has(String(task.id));
@@ -1159,6 +1311,9 @@ export function GanttView({
               </div>
               );
             })}
+            {rowWindow.endIdx < rows.length && (
+              <div style={{ height: (rows.length - rowWindow.endIdx) * rowHeight }} aria-hidden="true" />
+            )}
           </div>
 
           {/* Right Side: Timeline */}
@@ -1185,24 +1340,49 @@ export function GanttView({
                   </div>
                 </div>
               )}
+              {/* Custom vertical markers (deadlines, sprint boundaries…) */}
+              {resolvedMarkers.map((m) => (
+                <div
+                  key={m.index}
+                  className="absolute top-0 bottom-0 w-px z-20 pointer-events-none"
+                  style={{ left: m.left, backgroundColor: m.color }}
+                  data-testid={`gantt-marker-${m.index}`}
+                  aria-label={m.label}
+                >
+                  {m.label && (
+                    <div
+                      className="absolute -top-2 -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap"
+                      style={{ backgroundColor: m.color }}
+                    >
+                      {m.label}
+                    </div>
+                  )}
+                </div>
+              ))}
               {/* Timeline Task Rows */}
               <div className="relative" ref={contentRef}>
-                {/* Background Grid */}
-                <div className="absolute inset-0 flex pointer-events-none z-0">
-                   {timeColumns.map((col, i) => (
+                {/* Background Grid — windowed to the visible columns */}
+                <div className="absolute inset-0 pointer-events-none z-0">
+                   {timeColumns.slice(colWindow.start, colWindow.end).map((col, i) => {
+                    const idx = colWindow.start + i;
+                    return (
                     <div
-                      key={i}
+                      key={idx}
                       className={cn(
-                        "border-r h-full",
+                        "absolute top-0 bottom-0 border-r",
                         col.isWeekend && "bg-muted/20"
                       )}
-                      style={{ width: col.width, minWidth: col.width }}
+                      style={{ left: colOffsets[idx], width: col.width }}
                     />
-                  ))}
+                    );
+                  })}
                 </div>
 
-                {/* Task Bars */}
-                {rows.map((row) => {
+                {/* Task Bars — windowed to the visible rows */}
+                {rowWindow.startIdx > 0 && (
+                  <div style={{ height: rowWindow.startIdx * rowHeight }} aria-hidden="true" />
+                )}
+                {rows.slice(rowWindow.startIdx, rowWindow.endIdx).map((row) => {
                    const task = row.task;
                    const baseStyle = styleFor(row.start, row.end);
                    const isDragging = dragState?.taskId === task.id;
@@ -1465,14 +1645,19 @@ export function GanttView({
                     </div>
                    )
                 })}
+                {rowWindow.endIdx < rows.length && (
+                  <div style={{ height: (rows.length - rowWindow.endIdx) * rowHeight }} aria-hidden="true" />
+                )}
 
                 {/* Dependency Links — SVG overlay above bars, below the Today
-                    marker (z-20). pointer-events-none so bar drag/click win. */}
+                    marker (z-20). pointer-events-none so bar drag/click win.
+                    Paths use absolute row indices (windowing-independent);
+                    links fully outside the row window are skipped. */}
                 {(links.length > 0 || linkDrag) && (
                   <svg
                     className="absolute top-0 left-0 pointer-events-none z-10"
                     width={totalWidth}
-                    height={rows.length * rowHeight}
+                    height={totalRowsHeight}
                     data-testid="gantt-links"
                     aria-hidden="true"
                   >
@@ -1504,6 +1689,9 @@ export function GanttView({
                       </marker>
                     </defs>
                     {links.map((link) => {
+                      const lo = Math.min(link.sourceIndex, link.targetIndex);
+                      const hi = Math.max(link.sourceIndex, link.targetIndex);
+                      if (hi < rowWindow.startIdx - ROW_OVERSCAN || lo > rowWindow.endIdx + ROW_OVERSCAN) return null;
                       const d = linkPath(link);
                       if (!d) return null;
                       const active =

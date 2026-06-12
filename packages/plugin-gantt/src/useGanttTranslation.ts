@@ -27,6 +27,8 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.toolbar.showTaskList': 'Show task list',
   'gantt.toolbar.hideTaskList': 'Hide task list',
   'gantt.toolbar.viewMode': 'Timeline granularity',
+  'gantt.toolbar.enterFullscreen': 'Enter fullscreen',
+  'gantt.toolbar.exitFullscreen': 'Exit fullscreen',
   'gantt.viewMode.day': 'Day',
   'gantt.viewMode.week': 'Week',
   'gantt.viewMode.month': 'Month',

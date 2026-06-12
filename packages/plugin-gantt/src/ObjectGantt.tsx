@@ -567,6 +567,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           onTaskUpdate={handleTaskUpdateDefault}
           onTaskDelete={requestDelete}
           onDependencyCreate={ganttConfig?.dependenciesField ? handleDependencyCreate : undefined}
+          markers={(schema as any).markers}
           inlineEdit
         />
       </div>

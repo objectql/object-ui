@@ -24,6 +24,7 @@ export type {
   GanttDependency,
   GanttDependencyObject,
   GanttLinkType,
+  GanttMarker,
 } from './GanttView';
 export { normalizeDependencies, normalizeTaskType } from './ObjectGantt';
 

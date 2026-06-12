@@ -47,12 +47,13 @@ Today marker + jump-to-today, weekend highlighting, semantic color fallback, i18
 - [x] Row drag-to-reorder — HTML5 drag in the task list, sibling-scoped, fires `onTaskReorder(task, before)` for the host to persist (sort-field wiring is host-specific)
 - [x] Tests: progress drag + clamping, tooltip, context menu routing/Escape, keyboard nav + collapse, link create + empty-space release, reorder + cross-parent guard (11 new tests)
 
-## Phase 5 — Scale & Performance
+## Phase 5 — Scale & Performance ✅
 
-- [ ] Virtualized row rendering (windowing) for both task list and timeline — currently full `tasks.map()`, target 5k+ tasks
-- [ ] Virtualized/segmented timeline columns for multi-year ranges
-- [ ] Fullscreen mode toggle
-- [ ] Custom vertical markers (deadline lines, sprint boundaries) beyond the Today marker
+- [x] Virtualized row rendering (windowing) for both task list and timeline — spacer-div windowing over flattened rows (≈viewport + 6-row overscan rendered), driven by scroll position + ResizeObserver-measured viewport; dependency-link SVG keeps absolute row coordinates and skips links fully outside the window
+- [x] Virtualized timeline columns for multi-year ranges — prefix-sum column offsets + binary-free linear `visibleRange` scan; header groups, header units and the background grid render as absolutely-positioned cells inside the ±240px overscan window
+- [x] Fullscreen mode toggle — toolbar button drives the native Fullscreen API on the Gantt container, icon/aria reflect `fullscreenchange`
+- [x] Custom vertical markers — `markers` prop (`{date, label?, color?}`), rendered like the Today line on the shared ms→px mapping; out-of-range/invalid dates dropped; passed through `ObjectGantt` via `schema.markers`
+- [x] Tests: 1000-row windowing + spacer heights, scroll window shift, windowed link anchoring, multi-year column windowing, fullscreen enter/exit, marker mapping/fallback color (8 new tests)
 
 ## Phase 6 — Advanced (SVAR PRO territory, differentiators)
 

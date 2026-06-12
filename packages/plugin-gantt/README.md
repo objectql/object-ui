@@ -297,6 +297,32 @@ Beyond drag-to-reschedule, the timeline supports:
   HTML5 drag reordering in the task list (sibling-scoped; persistence is up
   to the host, e.g. via a sort field).
 
+## Scale & Performance
+
+Rows and timeline columns are **virtualized**: only what is in (or near) the
+viewport renders, so the chart stays responsive with thousands of tasks and
+multi-year day-scale ranges. No configuration needed — windowing follows the
+scroll position automatically, and dependency arrows keep their absolute
+positions while scrolling.
+
+Two more chrome features ship with it:
+
+- **Fullscreen** — the expand button in the toolbar puts the whole chart into
+  native fullscreen (and back).
+- **Custom markers** — vertical reference lines beyond the Today marker:
+
+```tsx
+<GanttView
+  tasks={tasks}
+  markers={[
+    { date: '2026-07-01', label: 'Code freeze', color: '#ef4444' },
+    { date: '2026-07-15', label: 'Release' }, // defaults to the primary theme color
+  ]}
+/>
+```
+
+Through the schema, pass the same array as `markers` on the gantt node.
+
 ## Task Dependencies
 
 Link tasks to show dependencies:
