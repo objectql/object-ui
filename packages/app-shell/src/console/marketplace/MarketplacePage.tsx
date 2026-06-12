@@ -31,10 +31,12 @@ import {
   listOrgPackages,
   listInstalledPackages,
   installPackage,
+  installLocal,
   type MarketplacePackageSummary,
   type LocalInstallEntry,
   type OrgPackageSummary,
 } from './marketplaceApi';
+import { getRuntimeConfig } from '../../runtime-config';
 
 /**
  * Format a published-at timestamp as a localized relative string.
@@ -118,13 +120,25 @@ export function MarketplacePage() {
   useEffect(() => { void load(); }, []);
 
   // Install an org package into the current environment (ADR-0007 step ②).
-  // The same-origin /cloud-connection/install route resolves the env by
-  // hostname, so we only need the package id.
+  //
+  // Two deployment shapes, two semantically-correct routes:
+  //   - install-local runtimes (single-env / self-hosted, runtime-config
+  //     features.installLocal=true): the runtime OWNS its desired state —
+  //     install merges into ITS kernel via /marketplace/install-local; the
+  //     bound oscc_ credential lets it fetch the org manifest (ADR-0008).
+  //     The control-plane /cloud-connection/install path would 401 here
+  //     (no env→cloud service key) and is the wrong semantics anyway.
+  //   - cloud-managed environments: desired state lives in the control
+  //     plane — /cloud-connection/install resolves the env by hostname.
   const doOrgInstall = async (pkg: OrgPackageSummary) => {
     setOrgInstalling(pkg.id);
     setOrgMsg(null);
     try {
-      await installPackage({ packageId: pkg.id, environmentId: '', seedSampleData: true });
+      if (getRuntimeConfig().features.installLocal) {
+        await installLocal({ packageId: pkg.manifest_id || pkg.id, versionId: 'latest' });
+      } else {
+        await installPackage({ packageId: pkg.id, environmentId: '', seedSampleData: true });
+      }
       setOrgMsg({ ok: true, text: t('marketplace.org.installed', { defaultValue: `Installed ${pkg.display_name}`, name: pkg.display_name }) });
       await load();
     } catch (e: any) {
