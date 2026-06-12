@@ -25,12 +25,23 @@ export interface MetadataState {
   error: Error | null;
 }
 
+export type MetadataTypeStatus = 'idle' | 'loading' | 'ready' | 'error';
+
 export interface MetadataContextValue extends MetadataState {
   refresh: (type?: string) => Promise<void>;
   invalidate: (type: string, name?: string) => void;
   ensureType: (type: string) => Promise<any[]>;
   getItem: (type: string, name: string) => Promise<any | null>;
   getItemsByType: (type: string) => any[];
+  /**
+   * Per-type load status. Lazy types ('page', 'dashboard', …) return their
+   * items array immediately — empty or stale while a (re)fetch is in flight —
+   * so consumers that DIFF the list over time (e.g. NavigationSyncEffect)
+   * must distinguish "empty because unloaded" from "actually empty" and only
+   * trust snapshots taken while the type is 'ready'. Optional so hand-rolled
+   * context values in tests keep working; absent means "always ready".
+   */
+  getTypeStatus?: (type: string) => MetadataTypeStatus;
 }
 
 export const MetadataCtx = createContext<MetadataContextValue | null>(null);
@@ -55,6 +66,7 @@ export function useMetadata(): MetadataContextValue {
       ensureType: async () => [],
       getItem: async () => null,
       getItemsByType: () => [],
+      getTypeStatus: () => 'ready',
     };
   }
   return ctx;
