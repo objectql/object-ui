@@ -1399,6 +1399,8 @@ const zh = {
       title: '授权新设备',
       subtitle: '批准此设备以 {{email}} 的身份登录。',
       userCodeLabel: '设备代码',
+      requesterLabel: '连接请求来自',
+      approveWarning: '仅当这是你刚刚自己发起的连接时才批准。批准后，该运行时将能访问你所在组织的私有软件包。',
       loggedInAs: '已以 {{email}} 身份登录',
       approve: '批准设备',
       approving: '批准中…',

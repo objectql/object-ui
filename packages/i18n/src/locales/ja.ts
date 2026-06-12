@@ -1148,6 +1148,8 @@ const ja = {
       title: "新しいデバイスを認証",
       subtitle: "{{email}} としてサインインするためにこのデバイスを承認します。",
       userCodeLabel: "デバイスコード",
+      requesterLabel: "接続リクエスト元",
+      approveWarning: "この接続を直前にご自身で開始した場合にのみ承認してください。承認すると、このランタイムは組織のプライベートパッケージにアクセスできます。",
       loggedInAs: "{{email}} としてサインイン中",
       approve: "デバイスを承認",
       approving: "承認中…",

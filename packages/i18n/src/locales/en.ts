@@ -1386,6 +1386,8 @@ const en = {
       title: 'Authorize new device',
       subtitle: 'Approve this device to sign in as {{email}}.',
       userCodeLabel: 'Device code',
+      requesterLabel: 'Connection request from',
+      approveWarning: 'Only approve if you started this connection yourself a moment ago. Once approved, this runtime can access your organization\'s private packages.',
       loggedInAs: 'Signed in as {{email}}',
       approve: 'Approve device',
       approving: 'Approving…',

@@ -1148,6 +1148,8 @@ const fr = {
       title: "Autoriser un nouvel appareil",
       subtitle: "Approuvez cet appareil pour vous connecter en tant que {{email}}.",
       userCodeLabel: "Code de l'appareil",
+      requesterLabel: "Demande de connexion de",
+      approveWarning: "N'approuvez que si vous venez de lancer cette connexion vous-même. Une fois approuvée, ce runtime pourra accéder aux packages privés de votre organisation.",
       loggedInAs: "Connecté en tant que {{email}}",
       approve: "Approuver l'appareil",
       approving: "Approbation…",

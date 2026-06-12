@@ -1148,6 +1148,8 @@ const pt = {
       title: "Autorizar novo dispositivo",
       subtitle: "Aprove este dispositivo para fazer login como {{email}}.",
       userCodeLabel: "Código do dispositivo",
+      requesterLabel: "Solicitação de conexão de",
+      approveWarning: "Aprove somente se você mesmo iniciou esta conexão há instantes. Depois de aprovada, este runtime poderá acessar os pacotes privados da sua organização.",
       loggedInAs: "Conectado como {{email}}",
       approve: "Aprovar dispositivo",
       approving: "Aprovando…",

@@ -44,6 +44,11 @@ export function DeviceAuthPage() {
   const { t } = useObjectTranslation();
   const [params] = useSearchParams();
   const code = params.get('user_code') ?? params.get('code') ?? '';
+  // Device context appended by the requesting runtime's bind/start (ADR
+  // runtime-identity-binding §2.3). Display-only informed consent — the
+  // warning copy below is what carries the anti-phishing weight.
+  const runtimeName = params.get('runtime_name') ?? '';
+  const runtimeVersion = params.get('runtime_version') ?? '';
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -211,12 +216,32 @@ export function DeviceAuthPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {runtimeName ? (
+            <div className="rounded-md border bg-background px-4 py-3 text-center">
+              <p className="mb-1 text-xs text-muted-foreground">
+                {t('auth.device.requesterLabel', { defaultValue: 'Connection request from' })}
+              </p>
+              <p className="font-medium">{runtimeName}</p>
+              {runtimeVersion ? (
+                <p className="text-xs text-muted-foreground">objectos {runtimeVersion}</p>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="rounded-md border bg-background px-4 py-3 text-center">
             <p className="mb-1 text-xs text-muted-foreground">
               {t('auth.device.userCodeLabel', { defaultValue: 'Device code' })}
             </p>
             <p className="font-mono text-lg font-semibold tracking-widest">{code}</p>
           </div>
+
+          <p className="text-center text-xs text-muted-foreground">
+            {t('auth.device.approveWarning', {
+              defaultValue:
+                'Only approve if you started this connection yourself a moment ago. '
+                + "Once approved, this runtime can access your organization's private packages.",
+            })}
+          </p>
 
           <div className="space-y-4">
             <p className="text-center text-sm text-muted-foreground">

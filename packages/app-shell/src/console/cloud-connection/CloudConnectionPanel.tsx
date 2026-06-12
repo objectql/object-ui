@@ -8,10 +8,13 @@
  * the page shell, nav placement and labels ship as metadata WITH the
  * `@objectstack/cloud-connection` plugin (cloud ADR-0008 / console
  * SDUI-first direction). The widget talks to the runtime's same-origin
- * `/api/v1/cloud-connection/*` routes:
+ * `/api/v1/cloud-connection/*` routes.
  *
- *   status → [Connect] → bind/start → user-code display → bind/poll …
- *          → bound (org / account / since) → [Disconnect] → unbind
+ * Zero-input flow (ADR runtime-identity-binding §2.3): [Connect] →
+ * bind/start (no environment id — the registration is created cloud-side
+ * at approval) → the approval page auto-opens in a popup with the code
+ * pre-filled and the device named → bind/poll … → bound. The visible
+ * user code is the popup-blocked fallback, not the primary path.
  *
  * The runtime credential never reaches the browser — bind/poll persists
  * it server-side and strips it from the response.
@@ -36,9 +39,12 @@ interface ConnectionView {
   organization_id?: string | null;
   account_email?: string | null;
   bound_at?: string | null;
+  name?: string | null;
+  runtime_id?: string | null;
 }
 interface StatusData {
   environmentId: string | null;
+  runtimeId?: string | null;
   bound: boolean;
   connection: ConnectionView | null;
 }
@@ -53,8 +59,8 @@ interface DeviceCode {
 
 type Phase =
   | { kind: 'loading' }
-  | { kind: 'unbound'; environmentId: string | null }
-  | { kind: 'waiting'; code: DeviceCode; environmentId: string }
+  | { kind: 'unbound' }
+  | { kind: 'waiting'; code: DeviceCode; popupOpened: boolean }
   | { kind: 'bound'; status: StatusData }
   | { kind: 'error'; message: string };
 
@@ -74,7 +80,6 @@ async function getJson(url: string, init?: RequestInit): Promise<any> {
 
 export function CloudConnectionPanel() {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
-  const [envIdInput, setEnvIdInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,8 +92,7 @@ export function CloudConnectionPanel() {
     try {
       const body = await getJson(`${BASE}/status`);
       const data: StatusData = body?.data ?? { environmentId: null, bound: false, connection: null };
-      setPhase(data.bound ? { kind: 'bound', status: data } : { kind: 'unbound', environmentId: data.environmentId });
-      if (data.environmentId) setEnvIdInput(data.environmentId);
+      setPhase(data.bound ? { kind: 'bound', status: data } : { kind: 'unbound' });
     } catch (err: any) {
       setPhase({ kind: 'error', message: err?.message ?? String(err) });
     }
@@ -99,17 +103,17 @@ export function CloudConnectionPanel() {
     return stopPolling;
   }, [refreshStatus, stopPolling]);
 
-  const poll = useCallback((code: DeviceCode, environmentId: string, startedAt: number) => {
+  const poll = useCallback((code: DeviceCode, startedAt: number) => {
     const intervalMs = Math.max(code.interval, 2) * 1000;
     const tick = async () => {
       if (Date.now() - startedAt > code.expires_in * 1000) {
-        setPhase({ kind: 'error', message: 'The code expired before it was approved. Start again.' });
+        setPhase({ kind: 'error', message: 'The request expired before it was approved. Start again.' });
         return;
       }
       try {
         const body = await getJson(`${BASE}/bind/poll`, {
           method: 'POST',
-          body: JSON.stringify({ device_code: code.device_code, environment_id: environmentId }),
+          body: JSON.stringify({ device_code: code.device_code }),
         });
         if (body?.data?.pending) {
           pollTimer.current = setTimeout(tick, intervalMs);
@@ -127,17 +131,24 @@ export function CloudConnectionPanel() {
     pollTimer.current = setTimeout(tick, intervalMs);
   }, [refreshStatus]);
 
-  const connect = useCallback(async (environmentId: string) => {
+  const connect = useCallback(async () => {
     setBusy(true);
     try {
-      const body = await getJson(`${BASE}/bind/start`, {
-        method: 'POST',
-        body: JSON.stringify(environmentId ? { environment_id: environmentId } : {}),
-      });
+      const body = await getJson(`${BASE}/bind/start`, { method: 'POST', body: '{}' });
       const code: DeviceCode = body?.data;
       if (!code?.device_code || !code?.user_code) throw new Error('Device code request failed.');
-      setPhase({ kind: 'waiting', code, environmentId });
-      poll(code, environmentId, Date.now());
+      // Auto-open the approval page — the GitHub-login moment. Still within
+      // the click's transient activation, so popup blockers generally allow
+      // it; the code display below is the blocked-popup fallback.
+      const link = code.verification_uri_complete ?? code.verification_uri;
+      let popupOpened = false;
+      if (link) {
+        try {
+          popupOpened = Boolean(window.open(link, '_blank', 'noopener,width=520,height=720'));
+        } catch { /* blocked — fallback UI below */ }
+      }
+      setPhase({ kind: 'waiting', code, popupOpened });
+      poll(code, Date.now());
     } catch (err: any) {
       setPhase({ kind: 'error', message: err?.message ?? String(err) });
     } finally {
@@ -196,8 +207,20 @@ export function CloudConnectionPanel() {
       <div className="flex flex-col gap-4 rounded-lg border p-6">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Waiting for approval in the cloud console…
+          {phase.popupOpened
+            ? 'Approve the connection in the window that just opened — this page updates by itself.'
+            : 'Waiting for approval in the cloud console…'}
         </div>
+        {!phase.popupOpened && link ? (
+          <a
+            className="inline-flex items-center gap-1.5 self-start rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            href={link}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open the approval page <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+        ) : null}
         <div className="flex items-center gap-3">
           <code className="rounded-md bg-muted px-4 py-2 text-2xl font-semibold tracking-[0.25em]">
             {phase.code.user_code}
@@ -211,12 +234,12 @@ export function CloudConnectionPanel() {
           </button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Enter this code in the cloud console to approve the connection
-          {link ? (
+          The code is pre-filled on the approval page
+          {phase.popupOpened && link ? (
             <>
-              {' '}— or{' '}
+              {' '}— if the window did not appear,{' '}
               <a className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline" href={link} target="_blank" rel="noreferrer">
-                open the approval page <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                open it here <ExternalLink className="h-3 w-3" aria-hidden="true" />
               </a>
               .
             </>
@@ -235,6 +258,7 @@ export function CloudConnectionPanel() {
 
   if (phase.kind === 'bound') {
     const conn = phase.status.connection ?? {};
+    const runtimeId = conn.runtime_id ?? phase.status.runtimeId;
     return (
       <div className="flex flex-col gap-4 rounded-lg border p-6">
         <div className="flex items-center gap-2">
@@ -242,8 +266,10 @@ export function CloudConnectionPanel() {
           <span className="font-medium">Connected to ObjectStack Cloud</span>
         </div>
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
+          {conn.name ? (<><dt className="text-muted-foreground">Runtime</dt><dd>{conn.name}</dd></>) : null}
           {conn.organization_id ? (<><dt className="text-muted-foreground">Organization</dt><dd className="font-mono">{conn.organization_id}</dd></>) : null}
           {conn.account_email ? (<><dt className="text-muted-foreground">Approved by</dt><dd>{conn.account_email}</dd></>) : null}
+          {runtimeId ? (<><dt className="text-muted-foreground">Runtime ID</dt><dd className="font-mono text-xs">{runtimeId}</dd></>) : null}
           {phase.status.environmentId ? (<><dt className="text-muted-foreground">Environment</dt><dd className="font-mono">{phase.status.environmentId}</dd></>) : null}
           {conn.bound_at ? (<><dt className="text-muted-foreground">Since</dt><dd>{new Date(conn.bound_at).toLocaleString()}</dd></>) : null}
         </dl>
@@ -262,8 +288,7 @@ export function CloudConnectionPanel() {
     );
   }
 
-  // unbound
-  const needsEnvId = !phase.environmentId;
+  // unbound — zero input: no environment id, nothing to paste anywhere.
   return (
     <div className="flex flex-col gap-4 rounded-lg border p-6">
       <div className="flex items-center gap-2">
@@ -272,27 +297,15 @@ export function CloudConnectionPanel() {
       </div>
       <p className="text-sm text-muted-foreground">
         Connect this runtime to an ObjectStack control plane to browse your
-        organization's private packages and install them here. Approval
-        happens in the cloud console — no credentials are typed into this page.
+        organization's private packages and install them here. Approval is a
+        single click in your cloud account — no ids or credentials are typed
+        into this page.
       </p>
-      {needsEnvId ? (
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="text-muted-foreground">
-            Environment ID (create an environment in the cloud console and paste its id)
-          </span>
-          <input
-            className="w-full max-w-md rounded-md border bg-background px-3 py-2 font-mono text-sm"
-            placeholder="e.g. 1764f947-6d1a-4b3e-82e4-9ca733f50a56"
-            value={envIdInput}
-            onChange={(e) => setEnvIdInput(e.target.value)}
-          />
-        </label>
-      ) : null}
       <button
         type="button"
-        disabled={busy || (needsEnvId && !envIdInput.trim())}
+        disabled={busy}
         className="inline-flex items-center gap-1.5 self-start rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        onClick={() => void connect((phase.environmentId ?? envIdInput).trim())}
+        onClick={() => void connect()}
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Cloud className="h-4 w-4" aria-hidden="true" />}
         Connect

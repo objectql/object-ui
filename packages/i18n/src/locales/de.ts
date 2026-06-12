@@ -1148,6 +1148,8 @@ const de = {
       title: "Neues Gerät autorisieren",
       subtitle: "Genehmigen Sie dieses Gerät für die Anmeldung als {{email}}.",
       userCodeLabel: "Gerätecode",
+      requesterLabel: "Verbindungsanfrage von",
+      approveWarning: "Genehmigen Sie nur, wenn Sie diese Verbindung soeben selbst gestartet haben. Nach der Genehmigung kann diese Laufzeitumgebung auf die privaten Pakete Ihrer Organisation zugreifen.",
       loggedInAs: "Angemeldet als {{email}}",
       approve: "Gerät genehmigen",
       approving: "Genehmige…",

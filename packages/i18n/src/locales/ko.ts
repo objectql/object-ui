@@ -1148,6 +1148,8 @@ const ko = {
       title: "새 장치 승인",
       subtitle: "{{email}}으로 로그인하기 위해 이 장치를 승인하세요.",
       userCodeLabel: "장치 코드",
+      requesterLabel: "연결 요청 출처",
+      approveWarning: "방금 직접 시작한 연결인 경우에만 승인하세요. 승인하면 이 런타임이 조직의 비공개 패키지에 액세스할 수 있습니다.",
       loggedInAs: "{{email}}으로 로그인됨",
       approve: "장치 승인",
       approving: "승인 중…",
