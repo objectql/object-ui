@@ -42,6 +42,7 @@ import { CloudAwareRootRedirect } from './components/CloudAwareRootRedirect';
 import { FormPage } from './components/FormPage';
 import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
+import DocPage from './pages/DocPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -176,6 +177,14 @@ export function App() {
             <Route path="/forms/:name" element={
               <ProtectedRoute>
                 <FormPage mode="internal" />
+              </ProtectedRoute>
+            } />
+            {/* Package documentation (ADR-0046): one route renders any
+              * installed `doc` metadata item; cross-references between docs
+              * resolve to this same route. */}
+            <Route path="/docs/:name" element={
+              <ProtectedRoute>
+                <DocPage />
               </ProtectedRoute>
             } />
             <Route path="/home" element={
