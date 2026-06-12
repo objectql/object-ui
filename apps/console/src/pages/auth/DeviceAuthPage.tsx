@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, GalleryVerticalEnd } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@object-ui/auth';
@@ -42,6 +42,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
 
 export function DeviceAuthPage() {
   const { t } = useObjectTranslation();
+  const location = useLocation();
   const [params] = useSearchParams();
   const code = params.get('user_code') ?? params.get('code') ?? '';
   // Device context appended by the requesting runtime's bind/start (ADR
@@ -92,11 +93,12 @@ export function DeviceAuthPage() {
   }
 
   if (!user) {
+    // Preserve the FULL query string through the login round-trip — it
+    // carries the device context (runtime_name / runtime_version) the
+    // approval card displays, not just the user code.
     return (
       <Navigate
-        to={`/login?redirect=${encodeURIComponent(
-          `/auth/device?user_code=${encodeURIComponent(code)}`,
-        )}`}
+        to={`/login?redirect=${encodeURIComponent(`/auth/device${location.search}`)}`}
         replace
       />
     );
