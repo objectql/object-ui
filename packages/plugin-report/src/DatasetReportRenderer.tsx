@@ -14,10 +14,15 @@
  * - `summary` / `tabular` → one grouped table (`rows` + `values`).
  * - `matrix` → a true cross-tab (ADR-0021 D2): `rows` down × `columns`
  *   across, measures in the cells. One dataset query over all dimensions,
- *   pivoted client-side. (No totals row/column: measures like `avg` cannot
- *   be re-aggregated from bucketed values without drifting from the semantic
- *   layer — the governance red line. A matrix without `columns` degrades to
- *   the flat grouped table.)
+ *   pivoted client-side. Totals (per-row subtotals, per-column subtotals,
+ *   grand total) are SERVER-supplied: the selection asks for
+ *   `totals: { groupings: [rows, columns, []] }` and the renderer only
+ *   places the returned pre-aggregated rows. It never re-aggregates bucketed
+ *   values client-side — measures like `avg` cannot be recombined without
+ *   drifting from the semantic layer (the ADR-0021 governance red line) —
+ *   so an older server that returns no `totals` renders the plain cross-tab
+ *   with no totals row/column. A matrix without `columns` degrades to the
+ *   flat grouped table.
  * - `joined` → a vertical stack of blocks, each its own dataset-bound table,
  *   with the report-level `runtimeFilter` merged into every block.
  *
@@ -35,8 +40,14 @@ import { mergeFilters } from './mergeFilters';
 
 type Row = Record<string, unknown>;
 
+/** One server-computed totals grouping: `dimensions: []` is the grand total. */
+interface DatasetTotals {
+  dimensions: string[];
+  rows: Row[];
+}
+
 interface DatasetCapableSource {
-  queryDataset?: (dataset: string, selection: unknown) => Promise<{ rows: Row[] }>;
+  queryDataset?: (dataset: string, selection: unknown) => Promise<{ rows: Row[]; totals?: DatasetTotals[] }>;
 }
 
 /** A report (or joined block) bound to a dataset. Field access is permissive — */
@@ -118,14 +129,21 @@ function useDatasetRows(
   measures: string[],
   runtimeFilter: Record<string, unknown> | undefined,
   dataSource: unknown,
+  totalsGroupings?: string[][],
 ) {
-  const [state, setState] = React.useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; error?: string }>({
+  const [state, setState] = React.useState<{
+    status: 'idle' | 'loading' | 'ok' | 'error';
+    rows: Row[];
+    totals?: DatasetTotals[];
+    error?: string;
+  }>({
     status: 'idle',
     rows: [],
   });
 
   const rfKey = JSON.stringify(runtimeFilter ?? null);
-  const signature = `${dataset}|${dimensions.join(',')}|${measures.join(',')}|${rfKey}`;
+  const totalsKey = JSON.stringify(totalsGroupings ?? null);
+  const signature = `${dataset}|${dimensions.join(',')}|${measures.join(',')}|${rfKey}|${totalsKey}`;
   React.useEffect(() => {
     const src = dataSource as DatasetCapableSource | undefined;
     if (!src || typeof src.queryDataset !== 'function') {
@@ -143,9 +161,16 @@ function useDatasetRows(
         dimensions,
         measures,
         ...(runtimeFilter && Object.keys(runtimeFilter).length > 0 ? { runtimeFilter } : {}),
+        ...(totalsGroupings ? { totals: { groupings: totalsGroupings } } : {}),
       })
       .then((res) => {
-        if (!cancelled) setState({ status: 'ok', rows: Array.isArray(res?.rows) ? res.rows : [] });
+        if (!cancelled) {
+          setState({
+            status: 'ok',
+            rows: Array.isArray(res?.rows) ? res.rows : [],
+            totals: Array.isArray(res?.totals) ? res.totals : undefined,
+          });
+        }
       })
       .catch((e) => {
         if (!cancelled) setState({ status: 'error', rows: [], error: String((e as Error)?.message ?? e) });
@@ -271,7 +296,9 @@ function bucketLabel(dims: string[], row: Row): string {
  * True cross-tab for `type: 'matrix'` — one dataset query over
  * `[...rows, ...columns]`, pivoted client-side. Cells show every measure
  * (single measure → one column per across-bucket; multiple → one column per
- * across-bucket × measure).
+ * across-bucket × measure). Totals come from the SAME query via
+ * `totals: { groupings: [rows, columns, []] }` — pre-aggregated server-side,
+ * never recombined here; a response without `totals` renders no totals UI.
  */
 function DatasetMatrixTable({
   dataset,
@@ -290,7 +317,12 @@ function DatasetMatrixTable({
   dataSource?: unknown;
   onDrill?: (args: DatasetDrillArgs) => void;
 }) {
-  const state = useDatasetRows(dataset, [...rows, ...columnsAcross], values, runtimeFilter, dataSource);
+  // Row subtotals, column subtotals, and the grand total ([]), in that order.
+  const state = useDatasetRows(dataset, [...rows, ...columnsAcross], values, runtimeFilter, dataSource, [
+    rows,
+    columnsAcross,
+    [],
+  ]);
 
   const pivot = React.useMemo(() => {
     if (state.status !== 'ok') return null;
@@ -338,6 +370,19 @@ function DatasetMatrixTable({
     })),
   );
 
+  // Server-supplied totals: match each grouping by its `dimensions` array,
+  // then match its rows to the pivot headers via the same bucketId. Absent
+  // (older server) → every map stays empty and no totals UI renders.
+  const findTotals = (dims: string[]) =>
+    state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.join(',') === dims.join(','))?.rows;
+  const rowTotalById = new Map<string, Row>();
+  for (const r of findTotals(rows) ?? []) rowTotalById.set(bucketId(rows, r), r);
+  const colTotalById = new Map<string, Row>();
+  for (const r of findTotals(columnsAcross) ?? []) colTotalById.set(bucketId(columnsAcross, r), r);
+  const grandTotal = findTotals([])?.[0];
+  const showTotalCol = rowTotalById.size > 0;
+  const showTotalRow = colTotalById.size > 0;
+
   return (
     <div className="overflow-auto max-h-[70vh] rounded-md border" data-testid="dataset-matrix">
       <table className="w-full text-xs">
@@ -353,6 +398,16 @@ function DatasetMatrixTable({
                 {cc.header}
               </th>
             ))}
+            {showTotalCol &&
+              values.map((measure) => (
+                <th
+                  key={`total-${measure}`}
+                  className="px-2 py-1.5 text-right font-medium whitespace-nowrap"
+                  data-testid="matrix-total-col-header"
+                >
+                  {values.length === 1 ? 'Total' : `Total · ${measure}`}
+                </th>
+              ))}
           </tr>
         </thead>
         <tbody>
@@ -378,8 +433,42 @@ function DatasetMatrixTable({
                   </td>
                 );
               })}
+              {showTotalCol &&
+                values.map((measure) => (
+                  <td
+                    key={`total-${measure}`}
+                    className="px-2 py-1 text-right tabular-nums whitespace-nowrap font-medium"
+                    data-testid="matrix-row-total"
+                  >
+                    {formatCell(rowTotalById.get(rh.id)?.[measure])}
+                  </td>
+                ))}
             </tr>
           ))}
+          {showTotalRow && (
+            <tr className="border-t bg-muted/30 font-medium" data-testid="matrix-total-row">
+              {rows.length > 0 && (
+                <td colSpan={rows.length} className="px-2 py-1 whitespace-nowrap">
+                  Total
+                </td>
+              )}
+              {cellCols.map((cc) => (
+                <td key={`${cc.col.id}-${cc.measure}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
+                  {formatCell(colTotalById.get(cc.col.id)?.[cc.measure])}
+                </td>
+              ))}
+              {showTotalCol &&
+                values.map((measure) => (
+                  <td
+                    key={`grand-${measure}`}
+                    className="px-2 py-1 text-right tabular-nums whitespace-nowrap"
+                    data-testid="matrix-grand-total"
+                  >
+                    {formatCell(grandTotal?.[measure])}
+                  </td>
+                ))}
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
