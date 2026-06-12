@@ -76,3 +76,29 @@ Zoomed clips of each arrow's target anchor are saved under
 
 - ![5,000 tasks, top of list](07-perf-5000-top.png)
 - ![5,000 tasks, scrolled to the middle](08-perf-5000-scrolled-mid.png)
+
+### 6. Performance — 10,000 tasks (`?perf=10000`)
+
+[`scripts/perf-10k.mjs`](../../scripts/perf-10k.mjs) runs a heavier stress
+suite against `?perf=10000` (1,000 summary groups × 10 chained tasks, week
+mode) and persists [`perf-10000-metrics.json`](perf-10000-metrics.json):
+
+| Metric | Result |
+| --- | --- |
+| Initial render (10,000 tasks) | **59.2 ms** |
+| Rows / DOM nodes in the document | **26 rows / 674 nodes** (virtualized) |
+| Deep jump to 25 / 50 / 75 / 100% of ~400k px scroll height | 30.4 / 29.3 / 29.3 / **28.5 ms** |
+| Sustained vertical scroll, 120 frames × 300 px | avg **17.2 ms** (~58 fps), p95 21.3 ms, max 28.9 ms |
+| Horizontal scroll, 60 frames × 200 px | avg **16.7 ms**, max 27.9 ms |
+| View-mode switch week→month / month→week | 120 ms / 67 ms |
+| Collapse a summary group | 80 ms |
+| Hover → tooltip visible | 62 ms |
+| JS heap | 141 MB |
+
+Every frame stays under the 33 ms (30 fps) jank threshold; the average sits at
+the 60 fps budget. DOM size is independent of task count, so scrolling cost is
+flat from 1k to 10k rows.
+
+- ![10,000 tasks, top of list](perf-10000-top.png)
+- ![10,000 tasks, jumped to the bottom (Task 9999)](perf-10000-bottom.png)
+- ![10,000 tasks after the horizontal scroll burst](perf-10000-mid-scrolled.png)
