@@ -144,7 +144,7 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 ### Housekeeping
 - 截图/trace 一律存 `/tmp/`,任务尾清理。禁止写入仓库根。
 - `.gitignore` 已锚定 `/*.png` 等防兜底,但仍要主动清。
-- 任务结束:停后台服务(`lsof -i :PORT -t`)、清 `.playwright-mcp/`。
+- 任务结束:停**自己起的**后台服务(见下方"服务纪律";别按端口杀别人的)、清 `.playwright-mcp/`。
 - 改完代码提交时:功能改进(feature)需写 changeset(`pnpm changeset`);纯 bug 修复不需要。
 
 ### 多 agent 协作纪律(并行修改本仓库,务必遵守)
@@ -159,6 +159,13 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - 改**共享文件**(barrel/注册表):编辑→`git add`→commit 一气呵成,并核验提交确实含你的改动(`git show HEAD:<file> | grep <你的改动>`);真冲突只重加*你自己*那几行,其余交给 PR 合并。
 - **合并前必须等远端 CI 全绿,绝不 `gh pr merge --auto`** —— auto-merge 可能把还红着的 PR 落到共享 `main` 上,弄脏所有并行 agent 的基线。串行合并;合下一个前先 rebase 其他在途分支。注意 path-filter 跳过的检查(显示 `skipping`)配合 `mergeStateStatus:CLEAN` 即算全绿,不是失败。
 - **CI 全绿即自行合并,不必等维护者确认** —— 修改完成后**只提交你任务改动的文件**(逐路径 `git add <file>`,绝不 `git add -A` 扫入无关 diff),开 PR;待测试/CI 全部通过后直接 `gh pr merge --squash --delete-branch`。测试通过就是合并门槛。
+
+### 服务纪律(本仓库与 `../framework` 多 agent 并行开发)
+
+本仓库和 `../framework` 都有多个 agent 同时开发,正在运行的 dev 服务很可能是**别人的**:
+
+- **要测试就自己起临时服务**(自选空闲端口),**绝不随手停/杀别人的服务** —— 发现端口被占先 `lsof -i :PORT` 看清是谁的,不是你起的就换端口,不要 kill。
+- **开发完成必须关掉自己起的服务**,只清理自己启动的进程(按记下的 PID 杀,不要按端口/进程名一锅端)。
 
 ### Local dev — console UI ↔ backend (read before debugging UI)
 
