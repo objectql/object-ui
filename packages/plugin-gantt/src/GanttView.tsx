@@ -1021,8 +1021,10 @@ export function GanttView({
   // The diamond is a square rotated 45° around its center at the task date;
   // its horizontal tips sit half a diagonal out from that center.
   const milestoneHalfTip = (milestoneSize * Math.SQRT2) / 2;
-  const summaryBracketTop = Math.round(rowHeight * 0.18);
-  const summaryBracketHeight = 6;
+  // Summary bars are slightly slimmer than task bars but share their vertical
+  // center, so link anchors are uniform across row kinds.
+  const summaryBarHeight = Math.max(barHeight - 6, 10);
+  const summaryBarTop = Math.round((rowHeight - summaryBarHeight) / 2);
 
   // Orthogonal elbow path from the predecessor anchor to the dependent
   // anchor. Anchors per link type: fs = source end → target start,
@@ -1033,10 +1035,10 @@ export function GanttView({
     if (!source || !target) return null;
     const s = getLiveRowStyle(source);
     const tg = getLiveRowStyle(target);
-    // Vertical anchor: bar/diamond center, except summary rows whose slim
-    // bracket hangs near the row top.
+    // Vertical anchor: every row kind (bar, diamond, summary bar) is centered
+    // in its row; summary uses its own top/height so rounding stays exact.
     const rowAnchorY = (row: GanttRow) =>
-      row.isSummary ? summaryBracketTop + summaryBracketHeight / 2 : rowHeight / 2;
+      row.isSummary ? summaryBarTop + summaryBarHeight / 2 : rowHeight / 2;
     const sy = link.sourceIndex * rowHeight + rowAnchorY(source);
     const ty = link.targetIndex * rowHeight + rowAnchorY(target);
     const exitRight = link.type === 'fs' || link.type === 'ff';
@@ -1542,8 +1544,11 @@ export function GanttView({
                    ) : null;
 
                    if (row.isSummary) {
-                     // Summary bracket: slim bar with downward end caps spanning
-                     // the children rollup. Read-only — children drive its range.
+                     // Summary bar: a solid row-centered bar (slightly slimmer
+                     // than task bars) with the title and a darker progress
+                     // fill, like svar/MS-Project group bars. Children drive
+                     // its range; dragging it moves the whole subtree.
+                     const summaryColor = task.color || '#0d9488';
                      return (
                       <div
                         key={task.id}
@@ -1552,17 +1557,28 @@ export function GanttView({
                         onPointerMove={clearLinkTarget}
                       >
                         <div
-                          className={`absolute rounded-[2px] ${onTaskUpdate ? 'cursor-grab' : ''} ${isDragging ? 'ring-2 ring-primary' : ''}`}
-                          /* Explicit color: bg-foreground/75 isn't emitted in
+                          className={cn(
+                            'gantt-bar-hover absolute rounded-sm border shadow-sm flex items-center px-2 select-none',
+                            onTaskUpdate ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+                            isDragging && 'ring-2 ring-primary z-10'
+                          )}
+                          /* Explicit colors: alpha utilities aren't emitted in
                              the prebuilt components CSS. */
-                          style={{ left: liveStyle.left, width: liveStyle.width, top: summaryBracketTop, height: summaryBracketHeight, backgroundColor: 'hsl(var(--foreground) / 0.75)' }}
+                          style={{
+                            left: liveStyle.left,
+                            width: liveStyle.width,
+                            top: summaryBarTop,
+                            height: summaryBarHeight,
+                            backgroundColor: summaryColor,
+                            borderColor: 'hsl(var(--primary-foreground) / 0.2)',
+                          }}
                           data-testid={`gantt-summary-bar-${task.id}`}
                           data-progress={Math.round(row.progress)}
                           onMouseEnter={() => setHoveredTaskId(task.id)}
                           onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
                           onPointerDown={(e) => {
                             if (e.button !== 0) return;
-                            // Group move: the bracket drags the whole subtree.
+                            // Group move: the summary bar drags the whole subtree.
                             beginDrag(task, 'move', e, { group: true, originStart: row.start, originEnd: row.end });
                           }}
                           onClick={() => {
@@ -1571,13 +1587,19 @@ export function GanttView({
                           }}
                           onContextMenu={(e) => openContextMenu(task, e)}
                         >
-                          <div className="absolute left-0 top-0 w-[3px] rounded-b-[2px]" style={{ height: 12, backgroundColor: 'hsl(var(--foreground) / 0.75)' }} />
-                          <div className="absolute right-0 top-0 w-[3px] rounded-b-[2px]" style={{ height: 12, backgroundColor: 'hsl(var(--foreground) / 0.75)' }} />
+                          {/* Rollup progress fill */}
+                          <div
+                            className="absolute left-0 top-0 bottom-0 rounded-l-sm pointer-events-none"
+                            style={{ width: `${Math.round(row.progress)}%`, backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
+                          />
+                          <span className="relative text-[10px] text-white font-medium truncate pointer-events-none">
+                            {task.title}
+                          </span>
                         </div>
                         {isDragging && dragState && (
                           <div
                             className="absolute z-30 pointer-events-none rounded border bg-popover text-popover-foreground px-1.5 py-0.5 text-[10px] shadow whitespace-nowrap"
-                            style={{ left: Math.max(liveStyle.left, 4), top: summaryBracketTop + summaryBracketHeight + 4 }}
+                            style={{ left: Math.max(liveStyle.left, 4), top: summaryBarTop + summaryBarHeight + 2 }}
                             data-testid={`gantt-summary-drag-chip-${task.id}`}
                           >
                             {computeDragChanges(dragState).start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}

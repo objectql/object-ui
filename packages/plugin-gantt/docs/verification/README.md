@@ -17,8 +17,8 @@ node packages/plugin-gantt/scripts/verify-browser.mjs
 
 ### 1. Hierarchy, milestones, dependency links
 
-- 13 tree rows (3 summary groups + 8 tasks + 2 milestones), 3 summary
-  brackets, 2 milestone diamonds.
+- 13 tree rows (3 summary groups + 8 tasks + 2 milestones), 3 solid summary
+  bars (title + rollup progress fill), 2 milestone diamonds.
 - 10 dependency arrows covering **all four link types** (`fs`, `ss`, `ff`,
   `sf`), plus the red Today line and both custom markers (Sprint 2,
   Code freeze).
@@ -57,7 +57,8 @@ within ±0.4 px** of the expected anchors:
 - task bars: edge × vertical center (bars carry explicit inline `top`/`height`
   so they are exactly row-centered),
 - milestones: the diamond's visual tip (half a diagonal out from center),
-- summary rows: the rollup bracket's own center, not the row center.
+- summary rows: the solid summary bar's own center (row-centered, slightly
+  slimmer than task bars).
 
 Zoomed clips of each arrow's target anchor are saved under
 [`geometry/`](geometry/), e.g. an `fs` arrow meeting a milestone tip:
@@ -69,13 +70,13 @@ Zoomed clips of each arrow's target anchor are saved under
 [`scripts/verify-group-drag.mjs`](../../scripts/verify-group-drag.mjs) drives
 real mouse drags in week mode (5/5 checks passed):
 
-- Dragging the *Build* summary bracket moves the **whole subtree**: mid-drag
-  every child bar preview-shifts with the bracket and a date chip shows the
+- Dragging the *Build* summary bar moves the **whole subtree**: mid-drag
+  every child bar preview-shifts with the summary and a date chip shows the
   new range; on drop all 5 tasks commit exactly +14 days with durations and
   internal spacing preserved.
 - Dragging the *Integration* child +7 days past the parent's end stretches
-  the bracket via rollup — parent start stays pinned to the earliest child,
-  parent end follows the moved child.
+  the summary bar via rollup — parent start stays pinned to the earliest
+  child, parent end follows the moved child.
 - ![Group drag mid-flight with date chip](09-group-drag-mid.png)
 - ![Whole subtree committed +14 days](10-group-drag-committed.png)
 - ![Child drag stretches the parent bracket](11-child-drag-stretches-parent.png)
