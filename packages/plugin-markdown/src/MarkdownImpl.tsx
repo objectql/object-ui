@@ -9,34 +9,112 @@
 import * as React from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import rehypeSanitize from "rehype-sanitize"
+import { remarkAlert } from "remark-github-blockquote-alert"
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize"
+import rehypeSlug from "rehype-slug"
+import rehypeHighlight from "rehype-highlight"
+import rehypeAutolinkHeadings from "rehype-autolink-headings"
+import { ensureMarkdownStyles } from "./markdown-theme"
 
 /**
  * Props for the Markdown component implementation.
- * 
- * This component renders markdown content using react-markdown with GitHub Flavored Markdown support.
- * All content is sanitized to prevent XSS attacks.
+ *
+ * This component renders markdown content using react-markdown with GitHub
+ * Flavored Markdown support. All content is sanitized to prevent XSS attacks.
  */
 export interface MarkdownImplProps {
   /**
    * The markdown content to render.
    */
   content: string
-  
+
   /**
    * Optional CSS class name to apply custom styling to the markdown container.
    */
   className?: string
 }
 
+// ─── Sanitize schema (ADR-0046 §3.3) ────────────────────────────────────
+//
+// rehype-sanitize runs LAST in the rehype chain, so it is the final gate:
+// anything the enrichment plugins (slug / highlight / autolink / alert)
+// emit that is not whitelisted here is stripped. We widen the default
+// schema by exactly the code-free surfaces those plugins need:
+//
+//   • `id` on `*`               — already global; rehype-slug uses it so
+//                                 intra-doc `#anchor` links resolve.
+//   • `className` on `*`        — highlight token spans + alert callouts.
+//   • `span`/`div` tags         — highlight wraps tokens in <span>; alerts
+//                                 are a <div> callout.
+//   • the autolink `<a>`        — heading anchor click target.
+//
+// Class names and ids cannot execute code; the dangerous vectors (script,
+// style, event handlers, `javascript:` href, iframe/object/embed) stay
+// blocked by the default schema and the `disallowedElements` belt below.
+// `clobberPrefix: ''` keeps slug ids verbatim so author `#section` links
+// match (a low DOM-clobbering risk on semi-trusted publisher content,
+// accepted so anchors work). The default schema value-restricts className
+// on a few tags (`a → data-footnote-backref`), and a per-tag restriction
+// overrides the global allow — so we drop the restriction from `a`.
+const dropClassNameRestriction = (entries: unknown[] | undefined): unknown[] =>
+  (entries ?? []).filter((e) => !(Array.isArray(e) && e[0] === "className"))
+
+const sanitizeSchema = {
+  ...defaultSchema,
+  clobberPrefix: "",
+  tagNames: [...(defaultSchema.tagNames ?? []), "span", "div"],
+  attributes: {
+    ...defaultSchema.attributes,
+    "*": [...(defaultSchema.attributes?.["*"] ?? []), "className"],
+    a: [...dropClassNameRestriction(defaultSchema.attributes?.a), "ariaHidden", "tabIndex"],
+  },
+} as typeof defaultSchema
+
+// remark-github-blockquote-alert emits the callout class under the raw
+// HTML property name `class` (a space-joined string), not hast's canonical
+// `className`. rehype-sanitize whitelists `className`, so a raw `class`
+// property is dropped wholesale. Canonicalize `class` → `className` (and
+// any string `className`) into a token array before sanitize runs, so the
+// alert classes survive the `*` allow. hast element nodes only.
+function rehypeNormalizeClassName() {
+  const toTokens = (v: unknown): string[] =>
+    typeof v === "string" ? v.split(/\s+/).filter(Boolean) : Array.isArray(v) ? (v as string[]) : []
+  const visit = (node: { type?: string; properties?: Record<string, unknown>; children?: unknown[] }) => {
+    if (!node || typeof node !== "object") return
+    const props = node.properties
+    if (props && (typeof props.class === "string" || typeof props.className === "string")) {
+      props.className = [...toTokens(props.className), ...toTokens(props.class)]
+      delete props.class
+    }
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) visit(child as typeof node)
+    }
+  }
+  return (tree: unknown) => visit(tree as { children?: unknown[] })
+}
+
+const remarkPlugins = [remarkGfm, remarkAlert]
+const rehypePlugins = [
+  rehypeSlug,
+  rehypeNormalizeClassName,
+  // Skip code blocks tagged with an unknown language instead of throwing;
+  // highlight only what it recognises.
+  [rehypeHighlight, { detect: true, ignoreMissing: true }],
+  [rehypeAutolinkHeadings, { behavior: "append", properties: { className: ["md-anchor"], ariaHidden: true, tabIndex: -1 }, content: { type: "text", value: "#" } }],
+  [rehypeSanitize, sanitizeSchema],
+] as React.ComponentProps<typeof ReactMarkdown>["rehypePlugins"]
+
 /**
  * Internal Markdown implementation component.
  * This contains the actual react-markdown import (heavy ~100-200 KB).
  */
 export default function MarkdownImpl({ content, className }: MarkdownImplProps) {
+  // Inject the highlight/alert/anchor stylesheet once (trusted, our own CSS).
+  ensureMarkdownStyles()
+
   // Utility function to merge class names (inline to avoid external dependency)
   const cn = (...classes: (string | undefined)[]) => classes.filter(Boolean).join(' ')
-  
+
   return (
     <div
       data-slot="markdown"
@@ -54,14 +132,14 @@ export default function MarkdownImpl({ content, className }: MarkdownImplProps) 
         "prose-li:text-foreground prose-li:marker:text-muted-foreground",
         "prose-table:border prose-th:border prose-th:bg-muted prose-td:border",
         "prose-img:rounded-md prose-img:border",
+        "os-markdown",
         className
       )}
     >
-      <ReactMarkdown 
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeSanitize]}
-        // Additional security: only allow safe elements
-        // This provides defense-in-depth beyond rehype-sanitize
+      <ReactMarkdown
+        remarkPlugins={remarkPlugins}
+        rehypePlugins={rehypePlugins}
+        // Defense-in-depth beyond rehype-sanitize: these never reach the DOM.
         disallowedElements={['script', 'style', 'iframe', 'object', 'embed']}
         unwrapDisallowed={true}
       >
