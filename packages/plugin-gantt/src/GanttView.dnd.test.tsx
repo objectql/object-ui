@@ -149,3 +149,131 @@ describe('GanttView drag-and-drop', () => {
     expect(onTaskUpdate).not.toHaveBeenCalled();
   });
 });
+
+describe('GanttView summary group drag', () => {
+  const FAMILY: GanttTask[] = [
+    {
+      id: 'p',
+      title: 'Parent',
+      start: new Date('2024-06-10T00:00:00.000Z'),
+      end: new Date('2024-06-15T00:00:00.000Z'),
+      progress: 0,
+    },
+    {
+      id: 'c1',
+      title: 'Child 1',
+      start: new Date('2024-06-10T00:00:00.000Z'),
+      end: new Date('2024-06-12T00:00:00.000Z'),
+      progress: 0,
+      parent: 'p',
+    },
+    {
+      id: 'c2',
+      title: 'Child 2',
+      start: new Date('2024-06-13T00:00:00.000Z'),
+      end: new Date('2024-06-15T00:00:00.000Z'),
+      progress: 0,
+      parent: 'p',
+    },
+    {
+      id: 'gc',
+      title: 'Grandchild milestone',
+      start: new Date('2024-06-14T00:00:00.000Z'),
+      end: new Date('2024-06-14T00:00:00.000Z'),
+      progress: 0,
+      parent: 'c2',
+    },
+  ];
+
+  function renderFamily(onTaskUpdate: (task: GanttTask, changes: any) => void) {
+    return render(
+      <div style={{ width: 1280, height: 600 }}>
+        <GanttView
+          tasks={FAMILY}
+          startDate={new Date('2024-06-01T00:00:00.000Z')}
+          endDate={new Date('2024-06-30T00:00:00.000Z')}
+          onTaskUpdate={onTaskUpdate}
+        />
+      </div>
+    );
+  }
+
+  it('dragging the summary bracket shifts the summary AND every descendant by the same delta', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderFamily(onTaskUpdate);
+    const bracket = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    expect(bracket).toBeTruthy();
+
+    // +120px → +2 days at columnWidth 60.
+    act(() => { bracket.dispatchEvent(pointer('pointerdown', 500)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 620)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 620)); });
+
+    // Summary + c1 + c2 + grandchild — one update each, all shifted +2 days
+    // with durations preserved.
+    expect(onTaskUpdate).toHaveBeenCalledTimes(4);
+    const byId = new Map(
+      onTaskUpdate.mock.calls.map(([task, changes]) => [String(task.id), changes])
+    );
+    expect([...byId.keys()].sort()).toEqual(['c1', 'c2', 'gc', 'p']);
+    expect(byId.get('c1').start.toISOString()).toBe('2024-06-12T00:00:00.000Z');
+    expect(byId.get('c1').end.toISOString()).toBe('2024-06-14T00:00:00.000Z');
+    expect(byId.get('c2').start.toISOString()).toBe('2024-06-15T00:00:00.000Z');
+    expect(byId.get('c2').end.toISOString()).toBe('2024-06-17T00:00:00.000Z');
+    expect(byId.get('gc').start.toISOString()).toBe('2024-06-16T00:00:00.000Z');
+    expect(byId.get('gc').end.toISOString()).toBe('2024-06-16T00:00:00.000Z');
+    expect(byId.get('p').start.toISOString()).toBe('2024-06-12T00:00:00.000Z');
+    expect(byId.get('p').end.toISOString()).toBe('2024-06-17T00:00:00.000Z');
+  });
+
+  it('summary drag with zero net movement does not emit updates', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderFamily(onTaskUpdate);
+    const bracket = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    act(() => { bracket.dispatchEvent(pointer('pointerdown', 500)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 510)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 510)); });
+    expect(onTaskUpdate).not.toHaveBeenCalled();
+  });
+
+  it('moving a child past the parent edge widens the summary bracket via rollup', () => {
+    // Stateful wrapper: apply updates so the rollup recomputes like a real
+    // app. No grandchild here — c2 must stay a leaf bar to be draggable.
+    const FLAT_FAMILY = FAMILY.slice(0, 3);
+    function Stateful() {
+      const [tasks, setTasks] = React.useState(FLAT_FAMILY);
+      return (
+        <div style={{ width: 1280, height: 600 }}>
+          <GanttView
+            tasks={tasks}
+            startDate={new Date('2024-06-01T00:00:00.000Z')}
+            endDate={new Date('2024-06-30T00:00:00.000Z')}
+            onTaskUpdate={(task, changes) =>
+              setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, ...changes } : t)))
+            }
+          />
+        </div>
+      );
+    }
+    const { container } = render(<Stateful />);
+    const bracket = () => container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    const before = {
+      left: parseFloat(bracket().style.left),
+      width: parseFloat(bracket().style.width),
+    };
+
+    // Drag c2 (the latest child) +180px → +3 days past the parent's end.
+    const bar = container.querySelector('[data-testid="gantt-task-bar-c2"]') as HTMLElement;
+    act(() => { bar.dispatchEvent(pointer('pointerdown', 500)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 680)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 680)); });
+
+    const after = {
+      left: parseFloat(bracket().style.left),
+      width: parseFloat(bracket().style.width),
+    };
+    // Parent start is still c1's start; parent end follows c2 → +3 days wider.
+    expect(after.left).toBeCloseTo(before.left, 0);
+    expect(after.width).toBeCloseTo(before.width + 3 * 60, 0);
+  });
+});

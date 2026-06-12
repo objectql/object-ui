@@ -64,6 +64,22 @@ Zoomed clips of each arrow's target anchor are saved under
 
 ![fs arrow into a milestone tip](geometry/project-day-mode-fs-t2-m1-end.png)
 
+### 4c. Summary group drag + parent rollup on child drag
+
+[`scripts/verify-group-drag.mjs`](../../scripts/verify-group-drag.mjs) drives
+real mouse drags in week mode (5/5 checks passed):
+
+- Dragging the *Build* summary bracket moves the **whole subtree**: mid-drag
+  every child bar preview-shifts with the bracket and a date chip shows the
+  new range; on drop all 5 tasks commit exactly +14 days with durations and
+  internal spacing preserved.
+- Dragging the *Integration* child +7 days past the parent's end stretches
+  the bracket via rollup — parent start stays pinned to the earliest child,
+  parent end follows the moved child.
+- ![Group drag mid-flight with date chip](09-group-drag-mid.png)
+- ![Whole subtree committed +14 days](10-group-drag-committed.png)
+- ![Child drag stretches the parent bracket](11-child-drag-stretches-parent.png)
+
 ### 5. Performance — 5,000 tasks (`?perf=5000`)
 
 | Metric | Result |

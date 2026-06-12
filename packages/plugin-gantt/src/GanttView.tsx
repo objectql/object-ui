@@ -254,6 +254,39 @@ export function GanttView({
   // Hovered bar id — used to highlight its dependency links.
   const [hoveredTaskId, setHoveredTaskId] = React.useState<string | number | null>(null);
 
+  // Children index for group operations: dragging a summary bar moves its
+  // whole subtree by the same offset. Mirrors the orphan/self-parent rules
+  // of the row tree below.
+  const childrenByParent = React.useMemo(() => {
+    const ids = new Set(tasks.map((t) => String(t.id)));
+    const map = new Map<string, GanttTask[]>();
+    for (const t of tasks) {
+      const p = t.parent != null && t.parent !== '' ? String(t.parent) : null;
+      if (p && p !== String(t.id) && ids.has(p)) {
+        const list = map.get(p);
+        if (list) list.push(t);
+        else map.set(p, [t]);
+      }
+    }
+    return map;
+  }, [tasks]);
+
+  const collectDescendants = React.useCallback((id: string | number): GanttTask[] => {
+    const out: GanttTask[] = [];
+    const seen = new Set<string>();
+    const walk = (key: string) => {
+      for (const c of childrenByParent.get(key) ?? []) {
+        const ck = String(c.id);
+        if (seen.has(ck)) continue; // parent cycles
+        seen.add(ck);
+        out.push(c);
+        walk(ck);
+      }
+    };
+    walk(String(id));
+    return out;
+  }, [childrenByParent]);
+
   // Drag-and-drop state for rescheduling a bar (move + resize from either edge).
   // unitDelta is the snapped offset, in columns of the active granularity, from
   // the original position; preview is rendered by overriding left/width when
@@ -262,6 +295,8 @@ export function GanttView({
   const [dragState, setDragState] = React.useState<{
     taskId: string | number;
     mode: DragMode;
+    /** Summary-bar drag: shift the whole subtree by the same offset. */
+    group: boolean;
     originStart: Date;
     originEnd: Date;
     originClientX: number;
@@ -315,7 +350,20 @@ export function GanttView({
         const task = tasks.find(t => t.id === cur.taskId);
         if (task && onTaskUpdate) {
           const { start, end } = computeDragChanges(cur);
-          onTaskUpdate(task, { start, end });
+          if (cur.group) {
+            // Move the summary and every descendant by the same ms offset so
+            // the subtree keeps its internal spacing and durations.
+            const deltaMs = start.getTime() - cur.originStart.getTime();
+            const shift = (t: GanttTask) =>
+              onTaskUpdate(t, {
+                start: new Date(t.start.getTime() + deltaMs),
+                end: new Date(t.end.getTime() + deltaMs),
+              });
+            shift(task);
+            for (const d of collectDescendants(task.id)) shift(d);
+          } else {
+            onTaskUpdate(task, { start, end });
+          }
         }
         suppressNextClickRef.current = true;
         // Reset suppression on next animation frame after the click fires.
@@ -331,17 +379,25 @@ export function GanttView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [dragState, columnWidth, tasks, onTaskUpdate, computeDragChanges]);
+  }, [dragState, columnWidth, tasks, onTaskUpdate, computeDragChanges, collectDescendants]);
 
-  const beginDrag = React.useCallback((task: GanttTask, mode: DragMode, e: React.PointerEvent) => {
+  const beginDrag = React.useCallback((
+    task: GanttTask,
+    mode: DragMode,
+    e: React.PointerEvent,
+    opts?: { group?: boolean; originStart?: Date; originEnd?: Date }
+  ) => {
     if (!onTaskUpdate) return;
     e.stopPropagation();
     e.preventDefault();
     setDragState({
       taskId: task.id,
       mode,
-      originStart: new Date(task.start),
-      originEnd: new Date(task.end),
+      group: opts?.group ?? false,
+      // Summary bars pass their rollup range so the drag chip and snapping
+      // reflect what is actually on screen, not the task's own raw dates.
+      originStart: new Date(opts?.originStart ?? task.start),
+      originEnd: new Date(opts?.originEnd ?? task.end),
       originClientX: e.clientX,
       unitDelta: 0,
     });
@@ -883,12 +939,34 @@ export function GanttView({
     return { left, width };
   };
 
+  // Ids previewed by an in-flight summary drag (the summary + its subtree).
+  // Depends on the dragged id only, not on every unitDelta tick.
+  const dragGroupTaskId = dragState?.group ? dragState.taskId : null;
+  const dragGroupIds = React.useMemo(() => {
+    if (dragGroupTaskId == null) return null;
+    const set = new Set<string>([String(dragGroupTaskId)]);
+    for (const d of collectDescendants(dragGroupTaskId)) set.add(String(d.id));
+    return set;
+  }, [dragGroupTaskId, collectDescendants]);
+
   // Row geometry (summary rollup applied) with the in-flight drag preview,
   // so dependency links follow the bar while it is being moved/resized.
   const getLiveRowStyle = (row: GanttRow) => {
-    if (!row.isSummary && dragState && dragState.taskId === row.task.id) {
-      const previewed = computeDragChanges(dragState);
-      return styleFor(previewed.start, previewed.end);
+    if (dragState) {
+      if (dragGroupIds?.has(String(row.task.id))) {
+        // Whole-group preview: every row in the subtree shifts by the same
+        // snapped offset as the dragged summary bar.
+        const previewed = computeDragChanges(dragState);
+        const deltaMs = previewed.start.getTime() - dragState.originStart.getTime();
+        return styleFor(
+          new Date(row.start.getTime() + deltaMs),
+          new Date(row.end.getTime() + deltaMs)
+        );
+      }
+      if (!row.isSummary && dragState.taskId === row.task.id) {
+        const previewed = computeDragChanges(dragState);
+        return styleFor(previewed.start, previewed.end);
+      }
     }
     return styleFor(row.start, row.end);
   };
@@ -1419,7 +1497,8 @@ export function GanttView({
                    const task = row.task;
                    const baseStyle = styleFor(row.start, row.end);
                    const isDragging = dragState?.taskId === task.id;
-                   const liveStyle = isDragging ? getLiveRowStyle(row) : baseStyle;
+                   const inDragGroup = dragGroupIds?.has(String(task.id)) ?? false;
+                   const liveStyle = isDragging || inDragGroup ? getLiveRowStyle(row) : baseStyle;
                    const canDrag = !!onTaskUpdate && !row.isSummary;
                    const isLinkTarget =
                      linkDrag != null &&
@@ -1473,20 +1552,39 @@ export function GanttView({
                         onPointerMove={clearLinkTarget}
                       >
                         <div
-                          className="absolute rounded-[2px]"
+                          className={`absolute rounded-[2px] ${onTaskUpdate ? 'cursor-grab' : ''} ${isDragging ? 'ring-2 ring-primary' : ''}`}
                           /* Explicit color: bg-foreground/75 isn't emitted in
                              the prebuilt components CSS. */
-                          style={{ left: baseStyle.left, width: baseStyle.width, top: summaryBracketTop, height: summaryBracketHeight, backgroundColor: 'hsl(var(--foreground) / 0.75)' }}
+                          style={{ left: liveStyle.left, width: liveStyle.width, top: summaryBracketTop, height: summaryBracketHeight, backgroundColor: 'hsl(var(--foreground) / 0.75)' }}
                           data-testid={`gantt-summary-bar-${task.id}`}
                           data-progress={Math.round(row.progress)}
                           onMouseEnter={() => setHoveredTaskId(task.id)}
                           onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
-                          onClick={() => onTaskClick?.(task)}
+                          onPointerDown={(e) => {
+                            if (e.button !== 0) return;
+                            // Group move: the bracket drags the whole subtree.
+                            beginDrag(task, 'move', e, { group: true, originStart: row.start, originEnd: row.end });
+                          }}
+                          onClick={() => {
+                            if (suppressNextClickRef.current) return;
+                            onTaskClick?.(task);
+                          }}
                           onContextMenu={(e) => openContextMenu(task, e)}
                         >
                           <div className="absolute left-0 top-0 w-[3px] rounded-b-[2px]" style={{ height: 12, backgroundColor: 'hsl(var(--foreground) / 0.75)' }} />
                           <div className="absolute right-0 top-0 w-[3px] rounded-b-[2px]" style={{ height: 12, backgroundColor: 'hsl(var(--foreground) / 0.75)' }} />
                         </div>
+                        {isDragging && dragState && (
+                          <div
+                            className="absolute z-30 pointer-events-none rounded border bg-popover text-popover-foreground px-1.5 py-0.5 text-[10px] shadow whitespace-nowrap"
+                            style={{ left: Math.max(liveStyle.left, 4), top: summaryBracketTop + summaryBracketHeight + 4 }}
+                            data-testid={`gantt-summary-drag-chip-${task.id}`}
+                          >
+                            {computeDragChanges(dragState).start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                            {' → '}
+                            {computeDragChanges(dragState).end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                          </div>
+                        )}
                         {tooltip}
                       </div>
                      );
