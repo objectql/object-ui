@@ -158,6 +158,7 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - **每次 commit/push 前先确认当前分支**(`git rev-parse --abbrev-ref HEAD`);HEAD 可能被别的 agent 切走 —— 不是你的分支就停下重新 checkout。
 - 改**共享文件**(barrel/注册表):编辑→`git add`→commit 一气呵成,并核验提交确实含你的改动(`git show HEAD:<file> | grep <你的改动>`);真冲突只重加*你自己*那几行,其余交给 PR 合并。
 - **合并前必须等远端 CI 全绿,绝不 `gh pr merge --auto`** —— auto-merge 可能把还红着的 PR 落到共享 `main` 上,弄脏所有并行 agent 的基线。串行合并;合下一个前先 rebase 其他在途分支。注意 path-filter 跳过的检查(显示 `skipping`)配合 `mergeStateStatus:CLEAN` 即算全绿,不是失败。
+- **CI 全绿即自行合并,不必等维护者确认** —— 修改完成后**只提交你任务改动的文件**(逐路径 `git add <file>`,绝不 `git add -A` 扫入无关 diff),开 PR;待测试/CI 全部通过后直接 `gh pr merge --squash --delete-branch`。测试通过就是合并门槛。
 
 ### Local dev — console UI ↔ backend (read before debugging UI)
 
