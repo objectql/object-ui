@@ -1432,6 +1432,13 @@ Plugin architecture refactoring to support true modular development, plugin isol
 - [ ] Plugin publish/validate tooling (spec v3.0.9 `PluginBuildOptions`, `PluginPublishOptions`)
 - [ ] Cross-repo plugin loading from npm packages
 
+### P2.11 Gantt Feature Parity (vs SVAR React Gantt)
+
+> **Status:** Planned. Gap analysis done (June 2026) against [SVAR React Gantt](https://github.com/svar-widgets/react-gantt).
+> Full phased task list lives in [`packages/plugin-gantt/ROADMAP.md`](packages/plugin-gantt/ROADMAP.md):
+> Phase 1 dependency links → Phase 2 real time scales → Phase 3 hierarchy/milestones →
+> Phase 4 interaction polish → Phase 5 virtualization → Phase 6 advanced (critical path, baselines, auto-scheduling).
+
 ---
 
 ## 🔮 P3 — Future Vision (Deferred)

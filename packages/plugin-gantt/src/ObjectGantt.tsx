@@ -39,7 +39,45 @@ import {
 } from '@object-ui/components';
 import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { getSemanticColorName, getSemanticHex } from '@object-ui/fields';
-import { GanttView, type GanttTask } from './GanttView';
+import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType } from './GanttView';
+
+/**
+ * Normalize a record's dependencies field into GanttDependency[].
+ * Accepts:
+ * - CSV string: "task1, task2"
+ * - array of ids: ["task1", 42]
+ * - array of objects: [{ id: "task1", type: "ss" }] — `task`/`target`/`_id`
+ *   accepted as id aliases; type aliases like "finish_to_start"/"end-to-start"
+ *   map onto fs/ss/ff/sf.
+ */
+const LINK_TYPE_ALIASES: Record<string, GanttLinkType> = {
+  fs: 'fs', ss: 'ss', ff: 'ff', sf: 'sf',
+  finish_to_start: 'fs', start_to_start: 'ss', finish_to_finish: 'ff', start_to_finish: 'sf',
+  end_to_start: 'fs', end_to_end: 'ff', start_to_end: 'sf',
+};
+
+export function normalizeDependencies(raw: unknown): GanttDependency[] {
+  if (raw == null || raw === '') return [];
+  if (typeof raw === 'string') {
+    return raw.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  if (typeof raw === 'number') return [raw];
+  if (!Array.isArray(raw)) return [];
+  const out: GanttDependency[] = [];
+  for (const item of raw) {
+    if (item == null || item === '') continue;
+    if (typeof item === 'object') {
+      const id = (item as any).id ?? (item as any)._id ?? (item as any).task ?? (item as any).target;
+      if (id == null || id === '') continue;
+      const typeKey = String((item as any).type ?? '').toLowerCase().replace(/-/g, '_');
+      const type = LINK_TYPE_ALIASES[typeKey];
+      out.push(type ? { id, type } : { id });
+    } else {
+      out.push(item as string | number);
+    }
+  }
+  return out;
+}
 
 export interface ObjectGanttProps {
   schema: ObjectGridSchema;
@@ -306,7 +344,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         start: startDate ? new Date(startDate) : new Date(),
         end: endDate ? new Date(endDate) : new Date(),
         progress: Math.min(100, Math.max(0, progress || 0)), // Clamp between 0-100
-        dependencies: Array.isArray(dependencies) ? dependencies : [],
+        dependencies: normalizeDependencies(dependencies),
         color,
         data: record,
       };

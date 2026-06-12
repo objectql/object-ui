@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { ObjectGantt } from './ObjectGantt';
+import { ObjectGantt, normalizeDependencies } from './ObjectGantt';
 import { DataSource } from '@object-ui/types';
 
 // Mock GanttView so we can drive create/update/delete directly via the
@@ -151,5 +151,45 @@ describe('ObjectGantt', () => {
     await waitFor(() => expect(del).toHaveBeenCalledTimes(1));
     expect(del.mock.calls[0][0]).toBe('tasks');
     expect(del.mock.calls[0][1]).toBe('1');
+  });
+});
+
+describe('normalizeDependencies', () => {
+  it('returns [] for null/undefined/empty', () => {
+    expect(normalizeDependencies(null)).toEqual([]);
+    expect(normalizeDependencies(undefined)).toEqual([]);
+    expect(normalizeDependencies('')).toEqual([]);
+    expect(normalizeDependencies({})).toEqual([]);
+  });
+
+  it('splits CSV strings and trims whitespace', () => {
+    expect(normalizeDependencies('t1, t2 ,t3,')).toEqual(['t1', 't2', 't3']);
+  });
+
+  it('wraps a bare number id', () => {
+    expect(normalizeDependencies(42)).toEqual([42]);
+  });
+
+  it('passes through arrays of ids, dropping null/empty entries', () => {
+    expect(normalizeDependencies(['t1', null, '', 7])).toEqual(['t1', 7]);
+  });
+
+  it('normalizes object entries with id aliases and link-type aliases', () => {
+    expect(normalizeDependencies([
+      { id: 't1', type: 'ss' },
+      { task: 't2', type: 'finish-to-start' },
+      { target: 't3', type: 'END_TO_END' },
+      { _id: 't4' },
+      { type: 'fs' }, // no id → dropped
+    ])).toEqual([
+      { id: 't1', type: 'ss' },
+      { id: 't2', type: 'fs' },
+      { id: 't3', type: 'ff' },
+      { id: 't4' },
+    ]);
+  });
+
+  it('drops unknown link types but keeps the id', () => {
+    expect(normalizeDependencies([{ id: 't1', type: 'banana' }])).toEqual([{ id: 't1' }]);
   });
 });

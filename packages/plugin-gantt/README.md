@@ -273,6 +273,28 @@ const tasks = [
 ];
 ```
 
+Dependencies render as arrows from the predecessor bar to the dependent bar.
+Arrows follow bars live while dragging, and hovering a bar highlights its links.
+
+### Link Types
+
+Each dependency entry is either a predecessor id (`'task-1'`) or an object with
+an explicit link type:
+
+```typescript
+dependencies: [
+  { id: 'task-1', type: 'fs' },  // finish-to-start (default)
+  { id: 'task-2', type: 'ss' },  // start-to-start
+  { id: 'task-3', type: 'ff' },  // finish-to-finish
+  { id: 'task-4', type: 'sf' },  // start-to-finish
+]
+```
+
+When records come from a data source (`dependenciesField`), the field value may
+be a CSV string (`"task1, task2"`), an array of ids, or an array of objects —
+`task`/`target`/`_id` are accepted as id aliases, and long-form type names like
+`"finish_to_start"` / `"end-to-end"` map onto `fs`/`ss`/`ff`/`sf`.
+
 ## Integration with Data Sources
 
 ```typescript

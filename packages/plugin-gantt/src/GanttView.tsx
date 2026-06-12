@@ -57,6 +57,21 @@ function rowHeightForContainer(width: number) {
   return width < 640 ? 32 : 40;
 }
 
+/**
+ * Dependency link types, MS-Project style:
+ * - `fs` finish-to-start (default): predecessor must finish before this task starts
+ * - `ss` start-to-start, `ff` finish-to-finish, `sf` start-to-finish
+ */
+export type GanttLinkType = 'fs' | 'ss' | 'ff' | 'sf';
+
+export interface GanttDependencyObject {
+  id: string | number
+  type?: GanttLinkType
+}
+
+/** A dependency is the PREDECESSOR's task id, optionally with a link type. */
+export type GanttDependency = string | number | GanttDependencyObject;
+
 export interface GanttTask {
   id: string | number
   title: string
@@ -65,7 +80,7 @@ export interface GanttTask {
   progress: number
   color?: string
   data?: any
-  dependencies?: (string | number)[]
+  dependencies?: GanttDependency[]
 }
 
 /**
@@ -128,6 +143,8 @@ export function GanttView({
   const showSEColumns = showStartEndColumns(taskListWidth);
   const [editingTask, setEditingTask] = React.useState<string | number | null>(null);
   const [editValues, setEditValues] = React.useState<Record<string, string>>({});
+  // Hovered bar id — used to highlight its dependency links.
+  const [hoveredTaskId, setHoveredTaskId] = React.useState<string | number | null>(null);
 
   // Drag-and-drop state for rescheduling a bar (move + resize from either edge).
   // dayDelta is the snapped offset from the original position; preview is rendered
@@ -326,15 +343,107 @@ export function GanttView({
     const totalDuration = timelineRange.end.getTime() - timelineRange.start.getTime();
     const tickWidth = columnWidth; // px per day
     const msPerDay = 1000 * 60 * 60 * 24;
-    
+
     const startOffsetMs = task.start.getTime() - timelineRange.start.getTime();
     const durationMs = task.end.getTime() - task.start.getTime();
-    
+
     const left = (startOffsetMs / msPerDay) * tickWidth;
     const width = Math.max((durationMs / msPerDay) * tickWidth, tickWidth); // Min 1 day width
-    
+
     return { left, width };
   };
+
+  // Bar geometry with the in-flight drag preview applied, so dependency
+  // links follow the bar while it is being moved/resized.
+  const getLiveTaskStyle = (task: GanttTask) => {
+    if (dragState && dragState.taskId === task.id) {
+      const previewed = computeDragChanges(dragState);
+      return getTaskStyle({ ...task, start: previewed.start, end: previewed.end });
+    }
+    return getTaskStyle(task);
+  };
+
+  // --- Dependency links --------------------------------------------------
+  // `task.dependencies` lists predecessor ids; the arrow is drawn from the
+  // predecessor bar to the dependent bar. Entries referencing unknown ids
+  // (filtered records, cross-object refs) are silently skipped.
+  type ResolvedLink = {
+    key: string;
+    sourceId: string | number; // predecessor
+    targetId: string | number; // dependent task
+    type: GanttLinkType;
+    sourceIndex: number;
+    targetIndex: number;
+  };
+
+  const links = React.useMemo<ResolvedLink[]>(() => {
+    const indexById = new Map<string, number>();
+    tasks.forEach((task, i) => indexById.set(String(task.id), i));
+    const out: ResolvedLink[] = [];
+    tasks.forEach((task, targetIndex) => {
+      for (const dep of task.dependencies ?? []) {
+        const isObj = typeof dep === 'object' && dep !== null;
+        const depId = isObj ? (dep as GanttDependencyObject).id : dep;
+        if (depId == null || depId === '') continue;
+        const sourceIndex = indexById.get(String(depId));
+        if (sourceIndex == null || sourceIndex === targetIndex) continue;
+        const rawType = isObj ? (dep as GanttDependencyObject).type : undefined;
+        const type: GanttLinkType =
+          rawType === 'ss' || rawType === 'ff' || rawType === 'sf' ? rawType : 'fs';
+        out.push({
+          key: `${String(depId)}->${String(task.id)}:${type}`,
+          sourceId: depId,
+          targetId: task.id,
+          type,
+          sourceIndex,
+          targetIndex,
+        });
+      }
+    });
+    return out;
+  }, [tasks]);
+
+  // Orthogonal elbow path from the predecessor anchor to the dependent
+  // anchor. Anchors per link type: fs = source end → target start,
+  // ss = start → start, ff = end → end, sf = start → end.
+  const linkPath = (link: ResolvedLink): string | null => {
+    const source = tasks[link.sourceIndex];
+    const target = tasks[link.targetIndex];
+    if (!source || !target) return null;
+    const s = getLiveTaskStyle(source);
+    const tg = getLiveTaskStyle(target);
+    const sy = link.sourceIndex * rowHeight + rowHeight / 2;
+    const ty = link.targetIndex * rowHeight + rowHeight / 2;
+    const exitRight = link.type === 'fs' || link.type === 'ff';
+    const enterRight = link.type === 'ff' || link.type === 'sf';
+    const sx = exitRight ? s.left + s.width : s.left;
+    const tx = enterRight ? tg.left + tg.width : tg.left;
+    const stub = 10; // horizontal clearance before turning
+    const ex = sx + (exitRight ? stub : -stub);
+    const ax = tx + (enterRight ? stub : -stub);
+    const r = Math.round;
+    const parts = [`M ${r(sx)} ${r(sy)}`, `L ${r(ex)} ${r(sy)}`];
+    // Direct route: drop vertically at the exit stub, then run into the
+    // target anchor. Only valid when the final horizontal segment travels
+    // toward the arrow (otherwise the arrowhead would point away from the bar).
+    const direct = enterRight ? ex >= ax : ex <= ax;
+    if (direct) {
+      parts.push(`L ${r(ex)} ${r(ty)}`, `L ${r(tx)} ${r(ty)}`);
+    } else {
+      // Backward link — detour along the source row's edge facing the target.
+      const gapY = ty >= sy ? (link.sourceIndex + 1) * rowHeight : link.sourceIndex * rowHeight;
+      parts.push(
+        `L ${r(ex)} ${r(gapY)}`,
+        `L ${r(ax)} ${r(gapY)}`,
+        `L ${r(ax)} ${r(ty)}`,
+        `L ${r(tx)} ${r(ty)}`,
+      );
+    }
+    return parts.join(' ');
+  };
+
+  // Links attached to the dragged/hovered task get the highlight treatment.
+  const activeLinkTaskId = dragState?.taskId ?? hoveredTaskId;
 
   return (
     <div ref={containerRef} className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}>
@@ -590,11 +699,7 @@ export function GanttView({
                 {tasks.map((task) => {
                    const baseStyle = getTaskStyle(task);
                    const isDragging = dragState?.taskId === task.id;
-                   let liveStyle = baseStyle;
-                   if (isDragging && dragState) {
-                     const previewed = computeDragChanges(dragState);
-                     liveStyle = getTaskStyle({ ...task, start: previewed.start, end: previewed.end });
-                   }
+                   const liveStyle = isDragging ? getLiveTaskStyle(task) : baseStyle;
                    const canDrag = !!onTaskUpdate;
                    return (
                     <div 
@@ -622,6 +727,8 @@ export function GanttView({
                           backgroundColor: task.color || '#3b82f6'
                         }}
                         data-testid={`gantt-task-bar-${task.id}`}
+                        onMouseEnter={() => setHoveredTaskId(task.id)}
+                        onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
                         onClick={() => {
                           if (suppressNextClickRef.current) return;
                           onTaskClick?.(task);
@@ -675,7 +782,69 @@ export function GanttView({
                     </div>
                    )
                 })}
-                
+
+                {/* Dependency Links — SVG overlay above bars, below the Today
+                    marker (z-20). pointer-events-none so bar drag/click win. */}
+                {links.length > 0 && (
+                  <svg
+                    className="absolute top-0 left-0 pointer-events-none z-10"
+                    width={timeColumns.length * columnWidth}
+                    height={tasks.length * rowHeight}
+                    data-testid="gantt-links"
+                    aria-hidden="true"
+                  >
+                    {/* Colors via raw theme vars (not Tailwind stroke/fill
+                        utilities): consuming apps load the prebuilt components
+                        CSS, which never emits those utility classes. */}
+                    <defs>
+                      <marker
+                        id="gantt-link-arrow"
+                        viewBox="0 0 8 8"
+                        refX="7"
+                        refY="4"
+                        markerWidth="6"
+                        markerHeight="6"
+                        orient="auto"
+                      >
+                        <path d="M 0 0 L 8 4 L 0 8 z" fill="hsl(var(--muted-foreground))" />
+                      </marker>
+                      <marker
+                        id="gantt-link-arrow-active"
+                        viewBox="0 0 8 8"
+                        refX="7"
+                        refY="4"
+                        markerWidth="6"
+                        markerHeight="6"
+                        orient="auto"
+                      >
+                        <path d="M 0 0 L 8 4 L 0 8 z" fill="hsl(var(--primary))" />
+                      </marker>
+                    </defs>
+                    {links.map((link) => {
+                      const d = linkPath(link);
+                      if (!d) return null;
+                      const active =
+                        activeLinkTaskId != null &&
+                        (String(link.sourceId) === String(activeLinkTaskId) ||
+                          String(link.targetId) === String(activeLinkTaskId));
+                      return (
+                        <path
+                          key={link.key}
+                          d={d}
+                          fill="none"
+                          stroke={active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'}
+                          strokeOpacity={active ? 1 : 0.7}
+                          strokeWidth={active ? 2 : 1.5}
+                          markerEnd={`url(#${active ? 'gantt-link-arrow-active' : 'gantt-link-arrow'})`}
+                          data-testid={`gantt-link-${link.sourceId}-${link.targetId}`}
+                          data-link-type={link.type}
+                          data-active={active ? 'true' : 'false'}
+                        />
+                      );
+                    })}
+                  </svg>
+                )}
+
                 {/* Current Time Indicator */}
                 <div 
                   className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
