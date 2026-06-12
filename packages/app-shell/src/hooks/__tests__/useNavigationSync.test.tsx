@@ -23,6 +23,7 @@ import { MetadataCtx, AdapterCtx, type MetadataContextValue, type MetadataTypeSt
 import {
   NavigationSyncEffect,
   isSystemArtifactName,
+  isPlatformArtifact,
   isNavigationSyncableApp,
 } from '../useNavigationSync';
 
@@ -43,6 +44,23 @@ describe('isSystemArtifactName', () => {
     expect(isSystemArtifactName('')).toBe(false);
     expect(isSystemArtifactName(undefined)).toBe(false);
     expect(isSystemArtifactName(42)).toBe(false);
+  });
+});
+
+describe('isPlatformArtifact', () => {
+  it('flags package-provenance items regardless of name (ADR-0010 stamps)', () => {
+    // Third-party plugin pages are NOT sys_-prefixed — provenance is the
+    // primary signal, the name prefix only a fallback.
+    expect(isPlatformArtifact({ name: 'crm_dashboard', _packageId: 'com.acme.crm' })).toBe(true);
+    expect(isPlatformArtifact({ name: 'billing_home', _provenance: 'package' })).toBe(true);
+    expect(isPlatformArtifact({ name: 'sys_user_detail' })).toBe(true); // prefix fallback
+  });
+
+  it('accepts user-authored items', () => {
+    expect(isPlatformArtifact({ name: 'my_page' })).toBe(false);
+    expect(isPlatformArtifact({ name: 'my_page', _provenance: 'org' })).toBe(false);
+    expect(isPlatformArtifact(null)).toBe(false);
+    expect(isPlatformArtifact('my_page')).toBe(false);
   });
 });
 
@@ -206,6 +224,29 @@ describe('NavigationSyncEffect', () => {
     setWorld({
       apps: [crm],
       pages: [{ name: 'home' }, { name: 'sys_user_detail' }],
+      dashboards: [],
+      status: {},
+    });
+    await flush();
+    expect(saveItem).not.toHaveBeenCalled();
+  });
+
+  it('ignores package-provenance pages from a mid-session install (not sys_-prefixed)', async () => {
+    const saveItem = vi.fn().mockResolvedValue({});
+    const { setWorld } = renderEffect(saveItem, {
+      apps: [crm],
+      pages: [{ name: 'home' }],
+      dashboards: [],
+      status: {},
+    });
+    await flush();
+
+    // Installing a package adds its pages to the metadata list between two
+    // ready snapshots — a name-set diff reads that exactly like user CRUD.
+    // The package ships its own navigation; auto-sync must stay out.
+    setWorld({
+      apps: [crm],
+      pages: [{ name: 'home' }, { name: 'crm_dashboard', _packageId: 'com.acme.crm' }],
       dashboards: [],
       status: {},
     });

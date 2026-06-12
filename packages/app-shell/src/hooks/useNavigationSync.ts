@@ -107,13 +107,34 @@ export function navigationEqual(a: NavigationItem[], b: NavigationItem[]): boole
 }
 
 /**
- * `sys_`-prefixed pages/dashboards are platform-shipped artifacts
- * (sys_organization_detail, sys_user_detail, …) that appear in metadata once
- * their lazily-loaded type finishes fetching — they are never something the
- * user just created, so they must not trigger navigation sync.
+ * `sys_` is the platform-reserved metadata namespace (sys_organization_detail,
+ * sys_user_detail, …). Fallback signal only — see isPlatformArtifact.
  */
 export function isSystemArtifactName(name: unknown): boolean {
   return typeof name === 'string' && name.startsWith('sys_');
+}
+
+/**
+ * Package/platform-shipped pages and dashboards are never "something the user
+ * just created", so they must not trigger navigation sync no matter when they
+ * appear in (or vanish from) the metadata lists — package install/uninstall
+ * mid-session looks exactly like user CRUD to a name-set diff. A package that
+ * ships pages also ships (or contributes to) the navigation that exposes
+ * them; auto-syncing on top of that would duplicate entries at best and write
+ * into apps the package never intended at worst.
+ *
+ * Provenance is the primary signal: ADR-0010's applyProtection stamps
+ * `_packageId` + `_provenance: 'package'` on artifacts registered with
+ * package coords (the engine manifest path passes them). The `sys_` name
+ * prefix is only a fallback for registration paths that don't stamp
+ * provenance yet — third-party plugin pages are NOT guaranteed to carry it,
+ * which is why the field check comes first.
+ */
+export function isPlatformArtifact(item: unknown): boolean {
+  if (!item || typeof item !== 'object') return false;
+  const a = item as { name?: unknown; _packageId?: unknown; _provenance?: unknown };
+  if (a._packageId != null || a._provenance === 'package') return true;
+  return isSystemArtifactName(a.name);
 }
 
 /**
@@ -595,17 +616,19 @@ export function NavigationSyncEffect(): null {
       return;
     }
 
-    const isUserArtifactName = (n: unknown): n is string =>
-      typeof n === 'string' && n.length > 0 && !isSystemArtifactName(n);
-    // System (sys_*) artifacts never participate in the diff: they ship with
-    // the platform, not from user CRUD, so their appearance must not write
-    // them into app navigation (nor their disappearance delete nav entries).
-    const currentPageNames = new Set(
-      (pages ?? []).map((p: any) => p.name).filter(isUserArtifactName),
-    );
-    const currentDashNames = new Set(
-      (dashboards ?? []).map((d: any) => d.name).filter(isUserArtifactName),
-    );
+    // Platform/package artifacts never participate in the diff: they ship
+    // with the platform or arrive via package install, not from user CRUD,
+    // so their appearance must not write them into app navigation (nor
+    // their disappearance delete nav entries). See isPlatformArtifact.
+    const userArtifactNames = (items: any[]): Set<string> =>
+      new Set(
+        items
+          .filter((it: any) => !isPlatformArtifact(it))
+          .map((it: any) => it?.name)
+          .filter((n: any): n is string => typeof n === 'string' && n.length > 0),
+      );
+    const currentPageNames = userArtifactNames(pages ?? []);
+    const currentDashNames = userArtifactNames(dashboards ?? []);
 
     const prevPages = prevPageNamesRef.current;
     const prevDash = prevDashNamesRef.current;
