@@ -614,6 +614,9 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
       ensureType,
       getItem,
       getItemsByType,
+      // Pure read — must NOT kick a fetch, so render-phase status checks
+      // can't recurse into ensureType.
+      getTypeStatus: (type: string) => getEntry(type).status,
     };
 
     return base;
