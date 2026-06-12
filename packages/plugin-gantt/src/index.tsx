@@ -19,12 +19,13 @@ export { GanttView } from './GanttView';
 export type {
   GanttViewProps,
   GanttTask,
+  GanttTaskType,
   GanttViewMode,
   GanttDependency,
   GanttDependencyObject,
   GanttLinkType,
 } from './GanttView';
-export { normalizeDependencies } from './ObjectGantt';
+export { normalizeDependencies, normalizeTaskType } from './ObjectGantt';
 
 // Register component
 export const ObjectGanttRenderer: React.FC<{ schema: any }> = ({ schema }) => {

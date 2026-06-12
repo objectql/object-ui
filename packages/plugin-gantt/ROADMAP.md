@@ -29,13 +29,13 @@ Today marker + jump-to-today, weekend highlighting, semantic color fallback, i18
 - [x] Drag snapping respects active granularity (day/week columns, calendar-clamped month/quarter shifts preserving duration on move)
 - [x] Tests: column generation per mode, header groups/labels, bar geometry per granularity, week + month snap behavior (8 new tests)
 
-## Phase 3 — Task Hierarchy & Types
+## Phase 3 — Task Hierarchy & Types ✅
 
-- [ ] `parentField` in `GanttConfig` → build task tree, indent rows, expand/collapse chevrons in the task list
-- [ ] Summary (parent) bars: span children's date range, distinct rendering (bracket style)
-- [ ] Milestone type: zero-duration diamond marker (`typeField` or `end === start` heuristic)
-- [ ] Auto-rollup: summary progress = weighted child progress (computed client-side, display only)
-- [ ] Tests: tree building, orphan handling, collapse state, summary range/progress math
+- [x] `parentField` (+ `task.parent`) → task tree, depth-indented rows, expand/collapse chevrons in the task list; orphans and parent cycles surface as roots instead of dropping rows
+- [x] Summary (parent) bars: bracket-style slim bar with end caps spanning the children rollup range; read-only (children drive it)
+- [x] Milestone type: diamond marker via `typeField`/`task.type` or the `end <= start` heuristic; movable, not resizable; links anchor at the diamond center
+- [x] Auto-rollup: summary dates = min/max of descendants, progress = duration-weighted child progress (client-side, display via `data-progress`)
+- [x] Tests: tree building, orphan + cycle handling, collapse hides rows/links, summary range/progress math, milestone rendering + link anchors (9 new tests)
 
 ## Phase 4 — Interaction Polish
 

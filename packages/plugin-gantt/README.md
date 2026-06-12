@@ -250,6 +250,30 @@ const schema = {
 };
 ```
 
+## Task Hierarchy, Summaries & Milestones
+
+Give a task a `parent` (or configure `parentField` on the data-source schema)
+to build a tree: child rows indent under their parent with expand/collapse
+chevrons in the task list. Any task with children renders as a **summary**
+bracket spanning its children's combined date range, with progress rolled up
+as the duration-weighted average of its descendants — summaries are read-only,
+their children drive them.
+
+Zero-duration tasks (`end <= start`) — or tasks whose `type` is
+`'milestone'` (via `typeField`: values like `milestone`, `summary`,
+`project`, `group` are recognized) — render as diamond markers. Milestones
+can be dragged to move but not resized; dependency arrows anchor at the
+diamond center.
+
+```typescript
+const tasks = [
+  { id: 'phase1', title: 'Phase 1', start: '…', end: '…', progress: 0 },        // summary (has children)
+  { id: 't1', title: 'Design', parent: 'phase1', start: '…', end: '…', progress: 80 },
+  { id: 't2', title: 'Build', parent: 'phase1', start: '…', end: '…', progress: 20 },
+  { id: 'launch', title: 'Launch', type: 'milestone', start: '2024-07-01', end: '2024-07-01', progress: 0 },
+];
+```
+
 ## Task Dependencies
 
 Link tasks to show dependencies:

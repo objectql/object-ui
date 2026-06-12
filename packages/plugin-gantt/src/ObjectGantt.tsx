@@ -39,7 +39,26 @@ import {
 } from '@object-ui/components';
 import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { getSemanticColorName, getSemanticHex } from '@object-ui/fields';
-import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType } from './GanttView';
+import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, type GanttTaskType } from './GanttView';
+
+/**
+ * Hierarchy/type fields are ObjectUI extensions on top of the spec's
+ * GanttConfig (not yet in @objectstack/spec GanttConfigSchema).
+ */
+type GanttConfigEx = GanttConfig & {
+  parentField?: string;
+  typeField?: string;
+};
+
+/** Map a record's type value onto a GanttTaskType (undefined = infer). */
+export function normalizeTaskType(raw: unknown): GanttTaskType | undefined {
+  if (raw == null) return undefined;
+  const key = String(raw).toLowerCase().trim();
+  if (key === 'milestone') return 'milestone';
+  if (key === 'summary' || key === 'project' || key === 'group' || key === 'phase') return 'summary';
+  if (key === 'task') return 'task';
+  return undefined;
+}
 
 /**
  * Normalize a record's dependencies field into GanttDependency[].
@@ -144,9 +163,9 @@ function convertSortToQueryParams(sort: string | any[] | undefined): Record<stri
 /**
  * Helper to get gantt configuration from schema
  */
-function getGanttConfig(schema: ObjectGridSchema | any): GanttConfig | null {
-  let config: GanttConfig | null = null;
-  
+function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
+  let config: GanttConfigEx | null = null;
+
   // 1. Check top-level properties (ObjectGanttSchema style)
   if (schema.startDateField && schema.endDateField) {
       config = {
@@ -155,14 +174,16 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfig | null {
           titleField: schema.titleField || 'name',
           progressField: schema.progressField,
           dependenciesField: schema.dependenciesField || schema.dependencyField,
-          colorField: schema.colorField
+          colorField: schema.colorField,
+          parentField: schema.parentField,
+          typeField: schema.typeField,
       };
       return config;
   }
 
   // 2. Check schema.gantt (ObjectGridSchema style)
   if (schema.gantt) {
-    config = schema.gantt as GanttConfig;
+    config = schema.gantt as GanttConfigEx;
   }
 
   if (config) {
@@ -277,7 +298,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return [];
     }
 
-    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField } = ganttConfig;
+    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField } = ganttConfig;
 
     // Resolve a value through nested paths like "account.name". Returns the
     // first non-empty string from the path (so lookups that resolve to either a
@@ -345,6 +366,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         end: endDate ? new Date(endDate) : new Date(),
         progress: Math.min(100, Math.max(0, progress || 0)), // Clamp between 0-100
         dependencies: normalizeDependencies(dependencies),
+        parent: parentField ? record[parentField] ?? null : undefined,
+        type: typeField ? normalizeTaskType(record[typeField]) : undefined,
         color,
         data: record,
       };

@@ -1,0 +1,156 @@
+/**
+ * Hierarchy / summary / milestone tests for GanttView (Phase 3).
+ *
+ * Same geometry strategy as the links tests: assert relationships between
+ * inline styles instead of absolute pixels (positions are timezone-relative).
+ */
+import React from 'react';
+import { render, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { GanttView, type GanttTask } from './GanttView';
+
+beforeEach(() => {
+  Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
+});
+
+function makeTask(id: string, start: string, end: string, extra: Partial<GanttTask> = {}): GanttTask {
+  return {
+    id,
+    title: `Task ${id}`,
+    start: new Date(start),
+    end: new Date(end),
+    progress: 0,
+    ...extra,
+  };
+}
+
+function renderView(tasks: GanttTask[]) {
+  return render(
+    <div style={{ width: 1280, height: 600 }}>
+      <GanttView
+        tasks={tasks}
+        startDate={new Date('2024-06-01T00:00:00.000Z')}
+        endDate={new Date('2024-06-30T00:00:00.000Z')}
+      />
+    </div>
+  );
+}
+
+function geometry(el: HTMLElement) {
+  return { left: parseFloat(el.style.left), width: parseFloat(el.style.width) };
+}
+
+const FAMILY = [
+  makeTask('p', '2024-06-05T00:00:00.000Z', '2024-06-06T00:00:00.000Z'),
+  makeTask('c1', '2024-06-05T00:00:00.000Z', '2024-06-08T00:00:00.000Z', { parent: 'p', progress: 100 }),
+  makeTask('c2', '2024-06-10T00:00:00.000Z', '2024-06-14T00:00:00.000Z', { parent: 'p', progress: 50 }),
+  makeTask('solo', '2024-06-16T00:00:00.000Z', '2024-06-18T00:00:00.000Z'),
+];
+
+describe('GanttView task hierarchy', () => {
+  it('renders parents as summary bars spanning the children rollup range', () => {
+    const { container } = renderView(FAMILY);
+    const summary = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    expect(summary).toBeTruthy();
+    const c1 = container.querySelector('[data-testid="gantt-task-bar-c1"]') as HTMLElement;
+    const c2 = container.querySelector('[data-testid="gantt-task-bar-c2"]') as HTMLElement;
+    const s = geometry(summary);
+    const g1 = geometry(c1);
+    const g2 = geometry(c2);
+    // Summary spans min(child start) .. max(child end), ignoring its own dates.
+    expect(s.left).toBeCloseTo(g1.left, 0);
+    expect(s.left + s.width).toBeCloseTo(g2.left + g2.width, 0);
+  });
+
+  it('rolls up summary progress weighted by child duration', () => {
+    const { container } = renderView(FAMILY);
+    const summary = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    // c1: 3 days at 100%, c2: 4 days at 50% → (3*100 + 4*50) / 7 ≈ 71.
+    expect(summary.getAttribute('data-progress')).toBe('71');
+  });
+
+  it('collapsing a parent hides its child rows and their links', () => {
+    const tasks = [
+      ...FAMILY.slice(0, 3),
+      makeTask('after', '2024-06-16T00:00:00.000Z', '2024-06-18T00:00:00.000Z', { dependencies: ['c2'] }),
+    ];
+    const { container } = renderView(tasks);
+    expect(container.querySelector('[data-testid="gantt-task-bar-c1"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="gantt-link-c2-after"]')).toBeTruthy();
+
+    const toggle = container.querySelector('[data-testid="gantt-row-toggle-p"]') as HTMLElement;
+    expect(toggle).toBeTruthy();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    fireEvent.click(toggle);
+
+    expect(container.querySelector('[data-testid="gantt-task-bar-c1"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-task-bar-c2"]')).toBeFalsy();
+    // Link into the hidden subtree disappears with its row.
+    expect(container.querySelector('[data-testid="gantt-link-c2-after"]')).toBeFalsy();
+    // Summary row itself is still there.
+    expect(container.querySelector('[data-testid="gantt-summary-bar-p"]')).toBeTruthy();
+
+    fireEvent.click(toggle);
+    expect(container.querySelector('[data-testid="gantt-task-bar-c1"]')).toBeTruthy();
+  });
+
+  it('children are indented relative to their parent in the task list', () => {
+    const { container } = renderView(FAMILY);
+    const rows = Array.from(container.querySelectorAll('.group\\/task-row')) as HTMLElement[];
+    expect(rows.length).toBe(4);
+    const indentOf = (row: HTMLElement) =>
+      parseFloat((row.firstElementChild as HTMLElement).style.paddingLeft || '0');
+    expect(indentOf(rows[0])).toBe(0); // p
+    expect(indentOf(rows[1])).toBeGreaterThan(0); // c1
+    expect(indentOf(rows[1])).toBe(indentOf(rows[2])); // c2 same depth
+    expect(indentOf(rows[3])).toBe(0); // solo
+  });
+
+  it('renders zero-duration tasks as milestone diamonds without resize handles', () => {
+    const { container } = renderView([
+      makeTask('m', '2024-06-12T00:00:00.000Z', '2024-06-12T00:00:00.000Z'),
+    ]);
+    const diamond = container.querySelector('[data-testid="gantt-milestone-m"]') as HTMLElement;
+    expect(diamond).toBeTruthy();
+    expect(container.querySelector('[data-testid="gantt-task-bar-m"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-task-resize-left-m"]')).toBeFalsy();
+  });
+
+  it('respects an explicit milestone type even with a duration', () => {
+    const { container } = renderView([
+      makeTask('m2', '2024-06-12T00:00:00.000Z', '2024-06-14T00:00:00.000Z', { type: 'milestone' }),
+    ]);
+    expect(container.querySelector('[data-testid="gantt-milestone-m2"]')).toBeTruthy();
+  });
+
+  it('treats unknown parent ids as roots instead of dropping the task', () => {
+    const { container } = renderView([
+      makeTask('orphan', '2024-06-05T00:00:00.000Z', '2024-06-08T00:00:00.000Z', { parent: 'ghost' }),
+    ]);
+    expect(container.querySelector('[data-testid="gantt-task-bar-orphan"]')).toBeTruthy();
+  });
+
+  it('survives parent cycles by surfacing the tasks flat', () => {
+    const { container } = renderView([
+      makeTask('a', '2024-06-05T00:00:00.000Z', '2024-06-08T00:00:00.000Z', { parent: 'b' }),
+      makeTask('b', '2024-06-10T00:00:00.000Z', '2024-06-12T00:00:00.000Z', { parent: 'a' }),
+    ]);
+    // Both render; a (walked first) becomes the entry point with b under it.
+    const rows = container.querySelectorAll('.group\\/task-row');
+    expect(rows.length).toBe(2);
+  });
+
+  it('links anchor at the milestone diamond center', () => {
+    const { container } = renderView([
+      makeTask('a', '2024-06-05T00:00:00.000Z', '2024-06-08T00:00:00.000Z'),
+      makeTask('m', '2024-06-12T00:00:00.000Z', '2024-06-12T00:00:00.000Z', { dependencies: ['a'] }),
+    ]);
+    const path = container.querySelector('[data-testid="gantt-link-a-m"]') as SVGPathElement;
+    expect(path).toBeTruthy();
+    const diamond = container.querySelector('[data-testid="gantt-milestone-m"]') as HTMLElement;
+    const size = parseFloat(diamond.style.width);
+    const center = parseFloat(diamond.style.left) + size / 2;
+    const nums = (path.getAttribute('d') || '').match(/-?\d+(\.\d+)?/g)!.map(Number);
+    expect(nums[nums.length - 2]).toBeCloseTo(center, 0);
+  });
+});

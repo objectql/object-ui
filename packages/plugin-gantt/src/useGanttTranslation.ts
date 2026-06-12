@@ -31,6 +31,8 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.viewMode.week': 'Week',
   'gantt.viewMode.month': 'Month',
   'gantt.viewMode.quarter': 'Quarter',
+  'gantt.row.expand': 'Expand',
+  'gantt.row.collapse': 'Collapse',
 };
 
 const TEST_KEY = 'gantt.column.taskName';

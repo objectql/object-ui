@@ -12,6 +12,7 @@ import * as React from "react"
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ZoomIn,
   ZoomOut,
   Calendar as CalendarIcon,
@@ -72,6 +73,12 @@ export interface GanttDependencyObject {
 /** A dependency is the PREDECESSOR's task id, optionally with a link type. */
 export type GanttDependency = string | number | GanttDependencyObject;
 
+/**
+ * Task rendering variant. `summary` is implied for any task that has
+ * children; `milestone` is implied when end <= start (zero duration).
+ */
+export type GanttTaskType = 'task' | 'summary' | 'milestone';
+
 export interface GanttTask {
   id: string | number
   title: string
@@ -81,6 +88,9 @@ export interface GanttTask {
   color?: string
   data?: any
   dependencies?: GanttDependency[]
+  /** Parent task id — builds the hierarchy. Unknown ids render as roots. */
+  parent?: string | number | null
+  type?: GanttTaskType
 }
 
 /** Timeline granularity — one column per day, week, month, or quarter. */
@@ -298,6 +308,120 @@ export function GanttView({
     });
   }, [onTaskUpdate]);
   
+  // --- Task hierarchy -----------------------------------------------------
+  // `task.parent` builds a tree; rows are the depth-first flattening with
+  // collapsed subtrees removed. Summary rows (any task with children, or
+  // explicit type 'summary') get their dates/progress rolled up from their
+  // descendants; milestones are zero-duration diamonds.
+  type GanttRow = {
+    task: GanttTask;
+    depth: number;
+    hasChildren: boolean;
+    isSummary: boolean;
+    isMilestone: boolean;
+    /** Effective dates/progress — children rollup for summary rows. */
+    start: Date;
+    end: Date;
+    progress: number;
+  };
+
+  const [collapsedIds, setCollapsedIds] = React.useState<Set<string>>(() => new Set());
+  const toggleCollapsed = React.useCallback((id: string | number) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      const key = String(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const rows = React.useMemo<GanttRow[]>(() => {
+    const ids = new Set(tasks.map((t) => String(t.id)));
+    const byParent = new Map<string, GanttTask[]>();
+    const roots: GanttTask[] = [];
+    for (const t of tasks) {
+      const p = t.parent != null && t.parent !== '' ? String(t.parent) : null;
+      // Orphans (unknown parent id) and self-parents render as roots.
+      if (p && p !== String(t.id) && ids.has(p)) {
+        const list = byParent.get(p);
+        if (list) list.push(t);
+        else byParent.set(p, [t]);
+      } else {
+        roots.push(t);
+      }
+    }
+
+    // Post-order rollup: a summary spans its children and averages their
+    // progress weighted by duration. `path` guards against parent cycles.
+    const rollupCache = new Map<string, { start: Date; end: Date; progress: number }>();
+    const rollup = (t: GanttTask, path: Set<string>): { start: Date; end: Date; progress: number } => {
+      const key = String(t.id);
+      const cached = rollupCache.get(key);
+      if (cached) return cached;
+      const children = byParent.get(key) ?? [];
+      let result: { start: Date; end: Date; progress: number };
+      if (!children.length || path.has(key)) {
+        result = { start: t.start, end: t.end, progress: t.progress };
+      } else {
+        path.add(key);
+        let start: Date | null = null;
+        let end: Date | null = null;
+        let weighted = 0;
+        let total = 0;
+        for (const c of children) {
+          const r = rollup(c, path);
+          if (!start || r.start < start) start = r.start;
+          if (!end || r.end > end) end = r.end;
+          const dur = Math.max(r.end.getTime() - r.start.getTime(), MS_PER_DAY);
+          weighted += dur * r.progress;
+          total += dur;
+        }
+        path.delete(key);
+        result = { start: start!, end: end!, progress: total ? weighted / total : 0 };
+      }
+      rollupCache.set(key, result);
+      return result;
+    };
+
+    const out: GanttRow[] = [];
+    const visited = new Set<string>();
+    const markSubtreeVisited = (t: GanttTask) => {
+      for (const c of byParent.get(String(t.id)) ?? []) {
+        if (!visited.has(String(c.id))) {
+          visited.add(String(c.id));
+          markSubtreeVisited(c);
+        }
+      }
+    };
+    const walk = (t: GanttTask, depth: number) => {
+      const key = String(t.id);
+      if (visited.has(key)) return;
+      visited.add(key);
+      const children = byParent.get(key) ?? [];
+      const hasChildren = children.length > 0;
+      const isSummary = hasChildren || t.type === 'summary';
+      const eff = hasChildren
+        ? rollup(t, new Set())
+        : { start: t.start, end: t.end, progress: t.progress };
+      const isMilestone =
+        !isSummary && (t.type === 'milestone' || t.end.getTime() <= t.start.getTime());
+      out.push({ task: t, depth, hasChildren, isSummary, isMilestone, ...eff });
+      if (hasChildren) {
+        if (collapsedIds.has(key)) {
+          markSubtreeVisited(t); // hidden, but not re-surfaced by the cycle sweep
+        } else {
+          for (const c of children) walk(c, depth + 1);
+        }
+      }
+    };
+    for (const r of roots) walk(r, 0);
+    // Parent cycles (a↔b) are unreachable from any root — surface them flat
+    // at the bottom rather than dropping rows silently.
+    for (const t of tasks) if (!visited.has(String(t.id))) walk(t, 0);
+    return out;
+  }, [tasks, collapsedIds]);
+
   // Calculate timeline range
   const timelineRange = React.useMemo(() => {
     let start = startDate ? new Date(startDate) : new Date();
@@ -447,9 +571,9 @@ export function GanttView({
     }
   };
 
-  const getTaskStyle = (task: GanttTask) => {
-    const startOffsetMs = task.start.getTime() - timelineRange.start.getTime();
-    const durationMs = task.end.getTime() - task.start.getTime();
+  const styleFor = (start: Date, end: Date) => {
+    const startOffsetMs = start.getTime() - timelineRange.start.getTime();
+    const durationMs = end.getTime() - start.getTime();
 
     const left = (startOffsetMs / MS_PER_DAY) * pxPerDay;
     // Min 1 day, and never thinner than 3px so the bar stays visible (and
@@ -459,14 +583,14 @@ export function GanttView({
     return { left, width };
   };
 
-  // Bar geometry with the in-flight drag preview applied, so dependency
-  // links follow the bar while it is being moved/resized.
-  const getLiveTaskStyle = (task: GanttTask) => {
-    if (dragState && dragState.taskId === task.id) {
+  // Row geometry (summary rollup applied) with the in-flight drag preview,
+  // so dependency links follow the bar while it is being moved/resized.
+  const getLiveRowStyle = (row: GanttRow) => {
+    if (!row.isSummary && dragState && dragState.taskId === row.task.id) {
       const previewed = computeDragChanges(dragState);
-      return getTaskStyle({ ...task, start: previewed.start, end: previewed.end });
+      return styleFor(previewed.start, previewed.end);
     }
-    return getTaskStyle(task);
+    return styleFor(row.start, row.end);
   };
 
   // --- Dependency links --------------------------------------------------
@@ -483,10 +607,12 @@ export function GanttView({
   };
 
   const links = React.useMemo<ResolvedLink[]>(() => {
+    // Indexes are VISIBLE row positions — links into a collapsed subtree
+    // simply disappear with their rows.
     const indexById = new Map<string, number>();
-    tasks.forEach((task, i) => indexById.set(String(task.id), i));
+    rows.forEach((row, i) => indexById.set(String(row.task.id), i));
     const out: ResolvedLink[] = [];
-    tasks.forEach((task, targetIndex) => {
+    rows.forEach(({ task }, targetIndex) => {
       for (const dep of task.dependencies ?? []) {
         const isObj = typeof dep === 'object' && dep !== null;
         const depId = isObj ? (dep as GanttDependencyObject).id : dep;
@@ -507,23 +633,24 @@ export function GanttView({
       }
     });
     return out;
-  }, [tasks]);
+  }, [rows]);
 
   // Orthogonal elbow path from the predecessor anchor to the dependent
   // anchor. Anchors per link type: fs = source end → target start,
   // ss = start → start, ff = end → end, sf = start → end.
   const linkPath = (link: ResolvedLink): string | null => {
-    const source = tasks[link.sourceIndex];
-    const target = tasks[link.targetIndex];
+    const source = rows[link.sourceIndex];
+    const target = rows[link.targetIndex];
     if (!source || !target) return null;
-    const s = getLiveTaskStyle(source);
-    const tg = getLiveTaskStyle(target);
+    const s = getLiveRowStyle(source);
+    const tg = getLiveRowStyle(target);
     const sy = link.sourceIndex * rowHeight + rowHeight / 2;
     const ty = link.targetIndex * rowHeight + rowHeight / 2;
     const exitRight = link.type === 'fs' || link.type === 'ff';
     const enterRight = link.type === 'ff' || link.type === 'sf';
-    const sx = exitRight ? s.left + s.width : s.left;
-    const tx = enterRight ? tg.left + tg.width : tg.left;
+    // Milestones anchor at their diamond center regardless of side.
+    const sx = source.isMilestone ? s.left : exitRight ? s.left + s.width : s.left;
+    const tx = target.isMilestone ? tg.left : enterRight ? tg.left + tg.width : tg.left;
     const stub = 10; // horizontal clearance before turning
     const ex = sx + (exitRight ? stub : -stub);
     const ax = tx + (enterRight ? stub : -stub);
@@ -719,16 +846,18 @@ export function GanttView({
             ref={listRef}
             style={{ width: taskListWidth, minWidth: taskListWidth }}
           >
-            {tasks.map((task) => {
+            {rows.map((row) => {
+              const task = row.task;
               const isEditing = inlineEdit && editingTask === task.id;
+              const isCollapsed = collapsedIds.has(String(task.id));
               return (
-              <div 
+              <div
                 key={task.id}
                 className="group/task-row flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation"
                 style={{ height: rowHeight }}
                 onClick={() => !isEditing && onTaskClick?.(task)}
                 onDoubleClick={() => {
-                  if (inlineEdit && onTaskUpdate) {
+                  if (inlineEdit && onTaskUpdate && !row.isSummary) {
                     setEditingTask(task.id);
                     setEditValues({
                       title: task.title,
@@ -739,10 +868,29 @@ export function GanttView({
                   }
                 }}
               >
-                <div className="flex-1 truncate font-medium text-xs sm:text-sm flex items-center gap-2">
-                  <div 
+                <div
+                  className="flex-1 truncate font-medium text-xs sm:text-sm flex items-center gap-2"
+                  style={row.depth > 0 ? { paddingLeft: row.depth * 14 } : undefined}
+                >
+                  {row.hasChildren ? (
+                    <button
+                      type="button"
+                      className="h-4 w-4 -ml-1 shrink-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                      onClick={(e) => { e.stopPropagation(); toggleCollapsed(task.id); }}
+                      aria-expanded={!isCollapsed}
+                      aria-label={isCollapsed ? t('gantt.row.expand') : t('gantt.row.collapse')}
+                      data-testid={`gantt-row-toggle-${task.id}`}
+                    >
+                      {isCollapsed
+                        ? <ChevronRight className="h-3.5 w-3.5" />
+                        : <ChevronDown className="h-3.5 w-3.5" />}
+                    </button>
+                  ) : (
+                    <span className="w-3 -ml-1 shrink-0" aria-hidden="true" />
+                  )}
+                  <div
                     className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: task.color || '#3b82f6' }} 
+                    style={{ backgroundColor: task.color || '#3b82f6' }}
                   />
                   {isEditing ? (
                     <input
@@ -767,9 +915,9 @@ export function GanttView({
                     />
                   ) : (
                     <span className="flex flex-col min-w-0">
-                      <span className="truncate">{task.title}</span>
+                      <span className={cn("truncate", row.isSummary && "font-semibold")}>{task.title}</span>
                       <span className="text-[10px] text-muted-foreground sm:hidden">
-                        {task.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} → {task.end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                        {row.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} → {row.end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
                       </span>
                     </span>
                   )}
@@ -784,7 +932,7 @@ export function GanttView({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    task.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
+                    row.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
                 <div className="w-16 sm:w-20 text-right text-xs text-muted-foreground hidden sm:block" hidden={!showSEColumns} style={!showSEColumns ? { display: 'none' } : undefined}>
@@ -797,7 +945,7 @@ export function GanttView({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    task.end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
+                    row.end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
                 {/* Row actions removed: View / Edit / Delete are reachable
@@ -850,13 +998,77 @@ export function GanttView({
                 </div>
 
                 {/* Task Bars */}
-                {tasks.map((task) => {
-                   const baseStyle = getTaskStyle(task);
+                {rows.map((row) => {
+                   const task = row.task;
+                   const baseStyle = styleFor(row.start, row.end);
                    const isDragging = dragState?.taskId === task.id;
-                   const liveStyle = isDragging ? getLiveTaskStyle(task) : baseStyle;
-                   const canDrag = !!onTaskUpdate;
+                   const liveStyle = isDragging ? getLiveRowStyle(row) : baseStyle;
+                   const canDrag = !!onTaskUpdate && !row.isSummary;
+
+                   if (row.isSummary) {
+                     // Summary bracket: slim bar with downward end caps spanning
+                     // the children rollup. Read-only — children drive its range.
+                     return (
+                      <div
+                        key={task.id}
+                        className="relative border-b hover:bg-black/5"
+                        style={{ height: rowHeight }}
+                      >
+                        <div
+                          className="absolute rounded-[2px] bg-foreground/75"
+                          style={{ left: baseStyle.left, width: baseStyle.width, top: rowHeight * 0.18, height: 6 }}
+                          data-testid={`gantt-summary-bar-${task.id}`}
+                          data-progress={Math.round(row.progress)}
+                          onMouseEnter={() => setHoveredTaskId(task.id)}
+                          onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
+                          onClick={() => onTaskClick?.(task)}
+                        >
+                          <div className="absolute left-0 top-0 w-[3px] bg-foreground/75 rounded-b-[2px]" style={{ height: 12 }} />
+                          <div className="absolute right-0 top-0 w-[3px] bg-foreground/75 rounded-b-[2px]" style={{ height: 12 }} />
+                        </div>
+                      </div>
+                     );
+                   }
+
+                   if (row.isMilestone) {
+                     const size = Math.max(Math.round(rowHeight * 0.4), 12);
+                     return (
+                      <div
+                        key={task.id}
+                        className="relative border-b hover:bg-black/5"
+                        style={{ height: rowHeight }}
+                      >
+                        <div
+                          className={cn(
+                            "absolute rotate-45 rounded-[2px] border border-primary-foreground/20 shadow-sm select-none",
+                            canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+                            isDragging && "ring-2 ring-primary/60 brightness-110 z-10"
+                          )}
+                          style={{
+                            left: liveStyle.left - size / 2,
+                            top: (rowHeight - size) / 2,
+                            width: size,
+                            height: size,
+                            backgroundColor: task.color || '#3b82f6',
+                          }}
+                          data-testid={`gantt-milestone-${task.id}`}
+                          onMouseEnter={() => setHoveredTaskId(task.id)}
+                          onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
+                          onClick={() => {
+                            if (suppressNextClickRef.current) return;
+                            onTaskClick?.(task);
+                          }}
+                          onPointerDown={canDrag ? (e) => {
+                            if (e.button !== 0) return;
+                            beginDrag(task, 'move', e);
+                          } : undefined}
+                        />
+                      </div>
+                     );
+                   }
+
                    return (
-                    <div 
+                    <div
                       key={task.id}
                       className="relative border-b hover:bg-black/5"
                       style={{ height: rowHeight }}
@@ -943,7 +1155,7 @@ export function GanttView({
                   <svg
                     className="absolute top-0 left-0 pointer-events-none z-10"
                     width={totalWidth}
-                    height={tasks.length * rowHeight}
+                    height={rows.length * rowHeight}
                     data-testid="gantt-links"
                     aria-hidden="true"
                   >
