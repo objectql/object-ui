@@ -7,16 +7,18 @@
  */
 
 import * as React from 'react';
-import { cn } from '@object-ui/components';
-import { 
-  Grid, 
-  LayoutGrid, 
-  Calendar, 
+import { cn, Popover, PopoverContent, PopoverTrigger } from '@object-ui/components';
+import {
+  Grid,
+  LayoutGrid,
+  Calendar,
   Images,    // gallery
   Activity,  // timeline
   GanttChartSquare, // gantt
   Map,        // map
   BarChart3,  // chart
+  Check,
+  ChevronDown,
 } from 'lucide-react';
 
 export type ViewType =
@@ -58,6 +60,76 @@ const VIEW_LABELS: Record<ViewType, string> = {
   gantt: 'Gantt',
   map: 'Map',
   chart: 'Chart',
+};
+
+/**
+ * Compact dropdown form of the visualization switcher (Airtable-style):
+ * a single "List ▾" button in the toolbar's right cluster that opens a
+ * menu of the available visualizations. Replaces the full button row so
+ * the toolbar stays one line tall.
+ */
+export const ViewSwitcherDropdown: React.FC<ViewSwitcherProps> = ({
+  currentView,
+  availableViews = ['grid', 'kanban'],
+  onViewChange,
+  className,
+  animated = true,
+}) => {
+  const [open, setOpen] = React.useState(false);
+
+  const handleViewChange = React.useCallback(
+    (view: ViewType) => {
+      setOpen(false);
+      if (view === currentView) return;
+      if (animated && typeof document !== 'undefined' && 'startViewTransition' in document) {
+        (document as Document & {
+          startViewTransition: (cb: () => void) => { finished: Promise<void> };
+        }).startViewTransition(() => onViewChange(view));
+      } else {
+        onViewChange(view);
+      }
+    },
+    [animated, currentView, onViewChange],
+  );
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-testid="view-switcher-dropdown"
+          aria-label={VIEW_LABELS[currentView]}
+          className={cn(
+            'inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-xs font-medium transition-colors oui-view-switcher',
+            open ? 'text-foreground bg-muted' : 'text-muted-foreground hover:text-foreground',
+            className,
+          )}
+        >
+          {VIEW_ICONS[currentView]}
+          <span className="hidden sm:inline-block">{VIEW_LABELS[currentView]}</span>
+          <ChevronDown className="h-3 w-3 opacity-60" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-44 p-1">
+        {availableViews.map((view) => (
+          <button
+            key={view}
+            type="button"
+            onClick={() => handleViewChange(view)}
+            data-state={view === currentView ? 'on' : 'off'}
+            className={cn(
+              'flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs transition-colors hover:bg-muted',
+              view === currentView ? 'text-foreground font-medium' : 'text-muted-foreground',
+            )}
+          >
+            {VIEW_ICONS[view]}
+            <span className="flex-1 text-left">{VIEW_LABELS[view]}</span>
+            {view === currentView && <Check className="h-3.5 w-3.5" />}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({

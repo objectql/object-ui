@@ -11,7 +11,7 @@ import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuild
 import type { SortItem } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
-import { ViewSwitcher, ViewType } from './ViewSwitcher';
+import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { TabBar, TabBarSelect } from './components/TabBar';
 import type { ViewTab } from './components/TabBar';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
@@ -594,13 +594,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // User Filters State (Airtable Interfaces-style)
   const [userFilterConditions, setUserFilterConditions] = React.useState<any[]>([]);
 
-  // Auto-derive userFilters from objectDef when not explicitly configured
+  // User filters render ONLY when explicitly configured (ADR-0047 §data
+  // mode): saved list views already act as the preset switcher, so an
+  // unconfigured view keeps a clean toolbar instead of growing auto-derived
+  // dropdowns. When a config asks for dropdown/toggle elements without
+  // naming fields, fill the field list from objectDef select-like fields so
+  // authors can write `userFilters: { element: 'dropdown' }` as shorthand.
   const resolvedUserFilters = React.useMemo<ListViewSchema['userFilters'] | undefined>(() => {
-    // If explicitly configured, use as-is
-    if (schema.userFilters) return schema.userFilters;
-
-    // Auto-derive from objectDef for select/multi-select/boolean fields
-    if (!objectDef?.fields) return undefined;
+    const configured = schema.userFilters;
+    if (!configured) return undefined;
+    if (configured.element === 'tabs') return configured;
+    if (configured.fields && configured.fields.length > 0) return configured;
+    if (!objectDef?.fields) return configured;
 
     const FILTERABLE_FIELD_TYPES = new Set(['select', 'multi-select', 'boolean']);
     const derivedFields: NonNullable<NonNullable<ListViewSchema['userFilters']>['fields']> = [];
@@ -620,10 +625,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       }
     }
 
-    if (derivedFields.length === 0) return undefined;
+    if (derivedFields.length === 0) return configured;
 
-    return { element: 'dropdown', fields: derivedFields };
-  }, [schema.userFilters, objectDef]);
+    return { ...configured, fields: derivedFields };
+  }, [schema.userFilters, objectDef, tFieldLabel]);
+
+  // Tabs and filter elements are mutually exclusive on the toolbar
+  // (Airtable parity: the Elements choice is tabs OR dropdowns, never
+  // both). Metadata tabs win — they are author-curated named presets; a
+  // userFilters config on the same view only renders when no tabs exist.
+  const filterElements = schema.tabs && schema.tabs.length > 0 ? undefined : resolvedUserFilters;
 
   // Hidden Fields State (initialized from schema)
   const [hiddenFields, setHiddenFields] = React.useState<Set<string>>(
@@ -1525,17 +1536,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           {isRefreshing ? t('list.refreshing') : t('list.pullToRefresh')}
         </div>
       )}
-      {/* Unified toolbar — Row 1: View tabs (when present) */}
-      {showViewSwitcher && (
-        <div className="px-4 py-1 flex items-center bg-background">
-          <ViewSwitcher
-            currentView={currentView}
-            availableViews={availableViews}
-            onViewChange={handleViewChange}
-          />
-        </div>
-      )}
-
       {/* View Description (single line, no border duplication) */}
       {schema.description && (schema.appearance?.showDescription !== false) && (
         <div className="px-4 pt-1.5 text-xs text-muted-foreground bg-background" data-testid="view-description">
@@ -1572,17 +1572,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               </div>
             </>
           )}
-          {/* Vertical divider between tabs and user filters */}
-          {schema.tabs && schema.tabs.length > 0 && resolvedUserFilters && (
-            <div className="hidden sm:block h-4 w-px bg-border/60 mx-1 shrink-0" />
-          )}
-          {/* User Filters — predefined filter presets shown as a horizontal
-              chip row. On mobile we keep them visible (single line, scrollable)
-              to match the Airtable Interface pattern. */}
-          {resolvedUserFilters && (
+          {/* User Filters — filter elements (dropdown chips / preset tabs /
+              toggles). Mutually exclusive with view tabs above, so at most
+              one filter element group ever renders here. On mobile we keep
+              them visible (single line, scrollable) to match the Airtable
+              Interface pattern. */}
+          {filterElements && (
               <div className="shrink-0 min-w-0 overflow-x-auto" data-testid="user-filters">
                 <UserFilters
-                  config={resolvedUserFilters}
+                  config={filterElements}
                   objectDef={objectDef}
                   data={data}
                   onFilterChange={setUserFilterConditions}
@@ -1593,6 +1591,19 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         </div>
 
         <div className="flex items-center gap-0 shrink-0 rounded-lg border border-border bg-muted/40 p-0.5 shadow-sm">
+          {/* Visualization switcher — compact dropdown (Airtable-style
+              "List ▾"), first slot of the right tool cluster so the whole
+              toolbar stays a single row. */}
+          {showViewSwitcher && (
+            <>
+              <ViewSwitcherDropdown
+                currentView={currentView}
+                availableViews={availableViews}
+                onViewChange={handleViewChange}
+              />
+              <div className="h-4 w-px bg-border/60 mx-0.5" />
+            </>
+          )}
           {/* Hide Fields — hidden on mobile (collapsed into ViewSettingsPopover) */}
           {toolbarFlags.showHideFields && !toolbarFlags.compactToolbar && (
           <Popover open={showHideFields} onOpenChange={setShowHideFields}>
@@ -1657,7 +1668,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
           {/* Filter — universal advanced filter builder.
               Always shown when enabled. The left-side quick-filter chips
-              (resolvedUserFilters) are predefined named filters; the
+              (filterElements) are predefined named filters; the
               right-side Popover is a free-form field-by-field builder that
               can express filters the chips cannot. They serve different
               purposes and must coexist. */}

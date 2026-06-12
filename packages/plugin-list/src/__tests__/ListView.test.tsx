@@ -113,13 +113,11 @@ describe('ListView', () => {
     };
 
     renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-    
-    // Find kanban view button and click it
-    // ViewSwitcher uses buttons with aria-label
-    const kanbanButton = screen.getByLabelText('Kanban');
 
-    fireEvent.click(kanbanButton);
-    
+    // Open the visualization dropdown, then pick Kanban from the menu
+    fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
+    fireEvent.click(screen.getByRole('button', { name: 'Kanban' }));
+
     // localStorage should be set with new view
     const storageKey = 'listview-contacts-view';
     expect(localStorageMock.getItem(storageKey)).toBe('kanban');
@@ -498,7 +496,52 @@ describe('ListView', () => {
       expect(screen.getByTestId('user-filters-dropdown')).toBeInTheDocument();
     });
 
-    it('should auto-derive userFilters from objectDef select/boolean fields', async () => {
+    it('should NOT render filter elements without explicit userFilters config (ADR-0047 data mode)', async () => {
+      const mockDs = {
+        find: vi.fn().mockResolvedValue([]),
+        findOne: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+        getObjectSchema: vi.fn().mockResolvedValue({
+          name: 'tasks',
+          fields: {
+            name: { type: 'text', label: 'Name' },
+            status: {
+              type: 'select',
+              label: 'Status',
+              options: [
+                { label: 'Open', value: 'open' },
+                { label: 'Closed', value: 'closed' },
+              ],
+            },
+            is_active: { type: 'boolean', label: 'Active' },
+          },
+        }),
+      };
+
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'tasks',
+        viewType: 'grid',
+        fields: ['name', 'status', 'is_active'],
+      };
+
+      render(
+        <SchemaRendererProvider dataSource={mockDs}>
+          <ListView schema={schema} dataSource={mockDs} />
+        </SchemaRendererProvider>
+      );
+
+      // Wait for the objectDef fetch to settle, then confirm no filter
+      // elements appeared: select fields alone must not grow dropdowns.
+      await vi.waitFor(() => {
+        expect(mockDs.getObjectSchema).toHaveBeenCalled();
+      });
+      expect(screen.queryByTestId('user-filters')).not.toBeInTheDocument();
+    });
+
+    it('should fill fields from objectDef for a `{ element: "dropdown" }` shorthand config', async () => {
       const mockDs = {
         find: vi.fn().mockResolvedValue([]),
         findOne: vi.fn(),
@@ -528,6 +571,7 @@ describe('ListView', () => {
         objectName: 'tasks',
         viewType: 'grid',
         fields: ['name', 'status', 'is_active'],
+        userFilters: { element: 'dropdown' },
       };
 
       render(
@@ -536,13 +580,12 @@ describe('ListView', () => {
         </SchemaRendererProvider>
       );
 
-      // Wait for objectDef to load and userFilters to render
+      // Wait for objectDef to load — the badges appear once the shorthand
+      // config fills its field list from the fetched schema.
       await vi.waitFor(() => {
-        expect(screen.getByTestId('user-filters')).toBeInTheDocument();
+        expect(screen.getByTestId('filter-badge-status')).toBeInTheDocument();
       });
       expect(screen.getByTestId('user-filters-dropdown')).toBeInTheDocument();
-      // Should have badges for status and is_active (select + boolean)
-      expect(screen.getByTestId('filter-badge-status')).toBeInTheDocument();
       expect(screen.getByTestId('filter-badge-is_active')).toBeInTheDocument();
     });
 
@@ -1409,10 +1452,11 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      // Should only show grid and kanban, not calendar
-      expect(screen.getByLabelText('Grid')).toBeInTheDocument();
-      expect(screen.getByLabelText('Kanban')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Calendar')).not.toBeInTheDocument();
+      // Should only offer grid and kanban in the dropdown, not calendar
+      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
+      expect(screen.getAllByRole('button', { name: 'Grid' }).length).toBeGreaterThan(0);
+      expect(screen.getByRole('button', { name: 'Kanban' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Calendar' })).not.toBeInTheDocument();
     });
   });
 
@@ -1431,7 +1475,8 @@ describe('ListView', () => {
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
       // Should enable kanban view since kanban.groupField is set
-      expect(screen.getByLabelText('Kanban')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
+      expect(screen.getByRole('button', { name: 'Kanban' })).toBeInTheDocument();
     });
 
     it('should use spec gallery config over legacy options', () => {
@@ -1444,7 +1489,8 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      expect(screen.getByLabelText('Gallery')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
+      expect(screen.getByRole('button', { name: 'Gallery' })).toBeInTheDocument();
     });
 
     it('should use spec timeline config over legacy options', () => {
@@ -1457,7 +1503,8 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      expect(screen.getByLabelText('Timeline')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
+      expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
     });
 
     it('should use spec calendar config over legacy options', () => {
@@ -1470,7 +1517,8 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      expect(screen.getByLabelText('Calendar')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
+      expect(screen.getByRole('button', { name: 'Calendar' })).toBeInTheDocument();
     });
 
     it('should use spec gantt config over legacy options', () => {
@@ -1483,7 +1531,8 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      expect(screen.getByLabelText('Gantt')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
+      expect(screen.getByRole('button', { name: 'Gantt' })).toBeInTheDocument();
     });
   });
 

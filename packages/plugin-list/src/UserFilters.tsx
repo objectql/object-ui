@@ -263,10 +263,31 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
     return init;
   });
 
-  const resolvedFields = React.useMemo(
-    () => resolveFields(fields, objectDef, data, { objectName, fieldLabel, translateOptions }),
-    [fields, objectDef, data, objectName, fieldLabel, translateOptions],
-  );
+  // Option counts must reflect the result set BEFORE the field's own
+  // selection narrows it — the server returns already-filtered rows, so
+  // counting those would zero out every unselected option the moment one
+  // value is picked. Snapshot each field's counts while it has no active
+  // selection and replay the snapshot while one is active.
+  const countsSnapshotRef = React.useRef<Record<string, Map<string, number>>>({});
+  const resolvedFields = React.useMemo(() => {
+    const resolved = resolveFields(fields, objectDef, data, { objectName, fieldLabel, translateOptions });
+    return resolved.map(f => {
+      if (!f.showCount) return f;
+      const selected = selectedValues[f.field] || [];
+      if (selected.length === 0) {
+        countsSnapshotRef.current[f.field] = new Map(
+          f.options.map(o => [String(o.value), o.count ?? 0]),
+        );
+        return f;
+      }
+      const snapshot = countsSnapshotRef.current[f.field];
+      if (!snapshot) return f;
+      return {
+        ...f,
+        options: f.options.map(o => ({ ...o, count: snapshot.get(String(o.value)) ?? o.count })),
+      };
+    });
+  }, [fields, objectDef, data, objectName, fieldLabel, translateOptions, selectedValues]);
 
   const emitFilters = React.useCallback(
     (next: Record<string, (string | number | boolean)[]>) => {

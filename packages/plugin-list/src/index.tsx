@@ -12,6 +12,7 @@ import { ViewSwitcher } from './ViewSwitcher';
 import { ObjectGallery } from './ObjectGallery';
 
 export { ListView, ViewSwitcher, ObjectGallery };
+export { ViewSwitcherDropdown } from './ViewSwitcher';
 export { TabBar, TabBarSelect } from './components/TabBar';
 export type { TabBarProps, ViewTab } from './components/TabBar';
 export { UserFilters } from './UserFilters';

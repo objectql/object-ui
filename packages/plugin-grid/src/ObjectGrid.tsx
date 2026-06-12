@@ -1627,6 +1627,26 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       return 'other';
     };
 
+    // Resolve a select-like value to its translated option label and
+    // explicit color so card badges match the desktop grid — the raw
+    // stored value (e.g. "in_review") must never reach the user.
+    const resolveOptionMeta = (fieldKey: string, value: any): { label: string; color?: string } => {
+      const rawOptions = objectSchema?.fields?.[fieldKey]?.options;
+      if (Array.isArray(rawOptions) && rawOptions.length > 0) {
+        const translated = schema.objectName
+          ? translateOptions(schema.objectName, fieldKey, rawOptions)
+          : rawOptions;
+        const opt = (translated as any[]).find(o => o && String(o.value) === String(value));
+        if (opt) {
+          return { label: opt.label != null ? String(opt.label) : String(value), color: (opt as any).color };
+        }
+      }
+      // Option-less enum-looking values still get humanized; free text is
+      // passed through untouched so we never rewrite user data.
+      const str = String(value);
+      return { label: /^[a-z0-9]+(_[a-z0-9]+)+$/.test(str) ? humanizeLabel(str) : str };
+    };
+
     return (
       <>
         <div className="space-y-2 p-2">
@@ -1672,14 +1692,25 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                           : (row[amountCol.accessorKey] != null && typeof row[amountCol.accessorKey] === 'object' ? String(row[amountCol.accessorKey]) : (row[amountCol.accessorKey] ?? '—'))}
                       </span>
                     )}
-                    {stageCol && row[stageCol.accessorKey] && (
-                      <Badge
-                        variant="outline"
-                        className={`text-xs shrink-0 max-w-[140px] truncate ${stageBadgeColor(String(row[stageCol.accessorKey]))}`}
-                      >
-                        {String(row[stageCol.accessorKey])}
-                      </Badge>
-                    )}
+                    {stageCol && row[stageCol.accessorKey] && (() => {
+                      const rawValue = row[stageCol.accessorKey];
+                      const optMeta = resolveOptionMeta(stageCol.accessorKey, rawValue);
+                      // Explicit option color wins (matches desktop grid via
+                      // getBadgeColorClasses); fall back to the pipeline-stage
+                      // heuristics keyed on the raw value, which stays stable
+                      // across locales.
+                      const badgeClasses = optMeta.color
+                        ? getBadgeColorClasses(optMeta.color, rawValue)
+                        : stageBadgeColor(String(rawValue));
+                      return (
+                        <Badge
+                          variant="outline"
+                          className={`text-xs shrink-0 max-w-[140px] truncate ${badgeClasses}`}
+                        >
+                          {optMeta.label}
+                        </Badge>
+                      );
+                    })()}
                   </div>
                 )}
 
