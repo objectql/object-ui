@@ -35,14 +35,18 @@ interface InterfaceListPageProps {
  */
 function resolveSourceView(objectDef: any, sourceView?: string): any | undefined {
   const views: Record<string, any> = objectDef?.listViews || objectDef?.list_views || {};
-  if (sourceView) {
-    return (
-      views[`${objectDef.name}.${sourceView}`]
-      ?? views[sourceView]
-      ?? (sourceView === 'default' || sourceView === 'list' ? objectDef?.list : undefined)
-    );
-  }
-  return objectDef?.list ?? Object.values(views)[0];
+  // ADR-0017 expansion can serve a default-view item with an empty config
+  // while the full body lives on `objectDef.list` — prefer candidates that
+  // actually carry columns over hollow name matches.
+  const candidates = sourceView
+    ? [
+        views[`${objectDef?.name}.${sourceView}`],
+        views[sourceView],
+        ...(sourceView === 'default' || sourceView === 'list' ? [objectDef?.list] : []),
+      ]
+    : [objectDef?.list, ...Object.values(views)];
+  const present = candidates.filter(Boolean);
+  return present.find((v: any) => v?.columns) ?? present[0];
 }
 
 export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
@@ -55,9 +59,43 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
     () => (objects || []).find((o: any) => o.name === cfg.source),
     [objects, cfg.source],
   );
-  const viewDef = React.useMemo(
+  const resolvedView = React.useMemo(
     () => resolveSourceView(objectDef, cfg.sourceView),
     [objectDef, cfg.sourceView],
+  );
+
+  // The view list endpoint can serve hollow expansion items (no columns);
+  // the full body lives behind the per-view overlay API — the same
+  // hydration ObjectView performs. Only fetch when the resolution came up
+  // hollow.
+  const [hydratedView, setHydratedView] = React.useState<any>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    setHydratedView(null);
+    if (!objectDef || !cfg.source || resolvedView?.columns) return;
+    const viewKey = resolvedView?.name
+      ?? (cfg.sourceView ? `${cfg.source}.${cfg.sourceView}` : undefined);
+    if (!viewKey) return;
+    (async () => {
+      try {
+        const ds: any = dataSource;
+        let full: any = null;
+        if (typeof ds?.listViewOverrides === 'function') {
+          const all = await ds.listViewOverrides(cfg.source);
+          full = all?.[viewKey] ?? null;
+        }
+        if (!full?.columns && typeof ds?.getView === 'function') {
+          full = await ds.getView(cfg.source, viewKey);
+        }
+        if (!cancelled && full && typeof full === 'object') setHydratedView(full);
+      } catch { /* hollow view stays hollow — renderer falls back to defaults */ }
+    })();
+    return () => { cancelled = true; };
+  }, [objectDef, cfg.source, cfg.sourceView, resolvedView, dataSource]);
+
+  const viewDef = React.useMemo(
+    () => (hydratedView ? { ...resolvedView, ...hydratedView } : resolvedView),
+    [resolvedView, hydratedView],
   );
 
   const schema = React.useMemo(() => {

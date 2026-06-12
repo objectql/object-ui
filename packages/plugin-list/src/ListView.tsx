@@ -318,9 +318,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   onHiddenFieldsChange,
   onColumnStateChange,
   onRowClick,
-  showViewSwitcher = false,
+  showViewSwitcher: showViewSwitcherProp,
   ...props
 }, ref) => {
+  // The switcher can be enabled either by the host component (prop) or by
+  // the schema itself (ADR-0047 — ObjectView/InterfaceListPage stamp it on
+  // the schema when appearance.allowedVisualizations whitelists >1 type).
+  const showViewSwitcher = showViewSwitcherProp ?? (propSchema as any)?.showViewSwitcher ?? false;
   // i18n support for record count and other labels
   const { t } = useListViewTranslation();
   const { fieldLabel: resolveFieldLabel, actionLabel: resolveActionLabel } = useListFieldLabel();

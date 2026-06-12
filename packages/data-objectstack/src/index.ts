@@ -1379,8 +1379,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     try {
       const cacheKey = `view:${objectName}:${viewId}`;
       return await this.metadataCache.get(cacheKey, async () => {
-        // Try meta.getItem for view metadata
-        const result: any = await this.client.meta.getItem(objectName, viewId);
+        // Views are an independent metadata type (ADR-0017) — the first
+        // getItem argument is the metadata TYPE, not the object name.
+        // (Passing objectName here hit /meta/<object>/<view> and always 404ed.)
+        const result: any = await this.client.meta.getItem('view', viewId);
         if (result && result.item) return result.item;
         return result ?? null;
       });
