@@ -33,6 +33,11 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.viewMode.quarter': 'Quarter',
   'gantt.row.expand': 'Expand',
   'gantt.row.collapse': 'Collapse',
+  'gantt.aria.taskList': 'Task list',
+  'gantt.tooltip.days': 'd',
+  'gantt.menu.view': 'View details',
+  'gantt.menu.edit': 'Edit inline',
+  'gantt.menu.delete': 'Delete',
 };
 
 const TEST_KEY = 'gantt.column.taskName';

@@ -426,6 +426,53 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     [ganttConfig, dataConfig, dataSource, schema.objectName, data],
   );
 
+  // Persist a drag-created dependency: append the source (predecessor) id to
+  // the target record's dependencies field, preserving the field's original
+  // shape (CSV string stays CSV, array stays array; null becomes an array).
+  const handleDependencyCreate = useCallback(
+    async (source: GanttTask, target: GanttTask) => {
+      const depField = ganttConfig?.dependenciesField;
+      if (!depField) return;
+      const objectName =
+        dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+      if (!objectName || !dataSource || typeof dataSource.update !== 'function') return;
+
+      const sourceId = (source as any).data?.id ?? (source as any).data?._id ?? source.id;
+      const targetId = (target as any).data?.id ?? (target as any).data?._id ?? target.id;
+      if (sourceId == null || targetId == null) return;
+
+      const record = data.find((r) => String(r.id ?? r._id) === String(targetId));
+      const raw = record?.[depField];
+      const existing = normalizeDependencies(raw).map((d) =>
+        String(typeof d === 'object' ? d.id : d),
+      );
+      if (existing.includes(String(sourceId))) return; // already linked
+
+      let nextValue: unknown;
+      if (typeof raw === 'string') {
+        nextValue = raw.trim() ? `${raw.trim()},${sourceId}` : String(sourceId);
+      } else if (Array.isArray(raw)) {
+        nextValue = [...raw, sourceId];
+      } else {
+        nextValue = [sourceId];
+      }
+
+      const prevSnapshot = data;
+      setData((prev) =>
+        prev.map((r) =>
+          String(r.id ?? r._id) === String(targetId) ? { ...r, [depField]: nextValue } : r,
+        ),
+      );
+      try {
+        await dataSource.update(objectName, String(targetId), { [depField]: nextValue });
+      } catch (err) {
+        console.error('[ObjectGantt] Failed to persist dependency:', err);
+        setData(prevSnapshot); // revert
+      }
+    },
+    [ganttConfig, dataConfig, dataSource, schema.objectName, data],
+  );
+
   // -- Quick-create dialog removed --
   // The toolbar's "+ New Task" button only collected 3 fields (title +
   // start + end) which silently failed on objects with required fields
@@ -519,6 +566,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           }}
           onTaskUpdate={handleTaskUpdateDefault}
           onTaskDelete={requestDelete}
+          onDependencyCreate={ganttConfig?.dependenciesField ? handleDependencyCreate : undefined}
           inlineEdit
         />
       </div>

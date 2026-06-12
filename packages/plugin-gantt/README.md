@@ -274,6 +274,29 @@ const tasks = [
 ];
 ```
 
+## Interactions
+
+Beyond drag-to-reschedule, the timeline supports:
+
+- **Progress drag** — hover a bar and drag the round grip at the progress
+  boundary; the fill follows live and `onTaskUpdate(task, { progress })`
+  commits on release (snapped to whole percent, clamped 0–100).
+- **Hover tooltip** — bars, milestones and summaries show a tooltip with
+  title, date range, duration and progress.
+- **Context menu** — right-click a bar or list row for View details / Edit
+  inline / Delete (items appear only when the matching callback is wired).
+- **Keyboard navigation** — the chart body is focusable: ↑/↓ move the row
+  selection, Enter opens the task, Delete deletes it, ←/→ collapse/expand
+  summary rows. Rows carry `treeitem` roles with `aria-level`/`aria-selected`.
+- **Drag-to-create dependency** — drag the connector dot on a bar's right
+  edge onto another bar; a dashed rubber band previews the link and
+  `onDependencyCreate(source, target, 'fs')` fires on drop. Through
+  `ObjectGantt` the new predecessor is appended to the record's
+  `dependenciesField`, preserving the field's original shape (CSV or array).
+- **Row drag-to-reorder** — pass `onTaskReorder(task, before)` to enable
+  HTML5 drag reordering in the task list (sibling-scoped; persistence is up
+  to the host, e.g. via a sort field).
+
 ## Task Dependencies
 
 Link tasks to show dependencies:

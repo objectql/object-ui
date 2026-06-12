@@ -156,6 +156,17 @@ export interface GanttViewProps {
   onTaskDelete?: (task: GanttTask) => void
   /** Notified when the user switches granularity from the toolbar. */
   onViewChange?: (view: GanttViewMode) => void
+  /**
+   * Enables drag-to-link: a connector dot on each bar can be dragged onto
+   * another bar to create a dependency (target depends on source).
+   */
+  onDependencyCreate?: (source: GanttTask, target: GanttTask, type: GanttLinkType) => void
+  /**
+   * Enables row drag-to-reorder in the task list. Called with the dragged
+   * task and the sibling it was dropped on (insert before it). Only fires
+   * for rows sharing the same parent.
+   */
+  onTaskReorder?: (task: GanttTask, before: GanttTask) => void
   className?: string
   /** Enable inline editing of task fields */
   inlineEdit?: boolean
@@ -168,7 +179,10 @@ export function GanttView({
   endDate,
   onTaskClick,
   onTaskUpdate,
+  onTaskDelete,
   onViewChange,
+  onDependencyCreate,
+  onTaskReorder,
   className,
   inlineEdit = false,
 }: GanttViewProps) {
@@ -307,7 +321,125 @@ export function GanttView({
       unitDelta: 0,
     });
   }, [onTaskUpdate]);
-  
+
+  // --- Progress drag handle ------------------------------------------------
+  // A grip at the progress boundary inside the bar; horizontal motion maps
+  // 1:1 to percent of the bar width, committed via onTaskUpdate({progress}).
+  const [progressDrag, setProgressDrag] = React.useState<{
+    taskId: string | number;
+    originClientX: number;
+    originProgress: number;
+    barWidth: number;
+    value: number;
+  } | null>(null);
+  const progressDragRef = React.useRef<typeof progressDrag>(null);
+  React.useEffect(() => { progressDragRef.current = progressDrag; }, [progressDrag]);
+
+  React.useEffect(() => {
+    if (!progressDrag) return;
+    const onMove = (e: PointerEvent) => {
+      const cur = progressDragRef.current;
+      if (!cur) return;
+      const next = Math.min(100, Math.max(0, Math.round(
+        cur.originProgress + ((e.clientX - cur.originClientX) / Math.max(cur.barWidth, 1)) * 100
+      )));
+      if (next !== cur.value) setProgressDrag({ ...cur, value: next });
+    };
+    const onUp = () => {
+      const cur = progressDragRef.current;
+      if (!cur) return;
+      if (cur.value !== cur.originProgress) {
+        const task = tasks.find((t) => t.id === cur.taskId);
+        if (task && onTaskUpdate) onTaskUpdate(task, { progress: cur.value });
+        suppressNextClickRef.current = true;
+        window.setTimeout(() => { suppressNextClickRef.current = false; }, 0);
+      }
+      setProgressDrag(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [progressDrag, tasks, onTaskUpdate]);
+
+  // --- Drag-to-create dependency -------------------------------------------
+  // Dragging the connector dot on a bar draws a dashed rubber band; releasing
+  // over another bar fires onDependencyCreate(source, target, 'fs'). The
+  // hovered target is tracked by bar-level pointermove (no pointer capture).
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const [linkDrag, setLinkDrag] = React.useState<{
+    sourceId: string | number;
+    x: number;
+    y: number;
+    targetId: string | number | null;
+  } | null>(null);
+  const linkDragRef = React.useRef<typeof linkDrag>(null);
+  React.useEffect(() => { linkDragRef.current = linkDrag; }, [linkDrag]);
+
+  React.useEffect(() => {
+    if (!linkDrag) return;
+    const onMove = (e: PointerEvent) => {
+      const rect = contentRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      setLinkDrag((prev) => (prev ? { ...prev, x, y } : prev));
+    };
+    const onUp = () => {
+      const cur = linkDragRef.current;
+      if (cur && cur.targetId != null && String(cur.targetId) !== String(cur.sourceId) && onDependencyCreate) {
+        const source = tasks.find((t) => String(t.id) === String(cur.sourceId));
+        const target = tasks.find((t) => String(t.id) === String(cur.targetId));
+        if (source && target) onDependencyCreate(source, target, 'fs');
+      }
+      suppressNextClickRef.current = true;
+      window.setTimeout(() => { suppressNextClickRef.current = false; }, 0);
+      setLinkDrag(null);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [linkDrag, tasks, onDependencyCreate]);
+
+  // --- Context menu ---------------------------------------------------------
+  const [ctxMenu, setCtxMenu] = React.useState<{ x: number; y: number; taskId: string | number } | null>(null);
+  const ctxMenuRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!ctxMenu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (ctxMenuRef.current && e.target instanceof Node && ctxMenuRef.current.contains(e.target)) return;
+      setCtxMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [ctxMenu]);
+
+  // --- Keyboard navigation ---------------------------------------------------
+  // The gantt body is focusable; arrows move the selection, Enter opens,
+  // Delete deletes, Left/Right collapse/expand summary rows.
+  const [selectedTaskId, setSelectedTaskId] = React.useState<string | number | null>(null);
+
+  const openContextMenu = React.useCallback((task: GanttTask, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedTaskId(task.id);
+    setCtxMenu({ x: e.clientX, y: e.clientY, taskId: task.id });
+  }, []);
+
   // --- Task hierarchy -----------------------------------------------------
   // `task.parent` builds a tree; rows are the depth-first flattening with
   // collapsed subtrees removed. Summary rows (any task with children, or
@@ -421,6 +553,39 @@ export function GanttView({
     for (const t of tasks) if (!visited.has(String(t.id))) walk(t, 0);
     return out;
   }, [tasks, collapsedIds]);
+
+  const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (!rows.length) return;
+    const idx = selectedTaskId == null
+      ? -1
+      : rows.findIndex((r) => String(r.task.id) === String(selectedTaskId));
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const next = e.key === 'ArrowDown'
+        ? Math.min(rows.length - 1, idx + 1)
+        : Math.max(0, idx <= 0 ? 0 : idx - 1);
+      setSelectedTaskId(rows[next].task.id);
+      return;
+    }
+    if (idx < 0) return;
+    const row = rows[idx];
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onTaskClick?.(row.task);
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (onTaskDelete) {
+        e.preventDefault();
+        onTaskDelete(row.task);
+      }
+    } else if (e.key === 'ArrowRight' && row.hasChildren && collapsedIds.has(String(row.task.id))) {
+      e.preventDefault();
+      toggleCollapsed(row.task.id);
+    } else if (e.key === 'ArrowLeft' && row.hasChildren && !collapsedIds.has(String(row.task.id))) {
+      e.preventDefault();
+      toggleCollapsed(row.task.id);
+    }
+  }, [rows, selectedTaskId, onTaskClick, onTaskDelete, collapsedIds, toggleCollapsed]);
 
   // Calculate timeline range
   const timelineRange = React.useMemo(() => {
@@ -785,8 +950,13 @@ export function GanttView({
         </div>
       </div>
 
-      {/* Gantt Body */}
-      <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Gantt Body — focusable for keyboard row navigation */}
+      <div
+        className="flex flex-col flex-1 overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        data-testid="gantt-body"
+      >
         {/* Headers Row */}
         <div className="flex border-b bg-muted/30 shrink-0 h-10 sm:h-[50px]">
           {/* List Header */}
@@ -841,21 +1011,55 @@ export function GanttView({
         {/* Content Row */}
         <div className="flex flex-1 overflow-hidden">
           {/* Left Side: Task List (Grid) */}
-          <div 
+          <div
             className="overflow-hidden border-r bg-card z-10 shadow-sm"
             ref={listRef}
             style={{ width: taskListWidth, minWidth: taskListWidth }}
+            role="tree"
+            aria-label={t('gantt.aria.taskList')}
           >
             {rows.map((row) => {
               const task = row.task;
               const isEditing = inlineEdit && editingTask === task.id;
               const isCollapsed = collapsedIds.has(String(task.id));
+              const isSelected = selectedTaskId != null && String(selectedTaskId) === String(task.id);
               return (
               <div
                 key={task.id}
-                className="group/task-row flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation"
+                className={cn(
+                  "group/task-row flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation",
+                  isSelected && "bg-accent/60"
+                )}
                 style={{ height: rowHeight }}
-                onClick={() => !isEditing && onTaskClick?.(task)}
+                role="treeitem"
+                aria-level={row.depth + 1}
+                aria-selected={isSelected}
+                aria-expanded={row.hasChildren ? !isCollapsed : undefined}
+                draggable={!!onTaskReorder && !isEditing}
+                onDragStart={onTaskReorder ? (e) => {
+                  e.dataTransfer.setData('text/plain', String(task.id));
+                  e.dataTransfer.effectAllowed = 'move';
+                } : undefined}
+                onDragOver={onTaskReorder ? (e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                } : undefined}
+                onDrop={onTaskReorder ? (e) => {
+                  e.preventDefault();
+                  const srcId = e.dataTransfer.getData('text/plain');
+                  if (!srcId || srcId === String(task.id)) return;
+                  const src = tasks.find((t) => String(t.id) === srcId);
+                  // Reorder is sibling-scoped: dropping on a row with a
+                  // different parent is ignored rather than re-parenting.
+                  if (src && String(src.parent ?? '') === String(task.parent ?? '')) {
+                    onTaskReorder(src, task);
+                  }
+                } : undefined}
+                onContextMenu={(e) => openContextMenu(task, e)}
+                onClick={() => {
+                  setSelectedTaskId(task.id);
+                  if (!isEditing) onTaskClick?.(task);
+                }}
                 onDoubleClick={() => {
                   if (inlineEdit && onTaskUpdate && !row.isSummary) {
                     setEditingTask(task.id);
@@ -982,7 +1186,7 @@ export function GanttView({
                 </div>
               )}
               {/* Timeline Task Rows */}
-              <div className="relative">
+              <div className="relative" ref={contentRef}>
                 {/* Background Grid */}
                 <div className="absolute inset-0 flex pointer-events-none z-0">
                    {timeColumns.map((col, i) => (
@@ -1004,6 +1208,46 @@ export function GanttView({
                    const isDragging = dragState?.taskId === task.id;
                    const liveStyle = isDragging ? getLiveRowStyle(row) : baseStyle;
                    const canDrag = !!onTaskUpdate && !row.isSummary;
+                   const isLinkTarget =
+                     linkDrag != null &&
+                     linkDrag.targetId != null &&
+                     String(linkDrag.targetId) === String(task.id) &&
+                     String(linkDrag.sourceId) !== String(task.id);
+                   // While a connector drag is live, bars report themselves as
+                   // the drop target on pointermove; the row clears it when the
+                   // pointer is over empty row space (target === currentTarget).
+                   const captureLinkTarget = linkDrag ? () => {
+                     setLinkDrag((prev) =>
+                       prev && String(prev.sourceId) !== String(task.id)
+                         ? { ...prev, targetId: task.id }
+                         : prev
+                     );
+                   } : undefined;
+                   const clearLinkTarget = linkDrag ? (e: React.PointerEvent) => {
+                     if (e.target === e.currentTarget) {
+                       setLinkDrag((prev) => (prev ? { ...prev, targetId: null } : prev));
+                     }
+                   } : undefined;
+                   const durationDays = Math.max(1, Math.round(
+                     (row.end.getTime() - row.start.getTime()) / MS_PER_DAY
+                   ));
+                   const tooltip = hoveredTaskId === task.id && !dragState && !progressDrag && !linkDrag ? (
+                     <div
+                       className="absolute z-30 pointer-events-none rounded-md border bg-popover text-popover-foreground px-2.5 py-1.5 text-xs shadow-md whitespace-nowrap"
+                       style={{ left: Math.max(liveStyle.left + 8, 4), top: rowHeight - 8 }}
+                       role="tooltip"
+                       data-testid={`gantt-tooltip-${task.id}`}
+                     >
+                       <div className="font-semibold">{task.title}</div>
+                       <div className="text-muted-foreground">
+                         {row.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                         {' → '}
+                         {row.end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                         {' · '}{durationDays}{t('gantt.tooltip.days')}
+                         {' · '}{Math.round(row.progress)}%
+                       </div>
+                     </div>
+                   ) : null;
 
                    if (row.isSummary) {
                      // Summary bracket: slim bar with downward end caps spanning
@@ -1013,6 +1257,7 @@ export function GanttView({
                         key={task.id}
                         className="relative border-b hover:bg-black/5"
                         style={{ height: rowHeight }}
+                        onPointerMove={clearLinkTarget}
                       >
                         <div
                           className="absolute rounded-[2px] bg-foreground/75"
@@ -1022,10 +1267,12 @@ export function GanttView({
                           onMouseEnter={() => setHoveredTaskId(task.id)}
                           onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
                           onClick={() => onTaskClick?.(task)}
+                          onContextMenu={(e) => openContextMenu(task, e)}
                         >
                           <div className="absolute left-0 top-0 w-[3px] bg-foreground/75 rounded-b-[2px]" style={{ height: 12 }} />
                           <div className="absolute right-0 top-0 w-[3px] bg-foreground/75 rounded-b-[2px]" style={{ height: 12 }} />
                         </div>
+                        {tooltip}
                       </div>
                      );
                    }
@@ -1037,12 +1284,14 @@ export function GanttView({
                         key={task.id}
                         className="relative border-b hover:bg-black/5"
                         style={{ height: rowHeight }}
+                        onPointerMove={clearLinkTarget}
                       >
                         <div
                           className={cn(
                             "absolute rotate-45 rounded-[2px] border border-primary-foreground/20 shadow-sm select-none",
                             canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-                            isDragging && "ring-2 ring-primary/60 brightness-110 z-10"
+                            isDragging && "ring-2 ring-primary/60 brightness-110 z-10",
+                            isLinkTarget && "ring-2 ring-primary"
                           )}
                           style={{
                             left: liveStyle.left - size / 2,
@@ -1058,20 +1307,28 @@ export function GanttView({
                             if (suppressNextClickRef.current) return;
                             onTaskClick?.(task);
                           }}
+                          onContextMenu={(e) => openContextMenu(task, e)}
+                          onPointerMove={captureLinkTarget}
                           onPointerDown={canDrag ? (e) => {
                             if (e.button !== 0) return;
                             beginDrag(task, 'move', e);
                           } : undefined}
                         />
+                        {tooltip}
                       </div>
                      );
                    }
+
+                   const liveProgress = progressDrag && progressDrag.taskId === task.id
+                     ? progressDrag.value
+                     : task.progress;
 
                    return (
                     <div
                       key={task.id}
                       className="relative border-b hover:bg-black/5"
                       style={{ height: rowHeight }}
+                      onPointerMove={clearLinkTarget}
                     >
                       {/* Ghost: original position rendered faded while dragging */}
                       {isDragging && (
@@ -1081,14 +1338,15 @@ export function GanttView({
                           aria-hidden="true"
                         />
                       )}
-                      <div 
+                      <div
                         className={cn(
                           "absolute top-1 sm:top-2 h-[calc(100%-8px)] sm:h-[calc(100%-16px)] rounded-sm bg-primary border border-primary-foreground/20 shadow-sm hover:brightness-110 flex items-center px-2 group select-none",
                           canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-                          isDragging && "ring-2 ring-primary/60 brightness-110 z-10"
+                          isDragging && "ring-2 ring-primary/60 brightness-110 z-10",
+                          isLinkTarget && "ring-2 ring-primary"
                         )}
-                        style={{ 
-                          left: liveStyle.left, 
+                        style={{
+                          left: liveStyle.left,
                           width: liveStyle.width,
                           backgroundColor: task.color || '#3b82f6'
                         }}
@@ -1099,6 +1357,8 @@ export function GanttView({
                           if (suppressNextClickRef.current) return;
                           onTaskClick?.(task);
                         }}
+                        onContextMenu={(e) => openContextMenu(task, e)}
+                        onPointerMove={captureLinkTarget}
                         onPointerDown={canDrag ? (e) => {
                           // Body of bar = move; resize handles get their own onPointerDown
                           // and stopPropagation so they win.
@@ -1130,28 +1390,85 @@ export function GanttView({
                           </>
                         )}
 
-                        {/* Progress Filter */}
-                        {task.progress > 0 && (
-                          <div 
+                        {/* Progress fill — follows the handle live while dragging */}
+                        {liveProgress > 0 && (
+                          <div
                             className="absolute left-0 top-0 bottom-0 bg-black/20 rounded-l-sm pointer-events-none"
-                            style={{ width: `${task.progress}%` }}
+                            style={{ width: `${liveProgress}%` }}
                           />
                         )}
-                        
+
+                        {/* Progress drag handle — grip at the progress boundary */}
+                        {canDrag && liveStyle.width >= 30 && (
+                          <div
+                            className={cn(
+                              "absolute top-0 bottom-0 w-3 -translate-x-1/2 cursor-col-resize flex items-center justify-center",
+                              progressDrag?.taskId === task.id
+                                ? "opacity-100"
+                                : "opacity-0 group-hover:opacity-100 transition-opacity"
+                            )}
+                            style={{ left: `${liveProgress}%` }}
+                            data-testid={`gantt-progress-handle-${task.id}`}
+                            onPointerDown={(e) => {
+                              if (e.button !== 0) return;
+                              e.stopPropagation();
+                              e.preventDefault();
+                              setProgressDrag({
+                                taskId: task.id,
+                                originClientX: e.clientX,
+                                originProgress: task.progress,
+                                barWidth: liveStyle.width,
+                                value: task.progress,
+                              });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="h-2.5 w-2.5 rounded-full bg-white shadow ring-1 ring-black/30" />
+                          </div>
+                        )}
+
+                        {/* Connector dot — drag onto another bar to create a dependency */}
+                        {onDependencyCreate && (
+                          <div
+                            className={cn(
+                              "absolute -right-2 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-background cursor-crosshair z-10",
+                              linkDrag && String(linkDrag.sourceId) === String(task.id)
+                                ? "opacity-100"
+                                : "opacity-0 group-hover:opacity-100 transition-opacity"
+                            )}
+                            style={{ border: '2px solid hsl(var(--primary))' }}
+                            data-testid={`gantt-link-dot-${task.id}`}
+                            onPointerDown={(e) => {
+                              if (e.button !== 0) return;
+                              e.stopPropagation();
+                              e.preventDefault();
+                              const rect = contentRef.current?.getBoundingClientRect();
+                              setLinkDrag({
+                                sourceId: task.id,
+                                x: rect ? e.clientX - rect.left : 0,
+                                y: rect ? e.clientY - rect.top : 0,
+                                targetId: null,
+                              });
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        )}
+
                         {/* Hover Details / drag tooltip */}
                         <span className="text-[10px] text-white font-medium truncate opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                           {isDragging
                             ? `${computeDragChanges(dragState!).start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} → ${computeDragChanges(dragState!).end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}`
-                            : `${Math.round(task.progress)}%`}
+                            : `${Math.round(liveProgress)}%`}
                         </span>
                       </div>
+                      {tooltip}
                     </div>
                    )
                 })}
 
                 {/* Dependency Links — SVG overlay above bars, below the Today
                     marker (z-20). pointer-events-none so bar drag/click win. */}
-                {links.length > 0 && (
+                {(links.length > 0 || linkDrag) && (
                   <svg
                     className="absolute top-0 left-0 pointer-events-none z-10"
                     width={totalWidth}
@@ -1208,6 +1525,24 @@ export function GanttView({
                         />
                       );
                     })}
+                    {/* Draft rubber band while dragging a connector dot */}
+                    {linkDrag && (() => {
+                      const si = rows.findIndex((r) => String(r.task.id) === String(linkDrag.sourceId));
+                      if (si < 0) return null;
+                      const s = getLiveRowStyle(rows[si]);
+                      const sx = rows[si].isMilestone ? s.left : s.left + s.width;
+                      const sy = si * rowHeight + rowHeight / 2;
+                      return (
+                        <path
+                          d={`M ${Math.round(sx)} ${Math.round(sy)} L ${Math.round(linkDrag.x)} ${Math.round(linkDrag.y)}`}
+                          fill="none"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={1.5}
+                          strokeDasharray="4 3"
+                          data-testid="gantt-link-draft"
+                        />
+                      );
+                    })()}
                   </svg>
                 )}
 
@@ -1225,6 +1560,66 @@ export function GanttView({
           </div>
         </div>
       </div>
+
+      {/* Context menu — fixed-position so it escapes the scroll clipping */}
+      {ctxMenu && (() => {
+        const task = tasks.find((tk) => String(tk.id) === String(ctxMenu.taskId));
+        if (!task) return null;
+        const row = rows.find((r) => String(r.task.id) === String(ctxMenu.taskId));
+        const itemCls = "w-full text-left px-3 py-1.5 hover:bg-accent focus:bg-accent outline-none";
+        return (
+          <div
+            ref={ctxMenuRef}
+            className="fixed z-50 min-w-[160px] rounded-md border bg-popover text-popover-foreground shadow-md py-1 text-sm"
+            style={{ left: ctxMenu.x, top: ctxMenu.y }}
+            role="menu"
+            data-testid="gantt-context-menu"
+          >
+            {onTaskClick && (
+              <button
+                type="button"
+                role="menuitem"
+                className={itemCls}
+                data-testid="gantt-context-menu-view"
+                onClick={() => { setCtxMenu(null); onTaskClick(task); }}
+              >
+                {t('gantt.menu.view')}
+              </button>
+            )}
+            {inlineEdit && onTaskUpdate && row && !row.isSummary && (
+              <button
+                type="button"
+                role="menuitem"
+                className={itemCls}
+                data-testid="gantt-context-menu-edit"
+                onClick={() => {
+                  setCtxMenu(null);
+                  setEditingTask(task.id);
+                  setEditValues({
+                    title: task.title,
+                    start: task.start.toLocaleDateString('en-CA'),
+                    end: task.end.toLocaleDateString('en-CA'),
+                    progress: String(task.progress),
+                  });
+                }}
+              >
+                {t('gantt.menu.edit')}
+              </button>
+            )}
+            {onTaskDelete && (
+              <button
+                type="button"
+                role="menuitem"
+                className={cn(itemCls, "text-destructive")}
+                data-testid="gantt-context-menu-delete"
+                onClick={() => { setCtxMenu(null); onTaskDelete(task); }}
+              >
+                {t('gantt.menu.delete')}
+              </button>
+            )}
+          </div>
+        );
+      })()}
     </div>
   )
 }

@@ -37,14 +37,15 @@ Today marker + jump-to-today, weekend highlighting, semantic color fallback, i18
 - [x] Auto-rollup: summary dates = min/max of descendants, progress = duration-weighted child progress (client-side, display via `data-progress`)
 - [x] Tests: tree building, orphan + cycle handling, collapse hides rows/links, summary range/progress math, milestone rendering + link anchors (9 new tests)
 
-## Phase 4 — Interaction Polish
+## Phase 4 — Interaction Polish ✅
 
-- [ ] Progress drag handle on the bar (currently progress is editable only via double-click inline edit)
-- [ ] Rich hover tooltip (title, dates, duration, progress, assignee) replacing the bare percentage label
-- [ ] Context menu on bar/row (edit, delete, add dependency, convert to milestone)
-- [ ] Keyboard support: arrow-key row navigation, Enter to open, Delete to delete; WCAG roles on grid/timeline
-- [ ] Drag-to-create dependency (drag from bar edge connector dot to another bar)
-- [ ] Row drag-to-reorder (persist via sort field when configured)
+- [x] Progress drag handle on the bar — grip at the progress boundary, 1% snapping, live fill preview, commits `onTaskUpdate({progress})`
+- [x] Rich hover tooltip (title, dates, duration, progress) on task bars, milestones and summary brackets
+- [x] Context menu on bar/row — View details / Edit inline / Delete; closes on outside click or Escape (add-dependency is covered by drag-to-create)
+- [x] Keyboard support: focusable gantt body, ArrowUp/Down row navigation, Enter to open, Delete to delete, ArrowLeft/Right collapse/expand; `tree`/`treeitem` roles with aria-level/-selected/-expanded
+- [x] Drag-to-create dependency — connector dot on bar edge, dashed rubber band, drop-target highlight; fires `onDependencyCreate(source, target, 'fs')`, `ObjectGantt` appends to the dependencies field preserving its shape (CSV ↔ array)
+- [x] Row drag-to-reorder — HTML5 drag in the task list, sibling-scoped, fires `onTaskReorder(task, before)` for the host to persist (sort-field wiring is host-specific)
+- [x] Tests: progress drag + clamping, tooltip, context menu routing/Escape, keyboard nav + collapse, link create + empty-space release, reorder + cross-parent guard (11 new tests)
 
 ## Phase 5 — Scale & Performance
 
