@@ -82,7 +82,14 @@ function debug(...args: unknown[]) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function extractItems(res: unknown): any[] {
+/** Exported for tests — both metadata sources must normalize identically. */
+export function extractItems(res: unknown): any[] {
+  // MetadataClient.list() (the preview-draft path) unwraps `{items}` itself
+  // and resolves a BARE ARRAY; the adapter SDK path resolves `{items}`.
+  // Missing this branch silently turned every preview-mode list read into []
+  // — a draft-built app rendered the launcher's "No Apps Configured" empty
+  // state in the Live Canvas (live-verified on staging).
+  if (Array.isArray(res)) return res;
   if (res && typeof res === 'object' && 'items' in res && Array.isArray((res as { items: unknown[] }).items)) {
     return (res as { items: unknown[] }).items;
   }
