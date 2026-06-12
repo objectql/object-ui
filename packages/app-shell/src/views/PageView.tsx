@@ -19,6 +19,7 @@ import { useAuth } from '@object-ui/auth';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useMetadata } from '../providers/MetadataProvider';
 import { ConsoleActionRuntimeProvider } from '../hooks/useConsoleActionRuntime';
+import { InterfaceListPage } from './InterfaceListPage';
 
 export function PageView() {
   const { t } = useObjectTranslation();
@@ -91,14 +92,20 @@ export function PageView() {
               {t('common.editInStudio', { defaultValue: 'Edit in studio' })}
             </button>
           )}
-          <SchemaRenderer
-            key={refreshKey}
-            schema={{
-              ...page,
-              type: (page as any).type || 'page',
-              context: { ...(page as any).context, params, refreshKey },
-            }}
-          />
+          {(page as any).interfaceConfig?.source ? (
+            // ADR-0047 interface mode: the page binds a source view into a
+            // curated list surface — rendered directly, not via regions.
+            <InterfaceListPage key={refreshKey} page={page} />
+          ) : (
+            <SchemaRenderer
+              key={refreshKey}
+              schema={{
+                ...page,
+                type: (page as any).type || 'page',
+                context: { ...(page as any).context, params, refreshKey },
+              }}
+            />
+          )}
         </div>
         <MetadataPanel
           open={showDebug}
