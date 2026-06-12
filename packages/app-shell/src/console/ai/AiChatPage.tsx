@@ -83,11 +83,18 @@ function partToolState(part: HydratedUIMessagePart): ChatbotEnhancedToolInvocati
     case 'output-denied':
       return state;
     default:
-      return undefined;
+      // No state at all: server-side conversations persist ModelMessage
+      // `tool-call` content entries, which carry no UI state — contentToParts
+      // passes them through as `tool-call` parts verbatim. In hydrated
+      // history that turn has ended too, so stateless ≡ completed; returning
+      // undefined here leaves the invocation state-less and the chip renders
+      // "Running" forever (the live-verified gap left by the first fix).
+      return 'output-available';
   }
 }
 
-function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): ChatMessage[] {
+/** Exported for tests — maps persisted/cached history to renderable messages. */
+export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): ChatMessage[] {
   return messages.map((message) => {
     const toolInvocations: ChatbotEnhancedToolInvocation[] = [];
     const content = message.parts
@@ -130,7 +137,7 @@ function firstUserMessageText(messages: HydratedUIMessage[]): string | undefined
 }
 
 const PLATFORM_AGENT_LABEL_KEYS: Record<string, { key: string; defaultValue: string }> = {
-  data_chat: { key: 'console.ai.agentLabels.dataChat', defaultValue: 'Data Assistant' },
+  data_chat: { key: 'console.ai.agentLabels.dataChat', defaultValue: 'Assistant' },
   metadata_assistant: { key: 'console.ai.agentLabels.metadataAssistant', defaultValue: 'Metadata Assistant' },
 };
 

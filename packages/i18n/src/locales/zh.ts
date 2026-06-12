@@ -1029,7 +1029,7 @@ const zh = {
       hoursAgo: '{{count}} 小时前',
       daysAgo: '{{count}} 天前',
       agentLabels: {
-        dataChat: '数据助手',
+        dataChat: '智能助手',
         metadataAssistant: '元数据开发助手',
       },
       suggestions: {

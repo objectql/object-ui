@@ -1029,7 +1029,7 @@ const en = {
       hoursAgo: '{{count}}h ago',
       daysAgo: '{{count}}d ago',
       agentLabels: {
-        dataChat: 'Data Assistant',
+        dataChat: 'Assistant',
         metadataAssistant: 'Metadata Assistant',
       },
       suggestions: {

@@ -51,7 +51,7 @@ import { getRuntimeConfig } from '../runtime-config';
  * to whatever label the backend provides.
  */
 const PLATFORM_AGENT_LABELS: Record<string, { zh: string; en: string }> = {
-  data_chat: { zh: '数据助手', en: 'Data Assistant' },
+  data_chat: { zh: '智能助手', en: 'Assistant' },
   metadata_assistant: { zh: '元数据开发助手', en: 'Metadata Assistant' },
 };
 
