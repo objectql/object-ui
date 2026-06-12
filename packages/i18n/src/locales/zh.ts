@@ -1628,6 +1628,32 @@ const zh = {
     systemSettings: '系统设置',
     back: '返回',
   },
+  preview: {
+    empty: {
+      loadFailedTitle: '草稿预览加载失败',
+      loadFailedDescription: '无法读取草稿数据。请重试，或检查网络连接。',
+      notReadyTitle: '“{{app}}” 尚未进入草稿',
+      notReadyDescription: '构建可能仍在进行，或在该应用落稿前失败了。请回到对话查看构建状态 —— 草稿就绪后此窗口会自动刷新。',
+      nothingTitle: '暂无可预览的内容',
+      retry: '重试',
+    },
+    draftBar: {
+      message: '草稿预览 —— 您看到的是未发布的更改，发布前不会生效。',
+      publish: '发布',
+      publishing: '发布中…',
+      exit: '退出预览',
+      changes: '变更',
+    },
+    changes: {
+      title: '待发布的变更',
+      description: '发布将带来以下变更。“新增”为全新内容，“更新”将覆盖线上版本。',
+      loading: '正在加载待发布变更…',
+      loadFailed: '无法加载待发布变更：',
+      empty: '没有待发布的内容 —— 所有草稿均已发布。',
+      kindNew: '新增',
+      kindUpdate: '更新',
+    },
+  },
   renderer: {
     noPageSchema: '未提供页面 schema',
     noFormSchema: '未提供表单 schema',

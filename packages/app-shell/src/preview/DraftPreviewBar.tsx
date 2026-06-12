@@ -14,12 +14,14 @@
  * keeps a read-only preview from ever being confused with the live app.
  */
 
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Eye, X, Rocket } from 'lucide-react';
+import { Eye, X, Rocket, GitCompareArrows } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { usePreviewDrafts, PREVIEW_QUERY_FLAG } from './PreviewModeContext';
+import { usePreviewDrafts, markPreviewExit, PREVIEW_QUERY_FLAG } from './PreviewModeContext';
 import { usePublishAllDrafts } from './usePublishAllDrafts';
+import { DraftChangesPanel } from './DraftChangesPanel';
 
 export function DraftPreviewBar() {
   const preview = usePreviewDrafts();
@@ -27,10 +29,39 @@ export function DraftPreviewBar() {
   const navigate = useNavigate();
   const { t } = useObjectTranslation();
   const { publishAll, publishing } = usePublishAllDrafts(t);
+  const [changesOpen, setChangesOpen] = useState(false);
+  // Pending-draft count for the Changes button label — what Publish will
+  // actually promote. Refreshed per pathname so drafts staged while the
+  // preview is open (the chat keeps building) update the count.
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!preview) return;
+    let cancelled = false;
+    void fetch('/api/v1/meta/_drafts', {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const list = Array.isArray(data) ? data : data?.drafts ?? [];
+        setPendingCount(Array.isArray(list) ? list.length : null);
+      })
+      .catch(() => {
+        /* count is decorative — the panel itself reports errors */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preview, location.pathname]);
 
   if (!preview) return null;
 
   const exit = () => {
+    // Tell the sticky preview keeper this is an INTENTIONAL exit, or it
+    // would immediately re-apply the flag we are about to remove.
+    markPreviewExit();
     const params = new URLSearchParams(location.search);
     params.delete(PREVIEW_QUERY_FLAG);
     const qs = params.toString();
@@ -57,12 +88,23 @@ export function DraftPreviewBar() {
           defaultValue: 'Draft preview — you are seeing unpublished changes. Nothing here is live until you publish.',
         })}
       </p>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => setChangesOpen(true)}
+        data-testid="draft-preview-changes"
+      >
+        <GitCompareArrows className="mr-1 h-3.5 w-3.5" />
+        {t('preview.draftBar.changes', { defaultValue: 'Changes' })}
+        {typeof pendingCount === 'number' ? ` (${pendingCount})` : ''}
+      </Button>
       <Button size="sm" onClick={publish} disabled={publishing} data-testid="draft-preview-publish">
         <Rocket className="mr-1 h-3.5 w-3.5" />
         {publishing
           ? t('preview.draftBar.publishing', { defaultValue: 'Publishing…' })
           : t('preview.draftBar.publish', { defaultValue: 'Publish' })}
       </Button>
+      <DraftChangesPanel open={changesOpen} onOpenChange={setChangesOpen} />
       <Button size="sm" variant="outline" onClick={exit} data-testid="draft-preview-exit">
         <X className="mr-1 h-3.5 w-3.5" />
         {t('preview.draftBar.exit', { defaultValue: 'Exit preview' })}

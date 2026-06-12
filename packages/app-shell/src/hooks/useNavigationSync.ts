@@ -15,6 +15,7 @@ import type { NavigationItem, AppSchema } from '@object-ui/types';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadata } from '../providers/MetadataProvider';
+import { usePreviewDrafts } from '../preview/PreviewModeContext';
 
 // ============================================================================
 // Pure utility helpers (exported for testing)
@@ -513,6 +514,13 @@ export function NavigationSyncEffect(): null {
   const adapter = useAdapter();
   const adapterRef = useRef(adapter);
   adapterRef.current = adapter;
+  // ADR-0037 — preview is read-only by design. Entering/leaving
+  // `?preview=draft` swaps the entire metadata source, so the page/dashboard
+  // sets legitimately DIFFER from the previous render; diffing across that
+  // swap would misread draft-only (or published-only) items as user
+  // creations/deletions and WRITE navigation changes back to the real app
+  // metadata from inside a preview. Disabled for the whole preview session.
+  const previewDrafts = usePreviewDrafts();
 
   const {
     syncPageCreated,
@@ -537,6 +545,13 @@ export function NavigationSyncEffect(): null {
 
   useEffect(() => {
     if (syncingRef.current) return;
+    if (previewDrafts) {
+      // Drop the baseline so leaving preview re-seeds instead of diffing the
+      // published world against the draft world it just stopped rendering.
+      prevPageNamesRef.current = null;
+      prevDashNamesRef.current = null;
+      return;
+    }
 
     const currentPageNames = new Set(
       (pages ?? []).map((p: any) => p.name).filter(Boolean) as string[],
@@ -616,7 +631,7 @@ export function NavigationSyncEffect(): null {
     return () => {
       cancelled = true;
     };
-  }, [pages, dashboards, apps, syncPageCreated, syncDashboardCreated, syncPageDeleted, syncDashboardDeleted]);
+  }, [pages, dashboards, apps, previewDrafts, syncPageCreated, syncDashboardCreated, syncPageDeleted, syncDashboardDeleted]);
 
   return null;
 }

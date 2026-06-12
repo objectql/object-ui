@@ -84,11 +84,11 @@ function debug(...args: unknown[]) {
 
 /** Exported for tests — both metadata sources must normalize identically. */
 export function extractItems(res: unknown): any[] {
-  // MetadataClient.list() (the preview-draft path) unwraps `{items}` itself
-  // and resolves a BARE ARRAY; the adapter SDK path resolves `{items}`.
-  // Missing this branch silently turned every preview-mode list read into []
-  // — a draft-built app rendered the launcher's "No Apps Configured" empty
-  // state in the Live Canvas (live-verified on staging).
+  // Both source shapes must parse: the adapter SDK returns the wrapped
+  // `{ type, items: [...] }` envelope, while the ADR-0037 preview path's
+  // MetadataClient.list() returns the already-unwrapped array. Dropping the
+  // bare-array shape silently emptied the ENTIRE draft-preview world (every
+  // type read 0 items), stranding the Live Canvas on "No Apps Configured".
   if (Array.isArray(res)) return res;
   if (res && typeof res === 'object' && 'items' in res && Array.isArray((res as { items: unknown[] }).items)) {
     return (res as { items: unknown[] }).items;

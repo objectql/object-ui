@@ -42,6 +42,7 @@ import {
   type HydratedUIMessage,
 } from '../hooks';
 import { useAssistant, requestAssistantReview, emitCanvasInvalidate, type AssistantEditorContext } from '../assistant/assistantBus';
+import { fetchPendingDraftCount } from '../preview/draftStatus';
 import { getRuntimeConfig } from '../runtime-config';
 
 /**
@@ -525,6 +526,9 @@ function ChatbotInner({
         onDraftArtifacts={(artifacts) => {
           for (const a of artifacts) emitCanvasInvalidate(a);
         }}
+        // Live lifecycle truth for draft cards: the server's pending count per
+        // package, so reloaded conversations show Published/Publish honestly.
+        fetchPendingDraftCount={fetchPendingDraftCount}
         onPublishDrafts={async (packageId) => {
           // ADR-0033 — promote the conversation's staged drafts to live in one
           // click (the human still confirms here). Mirrors PackagesPage's

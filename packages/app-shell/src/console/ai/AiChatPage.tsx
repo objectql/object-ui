@@ -46,6 +46,7 @@ import {
 } from '@object-ui/plugin-chatbot';
 
 import { AppHeader } from '../../layout/AppHeader';
+import { fetchPendingDraftCount } from '../../preview/draftStatus';
 import { getRuntimeConfig } from '../../runtime-config';
 import { useNavigationContext } from '../../context/NavigationContext';
 import {
@@ -632,6 +633,9 @@ function ChatPane({
         // Build-tree "Open app": jump straight into the app the agent just built.
         onOpenBuiltApp={(appName) => navigate(`/apps/${encodeURIComponent(appName)}`)}
         openBuiltAppLabel={t('console.ai.openBuiltApp', { defaultValue: 'Open app' })}
+        // Live lifecycle truth for draft cards: the server's pending count per
+        // package, so reloaded conversations show Published/Publish honestly.
+        fetchPendingDraftCount={fetchPendingDraftCount}
         onPublishDrafts={async (packageId) => {
           // Promote the conversation's staged drafts to live (ADR-0033 gate —
           // the human still clicks). Same call as the floating chat + PackagesPage.

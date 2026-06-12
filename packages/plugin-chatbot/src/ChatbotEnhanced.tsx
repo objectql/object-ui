@@ -19,7 +19,7 @@
  */
 import * as React from 'react';
 import { cn } from '@object-ui/components';
-import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -172,6 +172,12 @@ export interface ChatToolInvocation {
      * open the REAL app URL, not the draft overlay.
      */
     materialized?: boolean;
+    /**
+     * ADR-0038 L1 graph-lint verdict for the staged build. Rendered as a
+     * verified/issues chip so "drafted" and "verified" read as the two
+     * separate statements they are. Absent on older tool output.
+     */
+    verification?: { errors: number; warnings: number };
   };
 }
 
@@ -393,6 +399,18 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   publishDraftsLabel?: string;
   /** Label for the published-state badge that replaces the button (default "Published"). */
   publishedLabel?: string;
+  /** Label for the clean ADR-0038 verification chip (default "Verified"). */
+  verifiedLabel?: string;
+  /**
+   * Live draft-status resolver: how many drafts are still PENDING in a
+   * package (e.g. `GET /metadata/_drafts?packageId=` count). When provided,
+   * each draft card's Publish/Published affordance reflects the SERVER's
+   * current state instead of this component's in-memory publish history —
+   * so a reloaded conversation shows "Published" for work that went live,
+   * and a card whose package gained new drafts offers Publish again. The
+   * in-memory snapshot remains the fallback when the prop is absent.
+   */
+  fetchPendingDraftCount?: (packageId: string) => Promise<number>;
   /**
    * Auto-fire `onPublishDrafts` the moment a turn finishes drafting an app —
    * the self-use "magic moment" where the user refreshes and the app is already
@@ -718,6 +736,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       onBuildMaterialized,
       publishDraftsLabel = 'Publish',
       publishedLabel = 'Published',
+      verifiedLabel = 'Verified',
+      fetchPendingDraftCount,
       autoPublishDrafts = false,
       processVisibility = 'summary',
       surface = 'card',
@@ -775,6 +795,57 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     const [publishHealthByToolCall, setPublishHealthByToolCall] = React.useState<
       ReadonlyMap<string, PublishHealth>
     >(() => new Map());
+
+    // Live publish-state (panel-as-source-of-truth, made literal): the server's
+    // CURRENT pending-draft count per package, when the host wires
+    // `fetchPendingDraftCount`. The in-memory `publishedToolCalls` snapshot
+    // above is an optimistic overlay for THIS session; this map is what keeps a
+    // RELOADED conversation honest — published work shows "Published" (count
+    // 0), and a package that gained new drafts offers Publish again, no matter
+    // which session staged them.
+    const [pendingByPackage, setPendingByPackage] = React.useState<
+      ReadonlyMap<string, number>
+    >(() => new Map());
+    const pendingFetchedRef = React.useRef<Set<string>>(new Set());
+    const refreshPendingCount = React.useCallback(
+      async (packageId: string) => {
+        if (!fetchPendingDraftCount) return;
+        try {
+          const count = await fetchPendingDraftCount(packageId);
+          setPendingByPackage((prev) => {
+            if (prev.get(packageId) === count) return prev;
+            const next = new Map(prev);
+            next.set(packageId, count);
+            return next;
+          });
+        } catch {
+          // Leave the package unknown — the card falls back to the
+          // in-memory snapshot rather than guessing.
+        }
+      },
+      [fetchPendingDraftCount],
+    );
+    // Resolve the live count as draft cards appear (incl. on mount for
+    // reloaded conversations). Keyed by the card's toolCallId — a NEW build
+    // into an already-seen package must refresh that package's count, or the
+    // older card would keep claiming "Published" while drafts are pending.
+    // Waits for the turn to finish so a mid-build fetch doesn't race the
+    // still-staging drafts.
+    React.useEffect(() => {
+      if (!fetchPendingDraftCount || isLoading) return;
+      const due = new Set<string>();
+      for (const message of messages) {
+        for (const tool of message.toolInvocations ?? []) {
+          const pkg = tool.draftReview?.packageId;
+          const key = tool.toolCallId;
+          if (pkg && key && !pendingFetchedRef.current.has(key)) {
+            pendingFetchedRef.current.add(key);
+            due.add(pkg);
+          }
+        }
+      }
+      for (const pkg of due) void refreshPendingCount(pkg);
+    }, [messages, isLoading, fetchPendingDraftCount, refreshPendingCount]);
     // Publish a package's drafts and reflect success on exactly the cards that
     // were pending for it at publish time. The host's onPublishDrafts returns
     // `false` / `{ok:false}` on failure (and surfaces its own error); any other
@@ -812,8 +883,12 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             });
           }
         }
+        // Re-read the server's pending count so every card bound to this
+        // package reflects the post-publish truth (0 on success; unchanged
+        // on failure — the button stays).
+        void refreshPendingCount(packageId);
       },
-      [onPublishDrafts, messages],
+      [onPublishDrafts, messages, refreshPendingCount],
     );
 
     // Auto-publish "magic moment": when the environment enables autoPublishDrafts
@@ -961,6 +1036,18 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       const showPayload =
         processVisibility === 'debug' ||
         isAwaitingApproval;
+      // Lifecycle truth for this card's draft package, in precedence order:
+      // the server's live pending-draft count (host wired
+      // `fetchPendingDraftCount`), else this session's in-memory publish
+      // history. The live count is what keeps reloaded conversations and
+      // cross-session edits honest.
+      const draftPackageId = tool.draftReview?.packageId;
+      const livePendingCount = draftPackageId !== undefined
+        ? pendingByPackage.get(draftPackageId)
+        : undefined;
+      const draftIsPublished = livePendingCount !== undefined
+        ? livePendingCount === 0
+        : publishedToolCalls.has(tool.toolCallId);
       const titleNode = (
         <span className="inline-flex items-center gap-2">
           <span>{friendlyTitle || tool.toolName}</span>
@@ -1051,7 +1138,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
               <>
                 <div className="flex items-center gap-2 p-3 border-t bg-muted/30">
                   {onPublishDrafts && tool.draftReview.packageId ? (
-                    publishedToolCalls.has(tool.toolCallId) ? (
+                    draftIsPublished ? (
                       // Published (auto or manual): a stable status badge, not a
                       // stale button. Keeps the card honest about lifecycle state.
                       <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700">
@@ -1066,9 +1153,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         type="button"
                         onClick={() => void handlePublishDrafts(tool.draftReview!.packageId!)}
                         className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                        data-testid="draft-publish"
                       >
                         <Rocket className="size-3.5" />
                         {publishDraftsLabel}
+                        {typeof livePendingCount === 'number' && livePendingCount > 0
+                          ? ` (${livePendingCount})`
+                          : ''}
                       </button>
                     )
                   ) : null}
@@ -1088,8 +1179,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                   ) : null}
                   {/* ADR-0037: drafted-app preview — see it as-if-published
                       without publishing. Only when the draft set includes an
-                      app (the canvas previews whole apps, not single items). */}
-                  {onPreviewDraftApp && !publishedToolCalls.has(tool.toolCallId)
+                      app (the canvas previews whole apps, not single items).
+                      Hidden once the package has no pending drafts (live
+                      count when available, else this session's history). */}
+                  {onPreviewDraftApp && !draftIsPublished
                     ? (() => {
                         const app = tool.draftReview!.items.find((i) => i.type === 'app');
                         return app ? (
@@ -1105,6 +1198,29 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         ) : null;
                       })()
                     : null}
+                  {/* ADR-0038 L1 chip: the graph-lint verdict, so the user sees
+                      WHY a build did or didn't auto-publish without reading
+                      tool JSON. Green = referentially clean; amber = blocking
+                      issues, the build stays draft until the agent repairs. */}
+                  {tool.draftReview.verification ? (
+                    tool.draftReview.verification.errors > 0 ? (
+                      <span
+                        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 text-xs font-medium text-amber-700"
+                        data-testid="draft-verification-chip"
+                      >
+                        <TriangleAlert className="size-3.5" />
+                        {`${tool.draftReview.verification.errors} issue${tool.draftReview.verification.errors === 1 ? '' : 's'}`}
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-700"
+                        data-testid="draft-verification-chip"
+                      >
+                        <ShieldCheck className="size-3.5" />
+                        {verifiedLabel}
+                      </span>
+                    )
+                  ) : null}
                   {tool.draftReview.summary ? (
                     <span className="truncate text-xs text-muted-foreground">
                       {tool.draftReview.summary}

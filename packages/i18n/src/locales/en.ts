@@ -1616,6 +1616,32 @@ const en = {
     systemSettings: 'System Settings',
     back: 'Back',
   },
+  preview: {
+    empty: {
+      loadFailedTitle: 'Draft preview failed to load',
+      loadFailedDescription: 'The draft overlay could not be read. Retry, or check your connection.',
+      notReadyTitle: '“{{app}}” isn’t in the draft yet',
+      notReadyDescription: 'The build may still be running, or it may have failed before this app was staged. Check the conversation for the build status — this pane refreshes as drafts land.',
+      nothingTitle: 'Nothing to preview yet',
+      retry: 'Retry',
+    },
+    draftBar: {
+      message: 'Draft preview — you are seeing unpublished changes. Nothing here is live until you publish.',
+      publish: 'Publish',
+      publishing: 'Publishing…',
+      exit: 'Exit preview',
+      changes: 'Changes',
+    },
+    changes: {
+      title: 'Pending changes',
+      description: 'What publishing will change. New items are added; updates overwrite the live version.',
+      loading: 'Loading pending changes…',
+      loadFailed: 'Could not load pending changes:',
+      empty: 'Nothing pending — every draft has been published.',
+      kindNew: 'New',
+      kindUpdate: 'Update',
+    },
+  },
   renderer: {
     noPageSchema: 'No page schema provided',
     noFormSchema: 'No form schema provided',

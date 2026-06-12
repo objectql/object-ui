@@ -20,6 +20,8 @@ import type { ConnectionState } from '@object-ui/data-objectstack';
 import { useAuth } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useAdapter } from '../providers/AdapterProvider';
+import { usePreviewDrafts } from '../preview/PreviewModeContext';
+import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState';
 import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider';
 import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent';
 import { resolveRecordFormTarget, resolveNavigateCreateUrl, resolveNavigateEditUrl } from '../utils/recordFormNavigation';
@@ -135,7 +137,8 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   const navigate = useNavigate();
   const location = useLocation();
   const { appName } = useParams();
-  const { apps, objects: allObjects, loading: metadataLoading, ensureType } = useMetadata();
+  const { apps, objects: allObjects, loading: metadataLoading, ensureType, error: metadataError, refresh: refreshMetadata } = useMetadata();
+  const previewDrafts = usePreviewDrafts();
   const { t } = useObjectTranslation();
   const { objectLabel } = useObjectLabel();
 
@@ -172,6 +175,13 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     apps.find((a: any) => a.name === appName) ||
     launcherApps.find((a: any) => a.isDefault === true) ||
     launcherApps[0];
+
+  // ADR-0037 — a draft preview is a window onto ONE requested app. When the
+  // overlay doesn't (yet) carry it, the default-app fallback above would
+  // silently preview the WRONG app; treat the request as "not ready" instead
+  // and let the preview-specific empty state below say so.
+  const requestedAppMissing =
+    previewDrafts && !!appName && !apps.some((a: any) => a.name === appName);
 
   useEffect(() => {
     if (!activeApp?.name) return;
@@ -343,6 +353,21 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   );
 
   if (!dataSource || metadataLoading || !scopeMetaReady) return <LoadingScreen />;
+
+  // ADR-0037 — preview mode renders its OWN empty/error states and never
+  // falls through to the generic "No Apps Configured" guard below: inside a
+  // draft preview (the Live Canvas iframe, or a hand-opened ?preview=draft
+  // URL) that screen both lies ("nothing has been registered") and misdirects
+  // ("Create Your First App") about an app the AI may have just drafted.
+  if (previewDrafts && (requestedAppMissing || !activeApp)) {
+    return (
+      <PreviewDraftEmptyState
+        appName={appName}
+        error={metadataError}
+        onRetry={() => void refreshMetadata()}
+      />
+    );
+  }
 
   const isCreateAppRoute = location.pathname.endsWith('/create-app');
   const isSystemRoute = location.pathname.includes('/system');

@@ -137,6 +137,7 @@ function detectDraftResult(
   autoPublishable?: boolean;
   failedCount?: number;
   materialized?: boolean;
+  verification?: { errors: number; warnings: number };
 } | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;
@@ -162,6 +163,19 @@ function detectDraftResult(
   // incremental edits omit it and stay drafts for explicit review. `failedCount`
   // surfaces partial build failures so the UI never hides them.
   const failedCount = Array.isArray(obj.failed) ? obj.failed.length : 0;
+  // ADR-0038 L1 — the build's graph-lint verdict (`verification: {errors,
+  // warnings}` on apply_blueprint results). Lifted so the chat can render a
+  // verified/issues chip; absent on older tool output → no chip.
+  const rawVerification = (obj as { verification?: unknown }).verification;
+  const verification =
+    rawVerification && typeof rawVerification === 'object' &&
+    typeof (rawVerification as { errors?: unknown }).errors === 'number' &&
+    typeof (rawVerification as { warnings?: unknown }).warnings === 'number'
+      ? {
+          errors: (rawVerification as { errors: number }).errors,
+          warnings: (rawVerification as { warnings: number }).warnings,
+        }
+      : undefined;
   return {
     items,
     summary: typeof obj.summary === 'string' ? obj.summary : undefined,
@@ -171,6 +185,7 @@ function detectDraftResult(
     // ADR-0045: the build was materialized in-turn (real tables + data, app
     // hidden). The canvas then previews the REAL app URL, not the draft overlay.
     ...(obj.materialized === true ? { materialized: true } : {}),
+    ...(verification ? { verification } : {}),
   };
 }
 
