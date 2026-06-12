@@ -32,6 +32,7 @@ import {
   Unplug,
 } from 'lucide-react';
 import { ComponentRegistry } from '@object-ui/core';
+import { TokenStorage } from '@object-ui/auth';
 
 const BASE = '/api/v1/cloud-connection';
 
@@ -65,9 +66,17 @@ type Phase =
   | { kind: 'error'; message: string };
 
 async function getJson(url: string, init?: RequestInit): Promise<any> {
+  // objectui authenticates with a Bearer (better-auth token in
+  // localStorage); the runtime cookie is unreliable across restarts /
+  // SSO. Same pattern as marketplaceApi's withEnvAuth — cookie still
+  // rides along for cookie-only setups.
+  const token = TokenStorage.get();
   const resp = await fetch(url, {
     credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     ...init,
   });
   const body = await resp.json().catch(() => ({}));
