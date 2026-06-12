@@ -1180,7 +1180,7 @@ export function GanttView({
                 key={task.id}
                 className={cn(
                   "group/task-row flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation",
-                  isSelected && "bg-accent/60"
+                  isSelected && "bg-accent/50"
                 )}
                 style={{ height: rowHeight }}
                 role="treeitem"
@@ -1330,12 +1330,17 @@ export function GanttView({
               {/* Today vertical marker — sticky inside the scroll area, in front of grid + bars */}
               {todayLeftPx != null && (
                 <div
-                  className="absolute top-0 bottom-0 w-px bg-red-500/80 z-20 pointer-events-none"
-                  style={{ left: todayLeftPx }}
+                  className="absolute top-0 bottom-0 w-px z-20 pointer-events-none"
+                  /* Explicit colors: the prebuilt components CSS doesn't emit
+                     bg-red-500 / opacity-modified utilities. */
+                  style={{ left: todayLeftPx, backgroundColor: 'rgba(239, 68, 68, 0.8)' }}
                   data-testid="gantt-today-marker"
                   aria-label={t('gantt.toolbar.today')}
                 >
-                  <div className="absolute -top-2 -translate-x-1/2 left-0 text-[10px] font-semibold text-white bg-red-500 rounded-sm px-1 py-0.5 whitespace-nowrap">
+                  <div
+                    className="absolute -top-2 -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap"
+                    style={{ backgroundColor: '#ef4444' }}
+                  >
                     {t('gantt.toolbar.today')}
                   </div>
                 </div>
@@ -1368,11 +1373,12 @@ export function GanttView({
                     return (
                     <div
                       key={idx}
-                      className={cn(
-                        "absolute top-0 bottom-0 border-r",
-                        col.isWeekend && "bg-muted/20"
-                      )}
-                      style={{ left: colOffsets[idx], width: col.width }}
+                      className="absolute top-0 bottom-0 border-r"
+                      style={{
+                        left: colOffsets[idx],
+                        width: col.width,
+                        backgroundColor: col.isWeekend ? 'hsl(var(--muted) / 0.4)' : undefined,
+                      }}
                     />
                     );
                   })}
@@ -1435,13 +1441,15 @@ export function GanttView({
                      return (
                       <div
                         key={task.id}
-                        className="relative border-b hover:bg-black/5"
+                        className="relative border-b hover:bg-accent/50"
                         style={{ height: rowHeight }}
                         onPointerMove={clearLinkTarget}
                       >
                         <div
-                          className="absolute rounded-[2px] bg-foreground/75"
-                          style={{ left: baseStyle.left, width: baseStyle.width, top: rowHeight * 0.18, height: 6 }}
+                          className="absolute rounded-[2px]"
+                          /* Explicit color: bg-foreground/75 isn't emitted in
+                             the prebuilt components CSS. */
+                          style={{ left: baseStyle.left, width: baseStyle.width, top: rowHeight * 0.18, height: 6, backgroundColor: 'hsl(var(--foreground) / 0.75)' }}
                           data-testid={`gantt-summary-bar-${task.id}`}
                           data-progress={Math.round(row.progress)}
                           onMouseEnter={() => setHoveredTaskId(task.id)}
@@ -1449,8 +1457,8 @@ export function GanttView({
                           onClick={() => onTaskClick?.(task)}
                           onContextMenu={(e) => openContextMenu(task, e)}
                         >
-                          <div className="absolute left-0 top-0 w-[3px] bg-foreground/75 rounded-b-[2px]" style={{ height: 12 }} />
-                          <div className="absolute right-0 top-0 w-[3px] bg-foreground/75 rounded-b-[2px]" style={{ height: 12 }} />
+                          <div className="absolute left-0 top-0 w-[3px] rounded-b-[2px]" style={{ height: 12, backgroundColor: 'hsl(var(--foreground) / 0.75)' }} />
+                          <div className="absolute right-0 top-0 w-[3px] rounded-b-[2px]" style={{ height: 12, backgroundColor: 'hsl(var(--foreground) / 0.75)' }} />
                         </div>
                         {tooltip}
                       </div>
@@ -1462,7 +1470,7 @@ export function GanttView({
                      return (
                       <div
                         key={task.id}
-                        className="relative border-b hover:bg-black/5"
+                        className="relative border-b hover:bg-accent/50"
                         style={{ height: rowHeight }}
                         onPointerMove={clearLinkTarget}
                       >
@@ -1470,7 +1478,7 @@ export function GanttView({
                           className={cn(
                             "absolute rotate-45 rounded-[2px] border border-primary-foreground/20 shadow-sm select-none",
                             canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-                            isDragging && "ring-2 ring-primary/60 brightness-110 z-10",
+                            isDragging && "ring-2 ring-primary brightness-110 z-10",
                             isLinkTarget && "ring-2 ring-primary"
                           )}
                           style={{
@@ -1506,7 +1514,7 @@ export function GanttView({
                    return (
                     <div
                       key={task.id}
-                      className="relative border-b hover:bg-black/5"
+                      className="relative border-b hover:bg-accent/50"
                       style={{ height: rowHeight }}
                       onPointerMove={clearLinkTarget}
                     >
@@ -1522,7 +1530,7 @@ export function GanttView({
                         className={cn(
                           "absolute top-1 sm:top-2 h-[calc(100%-8px)] sm:h-[calc(100%-16px)] rounded-sm bg-primary border border-primary-foreground/20 shadow-sm hover:brightness-110 flex items-center px-2 group select-none",
                           canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-                          isDragging && "ring-2 ring-primary/60 brightness-110 z-10",
+                          isDragging && "ring-2 ring-primary brightness-110 z-10",
                           isLinkTarget && "ring-2 ring-primary"
                         )}
                         style={{
@@ -1734,15 +1742,6 @@ export function GanttView({
                   </svg>
                 )}
 
-                {/* Current Time Indicator */}
-                <div
-                  className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
-                  style={{
-                    left: (new Date().getTime() - timelineRange.start.getTime()) / MS_PER_DAY * pxPerDay
-                  }}
-                >
-                  <div className="w-2 h-2 rounded-full bg-red-500 -ml-[3px]" />
-                </div>
               </div>
             </div>
           </div>
