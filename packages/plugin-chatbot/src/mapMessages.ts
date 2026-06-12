@@ -136,6 +136,7 @@ function detectDraftResult(
   packageId?: string;
   autoPublishable?: boolean;
   failedCount?: number;
+  materialized?: boolean;
 } | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;
@@ -167,6 +168,9 @@ function detectDraftResult(
     ...(typeof obj.packageId === 'string' && obj.packageId ? { packageId: obj.packageId } : {}),
     ...(obj.autoPublishable === true ? { autoPublishable: true } : {}),
     ...(failedCount > 0 ? { failedCount } : {}),
+    // ADR-0045: the build was materialized in-turn (real tables + data, app
+    // hidden). The canvas then previews the REAL app URL, not the draft overlay.
+    ...(obj.materialized === true ? { materialized: true } : {}),
   };
 }
 

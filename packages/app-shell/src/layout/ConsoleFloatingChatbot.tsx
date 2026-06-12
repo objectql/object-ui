@@ -512,7 +512,14 @@ function ChatbotInner({
         openBuiltAppLabel={locale.openBuiltApp}
         // ADR-0037: see the drafted app as-if-published before Publish — same
         // route, draft overlay, watermark bar on top.
-        onPreviewDraftApp={(appName) => navigate(`/apps/${encodeURIComponent(appName)}?preview=draft`)}
+        onPreviewDraftApp={(appName, opts) =>
+          navigate(
+            // ADR-0045: a materialized build is a REAL (unlisted) app — open it
+            // directly; the UnpublishedAppBar narrates. Drafts keep the overlay.
+            opts?.materialized
+              ? `/apps/${encodeURIComponent(appName)}`
+              : `/apps/${encodeURIComponent(appName)}?preview=draft`,
+          )}
         // ADR-0037 P2.5: announce drafted artifacts so an open ?preview=draft
         // page (same document) drops its cache and refetches the new draft.
         onDraftArtifacts={(artifacts) => {

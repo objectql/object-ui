@@ -425,7 +425,7 @@ function ChatPane({
   // drafted app rendered as-if-published (`?preview=draft`) beside the chat.
   // Per-artifact signals coalesce (800 ms) into one pane refresh so a
   // whole-app build doesn't trigger an invalidation storm.
-  const [canvasApp, setCanvasApp] = useState<string | null>(null);
+  const [canvasApp, setCanvasApp] = useState<{ name: string; materialized: boolean } | null>(null);
   const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
   const canvasTimerRef = useRef<number | null>(null);
   useEffect(() => () => {
@@ -433,9 +433,19 @@ function ChatPane({
   }, []);
   const handleDraftArtifacts = useCallback((artifacts: Array<{ type: string; name: string }>) => {
     const app = artifacts.find((a) => a.type === 'app');
-    if (app) setCanvasApp((prev) => prev ?? app.name);
+    if (app) setCanvasApp((prev) => prev ?? { name: app.name, materialized: false });
     if (canvasTimerRef.current) window.clearTimeout(canvasTimerRef.current);
     canvasTimerRef.current = window.setTimeout(() => setCanvasRefreshKey((k) => k + 1), 800);
+  }, []);
+  // ADR-0045: the build finished and was materialized (real tables + data,
+  // app unlisted). Switch the open canvas from the draft overlay to the REAL
+  // app URL — the reload that follows shows live rows in every list.
+  const handleBuildMaterialized = useCallback((appName: string) => {
+    setCanvasApp((prev) =>
+      prev && prev.name === appName && !prev.materialized
+        ? { name: appName, materialized: true }
+        : prev ?? { name: appName, materialized: true },
+    );
   }, []);
   // A different conversation is a different build session — close the pane.
   useEffect(() => {
@@ -678,14 +688,19 @@ function ChatPane({
         // ADR-0037 Live Canvas: open/refresh the draft-preview pane as the
         // agent's artifacts land; Preview buttons deep-link the same route.
         onDraftArtifacts={handleDraftArtifacts}
-        onPreviewDraftApp={(appName) => setCanvasApp(appName)}
+        onPreviewDraftApp={(appName, opts) =>
+          setCanvasApp({ name: appName, materialized: opts?.materialized === true })}
+        // ADR-0045: build materialized → canvas leaves the draft overlay for
+        // the real (unlisted) app; the reload shows live seed rows.
+        onBuildMaterialized={handleBuildMaterialized}
         previewDraftLabel={t('console.ai.previewDraft', { defaultValue: 'Preview' })}
         data-testid="ai-chat-panel"
       />
       </div>
       {canvasApp ? (
         <LiveCanvas
-          appName={canvasApp}
+          appName={canvasApp.name}
+          materialized={canvasApp.materialized}
           refreshKey={canvasRefreshKey}
           onClose={() => setCanvasApp(null)}
         />

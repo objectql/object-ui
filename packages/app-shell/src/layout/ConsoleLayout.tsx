@@ -17,6 +17,7 @@ import { useDiscovery } from '@object-ui/react';
 // hover/click. See ConsoleChatbotFab.tsx.
 import { ConsoleChatbotFab } from './ConsoleChatbotFab';
 import { DraftPreviewBar } from '../preview/DraftPreviewBar';
+import { UnpublishedAppBar } from '../preview/UnpublishedAppBar';
 import { UnifiedSidebar } from './UnifiedSidebar';
 import { AppHeader } from './AppHeader';
 import { MobileViewSwitcherProvider } from './MobileViewSwitcherContext';
@@ -125,6 +126,9 @@ export function ConsoleLayout({
         {/* ADR-0037: unmistakable watermark while rendering the draft overlay
             (?preview=draft) — with one-click exit and one-click Publish. */}
         <DraftPreviewBar />
+        {/* ADR-0045: materialized-but-unlisted app — real and interactive,
+            invisible to end users until the Publish visibility flip. */}
+        <UnpublishedAppBar />
         {children}
       </ConsoleLayoutInner>
 

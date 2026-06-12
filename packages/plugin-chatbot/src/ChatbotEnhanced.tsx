@@ -166,6 +166,12 @@ export interface ChatToolInvocation {
     autoPublishable?: boolean;
     /** Count of artifacts that failed in a partial build, surfaced not hidden. */
     failedCount?: number;
+    /**
+     * ADR-0045: the build was MATERIALIZED in-turn — real tables and seed
+     * rows exist; the app is live but `hidden` (unlisted). Preview should
+     * open the REAL app URL, not the draft overlay.
+     */
+    materialized?: boolean;
   };
 }
 
@@ -363,8 +369,11 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * Rendered next to the build tree's Open-app action and on draft chips
    * whose items include an `app`. The host wires this to its router with the
    * preview flag (e.g. `navigate('/apps/<name>?preview=draft')`).
+   * ADR-0045: when the build reports `materialized`, `opts.materialized` is
+   * true and the host should open the REAL app URL (no preview flag) — the
+   * app is live-but-unlisted, with actual tables and seed data.
    */
-  onPreviewDraftApp?: (appName: string) => void;
+  onPreviewDraftApp?: (appName: string, opts?: { materialized?: boolean }) => void;
   /** Label for the preview-draft action (default "Preview"). */
   previewDraftLabel?: string;
   /**
@@ -374,6 +383,12 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * refresh the live draft-preview pane while the agent builds.
    */
   onDraftArtifacts?: (artifacts: Array<{ type: string; name: string }>) => void;
+  /**
+   * ADR-0045: fires once per build whose tool result reports `materialized`
+   * with an `app` in the draft set — the app is live (tables + seed data)
+   * but unlisted. Hosts switch the canvas to the real app URL.
+   */
+  onBuildMaterialized?: (appName: string) => void;
   /** Label for the publish-drafts button (default "Publish"). */
   publishDraftsLabel?: string;
   /** Label for the published-state badge that replaces the button (default "Published"). */
@@ -700,6 +715,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       onPreviewDraftApp,
       previewDraftLabel = 'Preview',
       onDraftArtifacts,
+      onBuildMaterialized,
       publishDraftsLabel = 'Publish',
       publishedLabel = 'Published',
       autoPublishDrafts = false,
@@ -870,6 +886,25 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       }
       if (grew) onDraftArtifacts([...artifacts.values()]);
     }, [messages, onDraftArtifacts]);
+
+    // ADR-0045: announce materialized builds (real app live, unlisted) so the
+    // host flips its canvas from the draft overlay to the real app URL. Once
+    // per build (keyed by toolCallId), including on conversation reload —
+    // a reopened materialized build should still preview the real app.
+    const materializedKeysRef = React.useRef<Set<string>>(new Set());
+    React.useEffect(() => {
+      if (!onBuildMaterialized) return;
+      for (const message of messages) {
+        for (const tool of message.toolInvocations ?? []) {
+          const dr = tool.draftReview;
+          if (!dr?.materialized || !tool.toolCallId) continue;
+          const app = dr.items.find((i) => i.type === 'app');
+          if (!app || materializedKeysRef.current.has(tool.toolCallId)) continue;
+          materializedKeysRef.current.add(tool.toolCallId);
+          onBuildMaterialized(app.name);
+        }
+      }
+    }, [messages, onBuildMaterialized]);
 
     const handleSubmit = React.useCallback(
       (payload: PromptInputMessage) => {
@@ -1060,7 +1095,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         return app ? (
                           <button
                             type="button"
-                            onClick={() => onPreviewDraftApp(app.name)}
+                            onClick={() => onPreviewDraftApp(app.name, { materialized: tool.draftReview!.materialized === true })}
                             className="inline-flex h-7 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted"
                             data-testid="draft-preview-app"
                           >
