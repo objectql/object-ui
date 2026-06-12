@@ -45,6 +45,25 @@ node packages/plugin-gantt/scripts/verify-browser.mjs
 - ![Rubber band mid-drag](05-link-create-drag.png)
 - ![New dependency created](06-link-created.png)
 
+### 4b. Pixel-level arrow geometry audit
+
+[`scripts/audit-geometry.mjs`](../../scripts/audit-geometry.mjs) parses every
+arrow's SVG path and measures its endpoints against the live DOM rects of the
+source/target bars, across three scenarios (project fixture in day and week
+mode, plus a `?edge=1` fixture with backward links of every type, links into
+summary rows, and milestone→milestone chains). **All 29 measured endpoints are
+within ±0.4 px** of the expected anchors:
+
+- task bars: edge × vertical center (bars carry explicit inline `top`/`height`
+  so they are exactly row-centered),
+- milestones: the diamond's visual tip (half a diagonal out from center),
+- summary rows: the rollup bracket's own center, not the row center.
+
+Zoomed clips of each arrow's target anchor are saved under
+[`geometry/`](geometry/), e.g. an `fs` arrow meeting a milestone tip:
+
+![fs arrow into a milestone tip](geometry/project-day-mode-fs-t2-m1-end.png)
+
 ### 5. Performance — 5,000 tasks (`?perf=5000`)
 
 | Metric | Result |

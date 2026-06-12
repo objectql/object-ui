@@ -935,6 +935,17 @@ export function GanttView({
     return out;
   }, [rows]);
 
+  // Shared row geometry: bars/diamonds/brackets and link anchors must agree
+  // on these or arrows visibly miss their targets.
+  const barTop = Math.round(rowHeight * 0.2); // task bar inset from the row top
+  const barHeight = rowHeight - barTop * 2;
+  const milestoneSize = Math.max(Math.round(rowHeight * 0.4), 12);
+  // The diamond is a square rotated 45° around its center at the task date;
+  // its horizontal tips sit half a diagonal out from that center.
+  const milestoneHalfTip = (milestoneSize * Math.SQRT2) / 2;
+  const summaryBracketTop = Math.round(rowHeight * 0.18);
+  const summaryBracketHeight = 6;
+
   // Orthogonal elbow path from the predecessor anchor to the dependent
   // anchor. Anchors per link type: fs = source end → target start,
   // ss = start → start, ff = end → end, sf = start → end.
@@ -944,13 +955,23 @@ export function GanttView({
     if (!source || !target) return null;
     const s = getLiveRowStyle(source);
     const tg = getLiveRowStyle(target);
-    const sy = link.sourceIndex * rowHeight + rowHeight / 2;
-    const ty = link.targetIndex * rowHeight + rowHeight / 2;
+    // Vertical anchor: bar/diamond center, except summary rows whose slim
+    // bracket hangs near the row top.
+    const rowAnchorY = (row: GanttRow) =>
+      row.isSummary ? summaryBracketTop + summaryBracketHeight / 2 : rowHeight / 2;
+    const sy = link.sourceIndex * rowHeight + rowAnchorY(source);
+    const ty = link.targetIndex * rowHeight + rowAnchorY(target);
     const exitRight = link.type === 'fs' || link.type === 'ff';
     const enterRight = link.type === 'ff' || link.type === 'sf';
-    // Milestones anchor at their diamond center regardless of side.
-    const sx = source.isMilestone ? s.left : exitRight ? s.left + s.width : s.left;
-    const tx = target.isMilestone ? tg.left : enterRight ? tg.left + tg.width : tg.left;
+    // Milestones anchor at the diamond's visual tip (left/right corner of
+    // the rotated square), not its center — the SVG draws above the bars,
+    // so a center anchor would run the line through the diamond.
+    const sx = source.isMilestone
+      ? s.left + (exitRight ? milestoneHalfTip : -milestoneHalfTip)
+      : exitRight ? s.left + s.width : s.left;
+    const tx = target.isMilestone
+      ? tg.left + (enterRight ? milestoneHalfTip : -milestoneHalfTip)
+      : enterRight ? tg.left + tg.width : tg.left;
     const stub = 10; // horizontal clearance before turning
     const ex = sx + (exitRight ? stub : -stub);
     const ax = tx + (enterRight ? stub : -stub);
@@ -980,6 +1001,12 @@ export function GanttView({
 
   return (
     <div ref={containerRef} className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}>
+      {/* Hover rules the prebuilt components CSS can't provide (alpha
+          utilities like hover:bg-white/40 are never emitted there). */}
+      <style>{`
+        .gantt-resize-handle:hover { background-color: rgba(255, 255, 255, 0.4); }
+        .gantt-bar-hover:hover { filter: brightness(1.1); }
+      `}</style>
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 border-b bg-card">
         <div className="flex items-center gap-2">
@@ -1449,7 +1476,7 @@ export function GanttView({
                           className="absolute rounded-[2px]"
                           /* Explicit color: bg-foreground/75 isn't emitted in
                              the prebuilt components CSS. */
-                          style={{ left: baseStyle.left, width: baseStyle.width, top: rowHeight * 0.18, height: 6, backgroundColor: 'hsl(var(--foreground) / 0.75)' }}
+                          style={{ left: baseStyle.left, width: baseStyle.width, top: summaryBracketTop, height: summaryBracketHeight, backgroundColor: 'hsl(var(--foreground) / 0.75)' }}
                           data-testid={`gantt-summary-bar-${task.id}`}
                           data-progress={Math.round(row.progress)}
                           onMouseEnter={() => setHoveredTaskId(task.id)}
@@ -1466,7 +1493,7 @@ export function GanttView({
                    }
 
                    if (row.isMilestone) {
-                     const size = Math.max(Math.round(rowHeight * 0.4), 12);
+                     const size = milestoneSize;
                      return (
                       <div
                         key={task.id}
@@ -1476,9 +1503,9 @@ export function GanttView({
                       >
                         <div
                           className={cn(
-                            "absolute rotate-45 rounded-[2px] border border-primary-foreground/20 shadow-sm select-none",
+                            "gantt-bar-hover absolute rotate-45 rounded-[2px] border shadow-sm select-none",
                             canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-                            isDragging && "ring-2 ring-primary brightness-110 z-10",
+                            isDragging && "ring-2 ring-primary z-10",
                             isLinkTarget && "ring-2 ring-primary"
                           )}
                           style={{
@@ -1487,6 +1514,7 @@ export function GanttView({
                             width: size,
                             height: size,
                             backgroundColor: task.color || '#3b82f6',
+                            borderColor: 'hsl(var(--primary-foreground) / 0.2)',
                           }}
                           data-testid={`gantt-milestone-${task.id}`}
                           onMouseEnter={() => setHoveredTaskId(task.id)}
@@ -1521,22 +1549,29 @@ export function GanttView({
                       {/* Ghost: original position rendered faded while dragging */}
                       {isDragging && (
                         <div
-                          className="absolute top-1 sm:top-2 h-[calc(100%-8px)] sm:h-[calc(100%-16px)] rounded-sm border border-dashed border-primary/60 pointer-events-none"
-                          style={{ left: baseStyle.left, width: baseStyle.width, opacity: 0.35 }}
+                          className="absolute rounded-sm border border-dashed pointer-events-none"
+                          /* Explicit top/height/border color: calc-based and
+                             alpha utilities aren't emitted in the prebuilt
+                             components CSS, and link anchors assume a
+                             row-centered bar. */
+                          style={{ left: baseStyle.left, width: baseStyle.width, top: barTop, height: barHeight, opacity: 0.35, borderColor: 'hsl(var(--primary) / 0.6)' }}
                           aria-hidden="true"
                         />
                       )}
                       <div
                         className={cn(
-                          "absolute top-1 sm:top-2 h-[calc(100%-8px)] sm:h-[calc(100%-16px)] rounded-sm bg-primary border border-primary-foreground/20 shadow-sm hover:brightness-110 flex items-center px-2 group select-none",
+                          "gantt-bar-hover absolute rounded-sm bg-primary border shadow-sm flex items-center px-2 group select-none",
                           canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-                          isDragging && "ring-2 ring-primary brightness-110 z-10",
+                          isDragging && "ring-2 ring-primary z-10",
                           isLinkTarget && "ring-2 ring-primary"
                         )}
                         style={{
                           left: liveStyle.left,
                           width: liveStyle.width,
-                          backgroundColor: task.color || '#3b82f6'
+                          top: barTop,
+                          height: barHeight,
+                          backgroundColor: task.color || '#3b82f6',
+                          borderColor: 'hsl(var(--primary-foreground) / 0.2)'
                         }}
                         data-testid={`gantt-task-bar-${task.id}`}
                         onMouseEnter={() => setHoveredTaskId(task.id)}
@@ -1558,7 +1593,7 @@ export function GanttView({
                         {canDrag && liveStyle.width >= 14 && (
                           <>
                             <div
-                              className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-white/40"
+                              className="gantt-resize-handle absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize"
                               data-testid={`gantt-task-resize-left-${task.id}`}
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
@@ -1567,7 +1602,7 @@ export function GanttView({
                               onClick={(e) => e.stopPropagation()}
                             />
                             <div
-                              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-white/40"
+                              className="gantt-resize-handle absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize"
                               data-testid={`gantt-task-resize-right-${task.id}`}
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
@@ -1578,11 +1613,13 @@ export function GanttView({
                           </>
                         )}
 
-                        {/* Progress fill — follows the handle live while dragging */}
+                        {/* Progress fill — follows the handle live while dragging.
+                            Explicit color: bg-black/20 isn't emitted in the
+                            prebuilt components CSS. */}
                         {liveProgress > 0 && (
                           <div
-                            className="absolute left-0 top-0 bottom-0 bg-black/20 rounded-l-sm pointer-events-none"
-                            style={{ width: `${liveProgress}%` }}
+                            className="absolute left-0 top-0 bottom-0 rounded-l-sm pointer-events-none"
+                            style={{ width: `${liveProgress}%`, backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
                           />
                         )}
 
@@ -1611,7 +1648,12 @@ export function GanttView({
                             }}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="h-2.5 w-2.5 rounded-full bg-white shadow ring-1 ring-black/30" />
+                            {/* Explicit colors: bg-white / ring-black-30 aren't
+                                emitted in the prebuilt components CSS. */}
+                            <div
+                              className="h-2.5 w-2.5 rounded-full"
+                              style={{ backgroundColor: '#fff', boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.25)' }}
+                            />
                           </div>
                         )}
 
@@ -1726,7 +1768,7 @@ export function GanttView({
                       const si = rows.findIndex((r) => String(r.task.id) === String(linkDrag.sourceId));
                       if (si < 0) return null;
                       const s = getLiveRowStyle(rows[si]);
-                      const sx = rows[si].isMilestone ? s.left : s.left + s.width;
+                      const sx = rows[si].isMilestone ? s.left + milestoneHalfTip : s.left + s.width;
                       const sy = si * rowHeight + rowHeight / 2;
                       return (
                         <path

@@ -34,6 +34,32 @@ function projectFixture(): GanttTask[] {
   ];
 }
 
+/**
+ * Geometry edge cases (?edge=1): backward links of every type, links into
+ * summary rows and milestones, and tight adjacent-row hops — the shapes most
+ * likely to expose anchor/elbow misalignment.
+ */
+function edgeFixture(): GanttTask[] {
+  return [
+    { id: 's1', title: 'Group A', start: d('2026-06-01'), end: d('2026-06-20'), progress: 0, parent: null },
+    { id: 'a1', title: 'Early', start: d('2026-06-01'), end: d('2026-06-06'), progress: 50, parent: 's1' },
+    { id: 'a2', title: 'Late fs←back', start: d('2026-06-10'), end: d('2026-06-16'), progress: 0, parent: 's1', dependencies: [{ id: 'a3', type: 'fs' }] },
+    { id: 'a3', title: 'Mid', start: d('2026-06-04'), end: d('2026-06-08'), progress: 20, parent: 's1', dependencies: [{ id: 'a1', type: 'ss' }] },
+    { id: 'a4', title: 'Backward ss', start: d('2026-06-02'), end: d('2026-06-07'), progress: 0, parent: 's1', dependencies: [{ id: 'a2', type: 'ss' }] },
+
+    { id: 's2', title: 'Group B', start: d('2026-06-05'), end: d('2026-06-25'), progress: 0, parent: null },
+    { id: 'b1', title: 'Backward ff', start: d('2026-06-05'), end: d('2026-06-09'), progress: 0, parent: 's2', dependencies: [{ id: 'a2', type: 'ff' }] },
+    { id: 'b2', title: 'Backward sf', start: d('2026-06-18'), end: d('2026-06-25'), progress: 0, parent: 's2', dependencies: [{ id: 'b1', type: 'sf' }] },
+    { id: 'm3', title: 'Gate', start: d('2026-06-12'), end: d('2026-06-12'), progress: 0, parent: 's2', type: 'milestone', dependencies: ['b1'] },
+    { id: 'm4', title: 'Ship', start: d('2026-06-20'), end: d('2026-06-20'), progress: 0, parent: 's2', type: 'milestone', dependencies: [{ id: 'm3', type: 'fs' }] },
+
+    // Links touching summary rows (rollup brackets) — y anchor must hit the bracket.
+    { id: 's3', title: 'Group C (after A)', start: d('2026-06-21'), end: d('2026-06-28'), progress: 0, parent: null, dependencies: [{ id: 's1', type: 'fs' }] },
+    { id: 'c1', title: 'Adjacent hop', start: d('2026-06-21'), end: d('2026-06-24'), progress: 0, parent: 's3' },
+    { id: 'c2', title: 'Next row', start: d('2026-06-24'), end: d('2026-06-28'), progress: 0, parent: 's3', dependencies: ['c1'] },
+  ];
+}
+
 function perfFixture(n: number): GanttTask[] {
   const tasks: GanttTask[] = [];
   const groupSize = 10;
@@ -76,9 +102,10 @@ const markers: GanttMarker[] = [
 function App() {
   const params = new URLSearchParams(window.location.search);
   const perf = Number(params.get('perf') || 0);
+  const edge = params.has('edge');
   const t0 = React.useMemo(() => performance.now(), []);
   const [tasks, setTasks] = React.useState<GanttTask[]>(() =>
-    perf > 0 ? perfFixture(perf) : projectFixture()
+    perf > 0 ? perfFixture(perf) : edge ? edgeFixture() : projectFixture()
   );
   const [renderMs, setRenderMs] = React.useState<number | null>(null);
   React.useEffect(() => {

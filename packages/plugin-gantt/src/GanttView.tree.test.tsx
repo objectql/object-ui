@@ -140,7 +140,7 @@ describe('GanttView task hierarchy', () => {
     expect(rows.length).toBe(2);
   });
 
-  it('links anchor at the milestone diamond center', () => {
+  it('links anchor at the milestone diamond tip, not its center', () => {
     const { container } = renderView([
       makeTask('a', '2024-06-05T00:00:00.000Z', '2024-06-08T00:00:00.000Z'),
       makeTask('m', '2024-06-12T00:00:00.000Z', '2024-06-12T00:00:00.000Z', { dependencies: ['a'] }),
@@ -150,7 +150,49 @@ describe('GanttView task hierarchy', () => {
     const diamond = container.querySelector('[data-testid="gantt-milestone-m"]') as HTMLElement;
     const size = parseFloat(diamond.style.width);
     const center = parseFloat(diamond.style.left) + size / 2;
+    // The rotated square's visual tip sits half a diagonal left of center —
+    // an fs arrow must stop there instead of running under the diamond.
+    const leftTip = center - (size * Math.SQRT2) / 2;
     const nums = (path.getAttribute('d') || '').match(/-?\d+(\.\d+)?/g)!.map(Number);
-    expect(nums[nums.length - 2]).toBeCloseTo(center, 0);
+    expect(nums[nums.length - 2]).toBeCloseTo(leftTip, 0);
+  });
+
+  it('positions task bars with explicit inline top/height centered in the row', () => {
+    // calc()-based height utilities aren't emitted in the prebuilt components
+    // CSS, so the bar must carry inline geometry — and the link anchors
+    // assume the bar is vertically centered (rowHeight/2).
+    const { container } = renderView(FAMILY);
+    const bar = container.querySelector('[data-testid="gantt-task-bar-solo"]') as HTMLElement;
+    const top = parseFloat(bar.style.top);
+    const height = parseFloat(bar.style.height);
+    expect(top).toBeGreaterThan(0);
+    expect(height).toBeGreaterThan(0);
+    // Centered: inset above equals inset below, and the center is rowHeight/2.
+    const row = bar.parentElement as HTMLElement;
+    const rowHeight = parseFloat(row.style.height);
+    expect(top + height / 2).toBeCloseTo(rowHeight / 2, 5);
+  });
+
+  it('anchors links into summary rows at the bracket, not the row center', () => {
+    const { container } = renderView([
+      ...FAMILY.slice(0, 3),
+      makeTask('after', '2024-06-16T00:00:00.000Z', '2024-06-18T00:00:00.000Z', { dependencies: ['p'] }),
+    ]);
+    const path = container.querySelector('[data-testid="gantt-link-p-after"]') as SVGPathElement;
+    expect(path).toBeTruthy();
+    const bracket = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    const bracketCenterY = parseFloat(bracket.style.top) + parseFloat(bracket.style.height) / 2;
+    const nums = (path.getAttribute('d') || '').match(/-?\d+(\.\d+)?/g)!.map(Number);
+    // First point: M sx sy — the summary is row 0, so sy is the bracket center.
+    expect(nums[1]).toBeCloseTo(bracketCenterY, 0);
+  });
+
+  it('renders the progress fill with an explicit inline color', () => {
+    const { container } = renderView(FAMILY);
+    const bar = container.querySelector('[data-testid="gantt-task-bar-c2"]') as HTMLElement;
+    const fill = bar.querySelector('div.pointer-events-none') as HTMLElement;
+    expect(fill).toBeTruthy();
+    expect(fill.style.width).toBe('50%');
+    expect(fill.style.backgroundColor).toBe('rgba(0, 0, 0, 0.2)');
   });
 });
