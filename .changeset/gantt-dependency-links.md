@@ -2,6 +2,12 @@
 "@object-ui/plugin-gantt": minor
 ---
 
-Render dependency links in the Gantt timeline (Phase 1 of Gantt feature parity).
+Gantt feature parity, Phases 1–5: dependency links, real time scales, hierarchy, interaction polish, and virtualization.
 
-`task.dependencies` (already parsed from `dependenciesField` but never drawn) now renders as orthogonal arrows from each predecessor bar to its dependent bar in an SVG overlay. All four MS-Project link types are supported via the new object form `{ id, type }` — `fs` (finish-to-start, default), `ss`, `ff`, `sf` — with backward links routed around the bars. Arrows follow bars live during drag/resize, and hovering a bar highlights its links. `normalizeDependencies` (exported) accepts CSV strings, id arrays, and object arrays with id aliases (`task`/`target`/`_id`) and long-form type aliases (`finish_to_start`, `end-to-end`, …). Colors use theme CSS variables directly so links render correctly with the prebuilt components stylesheet.
+- **Dependency links** — `task.dependencies` renders as orthogonal arrows in an SVG overlay, with all four MS-Project link types (`fs`/`ss`/`ff`/`sf`) via the object form `{ id, type }`. Arrows follow bars live during drag/resize; hovering a bar highlights its links. `normalizeDependencies` (exported) accepts CSV strings, id arrays, and object arrays with id/type aliases. New dependencies can be created by dragging from a bar's link dot onto another bar (`onDependencyCreate`).
+- **Real time scales** — day/week/month/quarter modes with a two-row header (group row + unit row), weekend tinting, zoom in/out, and a jump-to-today button.
+- **Hierarchy** — `parent` builds a tree: collapsible summary rows with bracket-style summary bars aggregated from descendants, milestone diamonds, indent guides, and `aria-expanded`/`role="treeitem"` semantics.
+- **Interaction polish** — progress drag handle, hover tooltip, context menu (including delete), keyboard navigation/editing, inline title editing, and row drag-reorder (`onTaskReorder`).
+- **Scale** — virtualized rows *and* columns (spacer-based windowing; only the visible window is in the DOM, verified: 5,000 tasks render in ~27 ms with 26 rows in the DOM), a fullscreen toggle, and custom timeline `markers` (`{ date, label?, color? }`).
+
+Colors that the prebuilt components stylesheet doesn't emit utilities for use theme CSS variables inline, so everything renders correctly in consuming apps.
