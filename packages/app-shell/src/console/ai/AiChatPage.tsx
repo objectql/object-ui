@@ -68,8 +68,14 @@ function partString(part: HydratedUIMessagePart, key: string): string | undefine
 function partToolState(part: HydratedUIMessagePart): ChatbotEnhancedToolInvocation['state'] | undefined {
   const state = partString(part, 'state');
   switch (state) {
+    // Hydrated history is never a live stream: the turn that drove these
+    // tools has ENDED, so a dangling mid-stream state means the terminal
+    // state was never snapshotted server-side — promote to Completed or a
+    // reloaded build conversation shows every tool "Running" forever (the
+    // same incident mapMessages fixed for the floating-chat path).
     case 'input-streaming':
     case 'input-available':
+      return 'output-available';
     case 'approval-requested':
     case 'approval-responded':
     case 'output-available':
