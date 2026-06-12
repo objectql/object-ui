@@ -175,6 +175,7 @@ export type { AppComponentRegistryEntry } from './services/componentRegistry';
 import './services/builtinComponents';
 // SDUI widget for the metadata-driven Cloud Connection page (cloud ADR-0008).
 import './console/cloud-connection/CloudConnectionPanel';
+import './console/marketplace/InstalledListWidget';
 
 // Phase 3c — generic metadata admin engine. Re-exported so plugins
 // can call `registerMetadataResource()` to override the per-type
