@@ -143,10 +143,21 @@ export function DeviceAuthPage() {
     );
   }
 
+  // better-auth's device-authorization plugin requires the verifying
+  // session to CLAIM the code (GET /device?user_code=…) before it will
+  // accept approve/deny — without it both return 400 "not been claimed
+  // by a verifying session". Idempotent, so claim right before acting.
+  const claimDevice = async () => {
+    await fetch(`${AUTH_BASE}/device?user_code=${encodeURIComponent(code)}`, {
+      credentials: 'include',
+    }).catch(() => { /* approve below surfaces the real error */ });
+  };
+
   const handleApprove = async () => {
     setError('');
     setSubmitting(true);
     try {
+      await claimDevice();
       const res = await fetch(`${AUTH_BASE}/device/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -186,6 +197,7 @@ export function DeviceAuthPage() {
     setError('');
     setDenying(true);
     try {
+      await claimDevice();
       await fetch(`${AUTH_BASE}/device/deny`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
