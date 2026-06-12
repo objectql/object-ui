@@ -127,6 +127,12 @@ export interface ActionDef {
    *  handler can drive it to a returned `redirectUrl` after an awaited fetch
    *  without tripping popup blockers. Used by actions like `sso_as_owner`. */
   opensInNewTab?: boolean;
+  /** Zero-roundtrip new-tab target: a path template (`{recordId}` placeholder)
+   *  the handler navigates the pre-opened tab to IMMEDIATELY on click, skipping
+   *  the action POST entirely. Only valid with `opensInNewTab`; the endpoint
+   *  must perform all auth/authz itself (e.g. the cloud `/sso-open` endpoint,
+   *  which re-runs every check the POST half would have done). */
+  newTabUrl?: string;
   /** Any additional properties */
   [key: string]: any;
 }

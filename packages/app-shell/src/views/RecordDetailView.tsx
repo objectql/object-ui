@@ -496,6 +496,41 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
     try {
       const baseUrl = import.meta.env.VITE_SERVER_URL || '';
+      // ── Zero-roundtrip fast path ────────────────────────────────────────
+      // `newTabUrl` names a GET endpoint that performs ALL auth/authz itself
+      // (e.g. /sso-open re-runs every check the POST half would have done),
+      // so the POST round trip would add nothing but click latency. Drive the
+      // pre-opened tab there immediately — the spinner page stays painted
+      // until the (possibly slow) endpoint commits its redirect.
+      const newTabUrl = typeof (action as any).newTabUrl === 'string' ? (action as any).newTabUrl as string : '';
+      if ((action as any).opensInNewTab && newTabUrl) {
+        if (pureRecordId == null) {
+          if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
+          return { success: false, error: 'This action runs on a single record — no record id available.' };
+        }
+        // Absolute URL required: the pre-opened tab is an about:blank document,
+        // so a bare-relative href has no reliable resolution base.
+        const directUrl = `${baseUrl || window.location.origin}${newTabUrl.replace('{recordId}', encodeURIComponent(String(pureRecordId)))}`;
+        if (preOpenedTab) {
+          try { preOpenedTab.location.href = directUrl; }
+          catch {
+            try { preOpenedTab.close(); } catch { /* ignore */ }
+            window.location.href = directUrl;
+          }
+        } else {
+          let popup: Window | null = null;
+          try { popup = window.open(directUrl, '_blank'); } catch { popup = null; }
+          if (!popup) {
+            toast('浏览器拦截了弹窗 / Popup blocked', {
+              description: '点击在新标签页打开环境',
+              action: { label: '打开环境', onClick: () => { try { window.open(directUrl, '_blank'); } catch { window.location.href = directUrl; } } },
+              duration: 10000,
+            });
+          }
+        }
+        if (action.refreshAfter === true) setActionRefreshKey(k => k + 1);
+        return { success: true };
+      }
       const obj = action.objectName || objectName || 'global';
       const res = await authFetch(
         `${baseUrl}/api/v1/actions/${encodeURIComponent(obj)}/${encodeURIComponent(targetName)}`,
