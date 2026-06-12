@@ -61,6 +61,40 @@ export interface UserFiltersProps {
   className?: string;
 }
 
+/** Map @objectstack/spec ViewFilterRule operators to ObjectQL AST operators. */
+function specOperatorToAst(op: string | undefined): string {
+  switch (op) {
+    case undefined: case 'equals': case 'eq': return '=';
+    case 'not_equals': case 'ne': case 'neq': return '!=';
+    case 'gte': return '>='; case 'lte': return '<=';
+    case 'gt': return '>'; case 'lt': return '<';
+    case 'not_in': case 'nin': return 'not in';
+    default: return op;
+  }
+}
+
+/**
+ * Normalize tab presets to the client shape. Accepts both:
+ * - @objectstack/spec ViewTab: `{ name, label, filter: ViewFilterRule[], isDefault }`
+ * - legacy client shape: `{ id, label, filters: triplet[], default }`
+ */
+function normalizeTabPresets(tabs: any[]): Array<{ id: string; label: string; filters: any[]; default?: boolean }> {
+  return (tabs || [])
+    .filter((t: any) => t && (t.id || t.name))
+    .map((t: any) => ({
+      id: t.id ?? t.name,
+      label: typeof t.label === 'string' ? t.label : (t.label?.toString?.() ?? t.id ?? t.name),
+      filters: Array.isArray(t.filters)
+        ? t.filters
+        : (Array.isArray(t.filter)
+            ? t.filter
+                .filter((r: any) => r && typeof r.field === 'string')
+                .map((r: any) => [r.field, specOperatorToAst(r.operator), r.value])
+            : []),
+      default: t.default ?? t.isDefault,
+    }));
+}
+
 /**
  * UserFilters — Airtable Interfaces-style filter bar.
  *
@@ -92,7 +126,7 @@ export function UserFilters({
     case 'tabs':
       return (
         <TabFilters
-          tabs={config.tabs || []}
+          tabs={normalizeTabPresets(config.tabs || [])}
           showAllRecords={config.showAllRecords !== false}
           allowAddTab={config.allowAddTab}
           onFilterChange={onFilterChange}

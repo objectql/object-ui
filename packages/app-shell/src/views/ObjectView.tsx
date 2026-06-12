@@ -1122,9 +1122,21 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 persistViewPatch(viewDef.id, viewDef, { columnState: state });
             },
             inlineEdit: viewDef.inlineEdit ?? viewDef.editRecordsInline ?? listSchema.inlineEdit,
-            appearance: viewDef.showDescription != null
-                ? { showDescription: viewDef.showDescription }
-                : listSchema.appearance,
+            // ADR-0047 — spec `appearance` (incl. allowedVisualizations, the
+            // runtime visualization whitelist) flows from the view metadata;
+            // the legacy bare `showDescription` flag is folded in on top.
+            appearance: viewDef.appearance
+                ? (viewDef.showDescription != null
+                    ? { ...viewDef.appearance, showDescription: viewDef.showDescription }
+                    : viewDef.appearance)
+                : (viewDef.showDescription != null
+                    ? { showDescription: viewDef.showDescription }
+                    : listSchema.appearance),
+            // Offer the visualization switcher only when the author
+            // whitelisted more than one type; ListView intersects the
+            // whitelist with capability-resolvable types.
+            showViewSwitcher:
+                ((viewDef.appearance ?? listSchema.appearance)?.allowedVisualizations?.length ?? 0) > 1,
             // Propagate toolbar/display flags for all view types
             showSearch: viewDef.showSearch ?? listSchema.showSearch,
             showSort: viewDef.showSort ?? listSchema.showSort,
@@ -1202,7 +1214,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         ?? resolveManagedByEmptyState((objectDef as any)?.managedBy, t),
                 ),
             aria: viewDef.aria ?? listSchema.aria,
-            tabs: listSchema.tabs,
+            // ADR-0047 — per-view filter tabs from metadata (ViewTab presets)
+            // take precedence over schema-level tabs. Dropping viewDef.tabs
+            // here was the one-line gap that kept spec tab metadata from
+            // ever reaching the TabBar.
+            tabs: viewDef.tabs ?? listSchema.tabs,
             // Propagate filter/sort as default filters/sort for data flow
             ...((() => {
                 const combined = [

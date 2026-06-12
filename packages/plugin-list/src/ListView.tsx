@@ -42,19 +42,21 @@ export interface ListViewProps {
   [key: string]: any;
 }
 
-// Helper to convert FilterBuilder group to ObjectStack AST
+// Helper to convert FilterBuilder group to ObjectStack AST.
+// Accepts both the FilterBuilder vocabulary (camelCase) and the
+// @objectstack/spec ViewFilterRule vocabulary (snake_case).
 function mapOperator(op: string) {
   switch (op) {
     case 'equals': case 'eq': return '=';
-    case 'notEquals': case 'ne': case 'neq': return '!=';
+    case 'notEquals': case 'not_equals': case 'ne': case 'neq': return '!=';
     case 'contains': return 'contains';
-    case 'notContains': return 'notcontains';
+    case 'notContains': case 'notcontains': return 'notcontains';
     case 'greaterThan': case 'gt': return '>';
     case 'greaterOrEqual': case 'gte': return '>=';
     case 'lessThan': case 'lt': return '<';
     case 'lessOrEqual': case 'lte': return '<=';
     case 'in': return 'in';
-    case 'notIn': return 'not in';
+    case 'notIn': case 'not_in': case 'nin': return 'not in';
     case 'before': return '<';
     case 'after': return '>';
     default: return op;
@@ -459,12 +461,20 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const handleTabChange = React.useCallback(
     (tab: ViewTab) => {
       setActiveTab(tab.name);
-      // Apply tab filter if defined
+      // Apply tab filter if defined. Two shapes are accepted:
+      // - @objectstack/spec ViewTab.filter: ViewFilterRule[] — an array of
+      //   `{ field, operator, value }` rules (the canonical metadata shape)
+      // - legacy FilterGroup `{ logic, conditions }`
       if (tab.filter) {
+        const conditions = Array.isArray(tab.filter)
+          ? tab.filter
+              .filter((r: any) => r && typeof r.field === 'string')
+              .map((r: any) => ({ field: r.field, operator: r.operator ?? 'equals', value: r.value }))
+          : (tab.filter.conditions || []);
         const tabFilters: FilterGroup = {
           id: `tab-filter-${tab.name}`,
-          logic: tab.filter.logic || 'and',
-          conditions: tab.filter.conditions || [],
+          logic: (!Array.isArray(tab.filter) && tab.filter.logic) || 'and',
+          conditions,
         };
         setCurrentFilters(tabFilters);
         onFilterChange?.(tabFilters);
@@ -1040,52 +1050,58 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
-    // If appearance.allowedVisualizations is set, use it as whitelist
-    if (schema.appearance?.allowedVisualizations && schema.appearance.allowedVisualizations.length > 0) {
-      return schema.appearance.allowedVisualizations.filter((v: any) =>
-        ['grid', 'kanban', 'gallery', 'calendar', 'timeline', 'gantt', 'map'].includes(v)
-      ) as ViewType[];
-    }
+    // Capability-resolvable types: a visualization is only offered when its
+    // required field bindings resolve (ADR-0047) — kanban needs a groupBy,
+    // calendar a start date, etc. `grid` always renders.
+    const resolvable: ViewType[] = ['grid'];
 
-    const views: ViewType[] = ['grid'];
-    
     // Check for Kanban capabilities (spec config takes precedence)
-    if (schema.kanban?.groupField || schema.options?.kanban?.groupField) {
-      views.push('kanban');
+    if (schema.kanban?.groupByField || schema.kanban?.groupField || schema.options?.kanban?.groupField) {
+      resolvable.push('kanban');
     }
 
     // Check for Gallery capabilities (spec config takes precedence)
     if (schema.gallery?.coverField || schema.gallery?.imageField || schema.options?.gallery?.imageField) {
-      views.push('gallery');
+      resolvable.push('gallery');
     }
-    
+
     // Check for Calendar capabilities (spec config takes precedence)
     if (schema.calendar?.startDateField || schema.options?.calendar?.startDateField) {
-      views.push('calendar');
+      resolvable.push('calendar');
     }
-    
+
     // Check for Timeline capabilities (spec config takes precedence)
     if (schema.timeline?.startDateField || schema.options?.timeline?.startDateField || schema.options?.timeline?.dateField || schema.options?.calendar?.startDateField) {
-      views.push('timeline');
+      resolvable.push('timeline');
     }
-    
+
     // Check for Gantt capabilities (spec config takes precedence)
     if (schema.gantt?.startDateField || schema.options?.gantt?.startDateField) {
-      views.push('gantt');
+      resolvable.push('gantt');
     }
-    
+
     // Check for Map capabilities
     if (schema.options?.map?.locationField || (schema.options?.map?.latitudeField && schema.options?.map?.longitudeField)) {
-      views.push('map');
+      resolvable.push('map');
     }
-    
-    // Always allow switching back to the viewType defined in schema if it's one of the supported types
-    if (schema.viewType && !views.includes(schema.viewType as ViewType) &&
+
+    // Always allow switching back to the viewType defined in schema
+    if (schema.viewType && !resolvable.includes(schema.viewType as ViewType) &&
        ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery', 'chart'].includes(schema.viewType)) {
-      views.push(schema.viewType as ViewType);
+      resolvable.push(schema.viewType as ViewType);
     }
-    
-    return views;
+
+    // appearance.allowedVisualizations is the author whitelist (ADR-0047):
+    // effective options = whitelist ∩ resolvable. Types whose bindings don't
+    // resolve are hidden even when whitelisted — a kanban without a groupBy
+    // field renders garbage, so it must not be offered.
+    const whitelist = schema.appearance?.allowedVisualizations;
+    if (Array.isArray(whitelist) && whitelist.length > 0) {
+      const filtered = whitelist.filter((v: any) => resolvable.includes(v)) as ViewType[];
+      return filtered.length > 0 ? filtered : (['grid'] as ViewType[]);
+    }
+
+    return resolvable;
   }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.appearance?.allowedVisualizations]);
 
   // Sync view from props
