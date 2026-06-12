@@ -1898,6 +1898,32 @@ const fr = {
     hoursAgo: 'il y a {{count}} h',
     daysAgo: 'il y a {{count}} jours',
   },
+  preview: {
+    empty: {
+      loadFailedTitle: "Échec du chargement de l'aperçu du brouillon",
+      loadFailedDescription: "Impossible de lire la surcouche de brouillon. Réessayez ou vérifiez votre connexion.",
+      notReadyTitle: '« {{app}} » n\'est pas encore dans le brouillon',
+      notReadyDescription: "La génération est peut-être en cours, ou elle a échoué avant la préparation de cette application. Consultez la conversation pour connaître l'état — ce volet s'actualise à l'arrivée des brouillons.",
+      nothingTitle: "Rien à prévisualiser pour l'instant",
+      retry: 'Réessayer',
+    },
+    draftBar: {
+      message: "Aperçu du brouillon — vous voyez des modifications non publiées. Rien n'est en ligne avant publication.",
+      publish: 'Publier',
+      publishing: 'Publication…',
+      exit: "Quitter l'aperçu",
+      changes: 'Modifications',
+    },
+    changes: {
+      title: 'Modifications en attente',
+      description: 'Ce que la publication changera. Les nouveaux éléments sont ajoutés ; les mises à jour remplacent la version en ligne.',
+      loading: 'Chargement des modifications en attente…',
+      loadFailed: 'Impossible de charger les modifications en attente :',
+      empty: 'Rien en attente — tous les brouillons ont été publiés.',
+      kindNew: 'Nouveau',
+      kindUpdate: 'Mise à jour',
+    },
+  },
 };
 
 export default fr;

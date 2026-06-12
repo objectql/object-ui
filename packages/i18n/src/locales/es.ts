@@ -1898,6 +1898,32 @@ const es = {
     hoursAgo: 'hace {{count}} h',
     daysAgo: 'hace {{count}} días',
   },
+  preview: {
+    empty: {
+      loadFailedTitle: 'No se pudo cargar la vista previa del borrador',
+      loadFailedDescription: 'No se pudo leer la capa de borrador. Reintenta o comprueba tu conexión.',
+      notReadyTitle: '«{{app}}» aún no está en el borrador',
+      notReadyDescription: 'La compilación puede seguir en curso, o falló antes de preparar esta aplicación. Revisa la conversación para ver el estado — este panel se actualiza cuando llegan borradores.',
+      nothingTitle: 'Nada que previsualizar todavía',
+      retry: 'Reintentar',
+    },
+    draftBar: {
+      message: 'Vista previa de borrador — estás viendo cambios sin publicar. Nada está en producción hasta que publiques.',
+      publish: 'Publicar',
+      publishing: 'Publicando…',
+      exit: 'Salir de la vista previa',
+      changes: 'Cambios',
+    },
+    changes: {
+      title: 'Cambios pendientes',
+      description: 'Lo que cambiará al publicar. Los elementos nuevos se añaden; las actualizaciones sobrescriben la versión publicada.',
+      loading: 'Cargando cambios pendientes…',
+      loadFailed: 'No se pudieron cargar los cambios pendientes:',
+      empty: 'Nada pendiente — todos los borradores se han publicado.',
+      kindNew: 'Nuevo',
+      kindUpdate: 'Actualización',
+    },
+  },
 };
 
 export default es;

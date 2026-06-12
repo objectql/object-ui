@@ -1898,6 +1898,32 @@ const pt = {
     hoursAgo: 'há {{count}} h',
     daysAgo: 'há {{count}} dias',
   },
+  preview: {
+    empty: {
+      loadFailedTitle: 'Falha ao carregar a pré-visualização do rascunho',
+      loadFailedDescription: 'Não foi possível ler a camada de rascunho. Tente novamente ou verifique sua conexão.',
+      notReadyTitle: '"{{app}}" ainda não está no rascunho',
+      notReadyDescription: 'A compilação pode ainda estar em andamento, ou falhou antes de este app ser preparado. Verifique o estado na conversa — este painel é atualizado quando os rascunhos chegam.',
+      nothingTitle: 'Nada para pré-visualizar ainda',
+      retry: 'Tentar novamente',
+    },
+    draftBar: {
+      message: 'Pré-visualização de rascunho — você está vendo alterações não publicadas. Nada entra no ar até você publicar.',
+      publish: 'Publicar',
+      publishing: 'Publicando…',
+      exit: 'Sair da pré-visualização',
+      changes: 'Alterações',
+    },
+    changes: {
+      title: 'Alterações pendentes',
+      description: 'O que a publicação vai mudar. Itens novos são adicionados; atualizações sobrescrevem a versão publicada.',
+      loading: 'Carregando alterações pendentes…',
+      loadFailed: 'Não foi possível carregar as alterações pendentes:',
+      empty: 'Nada pendente — todos os rascunhos foram publicados.',
+      kindNew: 'Novo',
+      kindUpdate: 'Atualização',
+    },
+  },
 };
 
 export default pt;

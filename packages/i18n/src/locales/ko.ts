@@ -1898,6 +1898,32 @@ const ko = {
     hoursAgo: '{{count}}시간 전',
     daysAgo: '{{count}}일 전',
   },
+  preview: {
+    empty: {
+      loadFailedTitle: '드래프트 미리보기를 불러오지 못했습니다',
+      loadFailedDescription: '드래프트 오버레이를 읽을 수 없습니다. 다시 시도하거나 연결을 확인하세요.',
+      notReadyTitle: '"{{app}}"이(가) 아직 드래프트에 없습니다',
+      notReadyDescription: '빌드가 아직 실행 중이거나 이 앱이 스테이징되기 전에 실패했을 수 있습니다. 대화에서 빌드 상태를 확인하세요 — 드래프트가 도착하면 이 창이 새로고침됩니다.',
+      nothingTitle: '아직 미리볼 내용이 없습니다',
+      retry: '다시 시도',
+    },
+    draftBar: {
+      message: '드래프트 미리보기 — 게시되지 않은 변경 사항을 보고 있습니다. 게시 전에는 실제로 반영되지 않습니다.',
+      publish: '게시',
+      publishing: '게시 중…',
+      exit: '미리보기 종료',
+      changes: '변경 사항',
+    },
+    changes: {
+      title: '대기 중인 변경 사항',
+      description: '게시 시 변경되는 내용입니다. 새 항목은 추가되고 업데이트는 게시된 버전을 덮어씁니다.',
+      loading: '대기 중인 변경 사항 불러오는 중…',
+      loadFailed: '대기 중인 변경 사항을 불러오지 못했습니다:',
+      empty: '대기 중인 항목 없음 — 모든 드래프트가 게시되었습니다.',
+      kindNew: '신규',
+      kindUpdate: '업데이트',
+    },
+  },
 };
 
 export default ko;

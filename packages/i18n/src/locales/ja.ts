@@ -1898,6 +1898,32 @@ const ja = {
     hoursAgo: '{{count}} 時間前',
     daysAgo: '{{count}} 日前',
   },
+  preview: {
+    empty: {
+      loadFailedTitle: 'ドラフトプレビューを読み込めませんでした',
+      loadFailedDescription: 'ドラフトオーバーレイを読み取れませんでした。再試行するか、接続を確認してください。',
+      notReadyTitle: '「{{app}}」はまだドラフトにありません',
+      notReadyDescription: 'ビルドが実行中か、このアプリがステージされる前に失敗した可能性があります。会話でビルド状況を確認してください — ドラフトが届くとこのペインは更新されます。',
+      nothingTitle: 'プレビューするものはまだありません',
+      retry: '再試行',
+    },
+    draftBar: {
+      message: 'ドラフトプレビュー — 未公開の変更を表示しています。公開するまで本番には反映されません。',
+      publish: '公開',
+      publishing: '公開中…',
+      exit: 'プレビューを終了',
+      changes: '変更',
+    },
+    changes: {
+      title: '保留中の変更',
+      description: '公開で何が変わるか。新規項目は追加され、更新は公開中のバージョンを上書きします。',
+      loading: '保留中の変更を読み込み中…',
+      loadFailed: '保留中の変更を読み込めませんでした:',
+      empty: '保留中の変更はありません — すべてのドラフトが公開済みです。',
+      kindNew: '新規',
+      kindUpdate: '更新',
+    },
+  },
 };
 
 export default ja;

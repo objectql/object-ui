@@ -1898,6 +1898,32 @@ const de = {
     hoursAgo: 'vor {{count}} Std.',
     daysAgo: 'vor {{count}} Tagen',
   },
+  preview: {
+    empty: {
+      loadFailedTitle: 'Entwurfsvorschau konnte nicht geladen werden',
+      loadFailedDescription: 'Das Entwurfs-Overlay konnte nicht gelesen werden. Erneut versuchen oder Verbindung prüfen.',
+      notReadyTitle: '„{{app}}" ist noch nicht im Entwurf',
+      notReadyDescription: 'Der Build läuft möglicherweise noch oder ist fehlgeschlagen, bevor diese App bereitgestellt wurde. Prüfen Sie den Build-Status in der Konversation — dieser Bereich aktualisiert sich, sobald Entwürfe eintreffen.',
+      nothingTitle: 'Noch nichts zur Vorschau',
+      retry: 'Erneut versuchen',
+    },
+    draftBar: {
+      message: 'Entwurfsvorschau — Sie sehen unveröffentlichte Änderungen. Nichts ist live, bis Sie veröffentlichen.',
+      publish: 'Veröffentlichen',
+      publishing: 'Wird veröffentlicht…',
+      exit: 'Vorschau beenden',
+      changes: 'Änderungen',
+    },
+    changes: {
+      title: 'Ausstehende Änderungen',
+      description: 'Was die Veröffentlichung ändert. Neue Elemente werden hinzugefügt; Aktualisierungen überschreiben die Live-Version.',
+      loading: 'Ausstehende Änderungen werden geladen…',
+      loadFailed: 'Ausstehende Änderungen konnten nicht geladen werden:',
+      empty: 'Nichts ausstehend — alle Entwürfe wurden veröffentlicht.',
+      kindNew: 'Neu',
+      kindUpdate: 'Aktualisierung',
+    },
+  },
 };
 
 export default de;
