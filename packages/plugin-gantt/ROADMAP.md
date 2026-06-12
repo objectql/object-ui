@@ -21,13 +21,13 @@ Today marker + jump-to-today, weekend highlighting, semantic color fallback, i18
 - [x] Highlight a task's links on hover (and while dragging)
 - [x] Tests: link parsing (string id, array, `{id, type}` object), path anchors per type, hover highlight, drag re-render, backward links (8 new GanttView tests + 6 normalizeDependencies tests)
 
-## Phase 2 — Real Time Scales (resurrect `viewMode`)
+## Phase 2 — Real Time Scales (resurrect `viewMode`) ✅
 
-- [ ] Implement day/week/month/quarter column generation in `timeColumns` + `tickWidth` (currently `viewMode` is a deprecated no-op — every mode renders daily columns)
-- [ ] Two-row scale header (e.g. month row above day row), configurable scale units
-- [ ] Restore the view-mode Select in the toolbar; wire zoom buttons to switch granularity at min/max column width
-- [ ] Drag snapping respects active granularity (snap to day/week/etc.)
-- [ ] Tests: column generation per mode, header labels, snap behavior
+- [x] Implement day/week/month/quarter column generation in `timeColumns` — calendar-true column widths over one linear ms→px mapping (`pxPerDay = columnWidth / nominalDays`), so bars, grid, links and the Today marker stay aligned in every mode
+- [x] Two-row scale header: month groups over day/week units, year groups over month/quarter units
+- [x] Restore the view-mode segmented control in the toolbar; zoom buttons fall through to the next coarser/finer granularity at min/max column width
+- [x] Drag snapping respects active granularity (day/week columns, calendar-clamped month/quarter shifts preserving duration on move)
+- [x] Tests: column generation per mode, header groups/labels, bar geometry per granularity, week + month snap behavior (8 new tests)
 
 ## Phase 3 — Task Hierarchy & Types
 

@@ -26,6 +26,11 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.toolbar.today': 'Today',
   'gantt.toolbar.showTaskList': 'Show task list',
   'gantt.toolbar.hideTaskList': 'Hide task list',
+  'gantt.toolbar.viewMode': 'Timeline granularity',
+  'gantt.viewMode.day': 'Day',
+  'gantt.viewMode.week': 'Week',
+  'gantt.viewMode.month': 'Month',
+  'gantt.viewMode.quarter': 'Quarter',
 };
 
 const TEST_KEY = 'gantt.column.taskName';

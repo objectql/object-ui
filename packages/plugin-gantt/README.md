@@ -227,11 +227,20 @@ const schema = {
 
 ## View Modes
 
-The Gantt chart supports different time scales:
+The Gantt chart renders one timeline column per unit of the active scale:
 
-- **day** - Day-by-day view
-- **week** - Week-by-week view
-- **month** - Month-by-month view
+- **day** - one column per day (weekday + weekend shading)
+- **week** - one column per week (starting Monday)
+- **month** - one column per calendar month
+- **quarter** - one column per quarter (Q1–Q4)
+
+A two-row header shows the grouping above the units (months above days/weeks,
+years above months/quarters). The toolbar's segmented control switches scales
+interactively (`onViewChange` notifies you), and the zoom buttons step the
+column width — falling through to the next coarser/finer scale at the bounds.
+Drag snapping follows the active scale: bars snap to days in day view, weeks
+in week view, and whole calendar months/quarters (duration preserved) in the
+coarse views.
 
 ```typescript
 const schema = {

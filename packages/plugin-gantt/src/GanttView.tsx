@@ -83,26 +83,68 @@ export interface GanttTask {
   dependencies?: GanttDependency[]
 }
 
-/**
- * @deprecated The day/week/month/quarter view-mode dropdown was removed
- * because all four values rendered the same daily-column timeline.
- * Kept exported only to avoid breaking downstream type imports; the
- * `viewMode` / `onViewChange` props on `GanttViewProps` are no-ops.
- * Re-introduce real semantics here when timeline granularity is
- * implemented.
- */
+/** Timeline granularity — one column per day, week, month, or quarter. */
 export type GanttViewMode = 'day' | 'week' | 'month' | 'quarter';
+
+const VIEW_MODES: GanttViewMode[] = ['day', 'week', 'month', 'quarter'];
+
+/**
+ * Nominal days represented by one column at each granularity. Sets the zoom
+ * scale: pxPerDay = columnWidth / NOMINAL_DAYS[mode]. Actual column widths
+ * follow the calendar (a 31-day month is slightly wider than a 30-day one)
+ * so grid lines, bars and the Today marker share one linear ms→px mapping.
+ */
+const NOMINAL_DAYS: Record<GanttViewMode, number> = {
+  day: 1,
+  week: 7,
+  month: 30.44,
+  quarter: 91.31,
+};
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+/** Floor a date to the start of its column unit (Monday for weeks). */
+function startOfUnit(date: Date, mode: GanttViewMode): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  if (mode === 'week') {
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  } else if (mode === 'month') {
+    d.setDate(1);
+  } else if (mode === 'quarter') {
+    d.setMonth(Math.floor(d.getMonth() / 3) * 3, 1);
+  }
+  return d;
+}
+
+/** Add whole column units; month/quarter clamp the day (Jan 31 + 1mo = Feb 28). */
+function addUnits(date: Date, units: number, mode: GanttViewMode): Date {
+  const d = new Date(date);
+  if (mode === 'day') {
+    d.setDate(d.getDate() + units);
+  } else if (mode === 'week') {
+    d.setDate(d.getDate() + units * 7);
+  } else {
+    const months = units * (mode === 'month' ? 1 : 3);
+    const dayOfMonth = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + months);
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(dayOfMonth, lastDay));
+  }
+  return d;
+}
 
 export interface GanttViewProps {
   tasks: GanttTask[]
-  /** @deprecated no-op — see {@link GanttViewMode} */
+  /** Initial timeline granularity (also switchable from the toolbar). */
   viewMode?: GanttViewMode
   startDate?: Date
   endDate?: Date
   onTaskClick?: (task: GanttTask) => void
   onTaskUpdate?: (task: GanttTask, changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>) => void
   onTaskDelete?: (task: GanttTask) => void
-  /** @deprecated no-op — see {@link GanttViewMode} */
+  /** Notified when the user switches granularity from the toolbar. */
   onViewChange?: (view: GanttViewMode) => void
   className?: string
   /** Enable inline editing of task fields */
@@ -111,10 +153,12 @@ export interface GanttViewProps {
 
 export function GanttView({
   tasks,
+  viewMode: viewModeProp,
   startDate,
   endDate,
   onTaskClick,
   onTaskUpdate,
+  onViewChange,
   className,
   inlineEdit = false,
 }: GanttViewProps) {
@@ -130,6 +174,21 @@ export function GanttView({
   // buttons + pinch-to-zoom gesture actually persist.
   const [columnWidthOverride, setColumnWidthOverride] = React.useState<number | null>(null);
   const columnWidth = columnWidthOverride ?? baseColumnWidth;
+  // Timeline granularity. The prop seeds (and can later override) the state;
+  // the toolbar segmented control switches it interactively.
+  const [viewMode, setViewMode] = React.useState<GanttViewMode>(
+    viewModeProp && VIEW_MODES.includes(viewModeProp) ? viewModeProp : 'day'
+  );
+  React.useEffect(() => {
+    if (viewModeProp && VIEW_MODES.includes(viewModeProp)) setViewMode(viewModeProp);
+  }, [viewModeProp]);
+  const changeViewMode = React.useCallback((mode: GanttViewMode) => {
+    setViewMode(mode);
+    onViewChange?.(mode);
+  }, [onViewChange]);
+  // One column = one unit of the active granularity; bars/markers map time
+  // linearly at pxPerDay so they stay aligned with the calendar-width columns.
+  const pxPerDay = columnWidth / NOMINAL_DAYS[viewMode];
   const [taskListCollapsed, setTaskListCollapsed] = React.useState<boolean>(false);
   // Auto-collapse the list once on first narrow render — undoable by the user.
   const collapsedAutoSet = React.useRef(false);
@@ -147,8 +206,9 @@ export function GanttView({
   const [hoveredTaskId, setHoveredTaskId] = React.useState<string | number | null>(null);
 
   // Drag-and-drop state for rescheduling a bar (move + resize from either edge).
-  // dayDelta is the snapped offset from the original position; preview is rendered
-  // by overriding left/width when dragState.taskId matches.
+  // unitDelta is the snapped offset, in columns of the active granularity, from
+  // the original position; preview is rendered by overriding left/width when
+  // dragState.taskId matches.
   type DragMode = 'move' | 'resize-left' | 'resize-right';
   const [dragState, setDragState] = React.useState<{
     taskId: string | number;
@@ -156,7 +216,7 @@ export function GanttView({
     originStart: Date;
     originEnd: Date;
     originClientX: number;
-    dayDelta: number;
+    unitDelta: number;
   } | null>(null);
   const dragStateRef = React.useRef<typeof dragState>(null);
   React.useEffect(() => { dragStateRef.current = dragState; }, [dragState]);
@@ -164,29 +224,30 @@ export function GanttView({
   const suppressNextClickRef = React.useRef(false);
 
   const computeDragChanges = React.useCallback((s: NonNullable<typeof dragState>) => {
-    const msPerDay = 1000 * 60 * 60 * 24;
-    const minDurationMs = msPerDay; // never collapse below 1 day
-    const deltaMs = s.dayDelta * msPerDay;
+    const minDurationMs = MS_PER_DAY; // never collapse below 1 day
     let start = new Date(s.originStart);
     let end = new Date(s.originEnd);
     if (s.mode === 'move') {
-      start = new Date(s.originStart.getTime() + deltaMs);
-      end = new Date(s.originEnd.getTime() + deltaMs);
+      // Snap the start to whole units; the end follows by the same ms offset
+      // so the task keeps its duration even across uneven months.
+      start = addUnits(s.originStart, s.unitDelta, viewMode);
+      end = new Date(s.originEnd.getTime() + (start.getTime() - s.originStart.getTime()));
     } else if (s.mode === 'resize-left') {
-      start = new Date(s.originStart.getTime() + deltaMs);
+      start = addUnits(s.originStart, s.unitDelta, viewMode);
       if (end.getTime() - start.getTime() < minDurationMs) {
         start = new Date(end.getTime() - minDurationMs);
       }
     } else if (s.mode === 'resize-right') {
-      end = new Date(s.originEnd.getTime() + deltaMs);
+      end = addUnits(s.originEnd, s.unitDelta, viewMode);
       if (end.getTime() - start.getTime() < minDurationMs) {
         end = new Date(start.getTime() + minDurationMs);
       }
     }
     return { start, end };
-  }, []);
+  }, [viewMode]);
 
-  // Window-level pointer listeners: track horizontal motion in whole-day snaps,
+  // Window-level pointer listeners: track horizontal motion snapped to whole
+  // columns (days/weeks/months/quarters depending on the active granularity),
   // commit via onTaskUpdate on pointerup, suppress the trailing click.
   React.useEffect(() => {
     if (!dragState) return;
@@ -194,14 +255,14 @@ export function GanttView({
       const cur = dragStateRef.current;
       if (!cur) return;
       const next = Math.round((e.clientX - cur.originClientX) / Math.max(columnWidth, 1));
-      if (next !== cur.dayDelta) {
-        setDragState({ ...cur, dayDelta: next });
+      if (next !== cur.unitDelta) {
+        setDragState({ ...cur, unitDelta: next });
       }
     };
     const onUp = () => {
       const cur = dragStateRef.current;
       if (!cur) return;
-      if (cur.dayDelta !== 0) {
+      if (cur.unitDelta !== 0) {
         const task = tasks.find(t => t.id === cur.taskId);
         if (task && onTaskUpdate) {
           const { start, end } = computeDragChanges(cur);
@@ -233,7 +294,7 @@ export function GanttView({
       originStart: new Date(task.start),
       originEnd: new Date(task.end),
       originClientX: e.clientX,
-      dayDelta: 0,
+      unitDelta: 0,
     });
   }, [onTaskUpdate]);
   
@@ -256,29 +317,77 @@ export function GanttView({
       end.setDate(end.getDate() + 14);
     }
     
-    // Normalize to start of day
-    start.setHours(0,0,0,0);
+    // Snap the start to a column boundary of the active granularity so
+    // bars (linear ms→px from range start) line up with the grid.
+    start = startOfUnit(start, viewMode);
     end.setHours(23,59,59,999);
-    
-    return { start, end };
-  }, [startDate, endDate, tasks]);
 
-  // Generate timeline columns
+    return { start, end };
+  }, [startDate, endDate, tasks, viewMode]);
+
+  // Generate timeline columns — one per unit of the active granularity.
+  // Widths follow the calendar at pxPerDay, so a 31-day month column is
+  // slightly wider than a 30-day one and stays aligned with the bars.
   const timeColumns = React.useMemo(() => {
-    const cols: { date: Date; label: string; isWeekend: boolean }[] = [];
-    const current = new Date(timelineRange.start);
-    
+    const cols: { date: Date; label: string; sublabel?: string; isWeekend: boolean; width: number }[] = [];
+    let current = new Date(timelineRange.start);
+
     while (current <= timelineRange.end) {
+      const next = addUnits(current, 1, viewMode);
+      const width = ((next.getTime() - current.getTime()) / MS_PER_DAY) * pxPerDay;
+      let label: string;
+      let sublabel: string | undefined;
+      if (viewMode === 'day') {
+        label = String(current.getDate());
+        sublabel = current.toLocaleDateString(undefined, { weekday: 'narrow' });
+      } else if (viewMode === 'week') {
+        label = current.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+      } else if (viewMode === 'month') {
+        label = current.toLocaleDateString(undefined, { month: 'short' });
+      } else {
+        label = `Q${Math.floor(current.getMonth() / 3) + 1}`;
+      }
       cols.push({
         date: new Date(current),
-        label: current.getDate().toString(),
-        isWeekend: current.getDay() === 0 || current.getDay() === 6
+        label,
+        sublabel,
+        isWeekend: viewMode === 'day' && (current.getDay() === 0 || current.getDay() === 6),
+        width,
       });
-      current.setDate(current.getDate() + 1);
+      current = next;
     }
-    
+
     return cols;
-  }, [timelineRange]);
+  }, [timelineRange, viewMode, pxPerDay]);
+
+  const totalWidth = React.useMemo(
+    () => timeColumns.reduce((sum, col) => sum + col.width, 0),
+    [timeColumns]
+  );
+
+  // Upper scale row: month groups under day/week, year groups under month/quarter.
+  const headerGroups = React.useMemo(() => {
+    const groups: { key: string; label: string; width: number }[] = [];
+    const byYear = viewMode === 'month' || viewMode === 'quarter';
+    for (const col of timeColumns) {
+      const key = byYear
+        ? String(col.date.getFullYear())
+        : `${col.date.getFullYear()}-${col.date.getMonth()}`;
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) {
+        last.width += col.width;
+      } else {
+        groups.push({
+          key,
+          label: byYear
+            ? String(col.date.getFullYear())
+            : col.date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+          width: col.width,
+        });
+      }
+    }
+    return groups;
+  }, [timeColumns, viewMode]);
 
   const taskListWidth_LEGACY_REMOVED = null; // taskListWidth now derived from useResizeObserver above
   
@@ -318,10 +427,9 @@ export function GanttView({
   const todayLeftPx = React.useMemo(() => {
     const now = new Date();
     if (now < timelineRange.start || now > timelineRange.end) return null;
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const days = (now.getTime() - timelineRange.start.getTime()) / msPerDay;
-    return Math.round(days * columnWidth);
-  }, [timelineRange, columnWidth]);
+    const days = (now.getTime() - timelineRange.start.getTime()) / MS_PER_DAY;
+    return Math.round(days * pxPerDay);
+  }, [timelineRange, pxPerDay]);
   const jumpToToday = React.useCallback(() => {
     if (todayLeftPx == null || !scrollAreaRef.current) return;
     const target = Math.max(0, todayLeftPx - scrollAreaRef.current.clientWidth / 2);
@@ -340,15 +448,13 @@ export function GanttView({
   };
 
   const getTaskStyle = (task: GanttTask) => {
-    const totalDuration = timelineRange.end.getTime() - timelineRange.start.getTime();
-    const tickWidth = columnWidth; // px per day
-    const msPerDay = 1000 * 60 * 60 * 24;
-
     const startOffsetMs = task.start.getTime() - timelineRange.start.getTime();
     const durationMs = task.end.getTime() - task.start.getTime();
 
-    const left = (startOffsetMs / msPerDay) * tickWidth;
-    const width = Math.max((durationMs / msPerDay) * tickWidth, tickWidth); // Min 1 day width
+    const left = (startOffsetMs / MS_PER_DAY) * pxPerDay;
+    // Min 1 day, and never thinner than 3px so the bar stays visible (and
+    // grabbable) at coarse granularities where a day is only ~2px.
+    const width = Math.max((durationMs / MS_PER_DAY) * pxPerDay, pxPerDay, 3);
 
     return { left, width };
   };
@@ -466,18 +572,43 @@ export function GanttView({
         </div>
         
         <div className="flex items-center gap-2">
-          {/* View-mode select removed — it was cosmetic only. The
-              timeline always iterates one day per column regardless of
-              the chosen value, and the only knob that actually changes
-              column density is the Zoom in/out below. Re-introduce a
-              real Select here when day/week/month/quarter rendering is
-              actually implemented in `timeColumns` + `tickWidth`. */}
+          {/* Granularity segmented control */}
+          <div className="flex bg-muted rounded-md p-1" role="group" aria-label={t('gantt.toolbar.viewMode')}>
+            {VIEW_MODES.map((mode) => (
+              <Button
+                key={mode}
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-6 px-1.5 sm:px-2 text-xs",
+                  viewMode === mode && "bg-background shadow-sm hover:bg-background"
+                )}
+                onClick={() => changeViewMode(mode)}
+                aria-pressed={viewMode === mode}
+                data-testid={`gantt-view-mode-${mode}`}
+              >
+                {t(`gantt.viewMode.${mode}`)}
+              </Button>
+            ))}
+          </div>
+          {/* Zoom: adjusts column width; at the bounds it falls through to the
+              next coarser/finer granularity so zooming never dead-ends. */}
           <div className="flex bg-muted rounded-md p-1">
             <Button
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={() => setColumnWidthOverride(Math.max(15, columnWidth - 10))}
+              onClick={() => {
+                if (columnWidth > 15) {
+                  setColumnWidthOverride(Math.max(15, columnWidth - 10));
+                } else {
+                  const i = VIEW_MODES.indexOf(viewMode);
+                  if (i < VIEW_MODES.length - 1) {
+                    changeViewMode(VIEW_MODES[i + 1]);
+                    setColumnWidthOverride(baseColumnWidth);
+                  }
+                }
+              }}
               aria-label={t('gantt.toolbar.zoomOut')}
             >
               <ZoomOut className="h-3 w-3" />
@@ -486,7 +617,17 @@ export function GanttView({
               variant="ghost"
               size="icon"
               className="h-6 w-6"
-              onClick={() => setColumnWidthOverride(Math.min(120, columnWidth + 10))}
+              onClick={() => {
+                if (columnWidth < 120) {
+                  setColumnWidthOverride(Math.min(120, columnWidth + 10));
+                } else {
+                  const i = VIEW_MODES.indexOf(viewMode);
+                  if (i > 0) {
+                    changeViewMode(VIEW_MODES[i - 1]);
+                    setColumnWidthOverride(baseColumnWidth);
+                  }
+                }
+              }}
               aria-label={t('gantt.toolbar.zoomIn')}
             >
               <ZoomIn className="h-3 w-3" />
@@ -535,24 +676,37 @@ export function GanttView({
             )}
           </div>
           
-          {/* Timeline Header */}
+          {/* Timeline Header — two scale rows: group (month/year) over units */}
           <div className="flex-1 overflow-hidden" ref={headerRef}>
-            <div className="flex h-full" style={{ width: timeColumns.length * columnWidth }}>
-              {timeColumns.map((col, i) => (
-                <div 
-                  key={i}
-                  className={cn(
-                    "flex flex-col items-center justify-center border-r text-xs text-muted-foreground h-full",
-                    col.isWeekend && "bg-muted/50"
-                  )}
-                  style={{ width: columnWidth, minWidth: columnWidth }}
-                >
-                  <span className="font-medium text-foreground">{col.label}</span>
-                  <span className="text-[10px] opacity-70">
-                    {col.date.toLocaleDateString(undefined, { weekday: 'narrow' })}
-                  </span>
-                </div>
-              ))}
+            <div className="flex flex-col h-full" style={{ width: totalWidth }}>
+              <div className="flex h-[45%] border-b" data-testid="gantt-header-groups">
+                {headerGroups.map((group) => (
+                  <div
+                    key={group.key}
+                    className="flex items-center justify-center border-r text-[10px] font-medium text-muted-foreground overflow-hidden"
+                    style={{ width: group.width, minWidth: group.width }}
+                  >
+                    <span className="truncate px-1">{group.label}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-1" data-testid="gantt-header-units">
+                {timeColumns.map((col, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex items-center justify-center gap-1 border-r text-xs text-muted-foreground h-full overflow-hidden",
+                      col.isWeekend && "bg-muted/50"
+                    )}
+                    style={{ width: col.width, minWidth: col.width }}
+                  >
+                    <span className="font-medium text-foreground truncate">{col.label}</span>
+                    {col.sublabel && columnWidth >= 32 && (
+                      <span className="text-[10px] opacity-70">{col.sublabel}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -665,7 +819,7 @@ export function GanttView({
             onTouchEnd={onTouchEnd}
             data-testid="gantt-timeline"
           >
-            <div className="relative" style={{ width: timeColumns.length * columnWidth }}>
+            <div className="relative" style={{ width: totalWidth }}>
               {/* Today vertical marker — sticky inside the scroll area, in front of grid + bars */}
               {todayLeftPx != null && (
                 <div
@@ -684,13 +838,13 @@ export function GanttView({
                 {/* Background Grid */}
                 <div className="absolute inset-0 flex pointer-events-none z-0">
                    {timeColumns.map((col, i) => (
-                    <div 
+                    <div
                       key={i}
                       className={cn(
                         "border-r h-full",
                         col.isWeekend && "bg-muted/20"
                       )}
-                      style={{ width: columnWidth, minWidth: columnWidth }}
+                      style={{ width: col.width, minWidth: col.width }}
                     />
                   ))}
                 </div>
@@ -788,7 +942,7 @@ export function GanttView({
                 {links.length > 0 && (
                   <svg
                     className="absolute top-0 left-0 pointer-events-none z-10"
-                    width={timeColumns.length * columnWidth}
+                    width={totalWidth}
                     height={tasks.length * rowHeight}
                     data-testid="gantt-links"
                     aria-hidden="true"
@@ -846,10 +1000,10 @@ export function GanttView({
                 )}
 
                 {/* Current Time Indicator */}
-                <div 
+                <div
                   className="absolute top-0 bottom-0 w-px bg-red-500 z-20 pointer-events-none"
-                  style={{ 
-                    left: (new Date().getTime() - timelineRange.start.getTime()) / (1000 * 60 * 60 * 24) * columnWidth 
+                  style={{
+                    left: (new Date().getTime() - timelineRange.start.getTime()) / MS_PER_DAY * pxPerDay
                   }}
                 >
                   <div className="w-2 h-2 rounded-full bg-red-500 -ml-[3px]" />
