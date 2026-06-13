@@ -278,6 +278,12 @@ export function GanttView({
     return map;
   }, [tasks]);
 
+  const taskById = React.useMemo(() => {
+    const m = new Map<string, GanttTask>();
+    for (const t of tasks) m.set(String(t.id), t);
+    return m;
+  }, [tasks]);
+
   const collectDescendants = React.useCallback((id: string | number): GanttTask[] => {
     const out: GanttTask[] = [];
     const seen = new Set<string>();
@@ -956,6 +962,25 @@ export function GanttView({
     return set;
   }, [dragGroupTaskId, collectDescendants]);
 
+  // Ancestor summaries of the task being dragged on its own (not a group
+  // drag). They stretch live so the parent bar grows/shrinks in real time as
+  // the child crosses the parent's current extent, matching the rollup that
+  // commits on drop. Null when no single-task drag is active.
+  const dragStretchAncestorIds = React.useMemo(() => {
+    if (!dragState || dragState.group) return null;
+    const set = new Set<string>();
+    const guard = new Set<string>();
+    let cur = taskById.get(String(dragState.taskId));
+    while (cur && cur.parent != null && cur.parent !== '') {
+      const pk = String(cur.parent);
+      if (guard.has(pk) || !taskById.has(pk)) break;
+      guard.add(pk);
+      set.add(pk);
+      cur = taskById.get(pk);
+    }
+    return set.size ? set : null;
+  }, [dragState, taskById]);
+
   // Row geometry (summary rollup applied) with the in-flight drag preview,
   // so dependency links follow the bar while it is being moved/resized.
   const getLiveRowStyle = (row: GanttRow) => {
@@ -973,6 +998,24 @@ export function GanttView({
       if (!row.isSummary && dragState.taskId === row.task.id) {
         const previewed = computeDragChanges(dragState);
         return styleFor(previewed.start, previewed.end);
+      }
+      if (row.isSummary && dragStretchAncestorIds?.has(String(row.task.id))) {
+        // Re-roll this ancestor's span over its leaf descendants, substituting
+        // the dragged leaf's previewed dates. Summary tasks' own start/end are
+        // ignored (they may be placeholders); only leaves define the extent.
+        const previewed = computeDragChanges(dragState);
+        const draggedId = String(dragState.taskId);
+        let minStart: Date | null = null;
+        let maxEnd: Date | null = null;
+        for (const d of collectDescendants(row.task.id)) {
+          const isLeaf = (childrenByParent.get(String(d.id)) ?? []).length === 0;
+          if (!isLeaf) continue;
+          const s = String(d.id) === draggedId ? previewed.start : d.start;
+          const e = String(d.id) === draggedId ? previewed.end : d.end;
+          if (!minStart || s < minStart) minStart = s;
+          if (!maxEnd || e > maxEnd) maxEnd = e;
+        }
+        if (minStart && maxEnd) return styleFor(minStart, maxEnd);
       }
     }
     return styleFor(row.start, row.end);
@@ -1514,7 +1557,8 @@ export function GanttView({
                    const baseStyle = styleFor(row.start, row.end);
                    const isDragging = dragState?.taskId === task.id;
                    const inDragGroup = dragGroupIds?.has(String(task.id)) ?? false;
-                   const liveStyle = isDragging || inDragGroup ? getLiveRowStyle(row) : baseStyle;
+                   const inDragStretch = dragStretchAncestorIds?.has(String(task.id)) ?? false;
+                   const liveStyle = isDragging || inDragGroup || inDragStretch ? getLiveRowStyle(row) : baseStyle;
                    const canDrag = !!onTaskUpdate && !row.isSummary;
                    const isLinkTarget =
                      linkDrag != null &&

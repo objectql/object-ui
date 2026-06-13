@@ -100,6 +100,23 @@ asserts the tooltip renders those label/value rows instead of the date line
 
 - ![Configured tooltip fields](12-tooltip-fields.png)
 
+### 4e. Live parent stretch on child drag
+
+When a child task is dragged past its parent's current extent, the parent
+summary bar now re-rolls and stretches **in real time during the drag**, not
+just on drop — matching the rollup that commits when the pointer is released.
+Every ancestor summary of the dragged task stretches; the parent's pinned edge
+(earliest child) stays put, so it grows rather than shifts.
+
+[`scripts/verify-child-stretch.mjs`](../../scripts/verify-child-stretch.mjs)
+drags *Backend services* three weeks right (new end Jul 29, overshooting the
+Build group's Jul 22 edge) and asserts, mid-drag, that the p2 bar widens ~7d
+with its left edge pinned, then stays widened after drop with no flicker
+(4/4 checks passed):
+
+- ![Parent stretches live mid-drag](13-child-stretch-mid.png)
+- ![Stretch committed on drop (Build → 7/29)](14-child-stretch-committed.png)
+
 ### 5. Performance — 5,000 tasks (`?perf=5000&mode=week`)
 
 | Metric | Result |
