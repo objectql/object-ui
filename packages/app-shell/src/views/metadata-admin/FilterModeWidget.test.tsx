@@ -27,6 +27,21 @@ describe('filter-mode widget', () => {
     expect(screen.queryByTestId('filter-mode-fields')).not.toBeInTheDocument();
   });
 
+  it('offers None / Tabs / Dropdown only — Toggle is deprecated and not authorable (ADR-0047 §3.4a)', () => {
+    render(<FilterMode value={undefined} onChange={() => {}} context={ctx} schema={{}} />);
+    expect(screen.getByTestId('filter-mode-none')).toBeInTheDocument();
+    expect(screen.getByTestId('filter-mode-tabs')).toBeInTheDocument();
+    expect(screen.getByTestId('filter-mode-dropdown')).toBeInTheDocument();
+    expect(screen.queryByTestId('filter-mode-toggle')).not.toBeInTheDocument();
+  });
+
+  it('keeps a deprecated element:"toggle" config editable (field picker still shows)', () => {
+    render(<FilterMode value={{ element: 'toggle', fields: [{ field: 'is_active' }] }} onChange={() => {}} context={ctx} schema={{}} />);
+    // No Toggle button to re-select, but its fields remain editable.
+    expect(screen.queryByTestId('filter-mode-toggle')).not.toBeInTheDocument();
+    expect(screen.getByTestId('filter-mode-fields')).toBeInTheDocument();
+  });
+
   it('selecting None removes the config (onChange undefined)', () => {
     const onChange = vi.fn();
     render(<FilterMode value={{ element: 'dropdown', fields: [{ field: 'status' }] }} onChange={onChange} context={ctx} schema={{}} />);

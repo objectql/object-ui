@@ -845,15 +845,20 @@ function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetP
 /* inline (matching Airtable's "Dropdowns: <fields>").                        */
 /* -------------------------------------------------------------------------- */
 
+// `toggle` remains a valid (deprecated) element in the protocol for
+// back-compat, but is intentionally NOT offered as an authoring mode here:
+// it overlaps tabs (presets) + dropdown (per-field values) without adding
+// expressive power, needs per-field defaultValues to be useful, and the
+// matching tool (Airtable) converged on None/Tabs/Dropdown. See ADR-0047 §3.4a.
 type UFElement = 'dropdown' | 'tabs' | 'toggle';
+type UFMode = 'dropdown' | 'tabs';
 interface UFField { field: string; showCount?: boolean; label?: string; [k: string]: unknown }
 interface UFValue { element?: UFElement; fields?: UFField[]; tabs?: unknown[]; showAllRecords?: boolean; [k: string]: unknown }
 
-const FILTER_MODES: Array<{ key: 'none' | UFElement; label: string }> = [
+const FILTER_MODES: Array<{ key: 'none' | UFMode; label: string }> = [
   { key: 'none', label: 'None' },
   { key: 'tabs', label: 'Tabs' },
   { key: 'dropdown', label: 'Dropdown' },
-  { key: 'toggle', label: 'Toggle' },
 ];
 
 function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
@@ -861,7 +866,7 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
   const mode: 'none' | UFElement = uf?.element ?? (uf ? 'dropdown' : 'none');
   const objectFields = context?.objectFields ?? [];
 
-  const setMode = (next: 'none' | UFElement) => {
+  const setMode = (next: 'none' | UFMode) => {
     if (readOnly) return;
     if (next === 'none') { onChange(undefined); return; }       // omit-is-none
     onChange({ ...(uf ?? {}), element: next });
@@ -875,6 +880,9 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
   const remaining = objectFields.filter((f) => !selected.has(f.name));
   const labelFor = (name: string) => objectFields.find((f) => f.name === name)?.label || name;
 
+  // A deprecated `element: 'toggle'` config still lands here — render its
+  // field picker too so it stays editable, even though Toggle isn't offered
+  // as a new authoring choice.
   const isFieldMode = mode === 'dropdown' || mode === 'toggle';
 
   return (
