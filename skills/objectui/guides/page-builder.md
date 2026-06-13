@@ -332,7 +332,10 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
       "colorField": "status",
       "baselineStartField": "planned_start",
       "baselineEndField": "planned_end",
-      "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"]
+      "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"],
+      "groupByField": "owner",
+      "assigneeField": "owner",
+      "effortField": "effort"
     },
     "criticalPath": true,
     "skipWeekends": true,
@@ -351,8 +354,11 @@ arrows (accepts CSV, an id array, or `[{ id, type: 'fs'|'ss'|'ff'|'sf' }]`),
 and `tooltipFields` configures the hover detail (悬浮详情) — each entry a
 field name or `{ field, label }`, formatted by field type.
 `baselineStartField` / `baselineEndField` draw a thin planned-vs-actual
-baseline strip under each bar. The gantt field config may also be hoisted to
-top-level `props` instead of nesting under `gantt`.
+baseline strip under each bar. `groupByField` swimlanes the rows by any field
+(a select/lookup label or raw value; empty values fall into an "ungrouped"
+bucket). `assigneeField` / `effortField` configure the **resource / workload
+view** (see below). The gantt field config may also be hoisted to top-level
+`props` instead of nesting under `gantt`.
 
 **Top-level display / behavior options** (siblings of `gantt` on `props`, not
 field mappings):
@@ -361,8 +367,10 @@ field mappings):
 |--------|--------|
 | `criticalPath: true` | Start with the critical-path (zero-slack chain) highlight on; a toolbar toggle stays available. |
 | `showBaselines: false` | Hide the baseline strips even when baseline fields are mapped (default `true`). |
-| `skipWeekends: true` | Working-calendar math: auto-schedule + critical path count working days only, snapping reschedules off Sat/Sun. |
-| `holidays: ["yyyy-mm-dd", …]` | Extra non-working days for the working calendar (combine with or instead of `skipWeekends`). |
+| `skipWeekends: true` | Working-calendar math: auto-schedule + critical path count working days only, snapping reschedules off Sat/Sun. In **day mode** this also folds weekend columns out of the timeline (非线性工作时间轴) — Friday sits against Monday and a one-column drag advances one working day. Coarser scales stay linear. |
+| `holidays: ["yyyy-mm-dd", …]` | Extra non-working days for the working calendar (combine with or instead of `skipWeekends`). In day mode these columns fold out of the axis too. |
+| `resourceView: true` | Render the **resource / workload view** instead of the task grid: one row per resource with a per-column load histogram. Requires `assigneeField` to bucket tasks; each task adds `effortField` units (default 1) over its span, and any column whose summed load exceeds `capacity` is painted as over-allocated. |
+| `assigneeField` / `effortField` / `capacity` | Resource bucketing (required for `resourceView`), per-task workload weight (default `1`), and the per-resource capacity ceiling (default `1`; loads above it flag overload). Also usable as field mappings under `gantt`. |
 | `markers: [{ date, label?, color? }]` | Extra vertical marker lines (like the Today line). |
 | `readOnly: true` | **Disable all editing** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. Task click + granularity switching still work. Use for dashboards / shared read-only views. |
 
