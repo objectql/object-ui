@@ -45,6 +45,10 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.menu.view': 'View details',
   'gantt.menu.edit': 'Edit inline',
   'gantt.menu.delete': 'Delete',
+  'gantt.resource.header': 'Resource',
+  'gantt.resource.peak': 'Peak',
+  'gantt.resource.over': 'overloaded',
+  'gantt.resource.empty': 'No tasks to allocate.',
 };
 
 const TEST_KEY = 'gantt.column.taskName';

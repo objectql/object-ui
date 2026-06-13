@@ -324,6 +324,12 @@ const en = {
       edit: 'Edit inline',
       delete: 'Delete',
     },
+    resource: {
+      header: 'Resource',
+      peak: 'Peak',
+      over: 'overloaded',
+      empty: 'No tasks to allocate.',
+    },
   },
   view: {
     rename: 'Rename',

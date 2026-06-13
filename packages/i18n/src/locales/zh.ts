@@ -324,6 +324,12 @@ const zh = {
       edit: '行内编辑',
       delete: '删除',
     },
+    resource: {
+      header: '资源',
+      peak: '峰值',
+      over: '超载',
+      empty: '没有可分配的任务。',
+    },
   },
   view: {
     rename: '重命名',

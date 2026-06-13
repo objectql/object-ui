@@ -382,3 +382,33 @@ The script asserts (6/6 checks passed):
 - **Group by status** — three status summary rows (`Todo / In Progress / Done`),
   original hierarchy replaced.
 - ![Group by status](25-groupby-status.png)
+
+## Resource / Workload view (资源/工作负载视图) (`?resource=owner` / `?resource=status`)
+
+Driven by [`scripts/verify-resource.mjs`](../../scripts/verify-resource.mjs)
+against the demo's `resource: owner` / `resource: status` toolbar links.
+
+`ResourceWorkload` is a standalone view (not the Gantt grid): one row per
+resource, each drawing a load histogram aligned to the same time columns. For a
+resource `R` and column `C`, `load(R,C) = Σ effort(task)` over `R`'s tasks
+overlapping `C`; a column is **over-allocated** (painted red) once its load
+exceeds the resource's capacity. The pure aggregation lives in
+[`workload.ts`](../../src/workload.ts) (7 unit tests) and the renderer in
+[`ResourceWorkload.tsx`](../../src/ResourceWorkload.tsx) (5 render tests). The
+left caption surfaces each resource's peak load and over-allocated column count;
+a dashed line marks the capacity ceiling. `ObjectGantt` exposes it via
+`resourceView` + `assigneeField` / `effortField` / `capacity`.
+
+The script asserts (5/5 checks passed):
+
+- **Resource by owner** — three resource rows (`Priya N. / Sam K. / Lee W.`),
+  204 histogram cells, 44 columns flagged over-allocated, and the peak caption
+  (`Peak: 2 / 1 · N overloaded`) flags every double-booked rep. The bars in any
+  overlapping span turn red.
+- ![Resource by owner](26-resource-owner.png)
+- **Resource by status** — three status rows (`Todo / In Progress / Done`),
+  same histogram + overload model.
+- ![Resource by status](27-resource-status.png)
+- **Fully localized** — `?lang=zh` resolves the whole view (`资源` / `峰值` /
+  `超载`) via the central i18n packs.
+- ![Resource by owner — 中文](28-resource-owner-zh.png)

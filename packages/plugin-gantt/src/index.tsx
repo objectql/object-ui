@@ -28,6 +28,16 @@ export type {
 } from './GanttView';
 export { normalizeDependencies, normalizeTaskType } from './ObjectGantt';
 
+export { ResourceWorkload } from './ResourceWorkload';
+export type { ResourceWorkloadProps } from './ResourceWorkload';
+export { computeWorkload } from './workload';
+export type {
+  WorkloadColumn,
+  WorkloadOptions,
+  ResourceCell,
+  ResourceLoad,
+} from './workload';
+
 // Register component
 export const ObjectGanttRenderer: React.FC<{ schema: any }> = ({ schema }) => {
   const { dataSource } = useSchemaContext() || {};

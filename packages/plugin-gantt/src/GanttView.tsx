@@ -125,17 +125,17 @@ const VIEW_MODES: GanttViewMode[] = ['day', 'week', 'month', 'quarter'];
  * follow the calendar (a 31-day month is slightly wider than a 30-day one)
  * so grid lines, bars and the Today marker share one linear ms→px mapping.
  */
-const NOMINAL_DAYS: Record<GanttViewMode, number> = {
+export const NOMINAL_DAYS: Record<GanttViewMode, number> = {
   day: 1,
   week: 7,
   month: 30.44,
   quarter: 91.31,
 };
 
-const MS_PER_DAY = 1000 * 60 * 60 * 24;
+export const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 /** Floor a date to the start of its column unit (Monday for weeks). */
-function startOfUnit(date: Date, mode: GanttViewMode): Date {
+export function startOfUnit(date: Date, mode: GanttViewMode): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   if (mode === 'week') {
@@ -162,7 +162,7 @@ function visibleRange(offsets: number[], from: number, to: number): { start: num
 }
 
 /** Add whole column units; month/quarter clamp the day (Jan 31 + 1mo = Feb 28). */
-function addUnits(date: Date, units: number, mode: GanttViewMode): Date {
+export function addUnits(date: Date, units: number, mode: GanttViewMode): Date {
   const d = new Date(date);
   if (mode === 'day') {
     d.setDate(d.getDate() + units);

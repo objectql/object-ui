@@ -13,6 +13,7 @@ import { createRoot } from 'react-dom/client';
 import '@object-ui/components/style.css';
 import { I18nProvider } from '@object-ui/react';
 import { GanttView, type GanttTask, type GanttMarker, type GanttViewMode } from '../src/GanttView';
+import { ResourceWorkload } from '../src/ResourceWorkload';
 import type { WorkingCalendar } from '../src/scheduling';
 
 /**
@@ -37,6 +38,7 @@ const GANTT_ZH = {
     aria: { taskList: '任务列表' },
     tooltip: { days: '天' },
     menu: { view: '查看详情', edit: '行内编辑', delete: '删除' },
+    resource: { header: '资源', peak: '峰值', over: '超载', empty: '没有可分配的任务。' },
   },
 };
 
@@ -166,10 +168,22 @@ function App() {
       return { key: String(v), label: String(v) };
     };
   }, [groupField]);
+  // ?resource=owner|status — Resource / Workload view (资源/工作负载视图). Swaps
+  // the Gantt grid for a per-resource load histogram bucketed by the field.
+  const resourceField = params.get('resource');
+  const resourceMode = resourceField === 'owner' || resourceField === 'status';
+  const assignee = React.useMemo(() => {
+    const field = resourceMode ? (resourceField as string) : 'owner';
+    return (task: GanttTask) => {
+      const v = (task.data ?? {})[field];
+      if (v == null || v === '') return null;
+      return { key: String(v), label: String(v) };
+    };
+  }, [resourceMode, resourceField]);
   const t0 = React.useMemo(() => performance.now(), []);
   const [tasks, setTasks] = React.useState<GanttTask[]>(() => {
     const base = perf > 0 ? perfFixture(perf) : edge ? edgeFixture() : projectFixture();
-    return groupField ? decorateForGrouping(base) : base;
+    return groupField || resourceMode ? decorateForGrouping(base) : base;
   });
   const [renderMs, setRenderMs] = React.useState<number | null>(null);
   React.useEffect(() => {
@@ -205,6 +219,8 @@ function App() {
         <a href="?perf=5000&mode=week">perf: 5000 tasks</a>
         <a href="?group=owner">group: owner</a>
         <a href="?group=status">group: status</a>
+        <a href="?resource=owner">resource: owner</a>
+        <a href="?resource=status">resource: status</a>
         <span style={{ marginLeft: 'auto' }}>
           {/* Language toggle: chrome + dates localize together. */}
           <a href={withParam('lang', 'en')}>English</a>
@@ -213,6 +229,14 @@ function App() {
         </span>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
+        {resourceMode ? (
+          <ResourceWorkload
+            tasks={tasks}
+            assignee={assignee}
+            viewMode={(params.get('mode') as GanttViewMode) || 'day'}
+            unassignedLabel="未分配"
+          />
+        ) : (
         <GanttView
           tasks={tasks}
           viewMode={(params.get('mode') as GanttViewMode) || 'day'}
@@ -241,6 +265,7 @@ function App() {
             })
           }
         />
+        )}
       </div>
     </div>
   );

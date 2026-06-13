@@ -48,7 +48,8 @@ import {
   formatPercent,
   formatCurrency,
 } from '@object-ui/fields';
-import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, type GanttTaskType } from './GanttView';
+import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, type GanttTaskType, type GanttViewMode } from './GanttView';
+import { ResourceWorkload } from './ResourceWorkload';
 import type { WorkingCalendar } from './scheduling';
 
 /**
@@ -68,6 +69,18 @@ type GanttConfigEx = GanttConfig & {
    * display label, matching list/kanban grouping.
    */
   groupByField?: string;
+  /**
+   * Resource / Workload view (资源/工作负载视图). When true, the chart renders a
+   * per-resource load histogram instead of the timeline grid: each task loads
+   * its `assigneeField` resource by `effortField` units (default 1) over its
+   * span, and any column whose summed load exceeds `capacity` is flagged as
+   * over-allocated. `assigneeField` is required for this view to bucket by.
+   */
+  resourceView?: boolean;
+  assigneeField?: string;
+  effortField?: string;
+  /** Per-resource capacity ceiling (default 1). Loads above this flag overload. */
+  capacity?: number;
 };
 
 /** Map a record's type value onto a GanttTaskType (undefined = infer). */
@@ -201,6 +214,10 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           baselineStartField: schema.baselineStartField,
           baselineEndField: schema.baselineEndField,
           groupByField: schema.groupByField,
+          resourceView: schema.resourceView,
+          assigneeField: schema.assigneeField,
+          effortField: schema.effortField,
+          capacity: schema.capacity,
       };
       return config;
   }
@@ -512,6 +529,57 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     };
   }, [ganttConfig?.groupByField, objectSchema]);
 
+  // Resource / Workload view (资源/工作负载视图). `assigneeAccessor` buckets each
+  // task by its resource field (select option / lookup → display label, same as
+  // grouping); `effortAccessor` reads the per-task load (default 1). Both read
+  // off the backing record so the histogram reflects the real assignment data.
+  const assigneeAccessor = useMemo(() => {
+    const field = ganttConfig?.assigneeField;
+    if (!field) return undefined;
+    const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
+    const resolvePath = (record: any, path: string): unknown => {
+      if (!path) return undefined;
+      let cur: any = record;
+      for (const p of path.split('.')) {
+        if (cur == null) return undefined;
+        cur = cur[p];
+      }
+      return cur;
+    };
+    const labelFor = (value: unknown): string => {
+      const def = fieldDefs[field] ?? fieldDefs[field.split('.')[0]];
+      const options: Array<{ value: unknown; label: string }> | undefined = def?.options;
+      if (Array.isArray(options) && options.length) {
+        const opt = options.find((o) => String(o.value) === String(value));
+        if (opt) return opt.label;
+      }
+      if (typeof value === 'object' && value !== null) {
+        const o = value as any;
+        return String(o.name ?? o.label ?? o.title ?? o.id ?? value);
+      }
+      return String(value);
+    };
+    return (task: GanttTask): { key: string | number; label: string } | null => {
+      const raw = resolvePath((task as any).data, field);
+      if (raw == null || raw === '') return null;
+      const key =
+        typeof raw === 'object' && raw !== null
+          ? String((raw as any).id ?? (raw as any)._id ?? labelFor(raw))
+          : (raw as string | number);
+      return { key, label: labelFor(raw) };
+    };
+  }, [ganttConfig?.assigneeField, objectSchema]);
+
+  const effortAccessor = useMemo(() => {
+    const field = ganttConfig?.effortField;
+    if (!field) return undefined;
+    return (task: GanttTask): number => {
+      const raw = (task as any).data?.[field];
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : 1;
+    };
+  }, [ganttConfig?.effortField]);
+
   // Working calendar: when the schema opts into weekend-skipping or supplies a
   // holiday list, duration/reschedule math is measured in working days. The
   // holidays array (ISO yyyy-mm-dd strings) becomes a Set for O(1) lookups.
@@ -709,7 +777,16 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   return (
     <div className={className}>
       <div className="h-[calc(100vh-200px)] min-h-[600px]">
-        <GanttView 
+        {ganttConfig?.resourceView && assigneeAccessor ? (
+          <ResourceWorkload
+            tasks={tasks}
+            assignee={assigneeAccessor}
+            effort={effortAccessor}
+            capacity={ganttConfig?.capacity ?? 1}
+            viewMode={((schema as any).viewMode as GanttViewMode) || 'day'}
+          />
+        ) : (
+        <GanttView
           tasks={tasks}
           onTaskClick={(task) => {
             navigation.handleClick(task.data);
@@ -727,6 +804,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           groupBy={groupByAccessor}
           inlineEdit
         />
+        )}
       </div>
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
         const objectName = dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
