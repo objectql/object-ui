@@ -25,8 +25,8 @@ const browser = await chromium.launch(executablePath ? { executablePath } : {});
 const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 } })).newPage();
 const metrics = { n: N };
 
-console.log(`[perf] loading ?perf=${N} …`);
-await page.goto(`${BASE}?perf=${N}`);
+console.log(`[perf] loading ?perf=${N}&mode=week …`);
+await page.goto(`${BASE}?perf=${N}&mode=week`);
 await page.waitForSelector('[data-testid="demo-render-ms"]');
 metrics.initialRenderMs = parseFloat(
   (await page.locator('[data-testid="demo-render-ms"]').innerText()).match(/[\d.]+/)[0]

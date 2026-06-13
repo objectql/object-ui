@@ -81,7 +81,7 @@ real mouse drags in week mode (5/5 checks passed):
 - ![Whole subtree committed +14 days](10-group-drag-committed.png)
 - ![Child drag stretches the parent bracket](11-child-drag-stretches-parent.png)
 
-### 5. Performance — 5,000 tasks (`?perf=5000`)
+### 5. Performance — 5,000 tasks (`?perf=5000&mode=week`)
 
 | Metric | Result |
 | --- | --- |
@@ -97,8 +97,8 @@ real mouse drags in week mode (5/5 checks passed):
 ### 6. Performance — 10,000 tasks (`?perf=10000`)
 
 [`scripts/perf-10k.mjs`](../../scripts/perf-10k.mjs) runs a heavier stress
-suite against `?perf=10000` (1,000 summary groups × 10 chained tasks, week
-mode) and persists [`perf-10000-metrics.json`](perf-10000-metrics.json):
+suite against `?perf=10000&mode=week` (1,000 summary groups × 10 chained
+tasks) and persists [`perf-10000-metrics.json`](perf-10000-metrics.json):
 
 | Metric | Result |
 | --- | --- |

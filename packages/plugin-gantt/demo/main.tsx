@@ -6,11 +6,12 @@
  * Default: a project fixture exercising hierarchy, milestones, all four link
  * types and custom markers. Add ?perf=5000 for the performance scenario
  * (N tasks in summary groups with dependency chains + render timing banner).
+ * Add ?mode=week|month|quarter to start in another time scale (default: day).
  */
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import '@object-ui/components/style.css';
-import { GanttView, type GanttTask, type GanttMarker } from '../src/GanttView';
+import { GanttView, type GanttTask, type GanttMarker, type GanttViewMode } from '../src/GanttView';
 
 const d = (s: string) => new Date(`${s}T00:00:00`);
 
@@ -129,12 +130,12 @@ function App() {
         <span>{tasks.length} tasks</span>
         {renderMs != null && <span data-testid="demo-render-ms">initial render: {renderMs.toFixed(1)}ms</span>}
         <a href="?">project fixture</a>
-        <a href="?perf=5000">perf: 5000 tasks</a>
+        <a href="?perf=5000&mode=week">perf: 5000 tasks</a>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <GanttView
           tasks={tasks}
-          viewMode={perf > 0 ? 'week' : 'day'}
+          viewMode={(params.get('mode') as GanttViewMode) || 'day'}
           markers={markers}
           inlineEdit
           onTaskClick={(t) => console.log('[gantt-demo] click', t.id)}

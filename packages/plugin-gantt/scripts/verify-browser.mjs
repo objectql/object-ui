@@ -96,7 +96,7 @@ try {
 
   // ── 6. Performance: 5000 tasks ───────────────────────────────────────────
   console.log('\n[6] Performance — 5000 tasks, virtualization');
-  await page.goto(`${BASE}?perf=5000`);
+  await page.goto(`${BASE}?perf=5000&mode=week`);
   await page.waitForSelector('[data-testid="demo-render-ms"]');
   const renderMs = parseFloat((await page.locator('[data-testid="demo-render-ms"]').innerText()).match(/[\d.]+/)[0]);
   assert(renderMs < 3000, 'initial render of 5000 tasks', `${renderMs}ms`);
