@@ -40,7 +40,8 @@ import {
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { SkeletonDashboard } from '../skeletons';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel } from '../utils';
+import { useExpressionContext } from '../providers/ExpressionProvider';
+import { resolveI18nLabel, preferLocal } from '../utils';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadataClient } from './metadata-admin/useMetadata';
 import { persistRuntimeMetadata } from './runtime-metadata-persistence';
@@ -177,7 +178,9 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   }, [dashboardName]);
 
   const { dashboards, objects: metadataObjects, refresh } = useMetadata();
-  const dashboard = dashboards?.find((d: any) => d.name === dashboardName);
+  // ADR-0048 Phase 2 — prefer the dashboard owned by the current app's package.
+  const { app: activeApp } = useExpressionContext();
+  const dashboard = preferLocal(dashboards as any[], dashboardName, (activeApp as any)?._packageId);
 
   // Local schema state for live preview — initialized from metadata
   const [editSchema, setEditSchema] = useState<DashboardSchema | null>(null);

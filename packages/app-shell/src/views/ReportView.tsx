@@ -14,6 +14,8 @@ import { Pencil, BarChart3, Loader2 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useMetadata } from '../providers/MetadataProvider';
+import { useExpressionContext } from '../providers/ExpressionProvider';
+import { preferLocal } from '../utils/preferLocal';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadataClient } from './metadata-admin/useMetadata';
 import { persistRuntimeMetadata } from './runtime-metadata-persistence';
@@ -51,7 +53,9 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   
   // Find report definition from API-driven metadata
   const { reports, objects, loading, refresh } = useMetadata();
-  const initialReport = reports?.find((r: any) => r.name === reportName);
+  // ADR-0048 Phase 2 — prefer the report owned by the current app's package.
+  const { app: activeApp } = useExpressionContext();
+  const initialReport = preferLocal(reports as any[], reportName, (activeApp as any)?._packageId);
   const [reportData, setReportData] = useState(initialReport);
 
   // Local schema state for live preview — initialized from metadata

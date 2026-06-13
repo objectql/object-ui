@@ -61,7 +61,7 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
 import { useAuth, getUserInitials } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel } from '../utils';
+import { resolveI18nLabel, preferLocal } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
@@ -483,7 +483,8 @@ export function AppHeader({
       extraSegments.push({ label: t('console.breadcrumb.dashboards'), href: baseHref });
       if (pathParts[3]) {
         const dashboardName = pathParts[3];
-        const dashboardDef = (metadataDashboards || []).find((d: any) => d.name === dashboardName);
+        // ADR-0048 Phase 2 — prefer the current app's package (container-scoped).
+        const dashboardDef = preferLocal(metadataDashboards as any[], dashboardName, (currentApp as any)?._packageId);
         const fallback = dashboardDef?.label || humanizeSlug(dashboardName);
         extraSegments.push({ label: dashboardLabel({ name: dashboardName, label: fallback }) });
       }
@@ -491,7 +492,7 @@ export function AppHeader({
       extraSegments.push({ label: t('console.breadcrumb.pages'), href: baseHref });
       if (pathParts[3]) {
         const pageName = pathParts[3];
-        const pageDef = (metadataPages || []).find((p: any) => p.name === pageName);
+        const pageDef = preferLocal(metadataPages as any[], pageName, (currentApp as any)?._packageId);
         const fallback = pageDef?.label || humanizeSlug(pageName);
         extraSegments.push({ label: pageLabel({ name: pageName, label: fallback }) });
       }
@@ -499,7 +500,7 @@ export function AppHeader({
       extraSegments.push({ label: t('console.breadcrumb.reports'), href: baseHref });
       if (pathParts[3]) {
         const reportName = pathParts[3];
-        const reportDef = (metadataReports || []).find((r: any) => r.name === reportName);
+        const reportDef = preferLocal(metadataReports as any[], reportName, (currentApp as any)?._packageId);
         const fallback = reportDef?.label || humanizeSlug(reportName);
         extraSegments.push({ label: reportLabel({ name: reportName, label: fallback }) });
       }

@@ -18,6 +18,8 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth } from '@object-ui/auth';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useMetadata } from '../providers/MetadataProvider';
+import { useExpressionContext } from '../providers/ExpressionProvider';
+import { preferLocal } from '../utils/preferLocal';
 import { ConsoleActionRuntimeProvider } from '../hooks/useConsoleActionRuntime';
 import { InterfaceListPage } from './InterfaceListPage';
 
@@ -34,11 +36,15 @@ export function PageView() {
   const isAdmin = user?.role === 'admin';
 
   const { pages, objects } = useMetadata();
+  // ADR-0048 Phase 2 — prefer the page owned by the current app's package so
+  // two packages shipping `page/<same-name>` each resolve within their own
+  // container instead of by load order.
+  const { app: activeApp } = useExpressionContext();
   const dataSource = useAdapter();
   // Bumped after a successful page action so embedded data (lists, etc.)
   // re-fetch. Threaded into the page context AND used to remount the renderer.
   const [refreshKey, setRefreshKey] = useState(0);
-  const page = pages?.find((p: any) => p.name === pageName);
+  const page = preferLocal(pages as any[], pageName, (activeApp as any)?._packageId);
 
   if (!page) {
     return (
