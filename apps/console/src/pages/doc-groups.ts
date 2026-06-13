@@ -9,6 +9,7 @@
 export interface DocListItem {
   name: string;
   label?: string;
+  description?: string;
 }
 
 export interface DocGroup {

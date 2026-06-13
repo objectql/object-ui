@@ -52,7 +52,7 @@ export default function DocsIndex() {
         if (cancelled) return;
         setGroups(
           groupDocsByPackage(
-            items.map((it) => ({ name: it?.name, label: it?.label })),
+            items.map((it) => ({ name: it?.name, label: it?.label, description: it?.description })),
           ),
         );
         setState('ready');
@@ -110,11 +110,17 @@ export default function DocsIndex() {
                   <li key={doc.name}>
                     <Link
                       to={`/docs/${doc.name}`}
-                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50"
+                      className="flex items-start gap-3 px-3 py-3 hover:bg-muted/50"
                     >
-                      <BookOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="font-medium">{doc.label ?? doc.name}</span>
-                      <code className="ml-auto text-xs text-muted-foreground">{doc.name}</code>
+                      <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{doc.label ?? doc.name}</div>
+                        {doc.description ? (
+                          <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                            {doc.description}
+                          </div>
+                        ) : null}
+                      </div>
                     </Link>
                   </li>
                 ))}
