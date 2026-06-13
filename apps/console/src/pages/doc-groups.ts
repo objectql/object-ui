@@ -10,6 +10,8 @@ export interface DocListItem {
   name: string;
   label?: string;
   description?: string;
+  /** Owning package id (`_packageId`), used to build `/apps/:packageId/docs/:name`. */
+  packageId?: string;
 }
 
 export interface DocGroup {

@@ -52,7 +52,7 @@ export default function DocsIndex() {
         if (cancelled) return;
         setGroups(
           groupDocsByPackage(
-            items.map((it) => ({ name: it?.name, label: it?.label, description: it?.description })),
+            items.map((it) => ({ name: it?.name, label: it?.label, description: it?.description, packageId: it?._packageId })),
           ),
         );
         setState('ready');
@@ -109,7 +109,7 @@ export default function DocsIndex() {
                 {group.docs.map((doc) => (
                   <li key={doc.name}>
                     <Link
-                      to={`/docs/${doc.name}`}
+                      to={doc.packageId ? `/apps/${doc.packageId}/docs/${doc.name}` : `/docs/${doc.name}`}
                       className="flex items-start gap-3 px-3 py-3 hover:bg-muted/50"
                     >
                       <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

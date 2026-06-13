@@ -30,6 +30,9 @@ const ApiConsolePage = lazy(() => import('./pages/developer/ApiConsolePage').the
 const FlowRunsPage = lazy(() => import('./pages/developer/FlowRunsPage').then(m => ({ default: m.FlowRunsPage })));
 const PublicFormsPage = lazy(() => import('./pages/developer/PublicFormsPage').then(m => ({ default: m.PublicFormsPage })));
 const IntegrationsPage = lazy(() => import('./pages/developer/IntegrationsPage').then(m => ({ default: m.IntegrationsPage })));
+// ADR-0048 — package docs are viewed inside their package container:
+// /apps/:packageId/docs/:name (DocPage is a default export).
+const DocPage = lazy(() => import('./pages/DocPage'));
 
 // Note: marketplace routes (`system/marketplace`, `system/marketplace/:packageId`)
 // are registered by DefaultAppContent in @object-ui/app-shell so they're
@@ -84,6 +87,8 @@ const systemRoutes = (
     <Route path="developer/flow-runs" element={<Suspense fallback={<LoadingScreen />}><FlowRunsPage /></Suspense>} />
     <Route path="developer/public-forms" element={<Suspense fallback={<LoadingScreen />}><PublicFormsPage /></Suspense>} />
     <Route path="developer/integrations" element={<Suspense fallback={<LoadingScreen />}><IntegrationsPage /></Suspense>} />
+    {/* ADR-0048 — package docs under the package container: /apps/:packageId/docs/:name */}
+    <Route path="docs/:name" element={<Suspense fallback={<LoadingScreen />}><DocPage /></Suspense>} />
     {/* Legacy URL redirects → metadata-admin engine (zero-cost compatibility). */}
     <Route path="system/objects" element={<ObjectRedirect />} />
     <Route path="system/objects/:objectName" element={<ObjectRedirect />} />
