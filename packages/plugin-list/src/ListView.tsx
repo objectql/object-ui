@@ -983,12 +983,42 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           for (const c of cols) required.add(c);
           for (const e of expandFields) required.add(e);
 
+          // Real fields of the object, used to gate the SPECULATIVE
+          // view-binding fields below. The comment above is the tell: "some
+          // backends reject unknown select keys with an empty result set
+          // rather than ignoring them" — the cloud multi-tenant runtime does
+          // exactly that, so a single unknown column in $select silently
+          // zeroes the whole list (an AI-built `product` view auto-requesting
+          // `status`/`due_date`/`image` then looks like "no data exists").
+          // The user-declared `cols` and `expandFields` are already
+          // known-valid (perms.checkField / buildExpandFields derived them
+          // from the schema); only the auto-included view-binding fields are
+          // unsafe. When the object schema isn't loaded yet we can't
+          // validate, so we keep the prior permissive behavior (the data
+          // fetch waits for objectDefLoaded, so this is virtually never hit).
+          const knownObjectFields = (() => {
+            const f = objectDef?.fields;
+            if (!f) return null;
+            const names = Array.isArray(f)
+              ? (f as any[]).map(x => x?.name).filter((n): n is string => typeof n === 'string')
+              : Object.keys(f);
+            const s = new Set<string>(names);
+            s.add('id'); s.add('created_at'); s.add('updated_at');
+            return s;
+          })();
+          const addSpeculative = (f: unknown) => {
+            if (typeof f !== 'string' || !f) return;
+            if (!knownObjectFields || knownObjectFields.has(f)) required.add(f);
+          };
+
           // View-specific runtime fields. Each non-grid view binds to one
           // or more record fields (groupBy for kanban, dates for calendar/
           // timeline/gantt, image/title for gallery). Without these in the
           // projection the view renders correctly-shaped records but with
           // blank values — e.g. a kanban grouped by `industry` puts every
-          // card into the implicit "no value" column.
+          // card into the implicit "no value" column. Added via
+          // addSpeculative so a binding naming a field this object lacks is
+          // dropped instead of poisoning the query.
           const collectViewFields = (v: any) => {
             if (!v) return;
             const candidates = [
@@ -1002,9 +1032,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               ...(Array.isArray(v.visibleFields) ? v.visibleFields : []),
               ...(Array.isArray(v.metaFields) ? v.metaFields : []),
             ];
-            for (const f of candidates) {
-              if (typeof f === 'string' && f) required.add(f);
-            }
+            for (const f of candidates) addSpeculative(f);
           };
           collectViewFields(schema.kanban);
           collectViewFields(schema.options?.kanban);
@@ -1017,13 +1045,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           // Timeline plugin shows status / priority chips inline. Auto-include
           // them when no explicit metaFields was configured so views like
           // `task_timeline` ({ columns: ['subject', 'status'] }) still get
-          // priority badges out of the box. Inclusion is harmless when the
-          // object lacks these fields — the projection ignores unknown names.
+          // priority badges out of the box. Gated through addSpeculative: only
+          // added when the object actually has these fields (a `product` with
+          // no status/priority must not get them, or the list goes empty).
           {
             const tCfg: any = schema.timeline ?? schema.options?.timeline;
             if (tCfg && !Array.isArray(tCfg.metaFields)) {
-              required.add('status');
-              required.add('priority');
+              addSpeculative('status');
+              addSpeculative('priority');
             }
           }
           collectViewFields(schema.gantt);

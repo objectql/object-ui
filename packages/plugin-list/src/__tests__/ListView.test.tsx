@@ -645,6 +645,89 @@ describe('ListView', () => {
     });
   });
 
+  describe('$select projection — speculative view-binding fields', () => {
+    const lastSelect = (find: ReturnType<typeof vi.fn>): string[] | undefined => {
+      const call = find.mock.calls.at(-1);
+      return call?.[1]?.$select as string[] | undefined;
+    };
+
+    it('drops speculative fields the object does not have (so they cannot zero the list)', async () => {
+      // Reproduces the "published app shows no data" bug: a timeline config
+      // auto-adds status/priority, but `product` has neither. Backends that
+      // reject unknown $select keys with an empty result then return 0 rows.
+      const mockDs = {
+        find: vi.fn().mockResolvedValue([]),
+        findOne: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(),
+        getObjectSchema: vi.fn().mockResolvedValue({
+          name: 'product',
+          fields: {
+            product_name: { type: 'text' },
+            sku: { type: 'text' },
+            is_active: { type: 'boolean' },
+          },
+        }),
+      };
+
+      const schema = {
+        type: 'list-view',
+        objectName: 'product',
+        viewType: 'grid',
+        fields: ['product_name', 'sku', 'is_active'],
+        // Present so the status/priority + date auto-include paths fire.
+        timeline: {},
+        calendar: {},
+      } as unknown as ListViewSchema;
+
+      render(
+        <SchemaRendererProvider dataSource={mockDs}>
+          <ListView schema={schema} dataSource={mockDs} />
+        </SchemaRendererProvider>
+      );
+
+      await vi.waitFor(() => expect(mockDs.find).toHaveBeenCalled());
+      const select = lastSelect(mockDs.find)!;
+      // Real fields survive…
+      expect(select).toEqual(expect.arrayContaining(['product_name', 'sku', 'is_active']));
+      // …phantom view-binding fields are gone.
+      for (const phantom of ['status', 'priority', 'start_date', 'end_date', 'due_date']) {
+        expect(select).not.toContain(phantom);
+      }
+    });
+
+    it('keeps a speculative field when the object actually has it', async () => {
+      const mockDs = {
+        find: vi.fn().mockResolvedValue([]),
+        findOne: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(),
+        getObjectSchema: vi.fn().mockResolvedValue({
+          name: 'task',
+          fields: {
+            subject: { type: 'text' },
+            status: { type: 'select' },
+            priority: { type: 'select' },
+          },
+        }),
+      };
+
+      const schema = {
+        type: 'list-view',
+        objectName: 'task',
+        viewType: 'grid',
+        fields: ['subject'],
+        timeline: {},
+      } as unknown as ListViewSchema;
+
+      render(
+        <SchemaRendererProvider dataSource={mockDs}>
+          <ListView schema={schema} dataSource={mockDs} />
+        </SchemaRendererProvider>
+      );
+
+      await vi.waitFor(() => expect(mockDs.find).toHaveBeenCalled());
+      const select = lastSelect(mockDs.find)!;
+      expect(select).toEqual(expect.arrayContaining(['subject', 'status', 'priority']));
+    });
+  });
+
   // ============================================
   // Merged Toolbar Layout
   // ============================================
