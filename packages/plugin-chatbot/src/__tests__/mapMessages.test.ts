@@ -182,6 +182,62 @@ describe('uiMessageToChatMessage', () => {
     const out = uiMessageToChatMessage({ id: 'm7', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] });
     expect(out.buildProgress).toBeUndefined();
   });
+
+  it('lifts data-chart parts into charts[] (visualize_data)', () => {
+    const out = uiMessageToChatMessage({
+      id: 'm8',
+      role: 'assistant',
+      parts: [
+        { type: 'text', text: 'Here is the breakdown:' },
+        {
+          type: 'data-chart',
+          id: 'chart-0',
+          data: {
+            type: 'chart',
+            chartType: 'bar',
+            title: 'Deals by status',
+            xAxisKey: 'status',
+            series: [{ dataKey: 'count', label: 'Count' }],
+            data: [
+              { status: 'won', count: 5 },
+              { status: 'lost', count: 2 },
+            ],
+          },
+        },
+      ],
+    });
+    expect(out.content).toBe('Here is the breakdown:');
+    expect(out.charts).toHaveLength(1);
+    expect(out.charts?.[0]).toEqual({
+      chartType: 'bar',
+      title: 'Deals by status',
+      xAxisKey: 'status',
+      series: [{ dataKey: 'count', label: 'Count' }],
+      data: [
+        { status: 'won', count: 5 },
+        { status: 'lost', count: 2 },
+      ],
+    });
+  });
+
+  it('keeps multiple data-chart parts in arrival order and drops series-less payloads', () => {
+    const out = uiMessageToChatMessage({
+      id: 'm9',
+      role: 'assistant',
+      parts: [
+        { type: 'data-chart', id: 'c0', data: { type: 'chart', chartType: 'pie', series: [{ dataKey: 'count' }], data: [] } },
+        { type: 'data-chart', id: 'c1', data: { type: 'chart', series: [], data: [] } }, // unrenderable → dropped
+        { type: 'data-chart', id: 'c2', data: { type: 'chart', chartType: 'line', series: [{ dataKey: 'total' }], data: [] } },
+      ],
+    });
+    expect(out.charts).toHaveLength(2);
+    expect(out.charts?.map((c) => c.chartType)).toEqual(['pie', 'line']);
+  });
+
+  it('leaves charts undefined when there is no data-chart part', () => {
+    const out = uiMessageToChatMessage({ id: 'm10', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] });
+    expect(out.charts).toBeUndefined();
+  });
 });
 
 // ADR-0033 Phase B — the chat lifts draft envelopes onto the invocation so a

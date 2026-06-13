@@ -14,7 +14,7 @@
  * apps that drive `useChat` themselves (e.g. Studio, which needs a custom
  * `prepareSendMessagesRequest` transport).
  */
-import type { ChatMessage, ChatToolInvocation, ChatSource, ChatBuildProgress } from './ChatbotEnhanced';
+import type { ChatMessage, ChatToolInvocation, ChatSource, ChatBuildProgress, ChatChart } from './ChatbotEnhanced';
 
 interface AnyPart {
   type?: string;
@@ -285,6 +285,43 @@ function extractBuildProgress(parts: AnyPart[]): ChatBuildProgress | undefined {
 }
 
 /**
+ * Lift charts from the stream's `data-chart` parts (emitted by the
+ * `visualize_data` tool via `ctx.onProgress`). Unlike `data-build-progress`
+ * (one reconciled part), each chart is emitted with its OWN id, so a single
+ * answer may carry several — we keep them all, in arrival order. Each part's
+ * `data` already matches the SDUI `<chart>` schema; we defensively narrow it
+ * so a malformed payload is dropped rather than rendered broken.
+ */
+function extractCharts(parts: AnyPart[]): ChatChart[] | undefined {
+  const charts: ChatChart[] = [];
+  for (const p of parts) {
+    if (p.type !== 'data-chart') continue;
+    const d = p.data;
+    if (!d || typeof d !== 'object') continue;
+    const c = d as Record<string, unknown>;
+    const data = Array.isArray(c.data) ? (c.data as Array<Record<string, unknown>>) : [];
+    const series = Array.isArray(c.series)
+      ? (c.series as Array<Record<string, unknown>>)
+          .filter((s) => s && typeof s.dataKey === 'string')
+          .map((s) => ({
+            dataKey: s.dataKey as string,
+            ...(typeof s.label === 'string' ? { label: s.label } : {}),
+          }))
+      : [];
+    // A chart with no series is unrenderable — skip it.
+    if (series.length === 0) continue;
+    charts.push({
+      ...(typeof c.chartType === 'string' ? { chartType: c.chartType as ChatChart['chartType'] } : {}),
+      ...(typeof c.title === 'string' ? { title: c.title } : {}),
+      data,
+      ...(typeof c.xAxisKey === 'string' ? { xAxisKey: c.xAxisKey } : {}),
+      series,
+    });
+  }
+  return charts.length > 0 ? charts : undefined;
+}
+
+/**
  * Map a single Vercel AI SDK v6 `UIMessage` to the `ChatMessage` shape that
  * `<ChatbotEnhanced>` renders.
  *
@@ -309,6 +346,7 @@ export function uiMessageToChatMessage(
     toolInvocations: tools.length > 0 ? tools : legacyTools,
     sources: extractSources(parts),
     buildProgress: extractBuildProgress(parts),
+    charts: extractCharts(parts),
     streaming: opts.streaming,
   };
 }

@@ -19,6 +19,7 @@
  */
 import * as React from 'react';
 import { cn } from '@object-ui/components';
+import { SchemaRenderer } from '@object-ui/react';
 import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
@@ -103,6 +104,40 @@ export interface ChatMessage {
    * instead of staring at a thinking spinner.
    */
   buildProgress?: ChatBuildProgress;
+  /**
+   * Charts to render inline in the assistant bubble, lifted from the stream's
+   * `data-chart` parts (emitted by the `visualize_data` tool via
+   * `ctx.onProgress`). Each renders through the platform's SDUI `<chart>`
+   * component, so an AI data answer can show a bar/line/pie chart rather than
+   * only a wall of text.
+   */
+  charts?: ChatChart[];
+}
+
+/**
+ * A chart lifted from a `data-chart` stream part. Mirrors the `schema` prop of
+ * the SDUI `<chart>` renderer (plugin-charts `ChartRenderer`), so it can be
+ * fed straight into `<SchemaRenderer schema={{ type: 'chart', ...chart }} />`.
+ */
+export interface ChatChart {
+  chartType?:
+    | 'bar'
+    | 'column'
+    | 'horizontal-bar'
+    | 'line'
+    | 'area'
+    | 'pie'
+    | 'donut'
+    | 'radar'
+    | 'scatter';
+  /** Optional chart title shown above the chart. */
+  title?: string;
+  /** Aggregated rows — one object per category. */
+  data: Array<Record<string, unknown>>;
+  /** Field name used for the category axis (x-axis / pie slices). */
+  xAxisKey?: string;
+  /** One entry per plotted measure. `dataKey` is the row column to read. */
+  series: Array<{ dataKey: string; label?: string }>;
 }
 
 /** A reconciled snapshot of an in-flight app build (apply_blueprint). */
@@ -1425,6 +1460,40 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                           aria-hidden
                           className="ml-0.5 inline-block w-[2px] h-4 align-middle bg-current animate-pulse"
                         />
+                      ) : null}
+                      {!isUser && (message.charts?.length ?? 0) > 0 ? (
+                        <div className="mt-2 flex flex-col gap-3" data-testid="chat-charts">
+                          {message.charts!.map((chart, i) => (
+                            <div
+                              key={i}
+                              className="rounded-lg border bg-background p-3"
+                              // The chat bubble is `w-fit` (shrinks to content) while the
+                              // SDUI chart's ResponsiveContainer is `width:100%` — a
+                              // circular dependency. We give the chart a DEFINITE width
+                              // sized to the viewport (NOT the shrink-to-fit parent, which
+                              // would re-introduce the cycle) so recharts always measures a
+                              // stable, non-zero width and renders. Height comes from the
+                              // ChartContainer itself (h-[350px] / min-h 280).
+                              style={{ width: 'min(520px, 80vw)' }}
+                              data-testid="chat-chart"
+                            >
+                              {chart.title ? (
+                                <div className="mb-2 text-sm font-medium text-foreground">
+                                  {chart.title}
+                                </div>
+                              ) : null}
+                              <SchemaRenderer
+                                schema={{
+                                  type: 'chart',
+                                  chartType: chart.chartType ?? 'bar',
+                                  data: chart.data,
+                                  xAxisKey: chart.xAxisKey,
+                                  series: chart.series,
+                                } as never}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       ) : null}
                       {!isUser && sources.length > 0 ? (
                         <Sources>
