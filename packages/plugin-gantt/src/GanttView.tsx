@@ -1021,10 +1021,10 @@ export function GanttView({
   // The diamond is a square rotated 45° around its center at the task date;
   // its horizontal tips sit half a diagonal out from that center.
   const milestoneHalfTip = (milestoneSize * Math.SQRT2) / 2;
-  // Summary bars are slightly slimmer than task bars but share their vertical
-  // center, so link anchors are uniform across row kinds.
-  const summaryBarHeight = Math.max(barHeight - 6, 10);
-  const summaryBarTop = Math.round((rowHeight - summaryBarHeight) / 2);
+  // Summary bars share the task bars' exact geometry, so link anchors are
+  // uniform across row kinds.
+  const summaryBarHeight = barHeight;
+  const summaryBarTop = barTop;
 
   // Orthogonal elbow path from the predecessor anchor to the dependent
   // anchor. Anchors per link type: fs = source end → target start,
