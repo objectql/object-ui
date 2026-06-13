@@ -503,3 +503,26 @@ The script asserts (7/7 checks passed):
   添加紧后依赖; the predecessor picker re-offers t3 (now unlinked), and picking it
   re-creates the FS link.
 - ![Add predecessor picker](41-dep-add-predecessor.png)
+
+## Drag conflict + 顺延 confirmation — 拖拽冲突校验 + 顺延确认
+
+`scripts/verify-conflict.mjs` drives the `?lang=zh` project fixture where t4
+"Backend services" depends on t3 "API design" (FS). Dragging t4's bar to the
+left so it would start before t3 finishes violates the link; with
+`rescheduleOnConflict` on (auto-enabled whenever `dependenciesField` is set,
+and gated off in `readOnly`), the move raises a confirmation prompt. Covered by
+unit tests in [`GanttView.interactions.test.tsx`](../../src/GanttView.interactions.test.tsx)
+(6 cases) and [`ObjectGantt.test.tsx`](../../src/ObjectGantt.test.tsx) (wiring).
+
+The script asserts (5/5 checks passed):
+
+- **冲突校验** — dragging t4 earlier raises a 排期冲突 dialog explaining the
+  dependency violation and how many tasks would shift (自动顺延 / 取消保留).
+- ![Conflict dialog](42-conflict-dialog.png)
+- **取消保留** — keeps the manual (earlier) placement and dismisses the prompt
+  without rescheduling.
+- ![Keep manual placement](43-conflict-cancel-kept.png)
+- **自动顺延** — re-dragging and confirming reschedules the affected tasks via a
+  topological forward pass (FS/SS/FF/SF aware, summaries fixed), pushing t4 back
+  to satisfy the link.
+- ![Auto-rescheduled](44-conflict-rescheduled.png)

@@ -33,7 +33,7 @@ import {
   Separator,
   useResizeObserver,
 } from "@object-ui/components"
-import { computeCriticalPath, computeProjectReschedule, type WorkingCalendar } from "./scheduling"
+import { computeCriticalPath, computeProjectReschedule, type WorkingCalendar, type RescheduleChange } from "./scheduling"
 import { useGanttTranslation } from "./useGanttTranslation"
 
 const HEADER_HEIGHT = 50;
@@ -226,6 +226,15 @@ export interface GanttViewProps {
    * resulting date changes are emitted via `onTaskUpdate`. Requires onTaskUpdate.
    */
   autoSchedule?: boolean
+  /**
+   * After a bar drag/resize, validate the move against dependency constraints
+   * (拖拽冲突校验). If the new position would violate a link — the task moved
+   * earlier than a predecessor allows, or its move pushes successors past their
+   * constraints — a confirmation prompts to 自动顺延 (cascade-reschedule the
+   * affected tasks, preserving durations) or keep the overlap. Requires
+   * onTaskUpdate and only fires when links exist. Ignored in readOnly.
+   */
+  rescheduleOnConflict?: boolean
   /** Start with the critical-path highlight enabled (toggle stays in the toolbar). */
   criticalPathDefault?: boolean
   /**
@@ -275,6 +284,7 @@ export function GanttView({
   className,
   inlineEdit: inlineEditProp = false,
   autoSchedule: autoScheduleProp = false,
+  rescheduleOnConflict: rescheduleOnConflictProp = false,
   criticalPathDefault = false,
   workingCalendar,
   showBaselines = true,
@@ -293,6 +303,7 @@ export function GanttView({
   const onTaskReorder = readOnly ? undefined : onTaskReorderProp;
   const inlineEdit = readOnly ? false : inlineEditProp;
   const autoSchedule = readOnly ? false : autoScheduleProp;
+  const rescheduleOnConflict = readOnly ? false : rescheduleOnConflictProp;
   const { t, language } = useGanttTranslation();
   // Locale for every user-facing date label. Falls back to the runtime default
   // (browser locale) when no I18nProvider supplies a language, so standalone
@@ -545,6 +556,51 @@ export function GanttView({
     [onTaskUpdate],
   );
 
+  // --- 拖拽冲突校验 + 顺延确认 (Group 2) ---
+  // After a bar drag/resize commits, replay the dependency forward-pass over the
+  // moved task(s). If the new position would violate a link (a predecessor ends
+  // after the dragged task starts, or a successor now overlaps the dragged
+  // task), computeProjectReschedule returns a non-empty change set that differs
+  // from what the drag itself applied — that delta is the conflict we surface.
+  const [pendingConflict, setPendingConflict] = React.useState<RescheduleChange[] | null>(null);
+
+  const maybeFlagConflict = React.useCallback(
+    (applied: Array<{ task: GanttTask; changes: { start?: Date; end?: Date } }>) => {
+      if (!rescheduleOnConflict) return;
+      const overrides = new Map<string, { start: Date; end: Date }>();
+      for (const { task, changes } of applied) {
+        overrides.set(String(task.id), {
+          start: changes.start ?? task.start,
+          end: changes.end ?? task.end,
+        });
+      }
+      const candidate = tasksRef.current.map((t) => {
+        const o = overrides.get(String(t.id));
+        return o ? { ...t, start: o.start, end: o.end } : t;
+      });
+      const changes = computeProjectReschedule(candidate, workingCalendar);
+      // A change that merely restates the drag override is not a conflict.
+      const conflict = changes.filter((c) => {
+        const o = overrides.get(c.id);
+        return !o || c.start.getTime() !== o.start.getTime() || c.end.getTime() !== o.end.getTime();
+      });
+      if (conflict.length) setPendingConflict(conflict);
+    },
+    [rescheduleOnConflict, workingCalendar],
+  );
+
+  const applyReschedule = React.useCallback(() => {
+    if (!pendingConflict) return;
+    const updates = pendingConflict
+      .map((c) => {
+        const task = tasksRef.current.find((tk) => String(tk.id) === c.id);
+        return task ? { task, changes: { start: c.start, end: c.end } } : null;
+      })
+      .filter(Boolean) as Array<{ task: GanttTask; changes: { start: Date; end: Date } }>;
+    if (updates.length) commitTaskUpdates(updates);
+    setPendingConflict(null);
+  }, [pendingConflict, commitTaskUpdates]);
+
   const applyHistory = React.useCallback(
     (batch: HistoryItem[], dir: 'undo' | 'redo') => {
       if (!onTaskUpdate) return;
@@ -615,8 +671,11 @@ export function GanttView({
               },
             }));
             commitTaskUpdates(shifted);
+            maybeFlagConflict(shifted);
           } else {
-            commitTaskUpdates([{ task, changes: { start, end } }]);
+            const applied = [{ task, changes: { start, end } }];
+            commitTaskUpdates(applied);
+            maybeFlagConflict(applied);
           }
         }
         suppressNextClickRef.current = true;
@@ -633,7 +692,7 @@ export function GanttView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [dragState, columnWidth, tasks, onTaskUpdate, computeDragChanges, collectDescendants, commitTaskUpdates]);
+  }, [dragState, columnWidth, tasks, onTaskUpdate, computeDragChanges, collectDescendants, commitTaskUpdates, maybeFlagConflict]);
 
   const beginDrag = React.useCallback((
     task: GanttTask,
@@ -2936,6 +2995,50 @@ export function GanttView({
           </div>
         );
       })()}
+
+      {/* 拖拽冲突 → 顺延确认 (Group 2). A centered modal lists how many tasks
+          would shift and offers to auto-reschedule (自动顺延) or keep the manual
+          placement (取消保留). */}
+      {pendingConflict && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30"
+          data-testid="gantt-conflict-overlay"
+          onClick={() => setPendingConflict(null)}
+        >
+          <div
+            className="min-w-[280px] max-w-[360px] rounded-lg border bg-popover text-popover-foreground shadow-lg p-4"
+            role="alertdialog"
+            aria-modal="true"
+            data-testid="gantt-conflict-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-sm font-semibold mb-1" data-testid="gantt-conflict-title">
+              {t('gantt.conflict.title')}
+            </div>
+            <div className="text-sm text-muted-foreground mb-3">
+              {t('gantt.conflict.body').replace('{count}', String(pendingConflict.length))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm rounded-md border hover:bg-accent outline-none"
+                data-testid="gantt-conflict-cancel"
+                onClick={() => setPendingConflict(null)}
+              >
+                {t('gantt.conflict.cancel')}
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 outline-none"
+                data-testid="gantt-conflict-confirm"
+                onClick={applyReschedule}
+              >
+                {t('gantt.conflict.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

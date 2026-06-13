@@ -9,10 +9,10 @@ import { DataSource } from '@object-ui/types';
 // for "Create", "View", and "Delete" so CRUD wiring can be unit-tested
 // without rendering the full timeline.
 vi.mock('./GanttView', () => ({
-  GanttView: ({ tasks, onTaskClick, onTaskUpdate, onTaskDelete, onDependencyCreate, onDependencyDelete }: any) => {
+  GanttView: ({ tasks, onTaskClick, onTaskUpdate, onTaskDelete, onDependencyCreate, onDependencyDelete, rescheduleOnConflict }: any) => {
     const byId = (id: any) => tasks.find((t: any) => String(t.id) === String(id));
     return (
-      <div data-testid="gantt-view">
+      <div data-testid="gantt-view" data-reschedule-on-conflict={String(!!rescheduleOnConflict)}>
         {tasks.map((t: any) => (
           <div key={t.id} data-testid="gantt-task">
             <span>{t.title}</span>
@@ -319,6 +319,21 @@ describe('ObjectGantt', () => {
     await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(errSpy).toHaveBeenCalled());
     errSpy.mockRestore();
+  });
+
+  it('enables rescheduleOnConflict (拖拽冲突校验) when dependenciesField is set', async () => {
+    const ds: DataSource = { ...mockDataSource, find: vi.fn().mockResolvedValue({ data: depData }) };
+    render(<ObjectGantt schema={depSchema} dataSource={ds} />);
+    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
+    expect(screen.getByTestId('gantt-view').getAttribute('data-reschedule-on-conflict')).toBe('true');
+  });
+
+  it('leaves rescheduleOnConflict off when there is no dependenciesField', async () => {
+    const noDep = { ...depSchema, gantt: { ...depSchema.gantt, dependenciesField: undefined } } as any;
+    const ds: DataSource = { ...mockDataSource, find: vi.fn().mockResolvedValue({ data: depData }) };
+    render(<ObjectGantt schema={noDep} dataSource={ds} />);
+    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
+    expect(screen.getByTestId('gantt-view').getAttribute('data-reschedule-on-conflict')).toBe('false');
   });
 });
 

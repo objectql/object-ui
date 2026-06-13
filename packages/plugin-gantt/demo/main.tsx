@@ -47,6 +47,12 @@ const GANTT_ZH = {
       fs: '完成→开始 (FS)', ss: '开始→开始 (SS)',
       ff: '完成→完成 (FF)', sf: '开始→完成 (SF)',
     },
+    conflict: {
+      title: '排期冲突',
+      body: '此次移动与依赖约束冲突，是否自动顺延受影响的 {count} 个任务？',
+      confirm: '自动顺延',
+      cancel: '取消保留',
+    },
     resource: { header: '资源', peak: '峰值', over: '超载', empty: '没有可分配的任务。' },
   },
 };
@@ -359,6 +365,7 @@ function App() {
           viewMode={(params.get('mode') as GanttViewMode) || 'day'}
           markers={markers}
           autoSchedule
+          rescheduleOnConflict
           criticalPathDefault={params.get('critical') === '1'}
           workingCalendar={workingCalendar}
           showBaselines={showBaselines}

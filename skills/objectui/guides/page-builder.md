@@ -362,6 +362,11 @@ drag a bar's connector dot to create a FS link, right-click a link to switch its
 type (FS/SS/FF/SF) or remove it (移除依赖), or right-click a bar for
 添加紧前/添加紧后依赖 — every change is written back to the field (the field is
 auto-promoted to `[{ id, type }]` form the moment a non-FS link is stored).
+With links present, dragging a bar into a position that violates a dependency
+(拖拽冲突校验) raises a 顺延 confirmation: 自动顺延 reschedules the affected tasks
+via a topological forward pass (link-type aware, summaries stay fixed rollups),
+取消保留 keeps the manual placement. This is on by default whenever
+`dependenciesField` is set and suppressed in `readOnly`.
 `tooltipFields` configures the hover detail (悬浮详情) — each entry a
 field name or `{ field, label }`, formatted by field type.
 `baselineStartField` / `baselineEndField` draw a thin planned-vs-actual

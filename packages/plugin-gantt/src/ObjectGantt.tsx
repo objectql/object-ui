@@ -1038,6 +1038,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           onDependencyDelete={ganttConfig?.dependenciesField ? handleDependencyDelete : undefined}
           markers={(schema as any).markers}
           autoSchedule={!!ganttConfig?.dependenciesField}
+          rescheduleOnConflict={!!ganttConfig?.dependenciesField}
           criticalPathDefault={!!(schema as any).criticalPath}
           workingCalendar={workingCalendar}
           showBaselines={(schema as any).showBaselines !== false}

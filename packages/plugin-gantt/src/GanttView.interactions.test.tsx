@@ -368,3 +368,89 @@ describe('GanttView add predecessor/successor (添加紧前/紧后)', () => {
     expect(document.querySelector('[data-testid="gantt-dep-picker-option-a"]')).toBeFalsy();
   });
 });
+
+describe('GanttView drag conflict reschedule (拖拽冲突校验 + 顺延确认)', () => {
+  // B depends on A (FS): A ends 06-13, B starts 06-17 with a 4-day slack gap.
+  const linked = () => [
+    A(), // 06-03 → 06-13
+    makeTask('b', '2024-06-17T00:00:00.000Z', '2024-06-21T00:00:00.000Z', {
+      dependencies: [{ id: 'a', type: 'fs' }],
+    }),
+  ];
+
+  // Drag a task bar horizontally by whole day-columns (columnWidth=60 at
+  // innerWidth=1280). Positive = later, negative = earlier.
+  function dragBar(container: HTMLElement, id: string, deltaCols: number) {
+    const bar = container.querySelector(`[data-testid="gantt-task-bar-${id}"]`) as HTMLElement;
+    const originX = 800;
+    fireEvent.pointerDown(bar, { button: 0, clientX: originX, clientY: 100 });
+    act(() => { window.dispatchEvent(pointer('pointermove', originX + deltaCols * 60, 100)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', originX + deltaCols * 60, 100)); });
+  }
+
+  it('dragging a successor before its predecessor finishes prompts 顺延 confirmation', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderView(linked(), { onTaskUpdate, rescheduleOnConflict: true });
+
+    // Drag B 6 days earlier → 06-11, which violates the FS link (A ends 06-13).
+    dragBar(container, 'b', -6);
+
+    const dialog = container.querySelector('[data-testid="gantt-conflict-dialog"]');
+    expect(dialog).toBeTruthy();
+    // Exactly one task (B) needs to shift; the body interpolates the count.
+    expect(container.querySelector('[data-testid="gantt-conflict-dialog"]')!.textContent).toContain('1');
+  });
+
+  it('自动顺延 pushes the dragged task back to satisfy the link', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderView(linked(), { onTaskUpdate, rescheduleOnConflict: true });
+
+    dragBar(container, 'b', -6);
+    onTaskUpdate.mockClear(); // ignore the drag commit; assert only the reschedule
+    fireEvent.click(container.querySelector('[data-testid="gantt-conflict-confirm"]')!);
+
+    expect(onTaskUpdate).toHaveBeenCalledTimes(1);
+    const [task, changes] = onTaskUpdate.mock.calls[0];
+    expect(task.id).toBe('b');
+    // FS: B must start no earlier than A's finish (06-13).
+    expect((changes.start as Date).getTime()).toBe(new Date('2024-06-13T00:00:00.000Z').getTime());
+    expect(container.querySelector('[data-testid="gantt-conflict-dialog"]')).toBeFalsy();
+  });
+
+  it('取消保留 keeps the manual placement and dismisses the dialog', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderView(linked(), { onTaskUpdate, rescheduleOnConflict: true });
+
+    dragBar(container, 'b', -6);
+    onTaskUpdate.mockClear();
+    fireEvent.click(container.querySelector('[data-testid="gantt-conflict-cancel"]')!);
+
+    expect(onTaskUpdate).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="gantt-conflict-dialog"]')).toBeFalsy();
+  });
+
+  it('a move that respects the link does not prompt', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderView(linked(), { onTaskUpdate, rescheduleOnConflict: true });
+
+    // Drag B 2 days later → 06-19, still after A's finish: no conflict.
+    dragBar(container, 'b', 2);
+    expect(container.querySelector('[data-testid="gantt-conflict-dialog"]')).toBeFalsy();
+  });
+
+  it('rescheduleOnConflict defaults off → never prompts', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderView(linked(), { onTaskUpdate });
+
+    dragBar(container, 'b', -6);
+    expect(container.querySelector('[data-testid="gantt-conflict-dialog"]')).toBeFalsy();
+  });
+
+  it('readOnly suppresses conflict prompting', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderView(linked(), { onTaskUpdate, rescheduleOnConflict: true, readOnly: true });
+
+    dragBar(container, 'b', -6);
+    expect(container.querySelector('[data-testid="gantt-conflict-dialog"]')).toBeFalsy();
+  });
+});
