@@ -57,9 +57,9 @@ Today marker + jump-to-today, weekend highlighting, semantic color fallback, i18
 
 ## Phase 6 — Advanced (SVAR PRO territory, differentiators)
 
-- [ ] Critical path computation + slack visualization
+- [x] Critical path computation + slack visualization — CPM forward/backward passes in `scheduling.ts` (zero-slack chain), toolbar toggle (Activity icon) highlights critical bars/milestones/summaries + joining link arrows in red; `criticalPathDefault` prop / `schema.criticalPath` start it on
 - [ ] Baselines (planned vs actual bars)
-- [ ] Auto-scheduling: dependency-driven date shifting (forward, finish-to-start first)
+- [x] Auto-scheduling: dependency-driven date shifting (forward, finish-to-start first) — `computeProjectReschedule` (顺延: push successors later, durations preserved, never earlier; honors fs/ss/ff/sf; summaries fixed), toolbar button (Wand2) does a one-shot whole-project reschedule via `onTaskUpdate`; `autoSchedule` prop, auto-on in `ObjectGantt` when `dependenciesField` set
 - [ ] Working calendar (skip weekends/holidays in duration math)
 - [ ] Undo/redo for drag/edit operations
-- [ ] Export: PNG/PDF (client-side), MS Project XML import/export
+- [x] Export PNG (client-side) — toolbar button (Download) rebuilds the whole chart (virtualization-independent) as a standalone SVG with concrete hex colors, rasterizes to a 2× PNG via canvas, downloads `gantt-<mode>.png`; zero dependencies. _(PDF / MS Project XML still pending.)_

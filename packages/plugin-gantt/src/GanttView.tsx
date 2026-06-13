@@ -21,13 +21,17 @@ import {
   CalendarDays,
   Maximize2,
   Minimize2,
+  Download,
+  Activity,
+  Wand2,
 } from "lucide-react"
-import { 
-  cn, 
-  Button, 
+import {
+  cn,
+  Button,
   Separator,
   useResizeObserver,
 } from "@object-ui/components"
+import { computeCriticalPath, computeProjectReschedule } from "./scheduling"
 import { useGanttTranslation } from "./useGanttTranslation"
 
 const HEADER_HEIGHT = 50;
@@ -201,6 +205,15 @@ export interface GanttViewProps {
   className?: string
   /** Enable inline editing of task fields */
   inlineEdit?: boolean
+  /**
+   * Show the "auto-schedule" toolbar button. Clicking it runs a one-shot
+   * dependency-driven reschedule of the whole project (顺延): every successor is
+   * pushed later until its link constraints hold, preserving durations, and the
+   * resulting date changes are emitted via `onTaskUpdate`. Requires onTaskUpdate.
+   */
+  autoSchedule?: boolean
+  /** Start with the critical-path highlight enabled (toggle stays in the toolbar). */
+  criticalPathDefault?: boolean
 }
 
 export function GanttView({
@@ -217,6 +230,8 @@ export function GanttView({
   onTaskReorder,
   className,
   inlineEdit = false,
+  autoSchedule = false,
+  criticalPathDefault = false,
 }: GanttViewProps) {
   const { t } = useGanttTranslation();
   const [currentDate, setCurrentDate] = React.useState(new Date());
@@ -1129,6 +1144,147 @@ export function GanttView({
   // Links attached to the dragged/hovered task get the highlight treatment.
   const activeLinkTaskId = dragState?.taskId ?? hoveredTaskId;
 
+  // --- Critical path (Phase 6) ------------------------------------------
+  // Toolbar toggle; when on, the zero-slack chain is highlighted on the bars
+  // and the links joining them. Pure display — never mutates data.
+  const [criticalOn, setCriticalOn] = React.useState(criticalPathDefault);
+  const critical = React.useMemo(
+    () => (criticalOn ? computeCriticalPath(tasks) : null),
+    [criticalOn, tasks],
+  );
+  const isCriticalTask = React.useCallback(
+    (id: string | number) => critical?.criticalIds.has(String(id)) ?? false,
+    [critical],
+  );
+  const CRIT_COLOR = '#dc2626';
+
+  // --- Auto-schedule (Phase 6) ------------------------------------------
+  // One-shot dependency-driven reschedule (顺延): push successors later until
+  // their link constraints hold, preserving durations, then persist each
+  // changed task through onTaskUpdate.
+  const runAutoSchedule = React.useCallback(() => {
+    if (!onTaskUpdate) return;
+    const changes = computeProjectReschedule(tasks);
+    for (const c of changes) {
+      const task = tasks.find((tk) => String(tk.id) === c.id);
+      if (task) onTaskUpdate(task, { start: c.start, end: c.end });
+    }
+  }, [tasks, onTaskUpdate]);
+
+  // --- Export PNG (Phase 6) ---------------------------------------------
+  // Self-contained: re-draw the WHOLE chart (every row, unaffected by row
+  // virtualization) into a standalone SVG from the geometry we already
+  // compute, then rasterize to PNG via a canvas. No third-party dependency,
+  // and concrete colors (the prebuilt CSS vars don't resolve in a detached
+  // SVG). Captures the left name column + the timeline bars, links and today
+  // line; critical highlighting is included when the toggle is on.
+  const exportPng = React.useCallback(() => {
+    if (typeof document === 'undefined' || !tasks.length) return;
+    const esc = (s: string) =>
+      String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+    const headerH = 28;
+    const nameW = Math.max(taskListWidth, 200);
+    const W = Math.ceil(nameW + totalWidth);
+    const H = Math.ceil(headerH + rows.length * rowHeight);
+    const critEdges = critical?.criticalEdges ?? null;
+
+    const parts: string[] = [];
+    parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>`);
+
+    // Header band — column labels + a divider under the header.
+    parts.push(`<g transform="translate(${nameW},0)" font-family="sans-serif" font-size="10" fill="#475569">`);
+    timeColumns.forEach((col, i) => {
+      const x = colOffsets[i];
+      parts.push(`<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${H}" stroke="#eef2f7"/>`);
+      parts.push(`<text x="${(x + col.width / 2).toFixed(1)}" y="${headerH - 9}" text-anchor="middle">${esc(col.label)}</text>`);
+    });
+    parts.push(`</g>`);
+    parts.push(`<line x1="0" y1="${headerH}" x2="${W}" y2="${headerH}" stroke="#e2e8f0"/>`);
+    parts.push(`<line x1="${nameW}" y1="0" x2="${nameW}" y2="${H}" stroke="#cbd5e1"/>`);
+
+    // Left name column.
+    parts.push(`<g transform="translate(0,${headerH})" font-family="sans-serif" font-size="11" fill="#1f2937">`);
+    rows.forEach((row, i) => {
+      const y = i * rowHeight;
+      parts.push(`<line x1="0" y1="${(y + rowHeight).toFixed(1)}" x2="${nameW}" y2="${(y + rowHeight).toFixed(1)}" stroke="#f1f5f9"/>`);
+      const tx = 8 + row.depth * 14;
+      const max = Math.max(4, Math.floor((nameW - tx) / 6.5));
+      const title = row.task.title.length > max ? row.task.title.slice(0, max - 1) + '…' : row.task.title;
+      const weight = row.isSummary ? ' font-weight="600"' : '';
+      parts.push(`<text x="${tx}" y="${(y + rowHeight / 2 + 4).toFixed(1)}"${weight}>${esc(title)}</text>`);
+    });
+    parts.push(`</g>`);
+
+    // Timeline: bars / milestones / links / today line.
+    parts.push(`<g transform="translate(${nameW},${headerH})" font-family="sans-serif" font-size="9">`);
+    rows.forEach((row, i) => {
+      const y = i * rowHeight;
+      const { left, width } = styleFor(row.start, row.end);
+      const crit = isCriticalTask(row.task.id);
+      const stroke = crit ? ` stroke="${CRIT_COLOR}" stroke-width="2"` : '';
+      if (row.isMilestone) {
+        const cx = left;
+        const cy = y + rowHeight / 2;
+        const h = milestoneSize / 2;
+        const fill = crit ? CRIT_COLOR : row.task.color || '#3b82f6';
+        parts.push(`<polygon points="${cx},${cy - h} ${cx + h},${cy} ${cx},${cy + h} ${cx - h},${cy}" fill="${fill}"/>`);
+      } else if (row.isSummary) {
+        const fill = row.task.color || '#64748b';
+        parts.push(`<rect x="${left.toFixed(1)}" y="${(y + summaryBarTop).toFixed(1)}" width="${width.toFixed(1)}" height="${summaryBarHeight}" rx="3" fill="${fill}"${stroke}/>`);
+        const pw = (width * Math.min(100, Math.max(0, row.progress))) / 100;
+        parts.push(`<rect x="${left.toFixed(1)}" y="${(y + summaryBarTop).toFixed(1)}" width="${pw.toFixed(1)}" height="${summaryBarHeight}" rx="3" fill="rgba(0,0,0,0.2)"/>`);
+      } else {
+        const fill = row.task.color || '#3b82f6';
+        parts.push(`<rect x="${left.toFixed(1)}" y="${(y + barTop).toFixed(1)}" width="${width.toFixed(1)}" height="${barHeight}" rx="3" fill="${fill}"${stroke}/>`);
+        const pw = (width * Math.min(100, Math.max(0, row.progress))) / 100;
+        parts.push(`<rect x="${left.toFixed(1)}" y="${(y + barTop).toFixed(1)}" width="${pw.toFixed(1)}" height="${barHeight}" rx="3" fill="rgba(0,0,0,0.18)"/>`);
+        if (width >= 24) {
+          parts.push(`<text x="${(left + width / 2).toFixed(1)}" y="${(y + rowHeight / 2 + 3).toFixed(1)}" text-anchor="middle" fill="#ffffff">${Math.round(row.progress)}%</text>`);
+        }
+      }
+    });
+    links.forEach((link) => {
+      const d = linkPath(link);
+      if (!d) return;
+      const critEdge = critEdges?.has(`${String(link.sourceId)}->${String(link.targetId)}`) ?? false;
+      const color = critEdge ? CRIT_COLOR : '#94a3b8';
+      parts.push(`<path d="${d}" fill="none" stroke="${color}" stroke-width="${critEdge ? 2 : 1.5}"/>`);
+    });
+    if (todayLeftPx != null) {
+      parts.push(`<line x1="${todayLeftPx.toFixed(1)}" y1="0" x2="${todayLeftPx.toFixed(1)}" y2="${rows.length * rowHeight}" stroke="#ef4444" stroke-width="1.5"/>`);
+    }
+    parts.push(`</g>`);
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`;
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = W * scale;
+      canvas.height = H * scale;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+      }
+      URL.revokeObjectURL(url);
+      canvas.toBlob((png) => {
+        if (!png) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(png);
+        a.download = `gantt-${viewMode}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      }, 'image/png');
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+  }, [tasks, rows, links, linkPath, styleFor, isCriticalTask, critical, timeColumns, colOffsets, totalWidth, taskListWidth, rowHeight, barTop, barHeight, summaryBarTop, summaryBarHeight, milestoneSize, todayLeftPx, viewMode]);
+
   return (
     <div ref={containerRef} className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}>
       {/* Hover and responsive rules the prebuilt components CSS can't provide
@@ -1244,6 +1400,40 @@ export function GanttView({
             data-testid="gantt-jump-today"
           >
             <CalendarDays className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setCriticalOn((v) => !v)}
+            aria-label={t('gantt.toolbar.criticalPath')}
+            aria-pressed={criticalOn}
+            data-testid="gantt-critical-path"
+            style={criticalOn ? { color: CRIT_COLOR } : undefined}
+          >
+            <Activity className="h-4 w-4" />
+          </Button>
+          {autoSchedule && onTaskUpdate ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={runAutoSchedule}
+              aria-label={t('gantt.toolbar.autoSchedule')}
+              data-testid="gantt-auto-schedule"
+            >
+              <Wand2 className="h-4 w-4" />
+            </Button>
+          ) : null}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={exportPng}
+            aria-label={t('gantt.toolbar.exportPng')}
+            data-testid="gantt-export-png"
+          >
+            <Download className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
@@ -1554,6 +1744,7 @@ export function GanttView({
                 )}
                 {rows.slice(rowWindow.startIdx, rowWindow.endIdx).map((row) => {
                    const task = row.task;
+                   const isCrit = isCriticalTask(task.id);
                    const baseStyle = styleFor(row.start, row.end);
                    const isDragging = dragState?.taskId === task.id;
                    const inDragGroup = dragGroupIds?.has(String(task.id)) ?? false;
@@ -1639,8 +1830,10 @@ export function GanttView({
                             top: summaryBarTop,
                             height: summaryBarHeight,
                             backgroundColor: summaryColor,
-                            borderColor: 'hsl(var(--primary-foreground) / 0.2)',
+                            borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
+                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
                           }}
+                          data-critical={isCrit ? 'true' : undefined}
                           data-testid={`gantt-summary-bar-${task.id}`}
                           data-progress={Math.round(row.progress)}
                           onMouseEnter={() => setHoveredTaskId(task.id)}
@@ -1702,9 +1895,11 @@ export function GanttView({
                             top: (rowHeight - size) / 2,
                             width: size,
                             height: size,
-                            backgroundColor: task.color || '#3b82f6',
-                            borderColor: 'hsl(var(--primary-foreground) / 0.2)',
+                            backgroundColor: isCrit ? CRIT_COLOR : task.color || '#3b82f6',
+                            borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
+                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
                           }}
+                          data-critical={isCrit ? 'true' : undefined}
                           data-testid={`gantt-milestone-${task.id}`}
                           onMouseEnter={() => setHoveredTaskId(task.id)}
                           onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
@@ -1760,8 +1955,10 @@ export function GanttView({
                           top: barTop,
                           height: barHeight,
                           backgroundColor: task.color || '#3b82f6',
-                          borderColor: 'hsl(var(--primary-foreground) / 0.2)'
+                          borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
+                          boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
                         }}
+                        data-critical={isCrit ? 'true' : undefined}
                         data-testid={`gantt-task-bar-${task.id}`}
                         onMouseEnter={() => setHoveredTaskId(task.id)}
                         onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
@@ -1928,6 +2125,17 @@ export function GanttView({
                       >
                         <path d="M 0 0 L 8 4 L 0 8 z" fill="hsl(var(--primary))" />
                       </marker>
+                      <marker
+                        id="gantt-link-arrow-critical"
+                        viewBox="0 0 8 8"
+                        refX="7"
+                        refY="4"
+                        markerWidth="6"
+                        markerHeight="6"
+                        orient="auto"
+                      >
+                        <path d="M 0 0 L 8 4 L 0 8 z" fill={CRIT_COLOR} />
+                      </marker>
                     </defs>
                     {links.map((link) => {
                       const lo = Math.min(link.sourceIndex, link.targetIndex);
@@ -1939,18 +2147,26 @@ export function GanttView({
                         activeLinkTaskId != null &&
                         (String(link.sourceId) === String(activeLinkTaskId) ||
                           String(link.targetId) === String(activeLinkTaskId));
+                      const critEdge =
+                        critical?.criticalEdges.has(`${String(link.sourceId)}->${String(link.targetId)}`) ?? false;
+                      const marker = critEdge
+                        ? 'gantt-link-arrow-critical'
+                        : active
+                          ? 'gantt-link-arrow-active'
+                          : 'gantt-link-arrow';
                       return (
                         <path
                           key={link.key}
                           d={d}
                           fill="none"
-                          stroke={active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'}
-                          strokeOpacity={active ? 1 : 0.7}
-                          strokeWidth={active ? 2 : 1.5}
-                          markerEnd={`url(#${active ? 'gantt-link-arrow-active' : 'gantt-link-arrow'})`}
+                          stroke={critEdge ? CRIT_COLOR : active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'}
+                          strokeOpacity={critEdge || active ? 1 : 0.7}
+                          strokeWidth={critEdge || active ? 2 : 1.5}
+                          markerEnd={`url(#${marker})`}
                           data-testid={`gantt-link-${link.sourceId}-${link.targetId}`}
                           data-link-type={link.type}
                           data-active={active ? 'true' : 'false'}
+                          data-critical={critEdge ? 'true' : undefined}
                         />
                       );
                     })}

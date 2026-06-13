@@ -155,3 +155,58 @@ flat from 1k to 10k rows.
 - ![10,000 tasks, top of list](perf-10000-top.png)
 - ![10,000 tasks, jumped to the bottom (Task 9999)](perf-10000-bottom.png)
 - ![10,000 tasks after the horizontal scroll burst](perf-10000-mid-scrolled.png)
+
+---
+
+# Phase 6 — critical path, auto-schedule, export PNG
+
+Driven by [`scripts/verify-phase6.mjs`](../../scripts/verify-phase6.mjs)
+against the demo (`?critical=1` starts the highlight on). All three features
+are pure additions — read-only display (critical path), an explicit one-shot
+action (auto-schedule), and a client-side raster (export). The underlying
+graph maths live in [`src/scheduling.ts`](../../src/scheduling.ts) and are
+unit-tested in [`src/scheduling.test.ts`](../../src/scheduling.test.ts)
+(12 cases).
+
+Run it with the demo server up:
+
+```sh
+pnpm --dir packages/plugin-gantt exec vite demo --port 5199
+node packages/plugin-gantt/scripts/verify-phase6.mjs
+```
+
+## Latest run: 13/13 checks passed
+
+### 1. Critical path (CPM)
+
+A toolbar toggle (Activity icon) runs a forward/backward CPM pass over the
+dependency graph and highlights the zero-slack chain in red — task bars,
+milestones, summary bars and the joining link arrows.
+
+- The long leg **t1 → t2 → m1 → t3 → t5 → t6 → t7 → t8** is critical.
+- The diamond's parallel legs prove the maths: **t5** (Frontend, 23d) is
+  critical while **t4** (Backend, 20d) — which shares predecessor t3 and
+  successor t6 — is *not*, because its slack is non-zero.
+- Toggling off clears every `data-critical` flag.
+- ![Critical path highlighted](15-critical-path.png)
+
+### 2. Auto-schedule (顺延)
+
+A toolbar button (Wand2 icon, shown only when `onTaskUpdate` is wired) runs a
+one-shot dependency reschedule: each task is pushed as late as its links
+require, durations preserved, never pulled earlier. On the fixture this shifts
+**t4, t6, t7** later to clear their finish-to-start overlaps, cascading down
+the chain; summary (parent) bars are left as derived rollups.
+
+- ![After auto-schedule](16-auto-scheduled.png)
+
+### 3. Export PNG
+
+A toolbar button (Download icon) rebuilds the **whole** chart (every row,
+unaffected by row virtualization) into a standalone SVG using concrete hex
+colors — the prebuilt theme CSS vars don't resolve in a detached SVG — then
+rasterizes it to a 2× PNG via a canvas and downloads `gantt-<mode>.png`.
+Zero third-party dependencies.
+
+- The latest run produced a valid SVG (0 NaN coordinates) rasterized to an
+  **11920×1096** `gantt-day.png` (~334 KB).

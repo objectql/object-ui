@@ -643,6 +643,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           onTaskDelete={requestDelete}
           onDependencyCreate={ganttConfig?.dependenciesField ? handleDependencyCreate : undefined}
           markers={(schema as any).markers}
+          autoSchedule={!!ganttConfig?.dependenciesField}
+          criticalPathDefault={!!(schema as any).criticalPath}
           inlineEdit
         />
       </div>

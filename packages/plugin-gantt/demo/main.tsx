@@ -137,6 +137,8 @@ function App() {
           tasks={tasks}
           viewMode={(params.get('mode') as GanttViewMode) || 'day'}
           markers={markers}
+          autoSchedule
+          criticalPathDefault={params.get('critical') === '1'}
           inlineEdit
           onTaskClick={(t) => console.log('[gantt-demo] click', t.id)}
           onTaskUpdate={(t, changes) => patch(t.id, changes)}
