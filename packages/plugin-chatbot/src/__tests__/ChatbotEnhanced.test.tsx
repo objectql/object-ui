@@ -7,8 +7,8 @@
  * e2e suite — these only validate the public surface stays stable.
  */
 import '@testing-library/jest-dom/vitest';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { ChatbotEnhanced, type ChatMessage } from '../ChatbotEnhanced';
 
 describe('ChatbotEnhanced (AI Elements composition)', () => {
@@ -573,5 +573,58 @@ describe('publishHealthFromResponse', () => {
   it('returns undefined when the server reported neither (older runtimes)', async () => {
     const { publishHealthFromResponse } = await import('../ChatbotEnhanced');
     expect(publishHealthFromResponse({ success: true, data: { publishedCount: 3 } })).toBeUndefined();
+  });
+});
+
+describe('ChatbotEnhanced — elapsed-time liveness counter', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  it('ticks a m:ss counter on the thinking spinner so a slow turn reads as alive', () => {
+    render(<ChatbotEnhanced isLoading messages={[]} />);
+    // Mount renders 0:00 immediately…
+    expect(screen.getByText('0:00')).toBeInTheDocument();
+    // …then advances once a second while the turn is in flight.
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByText('0:03')).toBeInTheDocument();
+  });
+
+  it('shows a running counter on an in-flight build panel and freezes it when done', () => {
+    const building: ChatMessage[] = [
+      {
+        id: 'b1',
+        role: 'assistant',
+        content: '',
+        buildProgress: {
+          phase: 'structure',
+          appLabel: '进销存',
+          items: [{ type: 'object', name: 'product' }],
+          done: 1,
+          total: 4,
+        },
+      },
+    ];
+    const { rerender } = render(<ChatbotEnhanced messages={building} />);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.getByText('0:02')).toBeInTheDocument();
+
+    // Build finishes → counter freezes at its last value (no further ticks).
+    const done: ChatMessage[] = [
+      { ...building[0], buildProgress: { ...building[0].buildProgress!, phase: 'done', done: 4 } },
+    ];
+    rerender(<ChatbotEnhanced messages={done} />);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(screen.getByText('0:02')).toBeInTheDocument();
   });
 });

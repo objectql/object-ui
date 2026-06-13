@@ -1626,7 +1626,10 @@ function AssistantThinkingMessage({
           />
         ) : null}
         <MessageContent className="rounded-lg border bg-muted/30 px-3 py-2 text-muted-foreground">
-          <ThinkingDots />
+          <span className="inline-flex items-center gap-2">
+            <ThinkingDots />
+            <ElapsedTime active />
+          </span>
         </MessageContent>
       </div>
     </Message>
@@ -1643,6 +1646,52 @@ function ThinkingDots() {
         <span className="size-1.5 rounded-full bg-current animate-pulse" />
       </span>
     </>
+  );
+}
+
+/**
+ * Seconds elapsed since this hook first mounted, ticking once a second while
+ * `active`. AI builds run 1–3 min with long quiet gaps; a live counter reassures
+ * the user the stream is still alive (the tick only advances while React is
+ * responsive) and sets the expectation that the wait is normal — the same cue
+ * Claude Code shows next to a running step. Freezes at its last value once
+ * `active` turns false so the final duration stays visible.
+ */
+function useElapsedSeconds(active: boolean): number {
+  const startRef = React.useRef<number>(Date.now());
+  const [elapsed, setElapsed] = React.useState(0);
+  React.useEffect(() => {
+    if (!active) return;
+    const tick = () => setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return elapsed;
+}
+
+/** Format an elapsed-seconds count as `m:ss` (e.g. 42 → "0:42", 95 → "1:35"). */
+function formatElapsed(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/**
+ * Small monospace `m:ss` chip with a clock glyph, shown beside a running
+ * spinner so a slow, quiet AI turn reads as "still connected, still working"
+ * rather than "stalled". Language-neutral by design (no i18n string needed).
+ */
+function ElapsedTime({ active }: { active: boolean }) {
+  const seconds = useElapsedSeconds(active);
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-xs font-normal tabular-nums text-muted-foreground"
+      aria-label={`Elapsed ${seconds} seconds`}
+    >
+      <Clock3 className="size-3 shrink-0" aria-hidden />
+      {formatElapsed(seconds)}
+    </span>
   );
 }
 
@@ -1701,6 +1750,9 @@ function BuildProgressPanel({
         {!isDone && phase === 'data' ? (
           <span className="text-xs font-normal text-muted-foreground">adding sample data</span>
         ) : null}
+        <span className="ml-auto">
+          <ElapsedTime active={!isDone} />
+        </span>
       </div>
       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div
