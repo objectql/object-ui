@@ -93,6 +93,13 @@ export interface GanttTask {
   /** Parent task id — builds the hierarchy. Unknown ids render as roots. */
   parent?: string | number | null
   type?: GanttTaskType
+  /**
+   * Extra label/value rows for the hover tooltip (悬浮详情), in display order.
+   * Populated from the view's `tooltipFields` config (resolved + formatted by
+   * ObjectGantt). When present they replace the default date·duration·progress
+   * line in the tooltip.
+   */
+  fields?: Array<{ label: string; value: string }>
 }
 
 /** Timeline granularity — one column per day, week, month, or quarter. */
@@ -1540,13 +1547,24 @@ export function GanttView({
                        data-testid={`gantt-tooltip-${task.id}`}
                      >
                        <div className="font-semibold">{task.title}</div>
-                       <div className="text-muted-foreground">
-                         {row.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                         {' → '}
-                         {row.end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                         {' · '}{durationDays}{t('gantt.tooltip.days')}
-                         {' · '}{Math.round(row.progress)}%
-                       </div>
+                       {task.fields && task.fields.length > 0 ? (
+                         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 2, marginTop: 4 }}>
+                           {task.fields.map((f, i) => (
+                             <React.Fragment key={i}>
+                               <span className="text-muted-foreground">{f.label}</span>
+                               <span style={{ fontWeight: 500 }}>{f.value}</span>
+                             </React.Fragment>
+                           ))}
+                         </div>
+                       ) : (
+                         <div className="text-muted-foreground">
+                           {row.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                           {' → '}
+                           {row.end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                           {' · '}{durationDays}{t('gantt.tooltip.days')}
+                           {' · '}{Math.round(row.progress)}%
+                         </div>
+                       )}
                      </div>
                    ) : null;
 

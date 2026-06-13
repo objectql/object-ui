@@ -24,7 +24,7 @@ function projectFixture(): GanttTask[] {
 
     { id: 'p2', title: 'Build', start: d('2026-06-12'), end: d('2026-07-22'), progress: 0, parent: null },
     { id: 't3', title: 'API design', start: d('2026-06-12'), end: d('2026-06-19'), progress: 60, parent: 'p2', color: '#8b5cf6', dependencies: ['m1'] },
-    { id: 't4', title: 'Backend services', start: d('2026-06-18'), end: d('2026-07-08'), progress: 30, parent: 'p2', color: '#8b5cf6', dependencies: [{ id: 't3', type: 'fs' }] },
+    { id: 't4', title: 'Backend services', start: d('2026-06-18'), end: d('2026-07-08'), progress: 30, parent: 'p2', color: '#8b5cf6', dependencies: [{ id: 't3', type: 'fs' }], fields: [{ label: 'Owner', value: 'Priya N.' }, { label: 'Status', value: 'In Progress' }, { label: 'Effort', value: '15 days' }] },
     { id: 't5', title: 'Frontend app', start: d('2026-06-22'), end: d('2026-07-15'), progress: 15, parent: 'p2', color: '#8b5cf6', dependencies: ['t3'] },
     { id: 't6', title: 'Integration', start: d('2026-07-10'), end: d('2026-07-22'), progress: 0, parent: 'p2', color: '#8b5cf6', dependencies: ['t4', 't5'] },
 

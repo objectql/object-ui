@@ -81,6 +81,25 @@ real mouse drags in week mode (5/5 checks passed):
 - ![Whole subtree committed +14 days](10-group-drag-committed.png)
 - ![Child drag stretches the parent bracket](11-child-drag-stretches-parent.png)
 
+### 4d. Configurable hover tooltip (悬浮详情 / `tooltipFields`)
+
+The tooltip is now dynamically configurable like the component's other
+field-bound properties. A view declares `tooltipFields` on its gantt config
+(field names, or `{ field, label }` to override the label); ObjectGantt
+resolves each against the record — select options → their label, lookups →
+the embedded record name, dates/numbers/currency/percent through the shared
+`@object-ui/fields` formatters — and feeds them to `GanttView` as
+`task.fields`. When present they replace the default
+start → end · duration · progress line; when unconfigured the default line
+is kept.
+
+[`scripts/verify-tooltip-fields.mjs`](../../scripts/verify-tooltip-fields.mjs)
+hovers *Backend services* (configured with Owner / Status / Effort) and
+asserts the tooltip renders those label/value rows instead of the date line
+(6/6 checks passed):
+
+- ![Configured tooltip fields](12-tooltip-fields.png)
+
 ### 5. Performance — 5,000 tasks (`?perf=5000&mode=week`)
 
 | Metric | Result |

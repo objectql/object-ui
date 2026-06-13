@@ -149,6 +149,14 @@ export type GanttConfig = {
   dependenciesField?: string;
   /** Color field */
   colorField?: string;
+  /**
+   * Fields to surface in the hover tooltip (悬浮详情), in display order.
+   * ObjectUI display extension — not part of the upstream GanttConfigSchema.
+   * Each entry is either a field name (string) or `{ field, label? }` to
+   * override the label; values are formatted by field type. When omitted the
+   * tooltip falls back to the built-in start → end · duration · progress line.
+   */
+  tooltipFields?: Array<string | { field: string; label?: string }>;
 };
 
 /**
