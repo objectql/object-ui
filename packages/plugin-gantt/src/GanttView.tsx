@@ -1081,11 +1081,17 @@ export function GanttView({
 
   return (
     <div ref={containerRef} className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}>
-      {/* Hover rules the prebuilt components CSS can't provide (alpha
-          utilities like hover:bg-white/40 are never emitted there). */}
+      {/* Hover and responsive rules the prebuilt components CSS can't provide
+          (alpha utilities like hover:bg-white/40 and several sm: variants are
+          never emitted there). */}
       <style>{`
         .gantt-resize-handle:hover { background-color: rgba(255, 255, 255, 0.4); }
         .gantt-bar-hover:hover { filter: brightness(1.1); }
+        @media (min-width: 640px) {
+          .gantt-sm-h50 { height: 50px; }
+          .gantt-sm-w20 { width: 80px; }
+          .gantt-sm-hidden { display: none; }
+        }
       `}</style>
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 border-b bg-card">
@@ -1211,7 +1217,7 @@ export function GanttView({
         data-testid="gantt-body"
       >
         {/* Headers Row */}
-        <div className="flex border-b bg-muted/30 shrink-0 h-10 sm:h-[50px]">
+        <div className="flex border-b bg-muted/30 shrink-0 h-10 gantt-sm-h50">
           {/* List Header */}
           <div 
             className="flex items-center font-medium text-xs text-muted-foreground px-2 sm:px-4 border-r bg-card z-20 shadow-sm"
@@ -1220,8 +1226,8 @@ export function GanttView({
             <div className="flex-1 truncate">{t('gantt.column.taskName')}</div>
             {showSEColumns && (
               <>
-                <div className="w-16 sm:w-20 text-right">{t('gantt.column.start')}</div>
-                <div className="w-16 sm:w-20 text-right">{t('gantt.column.end')}</div>
+                <div className="w-16 gantt-sm-w20 text-right">{t('gantt.column.start')}</div>
+                <div className="w-16 gantt-sm-w20 text-right">{t('gantt.column.end')}</div>
               </>
             )}
           </div>
@@ -1229,7 +1235,7 @@ export function GanttView({
           {/* Timeline Header — two scale rows: group (month/year) over units */}
           <div className="flex-1 overflow-hidden" ref={headerRef}>
             <div className="flex flex-col h-full" style={{ width: totalWidth }}>
-              <div className="relative h-[45%] border-b" data-testid="gantt-header-groups">
+              <div className="relative border-b" style={{ height: '45%' }} data-testid="gantt-header-groups">
                 {headerGroups.slice(groupWindow.start, groupWindow.end).map((group) => (
                   <div
                     key={group.key}
@@ -1286,10 +1292,10 @@ export function GanttView({
               <div
                 key={task.id}
                 className={cn(
-                  "group/task-row flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors touch-manipulation",
+                  "group/task-row flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors",
                   isSelected && "bg-accent/50"
                 )}
-                style={{ height: rowHeight }}
+                style={{ height: rowHeight, touchAction: 'manipulation' }}
                 role="treeitem"
                 aria-level={row.depth + 1}
                 aria-selected={isSelected}
@@ -1338,7 +1344,8 @@ export function GanttView({
                   {row.hasChildren ? (
                     <button
                       type="button"
-                      className="h-4 w-4 -ml-1 shrink-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                      className="h-4 w-4 shrink-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                      style={{ marginLeft: -4 }}
                       onClick={(e) => { e.stopPropagation(); toggleCollapsed(task.id); }}
                       aria-expanded={!isCollapsed}
                       aria-label={isCollapsed ? t('gantt.row.expand') : t('gantt.row.collapse')}
@@ -1349,7 +1356,7 @@ export function GanttView({
                         : <ChevronDown className="h-3.5 w-3.5" />}
                     </button>
                   ) : (
-                    <span className="w-3 -ml-1 shrink-0" aria-hidden="true" />
+                    <span className="w-3 shrink-0" style={{ marginLeft: -4 }} aria-hidden="true" />
                   )}
                   <div
                     className="w-2 h-2 rounded-full shrink-0"
@@ -1379,13 +1386,13 @@ export function GanttView({
                   ) : (
                     <span className="flex flex-col min-w-0">
                       <span className={cn("truncate", row.isSummary && "font-semibold")}>{task.title}</span>
-                      <span className="text-[10px] text-muted-foreground sm:hidden">
+                      <span className="text-[10px] text-muted-foreground gantt-sm-hidden">
                         {row.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} → {row.end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
                       </span>
                     </span>
                   )}
                 </div>
-                <div className="w-16 sm:w-20 text-right text-xs text-muted-foreground hidden sm:block" hidden={!showSEColumns} style={!showSEColumns ? { display: 'none' } : undefined}>
+                <div className="w-16 gantt-sm-w20 text-right text-xs text-muted-foreground hidden sm:block" hidden={!showSEColumns} style={!showSEColumns ? { display: 'none' } : undefined}>
                   {isEditing ? (
                     <input
                       type="date"
@@ -1398,7 +1405,7 @@ export function GanttView({
                     row.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
-                <div className="w-16 sm:w-20 text-right text-xs text-muted-foreground hidden sm:block" hidden={!showSEColumns} style={!showSEColumns ? { display: 'none' } : undefined}>
+                <div className="w-16 gantt-sm-w20 text-right text-xs text-muted-foreground hidden sm:block" hidden={!showSEColumns} style={!showSEColumns ? { display: 'none' } : undefined}>
                   {isEditing ? (
                     <input
                       type="date"
@@ -1445,8 +1452,8 @@ export function GanttView({
                   aria-label={t('gantt.toolbar.today')}
                 >
                   <div
-                    className="absolute -top-2 -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap"
-                    style={{ backgroundColor: '#ef4444' }}
+                    className="absolute -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap"
+                    style={{ top: -8, backgroundColor: '#ef4444' }}
                   >
                     {t('gantt.toolbar.today')}
                   </div>
@@ -1463,8 +1470,8 @@ export function GanttView({
                 >
                   {m.label && (
                     <div
-                      className="absolute -top-2 -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap"
-                      style={{ backgroundColor: m.color }}
+                      className="absolute -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap"
+                      style={{ top: -8, backgroundColor: m.color }}
                     >
                       {m.label}
                     </div>
@@ -1474,7 +1481,7 @@ export function GanttView({
               {/* Timeline Task Rows */}
               <div className="relative" ref={contentRef}>
                 {/* Background Grid — windowed to the visible columns */}
-                <div className="absolute inset-0 pointer-events-none z-0">
+                <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
                    {timeColumns.slice(colWindow.start, colWindow.end).map((col, i) => {
                     const idx = colWindow.start + i;
                     return (
@@ -1589,8 +1596,8 @@ export function GanttView({
                         >
                           {/* Rollup progress fill */}
                           <div
-                            className="absolute left-0 top-0 bottom-0 rounded-l-sm pointer-events-none"
-                            style={{ width: `${Math.round(row.progress)}%`, backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
+                            className="absolute left-0 top-0 bottom-0 pointer-events-none"
+                            style={{ width: `${Math.round(row.progress)}%`, backgroundColor: 'rgba(0, 0, 0, 0.2)', borderTopLeftRadius: 'var(--radius-sm)', borderBottomLeftRadius: 'var(--radius-sm)' }}
                           />
                           <span className="relative text-[10px] text-white font-medium truncate pointer-events-none">
                             {task.title}
@@ -1713,7 +1720,8 @@ export function GanttView({
                         {canDrag && liveStyle.width >= 14 && (
                           <>
                             <div
-                              className="gantt-resize-handle absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize"
+                              className="gantt-resize-handle absolute left-0 top-0 bottom-0"
+                              style={{ width: 6, cursor: 'ew-resize' }}
                               data-testid={`gantt-task-resize-left-${task.id}`}
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
@@ -1722,7 +1730,8 @@ export function GanttView({
                               onClick={(e) => e.stopPropagation()}
                             />
                             <div
-                              className="gantt-resize-handle absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize"
+                              className="gantt-resize-handle absolute right-0 top-0 bottom-0"
+                              style={{ width: 6, cursor: 'ew-resize' }}
                               data-testid={`gantt-task-resize-right-${task.id}`}
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
@@ -1738,8 +1747,8 @@ export function GanttView({
                             prebuilt components CSS. */}
                         {liveProgress > 0 && (
                           <div
-                            className="absolute left-0 top-0 bottom-0 rounded-l-sm pointer-events-none"
-                            style={{ width: `${liveProgress}%`, backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
+                            className="absolute left-0 top-0 bottom-0 pointer-events-none"
+                            style={{ width: `${liveProgress}%`, backgroundColor: 'rgba(0, 0, 0, 0.2)', borderTopLeftRadius: 'var(--radius-sm)', borderBottomLeftRadius: 'var(--radius-sm)' }}
                           />
                         )}
 
@@ -1781,12 +1790,12 @@ export function GanttView({
                         {onDependencyCreate && (
                           <div
                             className={cn(
-                              "absolute -right-2 top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-background cursor-crosshair z-10",
+                              "absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-background z-10",
                               linkDrag && String(linkDrag.sourceId) === String(task.id)
                                 ? "opacity-100"
                                 : "opacity-0 group-hover:opacity-100 transition-opacity"
                             )}
-                            style={{ border: '2px solid hsl(var(--primary))' }}
+                            style={{ right: -8, cursor: 'crosshair', border: '2px solid hsl(var(--primary))' }}
                             data-testid={`gantt-link-dot-${task.id}`}
                             onPointerDown={(e) => {
                               if (e.button !== 0) return;
