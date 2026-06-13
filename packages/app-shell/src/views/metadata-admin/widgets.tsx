@@ -662,6 +662,97 @@ function StringTagsWidget({
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* multiselect — pick from a fixed option set (array of enum)                 */
+/* -------------------------------------------------------------------------- */
+
+/** "grid" → "Grid", "start_date" → "Start Date". */
+function humanizeOption(v: string): string {
+  return v
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Toggleable option set for `array<enum>` fields (e.g.
+ * `appearance.allowedVisualizations`). Options come from the JSON Schema's
+ * `items.enum` (or `fieldSpec.options`); the value is the selected subset
+ * as a `string[]`, preserving the enum's declared order. Replaces the
+ * free-text tag input the generic array renderer fell back to — the author
+ * picks from the real allowed values instead of typing (and mistyping) them.
+ */
+function MultiSelectWidget({ value, onChange, readOnly, schema, fieldSpec }: WidgetProps) {
+  // Prefer explicit form options; else the JSON Schema enum on the items.
+  const options: Array<{ label: string; value: string }> = React.useMemo(() => {
+    if (Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length) {
+      return fieldSpec!.options!.map((o) => ({ label: o.label, value: o.value }));
+    }
+    const enumVals: unknown =
+      schema?.items?.enum ?? schema?.enum ?? [];
+    return (Array.isArray(enumVals) ? enumVals : [])
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => ({ label: humanizeOption(v), value: v }));
+  }, [fieldSpec, schema]);
+
+  const selected = React.useMemo(
+    () => (Array.isArray(value) ? (value as unknown[]).filter((v): v is string => typeof v === 'string') : []),
+    [value],
+  );
+
+  function toggle(opt: string) {
+    if (readOnly) return;
+    // Keep selection ordered by the option list so behaviour is stable
+    // (e.g. allowedVisualizations[0] = the default/initial visualization).
+    const set = new Set(selected);
+    if (set.has(opt)) set.delete(opt);
+    else set.add(opt);
+    const next = options.map((o) => o.value).filter((v) => set.has(v));
+    onChange(next.length ? next : undefined);
+  }
+
+  if (options.length === 0) {
+    // No known option set — degrade to the comma-tag editor so the field
+    // is still editable rather than rendering an empty box.
+    return <StringTagsWidget value={value} onChange={onChange} readOnly={readOnly} schema={schema} fieldSpec={fieldSpec} />;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5" role="group">
+      {options.map((o) => {
+        const on = selected.includes(o.value);
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="checkbox"
+            aria-checked={on}
+            disabled={readOnly}
+            onClick={() => toggle(o.value)}
+            className={
+              'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ' +
+              (on
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-input bg-background text-muted-foreground hover:text-foreground hover:bg-muted') +
+              (readOnly ? ' opacity-60 cursor-not-allowed' : '')
+            }
+          >
+            <span
+              aria-hidden
+              className={
+                'flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[9px] leading-none ' +
+                (on ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40')
+              }
+            >
+              {on ? '✓' : ''}
+            </span>
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 
 /* -------------------------------------------------------------------------- */
 /* field-ref / field-multi — pick object field(s) from the bound object       */
@@ -984,6 +1075,7 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'field-multi': FieldRefMultiWidget,
   'master-detail': MasterDetailWidget,
   'string-tags': StringTagsWidget,
+  'multiselect': MultiSelectWidget,
   'code': CodeWidget,
   // Reasonable fallbacks until dedicated builders ship:
   'filter-builder': MasterDetailWidget,

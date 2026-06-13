@@ -82,6 +82,59 @@ function defaultColumnsFromObject(objectDef: any): string[] {
   return [];
 }
 
+/**
+ * Default visualization bindings derived from the object's fields.
+ *
+ * ADR-0047: an interface page sets `appearance.allowedVisualizations` to
+ * whitelist renderers, but a viz only renders when its field binding
+ * resolves (kanban needs a group field, calendar a date, gallery a cover).
+ * The page config has nowhere to set those, so — like `defaultColumnsFromObject`
+ * — we auto-pick a sensible binding from the object (Airtable does the same
+ * when you switch to Kanban). Without this, a whitelisted kanban is silently
+ * dropped from the switcher and the author gets no feedback.
+ */
+function firstFieldMatching(
+  objectDef: any,
+  pred: (name: string, f: any) => boolean,
+): string | undefined {
+  const fields = objectDef?.fields;
+  if (!fields || typeof fields !== 'object') return undefined;
+  const hit = Object.entries(fields).find(
+    ([name, f]: [string, any]) => f && !f.hidden && !SYSTEM_FIELDS.has(name) && pred(name, f),
+  );
+  return hit?.[0];
+}
+
+const SELECT_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean']);
+const DATE_TYPES = new Set(['date', 'datetime', 'time']);
+const IMAGE_TYPES = new Set(['image', 'file', 'attachment', 'avatar', 'photo']);
+
+function defaultKanbanFromObject(objectDef: any): { groupField: string; groupByField: string } | undefined {
+  const field =
+    firstFieldMatching(objectDef, (_n, f) => SELECT_TYPES.has(f.type)) ??
+    firstFieldMatching(objectDef, (n) => /status|stage|state|priority|category|kind/i.test(n));
+  // ListView reads `groupField` to render and `groupByField || groupField`
+  // to decide the viz is available — set both so it resolves either way.
+  return field ? { groupField: field, groupByField: field } : undefined;
+}
+
+function defaultDateField(objectDef: any): string | undefined {
+  return (
+    firstFieldMatching(objectDef, (_n, f) => DATE_TYPES.has(f.type)) ??
+    firstFieldMatching(objectDef, (n) => /date|due|start|end|deadline|schedule/i.test(n))
+  );
+}
+
+function defaultCalendarFromObject(objectDef: any): { startDateField: string } | undefined {
+  const field = defaultDateField(objectDef);
+  return field ? { startDateField: field } : undefined;
+}
+
+function defaultGalleryFromObject(objectDef: any): { coverField: string } | undefined {
+  const field = firstFieldMatching(objectDef, (_n, f) => IMAGE_TYPES.has(f.type));
+  return field ? { coverField: field } : undefined;
+}
+
 export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
   const { t } = useObjectTranslation();
   const { objects } = useMetadata();
@@ -163,7 +216,21 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
     const view = viewDef || {};
     const appearance = cfg.appearance ?? view.appearance;
     const allowed: string[] = appearance?.allowedVisualizations || [];
+    const allowedSet = new Set(allowed);
     const userActions = cfg.userActions || {};
+
+    // Viz field bindings: the referenced view's config wins; otherwise, when
+    // the author whitelisted a viz, derive a sensible default binding from the
+    // object so the switcher actually offers (and renders) it. Only derive for
+    // whitelisted types — an un-whitelisted viz is never reachable.
+    const kanban =
+      view.kanban ?? (allowedSet.has('kanban') ? defaultKanbanFromObject(objectDef) : undefined);
+    const calendar =
+      view.calendar ?? (allowedSet.has('calendar') ? defaultCalendarFromObject(objectDef) : undefined);
+    const timeline =
+      view.timeline ?? (allowedSet.has('timeline') ? defaultCalendarFromObject(objectDef) : undefined);
+    const gallery =
+      view.gallery ?? (allowedSet.has('gallery') ? defaultGalleryFromObject(objectDef) : undefined);
 
     // Inherited data semantics (the iron rule: all from the view) + the
     // page's own always-on criteria (`filterBy`).
@@ -190,10 +257,10 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
       pagination: view.pagination,
       searchableFields: view.searchableFields,
       emptyState: view.emptyState,
-      kanban: view.kanban,
-      calendar: view.calendar,
-      gallery: view.gallery,
-      timeline: view.timeline,
+      kanban,
+      calendar,
+      gallery,
+      timeline,
       gantt: view.gantt,
 
       // Presentation policy — the page layer (ADR-0047).

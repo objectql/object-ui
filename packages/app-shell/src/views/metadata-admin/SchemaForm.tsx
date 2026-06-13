@@ -49,6 +49,11 @@ import {
   TabsTrigger,
   TabsContent,
 } from '@object-ui/components';
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from '@object-ui/components';
 import { evaluatePredicate } from './predicate';
 import { WIDGETS, type WidgetContext } from './widgets';
 import { detectLocale, t, tFormat, translateValidationMessage } from './i18n';
@@ -199,6 +204,11 @@ function inferWidget(
   if (schema) {
     const type = schema.type;
     
+    // Array of enum → multi-select of the allowed values (picker, not free
+    // text). Checked before the generic string-array case because a Zod
+    // `z.enum` serialises as `items: { type: 'string', enum: [...] }`.
+    if (type === 'array' && Array.isArray(schema.items?.enum)) return 'multiselect';
+
     // Array of strings → string-tags
     if (type === 'array' && schema.items?.type === 'string') return 'string-tags';
     
@@ -541,21 +551,7 @@ function SectionedSchemaForm({
       });
     if (fields.length === 0) return null;
     const cols = s.columns ?? 1;
-    return (
-      <section
-        key={idx}
-        className="space-y-3 rounded-md border border-border/40 bg-card/30 p-4"
-      >
-        {s.label && (
-          <header>
-            <h3 className="text-sm font-semibold text-foreground/90">
-              {s.label}
-            </h3>
-            {s.description && (
-              <p className="text-xs text-muted-foreground">{s.description}</p>
-            )}
-          </header>
-        )}
+    const fieldsGrid = (
         <div
           className="grid gap-4"
           style={{
@@ -601,6 +597,56 @@ function SectionedSchemaForm({
             );
           })}
         </div>
+    );
+
+    // Collapsible section (FormSectionSpec.collapsible) — the spec marks
+    // rarely-used groups (Advanced, type-specific options) collapsible and
+    // often `collapsed: true`. Honour both so the panel opens lean and the
+    // author expands only what they need. Non-collapsible sections render
+    // as a plain bordered block (unchanged).
+    if (s.collapsible && s.label) {
+      return (
+        <Collapsible
+          key={idx}
+          defaultOpen={!s.collapsed}
+          className="rounded-md border border-border/40 bg-card/30"
+        >
+          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 p-4 text-left">
+            <span>
+              <span className="block text-sm font-semibold text-foreground/90">
+                {s.label}
+              </span>
+              {s.description && (
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {s.description}
+                </span>
+              )}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-3 px-4 pb-4">
+            {fieldsGrid}
+          </CollapsibleContent>
+        </Collapsible>
+      );
+    }
+
+    return (
+      <section
+        key={idx}
+        className="space-y-3 rounded-md border border-border/40 bg-card/30 p-4"
+      >
+        {s.label && (
+          <header>
+            <h3 className="text-sm font-semibold text-foreground/90">
+              {s.label}
+            </h3>
+            {s.description && (
+              <p className="text-xs text-muted-foreground">{s.description}</p>
+            )}
+          </header>
+        )}
+        {fieldsGrid}
       </section>
     );
   };
