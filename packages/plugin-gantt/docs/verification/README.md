@@ -412,3 +412,33 @@ The script asserts (5/5 checks passed):
 - **Fully localized** — `?lang=zh` resolves the whole view (`资源` / `峰值` /
   `超载`) via the central i18n packs.
 - ![Resource by owner — 中文](28-resource-owner-zh.png)
+
+## Non-linear working-time axis (非线性工作时间轴) (`?cal=1`)
+
+Driven by [`scripts/verify-workaxis.mjs`](../../scripts/verify-workaxis.mjs)
+against the demo's `working calendar` toolbar link.
+
+In **day mode**, when a `workingCalendar` marks weekends (`skipWeekends`) or
+explicit `holidays` as non-working, those columns are **folded out of the grid**
+entirely — Friday sits directly against Monday, so the timeline shows only
+working time. This makes the date→px mapping non-linear (a weekend spans zero
+pixels), so all positioning (bars, dependency arrows, milestones, the Today
+line, custom markers) is routed through a single `dateToX` / `xToDate` pair that
+interpolates within the owning column. Drag/resize advance by **working
+columns** (a one-column drag from Friday lands on Monday). Coarser scales
+(week / month / quarter) and the no-calendar case keep the plain linear axis
+unchanged — `dateToX` is algebraically identical there. The fold logic has 7
+unit tests in [`GanttView.workaxis.test.tsx`](../../src/GanttView.workaxis.test.tsx).
+
+The script asserts (5/5 checks passed):
+
+- **Linear axis** (`?mode=day`, no calendar) — every calendar day renders; no
+  Friday→Monday day-number jumps.
+- ![Linear day axis](29-workaxis-linear.png)
+- **Folded axis** (`?cal=1`) — weekend columns are dropped; the header reads
+  `… 29F · 1M …`, `… 5F · 8M …` (four Fri→Mon skips), and every bar, arrow,
+  milestone, Today line, and marker re-aligns to the compressed grid.
+- ![Folded working axis](30-workaxis-folded.png)
+- **Folded + localized** — `?cal=1&lang=zh` folds identically with Chinese
+  chrome.
+- ![Folded working axis — 中文](31-workaxis-folded-zh.png)

@@ -467,20 +467,24 @@ export function GanttView({
 
   const computeDragChanges = React.useCallback((s: NonNullable<typeof dragState>) => {
     const minDurationMs = MS_PER_DAY; // never collapse below 1 day
+    // Folded axes advance by working columns (Fri +1 → Mon); otherwise snap to
+    // whole calendar units. foldShiftRef is set during render (below).
+    const shift = (date: Date, n: number) =>
+      foldShiftRef.current ? foldShiftRef.current(date, n) : addUnits(date, n, viewMode);
     let start = new Date(s.originStart);
     let end = new Date(s.originEnd);
     if (s.mode === 'move') {
       // Snap the start to whole units; the end follows by the same ms offset
       // so the task keeps its duration even across uneven months.
-      start = addUnits(s.originStart, s.unitDelta, viewMode);
+      start = shift(s.originStart, s.unitDelta);
       end = new Date(s.originEnd.getTime() + (start.getTime() - s.originStart.getTime()));
     } else if (s.mode === 'resize-left') {
-      start = addUnits(s.originStart, s.unitDelta, viewMode);
+      start = shift(s.originStart, s.unitDelta);
       if (end.getTime() - start.getTime() < minDurationMs) {
         start = new Date(end.getTime() - minDurationMs);
       }
     } else if (s.mode === 'resize-right') {
-      end = addUnits(s.originEnd, s.unitDelta, viewMode);
+      end = shift(s.originEnd, s.unitDelta);
       if (end.getTime() - start.getTime() < minDurationMs) {
         end = new Date(start.getTime() + minDurationMs);
       }
@@ -965,6 +969,33 @@ export function GanttView({
     return { start, end };
   }, [startDate, endDate, tasks, viewMode]);
 
+  // Non-linear working-time axis (非线性工作时间轴). In day mode, when a working
+  // calendar marks weekends/holidays as non-working, those columns are DROPPED
+  // from the grid entirely — Friday sits directly against Monday — so the
+  // timeline shows only working time. This makes the date→px mapping non-linear
+  // (a weekend spans zero pixels), which is why all positioning is routed
+  // through `dateToX`/`xToDate` below rather than a flat ms→px factor.
+  const folding =
+    viewMode === 'day' &&
+    !!workingCalendar &&
+    (!!workingCalendar.skipWeekends || !!(workingCalendar.holidays && workingCalendar.holidays.size));
+
+  const isWorkingColumn = React.useCallback(
+    (date: Date): boolean => {
+      if (!workingCalendar) return true;
+      if (workingCalendar.skipWeekends) {
+        const wd = date.getDay();
+        if (wd === 0 || wd === 6) return false;
+      }
+      if (workingCalendar.holidays && workingCalendar.holidays.size) {
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        if (workingCalendar.holidays.has(key)) return false;
+      }
+      return true;
+    },
+    [workingCalendar],
+  );
+
   // Generate timeline columns — one per unit of the active granularity.
   // Widths follow the calendar at pxPerDay, so a 31-day month column is
   // slightly wider than a 30-day one and stays aligned with the bars.
@@ -974,6 +1005,11 @@ export function GanttView({
 
     while (current <= timelineRange.end) {
       const next = addUnits(current, 1, viewMode);
+      // Fold non-working columns out of the grid (day mode + working calendar).
+      if (folding && !isWorkingColumn(current)) {
+        current = next;
+        continue;
+      }
       const width = ((next.getTime() - current.getTime()) / MS_PER_DAY) * pxPerDay;
       let label: string;
       let sublabel: string | undefined;
@@ -998,7 +1034,7 @@ export function GanttView({
     }
 
     return cols;
-  }, [timelineRange, viewMode, pxPerDay, dateLocale]);
+  }, [timelineRange, viewMode, pxPerDay, dateLocale, folding, isWorkingColumn]);
 
   // Prefix sums of column widths — left edge of column i, used both for
   // positioning the virtualized cells and for the visible-range search.
@@ -1014,6 +1050,104 @@ export function GanttView({
   }, [timeColumns]);
 
   const totalWidth = colOffsets[colOffsets.length - 1];
+
+  // Per-column real-time anchors for the non-linear date↔px mapping. `colStartMs`
+  // is each column's start timestamp; `colRealMs` its real calendar duration
+  // (one day / week / month / quarter — uneven months included). When the axis
+  // folds weekends out, columns are no longer time-contiguous, so positioning
+  // can't use a single ms→px factor; it interpolates within the owning column.
+  const colStartMs = React.useMemo(() => timeColumns.map((c) => c.date.getTime()), [timeColumns]);
+  const colRealMs = React.useMemo(
+    () => timeColumns.map((c) => addUnits(c.date, 1, viewMode).getTime() - c.date.getTime()),
+    [timeColumns, viewMode],
+  );
+
+  // date → x (px). Binary-search the owning column, then interpolate within it.
+  // For non-folded axes every column is time-contiguous, so this is exactly the
+  // old linear `(ms / MS_PER_DAY) * pxPerDay`; for folded axes a date landing on
+  // a dropped weekend column snaps to that column's working boundary.
+  const dateToX = React.useCallback(
+    (date: Date): number => {
+      const n = timeColumns.length;
+      if (n === 0) return 0;
+      const t = date.getTime();
+      let lo = 0;
+      let hi = n - 1;
+      let i = 0;
+      while (lo <= hi) {
+        const m = (lo + hi) >> 1;
+        if (colStartMs[m] <= t) {
+          i = m;
+          lo = m + 1;
+        } else {
+          hi = m - 1;
+        }
+      }
+      const real = colRealMs[i] || MS_PER_DAY;
+      let frac = (t - colStartMs[i]) / real;
+      if (folding) frac = Math.max(0, Math.min(frac, 1));
+      return colOffsets[i] + frac * timeColumns[i].width;
+    },
+    [timeColumns, colStartMs, colRealMs, colOffsets, folding],
+  );
+
+  // x (px) → date. Inverse of dateToX, used by drag/resize to read the date
+  // under the pointer. Never returns a folded (non-working) instant.
+  const xToDate = React.useCallback(
+    (x: number): Date => {
+      const n = timeColumns.length;
+      if (n === 0) return new Date(timelineRange.start);
+      let lo = 0;
+      let hi = n - 1;
+      let i = 0;
+      while (lo <= hi) {
+        const m = (lo + hi) >> 1;
+        if (colOffsets[m] <= x) {
+          i = m;
+          lo = m + 1;
+        } else {
+          hi = m - 1;
+        }
+      }
+      const w = timeColumns[i].width || 1;
+      const frac = (x - colOffsets[i]) / w;
+      return new Date(colStartMs[i] + frac * (colRealMs[i] || MS_PER_DAY));
+    },
+    [timeColumns, colStartMs, colRealMs, colOffsets, timelineRange],
+  );
+
+  // Shift a date by N visible columns honouring the fold: +1 column from a
+  // Friday lands on Monday, skipping the dropped weekend. Used by drag/resize
+  // when the axis is folded so a one-column drag = one working day.
+  const shiftByWorkingColumns = React.useCallback(
+    (date: Date, n: number): Date => {
+      const len = timeColumns.length;
+      if (len === 0 || n === 0) return new Date(date);
+      const t = date.getTime();
+      let lo = 0;
+      let hi = len - 1;
+      let idx = 0;
+      while (lo <= hi) {
+        const m = (lo + hi) >> 1;
+        if (colStartMs[m] <= t) {
+          idx = m;
+          lo = m + 1;
+        } else {
+          hi = m - 1;
+        }
+      }
+      const target = Math.min(len - 1, Math.max(0, idx + n));
+      const offset = t - colStartMs[idx]; // preserve intra-day time-of-day
+      return new Date(colStartMs[target] + offset);
+    },
+    [timeColumns, colStartMs],
+  );
+
+  // computeDragChanges (defined above) advances by whole units via addUnits in
+  // the common case; when the axis folds, it routes through working columns so
+  // a drag tracks the compressed grid. The ref keeps that callback stable.
+  const foldShiftRef = React.useRef<((date: Date, n: number) => Date) | null>(null);
+  foldShiftRef.current = folding ? shiftByWorkingColumns : null;
 
   // Upper scale row: month groups under day/week, year groups under month/quarter.
   const headerGroups = React.useMemo(() => {
@@ -1042,8 +1176,9 @@ export function GanttView({
     return groups;
   }, [timeColumns, viewMode, dateLocale]);
 
-  // Normalized custom markers (invalid/out-of-range dates dropped), with the
-  // same linear ms→px mapping the bars and the Today line use.
+  // Normalized custom markers (invalid/out-of-range dates dropped), positioned
+  // through the same date→px mapping the bars and the Today line use so they
+  // stay aligned when the axis folds non-working time.
   const resolvedMarkers = React.useMemo(() => {
     return (markers ?? [])
       .map((m, i) => {
@@ -1052,12 +1187,12 @@ export function GanttView({
           index: i,
           label: m.label,
           color: m.color || 'hsl(var(--primary))',
-          left: Math.round(((date.getTime() - timelineRange.start.getTime()) / MS_PER_DAY) * pxPerDay),
+          left: Math.round(dateToX(date)),
           valid: !isNaN(date.getTime()) && date >= timelineRange.start && date <= timelineRange.end,
         };
       })
       .filter((m) => m.valid);
-  }, [markers, timelineRange, pxPerDay]);
+  }, [markers, timelineRange, dateToX]);
 
   const taskListWidth_LEGACY_REMOVED = null; // taskListWidth now derived from useResizeObserver above
   
@@ -1160,9 +1295,8 @@ export function GanttView({
   const todayLeftPx = React.useMemo(() => {
     const now = new Date();
     if (now < timelineRange.start || now > timelineRange.end) return null;
-    const days = (now.getTime() - timelineRange.start.getTime()) / MS_PER_DAY;
-    return Math.round(days * pxPerDay);
-  }, [timelineRange, pxPerDay]);
+    return Math.round(dateToX(now));
+  }, [timelineRange, dateToX]);
   const jumpToToday = React.useCallback(() => {
     if (todayLeftPx == null || !scrollAreaRef.current) return;
     const target = Math.max(0, todayLeftPx - scrollAreaRef.current.clientWidth / 2);
@@ -1189,13 +1323,13 @@ export function GanttView({
   };
 
   const styleFor = (start: Date, end: Date) => {
-    const startOffsetMs = start.getTime() - timelineRange.start.getTime();
-    const durationMs = end.getTime() - start.getTime();
-
-    const left = (startOffsetMs / MS_PER_DAY) * pxPerDay;
+    // Route both edges through dateToX so bars compress with the axis when
+    // non-working time folds out. For non-folded axes this is identical to the
+    // old linear mapping (`(ms / MS_PER_DAY) * pxPerDay`).
+    const left = dateToX(start);
     // Min 1 day, and never thinner than 3px so the bar stays visible (and
     // grabbable) at coarse granularities where a day is only ~2px.
-    const width = Math.max((durationMs / MS_PER_DAY) * pxPerDay, pxPerDay, 3);
+    const width = Math.max(dateToX(end) - left, pxPerDay, 3);
 
     return { left, width };
   };
