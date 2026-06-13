@@ -61,7 +61,7 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
 import { useAuth, getUserInitials } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel, preferLocal, matchAppBySegment } from '../utils';
+import { resolveI18nLabel, preferLocal, matchAppBySegment, appRouteSegment } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
@@ -856,7 +856,7 @@ export function AppHeader({
                   return (
                     <DropdownMenuItem
                       key={`hidden_app_${app.name}`}
-                      onClick={() => navigate(`/apps/${app.name}`)}
+                      onClick={() => navigate(`/apps/${appRouteSegment(app) ?? app.name}`)}
                       className="cursor-pointer"
                     >
                       <AppIcon className="mr-2 h-4 w-4" />

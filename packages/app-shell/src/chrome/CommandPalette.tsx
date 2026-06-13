@@ -32,7 +32,7 @@ import { useRecordSearch } from '@object-ui/react';
 import { useTheme } from './ThemeProvider';
 import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { resolveI18nLabel, getRecordDisplayName } from '../utils';
+import { resolveI18nLabel, getRecordDisplayName, appRouteSegment } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { useRecentItems } from '../context/RecentItemsProvider';
 import { resolveHref } from '@object-ui/layout';
@@ -76,7 +76,7 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
     if (!open) setInputValue('');
   }, [open]);
 
-  const baseUrl = `/apps/${appName || activeApp?.name}`;
+  const baseUrl = `/apps/${appName || appRouteSegment(activeApp)}`;
   const { user } = useAuth();
   const templateContext = useMemo(() => ({ currentUserId: user?.id ?? null }), [user?.id]);
 
@@ -284,7 +284,7 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
                     <CommandItem
                       key={app.name}
                       value={`app ${resolveI18nLabel(app.label, t)} ${app.name}`}
-                      onSelect={() => runCommand(() => onAppChange(app.name))}
+                      onSelect={() => runCommand(() => onAppChange(appRouteSegment(app) ?? app.name))}
                     >
                       <Icon className="mr-2 h-4 w-4" />
                       <span>{resolveI18nLabel(app.label, t)}</span>

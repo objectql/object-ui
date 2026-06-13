@@ -61,7 +61,7 @@ import { usePermissions } from '@object-ui/permissions';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
-import { resolveI18nLabel, matchAppBySegment } from '../utils';
+import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { useAppContextSelectors } from './ContextSelectors';
 
@@ -271,7 +271,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
     [registeredObjectNames],
   );
 
-  const basePath = activeApp ? `/apps/${activeAppName}` : '';
+  const basePath = activeApp ? `/apps/${appRouteSegment(activeApp) ?? activeAppName}` : '';
 
   // Fallback system navigation when no active app exists — routes into the Setup app.
   // The marketplace entry is hidden from non-admin members (install is gated to
@@ -341,7 +341,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                 {activeApps.map((app: any) => (
                   <DropdownMenuItem
                     key={app.name}
-                    onClick={() => onAppChange(app.name)}
+                    onClick={() => onAppChange(appRouteSegment(app) ?? app.name)}
                     className="gap-2 p-2"
                   >
                     <div className="flex size-6 items-center justify-center rounded-sm border">
@@ -359,13 +359,13 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                   <div className="font-medium text-muted-foreground">{t('layout.appSwitcher.home')}</div>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(`/apps/${activeAppName}/create-app`)} data-testid="add-app-btn">
+                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(`/apps/${appRouteSegment(activeApp) ?? activeAppName}/create-app`)} data-testid="add-app-btn">
                   <div className="flex size-6 items-center justify-center rounded-md border bg-background">
                     <Plus className="size-4" />
                   </div>
                   <div className="font-medium text-muted-foreground">{t('layout.appSwitcher.addApp')}</div>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(`/apps/${activeAppName}/edit-app/${activeAppName}`)} data-testid="edit-app-btn">
+                <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate(`/apps/${appRouteSegment(activeApp) ?? activeAppName}/edit-app/${activeAppName}`)} data-testid="edit-app-btn">
                   <div className="flex size-6 items-center justify-center rounded-md border bg-background">
                     <Pencil className="size-4" />
                   </div>
@@ -655,7 +655,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
           }
           return leaves.slice(0, 5).map((item: any) => {
           const NavIcon = getIcon(item.icon);
-          const baseUrl = activeApp ? `/apps/${activeAppName}` : '';
+          const baseUrl = activeApp ? `/apps/${appRouteSegment(activeApp) ?? activeAppName}` : '';
           const { href } = resolveHref(item, baseUrl, { currentUserId: user?.id ?? null });
           return (
             <Link key={item.id} to={href} className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] justify-center">

@@ -47,7 +47,7 @@ import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
-import { resolveI18nLabel, matchAppBySegment } from '../utils';
+import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 // useObjectLabel provides appLabel/appDescription for convention-based
 // i18n lookup — `{ns}.apps.{name}.label` resolves to the translated label
@@ -255,7 +255,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
 
   // Determine which navigation to show based on context
   const navigationItems = context === 'home' ? homeNavigation : appNavigation;
-  const basePath = context === 'app' && activeApp ? `/apps/${activeApp.name}` : '';
+  const basePath = context === 'app' && activeApp ? `/apps/${appRouteSegment(activeApp)}` : '';
   const isStudioApp = context === 'app' && activeApp?.name === 'studio';
   const studioHomeSearch = React.useMemo(() => {
     if (!isStudioApp) return '';

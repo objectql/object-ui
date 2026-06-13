@@ -17,7 +17,7 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, Check } from 'lucide-react';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel, matchAppBySegment } from '../utils';
+import { resolveI18nLabel, matchAppBySegment, appRouteSegment } from '../utils';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { getIcon } from '../utils/getIcon';
 
@@ -63,7 +63,7 @@ export function AppSwitcher({ activeAppName, onAppChange }: AppSwitcherProps) {
           return (
             <DropdownMenuItem
               key={app.name}
-              onClick={() => onAppChange(app.name)}
+              onClick={() => onAppChange(appRouteSegment(app) ?? app.name)}
               className="flex items-center gap-2.5 py-2"
             >
               <div className="flex size-5 shrink-0 items-center justify-center rounded border bg-muted text-muted-foreground">
