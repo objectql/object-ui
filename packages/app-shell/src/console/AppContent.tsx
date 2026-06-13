@@ -25,6 +25,7 @@ import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState';
 import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider';
 import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent';
 import { resolveRecordFormTarget, resolveNavigateCreateUrl, resolveNavigateEditUrl } from '../utils/recordFormNavigation';
+import { matchAppBySegment } from '../utils/appRoute';
 import { resolveHref, type NavTemplateContext } from '@object-ui/layout';
 import { ExpressionEvaluator } from '@object-ui/core';
 
@@ -172,7 +173,9 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   const activeApps = apps.filter((a: any) => a.active !== false);
   const launcherApps = activeApps.filter((a: any) => a.hidden !== true);
   const activeApp =
-    apps.find((a: any) => a.name === appName) ||
+    // ADR-0048 (A) — the route segment is the package id; resolve by it,
+    // falling back to the app name (legacy/alias URL).
+    matchAppBySegment(apps, appName) ||
     launcherApps.find((a: any) => a.isDefault === true) ||
     launcherApps[0];
 
