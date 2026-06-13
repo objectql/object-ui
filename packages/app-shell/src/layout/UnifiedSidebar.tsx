@@ -225,6 +225,10 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const homeNavigation: NavigationItem[] = React.useMemo(() => {
     const items: NavigationItem[] = [
       { id: 'home-dashboard', label: t('home.nav', { defaultValue: 'Home' }), type: 'url' as const, url: '/home', icon: 'home' },
+      // Package documentation portal (ADR-0046) — visible to all users, not
+      // just workspace admins, so it lives in the base items rather than the
+      // admin cluster below.
+      { id: 'docs', label: t('layout.systemNav.documentation', { defaultValue: 'Documentation' }), type: 'url' as const, url: '/docs', icon: 'book-open' },
     ];
     if (isWorkspaceAdmin) {
       const adminItems: NavigationItem[] = [

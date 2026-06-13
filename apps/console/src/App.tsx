@@ -43,6 +43,7 @@ import { FormPage } from './components/FormPage';
 import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
 import DocPage from './pages/DocPage';
+import DocsIndex from './pages/DocsIndex';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -179,9 +180,15 @@ export function App() {
                 <FormPage mode="internal" />
               </ProtectedRoute>
             } />
-            {/* Package documentation (ADR-0046): one route renders any
-              * installed `doc` metadata item; cross-references between docs
-              * resolve to this same route. */}
+            {/* Package documentation (ADR-0046): a platform-level portal
+              * lists every installed `doc` (grouped by package), and one
+              * viewer route renders any item; cross-references between docs
+              * resolve to that same viewer route. Both are app-independent. */}
+            <Route path="/docs" element={
+              <ProtectedRoute>
+                <DocsIndex />
+              </ProtectedRoute>
+            } />
             <Route path="/docs/:name" element={
               <ProtectedRoute>
                 <DocPage />
