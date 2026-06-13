@@ -442,3 +442,35 @@ The script asserts (5/5 checks passed):
 - **Folded + localized** — `?cal=1&lang=zh` folds identically with Chinese
   chrome.
 - ![Folded working axis — 中文](31-workaxis-folded-zh.png)
+
+## Quick filter (快速筛选) (`?quickfilter=1`)
+
+Driven by [`scripts/verify-quickfilter.mjs`](../../scripts/verify-quickfilter.mjs)
+against a real `ObjectGantt` wired to a mock 排产计划 (production-scheduling) data
+source — eight plan tasks plus a reference object the `项目` lookup pulls from.
+The bar renders one multi-select dropdown per configured dimension; selecting
+options narrows the visible task bars (AND across dimensions) and, by default,
+auto-zooms the timeline to the remaining span. Twenty-three unit tests back the
+wiring ([`QuickFilterBar.test.tsx`](../../src/QuickFilterBar.test.tsx) +
+[`ObjectGantt.quickfilter.test.tsx`](../../src/ObjectGantt.quickfilter.test.tsx)).
+
+The script asserts (9/9 checks passed):
+
+- **Filter bar** — one dropdown per configured dimension (项目 / 产品 / 状态 /
+  派工类别 / 管理责任人); all 8 plan tasks visible before filtering.
+- ![Quick filter — all](32-quickfilter-all.png)
+- **Lookup full domain** — `项目` resolves the whole referenced object list,
+  including `项目C（暂无任务）` which has **no** tasks but still appears as an option.
+- ![Project lookup options](33-quickfilter-project-options.png)
+- **Single-dimension filter** — picking 项目A narrows to that project's 4 tasks.
+- ![Project A](34-quickfilter-project-A.png)
+- **AND across dimensions** — 项目A **+** 状态=待开始 → 3 tasks (the schema's
+  4 status options resolve in full; the doing/done tasks drop out).
+- ![Project A + 待开始](35-quickfilter-project-A-status-todo.png)
+- **Clear** — the 清除筛选 button restores all 8 tasks and the full axis.
+- ![Cleared](36-quickfilter-cleared.png)
+- **Auto-zoom** — 状态=已完成 narrows to the single done task (返修-06); the
+  timeline re-derives from that one task, so the track shrinks from `4920px` to
+  `1560px` (fills the viewport instead of scrolling) and the header rescales to
+  early July.
+- ![Auto-zoom to the filtered span](37-quickfilter-autozoom.png)

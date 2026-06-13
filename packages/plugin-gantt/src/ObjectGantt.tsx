@@ -50,7 +50,27 @@ import {
 } from '@object-ui/fields';
 import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, type GanttTaskType, type GanttViewMode } from './GanttView';
 import { ResourceWorkload } from './ResourceWorkload';
+import { QuickFilterBar, type QuickFilterField, type QuickFilterOption } from './QuickFilterBar';
 import type { WorkingCalendar } from './scheduling';
+
+/**
+ * One quick-filter dimension (快速筛选维度). Generic by design: the page configures
+ * which record fields become filter dropdowns; the plugin resolves each one's
+ * options from the object schema (select options / lookup reference records) so
+ * no business field names are baked into the (MIT) plugin.
+ */
+export interface QuickFilterDef {
+  /** Record field / dot-path the dimension filters on. */
+  field: string;
+  /** Trigger label (falls back to the schema field label / humanized name). */
+  label?: string;
+  /**
+   * Explicit option override. Highest priority — use for fixed enums that are
+   * not modeled as select options (e.g. 派工类别). Plain strings become
+   * value === label; objects allow a distinct display label.
+   */
+  options?: Array<string | { value: string | number; label?: string }>;
+}
 
 /**
  * Hierarchy/type fields are ObjectUI extensions on top of the spec's
@@ -81,6 +101,19 @@ type GanttConfigEx = GanttConfig & {
   effortField?: string;
   /** Per-resource capacity ceiling (default 1). Loads above this flag overload. */
   capacity?: number;
+  /**
+   * Quick filters (快速筛选). A row of multi-select dropdowns rendered above the
+   * chart; each narrows the visible task bars by one dimension. Options resolve
+   * from the object schema (select options or lookup reference records) so the
+   * lists are the full domain, not just values present in the current data.
+   */
+  quickFilters?: QuickFilterDef[];
+  /**
+   * When true (default), filtering recomputes the timeline range so it zooms to
+   * the filtered tasks' interval. Set false to keep the range pinned to the full
+   * (unfiltered) task set while filtering only hides bars.
+   */
+  autoZoomToFilter?: boolean;
 };
 
 /** Map a record's type value onto a GanttTaskType (undefined = infer). */
@@ -218,6 +251,8 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           assigneeField: schema.assigneeField,
           effortField: schema.effortField,
           capacity: schema.capacity,
+          quickFilters: schema.quickFilters,
+          autoZoomToFilter: schema.autoZoomToFilter,
       };
       return config;
   }
@@ -593,6 +628,147 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     };
   }, [schema]);
 
+  // ── Quick filters (快速筛选) ─────────────────────────────────────────────
+  // Resolve each task's value for a filter dimension into a stable key. Lookups
+  // resolve to the embedded record's id (matching the lookup option values);
+  // scalars / select values use their string form. Mirrors the grouping key
+  // logic so a filter and a group-by on the same field agree.
+  const resolveFilterKey = useCallback((record: any, field: string): string | null => {
+    if (!record || !field) return null;
+    let cur: any = record;
+    for (const p of field.split('.')) {
+      if (cur == null) return null;
+      cur = cur[p];
+    }
+    if (cur == null || cur === '') return null;
+    if (typeof cur === 'object') {
+      const o = cur as any;
+      return String(o.id ?? o._id ?? o.value ?? o.name ?? '');
+    }
+    return String(cur);
+  }, []);
+
+  const quickFilterDefs = ganttConfig?.quickFilters;
+
+  // Lookup/master_detail dimensions pull their full option domain from the
+  // referenced object (reference_to) via the data source — so the dropdown
+  // shows every possible value, not only those present in the loaded rows.
+  const [lookupOptions, setLookupOptions] = useState<Record<string, QuickFilterOption[]>>({});
+  useEffect(() => {
+    if (!quickFilterDefs?.length || !dataSource || typeof dataSource.find !== 'function') return;
+    const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
+    let cancelled = false;
+    (async () => {
+      const next: Record<string, QuickFilterOption[]> = {};
+      for (const def of quickFilterDefs) {
+        if (def.options) continue; // explicit override — no fetch
+        const fd = fieldDefs[def.field] ?? fieldDefs[def.field.split('.')[0]];
+        const type: string | undefined = fd?.type;
+        if (type !== 'lookup' && type !== 'master_detail') continue;
+        const refObject: string | undefined = fd?.reference_to ?? fd?.referenceTo;
+        if (!refObject) continue;
+        try {
+          const result = await dataSource.find(refObject, { $top: 1000 });
+          const records = extractRecords(result);
+          next[def.field] = records.map((r: any) => ({
+            value: String(r.id ?? r._id ?? r.value ?? ''),
+            label: String(r.name ?? r.label ?? r.title ?? r.id ?? r._id ?? ''),
+          }));
+        } catch (err) {
+          console.warn(`[ObjectGantt] Failed to load quick-filter options for "${def.field}":`, err);
+        }
+      }
+      if (!cancelled) setLookupOptions((prev) => ({ ...prev, ...next }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(quickFilterDefs), dataSource, objectSchema]);
+
+  // Resolve the final option list per dimension, by priority:
+  //   1. explicit `options` on the def (fixed enums like 派工类别)
+  //   2. select/enum field options from the object schema (full domain)
+  //   3. fetched lookup reference records (full domain, async above)
+  //   4. distinct values present in the loaded data (fallback)
+  const resolvedQuickFilters = useMemo<QuickFilterField[]>(() => {
+    if (!quickFilterDefs?.length) return [];
+    const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
+    return quickFilterDefs.map((def) => {
+      const fd = fieldDefs[def.field] ?? fieldDefs[def.field.split('.')[0]];
+      const label = def.label ?? fd?.label ?? humanizeLabel(def.field);
+      let options: QuickFilterOption[] = [];
+
+      if (def.options?.length) {
+        options = def.options.map((o) =>
+          typeof o === 'object'
+            ? { value: String(o.value), label: String(o.label ?? o.value) }
+            : { value: String(o), label: String(o) },
+        );
+      } else if (Array.isArray(fd?.options) && fd.options.length) {
+        options = fd.options.map((o: any) => ({
+          value: String(o.value ?? o),
+          label: String(o.label ?? o.value ?? o),
+        }));
+      } else if (lookupOptions[def.field]?.length) {
+        options = lookupOptions[def.field];
+      } else {
+        // Distinct fallback: derive labels from the records themselves.
+        const seen = new Map<string, string>();
+        for (const record of data) {
+          const key = resolveFilterKey(record, def.field);
+          if (key == null) continue;
+          if (!seen.has(key)) {
+            // Pull a readable label off the raw value (embedded lookup name or scalar).
+            let cur: any = record;
+            for (const p of def.field.split('.')) cur = cur?.[p];
+            const lbl =
+              cur && typeof cur === 'object'
+                ? String((cur as any).name ?? (cur as any).label ?? (cur as any).title ?? key)
+                : key;
+            seen.set(key, lbl);
+          }
+        }
+        options = [...seen.entries()].map(([value, lbl]) => ({ value, label: lbl }));
+      }
+      return { field: def.field, label, options };
+    });
+  }, [quickFilterDefs, objectSchema, lookupOptions, data, resolveFilterKey]);
+
+  const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
+  const handleFilterChange = useCallback((field: string, values: string[]) => {
+    setFilterValues((prev) => ({ ...prev, [field]: values }));
+  }, []);
+  const clearFilters = useCallback(() => setFilterValues({}), []);
+
+  // Apply the active filters in memory: a task passes when, for every dimension
+  // with a non-empty selection, its resolved key is among the selected values.
+  const displayTasks = useMemo(() => {
+    const active = Object.entries(filterValues).filter(([, v]) => v.length > 0);
+    if (!active.length) return tasks;
+    return tasks.filter((t) =>
+      active.every(([field, vals]) => {
+        const key = resolveFilterKey((t as any).data, field);
+        return key != null && vals.includes(key);
+      }),
+    );
+  }, [tasks, filterValues, resolveFilterKey]);
+
+  // Auto-zoom is free: GanttView derives the timeline range from the tasks it
+  // receives, so passing the (smaller) filtered set rescales the axis. To pin
+  // the range instead (autoZoomToFilter === false), compute a fixed window from
+  // the FULL task set and hand it to GanttView so filtering only hides bars.
+  const lockedRange = useMemo<{ start: Date; end: Date } | null>(() => {
+    if (ganttConfig?.autoZoomToFilter !== false || !tasks.length) return null;
+    let min = tasks[0].start.getTime();
+    let max = tasks[0].end.getTime();
+    for (const t of tasks) {
+      min = Math.min(min, t.start.getTime());
+      max = Math.max(max, t.end.getTime());
+    }
+    return { start: new Date(min), end: new Date(max) };
+  }, [tasks, ganttConfig?.autoZoomToFilter]);
+
   // Default to a right-side drawer so clicking a task opens an editable
   // detail panel inline (no full-page navigation). Schema can override by
   // providing its own `navigation` config (e.g., page mode).
@@ -776,10 +952,26 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
 
   return (
     <div className={className}>
+      {resolvedQuickFilters.length > 0 && (
+        <QuickFilterBar
+          filters={resolvedQuickFilters}
+          value={filterValues}
+          onChange={handleFilterChange}
+          onClear={clearFilters}
+          resultCount={displayTasks.length}
+          totalCount={tasks.length}
+          labels={{
+            all: '全部',
+            clear: '清除筛选',
+            empty: '无可选项',
+            resultSummary: (shown, total) => `显示 ${shown} / ${total} 项任务`,
+          }}
+        />
+      )}
       <div className="h-[calc(100vh-200px)] min-h-[600px]">
         {ganttConfig?.resourceView && assigneeAccessor ? (
           <ResourceWorkload
-            tasks={tasks}
+            tasks={displayTasks}
             assignee={assigneeAccessor}
             effort={effortAccessor}
             capacity={ganttConfig?.capacity ?? 1}
@@ -787,7 +979,9 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           />
         ) : (
         <GanttView
-          tasks={tasks}
+          tasks={displayTasks}
+          startDate={lockedRange?.start}
+          endDate={lockedRange?.end}
           onTaskClick={(task) => {
             navigation.handleClick(task.data);
             onTaskClick?.(task.data);

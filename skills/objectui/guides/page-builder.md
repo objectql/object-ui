@@ -340,6 +340,12 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
     "criticalPath": true,
     "skipWeekends": true,
     "holidays": ["2026-01-01", "2026-12-25"],
+    "quickFilters": [
+      { "field": "status", "label": "状态" },
+      { "field": "project", "label": "项目" },
+      { "field": "priority", "label": "优先级", "options": ["high", "medium", "low"] }
+    ],
+    "autoZoomToFilter": true,
     "readOnly": false
   },
   "bind": "project_task"
@@ -371,6 +377,8 @@ field mappings):
 | `holidays: ["yyyy-mm-dd", …]` | Extra non-working days for the working calendar (combine with or instead of `skipWeekends`). In day mode these columns fold out of the axis too. |
 | `resourceView: true` | Render the **resource / workload view** instead of the task grid: one row per resource with a per-column load histogram. Requires `assigneeField` to bucket tasks; each task adds `effortField` units (default 1) over its span, and any column whose summed load exceeds `capacity` is painted as over-allocated. |
 | `assigneeField` / `effortField` / `capacity` | Resource bucketing (required for `resourceView`), per-task workload weight (default `1`), and the per-resource capacity ceiling (default `1`; loads above it flag overload). Also usable as field mappings under `gantt`. |
+| `quickFilters: [{ field, label?, options? }]` | Render a **快速筛选 (quick filter)** bar above the grid — one multi-select dropdown per entry that narrows the visible task bars by that field (AND across dimensions). Option lists resolve in priority order: explicit `options` → the object schema's `select`/`enum` options (full domain) → a `lookup`/`master_detail`'s referenced records (pulled in full via the data source, so values with **no** tasks still appear) → distinct values from the loaded data. Lookup values match on the embedded record id. Selecting every option of a dimension collapses to "no constraint". |
+| `autoZoomToFilter: true` | When a quick filter narrows the set, re-derive the timeline range from the **remaining** tasks so the axis zooms to the filtered span (default `true`). Set `false` to pin the axis to the full task span so bars keep their absolute position while filtering. |
 | `markers: [{ date, label?, color? }]` | Extra vertical marker lines (like the Today line). |
 | `readOnly: true` | **Disable all editing** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. Task click + granularity switching still work. Use for dashboards / shared read-only views. |
 

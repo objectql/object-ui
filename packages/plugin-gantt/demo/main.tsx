@@ -14,6 +14,7 @@ import '@object-ui/components/style.css';
 import { I18nProvider } from '@object-ui/react';
 import { GanttView, type GanttTask, type GanttMarker, type GanttViewMode } from '../src/GanttView';
 import { ResourceWorkload } from '../src/ResourceWorkload';
+import { ObjectGantt } from '../src/ObjectGantt';
 import type { WorkingCalendar } from '../src/scheduling';
 
 /**
@@ -149,8 +150,115 @@ function decorateForGrouping(tasks: GanttTask[]): GanttTask[] {
   }));
 }
 
+/**
+ * Quick-filter (快速筛选) demo (?quickfilter=1). Drives the real ObjectGantt with
+ * an in-memory mock data source modeled on the 排产计划 (production-scheduling)
+ * list: select dimensions (状态 / 派工类别) resolve options from the schema, and
+ * lookup dimensions (项目 / 产品) pull their full option domain from referenced
+ * objects. Selecting a filter narrows the bars AND the timeline auto-zooms to
+ * the remaining interval (auto-zoom is free — GanttView re-derives the range).
+ */
+const PLAN_RECORDS = [
+  { id: 'r1', name: '下料-01', start: '2026-06-01', end: '2026-06-04', status: 'todo', dispatch_type: '生产派工单', project: { id: 'pA', name: '项目A' }, product: { id: 'gX', name: '产品X' }, owner: '张三' },
+  { id: 'r2', name: '焊接-02', start: '2026-06-05', end: '2026-06-10', status: 'doing', dispatch_type: '生产派工单', project: { id: 'pA', name: '项目A' }, product: { id: 'gX', name: '产品X' }, owner: '张三' },
+  { id: 'r3', name: '质检-03', start: '2026-06-11', end: '2026-06-13', status: 'todo', dispatch_type: '质检派工单', project: { id: 'pA', name: '项目A' }, product: { id: 'gY', name: '产品Y' }, owner: '李四' },
+  { id: 'r4', name: '装配-04', start: '2026-06-20', end: '2026-06-28', status: 'pushed', dispatch_type: '生产派工单', project: { id: 'pB', name: '项目B' }, product: { id: 'gY', name: '产品Y' }, owner: '王五' },
+  { id: 'r5', name: '设备点检-05', start: '2026-07-01', end: '2026-07-03', status: 'doing', dispatch_type: '设备设施派工单', project: { id: 'pB', name: '项目B' }, product: { id: 'gX', name: '产品X' }, owner: '王五' },
+  { id: 'r6', name: '返修-06', start: '2026-07-08', end: '2026-07-12', status: 'done', dispatch_type: '零星派工单', project: { id: 'pB', name: '项目B' }, product: { id: 'gY', name: '产品Y' }, owner: '李四' },
+  { id: 'r7', name: '总装-07', start: '2026-07-15', end: '2026-07-25', status: 'todo', dispatch_type: '生产派工单', project: { id: 'pA', name: '项目A' }, product: { id: 'gX', name: '产品X' }, owner: '张三' },
+  { id: 'r8', name: '终检-08', start: '2026-07-28', end: '2026-07-31', status: 'todo', dispatch_type: '质检派工单', project: { id: 'pB', name: '项目B' }, product: { id: 'gX', name: '产品X' }, owner: '李四' },
+];
+
+const PLAN_SCHEMA_FIELDS = {
+  name: { type: 'text', label: '名称' },
+  start: { type: 'date', label: '开始' },
+  end: { type: 'date', label: '结束' },
+  status: {
+    type: 'select',
+    label: '状态',
+    options: [
+      { value: 'todo', label: '待开始' },
+      { value: 'pushed', label: '已下推' },
+      { value: 'doing', label: '进行中' },
+      { value: 'done', label: '已完成' },
+    ],
+  },
+  dispatch_type: {
+    type: 'select',
+    label: '派工类别',
+    options: [
+      { value: '生产派工单', label: '生产派工单' },
+      { value: '质检派工单', label: '质检派工单' },
+      { value: '设备设施派工单', label: '设备设施派工单' },
+      { value: '零星派工单', label: '零星派工单' },
+    ],
+  },
+  project: { type: 'lookup', label: '项目', reference_to: 'project' },
+  product: { type: 'lookup', label: '产品', reference_to: 'product' },
+  owner: { type: 'text', label: '管理责任人' },
+};
+
+const REFERENCE_RECORDS: Record<string, Array<{ id: string; name: string }>> = {
+  project: [
+    { id: 'pA', name: '项目A' },
+    { id: 'pB', name: '项目B' },
+    { id: 'pC', name: '项目C（暂无任务）' },
+  ],
+  product: [
+    { id: 'gX', name: '产品X' },
+    { id: 'gY', name: '产品Y' },
+    { id: 'gZ', name: '产品Z（暂无任务）' },
+  ],
+};
+
+const planDataSource = {
+  find: (resource: string) =>
+    Promise.resolve({ data: REFERENCE_RECORDS[resource] ?? PLAN_RECORDS }),
+  findOne: () => Promise.resolve(null),
+  create: () => Promise.resolve({}),
+  update: () => Promise.resolve({}),
+  delete: () => Promise.resolve(undefined),
+  getObjectSchema: () => Promise.resolve({ fields: PLAN_SCHEMA_FIELDS }),
+} as any;
+
+const planSchema = {
+  type: 'gantt',
+  objectName: 'production_plan',
+  startDateField: 'start',
+  endDateField: 'end',
+  titleField: 'name',
+  progressField: undefined,
+  quickFilters: [
+    { field: 'project', label: '项目' },
+    { field: 'product', label: '产品' },
+    { field: 'status', label: '状态' },
+    { field: 'dispatch_type', label: '派工类别' },
+    { field: 'owner', label: '管理责任人' },
+  ],
+  // autoZoomToFilter defaults to true → timeline rescales to the filtered span.
+} as any;
+
+function QuickFilterDemo() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div
+        data-testid="demo-banner"
+        style={{ padding: '6px 12px', fontSize: 12, borderBottom: '1px solid hsl(var(--border))', display: 'flex', gap: 16 }}
+      >
+        <strong>Gantt demo · 快速筛选</strong>
+        <a href="?">project fixture</a>
+        <a href="?quickfilter=1">quick filter</a>
+      </div>
+      <div style={{ flex: 1, minHeight: 0 }} data-testid="quickfilter-host">
+        <ObjectGantt schema={planSchema} dataSource={planDataSource} />
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const params = new URLSearchParams(window.location.search);
+  if (params.get('quickfilter') === '1') return <QuickFilterDemo />;
   const perf = Number(params.get('perf') || 0);
   const edge = params.has('edge');
   const workingCalendar: WorkingCalendar | undefined =
