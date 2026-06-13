@@ -283,7 +283,6 @@ export function GanttView({
   // Mobile UX (round 3): make zoom + list-collapse stateful so the toolbar
   // buttons + pinch-to-zoom gesture actually persist.
   const [columnWidthOverride, setColumnWidthOverride] = React.useState<number | null>(null);
-  const columnWidth = columnWidthOverride ?? baseColumnWidth;
   // Timeline granularity. The prop seeds (and can later override) the state;
   // the toolbar segmented control switches it interactively.
   const [viewMode, setViewMode] = React.useState<GanttViewMode>(
@@ -296,9 +295,6 @@ export function GanttView({
     setViewMode(mode);
     onViewChange?.(mode);
   }, [onViewChange]);
-  // One column = one unit of the active granularity; bars/markers map time
-  // linearly at pxPerDay so they stay aligned with the calendar-width columns.
-  const pxPerDay = columnWidth / NOMINAL_DAYS[viewMode];
   const [taskListCollapsed, setTaskListCollapsed] = React.useState<boolean>(false);
   // Auto-collapse the list once on first narrow render — undoable by the user.
   const collapsedAutoSet = React.useRef(false);
@@ -309,6 +305,37 @@ export function GanttView({
     }
   }, [isNarrow]);
   const taskListWidth = taskListCollapsed ? 0 : taskListWidthForContainer(effectiveWidth);
+  // Fit-to-width ("zoom to fit"): in coarse modes a short project's natural grid
+  // (span × base px/day) is far narrower than the timeline area, leaving the
+  // right side blank. Rather than pad the calendar with years of empty units, we
+  // STRETCH the column width so the real span fills the viewport. A manual zoom
+  // (columnWidthOverride) always wins; a long project whose grid already
+  // overflows keeps the base width and simply scrolls.
+  const fitColumnWidth = React.useMemo(() => {
+    // Only stretch when the right edge is auto-derived; a caller-pinned endDate
+    // means a deliberate window, so respect the fixed per-unit width and scroll.
+    if (columnWidthOverride != null || endDate || tasks.length === 0) return null;
+    let start = startDate ? new Date(startDate) : new Date(Math.min(...tasks.map((t) => t.start.getTime())));
+    const end = new Date(Math.max(...tasks.map((t) => t.end.getTime())));
+    if (!startDate) start.setDate(start.getDate() - 7);
+    end.setDate(end.getDate() + 14);
+    start = startOfUnit(start, viewMode);
+    end.setHours(23, 59, 59, 999);
+    const spanDays = Math.max(1, (end.getTime() - start.getTime()) / MS_PER_DAY);
+    const avail = Math.max(0, effectiveWidth - taskListWidth);
+    if (avail <= 0) return null;
+    // Column width that makes the natural span exactly fill the area.
+    const fit = (avail / spanDays) * NOMINAL_DAYS[viewMode];
+    if (fit <= baseColumnWidth) return null; // grid already overflows → scroll
+    // Cap so one unit can't dominate (keep ≥ ~2 columns visible) — a sub-unit
+    // project then fills most of the area with a small honest gap, not 1 slab.
+    const capped = Math.min(fit, avail * 0.6);
+    return capped > baseColumnWidth ? capped : null;
+  }, [columnWidthOverride, tasks, startDate, endDate, viewMode, effectiveWidth, taskListWidth, baseColumnWidth]);
+  const columnWidth = columnWidthOverride ?? fitColumnWidth ?? baseColumnWidth;
+  // One column = one unit of the active granularity; bars/markers map time
+  // linearly at pxPerDay so they stay aligned with the calendar-width columns.
+  const pxPerDay = columnWidth / NOMINAL_DAYS[viewMode];
   const showSEColumns = showStartEndColumns(taskListWidth);
   const [editingTask, setEditingTask] = React.useState<string | number | null>(null);
   const [editValues, setEditValues] = React.useState<Record<string, string>>({});
@@ -864,25 +891,14 @@ export function GanttView({
     start = startOfUnit(start, viewMode);
     end.setHours(23,59,59,999);
 
-    // Fill the viewport. With a fixed per-unit column width, a short date span
-    // in week/month/quarter mode leaves the grid far narrower than the timeline
-    // area, so the right side reads as blank. When the end is auto-derived,
-    // extend it with empty trailing calendar columns until the grid reaches the
-    // right edge — the scale stays honest (real calendar units), we just show
-    // more of the future. Day mode usually already overflows, so this is a
-    // no-op there. Skip entirely when the caller controls `endDate`.
-    if (!endDate && tasks.length > 0 && pxPerDay > 0) {
-      const avail = Math.max(0, effectiveWidth - taskListWidth);
-      const haveDays = (end.getTime() - start.getTime()) / MS_PER_DAY;
-      const needDays = avail / pxPerDay;
-      if (needDays > haveDays) {
-        const target = new Date(start.getTime() + Math.ceil(needDays) * MS_PER_DAY);
-        if (target > end) end = target;
-      }
-    }
-
+    // NOTE: we deliberately do NOT pad the calendar to fill the viewport.
+    // Adding empty trailing units would, in coarse modes, mean years of blank
+    // columns (a 2.5-month project in month mode needs ~2.5 years of empty
+    // months to reach the right edge). Instead the grid keeps its natural span
+    // and `fitColumnWidth` stretches the column width so a short project still
+    // fills the area — the industry "zoom to fit" approach.
     return { start, end };
-  }, [startDate, endDate, tasks, viewMode, pxPerDay, effectiveWidth, taskListWidth]);
+  }, [startDate, endDate, tasks, viewMode]);
 
   // Generate timeline columns — one per unit of the active granularity.
   // Widths follow the calendar at pxPerDay, so a 31-day month column is

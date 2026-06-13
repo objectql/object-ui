@@ -13,7 +13,7 @@ pnpm --dir packages/plugin-gantt exec vite demo --port 5199
 node packages/plugin-gantt/scripts/verify-browser.mjs
 ```
 
-## Latest run: 19/19 checks passed
+## Latest run: 22/22 checks passed
 
 ### 1. Hierarchy, milestones, dependency links
 
@@ -24,12 +24,16 @@ node packages/plugin-gantt/scripts/verify-browser.mjs
   Code freeze).
 - ![Project overview, day mode](01-project-overview.png)
 - ![Whole project with all links, week mode](02-week-mode-all-links.png)
-- **Viewport fill:** per-unit column width is fixed, so a short date span in
-  week / month / quarter mode would otherwise leave the grid much narrower than
-  the timeline area (a blank right-side gap). When the end date is auto-derived
-  the range now extends with empty trailing calendar columns until the grid
-  reaches the right edge — the scale stays honest (real weeks/months), only the
-  visible future grows. Asserted in week mode (content width ≥ viewport width).
+- **Fit-to-width (zoom to fit):** a short date span in week / month / quarter
+  mode would otherwise leave the grid much narrower than the timeline area (a
+  blank right-side gap). Rather than pad the calendar with empty units — which
+  in month mode means *years* of blank columns to reach the right edge, the
+  approach we backed out — the **column width stretches** so the project's real
+  span fills the viewport. The calendar keeps its natural extent (e.g. a
+  2.5-month project shows ~4 month columns, not 30), a manual zoom overrides it,
+  and a long project that already overflows keeps the base width and scrolls.
+  Asserted in week mode (fills the viewport AND ≤ 24 columns) and month mode
+  (≤ 8 columns, no trailing empty months, still fills).
 
 ### 2. Collapse / expand
 
@@ -39,7 +43,8 @@ node packages/plugin-gantt/scripts/verify-browser.mjs
 
 ### 3. Hover tooltip + link highlight
 
-- Hovering *Backend services* shows the tooltip (`Jun 18 → Jul 8 · 20d · 30%`)
+- Hovering *Backend services* shows the tooltip with its configured
+  `tooltipFields` (`Owner · Priya N. · Status · In Progress · Effort · 15 days`)
   and highlights exactly its 2 links (t3→t4, t4→t6).
 - ![Tooltip and highlighted links](04-tooltip-and-link-highlight.png)
 

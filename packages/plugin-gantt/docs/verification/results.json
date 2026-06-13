@@ -1,5 +1,5 @@
 {
-  "date": "2026-06-13T08:42:03.367Z",
+  "date": "2026-06-13T08:53:07.544Z",
   "results": [
     {
       "name": "hierarchy rows",
@@ -29,7 +29,22 @@
     {
       "name": "week grid fills the viewport (no right-side gap)",
       "pass": true,
-      "detail": "content 1320px ≥ viewport 1280px"
+      "detail": "content 1309px ≥ viewport 1280px"
+    },
+    {
+      "name": "week grid stays tight (stretch, not pad)",
+      "pass": true,
+      "detail": "13 week columns"
+    },
+    {
+      "name": "month grid has no trailing empty months",
+      "pass": true,
+      "detail": "4 month columns"
+    },
+    {
+      "name": "month grid still fills the viewport",
+      "pass": true,
+      "detail": "content 1393px ≥ viewport 1280px"
     },
     {
       "name": "collapse hides child rows",
@@ -74,7 +89,7 @@
     {
       "name": "initial render of 5000 tasks",
       "pass": true,
-      "detail": "31.2ms"
+      "detail": "32.2ms"
     },
     {
       "name": "row virtualization",
@@ -89,7 +104,7 @@
     {
       "name": "mid-list scroll window shift",
       "pass": true,
-      "detail": "44.5ms to re-render at scrollTop 100000 of 200000"
+      "detail": "44.6ms to re-render at scrollTop 100000 of 200000"
     },
     {
       "name": "window stays small after scroll",
