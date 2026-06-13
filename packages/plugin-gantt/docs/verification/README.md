@@ -474,3 +474,32 @@ The script asserts (9/9 checks passed):
   `1560px` (fills the viewport instead of scrolling) and the header rescales to
   early July.
 - ![Auto-zoom to the filtered span](37-quickfilter-autozoom.png)
+
+## Dependency edit — 依赖增删 + 类型选择 (`?` project fixture)
+
+Driven by [`scripts/verify-dep-edit.mjs`](../../scripts/verify-dep-edit.mjs)
+against the project fixture (`?lang=zh`), where t4 "Backend services" depends on
+t3 "API design" (a FS link). When dependency editing is enabled an invisible,
+wide hit-path is laid over every link (`pointer-events: stroke` overrides the
+overlay svg's `pointer-events: none`), so a link is right-clickable without
+stealing bar drag/click. Fourteen unit tests back the interaction + writeback
+([`GanttView.interactions.test.tsx`](../../src/GanttView.interactions.test.tsx) +
+[`ObjectGantt.test.tsx`](../../src/ObjectGantt.test.tsx)).
+
+The script asserts (7/7 checks passed):
+
+- **Link menu** — right-clicking the t3 → t4 link opens a menu titled
+  `API design → Backend services` with the four link types (完成→开始 FS /
+  开始→开始 SS / 完成→完成 FF / 开始→完成 SF, the current one ✓-checked) and a red
+  移除依赖.
+- ![Link context menu](38-dep-link-menu.png)
+- **类型选择** — choosing 开始→开始 (SS) re-renders the link with
+  `data-link-type="ss"` (ObjectGantt upserts the link's type, promoting the
+  field to object-array form so the type round-trips).
+- ![Switch to SS](39-dep-link-type-ss.png)
+- **依赖删** — re-opening the menu and clicking 移除依赖 drops the link entirely.
+- ![Link removed](40-dep-link-removed.png)
+- **依赖增 (添加紧前)** — right-clicking the t4 bar exposes 添加紧前依赖 /
+  添加紧后依赖; the predecessor picker re-offers t3 (now unlinked), and picking it
+  re-creates the FS link.
+- ![Add predecessor picker](41-dep-add-predecessor.png)

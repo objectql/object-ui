@@ -38,7 +38,15 @@ const GANTT_ZH = {
     row: { expand: '展开', collapse: '折叠' },
     aria: { taskList: '任务列表' },
     tooltip: { days: '天' },
-    menu: { view: '查看详情', edit: '行内编辑', delete: '删除' },
+    menu: {
+      view: '查看详情', edit: '行内编辑', delete: '删除',
+      addPredecessor: '添加紧前依赖…', addSuccessor: '添加紧后依赖…',
+      removeDependency: '移除依赖', noCandidates: '没有可选任务',
+    },
+    linkType: {
+      fs: '完成→开始 (FS)', ss: '开始→开始 (SS)',
+      ff: '完成→完成 (FF)', sf: '开始→完成 (SF)',
+    },
     resource: { header: '资源', peak: '峰值', over: '超载', empty: '没有可分配的任务。' },
   },
 };
@@ -329,6 +337,7 @@ function App() {
         <a href="?group=status">group: status</a>
         <a href="?resource=owner">resource: owner</a>
         <a href="?resource=status">resource: status</a>
+        <a href="?quickfilter=1">quick filter</a>
         <span style={{ marginLeft: 'auto' }}>
           {/* Language toggle: chrome + dates localize together. */}
           <a href={withParam('lang', 'en')}>English</a>
@@ -362,7 +371,19 @@ function App() {
           onTaskDelete={(t) => setTasks((prev) => prev.filter((x) => x.id !== t.id))}
           onDependencyCreate={(source, target, type) =>
             patch(target.id, {
-              dependencies: [...(target.dependencies ?? []), { id: source.id, type }],
+              dependencies: [
+                ...(target.dependencies ?? []).filter(
+                  (d) => String(typeof d === 'object' ? d.id : d) !== String(source.id),
+                ),
+                { id: source.id, type },
+              ],
+            })
+          }
+          onDependencyDelete={(source, target) =>
+            patch(target.id, {
+              dependencies: (target.dependencies ?? []).filter(
+                (d) => String(typeof d === 'object' ? d.id : d) !== String(source.id),
+              ),
             })
           }
           onTaskReorder={(task, before) =>

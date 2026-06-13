@@ -205,6 +205,12 @@ export interface GanttViewProps {
    */
   onDependencyCreate?: (source: GanttTask, target: GanttTask, type: GanttLinkType) => void
   /**
+   * Enables dependency removal: right-clicking a dependency link opens a menu
+   * with "移除依赖" and a type switch. Called with the source/target tasks of the
+   * removed link (target no longer depends on source).
+   */
+  onDependencyDelete?: (source: GanttTask, target: GanttTask) => void
+  /**
    * Enables row drag-to-reorder in the task list. Called with the dragged
    * task and the sibling it was dropped on (insert before it). Only fires
    * for rows sharing the same parent.
@@ -264,6 +270,7 @@ export function GanttView({
   onTaskDelete: onTaskDeleteProp,
   onViewChange,
   onDependencyCreate: onDependencyCreateProp,
+  onDependencyDelete: onDependencyDeleteProp,
   onTaskReorder: onTaskReorderProp,
   className,
   inlineEdit: inlineEditProp = false,
@@ -282,6 +289,7 @@ export function GanttView({
   const onTaskUpdate = readOnly ? undefined : onTaskUpdateProp;
   const onTaskDelete = readOnly ? undefined : onTaskDeleteProp;
   const onDependencyCreate = readOnly ? undefined : onDependencyCreateProp;
+  const onDependencyDelete = readOnly ? undefined : onDependencyDeleteProp;
   const onTaskReorder = readOnly ? undefined : onTaskReorderProp;
   const inlineEdit = readOnly ? false : inlineEditProp;
   const autoSchedule = readOnly ? false : autoScheduleProp;
@@ -756,6 +764,58 @@ export function GanttView({
     };
   }, [ctxMenu]);
 
+  // --- Dependency link context menu (依赖增删 + 类型选择) ---------------------
+  // Right-clicking a dependency link opens a small menu to switch its type
+  // (FS/SS/FF/SF) or remove it. Closing mirrors the task context menu.
+  const [linkCtxMenu, setLinkCtxMenu] = React.useState<{
+    x: number;
+    y: number;
+    sourceId: string | number;
+    targetId: string | number;
+    type: GanttLinkType;
+  } | null>(null);
+  const linkCtxMenuRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!linkCtxMenu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (linkCtxMenuRef.current && e.target instanceof Node && linkCtxMenuRef.current.contains(e.target)) return;
+      setLinkCtxMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLinkCtxMenu(null); };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [linkCtxMenu]);
+
+  // --- "添加紧前/紧后" dependency picker --------------------------------------
+  // A secondary panel that lists candidate tasks; choosing one creates a
+  // dependency. `relation: 'pred'` makes the picked task a predecessor of the
+  // anchor (anchor depends on picked); `'succ'` makes it a successor.
+  const [depPicker, setDepPicker] = React.useState<{
+    x: number;
+    y: number;
+    taskId: string | number;
+    relation: 'pred' | 'succ';
+  } | null>(null);
+  const depPickerRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!depPicker) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (depPickerRef.current && e.target instanceof Node && depPickerRef.current.contains(e.target)) return;
+      setDepPicker(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDepPicker(null); };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [depPicker]);
+
   // --- Keyboard navigation ---------------------------------------------------
   // The gantt body is focusable; arrows move the selection, Enter opens,
   // Delete deletes, Left/Right collapse/expand summary rows.
@@ -767,6 +827,15 @@ export function GanttView({
     setSelectedTaskId(task.id);
     setCtxMenu({ x: e.clientX, y: e.clientY, taskId: task.id });
   }, []);
+
+  const openLinkContextMenu = React.useCallback(
+    (sourceId: string | number, targetId: string | number, type: GanttLinkType, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setLinkCtxMenu({ x: e.clientX, y: e.clientY, sourceId, targetId, type });
+    },
+    [],
+  );
 
   // --- Task hierarchy -----------------------------------------------------
   // `task.parent` builds a tree; rows are the depth-first flattening with
@@ -2610,20 +2679,38 @@ export function GanttView({
                         : active
                           ? 'gantt-link-arrow-active'
                           : 'gantt-link-arrow';
+                      // When dependency editing is enabled, lay an invisible,
+                      // wide hit-path over each link. pointer-events IS inherited
+                      // in SVG, so `pointerEvents="stroke"` on the child overrides
+                      // the parent svg's `pointer-events-none`, making just the
+                      // link right-clickable without stealing bar drag/click.
+                      const editable = !!(onDependencyDelete || onDependencyCreate);
                       return (
-                        <path
-                          key={link.key}
-                          d={d}
-                          fill="none"
-                          stroke={critEdge ? CRIT_COLOR : active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'}
-                          strokeOpacity={critEdge || active ? 1 : 0.7}
-                          strokeWidth={critEdge || active ? 2 : 1.5}
-                          markerEnd={`url(#${marker})`}
-                          data-testid={`gantt-link-${link.sourceId}-${link.targetId}`}
-                          data-link-type={link.type}
-                          data-active={active ? 'true' : 'false'}
-                          data-critical={critEdge ? 'true' : undefined}
-                        />
+                        <React.Fragment key={link.key}>
+                          <path
+                            d={d}
+                            fill="none"
+                            stroke={critEdge ? CRIT_COLOR : active ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground))'}
+                            strokeOpacity={critEdge || active ? 1 : 0.7}
+                            strokeWidth={critEdge || active ? 2 : 1.5}
+                            markerEnd={`url(#${marker})`}
+                            data-testid={`gantt-link-${link.sourceId}-${link.targetId}`}
+                            data-link-type={link.type}
+                            data-active={active ? 'true' : 'false'}
+                            data-critical={critEdge ? 'true' : undefined}
+                          />
+                          {editable && (
+                            <path
+                              d={d}
+                              fill="none"
+                              stroke="transparent"
+                              strokeWidth={10}
+                              style={{ pointerEvents: 'stroke', cursor: 'context-menu' }}
+                              data-testid={`gantt-link-hit-${link.sourceId}-${link.targetId}`}
+                              onContextMenu={(e) => openLinkContextMenu(link.sourceId, link.targetId, link.type, e)}
+                            />
+                          )}
+                        </React.Fragment>
                       );
                     })}
                     {/* Draft rubber band while dragging a connector dot */}
@@ -2698,6 +2785,36 @@ export function GanttView({
                 {t('gantt.menu.edit')}
               </button>
             )}
+            {onDependencyCreate && row && !row.isMilestone && (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={itemCls}
+                  data-testid="gantt-context-menu-add-predecessor"
+                  onClick={() => {
+                    const at = ctxMenu;
+                    setCtxMenu(null);
+                    setDepPicker({ x: at.x, y: at.y, taskId: task.id, relation: 'pred' });
+                  }}
+                >
+                  {t('gantt.menu.addPredecessor')}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={itemCls}
+                  data-testid="gantt-context-menu-add-successor"
+                  onClick={() => {
+                    const at = ctxMenu;
+                    setCtxMenu(null);
+                    setDepPicker({ x: at.x, y: at.y, taskId: task.id, relation: 'succ' });
+                  }}
+                >
+                  {t('gantt.menu.addSuccessor')}
+                </button>
+              </>
+            )}
             {onTaskDelete && (
               <button
                 type="button"
@@ -2708,6 +2825,113 @@ export function GanttView({
               >
                 {t('gantt.menu.delete')}
               </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Dependency link context menu (类型选择 + 移除) — fixed-position. */}
+      {linkCtxMenu && (() => {
+        const source = tasks.find((tk) => String(tk.id) === String(linkCtxMenu.sourceId));
+        const target = tasks.find((tk) => String(tk.id) === String(linkCtxMenu.targetId));
+        if (!source || !target) return null;
+        const itemCls = "w-full text-left px-3 py-1.5 hover:bg-accent focus:bg-accent outline-none";
+        const LINK_TYPES: GanttLinkType[] = ['fs', 'ss', 'ff', 'sf'];
+        return (
+          <div
+            ref={linkCtxMenuRef}
+            className="fixed z-50 min-w-[180px] rounded-md border bg-popover text-popover-foreground shadow-md py-1 text-sm"
+            style={{ left: linkCtxMenu.x, top: linkCtxMenu.y }}
+            role="menu"
+            data-testid="gantt-link-context-menu"
+          >
+            <div className="px-3 py-1 text-xs text-muted-foreground truncate">
+              {source.title} → {target.title}
+            </div>
+            {onDependencyCreate && LINK_TYPES.map((lt) => (
+              <button
+                key={lt}
+                type="button"
+                role="menuitemradio"
+                aria-checked={linkCtxMenu.type === lt}
+                className={cn(itemCls, linkCtxMenu.type === lt && "font-semibold")}
+                data-testid={`gantt-link-menu-type-${lt}`}
+                onClick={() => {
+                  setLinkCtxMenu(null);
+                  if (lt !== linkCtxMenu.type) onDependencyCreate(source, target, lt);
+                }}
+              >
+                {linkCtxMenu.type === lt ? '✓ ' : '  '}
+                {t(`gantt.linkType.${lt}`)}
+              </button>
+            ))}
+            {onDependencyDelete && (
+              <>
+                <div className="my-1 border-t" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={cn(itemCls, "text-destructive")}
+                  data-testid="gantt-link-menu-remove"
+                  onClick={() => { setLinkCtxMenu(null); onDependencyDelete(source, target); }}
+                >
+                  {t('gantt.menu.removeDependency')}
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* "添加紧前/紧后" task picker — lists candidate tasks; choosing one
+          creates a dependency. Excludes self and tasks already linked in that
+          direction (avoids no-op duplicates). */}
+      {depPicker && onDependencyCreate && (() => {
+        const anchor = tasks.find((tk) => String(tk.id) === String(depPicker.taskId));
+        if (!anchor) return null;
+        const itemCls = "w-full text-left px-3 py-1.5 hover:bg-accent focus:bg-accent outline-none truncate";
+        // Existing links so we hide candidates already connected this way.
+        const existing = new Set(
+          links.map((l) => `${String(l.sourceId)}->${String(l.targetId)}`),
+        );
+        const candidates = tasks.filter((c) => {
+          if (String(c.id) === String(anchor.id)) return false;
+          if (c.type === 'summary') return false;
+          const key = depPicker.relation === 'pred'
+            ? `${String(c.id)}->${String(anchor.id)}`
+            : `${String(anchor.id)}->${String(c.id)}`;
+          return !existing.has(key);
+        });
+        return (
+          <div
+            ref={depPickerRef}
+            className="fixed z-50 min-w-[200px] max-h-[280px] overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md py-1 text-sm"
+            style={{ left: depPicker.x, top: depPicker.y }}
+            role="menu"
+            data-testid="gantt-dep-picker"
+          >
+            <div className="px-3 py-1 text-xs text-muted-foreground">
+              {depPicker.relation === 'pred' ? t('gantt.menu.addPredecessor') : t('gantt.menu.addSuccessor')}
+            </div>
+            {candidates.length === 0 ? (
+              <div className="px-3 py-1.5 text-muted-foreground">{t('gantt.menu.noCandidates')}</div>
+            ) : (
+              candidates.map((c) => (
+                <button
+                  key={String(c.id)}
+                  type="button"
+                  role="menuitem"
+                  className={itemCls}
+                  data-testid={`gantt-dep-picker-option-${c.id}`}
+                  onClick={() => {
+                    setDepPicker(null);
+                    if (depPicker.relation === 'pred') onDependencyCreate(c, anchor, 'fs');
+                    else onDependencyCreate(anchor, c, 'fs');
+                  }}
+                >
+                  {c.title}
+                </button>
+              ))
             )}
           </div>
         );

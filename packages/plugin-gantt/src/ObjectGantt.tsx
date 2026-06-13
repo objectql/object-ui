@@ -821,37 +821,34 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     [ganttConfig, dataConfig, dataSource, schema.objectName, data],
   );
 
-  // Persist a drag-created dependency: append the source (predecessor) id to
-  // the target record's dependencies field, preserving the field's original
-  // shape (CSV string stays CSV, array stays array; null becomes an array).
-  const handleDependencyCreate = useCallback(
-    async (source: GanttTask, target: GanttTask) => {
+  // Re-serialize a normalized dependency list back onto a record field,
+  // preserving the field's original shape where possible: a CSV string stays
+  // CSV *as long as* no link carries a non-default (non-FS) type — types can't
+  // round-trip through CSV, so the moment one appears we promote to the object
+  // array form (`[{ id, type }, …]`). Plain FS links serialize as bare ids.
+  const serializeDependencies = (raw: unknown, deps: GanttDependency[]): unknown => {
+    const hasTypes = deps.some((d) => typeof d === 'object' && d.type && d.type !== 'fs');
+    if (!hasTypes && typeof raw === 'string') {
+      return deps.map((d) => String(typeof d === 'object' ? d.id : d)).join(',');
+    }
+    if (!hasTypes) {
+      return deps.map((d) => (typeof d === 'object' ? d.id : d));
+    }
+    return deps.map((d) =>
+      typeof d === 'object'
+        ? (d.type && d.type !== 'fs' ? { id: d.id, type: d.type } : d.id)
+        : d,
+    );
+  };
+
+  const persistDependencies = useCallback(
+    async (targetId: string | number, raw: unknown, nextDeps: GanttDependency[]) => {
       const depField = ganttConfig?.dependenciesField;
       if (!depField) return;
       const objectName =
         dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
       if (!objectName || !dataSource || typeof dataSource.update !== 'function') return;
-
-      const sourceId = (source as any).data?.id ?? (source as any).data?._id ?? source.id;
-      const targetId = (target as any).data?.id ?? (target as any).data?._id ?? target.id;
-      if (sourceId == null || targetId == null) return;
-
-      const record = data.find((r) => String(r.id ?? r._id) === String(targetId));
-      const raw = record?.[depField];
-      const existing = normalizeDependencies(raw).map((d) =>
-        String(typeof d === 'object' ? d.id : d),
-      );
-      if (existing.includes(String(sourceId))) return; // already linked
-
-      let nextValue: unknown;
-      if (typeof raw === 'string') {
-        nextValue = raw.trim() ? `${raw.trim()},${sourceId}` : String(sourceId);
-      } else if (Array.isArray(raw)) {
-        nextValue = [...raw, sourceId];
-      } else {
-        nextValue = [sourceId];
-      }
-
+      const nextValue = serializeDependencies(raw, nextDeps);
       const prevSnapshot = data;
       setData((prev) =>
         prev.map((r) =>
@@ -866,6 +863,55 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       }
     },
     [ganttConfig, dataConfig, dataSource, schema.objectName, data],
+  );
+
+  // Persist a created/updated dependency (依赖增 + 类型选择): upsert the source
+  // (predecessor) id onto the target record's dependencies field with the given
+  // link type. Re-invoking with a different type updates that link's type.
+  const handleDependencyCreate = useCallback(
+    async (source: GanttTask, target: GanttTask, type: GanttLinkType = 'fs') => {
+      const sourceId = (source as any).data?.id ?? (source as any).data?._id ?? source.id;
+      const targetId = (target as any).data?.id ?? (target as any).data?._id ?? target.id;
+      if (sourceId == null || targetId == null) return;
+      const depField = ganttConfig?.dependenciesField;
+      if (!depField) return;
+
+      const record = data.find((r) => String(r.id ?? r._id) === String(targetId));
+      const raw = record?.[depField];
+      const existing = normalizeDependencies(raw);
+      const idOf = (d: GanttDependency) => String(typeof d === 'object' ? d.id : d);
+      const cur = existing.find((d) => idOf(d) === String(sourceId));
+      const curType = cur && typeof cur === 'object' ? (cur.type ?? 'fs') : 'fs';
+      if (cur && curType === type) return; // already linked with this type — no-op
+
+      const entry: GanttDependency = type === 'fs' ? sourceId : { id: sourceId, type };
+      const nextDeps = cur
+        ? existing.map((d) => (idOf(d) === String(sourceId) ? entry : d))
+        : [...existing, entry];
+      await persistDependencies(targetId, raw, nextDeps);
+    },
+    [ganttConfig, data, persistDependencies],
+  );
+
+  // Persist a removed dependency (依赖删): drop the source id from the target
+  // record's dependencies field. Optimistic with revert, same as create.
+  const handleDependencyDelete = useCallback(
+    async (source: GanttTask, target: GanttTask) => {
+      const sourceId = (source as any).data?.id ?? (source as any).data?._id ?? source.id;
+      const targetId = (target as any).data?.id ?? (target as any).data?._id ?? target.id;
+      if (sourceId == null || targetId == null) return;
+      const depField = ganttConfig?.dependenciesField;
+      if (!depField) return;
+
+      const record = data.find((r) => String(r.id ?? r._id) === String(targetId));
+      const raw = record?.[depField];
+      const existing = normalizeDependencies(raw);
+      const idOf = (d: GanttDependency) => String(typeof d === 'object' ? d.id : d);
+      const nextDeps = existing.filter((d) => idOf(d) !== String(sourceId));
+      if (nextDeps.length === existing.length) return; // nothing to remove
+      await persistDependencies(targetId, raw, nextDeps);
+    },
+    [ganttConfig, data, persistDependencies],
   );
 
   // -- Quick-create dialog removed --
@@ -989,6 +1035,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           onTaskUpdate={handleTaskUpdateDefault}
           onTaskDelete={requestDelete}
           onDependencyCreate={ganttConfig?.dependenciesField ? handleDependencyCreate : undefined}
+          onDependencyDelete={ganttConfig?.dependenciesField ? handleDependencyDelete : undefined}
           markers={(schema as any).markers}
           autoSchedule={!!ganttConfig?.dependenciesField}
           criticalPathDefault={!!(schema as any).criticalPath}

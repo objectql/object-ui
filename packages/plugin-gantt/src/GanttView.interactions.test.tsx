@@ -265,3 +265,106 @@ describe('GanttView row drag-to-reorder', () => {
     expect(onTaskReorder).not.toHaveBeenCalled();
   });
 });
+
+describe('GanttView dependency link edit (依赖增删 + 类型选择)', () => {
+  // B depends on A (a -> b), so a single FS link renders between them.
+  const linked = () => [A(), makeTask('b', '2024-06-17T00:00:00.000Z', '2024-06-21T00:00:00.000Z', {
+    dependencies: [{ id: 'a', type: 'fs' }],
+  })];
+
+  it('renders a clickable hit-path over each link only when editing is enabled', () => {
+    const ro = renderView(linked(), {});
+    expect(ro.container.querySelector('[data-testid="gantt-link-hit-a-b"]')).toBeFalsy();
+    ro.unmount();
+
+    const { container } = renderView(linked(), { onDependencyDelete: vi.fn() });
+    expect(container.querySelector('[data-testid="gantt-link-hit-a-b"]')).toBeTruthy();
+  });
+
+  it('right-clicking a link opens a menu; 移除依赖 fires onDependencyDelete(source, target)', () => {
+    const onDependencyDelete = vi.fn();
+    const { container } = renderView(linked(), { onDependencyDelete });
+
+    const hit = container.querySelector('[data-testid="gantt-link-hit-a-b"]')!;
+    fireEvent.contextMenu(hit, { clientX: 300, clientY: 120 });
+    expect(document.querySelector('[data-testid="gantt-link-context-menu"]')).toBeTruthy();
+
+    fireEvent.click(document.querySelector('[data-testid="gantt-link-menu-remove"]')!);
+    expect(onDependencyDelete).toHaveBeenCalledTimes(1);
+    const [source, target] = onDependencyDelete.mock.calls[0];
+    expect(source.id).toBe('a');
+    expect(target.id).toBe('b');
+  });
+
+  it('choosing a different link type fires onDependencyCreate with the new type', () => {
+    const onDependencyCreate = vi.fn();
+    const { container } = renderView(linked(), { onDependencyCreate });
+
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-link-hit-a-b"]')!, { clientX: 300, clientY: 120 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-link-menu-type-ss"]')!);
+
+    expect(onDependencyCreate).toHaveBeenCalledTimes(1);
+    const [source, target, type] = onDependencyCreate.mock.calls[0];
+    expect(source.id).toBe('a');
+    expect(target.id).toBe('b');
+    expect(type).toBe('ss');
+  });
+
+  it('re-selecting the current link type is a no-op', () => {
+    const onDependencyCreate = vi.fn();
+    const { container } = renderView(linked(), { onDependencyCreate });
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-link-hit-a-b"]')!, { clientX: 300, clientY: 120 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-link-menu-type-fs"]')!); // already FS
+    expect(onDependencyCreate).not.toHaveBeenCalled();
+  });
+
+  it('readOnly hides the link hit-paths and removal entirely', () => {
+    const onDependencyDelete = vi.fn();
+    const { container } = renderView(linked(), { onDependencyDelete, readOnly: true });
+    expect(container.querySelector('[data-testid="gantt-link-hit-a-b"]')).toBeFalsy();
+  });
+});
+
+describe('GanttView add predecessor/successor (添加紧前/紧后)', () => {
+  it('the task menu offers 添加紧前/紧后; picking a candidate links in the right direction', () => {
+    const onDependencyCreate = vi.fn();
+    const { container } = renderView([A(), B()], { onDependencyCreate });
+
+    // Add-predecessor on B → picked task A becomes a predecessor: a -> b.
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-b"]')!, { clientX: 50, clientY: 50 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-context-menu-add-predecessor"]')!);
+    expect(document.querySelector('[data-testid="gantt-dep-picker"]')).toBeTruthy();
+    fireEvent.click(document.querySelector('[data-testid="gantt-dep-picker-option-a"]')!);
+
+    expect(onDependencyCreate).toHaveBeenCalledTimes(1);
+    const [source, target, type] = onDependencyCreate.mock.calls[0];
+    expect(source.id).toBe('a'); // predecessor
+    expect(target.id).toBe('b');
+    expect(type).toBe('fs');
+  });
+
+  it('add-successor links the anchor as the predecessor of the picked task', () => {
+    const onDependencyCreate = vi.fn();
+    const { container } = renderView([A(), B()], { onDependencyCreate });
+
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 50, clientY: 50 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-context-menu-add-successor"]')!);
+    fireEvent.click(document.querySelector('[data-testid="gantt-dep-picker-option-b"]')!);
+
+    const [source, target] = onDependencyCreate.mock.calls[0];
+    expect(source.id).toBe('a'); // anchor is the predecessor
+    expect(target.id).toBe('b');
+  });
+
+  it('the picker hides tasks already linked in that direction', () => {
+    const onDependencyCreate = vi.fn();
+    // b already depends on a; add-predecessor on b must not re-offer a.
+    const tasks = [A(), makeTask('b', '2024-06-17T00:00:00.000Z', '2024-06-21T00:00:00.000Z', {
+      dependencies: [{ id: 'a', type: 'fs' }],
+    })];
+    const { container } = renderView(tasks, { onDependencyCreate });
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-b"]')!, { clientX: 50, clientY: 50 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-context-menu-add-predecessor"]')!);
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-a"]')).toBeFalsy();
+  });
+});

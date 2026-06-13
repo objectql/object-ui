@@ -356,8 +356,13 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 optional. `parentField` builds the summary tree (parents roll up their
 children's span + weighted progress), `typeField` distinguishes
 `task` / `summary` / `milestone`, `dependenciesField` draws the dependency
-arrows (accepts CSV, an id array, or `[{ id, type: 'fs'|'ss'|'ff'|'sf' }]`),
-and `tooltipFields` configures the hover detail (悬浮详情) — each entry a
+arrows (accepts CSV, an id array, or `[{ id, type: 'fs'|'ss'|'ff'|'sf' }]`).
+Setting `dependenciesField` also makes links **editable** (unless `readOnly`):
+drag a bar's connector dot to create a FS link, right-click a link to switch its
+type (FS/SS/FF/SF) or remove it (移除依赖), or right-click a bar for
+添加紧前/添加紧后依赖 — every change is written back to the field (the field is
+auto-promoted to `[{ id, type }]` form the moment a non-FS link is stored).
+`tooltipFields` configures the hover detail (悬浮详情) — each entry a
 field name or `{ field, label }`, formatted by field type.
 `baselineStartField` / `baselineEndField` draw a thin planned-vs-actual
 baseline strip under each bar. `groupByField` swimlanes the rows by any field
