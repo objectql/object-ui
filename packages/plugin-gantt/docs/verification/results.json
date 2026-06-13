@@ -1,5 +1,5 @@
 {
-  "date": "2026-06-13T04:18:11.478Z",
+  "date": "2026-06-13T08:42:03.367Z",
   "results": [
     {
       "name": "hierarchy rows",
@@ -27,6 +27,11 @@
       "detail": "ff,fs,sf,ss"
     },
     {
+      "name": "week grid fills the viewport (no right-side gap)",
+      "pass": true,
+      "detail": "content 1320px ≥ viewport 1280px"
+    },
+    {
       "name": "collapse hides child rows",
       "pass": true,
       "detail": "9/9 rows with Build collapsed"
@@ -42,9 +47,9 @@
       "detail": "13 rows back"
     },
     {
-      "name": "tooltip content",
+      "name": "tooltip content (configured fields)",
       "pass": true,
-      "detail": "\"Backend services · Jun 18 → Jul 8 · 20d · 30%\""
+      "detail": "\"Backend services · Owner · Priya N. · Status · In Progress · Effort · 15 days\""
     },
     {
       "name": "hover highlights its links",
@@ -69,7 +74,7 @@
     {
       "name": "initial render of 5000 tasks",
       "pass": true,
-      "detail": "29.7ms"
+      "detail": "31.2ms"
     },
     {
       "name": "row virtualization",
@@ -84,7 +89,7 @@
     {
       "name": "mid-list scroll window shift",
       "pass": true,
-      "detail": "38.2ms to re-render at scrollTop 100000 of 200000"
+      "detail": "44.5ms to re-render at scrollTop 100000 of 200000"
     },
     {
       "name": "window stays small after scroll",

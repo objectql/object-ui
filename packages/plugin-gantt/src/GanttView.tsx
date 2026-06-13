@@ -864,8 +864,25 @@ export function GanttView({
     start = startOfUnit(start, viewMode);
     end.setHours(23,59,59,999);
 
+    // Fill the viewport. With a fixed per-unit column width, a short date span
+    // in week/month/quarter mode leaves the grid far narrower than the timeline
+    // area, so the right side reads as blank. When the end is auto-derived,
+    // extend it with empty trailing calendar columns until the grid reaches the
+    // right edge — the scale stays honest (real calendar units), we just show
+    // more of the future. Day mode usually already overflows, so this is a
+    // no-op there. Skip entirely when the caller controls `endDate`.
+    if (!endDate && tasks.length > 0 && pxPerDay > 0) {
+      const avail = Math.max(0, effectiveWidth - taskListWidth);
+      const haveDays = (end.getTime() - start.getTime()) / MS_PER_DAY;
+      const needDays = avail / pxPerDay;
+      if (needDays > haveDays) {
+        const target = new Date(start.getTime() + Math.ceil(needDays) * MS_PER_DAY);
+        if (target > end) end = target;
+      }
+    }
+
     return { start, end };
-  }, [startDate, endDate, tasks, viewMode]);
+  }, [startDate, endDate, tasks, viewMode, pxPerDay, effectiveWidth, taskListWidth]);
 
   // Generate timeline columns — one per unit of the active granularity.
   // Widths follow the calendar at pxPerDay, so a 31-day month column is

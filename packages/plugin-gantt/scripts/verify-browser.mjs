@@ -49,6 +49,16 @@ try {
   // Week mode fits the whole project on one screen.
   await page.click('[data-testid="gantt-view-mode-week"]');
   await page.waitForTimeout(200);
+  // A short date span must still fill the timeline area: with a fixed per-unit
+  // column width the natural grid is far narrower than the viewport in
+  // week/month/quarter mode, so the range auto-extends with empty trailing
+  // calendar columns until the grid reaches the right edge (no blank gap).
+  const weekFill = await page.evaluate(() => {
+    const s = document.querySelector('[data-testid="gantt-timeline"]');
+    return { client: s.clientWidth, scroll: s.scrollWidth };
+  });
+  assert(weekFill.scroll >= weekFill.client - 2, 'week grid fills the viewport (no right-side gap)',
+    `content ${weekFill.scroll}px ≥ viewport ${weekFill.client}px`);
   await shot('02-week-mode-all-links.png');
 
   // ── 2. Collapse/expand ───────────────────────────────────────────────────
@@ -67,7 +77,13 @@ try {
   await page.hover('[data-testid="gantt-task-bar-t4"]');
   await page.waitForSelector('[data-testid="gantt-tooltip-t4"]');
   const tooltipText = await page.locator('[data-testid="gantt-tooltip-t4"]').innerText();
-  assert(tooltipText.includes('Backend services') && tooltipText.includes('30%'), 'tooltip content', JSON.stringify(tooltipText.replace(/\n/g, ' · ')));
+  // t4 carries configured tooltipFields (Owner/Status/Effort), which replace
+  // the default start→end·duration·progress line — so assert those, not '30%'.
+  assert(
+    tooltipText.includes('Backend services') && tooltipText.includes('Owner') && tooltipText.includes('Priya N.'),
+    'tooltip content (configured fields)',
+    JSON.stringify(tooltipText.replace(/\n/g, ' · ')),
+  );
   const activeLinks = await page.locator('[data-testid="gantt-links"] path[data-active="true"]').count();
   assert(activeLinks === 2, 'hover highlights its links', `${activeLinks}/2 active (t3→t4, t4→t6)`);
   await shot('04-tooltip-and-link-highlight.png');

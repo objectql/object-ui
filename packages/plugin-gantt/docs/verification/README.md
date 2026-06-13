@@ -13,7 +13,7 @@ pnpm --dir packages/plugin-gantt exec vite demo --port 5199
 node packages/plugin-gantt/scripts/verify-browser.mjs
 ```
 
-## Latest run: 18/18 checks passed
+## Latest run: 19/19 checks passed
 
 ### 1. Hierarchy, milestones, dependency links
 
@@ -24,6 +24,12 @@ node packages/plugin-gantt/scripts/verify-browser.mjs
   Code freeze).
 - ![Project overview, day mode](01-project-overview.png)
 - ![Whole project with all links, week mode](02-week-mode-all-links.png)
+- **Viewport fill:** per-unit column width is fixed, so a short date span in
+  week / month / quarter mode would otherwise leave the grid much narrower than
+  the timeline area (a blank right-side gap). When the end date is auto-derived
+  the range now extends with empty trailing calendar columns until the grid
+  reaches the right edge — the scale stays honest (real weeks/months), only the
+  visible future grows. Asserted in week mode (content width ≥ viewport width).
 
 ### 2. Collapse / expand
 
