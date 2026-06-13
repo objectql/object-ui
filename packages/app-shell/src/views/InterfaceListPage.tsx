@@ -83,36 +83,48 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
   // the full body lives behind the per-view overlay API — the same
   // hydration ObjectView performs. Only fetch when the resolution came up
   // hollow.
+  //
+  // IMPORTANT: the deps are SCALARS, not the objectDef/resolvedView object
+  // identities. `useMetadata().objects` is rebuilt per render, so identity
+  // deps re-fire this effect on every render — and the unconditional
+  // `setHydratedView(null)` then ping-pongs with the async `setHydratedView
+  // (full)` into an infinite render/refetch loop the moment anything (e.g.
+  // a `uf_*` URL write) re-renders this component after hydration settled.
+  const objectDefName: string | undefined = objectDef?.name;
+  const resolvedViewHollow = !!resolvedView && !resolvedView.columns;
+  const resolvedViewKey = resolvedView?.name
+    ?? (cfg.sourceView ? `${cfg.source}.${cfg.sourceView}` : undefined);
   const [hydratedView, setHydratedView] = React.useState<any>(null);
   React.useEffect(() => {
     let cancelled = false;
     setHydratedView(null);
-    if (!objectDef || !cfg.source || resolvedView?.columns) return;
-    const viewKey = resolvedView?.name
-      ?? (cfg.sourceView ? `${cfg.source}.${cfg.sourceView}` : undefined);
-    if (!viewKey) return;
+    if (!objectDefName || !cfg.source || !resolvedViewHollow || !resolvedViewKey) return;
     (async () => {
       try {
         const ds: any = dataSource;
         let full: any = null;
         if (typeof ds?.listViewOverrides === 'function') {
           const all = await ds.listViewOverrides(cfg.source);
-          full = all?.[viewKey] ?? null;
+          full = all?.[resolvedViewKey] ?? null;
         }
         if (!full?.columns && typeof ds?.getView === 'function') {
-          full = await ds.getView(cfg.source, viewKey);
+          full = await ds.getView(cfg.source, resolvedViewKey);
         }
         if (!cancelled && full && typeof full === 'object') setHydratedView(full);
       } catch { /* hollow view stays hollow — renderer falls back to defaults */ }
     })();
     return () => { cancelled = true; };
-  }, [objectDef, cfg.source, cfg.sourceView, resolvedView, dataSource]);
+  }, [objectDefName, cfg.source, cfg.sourceView, resolvedViewHollow, resolvedViewKey, dataSource]);
 
   const viewDef = React.useMemo(
     () => (hydratedView ? { ...resolvedView, ...hydratedView } : resolvedView),
     [resolvedView, hydratedView],
   );
 
+  // Key the schema on CONTENT, not object identity — `objects` (and thus
+  // objectDef/resolvedView) are rebuilt per render, and a new schema
+  // identity makes ListView refetch. The serialized view config is small.
+  const viewDefJson = JSON.stringify(viewDef ?? null);
   const schema = React.useMemo(() => {
     if (!objectDef) return undefined;
     const view = viewDef || {};
@@ -164,7 +176,8 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
       allowExport: false,
       inlineEdit: false,
     };
-  }, [objectDef, viewDef, cfg]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objectDefName, viewDefJson, cfg]);
 
   if (!objectDef || !schema) {
     return (
