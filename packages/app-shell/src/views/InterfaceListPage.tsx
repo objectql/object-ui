@@ -109,7 +109,7 @@ const SELECT_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean
 const DATE_TYPES = new Set(['date', 'datetime', 'time']);
 const IMAGE_TYPES = new Set(['image', 'file', 'attachment', 'avatar', 'photo']);
 
-function defaultKanbanFromObject(objectDef: any): { groupField: string; groupByField: string } | undefined {
+export function defaultKanbanFromObject(objectDef: any): { groupField: string; groupByField: string } | undefined {
   const field =
     firstFieldMatching(objectDef, (_n, f) => SELECT_TYPES.has(f.type)) ??
     firstFieldMatching(objectDef, (n) => /status|stage|state|priority|category|kind/i.test(n));
@@ -125,12 +125,12 @@ function defaultDateField(objectDef: any): string | undefined {
   );
 }
 
-function defaultCalendarFromObject(objectDef: any): { startDateField: string } | undefined {
+export function defaultCalendarFromObject(objectDef: any): { startDateField: string } | undefined {
   const field = defaultDateField(objectDef);
   return field ? { startDateField: field } : undefined;
 }
 
-function defaultGalleryFromObject(objectDef: any): { coverField: string } | undefined {
+export function defaultGalleryFromObject(objectDef: any): { coverField: string } | undefined {
   const field = firstFieldMatching(objectDef, (_n, f) => IMAGE_TYPES.has(f.type));
   return field ? { coverField: field } : undefined;
 }
