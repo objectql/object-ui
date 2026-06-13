@@ -32,7 +32,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@object-ui/components';
-import { PanelLeft, Share2 } from 'lucide-react';
+import { PanelLeft, PanelLeftClose, PanelLeftOpen, Share2 } from 'lucide-react';
 import {
   ChatbotEnhanced,
   useAgents,
@@ -168,6 +168,70 @@ export interface AiChatPageProps {
   defaultAgent?: string;
 }
 
+const CHATS_COLLAPSED_STORAGE_KEY = 'ai-chats-collapsed';
+
+export interface CollapsibleChatsList {
+  /** Whether the desktop conversations list is currently hidden. */
+  collapsed: boolean;
+  /** User-driven collapse/expand; persists the preference and takes manual control. */
+  toggle: () => void;
+  /** Wire to the preview pane: auto-tucks the list when it opens, restores on close. */
+  handleCanvasOpenChange: (open: boolean) => void;
+}
+
+/**
+ * State for the collapsible desktop conversations list. Exported for tests.
+ *
+ * Two drivers, one rule — never fight the user:
+ *  - **Manual** `toggle()` flips it and PERSISTS the preference (localStorage),
+ *    and marks the user as having taken control.
+ *  - **Auto** `handleCanvasOpenChange(open)` tucks the list away when the Live
+ *    Canvas preview opens (the chat + preview split is tight) and restores it on
+ *    close — but ONLY if the auto-collapse is what hid it. A manual toggle (or a
+ *    list the user already collapsed) is never overridden, and auto-collapse is
+ *    transient (not persisted).
+ */
+export function useCollapsibleChatsList(): CollapsibleChatsList {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(CHATS_COLLAPSED_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const autoCollapsedRef = useRef(false);
+
+  const toggle = useCallback(() => {
+    autoCollapsedRef.current = false; // an explicit toggle is the user taking control
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(CHATS_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
+      } catch {
+        /* private mode / disabled storage — preference just won't persist */
+      }
+      return next;
+    });
+  }, []);
+
+  const handleCanvasOpenChange = useCallback((open: boolean) => {
+    if (open) {
+      setCollapsed((prev) => {
+        if (!prev) {
+          autoCollapsedRef.current = true;
+          return true;
+        }
+        return prev; // already collapsed (manual) — leave it, don't claim it
+      });
+    } else if (autoCollapsedRef.current) {
+      autoCollapsedRef.current = false;
+      setCollapsed(false);
+    }
+  }, []);
+
+  return { collapsed, toggle, handleCanvasOpenChange };
+}
+
 export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentProp }: AiChatPageProps = {}) {
   const { user } = useAuth();
   const { t } = useObjectTranslation();
@@ -230,6 +294,11 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   const [titleHints, setTitleHints] = useState<Record<string, string>>({});
   const [shareOpen, setShareOpen] = useState(false);
   const [mobileChatsOpen, setMobileChatsOpen] = useState(false);
+  const {
+    collapsed: chatsCollapsed,
+    toggle: toggleChatsCollapsed,
+    handleCanvasOpenChange,
+  } = useCollapsibleChatsList();
   const restApiBase = useMemo(
     () => apiBase.replace(/\/v1\/ai$/, '').replace(/\/ai$/, '') || '/api',
     [apiBase],
@@ -322,6 +391,26 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
         >
           <PanelLeft className="h-4 w-4" />
         </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden h-8 w-8 shrink-0 md:inline-flex"
+          onClick={toggleChatsCollapsed}
+          aria-label={
+            chatsCollapsed
+              ? t('console.ai.showChats', { defaultValue: 'Show chats' })
+              : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
+          }
+          title={
+            chatsCollapsed
+              ? t('console.ai.showChats', { defaultValue: 'Show chats' })
+              : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
+          }
+          data-testid="ai-chat-collapse-sidebar-trigger"
+          aria-pressed={chatsCollapsed}
+        >
+          {chatsCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </Button>
         <div className="min-w-0 flex-1">
           <AppHeader variant="home" />
         </div>
@@ -353,13 +442,15 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
         />
       )}
       <div className="flex min-h-0 flex-1 w-full bg-muted/20">
-        <ConversationsSidebar
-          userId={userId}
-          apiBase={apiBase}
-          refreshKey={refreshKey}
-          titleHints={titleHints}
-          className="hidden w-72 shrink-0 border-r md:flex"
-        />
+        {!chatsCollapsed && (
+          <ConversationsSidebar
+            userId={userId}
+            apiBase={apiBase}
+            refreshKey={refreshKey}
+            titleHints={titleHints}
+            className="hidden w-72 shrink-0 border-r md:flex"
+          />
+        )}
         <main className="flex min-w-0 flex-1 flex-col">
           <ChatPane
             key={`${chatApi ?? 'local'}:${conversationId ?? 'pending'}`}
@@ -377,6 +468,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             initialMessages={initialMessages}
             onSent={handleSent}
             onShare={() => setShareOpen(true)}
+            onCanvasOpenChange={handleCanvasOpenChange}
           />
         </main>
       </div>
@@ -402,6 +494,8 @@ interface ChatPaneProps {
   initialMessages: HydratedUIMessage[];
   onSent: (firstUserMessage?: string) => void;
   onShare: () => void;
+  /** Reports the Live Canvas preview opening/closing so the page can auto-tuck the chats list. */
+  onCanvasOpenChange?: (open: boolean) => void;
 }
 
 function ChatPane({
@@ -417,6 +511,7 @@ function ChatPane({
   initialMessages,
   onSent,
   onShare,
+  onCanvasOpenChange,
 }: ChatPaneProps) {
   const { t } = useObjectTranslation();
   const navigate = useNavigate();
@@ -432,6 +527,12 @@ function ChatPane({
   useEffect(() => () => {
     if (canvasTimerRef.current) window.clearTimeout(canvasTimerRef.current);
   }, []);
+  // Tell the page when the preview pane opens/closes so it can tuck the chats
+  // list away for the (tight) chat + preview split, and restore it after.
+  const canvasOpen = canvasApp !== null;
+  useEffect(() => {
+    onCanvasOpenChange?.(canvasOpen);
+  }, [canvasOpen, onCanvasOpenChange]);
   const handleDraftArtifacts = useCallback((artifacts: Array<{ type: string; name: string }>) => {
     const app = artifacts.find((a) => a.type === 'app');
     if (app) setCanvasApp((prev) => prev ?? { name: app.name, materialized: false });
