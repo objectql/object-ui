@@ -315,6 +315,37 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 }
 ```
 
+**Gantt plugin example:**
+```json
+{
+  "type": "gantt",
+  "props": {
+    "objectName": "project_task",
+    "gantt": {
+      "titleField": "name",
+      "startDateField": "start_date",
+      "endDateField": "end_date",
+      "progressField": "progress",
+      "parentField": "parent_id",
+      "dependenciesField": "depends_on",
+      "typeField": "item_type",
+      "colorField": "status",
+      "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"]
+    }
+  },
+  "bind": "project_task"
+}
+```
+
+`titleField` / `startDateField` / `endDateField` are required; the rest are
+optional. `parentField` builds the summary tree (parents roll up their
+children's span + weighted progress), `typeField` distinguishes
+`task` / `summary` / `milestone`, `dependenciesField` draws the dependency
+arrows (accepts CSV, an id array, or `[{ id, type: 'fs'|'ss'|'ff'|'sf' }]`),
+and `tooltipFields` configures the hover detail (悬浮详情) — each entry a
+field name or `{ field, label }`, formatted by field type. The gantt config
+may also be hoisted to top-level `props` instead of nesting under `gantt`.
+
 Import plugins in your app entry point to trigger registration:
 ```typescript
 import '@object-ui/plugin-grid';
