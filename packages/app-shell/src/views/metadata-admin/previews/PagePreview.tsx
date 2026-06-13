@@ -97,11 +97,12 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
     onSelectionChange?.({ kind: 'block', id: `children[${next.length - 1}]`, label: newBlock.type });
   }, [canEdit, draft, onPatch, onSelectionChange, shape]);
 
-  // Interface page in preview mode → mirror the runtime (InterfaceListPage)
-  // so the Preview tab shows the real source view + user filters + data,
-  // live from the edited draft. Design mode falls through to the canvas,
-  // which shows the "configured in Properties" hint instead.
-  if (isInterfacePage && !designMode) {
+  // Interface page → always mirror the runtime (InterfaceListPage), in BOTH
+  // design and preview modes. These pages are config-driven, not region-
+  // composed, so there is nothing to drag on a canvas: the author edits the
+  // Properties panel on the right and sees the real list (source view + user
+  // filters + data) update live on the left — no tab switch, no placeholder.
+  if (isInterfacePage) {
     return (
       <PreviewShell hint="page · interface">
         <PreviewErrorBoundary fallbackHint="The interface page references a source object/view that isn't available.">

@@ -39,7 +39,7 @@ describe('PagePreview — interface-page routing (ADR-0047)', () => {
     expect(screen.queryByTestId('mock-schema-renderer')).not.toBeInTheDocument();
   });
 
-  it('does NOT use InterfaceListPage in design mode (keeps the canvas hint)', () => {
+  it('also renders the live InterfaceListPage in design mode (no canvas hint)', () => {
     render(
       <PagePreview
         draft={interfaceDraft}
@@ -48,8 +48,10 @@ describe('PagePreview — interface-page routing (ADR-0047)', () => {
         onPatch={() => {}}
       />,
     );
-    expect(screen.queryByTestId('mock-interface-list')).not.toBeInTheDocument();
-    expect(screen.getByTestId('mock-page-canvas')).toBeInTheDocument();
+    // Interface pages are config-driven: the design tab shows the live list
+    // (mirroring the runtime), not the region canvas/placeholder.
+    expect(screen.getByTestId('mock-interface-list')).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-page-canvas')).not.toBeInTheDocument();
   });
 
   it('renders the generic SchemaRenderer for a region-composed page (not an interface page)', () => {
