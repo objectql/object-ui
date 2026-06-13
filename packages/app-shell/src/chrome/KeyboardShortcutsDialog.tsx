@@ -54,6 +54,13 @@ export function KeyboardShortcutsDialog() {
       ],
     },
     {
+      title: t('console.shortcuts.groups.aiChat', { defaultValue: 'AI assistant' }),
+      shortcuts: [
+        { keys: ['⌘', '⇧', 'O'], description: t('console.shortcuts.newChat', { defaultValue: 'New chat' }) },
+        { keys: ['⌘', '⇧', 'S'], description: t('console.shortcuts.toggleChatsList', { defaultValue: 'Toggle conversations list' }) },
+      ],
+    },
+    {
       title: t('console.shortcuts.groups.preferences'),
       shortcuts: [
         { keys: ['⌘', 'D'], description: t('console.shortcuts.toggleDarkMode') },

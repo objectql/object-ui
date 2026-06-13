@@ -363,6 +363,35 @@ export function useResizableChatPane(active: boolean): ResizableChatPane {
   return { width, dragging, containerRef, onHandlePointerDown, onHandleKeyDown, reset };
 }
 
+export type AiChatShortcut = 'toggle-list' | 'new-chat';
+
+/**
+ * Match a keydown to an AI-chat shortcut, mirroring ChatGPT/Claude:
+ *  - ⌘/Ctrl+Shift+O → new chat
+ *  - ⌘/Ctrl+Shift+S → toggle the conversations list
+ *
+ * Both use the ⌘/Ctrl+Shift modifier so they're safe to fire even while the
+ * composer is focused (they can't be produced by ordinary typing). Pure +
+ * exported for tests.
+ */
+export function matchAiChatShortcut(e: {
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+}): AiChatShortcut | null {
+  if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.altKey) return null;
+  switch (e.key.toLowerCase()) {
+    case 'o':
+      return 'new-chat';
+    case 's':
+      return 'toggle-list';
+    default:
+      return null;
+  }
+}
+
 export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentProp }: AiChatPageProps = {}) {
   const { user } = useAuth();
   const { t } = useObjectTranslation();
@@ -430,6 +459,18 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     toggle: toggleChatsCollapsed,
     handleCanvasOpenChange,
   } = useCollapsibleChatsList();
+  // Keyboard shortcuts (ChatGPT/Claude parity): ⌘⇧O new chat, ⌘⇧S toggle list.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const action = matchAiChatShortcut(e);
+      if (!action) return;
+      e.preventDefault();
+      if (action === 'toggle-list') toggleChatsCollapsed();
+      else navigate('/ai?new=1');
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [toggleChatsCollapsed, navigate]);
   const restApiBase = useMemo(
     () => apiBase.replace(/\/v1\/ai$/, '').replace(/\/ai$/, '') || '/api',
     [apiBase],
