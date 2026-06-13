@@ -15,6 +15,7 @@ import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
 import { OutlineStrip } from './OutlineStrip';
 import { PageBlockCanvas } from './PageBlockCanvas';
+import { InterfaceListPage } from '../../InterfaceListPage';
 import { t as tr } from '../i18n';
 
 interface Block { type?: string; id?: string; children?: Block[]; [k: string]: unknown }
@@ -31,6 +32,13 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
   const designMode = !!(editing && onSelectionChange);
   const canEdit = designMode && !!onPatch;
   const selectedId = selection && selection.kind === 'block' ? selection.id : null;
+
+  // ADR-0047 interface pages are config-driven, not region-composed. The
+  // runtime (PageView) renders them via InterfaceListPage; the generic
+  // SchemaRenderer fallback would only produce a bare list shell with no
+  // source binding or user filters. Computed here, consumed after all hooks
+  // (the early return must not sit above later hooks — Rules of Hooks).
+  const isInterfacePage = !!(draft as { interfaceConfig?: { source?: string } })?.interfaceConfig?.source;
 
   // Pages may use either of two canonical shapes:
   //   1. `regions: [{ name, components: [...] }]`  (ObjectStack spec, used by seeded pages)
@@ -88,6 +96,20 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
     onPatch!({ children: next });
     onSelectionChange?.({ kind: 'block', id: `children[${next.length - 1}]`, label: newBlock.type });
   }, [canEdit, draft, onPatch, onSelectionChange, shape]);
+
+  // Interface page in preview mode → mirror the runtime (InterfaceListPage)
+  // so the Preview tab shows the real source view + user filters + data,
+  // live from the edited draft. Design mode falls through to the canvas,
+  // which shows the "configured in Properties" hint instead.
+  if (isInterfacePage && !designMode) {
+    return (
+      <PreviewShell hint="page · interface">
+        <PreviewErrorBoundary fallbackHint="The interface page references a source object/view that isn't available.">
+          <InterfaceListPage page={draft as Record<string, unknown>} />
+        </PreviewErrorBoundary>
+      </PreviewShell>
+    );
+  }
 
   // Empty draft → no preview; but if we're in design mode show the
   // canvas so users can author from scratch.
