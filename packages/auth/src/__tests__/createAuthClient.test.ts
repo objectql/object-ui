@@ -144,6 +144,58 @@ describe('createAuthClient', () => {
     expect(result?.user.id).toBe('1');
   });
 
+  it('getSession self-heals a stale bearer: cookie session wins and replaces the token', async () => {
+    const { TokenStorage } = await import('../createAuthClient');
+    TokenStorage.set('stale-token');
+    const session = { token: 'fresh-cookie-token', id: 's9', userId: '1', expiresAt: '2027-01-01' };
+    const user = { id: '1', name: 'Jack', email: 'jack@test.com' };
+    // Bearer-carrying call sees no session (stale token); the cookie-only
+    // retry (no Authorization header) sees the live SSO session.
+    const mockFn = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      const hasBearer = Boolean(headers.get('Authorization'));
+      const body = hasBearer ? null : { user, session };
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+
+    const result = await client.getSession();
+
+    expect(result?.user.id).toBe('1');
+    expect(result?.session.token).toBe('fresh-cookie-token');
+    // The stale token was replaced by the live session's token.
+    expect(TokenStorage.get()).toBe('fresh-cookie-token');
+    TokenStorage.clear();
+  });
+
+  it('getSession drops a dead bearer when the cookie has no session either', async () => {
+    const { TokenStorage } = await import('../createAuthClient');
+    TokenStorage.set('dead-token');
+    // Both the bearer call and the cookie-only retry affirmatively report
+    // "no session" (200 + null) — the stored token is dead weight.
+    const mockFn = vi.fn(async () =>
+      new Response(JSON.stringify(null), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+
+    const result = await client.getSession();
+
+    expect(result).toBeNull();
+    expect(TokenStorage.get()).toBeNull();
+  });
+
+  it('getSession keeps the bearer on transport errors (proves nothing about validity)', async () => {
+    const { TokenStorage } = await import('../createAuthClient');
+    TokenStorage.set('maybe-good-token');
+    const mockFn = vi.fn(async () => { throw new Error('network down'); });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+
+    const result = await client.getSession();
+
+    expect(result).toBeNull();
+    expect(TokenStorage.get()).toBe('maybe-good-token');
+    TokenStorage.clear();
+  });
+
   it('getSession returns null on failure', async () => {
     const { mockFn } = createMockFetch({
       '/get-session': { status: 401, body: { message: 'Unauthorized' } },

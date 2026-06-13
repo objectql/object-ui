@@ -274,14 +274,57 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
     },
 
     async getSession() {
-      const { data, error } = await betterAuth.getSession();
-      if (error || !data) return null;
-      const payload = data as unknown as { user: AuthUser; session: AuthSession };
-      // Keep localStorage in sync if the server returns a fresh token
-      if (payload.session?.token) {
-        TokenStorage.set(payload.session.token);
+      // better-fetch RETHROWS transport errors (it does not wrap them in
+      // `{ error }`); a network hiccup must read as "signed out for now",
+      // not an exception in every AuthProvider boot.
+      let data: unknown = null;
+      try {
+        const res = await betterAuth.getSession();
+        if (!res.error) data = res.data;
+      } catch { /* transport error — fall through to the retry/null path */ }
+      if (data) {
+        const payload = data as unknown as { user: AuthUser; session: AuthSession };
+        // Keep localStorage in sync if the server returns a fresh token
+        if (payload.session?.token) {
+          TokenStorage.set(payload.session.token);
+        }
+        return { user: payload.user, session: payload.session };
       }
-      return { user: payload.user, session: payload.session };
+
+      // Stale-bearer self-heal: every request injects the localStorage
+      // bearer, and an INVALID bearer shadows a perfectly valid cookie
+      // session. SSO landings (e.g. the cloud console's sso-exchange into a
+      // tenant environment) only set the cookie — they cannot touch this
+      // origin's localStorage — so a leftover token from an earlier login
+      // bounces a freshly signed-in user back to the login page forever.
+      // Retry once WITHOUT the bearer: a cookie session means the stored
+      // token was stale — adopt the live session (and its token) instead.
+      if (TokenStorage.get()) {
+        try {
+          const rawFetch = fetchFn || globalThis.fetch.bind(globalThis);
+          const resp = await rawFetch(`${origin}${basePath}/get-session`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+          });
+          if (resp.ok) {
+            const body = (await resp.json().catch(() => null)) as
+              | { user?: AuthUser; session?: AuthSession }
+              | null;
+            if (body?.user && body?.session) {
+              if (body.session.token) TokenStorage.set(body.session.token);
+              else TokenStorage.clear();
+              return { user: body.user, session: body.session };
+            }
+            // The server affirmatively says the cookie has no session either
+            // — the stored bearer is dead weight; drop it so the next
+            // sign-in starts clean. (Transport errors keep the token: they
+            // prove nothing about its validity.)
+            TokenStorage.clear();
+          }
+        } catch { /* network hiccup — treat as signed out, keep the token */ }
+      }
+      return null;
     },
 
     async forgotPassword(email: string) {
