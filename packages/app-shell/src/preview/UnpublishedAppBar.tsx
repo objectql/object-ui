@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useMetadata } from '../providers/MetadataProvider';
+import { matchAppBySegment } from '../utils/appRoute';
 import { usePreviewDrafts } from './PreviewModeContext';
 
 export function UnpublishedAppBar() {
@@ -40,7 +41,7 @@ export function UnpublishedAppBar() {
   if (preview) return null;
   const routeApp = appName ?? location.pathname.match(/\/apps\/([^/?#]+)/)?.[1];
   if (!routeApp) return null;
-  const app = (apps ?? []).find((a: any) => a?.name === routeApp);
+  const app = matchAppBySegment(apps ?? [], routeApp);
   if (!app || (app as any).hidden !== true) return null;
 
   const publish = async () => {

@@ -61,7 +61,7 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
 import { useAuth, getUserInitials } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel, preferLocal } from '../utils';
+import { resolveI18nLabel, preferLocal, matchAppBySegment } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
@@ -457,7 +457,8 @@ export function AppHeader({
 
   // Filter objects to only those belonging to the current app via its navigation
   const appNameKey = activeAppName || currentAppName || appNameFromRoute;
-  const currentApp = (metadataApps || []).find((a: any) => a.name === appNameKey);
+  // ADR-0048 (A) — appNameKey may be a package id (route segment); match by it.
+  const currentApp = matchAppBySegment(metadataApps || [], appNameKey);
   const appNavObjectNames = new Set<string>();
   const collectNavObjects = (items: any[]) => {
     for (const item of items || []) {

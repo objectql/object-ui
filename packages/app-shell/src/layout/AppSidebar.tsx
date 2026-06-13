@@ -61,7 +61,7 @@ import { usePermissions } from '@object-ui/permissions';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
-import { resolveI18nLabel } from '../utils';
+import { resolveI18nLabel, matchAppBySegment } from '../utils';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { useAppContextSelectors } from './ContextSelectors';
 
@@ -175,7 +175,8 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
   // The active-app lookup still spans ALL apps (incl. hidden) so a
   // direct /apps/account navigation keeps rendering the Account branding.
-  const activeApp = apps.find((a: any) => a.name === activeAppName && a.active !== false) || activeApps[0];
+  // ADR-0048 (A) — route segment may be a package id; match by it (name fallback).
+  const activeApp = matchAppBySegment(apps.filter((a: any) => a.active !== false), activeAppName) || activeApps[0];
 
   // Extract branding information from spec
   const logo = activeApp?.branding?.logo;

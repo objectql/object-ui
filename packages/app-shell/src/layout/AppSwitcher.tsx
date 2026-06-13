@@ -17,7 +17,7 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, Check } from 'lucide-react';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel } from '../utils';
+import { resolveI18nLabel, matchAppBySegment } from '../utils';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { getIcon } from '../utils/getIcon';
 
@@ -36,7 +36,8 @@ export function AppSwitcher({ activeAppName, onAppChange }: AppSwitcherProps) {
   // (personal-settings-style surfaces like the Account app), not the
   // top-level App Switcher.
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
-  const activeApp = activeApps.find((a: any) => a.name === activeAppName) || apps.find((a: any) => a.name === activeAppName && a.active !== false) || activeApps[0];
+  // ADR-0048 (A) — route segment may be a package id; match by it (name fallback).
+  const activeApp = matchAppBySegment(activeApps, activeAppName) || matchAppBySegment(apps.filter((a: any) => a.active !== false), activeAppName) || activeApps[0];
 
   if (!activeApp) return null;
 

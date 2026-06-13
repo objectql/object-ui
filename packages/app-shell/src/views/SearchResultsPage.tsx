@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useMetadata } from '../providers/MetadataProvider';
+import { matchAppBySegment } from '../utils/appRoute';
 import { resolveHref } from '@object-ui/layout';
 import { useAuth } from '@object-ui/auth';
 
@@ -72,7 +73,7 @@ export function SearchResultsPage() {
 
   const { apps: metadataApps } = useMetadata();
   const apps = metadataApps || [];
-  const activeApp = apps.find((a: any) => a.name === appName) || apps[0];
+  const activeApp = matchAppBySegment(apps, appName) || apps[0];
   const baseUrl = `/apps/${appName}`;
   const { user } = useAuth();
 

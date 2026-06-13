@@ -15,6 +15,7 @@ import type { NavigationItem, AppSchema } from '@object-ui/types';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadata } from '../providers/MetadataProvider';
+import { matchAppBySegment } from '../utils/appRoute';
 import { usePreviewDrafts } from '../preview/PreviewModeContext';
 
 // ============================================================================
@@ -222,7 +223,7 @@ export function useNavigationSync(): UseNavigationSyncReturn {
   /** Find the current app schema from metadata by name. */
   const findApp = useCallback(
     (appName: string): AppSchema | undefined =>
-      apps.find((a: any) => a.name === appName) as AppSchema | undefined,
+      matchAppBySegment(apps, appName) as AppSchema | undefined,
     [apps],
   );
 

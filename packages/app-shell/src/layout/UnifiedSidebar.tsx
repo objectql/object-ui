@@ -47,7 +47,7 @@ import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useRecentItems } from '../hooks/useRecentItems';
 import { useFavorites } from '../hooks/useFavorites';
 import { useNavPins } from '../hooks/useNavPins';
-import { resolveI18nLabel } from '../utils';
+import { resolveI18nLabel, matchAppBySegment } from '../utils';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 // useObjectLabel provides appLabel/appDescription for convention-based
 // i18n lookup — `{ns}.apps.{name}.label` resolves to the translated label
@@ -183,7 +183,8 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   // Filter switcher to non-hidden apps; active-app lookup spans all so
   // direct navigation to /apps/account still renders.
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
-  const activeApp = apps.find((a: any) => a.name === (activeAppName || currentAppName) && a.active !== false) || activeApps[0];
+  // ADR-0048 (A) — route segment may be a package id; match by it (name fallback).
+  const activeApp = matchAppBySegment(apps.filter((a: any) => a.active !== false), activeAppName || currentAppName) || activeApps[0];
 
   // Drag-reorder and pin persistence
   const { applyOrder, handleReorder } = useNavOrder(activeApp?.name || 'home');
