@@ -230,6 +230,12 @@ export interface ChatbotLabels {
   trace?: string;
   /** Trace link tooltip in debug mode. */
   viewTrace?: string;
+  /**
+   * Shown beside a running turn once the server stream goes quiet (no bytes for
+   * a few seconds) — e.g. "Waiting for server…". Honest stall cue, not a claim
+   * of progress.
+   */
+  connectionWaiting?: string;
 }
 
 export type ChatbotProcessVisibility = 'hidden' | 'summary' | 'debug';
@@ -775,6 +781,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         stopResponse: labels?.stopResponse ?? 'Stop response',
         trace: labels?.trace ?? 'trace',
         viewTrace: labels?.viewTrace ?? 'View trace',
+        connectionWaiting: labels?.connectionWaiting ?? 'Waiting for server…',
       }),
       [labels],
     );
@@ -1373,6 +1380,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                           openBuiltAppLabel={openBuiltAppLabel}
                           onPreviewDraftApp={onPreviewDraftApp}
                           previewDraftLabel={previewDraftLabel}
+                          waitingLabel={L.connectionWaiting}
                         />
                       ) : null}
                       {!isUser && processVisibility === 'debug' && reasoning ? (
@@ -1473,6 +1481,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                 showAvatar={showAvatars}
                 assistantAvatarUrl={assistantAvatarUrl}
                 assistantAvatarFallback={assistantAvatarFallback}
+                waitingLabel={L.connectionWaiting}
               />
             ) : null}
           </ConversationContent>
@@ -1610,10 +1619,12 @@ function AssistantThinkingMessage({
   showAvatar,
   assistantAvatarUrl,
   assistantAvatarFallback,
+  waitingLabel,
 }: {
   showAvatar: boolean;
   assistantAvatarUrl?: string;
   assistantAvatarFallback?: string;
+  waitingLabel: string;
 }) {
   return (
     <Message from="assistant" aria-live="polite">
@@ -1628,7 +1639,10 @@ function AssistantThinkingMessage({
         <MessageContent className="rounded-lg border bg-muted/30 px-3 py-2 text-muted-foreground">
           <span className="inline-flex items-center gap-2">
             <ThinkingDots />
-            <ElapsedTime active />
+            {/* No server bytes yet for this turn → `pending`: shows a neutral
+                "waiting" that escalates to amber if the first token never comes,
+                never a false "receiving". */}
+            <LivenessIndicator active pending activityKey={0} waitingLabel={waitingLabel} />
           </span>
         </MessageContent>
       </div>
@@ -1649,27 +1663,6 @@ function ThinkingDots() {
   );
 }
 
-/**
- * Seconds elapsed since this hook first mounted, ticking once a second while
- * `active`. AI builds run 1–3 min with long quiet gaps; a live counter reassures
- * the user the stream is still alive (the tick only advances while React is
- * responsive) and sets the expectation that the wait is normal — the same cue
- * Claude Code shows next to a running step. Freezes at its last value once
- * `active` turns false so the final duration stays visible.
- */
-function useElapsedSeconds(active: boolean): number {
-  const startRef = React.useRef<number>(Date.now());
-  const [elapsed, setElapsed] = React.useState(0);
-  React.useEffect(() => {
-    if (!active) return;
-    const tick = () => setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [active]);
-  return elapsed;
-}
-
 /** Format an elapsed-seconds count as `m:ss` (e.g. 42 → "0:42", 95 → "1:35"). */
 function formatElapsed(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
@@ -1678,19 +1671,150 @@ function formatElapsed(totalSeconds: number): string {
 }
 
 /**
- * Small monospace `m:ss` chip with a clock glyph, shown beside a running
- * spinner so a slow, quiet AI turn reads as "still connected, still working"
- * rather than "stalled". Language-neutral by design (no i18n string needed).
+ * After this many seconds with no new bytes from the server, a running turn is
+ * treated as "quiet" — we genuinely have not heard back, so the indicator says
+ * so instead of implying progress. During an app build the server streams
+ * `data-build-progress` parts every few seconds, so a healthy build stays under
+ * this threshold; only real silence (pre-first-token wait, a stalled/dropped
+ * stream) crosses it.
  */
-function ElapsedTime({ active }: { active: boolean }) {
-  const seconds = useElapsedSeconds(active);
+const LIVENESS_QUIET_AFTER_SECONDS = 6;
+
+export interface TurnLiveness {
+  /** Whole-turn duration in seconds (since the indicator mounted). */
+  elapsedSeconds: number;
+  /** Seconds since the last real byte arrived from the server. */
+  quietSeconds: number;
+  /** True while bytes have arrived recently — an *observed* live stream. */
+  live: boolean;
+}
+
+/**
+ * Liveness derived from REAL stream activity, not a free-running clock.
+ *
+ * `activityKey` must change whenever actual data arrives from the server (a
+ * streamed token, a tool delta, a `data-build-progress` update). We stamp the
+ * arrival time when it changes; `live` is then a genuine "the server sent us
+ * something in the last few seconds" signal — it goes false during true silence
+ * (a stalled or dropped stream), so the UI can stop pretending the turn is
+ * progressing. A 1s ticker keeps `quietSeconds` current between arrivals.
+ * Everything freezes once `active` turns false, leaving the final duration.
+ */
+function useTurnLiveness(active: boolean, activityKey: string | number): TurnLiveness {
+  const startRef = React.useRef<number>(0);
+  const lastActivityRef = React.useRef<number>(0);
+  const [seconds, setSeconds] = React.useState({ elapsed: 0, quiet: 0 });
+
+  // Establish the time origin once, in an effect — keeps Date.now() out of
+  // render so the derived seconds stay pure for the renderer. Runs before the
+  // activity/tick effects below (effects fire in declaration order).
+  React.useEffect(() => {
+    const now = Date.now();
+    startRef.current = now;
+    lastActivityRef.current = now;
+  }, []);
+
+  // Real data arrived (activityKey changed) → stamp the arrival and zero the
+  // quiet timer. Refs/Date.now() are touched only inside this effect, never
+  // during render.
+  React.useEffect(() => {
+    const now = Date.now();
+    lastActivityRef.current = now;
+    setSeconds({ elapsed: Math.floor((now - startRef.current) / 1000), quiet: 0 });
+  }, [activityKey]);
+
+  React.useEffect(() => {
+    if (!active) return;
+    const tick = () => {
+      const now = Date.now();
+      setSeconds({
+        elapsed: Math.floor((now - startRef.current) / 1000),
+        quiet: Math.floor((now - lastActivityRef.current) / 1000),
+      });
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [active]);
+
+  return {
+    elapsedSeconds: seconds.elapsed,
+    quietSeconds: seconds.quiet,
+    live: seconds.quiet < LIVENESS_QUIET_AFTER_SECONDS,
+  };
+}
+
+/**
+ * Honest connection cue beside a running spinner, with three states that each
+ * reflect a real fact about the stream:
+ *
+ *  - **receiving** (emerald pulse + `m:ss`) — bytes arrived from the server in
+ *    the last few seconds. Only shown when real data has actually been seen.
+ *  - **waiting** (muted) — the request is in flight but nothing has come back
+ *    yet (`pending`, e.g. before the first token). Neutral, not alarming; never
+ *    claims "receiving" when nothing has been received.
+ *  - **stalled** (amber + "no response for Ns") — the stream has gone genuinely
+ *    quiet past the threshold. The honest "we have not heard back" signal.
+ *
+ * A hard disconnect surfaces separately via the chat error banner. `pending`
+ * selects the waiting-vs-receiving wording for the live window: pass it when no
+ * server bytes have been observed for this turn yet (the bare thinking state).
+ */
+function LivenessIndicator({
+  active,
+  activityKey,
+  pending = false,
+  waitingLabel,
+}: {
+  active: boolean;
+  activityKey: string | number;
+  pending?: boolean;
+  waitingLabel: string;
+}) {
+  const { elapsedSeconds, quietSeconds, live } = useTurnLiveness(active, activityKey);
+  const tier: 'receiving' | 'waiting' | 'stalled' = !live
+    ? 'stalled'
+    : pending
+      ? 'waiting'
+      : 'receiving';
   return (
     <span
-      className="inline-flex items-center gap-1 text-xs font-normal tabular-nums text-muted-foreground"
-      aria-label={`Elapsed ${seconds} seconds`}
+      className={cn(
+        'inline-flex items-center gap-1.5 text-xs font-normal tabular-nums',
+        tier === 'stalled' ? 'text-amber-600' : 'text-muted-foreground',
+      )}
+      aria-live="polite"
+      title={
+        tier === 'receiving'
+          ? `Receiving from server · ${formatElapsed(elapsedSeconds)} elapsed`
+          : tier === 'waiting'
+            ? `${waitingLabel} · ${formatElapsed(elapsedSeconds)} elapsed`
+            : `${waitingLabel} (${quietSeconds}s with no response)`
+      }
     >
-      <Clock3 className="size-3 shrink-0" aria-hidden />
-      {formatElapsed(seconds)}
+      <span
+        aria-hidden
+        className={cn(
+          'size-1.5 shrink-0 rounded-full',
+          tier === 'receiving'
+            ? 'bg-emerald-500 animate-pulse'
+            : tier === 'waiting'
+              ? 'bg-muted-foreground/50 animate-pulse'
+              : 'bg-amber-500',
+        )}
+      />
+      {tier === 'receiving' ? (
+        <>
+          <Clock3 className="size-3 shrink-0" aria-hidden />
+          {formatElapsed(elapsedSeconds)}
+        </>
+      ) : tier === 'waiting' ? (
+        <span>{waitingLabel}</span>
+      ) : (
+        <span>
+          {waitingLabel} {quietSeconds}s
+        </span>
+      )}
     </span>
   );
 }
@@ -1716,15 +1840,21 @@ function BuildProgressPanel({
   openBuiltAppLabel = 'Open app',
   onPreviewDraftApp,
   previewDraftLabel = 'Preview',
+  waitingLabel = 'Waiting for server…',
 }: {
   progress: ChatBuildProgress;
   onOpenBuiltApp?: (appName: string) => void;
   openBuiltAppLabel?: string;
   onPreviewDraftApp?: (appName: string) => void;
   previewDraftLabel?: string;
+  waitingLabel?: string;
 }) {
   const { phase, appLabel, items, done, total } = progress;
   const isDone = phase === 'done';
+  // Real activity key: bumps whenever the server streams another build-progress
+  // part (a new artifact / phase). Drives the liveness indicator off observed
+  // bytes, so a healthy build reads as "receiving" and a genuine stall as amber.
+  const activityKey = `${phase}:${done}:${items.length}`;
   // The created `app` artifact (navigation shell) — the natural "open it" target.
   const builtApp = items.find((it) => it.type === 'app');
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : isDone ? 100 : 6;
@@ -1751,7 +1881,7 @@ function BuildProgressPanel({
           <span className="text-xs font-normal text-muted-foreground">adding sample data</span>
         ) : null}
         <span className="ml-auto">
-          <ElapsedTime active={!isDone} />
+          <LivenessIndicator active={!isDone} activityKey={activityKey} waitingLabel={waitingLabel} />
         </span>
       </div>
       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">

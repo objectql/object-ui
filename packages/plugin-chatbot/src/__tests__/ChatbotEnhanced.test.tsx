@@ -576,7 +576,7 @@ describe('publishHealthFromResponse', () => {
   });
 });
 
-describe('ChatbotEnhanced — elapsed-time liveness counter', () => {
+describe('ChatbotEnhanced — activity-driven liveness (not a fake clock)', () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -585,46 +585,80 @@ describe('ChatbotEnhanced — elapsed-time liveness counter', () => {
     vi.useRealTimers();
   });
 
-  it('ticks a m:ss counter on the thinking spinner so a slow turn reads as alive', () => {
+  const buildMsg = (done: number, items: Array<{ type: string; name: string }>, phase = 'structure'): ChatMessage[] => [
+    {
+      id: 'b1',
+      role: 'assistant',
+      content: '',
+      buildProgress: { phase: phase as 'structure' | 'data' | 'done', appLabel: '进销存', items, done, total: 4 },
+    },
+  ];
+
+  it('pre-first-token turn shows a neutral "waiting", never a fake "receiving"', () => {
     render(<ChatbotEnhanced isLoading messages={[]} />);
-    // Mount renders 0:00 immediately…
-    expect(screen.getByText('0:00')).toBeInTheDocument();
-    // …then advances once a second while the turn is in flight.
-    act(() => {
-      vi.advanceTimersByTime(3000);
-    });
-    expect(screen.getByText('0:03')).toBeInTheDocument();
+    // No server bytes yet → honest waiting cue, and crucially NOT an m:ss
+    // "receiving" timer that would imply data is flowing.
+    expect(screen.getByText(/Waiting for server/i)).toBeInTheDocument();
+    expect(screen.queryByText('0:00')).not.toBeInTheDocument();
   });
 
-  it('shows a running counter on an in-flight build panel and freezes it when done', () => {
-    const building: ChatMessage[] = [
-      {
-        id: 'b1',
-        role: 'assistant',
-        content: '',
-        buildProgress: {
-          phase: 'structure',
-          appLabel: '进销存',
-          items: [{ type: 'object', name: 'product' }],
-          done: 1,
-          total: 4,
-        },
-      },
-    ];
-    const { rerender } = render(<ChatbotEnhanced messages={building} />);
+  it('escalates to an amber "no response for Ns" once the stream is genuinely quiet', () => {
+    render(<ChatbotEnhanced isLoading messages={[]} />);
+    act(() => {
+      vi.advanceTimersByTime(7000);
+    });
+    // Honest stall: the seconds-since-last-byte are surfaced.
+    expect(
+      screen.getByText((t) => /Waiting for server/i.test(t) && /7s/.test(t)),
+    ).toBeInTheDocument();
+  });
+
+  it('build panel reads as "receiving" (m:ss) while progress bytes keep arriving', () => {
+    const { rerender } = render(<ChatbotEnhanced messages={buildMsg(1, [{ type: 'object', name: 'product' }])} />);
     act(() => {
       vi.advanceTimersByTime(2000);
     });
     expect(screen.getByText('0:02')).toBeInTheDocument();
 
-    // Build finishes → counter freezes at its last value (no further ticks).
-    const done: ChatMessage[] = [
-      { ...building[0], buildProgress: { ...building[0].buildProgress!, phase: 'done', done: 4 } },
-    ];
-    rerender(<ChatbotEnhanced messages={done} />);
+    // A new build-progress part arrives (done 1→2) → activity re-stamped,
+    // stays "receiving"; it is real stream activity, not a free clock.
+    rerender(
+      <ChatbotEnhanced
+        messages={buildMsg(2, [
+          { type: 'object', name: 'product' },
+          { type: 'object', name: 'order' },
+        ])}
+      />,
+    );
     act(() => {
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(2000);
     });
-    expect(screen.getByText('0:02')).toBeInTheDocument();
+    expect(screen.getByText('0:04')).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting for server/i)).not.toBeInTheDocument();
+  });
+
+  it('build panel flips to amber when progress genuinely stalls, then recovers on the next byte', () => {
+    const { rerender } = render(<ChatbotEnhanced messages={buildMsg(1, [{ type: 'object', name: 'product' }])} />);
+    // No new progress for >6s → honest stall, not a reassuring tick.
+    act(() => {
+      vi.advanceTimersByTime(7000);
+    });
+    expect(screen.getByText((t) => /Waiting for server/i.test(t) && /7s/.test(t))).toBeInTheDocument();
+
+    // The server sends the next artifact → back to "receiving".
+    rerender(
+      <ChatbotEnhanced
+        messages={buildMsg(2, [
+          { type: 'object', name: 'product' },
+          { type: 'view', name: 'product_list' },
+        ])}
+      />,
+    );
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByText(/Waiting for server/i)).not.toBeInTheDocument();
+    // Back to "receiving" — the m:ss is the whole-turn duration (7s stall + 1s).
+    expect(screen.getByText('0:08')).toBeInTheDocument();
   });
 });
