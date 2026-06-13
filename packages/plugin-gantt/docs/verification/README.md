@@ -526,3 +526,30 @@ The script asserts (5/5 checks passed):
   topological forward pass (FS/SS/FF/SF aware, summaries fixed), pushing t4 back
   to satisfy the link.
 - ![Auto-rescheduled](44-conflict-rescheduled.png)
+
+## Navigation + year scale + save layout + PNG/PDF export — 导航 + 年刻度 + 保存布局 + 导出
+
+`scripts/verify-export-layout.mjs` drives the `?lang=zh` project fixture and
+exercises the Group 3 toolbar additions. Covered by unit tests in
+[`GanttView.layout.test.tsx`](../../src/GanttView.layout.test.tsx) (12 cases)
+and [`ObjectGantt.test.tsx`](../../src/ObjectGantt.test.tsx) (persistLayoutKey
+wiring).
+
+The script asserts (7/7 checks passed):
+
+- **年刻度** — a new 年 granularity button widens the timeline to one column
+  per year, with a `2020s` decade band above each year header.
+- ![Year granularity](45-year-granularity.png)
+- **导航** — 本周 / 本月 buttons scroll the timeline to the start of the current
+  week / month (alongside the existing 今天 jump).
+- ![Navigation](46-navigation.png)
+- **保存布局** — the 保存布局 button snapshots the current granularity + zoom +
+  list-collapse to `localStorage` (key `gantt-layout:<object>:<view>`) and fires
+  `onLayoutChange`; the button briefly highlights to confirm.
+- ![Save layout](47-save-layout.png)
+- **持久化** — reloading without a `?mode=` override restores the saved 月
+  granularity from `localStorage`.
+- ![Layout restored](48-layout-restored.png)
+- **导出 PNG / PDF** — both export buttons download real files: a valid PNG
+  (`‰PNG` magic bytes) and a dependency-free single-page PDF (`%PDF-` header)
+  embedding the rasterized chart as a JPEG via `DCTDecode`.

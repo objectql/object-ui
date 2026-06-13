@@ -40,6 +40,7 @@ const DEFAULT_COL_WIDTH: Record<GanttViewMode, number> = {
   week: 56,
   month: 76,
   quarter: 88,
+  year: 104,
 };
 
 const ROW_HEIGHT = 48;
@@ -50,6 +51,7 @@ function columnLabel(date: Date, mode: GanttViewMode, locale?: string): string {
   if (mode === 'day') return String(date.getDate());
   if (mode === 'week') return date.toLocaleDateString(locale, { month: 'numeric', day: 'numeric' });
   if (mode === 'month') return date.toLocaleDateString(locale, { month: 'short' });
+  if (mode === 'year') return String(date.getFullYear());
   return `Q${Math.floor(date.getMonth() / 3) + 1}`;
 }
 

@@ -32,9 +32,11 @@ const GANTT_ZH = {
       jumpToToday: '跳到今天', today: '今天', showTaskList: '显示任务列表', hideTaskList: '隐藏任务列表',
       viewMode: '时间粒度', enterFullscreen: '进入全屏', exitFullscreen: '退出全屏',
       criticalPath: '高亮关键路径', autoSchedule: '自动排程依赖', exportPng: '导出 PNG',
+      exportPdf: '导出 PDF', saveLayout: '保存布局',
+      thisWeek: '本周', thisMonth: '本月',
       undo: '撤销', redo: '重做',
     },
-    viewMode: { day: '日', week: '周', month: '月', quarter: '季' },
+    viewMode: { day: '日', week: '周', month: '月', quarter: '季', year: '年' },
     row: { expand: '展开', collapse: '折叠' },
     aria: { taskList: '任务列表' },
     tooltip: { days: '天' },
@@ -362,7 +364,9 @@ function App() {
         ) : (
         <GanttView
           tasks={tasks}
-          viewMode={(params.get('mode') as GanttViewMode) || 'day'}
+          // Only force the granularity when ?mode= is given; otherwise let a
+          // persisted layout (保存布局) restore it on reload.
+          viewMode={params.get('mode') ? (params.get('mode') as GanttViewMode) : undefined}
           markers={markers}
           autoSchedule
           rescheduleOnConflict
@@ -372,6 +376,8 @@ function App() {
           readOnly={readOnly}
           groupBy={groupBy}
           ungroupedLabel="未分组"
+          persistLayoutKey="demo-project"
+          onLayoutChange={(l) => console.log('[gantt-demo] layout saved', l)}
           inlineEdit
           onTaskClick={(t) => console.log('[gantt-demo] click', t.id)}
           onTaskUpdate={(t, changes) => patch(t.id, changes)}

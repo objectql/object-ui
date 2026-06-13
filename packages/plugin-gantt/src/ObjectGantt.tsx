@@ -1043,6 +1043,11 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           workingCalendar={workingCalendar}
           showBaselines={(schema as any).showBaselines !== false}
           readOnly={!!(schema as any).readOnly}
+          persistLayoutKey={
+            (schema as any).persistLayout === false
+              ? undefined
+              : `${schema.objectName || (dataConfig?.provider === 'object' ? dataConfig.object : '') || 'gantt'}:${(schema as any).viewName || 'default'}`
+          }
           groupBy={groupByAccessor}
           inlineEdit
         />

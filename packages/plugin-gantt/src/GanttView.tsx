@@ -26,6 +26,8 @@ import {
   Wand2,
   Undo2,
   Redo2,
+  FileDown,
+  Save,
 } from "lucide-react"
 import {
   cn,
@@ -115,9 +117,9 @@ export interface GanttTask {
 }
 
 /** Timeline granularity — one column per day, week, month, or quarter. */
-export type GanttViewMode = 'day' | 'week' | 'month' | 'quarter';
+export type GanttViewMode = 'day' | 'week' | 'month' | 'quarter' | 'year';
 
-const VIEW_MODES: GanttViewMode[] = ['day', 'week', 'month', 'quarter'];
+const VIEW_MODES: GanttViewMode[] = ['day', 'week', 'month', 'quarter', 'year'];
 
 /**
  * Nominal days represented by one column at each granularity. Sets the zoom
@@ -130,6 +132,7 @@ export const NOMINAL_DAYS: Record<GanttViewMode, number> = {
   week: 7,
   month: 30.44,
   quarter: 91.31,
+  year: 365.25,
 };
 
 export const MS_PER_DAY = 1000 * 60 * 60 * 24;
@@ -144,6 +147,8 @@ export function startOfUnit(date: Date, mode: GanttViewMode): Date {
     d.setDate(1);
   } else if (mode === 'quarter') {
     d.setMonth(Math.floor(d.getMonth() / 3) * 3, 1);
+  } else if (mode === 'year') {
+    d.setMonth(0, 1);
   }
   return d;
 }
@@ -169,7 +174,7 @@ export function addUnits(date: Date, units: number, mode: GanttViewMode): Date {
   } else if (mode === 'week') {
     d.setDate(d.getDate() + units * 7);
   } else {
-    const months = units * (mode === 'month' ? 1 : 3);
+    const months = units * (mode === 'month' ? 1 : mode === 'quarter' ? 3 : 12);
     const dayOfMonth = d.getDate();
     d.setDate(1);
     d.setMonth(d.getMonth() + months);
@@ -266,6 +271,141 @@ export interface GanttViewProps {
   groupBy?: (task: GanttTask) => { key: string | number; label: string } | null
   /** Label for the bucket collecting tasks whose `groupBy` returns null. */
   ungroupedLabel?: string
+  /**
+   * Persist the user's layout tweaks (granularity + column/task-list widths)
+   * to `localStorage` under this key. On mount the saved layout is restored;
+   * the "保存布局" toolbar button writes the current layout. Omit to disable
+   * persistence. The button still appears when `onLayoutChange` is set.
+   */
+  persistLayoutKey?: string
+  /**
+   * Notified when the user saves the current layout (保存布局). Receives the
+   * snapshot `{ viewMode, columnWidth, taskListCollapsed }`. Use this to persist
+   * layout in your own store instead of (or alongside) `persistLayoutKey`.
+   */
+  onLayoutChange?: (layout: GanttLayout) => void
+}
+
+/** Persisted layout snapshot written by the "保存布局" toolbar button. */
+export interface GanttLayout {
+  viewMode: GanttViewMode
+  /** Effective day-column width in px, or null when auto-fit. */
+  columnWidth: number | null
+  taskListCollapsed: boolean
+}
+
+// --- Export helpers (导出 PNG / PDF) — module-level, no React deps. ---
+
+/** Rasterize a standalone SVG string to a 2×-scaled canvas (white-backed). */
+function rasterizeSvg(svg: string, W: number, H: number, scale = 2): Promise<HTMLCanvasElement | null> {
+  return new Promise((resolve) => {
+    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = W * scale;
+      canvas.height = H * scale;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+      }
+      URL.revokeObjectURL(url);
+      resolve(canvas);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+
+/** Download a Blob under `filename` via a transient anchor. */
+function downloadBlob(blob: Blob, filename: string): void {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/**
+ * Build a minimal single-page PDF that embeds a JPEG (DCTDecode) at its native
+ * pixel size — dependency-free, just enough structure for any PDF viewer. The
+ * page MediaBox matches the image so it fills the page upright.
+ */
+function buildJpegPdf(jpeg: Uint8Array, w: number, h: number): Blob {
+  const enc = (s: string) => {
+    const a = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i) & 0xff;
+    return a;
+  };
+  const content = `q ${w} 0 0 ${h} 0 0 cm /Im0 Do Q`;
+  const chunks: Uint8Array[] = [];
+  const offsets: number[] = [];
+  let pos = 0;
+  const push = (u: Uint8Array) => { chunks.push(u); pos += u.length; };
+  const mark = () => { offsets.push(pos); };
+
+  push(enc('%PDF-1.3\n%\xFF\xFF\xFF\xFF\n'));
+  mark(); push(enc('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n'));
+  mark(); push(enc('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n'));
+  mark(); push(enc(`3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${w} ${h}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`));
+  mark();
+  push(enc(`4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`));
+  push(jpeg);
+  push(enc('\nendstream\nendobj\n'));
+  mark(); push(enc(`5 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`));
+
+  const xrefPos = pos;
+  let xref = `xref\n0 6\n0000000000 65535 f \n`;
+  for (const off of offsets) xref += `${String(off).padStart(10, '0')} 00000 n \n`;
+  xref += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`;
+  push(enc(xref));
+
+  return new Blob(chunks as BlobPart[], { type: 'application/pdf' });
+}
+
+/** Decode a base64 data-URL payload to bytes. */
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const bin = atob(base64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** localStorage key namespace for persisted layouts. */
+const LAYOUT_STORAGE_PREFIX = 'gantt-layout:';
+
+/** Read a persisted layout, tolerating absent storage / malformed JSON. */
+function readSavedLayout(key: string | undefined): GanttLayout | null {
+  if (!key || typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(LAYOUT_STORAGE_PREFIX + key);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<GanttLayout>;
+    const viewMode = p.viewMode && VIEW_MODES.includes(p.viewMode) ? p.viewMode : null;
+    if (!viewMode) return null;
+    const columnWidth =
+      typeof p.columnWidth === 'number' && isFinite(p.columnWidth) ? p.columnWidth : null;
+    return { viewMode, columnWidth, taskListCollapsed: !!p.taskListCollapsed };
+  } catch {
+    return null;
+  }
+}
+
+/** Persist a layout snapshot, swallowing quota/SSR errors. */
+function writeSavedLayout(key: string, layout: GanttLayout): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LAYOUT_STORAGE_PREFIX + key, JSON.stringify(layout));
+  } catch {
+    /* storage unavailable / full — non-fatal */
+  }
 }
 
 export function GanttView({
@@ -291,6 +431,8 @@ export function GanttView({
   readOnly = false,
   groupBy,
   ungroupedLabel = 'Ungrouped',
+  persistLayoutKey,
+  onLayoutChange,
 }: GanttViewProps) {
   // Read-only gating, applied once at the top so every downstream usage —
   // drag/resize/progress, inline edit, delete, link-drag, reorder,
@@ -316,13 +458,26 @@ export function GanttView({
   const isNarrow = effectiveWidth < 640;
   const rowHeight = rowHeightForContainer(effectiveWidth);
   const baseColumnWidth = columnWidthForContainer(effectiveWidth);
+  // Restore a persisted layout once on first render (when persistLayoutKey set).
+  // It seeds the initial granularity / zoom / list-collapse below; the prop
+  // still wins for viewMode if explicitly supplied.
+  const restoredLayoutRef = React.useRef<GanttLayout | null | undefined>(undefined);
+  if (restoredLayoutRef.current === undefined) {
+    restoredLayoutRef.current = readSavedLayout(persistLayoutKey);
+  }
+  const restoredLayout = restoredLayoutRef.current;
   // Mobile UX (round 3): make zoom + list-collapse stateful so the toolbar
   // buttons + pinch-to-zoom gesture actually persist.
-  const [columnWidthOverride, setColumnWidthOverride] = React.useState<number | null>(null);
+  const [columnWidthOverride, setColumnWidthOverride] = React.useState<number | null>(
+    restoredLayout ? restoredLayout.columnWidth : null
+  );
   // Timeline granularity. The prop seeds (and can later override) the state;
-  // the toolbar segmented control switches it interactively.
+  // the toolbar segmented control switches it interactively. A persisted layout
+  // seeds it when no explicit prop is given.
   const [viewMode, setViewMode] = React.useState<GanttViewMode>(
-    viewModeProp && VIEW_MODES.includes(viewModeProp) ? viewModeProp : 'day'
+    viewModeProp && VIEW_MODES.includes(viewModeProp)
+      ? viewModeProp
+      : restoredLayout?.viewMode ?? 'day'
   );
   React.useEffect(() => {
     if (viewModeProp && VIEW_MODES.includes(viewModeProp)) setViewMode(viewModeProp);
@@ -331,7 +486,9 @@ export function GanttView({
     setViewMode(mode);
     onViewChange?.(mode);
   }, [onViewChange]);
-  const [taskListCollapsed, setTaskListCollapsed] = React.useState<boolean>(false);
+  const [taskListCollapsed, setTaskListCollapsed] = React.useState<boolean>(
+    restoredLayout ? restoredLayout.taskListCollapsed : false
+  );
   // Auto-collapse the list once on first narrow render — undoable by the user.
   const collapsedAutoSet = React.useRef(false);
   React.useEffect(() => {
@@ -1148,8 +1305,10 @@ export function GanttView({
         label = current.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' });
       } else if (viewMode === 'month') {
         label = current.toLocaleDateString(dateLocale, { month: 'short' });
-      } else {
+      } else if (viewMode === 'quarter') {
         label = `Q${Math.floor(current.getMonth() / 3) + 1}`;
+      } else {
+        label = String(current.getFullYear());
       }
       cols.push({
         date: new Date(current),
@@ -1277,24 +1436,30 @@ export function GanttView({
   const foldShiftRef = React.useRef<((date: Date, n: number) => Date) | null>(null);
   foldShiftRef.current = folding ? shiftByWorkingColumns : null;
 
-  // Upper scale row: month groups under day/week, year groups under month/quarter.
+  // Upper scale row: month groups under day/week, year groups under
+  // month/quarter, decade groups under year.
   const headerGroups = React.useMemo(() => {
     const groups: { key: string; label: string; width: number; offset: number }[] = [];
-    const byYear = viewMode === 'month' || viewMode === 'quarter';
+    const groupBy: 'decade' | 'year' | 'month' =
+      viewMode === 'year' ? 'decade' : viewMode === 'month' || viewMode === 'quarter' ? 'year' : 'month';
     let acc = 0;
     for (const col of timeColumns) {
-      const key = byYear
-        ? String(col.date.getFullYear())
-        : `${col.date.getFullYear()}-${col.date.getMonth()}`;
+      const year = col.date.getFullYear();
+      const decade = Math.floor(year / 10) * 10;
+      const key =
+        groupBy === 'decade' ? String(decade) : groupBy === 'year' ? String(year) : `${year}-${col.date.getMonth()}`;
       const last = groups[groups.length - 1];
       if (last && last.key === key) {
         last.width += col.width;
       } else {
         groups.push({
           key,
-          label: byYear
-            ? String(col.date.getFullYear())
-            : col.date.toLocaleDateString(dateLocale, { month: 'short', year: 'numeric' }),
+          label:
+            groupBy === 'decade'
+              ? `${decade}s`
+              : groupBy === 'year'
+                ? String(year)
+                : col.date.toLocaleDateString(dateLocale, { month: 'short', year: 'numeric' }),
           width: col.width,
           offset: acc,
         });
@@ -1430,6 +1595,28 @@ export function GanttView({
     const target = Math.max(0, todayLeftPx - scrollAreaRef.current.clientWidth / 2);
     scrollAreaRef.current.scrollTo({ left: target, behavior: 'smooth' });
   }, [todayLeftPx]);
+
+  // 导航: scroll the timeline so a given date sits near the left edge. Returns
+  // false (no-op) when the date is outside the rendered range.
+  const scrollToDate = React.useCallback(
+    (date: Date, align: 'left' | 'center' = 'left') => {
+      const el = scrollAreaRef.current;
+      if (!el || date < timelineRange.start || date > timelineRange.end) return false;
+      const x = Math.round(dateToX(date));
+      const target = align === 'center' ? x - el.clientWidth / 2 : x - 24;
+      el.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+      return true;
+    },
+    [timelineRange, dateToX],
+  );
+  const jumpToWeek = React.useCallback(
+    () => scrollToDate(startOfUnit(new Date(), 'week')),
+    [scrollToDate],
+  );
+  const jumpToMonth = React.useCallback(
+    () => scrollToDate(startOfUnit(new Date(), 'month')),
+    [scrollToDate],
+  );
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -1681,8 +1868,8 @@ export function GanttView({
   // and concrete colors (the prebuilt CSS vars don't resolve in a detached
   // SVG). Captures the left name column + the timeline bars, links and today
   // line; critical highlighting is included when the toggle is on.
-  const exportPng = React.useCallback(() => {
-    if (typeof document === 'undefined' || !tasks.length) return;
+  const buildExportSvg = React.useCallback((): { svg: string; W: number; H: number } | null => {
+    if (typeof document === 'undefined' || !tasks.length) return null;
     const esc = (s: string) =>
       String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
     // Two-row header like the live chart: a month/year group band over the
@@ -1787,34 +1974,48 @@ export function GanttView({
     parts.push(`</g>`);
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`;
-    const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = () => {
-      const scale = 2;
-      const canvas = document.createElement('canvas');
-      canvas.width = W * scale;
-      canvas.height = H * scale;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.scale(scale, scale);
-        ctx.drawImage(img, 0, 0);
-      }
-      URL.revokeObjectURL(url);
-      canvas.toBlob((png) => {
-        if (!png) return;
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(png);
-        a.download = `gantt-${viewMode}.png`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      }, 'image/png');
-    };
-    img.onerror = () => URL.revokeObjectURL(url);
-    img.src = url;
+    return { svg, W, H };
   }, [tasks, rows, links, linkPath, styleFor, isCriticalTask, critical, timeColumns, colOffsets, totalWidth, taskListWidth, rowHeight, barTop, barHeight, summaryBarTop, summaryBarHeight, milestoneSize, todayLeftPx, viewMode, showBaselines, baselineTop, baselineHeight, BASELINE_FILL, BASELINE_BORDER, resolvedMarkers, headerGroups]);
+
+  const exportPng = React.useCallback(async () => {
+    const built = buildExportSvg();
+    if (!built) return;
+    const canvas = await rasterizeSvg(built.svg, built.W, built.H);
+    if (!canvas) return;
+    canvas.toBlob((png) => { if (png) downloadBlob(png, `gantt-${viewMode}.png`); }, 'image/png');
+  }, [buildExportSvg, viewMode]);
+
+  const exportPdf = React.useCallback(async () => {
+    const built = buildExportSvg();
+    if (!built) return;
+    const canvas = await rasterizeSvg(built.svg, built.W, built.H);
+    if (!canvas) return;
+    // JPEG keeps the embedded image small and embeds directly via DCTDecode.
+    const jpeg = dataUrlToBytes(canvas.toDataURL('image/jpeg', 0.92));
+    const pdf = buildJpegPdf(jpeg, canvas.width, canvas.height);
+    downloadBlob(pdf, `gantt-${viewMode}.pdf`);
+  }, [buildExportSvg, viewMode]);
+
+  // Snapshot the current layout (granularity + zoom + list state), persist it
+  // under persistLayoutKey, and notify onLayoutChange. The persisted columnWidth
+  // is the manual override (null = auto-fit), so a saved auto-fit stays adaptive.
+  const [layoutSaved, setLayoutSaved] = React.useState(false);
+  const saveLayout = React.useCallback(() => {
+    const layout: GanttLayout = {
+      viewMode,
+      columnWidth: columnWidthOverride,
+      taskListCollapsed,
+    };
+    if (persistLayoutKey) writeSavedLayout(persistLayoutKey, layout);
+    onLayoutChange?.(layout);
+    setLayoutSaved(true);
+  }, [viewMode, columnWidthOverride, taskListCollapsed, persistLayoutKey, onLayoutChange]);
+  // Briefly reflect a save in the button's aria-pressed for feedback/testability.
+  React.useEffect(() => {
+    if (!layoutSaved) return;
+    const id = setTimeout(() => setLayoutSaved(false), 1500);
+    return () => clearTimeout(id);
+  }, [layoutSaved]);
 
   return (
     <div ref={containerRef} className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}>
@@ -1932,6 +2133,26 @@ export function GanttView({
           >
             <CalendarDays className="h-4 w-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs"
+            onClick={jumpToWeek}
+            aria-label={t('gantt.toolbar.thisWeek')}
+            data-testid="gantt-jump-week"
+          >
+            {t('gantt.toolbar.thisWeek')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs"
+            onClick={jumpToMonth}
+            aria-label={t('gantt.toolbar.thisMonth')}
+            data-testid="gantt-jump-month"
+          >
+            {t('gantt.toolbar.thisMonth')}
+          </Button>
           {onTaskUpdate ? (
             <>
               <Button
@@ -1992,6 +2213,30 @@ export function GanttView({
           >
             <Download className="h-4 w-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={exportPdf}
+            aria-label={t('gantt.toolbar.exportPdf')}
+            data-testid="gantt-export-pdf"
+          >
+            <FileDown className="h-4 w-4" />
+          </Button>
+          {onLayoutChange || persistLayoutKey ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={saveLayout}
+              aria-label={t('gantt.toolbar.saveLayout')}
+              aria-pressed={layoutSaved}
+              data-testid="gantt-save-layout"
+              style={layoutSaved ? { color: CRIT_COLOR } : undefined}
+            >
+              <Save className="h-4 w-4" />
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon"

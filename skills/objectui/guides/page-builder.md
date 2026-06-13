@@ -390,7 +390,14 @@ field mappings):
 | `quickFilters: [{ field, label?, options? }]` | Render a **快速筛选 (quick filter)** bar above the grid — one multi-select dropdown per entry that narrows the visible task bars by that field (AND across dimensions). Option lists resolve in priority order: explicit `options` → the object schema's `select`/`enum` options (full domain) → a `lookup`/`master_detail`'s referenced records (pulled in full via the data source, so values with **no** tasks still appear) → distinct values from the loaded data. Lookup values match on the embedded record id. Selecting every option of a dimension collapses to "no constraint". |
 | `autoZoomToFilter: true` | When a quick filter narrows the set, re-derive the timeline range from the **remaining** tasks so the axis zooms to the filtered span (default `true`). Set `false` to pin the axis to the full task span so bars keep their absolute position while filtering. |
 | `markers: [{ date, label?, color? }]` | Extra vertical marker lines (like the Today line). |
+| `viewMode: "day"\|"week"\|"month"\|"quarter"\|"year"` | Initial timeline granularity (default `day`); the toolbar segmented control switches it live. `year` widens the axis to one column per year with a decade (`2020s`) band above. |
+| `persistLayout: false` | Disable layout persistence. By default the toolbar's **保存布局 (save layout)** button snapshots the current granularity + zoom + task-list collapse to `localStorage` (key `gantt-layout:<object>:<view>`) and restores it on next load; set `false` to opt out. |
 | `readOnly: true` | **Disable all editing** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. Task click + granularity switching still work. Use for dashboards / shared read-only views. |
+
+The toolbar also carries **navigation** (今天 / 本周 / 本月 jump-to buttons that
+scroll the timeline to the start of today/this-week/this-month) and **export**
+(导出 PNG and a dependency-free single-page 导出 PDF of the whole chart) controls,
+always available regardless of `readOnly`.
 
 Import plugins in your app entry point to trigger registration:
 ```typescript
