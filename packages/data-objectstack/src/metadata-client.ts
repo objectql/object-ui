@@ -113,6 +113,13 @@ export interface MetadataGetOptions {
    * to read the active (published) value.
    */
   state?: 'active' | 'draft';
+  /**
+   * Software-package id to scope resolution (sent as the `package` query
+   * param → server prefer-local, ADR-0048). Set when reading one item that
+   * may collide by name across installed packages (e.g. the Studio editor
+   * passes the edited item's owning package). Omit for context-free reads.
+   */
+  packageId?: string;
 }
 
 export interface MetadataDeleteOptions extends MetadataSaveOptions {
@@ -451,6 +458,7 @@ export class MetadataClient {
     // `state=draft` reads the raw draft row explicitly; the overlay flag is
     // redundant (and the dispatcher resolves `state` first), so skip it.
     else if (this.previewDrafts) params.push('preview=draft');
+    if (options.packageId) params.push(`package=${encodeURIComponent(options.packageId)}`);
     const qs = params.length ? `?${params.join('&')}` : '';
     const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}${qs}`;
     const res = await this.fetchImpl(url, { method: 'GET', headers: this.headers, cache: 'no-store' });
@@ -471,8 +479,12 @@ export class MetadataClient {
    * unwrapped body, so this method preserves that asymmetry by
    * returning whatever the server sent.
    */
-  async getDraft<T = unknown>(type: string, name: string): Promise<T | null> {
-    return this.get<T>(type, name, { state: 'draft' });
+  async getDraft<T = unknown>(
+    type: string,
+    name: string,
+    options: { packageId?: string } = {},
+  ): Promise<T | null> {
+    return this.get<T>(type, name, { state: 'draft', ...(options.packageId ? { packageId: options.packageId } : {}) });
   }
 
   /**
@@ -545,8 +557,13 @@ export class MetadataClient {
    * `code` (the artifact / fallback default), `overlay` (the saved
    * customisation, if any), and `effective` (what the runtime sees).
    */
-  async layered<T = unknown>(type: string, name: string): Promise<MetadataLayered<T>> {
-    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}?layers=true`;
+  async layered<T = unknown>(
+    type: string,
+    name: string,
+    options: { packageId?: string } = {},
+  ): Promise<MetadataLayered<T>> {
+    const pkg = options.packageId ? `&package=${encodeURIComponent(options.packageId)}` : '';
+    const url = `${this.base}/${encodeURIComponent(type)}/${encodeURIComponent(name)}?layers=true${pkg}`;
     const res = await this.fetchImpl(url, { method: 'GET', headers: this.headers, cache: 'no-store' });
     if (res.status === 404) {
       return { code: null, overlay: null, overlayScope: null, effective: null };

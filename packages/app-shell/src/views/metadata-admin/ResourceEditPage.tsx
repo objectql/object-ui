@@ -222,6 +222,12 @@ function MetadataResourceEditPageImpl({
 }: MetadataResourceEditPageImplProps) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  // ADR-0048 — the owning package of the item being edited, carried on the
+  // edit URL as `?package=` (emitted by the metadata list links). Scopes the
+  // layered/draft read so a same-name collision resolves to the right
+  // package's item. NOT the active Studio app's package — Studio edits items
+  // across all installed packages.
+  const ownerPackageId = searchParams.get('package') ?? undefined;
   const client = useMetadataClient();
   const { entries } = useMetadataTypes(client);
   const entry: RichMetadataTypeEntry | undefined = entries.find((t) => t.type === type);
@@ -511,12 +517,13 @@ function MetadataResourceEditPageImpl({
     setError(null);
     (async () => {
       try {
+        const scope = ownerPackageId ? { packageId: ownerPackageId } : {};
         const [lay, draftResp] = await Promise.all([
-          client.layered<any>(type, name),
+          client.layered<any>(type, name, scope),
           // Draft reads are best-effort — a 404/error must not block
           // the page; readers without overlay-write permission still
           // see the published item.
-          client.getDraft<any>(type, name).catch(() => null),
+          client.getDraft<any>(type, name, scope).catch(() => null),
         ]);
         if (cancelled) return;
         setLayered(lay);
@@ -564,7 +571,7 @@ function MetadataResourceEditPageImpl({
     return () => {
       cancelled = true;
     };
-  }, [client, type, name, createMode, reloadKey]);
+  }, [client, type, name, ownerPackageId, createMode, reloadKey]);
 
   // Lazy-load references the first time the References sheet opens.
   const [refsLoading, setRefsLoading] = React.useState(false);

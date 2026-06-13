@@ -431,6 +431,15 @@ function DefaultMetadataList({ type }: { type: string }) {
                 {filtered.map((row, i) => {
                   const pk = config.primaryKey ?? 'name';
                   const name = String(row.item[pk] ?? `(unnamed-${i})`);
+                  // ADR-0048 — link to this row's OWNING package so the editor
+                  // resolves the right item even in the unscoped "all" list
+                  // where two packages may ship the same name. Falls back to the
+                  // workspace suffix for runtime/overlay-only rows (no real
+                  // package, or the `sys_metadata` rehydration sentinel).
+                  const rowPkg = (row.item as any)._packageId as string | undefined;
+                  const rowEditSuffix = rowPkg && rowPkg !== 'sys_metadata'
+                    ? `?package=${encodeURIComponent(rowPkg)}`
+                    : pkgSuffix;
                   const invalid = row.diagnostics?.valid === false;
                   const errorList = row.diagnostics?.errors ?? [];
                   const warnList = (row.diagnostics as any)?.warnings ?? [];
@@ -486,7 +495,7 @@ function DefaultMetadataList({ type }: { type: string }) {
                                   </span>
                                 )}
                                 <Link
-                                  to={`./${encodeURIComponent(name)}${pkgSuffix}`}
+                                  to={`./${encodeURIComponent(name)}${rowEditSuffix}`}
                                   className="text-primary hover:underline font-mono"
                                 >
                                   {cell}
