@@ -135,12 +135,24 @@ const png = await page.evaluate(async () => {
   }
   URL.createObjectURL = origCreate;
   HTMLAnchorElement.prototype.click = origClick;
-  return { svgLen: svgText ? svgText.length : 0, svgNaN: svgText ? (svgText.match(/NaN/g) || []).length : -1, download, type, bytes, dims };
+  const svg = svgText || '';
+  return {
+    svgLen: svg.length,
+    svgNaN: svgText ? (svg.match(/NaN/g) || []).length : -1,
+    download, type, bytes, dims,
+    // The export must carry the same information the live chart shows:
+    // baseline strips (BASELINE_FILL) and the custom marker labels.
+    baselineCount: (svg.match(/rgba\(100, ?116, ?139, ?0\.35\)/g) || []).length,
+    hasSprint2: svg.includes('Sprint 2'),
+    hasCodeFreeze: svg.includes('Code freeze'),
+  };
 });
 check('export produces a valid SVG (no NaN geometry)', png.svgLen > 0 && png.svgNaN === 0, `${png.svgLen} chars, ${png.svgNaN} NaN`);
 check('download is named gantt-day.png', png.download === 'gantt-day.png', String(png.download));
 check('rasterized PNG is non-trivial', png.type === 'image/png' && png.bytes > 5000, `${png.type}, ${png.bytes}B`);
 check('PNG is 2× scale of the SVG', png.dims && png.dims.w > 0 && png.dims.h > 0, png.dims ? `${png.dims.w}×${png.dims.h}` : 'no dims');
+check('export includes baseline strips (t1/t4/t5)', png.baselineCount === 3, `${png.baselineCount} baselines`);
+check('export includes custom markers (Sprint 2 + Code freeze)', png.hasSprint2 && png.hasCodeFreeze, `sprint2=${png.hasSprint2} codeFreeze=${png.hasCodeFreeze}`);
 
 await browser.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');

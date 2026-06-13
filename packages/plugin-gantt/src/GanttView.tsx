@@ -1365,6 +1365,11 @@ export function GanttView({
       const { left, width } = styleFor(row.start, row.end);
       const crit = isCriticalTask(row.task.id);
       const stroke = crit ? ` stroke="${CRIT_COLOR}" stroke-width="2"` : '';
+      // Planned-vs-actual baseline strip (under the live bar, row bottom).
+      if (showBaselines && row.task.baselineStart && row.task.baselineEnd) {
+        const bl = styleFor(row.task.baselineStart, row.task.baselineEnd);
+        parts.push(`<rect x="${bl.left.toFixed(1)}" y="${(y + baselineTop).toFixed(1)}" width="${Math.max(2, bl.width).toFixed(1)}" height="${baselineHeight}" rx="1" fill="${BASELINE_FILL}" stroke="${BASELINE_BORDER}"/>`);
+      }
       if (row.isMilestone) {
         const cx = left;
         const cy = y + rowHeight / 2;
@@ -1396,6 +1401,19 @@ export function GanttView({
     if (todayLeftPx != null) {
       parts.push(`<line x1="${todayLeftPx.toFixed(1)}" y1="0" x2="${todayLeftPx.toFixed(1)}" y2="${rows.length * rowHeight}" stroke="#ef4444" stroke-width="1.5"/>`);
     }
+    // Custom vertical markers (sprint boundaries, deadlines…), with labels.
+    // CSS vars don't resolve in a detached SVG, so the themed default
+    // (hsl(var(--primary))) falls back to a concrete indigo.
+    const markerH = rows.length * rowHeight;
+    resolvedMarkers.forEach((m) => {
+      const color = /var\(/.test(m.color) ? '#6366f1' : m.color;
+      parts.push(`<line x1="${m.left.toFixed(1)}" y1="0" x2="${m.left.toFixed(1)}" y2="${markerH}" stroke="${esc(color)}" stroke-width="1.5"/>`);
+      if (m.label) {
+        const lw = m.label.length * 6 + 8;
+        parts.push(`<rect x="${(m.left - lw / 2).toFixed(1)}" y="0" width="${lw}" height="14" rx="2" fill="${esc(color)}"/>`);
+        parts.push(`<text x="${m.left.toFixed(1)}" y="10" text-anchor="middle" font-size="9" font-weight="600" fill="#ffffff">${esc(m.label)}</text>`);
+      }
+    });
     parts.push(`</g>`);
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${parts.join('')}</svg>`;
@@ -1426,7 +1444,7 @@ export function GanttView({
     };
     img.onerror = () => URL.revokeObjectURL(url);
     img.src = url;
-  }, [tasks, rows, links, linkPath, styleFor, isCriticalTask, critical, timeColumns, colOffsets, totalWidth, taskListWidth, rowHeight, barTop, barHeight, summaryBarTop, summaryBarHeight, milestoneSize, todayLeftPx, viewMode]);
+  }, [tasks, rows, links, linkPath, styleFor, isCriticalTask, critical, timeColumns, colOffsets, totalWidth, taskListWidth, rowHeight, barTop, barHeight, summaryBarTop, summaryBarHeight, milestoneSize, todayLeftPx, viewMode, showBaselines, baselineTop, baselineHeight, BASELINE_FILL, BASELINE_BORDER, resolvedMarkers]);
 
   return (
     <div ref={containerRef} className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}>

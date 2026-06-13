@@ -175,7 +175,7 @@ pnpm --dir packages/plugin-gantt exec vite demo --port 5199
 node packages/plugin-gantt/scripts/verify-phase6.mjs
 ```
 
-## Latest run: 13/13 checks passed
+## Latest run: 15/15 checks passed
 
 ### 1. Critical path (CPM)
 
@@ -209,7 +209,13 @@ rasterizes it to a 2× PNG via a canvas and downloads `gantt-<mode>.png`.
 Zero third-party dependencies.
 
 - The latest run produced a valid SVG (0 NaN coordinates) rasterized to an
-  **11920×1096** `gantt-day.png` (~334 KB).
+  **11920×1096** `gantt-day.png` (~341 KB).
+- The export carries the **same information the live chart shows**: the planned
+  baseline strips (`t1`/`t4`/`t5`) and the custom vertical markers with labels
+  (Sprint 2 + Code freeze) are both re-drawn into the SVG — verified by
+  asserting 3 baseline fills and both marker labels are present in the export
+  output. (Earlier the export omitted baselines and markers; that gap is now
+  closed.)
 
 ---
 
