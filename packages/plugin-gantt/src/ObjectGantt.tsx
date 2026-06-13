@@ -38,7 +38,16 @@ import {
   AlertDialogTitle,
 } from '@object-ui/components';
 import { extractRecords, buildExpandFields } from '@object-ui/core';
-import { getSemanticColorName, getSemanticHex } from '@object-ui/fields';
+import {
+  getSemanticColorName,
+  getSemanticHex,
+  humanizeLabel,
+  formatDate,
+  formatDateTime,
+  formatNumber,
+  formatPercent,
+  formatCurrency,
+} from '@object-ui/fields';
 import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, type GanttTaskType } from './GanttView';
 
 /**
@@ -177,6 +186,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           colorField: schema.colorField,
           parentField: schema.parentField,
           typeField: schema.typeField,
+          tooltipFields: schema.tooltipFields,
       };
       return config;
   }
@@ -298,7 +308,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return [];
     }
 
-    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField } = ganttConfig;
+    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField, tooltipFields } = ganttConfig;
+    const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
 
     // Resolve a value through nested paths like "account.name". Returns the
     // first non-empty string from the path (so lookups that resolve to either a
@@ -338,6 +349,69 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return 'Untitled';
     };
 
+    // Label for a tooltip field: explicit override → object schema label →
+    // humanized field name (so "due_date" reads as "Due Date").
+    const resolveFieldLabel = (fieldName: string, explicit?: string): string => {
+      if (explicit) return explicit;
+      const def = fieldDefs[fieldName] ?? fieldDefs[fieldName.split('.')[0]];
+      if (def?.label) return def.label;
+      return humanizeLabel(fieldName);
+    };
+
+    // Format a tooltip value by its field type, mirroring how list/grid cells
+    // render the same data: select options resolve to their label, lookups to
+    // the embedded record's name, dates/numbers/currency/percent through the
+    // shared @object-ui/fields formatters.
+    const formatFieldValue = (value: unknown, fieldName: string): string => {
+      if (value == null || value === '') return '—';
+      const def = fieldDefs[fieldName] ?? fieldDefs[fieldName.split('.')[0]];
+      const type: string | undefined = def?.type;
+      const options: Array<{ value: unknown; label: string }> | undefined = def?.options;
+      if (Array.isArray(options) && options.length) {
+        const opt = options.find((o) => String(o.value) === String(value));
+        if (opt) return opt.label;
+      }
+      switch (type) {
+        case 'date':
+          return formatDate(value as any);
+        case 'datetime':
+          return formatDateTime(value as any);
+        case 'number':
+        case 'integer':
+        case 'float':
+        case 'decimal':
+          return formatNumber(Number(value));
+        case 'currency':
+          return formatCurrency(Number(value));
+        case 'percent':
+          return formatPercent(Number(value));
+        case 'boolean':
+        case 'checkbox':
+          return value ? 'Yes' : 'No';
+        default:
+          if (typeof value === 'object') {
+            const o = value as any;
+            return String(o.name ?? o.label ?? o.title ?? o.id ?? '—');
+          }
+          return String(value);
+      }
+    };
+
+    const buildTooltipFields = (record: any): Array<{ label: string; value: string }> | undefined => {
+      if (!tooltipFields || !tooltipFields.length) return undefined;
+      const rows: Array<{ label: string; value: string }> = [];
+      for (const entry of tooltipFields) {
+        const fieldName = typeof entry === 'string' ? entry : entry?.field;
+        if (!fieldName) continue;
+        const explicitLabel = typeof entry === 'object' ? entry.label : undefined;
+        rows.push({
+          label: resolveFieldLabel(fieldName, explicitLabel),
+          value: formatFieldValue(resolvePath(record, fieldName), fieldName),
+        });
+      }
+      return rows.length ? rows : undefined;
+    };
+
     return data.map((record, index) => {
       const startDate = record[startDateField];
       const endDate = record[endDateField];
@@ -369,10 +443,11 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         parent: parentField ? record[parentField] ?? null : undefined,
         type: typeField ? normalizeTaskType(record[typeField]) : undefined,
         color,
+        fields: buildTooltipFields(record),
         data: record,
       };
     }).filter(task => !isNaN(task.start.getTime()) && !isNaN(task.end.getTime()));
-  }, [data, ganttConfig]);
+  }, [data, ganttConfig, objectSchema]);
 
   // Default to a right-side drawer so clicking a task opens an editable
   // detail panel inline (no full-page navigation). Schema can override by

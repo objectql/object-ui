@@ -14,6 +14,13 @@ vi.mock('./GanttView', () => ({
       {tasks.map((t: any) => (
         <div key={t.id} data-testid="gantt-task">
           <span>{t.title}</span>
+          {t.fields ? (
+            <div data-testid={`gv-fields-${t.id}`}>
+              {t.fields.map((f: any, i: number) => (
+                <span key={i} data-testid={`gv-field-${t.id}-${i}`}>{f.label}={f.value}</span>
+              ))}
+            </div>
+          ) : null}
           <button data-testid={`gv-view-${t.id}`} onClick={() => onTaskClick?.(t)}>view</button>
           <button data-testid={`gv-update-${t.id}`} onClick={() => onTaskUpdate?.(t, { start: new Date('2024-02-01T00:00:00.000Z'), end: new Date('2024-02-05T00:00:00.000Z') })}>update</button>
           <button data-testid={`gv-delete-${t.id}`} onClick={() => onTaskDelete?.(t)}>delete</button>
@@ -67,6 +74,73 @@ describe('ObjectGantt', () => {
     
     expect(screen.getAllByTestId('gantt-task')).toHaveLength(2);
     expect(screen.getByText('Task 1')).toBeDefined();
+  });
+
+  it('resolves and formats tooltipFields per record (label override, schema label, select option, date)', async () => {
+    const ttData = [
+      {
+        id: '1', name: 'Task 1', start_date: '2024-01-01', end_date: '2024-01-05',
+        owner: { name: 'Priya N.' }, status: 'in_progress', due_date: '2024-01-05', effort: 12,
+      },
+    ];
+    const ds: DataSource = {
+      ...mockDataSource,
+      find: vi.fn().mockResolvedValue({ data: ttData }),
+      getObjectSchema: vi.fn().mockResolvedValue({
+        fields: {
+          name: { type: 'text' },
+          start_date: { type: 'date' },
+          end_date: { type: 'date' },
+          owner: { type: 'lookup', label: 'Assignee' },
+          status: {
+            type: 'select', label: 'Status',
+            options: [
+              { value: 'todo', label: 'To Do' },
+              { value: 'in_progress', label: 'In Progress' },
+            ],
+          },
+          due_date: { type: 'date' },
+          effort: { type: 'number' },
+        },
+      }),
+    };
+    const schema: any = {
+      type: 'gantt',
+      gantt: {
+        titleField: 'name', startDateField: 'start_date', endDateField: 'end_date',
+        tooltipFields: [
+          { field: 'owner', label: 'Owner' }, // explicit label override
+          'status',                            // schema label + select option
+          'due_date',                          // date formatting
+          'effort',                            // number formatting
+        ],
+      },
+      data: { provider: 'object', object: 'tasks' },
+    };
+    render(<ObjectGantt schema={schema} dataSource={ds} />);
+
+    await waitFor(() => expect(screen.getByTestId('gv-fields-1')).toBeDefined());
+
+    // Explicit label wins; lookup resolves to the embedded record name.
+    expect(screen.getByTestId('gv-field-1-0').textContent).toBe('Owner=Priya N.');
+    // Schema label + select option label.
+    expect(screen.getByTestId('gv-field-1-1').textContent).toBe('Status=In Progress');
+    // Date field formatted (not the raw ISO string).
+    expect(screen.getByTestId('gv-field-1-2').textContent).not.toContain('2024-01-05');
+    // Number field formatted.
+    expect(screen.getByTestId('gv-field-1-3').textContent).toBe('Effort=12.00');
+  });
+
+  it('omits tooltip fields when none configured', async () => {
+    const ds: DataSource = { ...mockDataSource, find: vi.fn().mockResolvedValue({ data: mockData }) };
+    const schema: any = {
+      type: 'gantt',
+      gantt: { titleField: 'name', startDateField: 'start_date', endDateField: 'end_date' },
+      data: { provider: 'object', object: 'tasks' },
+    };
+    render(<ObjectGantt schema={schema} dataSource={ds} />);
+    await waitFor(() => expect(screen.getAllByTestId('gantt-task')).toHaveLength(2));
+    expect(screen.queryByTestId('gv-fields-1')).toBeNull();
   });
 
   it('renders with object provider', async () => {
