@@ -62,12 +62,20 @@ function fallback(key: string, options?: Record<string, unknown>): string {
 export function useGanttTranslation() {
   try {
     const result = useObjectTranslation();
+    // `language` is a BCP-47 tag (e.g. 'zh', 'en'). We thread it into the
+    // date formatters so the calendar headers/tooltips localize to the SAME
+    // language as the chrome, instead of silently following the browser
+    // locale (which can diverge — English UI but Chinese dates).
+    const language = result.language as string | undefined;
     const testValue = result.t(TEST_KEY);
     if (testValue === TEST_KEY) {
-      return { t: fallback };
+      return { t: fallback, language };
     }
-    return { t: result.t };
+    return { t: result.t, language };
   } catch {
-    return { t: fallback };
+    // No I18nProvider on the tree (standalone embed / unit tests): keep the
+    // English fallback and let dates follow the browser locale (language
+    // undefined → toLocaleDateString uses the runtime default).
+    return { t: fallback, language: undefined as string | undefined };
   }
 }

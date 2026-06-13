@@ -319,3 +319,39 @@ Undo/Redo/auto-schedule buttons are absent.
 - The Undo/Redo arrows and the auto-schedule wand are absent from the toolbar.
 - A real mouse drag on **t4** leaves it pixel-identical — no write fires.
 - ![Read-only mode](21-read-only.png)
+
+---
+
+## i18n — fully localized chrome + dates (`?lang=en` / `?lang=zh`)
+
+Driven by [`scripts/verify-i18n.mjs`](../../scripts/verify-i18n.mjs) against the
+demo, which wraps the chart in an `I18nProvider` and exposes an `English · 中文`
+toggle (`?lang=en` / `?lang=zh`).
+
+Two fixes landed here:
+
+1. **Dates follow the i18n language, not the browser locale.** `GanttView`
+   threads the provider's `language` into every user-facing `toLocaleDateString`
+   (header bands, unit labels, tooltips, edit chips) via a `dateLocale`. Before
+   this the chrome could be English while the calendar rendered Chinese dates
+   (the browser was `zh-CN`) — now they always match.
+2. **The central locale packs were completed.** `@object-ui/i18n`'s built-in
+   `gantt:` namespace ([`en.ts`](../../../i18n/src/locales/en.ts),
+   [`zh.ts`](../../../i18n/src/locales/zh.ts)) was stale — it predated Phases
+   4–6, so apps on `I18nProvider` rendered **raw keys** (e.g.
+   `gantt.viewMode.day`, `gantt.toolbar.criticalPath`) for the newer
+   toolbar / view-mode / menu strings. The namespace now mirrors the plugin's
+   complete `GANTT_DEFAULT_TRANSLATIONS`; other locales degrade gracefully to
+   English via `fallbackLng`.
+
+The script asserts, in both languages, that **no `gantt.*` key leaks** into any
+button title, view-mode tab, or column header, and that the Phase-6 toolbar
+strings (critical path, auto-schedule, export, undo/redo) are translated
+(13/13 checks passed):
+
+- **English** — chrome and dates both English (`Day/Week/Month/Quarter`,
+  `Task Name/Start/End`, `May 2026`).
+- ![i18n — English](22-i18n-english.png)
+- **Chinese** — chrome and dates both Chinese (`日/周/月/季`,
+  `任务名称/开始/结束`, `2026年5月`, weekday `一/二/三`).
+- ![i18n — 中文](23-i18n-chinese.png)

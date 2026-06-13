@@ -294,6 +294,35 @@ const en = {
       today: 'Today',
       showTaskList: 'Show task list',
       hideTaskList: 'Hide task list',
+      viewMode: 'Timeline granularity',
+      enterFullscreen: 'Enter fullscreen',
+      exitFullscreen: 'Exit fullscreen',
+      criticalPath: 'Highlight critical path',
+      autoSchedule: 'Auto-schedule dependencies',
+      exportPng: 'Export as PNG',
+      undo: 'Undo',
+      redo: 'Redo',
+    },
+    viewMode: {
+      day: 'Day',
+      week: 'Week',
+      month: 'Month',
+      quarter: 'Quarter',
+    },
+    row: {
+      expand: 'Expand',
+      collapse: 'Collapse',
+    },
+    aria: {
+      taskList: 'Task list',
+    },
+    tooltip: {
+      days: 'd',
+    },
+    menu: {
+      view: 'View details',
+      edit: 'Edit inline',
+      delete: 'Delete',
     },
   },
   view: {

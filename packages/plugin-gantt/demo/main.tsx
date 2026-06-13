@@ -11,10 +11,43 @@
 import * as React from 'react';
 import { createRoot } from 'react-dom/client';
 import '@object-ui/components/style.css';
+import { I18nProvider } from '@object-ui/react';
 import { GanttView, type GanttTask, type GanttMarker, type GanttViewMode } from '../src/GanttView';
 import type { WorkingCalendar } from '../src/scheduling';
 
+/**
+ * Simplified Chinese pack for the Gantt chrome. Nested to match i18next's
+ * default '.' key separator (so `t('gantt.column.taskName')` resolves). The
+ * plugin's own English defaults cover the `en` path, so we only ship `zh` here.
+ * With ?lang=zh the WHOLE chart localizes — chrome via these keys, dates via
+ * `dateLocale` (driven by the provider language, not the browser locale).
+ */
+const GANTT_ZH = {
+  gantt: {
+    column: { taskName: '任务名称', start: '开始', end: '结束' },
+    toolbar: {
+      prevPeriod: '上一时段', nextPeriod: '下一时段', zoomIn: '放大', zoomOut: '缩小',
+      jumpToToday: '跳到今天', today: '今天', showTaskList: '显示任务列表', hideTaskList: '隐藏任务列表',
+      viewMode: '时间粒度', enterFullscreen: '进入全屏', exitFullscreen: '退出全屏',
+      criticalPath: '高亮关键路径', autoSchedule: '自动排程依赖', exportPng: '导出 PNG',
+      undo: '撤销', redo: '重做',
+    },
+    viewMode: { day: '日', week: '周', month: '月', quarter: '季' },
+    row: { expand: '展开', collapse: '折叠' },
+    aria: { taskList: '任务列表' },
+    tooltip: { days: '天' },
+    menu: { view: '查看详情', edit: '行内编辑', delete: '删除' },
+  },
+};
+
 const d = (s: string) => new Date(`${s}T00:00:00`);
+
+/** Build a URL preserving current params but overriding one key. */
+function withParam(key: string, value: string): string {
+  const p = new URLSearchParams(window.location.search);
+  p.set(key, value);
+  return `?${p.toString()}`;
+}
 
 function projectFixture(): GanttTask[] {
   return [
@@ -145,6 +178,12 @@ function App() {
         <a href="?baselines=0">no baselines</a>
         <a href="?readonly=1">read-only</a>
         <a href="?perf=5000&mode=week">perf: 5000 tasks</a>
+        <span style={{ marginLeft: 'auto' }}>
+          {/* Language toggle: chrome + dates localize together. */}
+          <a href={withParam('lang', 'en')}>English</a>
+          {' · '}
+          <a href={withParam('lang', 'zh')}>中文</a>
+        </span>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
         <GanttView
@@ -178,4 +217,12 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+// Drive the whole chart's language from ?lang (default English). The provider
+// supplies the zh chrome bundle; GanttView's `dateLocale` then localizes the
+// calendar/tooltips to the SAME language, so the demo is never half-translated.
+const lang = new URLSearchParams(window.location.search).get('lang') === 'zh' ? 'zh' : 'en';
+createRoot(document.getElementById('root')!).render(
+  <I18nProvider config={{ defaultLanguage: lang, detectBrowserLanguage: false, resources: { zh: GANTT_ZH } }}>
+    <App />
+  </I18nProvider>
+);

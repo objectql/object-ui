@@ -272,7 +272,11 @@ export function GanttView({
   const onTaskReorder = readOnly ? undefined : onTaskReorderProp;
   const inlineEdit = readOnly ? false : inlineEditProp;
   const autoSchedule = readOnly ? false : autoScheduleProp;
-  const { t } = useGanttTranslation();
+  const { t, language } = useGanttTranslation();
+  // Locale for every user-facing date label. Falls back to the runtime default
+  // (browser locale) when no I18nProvider supplies a language, so standalone
+  // embeds and tests behave exactly as before.
+  const dateLocale = language || undefined;
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { width: containerWidth } = useResizeObserver(containerRef);
@@ -914,11 +918,11 @@ export function GanttView({
       let sublabel: string | undefined;
       if (viewMode === 'day') {
         label = String(current.getDate());
-        sublabel = current.toLocaleDateString(undefined, { weekday: 'narrow' });
+        sublabel = current.toLocaleDateString(dateLocale, { weekday: 'narrow' });
       } else if (viewMode === 'week') {
-        label = current.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' });
+        label = current.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' });
       } else if (viewMode === 'month') {
-        label = current.toLocaleDateString(undefined, { month: 'short' });
+        label = current.toLocaleDateString(dateLocale, { month: 'short' });
       } else {
         label = `Q${Math.floor(current.getMonth() / 3) + 1}`;
       }
@@ -933,7 +937,7 @@ export function GanttView({
     }
 
     return cols;
-  }, [timelineRange, viewMode, pxPerDay]);
+  }, [timelineRange, viewMode, pxPerDay, dateLocale]);
 
   // Prefix sums of column widths — left edge of column i, used both for
   // positioning the virtualized cells and for the visible-range search.
@@ -967,7 +971,7 @@ export function GanttView({
           key,
           label: byYear
             ? String(col.date.getFullYear())
-            : col.date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }),
+            : col.date.toLocaleDateString(dateLocale, { month: 'short', year: 'numeric' }),
           width: col.width,
           offset: acc,
         });
@@ -975,7 +979,7 @@ export function GanttView({
       acc += col.width;
     }
     return groups;
-  }, [timeColumns, viewMode]);
+  }, [timeColumns, viewMode, dateLocale]);
 
   // Normalized custom markers (invalid/out-of-range dates dropped), with the
   // same linear ms→px mapping the bars and the Today line use.
@@ -1517,7 +1521,7 @@ export function GanttView({
             <ChevronRight className="h-4 w-4" />
           </Button>
           <span className="font-semibold text-xs sm:text-sm">
-            {timelineRange.start.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+            {timelineRange.start.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })}
           </span>
         </div>
         
@@ -1860,7 +1864,7 @@ export function GanttView({
                     <span className="flex flex-col min-w-0">
                       <span className={cn("truncate", row.isSummary && "font-semibold")}>{task.title}</span>
                       <span className="text-[10px] text-muted-foreground gantt-sm-hidden">
-                        {row.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} → {row.end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                        {row.start.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })} → {row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}
                       </span>
                     </span>
                   )}
@@ -1875,7 +1879,7 @@ export function GanttView({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    row.start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
+                    row.start.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
                 <div className="w-16 gantt-sm-w20 text-right text-xs text-muted-foreground hidden sm:block" hidden={!showSEColumns} style={!showSEColumns ? { display: 'none' } : undefined}>
@@ -1888,7 +1892,7 @@ export function GanttView({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    row.end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })
+                    row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
                 {/* Row actions removed: View / Edit / Delete are reachable
@@ -2045,9 +2049,9 @@ export function GanttView({
                          </div>
                        ) : (
                          <div className="text-muted-foreground">
-                           {row.start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                           {row.start.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })}
                            {' → '}
-                           {row.end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                           {row.end.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })}
                            {' · '}{durationDays}{t('gantt.tooltip.days')}
                            {' · '}{Math.round(row.progress)}%
                          </div>
@@ -2117,9 +2121,9 @@ export function GanttView({
                             style={{ left: Math.max(liveStyle.left, 4), top: summaryBarTop + summaryBarHeight + 2 }}
                             data-testid={`gantt-summary-drag-chip-${task.id}`}
                           >
-                            {computeDragChanges(dragState).start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                            {computeDragChanges(dragState).start.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}
                             {' → '}
-                            {computeDragChanges(dragState).end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                            {computeDragChanges(dragState).end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}
                           </div>
                         )}
                         {tooltip}
@@ -2330,7 +2334,7 @@ export function GanttView({
                         {/* Hover Details / drag tooltip */}
                         <span className="text-[10px] text-white font-medium truncate opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                           {isDragging
-                            ? `${computeDragChanges(dragState!).start.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })} → ${computeDragChanges(dragState!).end.toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}`
+                            ? `${computeDragChanges(dragState!).start.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })} → ${computeDragChanges(dragState!).end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}`
                             : `${Math.round(liveProgress)}%`}
                         </span>
                       </div>

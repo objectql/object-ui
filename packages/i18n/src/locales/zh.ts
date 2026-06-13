@@ -294,6 +294,35 @@ const zh = {
       today: '今天',
       showTaskList: '展开任务列表',
       hideTaskList: '收起任务列表',
+      viewMode: '时间粒度',
+      enterFullscreen: '进入全屏',
+      exitFullscreen: '退出全屏',
+      criticalPath: '高亮关键路径',
+      autoSchedule: '自动排程依赖',
+      exportPng: '导出 PNG',
+      undo: '撤销',
+      redo: '重做',
+    },
+    viewMode: {
+      day: '日',
+      week: '周',
+      month: '月',
+      quarter: '季度',
+    },
+    row: {
+      expand: '展开',
+      collapse: '收起',
+    },
+    aria: {
+      taskList: '任务列表',
+    },
+    tooltip: {
+      days: '天',
+    },
+    menu: {
+      view: '查看详情',
+      edit: '行内编辑',
+      delete: '删除',
     },
   },
   view: {

@@ -1,5 +1,5 @@
 {
-  "date": "2026-06-13T08:53:07.544Z",
+  "date": "2026-06-13T09:08:52.046Z",
   "results": [
     {
       "name": "hierarchy rows",
@@ -89,7 +89,7 @@
     {
       "name": "initial render of 5000 tasks",
       "pass": true,
-      "detail": "32.2ms"
+      "detail": "32ms"
     },
     {
       "name": "row virtualization",
@@ -104,7 +104,7 @@
     {
       "name": "mid-list scroll window shift",
       "pass": true,
-      "detail": "44.6ms to re-render at scrollTop 100000 of 200000"
+      "detail": "28.4ms to re-render at scrollTop 100000 of 200000"
     },
     {
       "name": "window stays small after scroll",
