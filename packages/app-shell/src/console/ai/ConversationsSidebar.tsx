@@ -49,6 +49,61 @@ function formatTimestamp(
   return d.toLocaleDateString();
 }
 
+export type ConversationGroupKey = 'today' | 'yesterday' | 'previous7Days' | 'previous30Days' | 'older';
+
+export interface ConversationGroup {
+  key: ConversationGroupKey;
+  items: ConversationSummary[];
+}
+
+const GROUP_ORDER: ConversationGroupKey[] = ['today', 'yesterday', 'previous7Days', 'previous30Days', 'older'];
+
+/** English fallbacks for the section headers (overridable via i18n). */
+export const CONVERSATION_GROUP_LABELS: Record<ConversationGroupKey, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  previous7Days: 'Previous 7 days',
+  previous30Days: 'Previous 30 days',
+  older: 'Older',
+};
+
+/**
+ * Bucket conversations into recency sections (ChatGPT/Claude-style), newest
+ * first within each. Boundaries are calendar-day based off local midnight, so
+ * "Today"/"Yesterday" track the actual day rather than a rolling 24h. Pure +
+ * exported for tests; `nowMs` defaults to the current time (kept out of the
+ * component's render path). Empty sections are omitted.
+ */
+export function groupConversationsByDate(
+  conversations: ConversationSummary[],
+  nowMs: number = Date.now(),
+): ConversationGroup[] {
+  const startOfToday = new Date(nowMs);
+  startOfToday.setHours(0, 0, 0, 0);
+  const todayMs = startOfToday.getTime();
+  const DAY = 24 * 60 * 60 * 1000;
+  const stamp = (c: ConversationSummary): number => {
+    const v = new Date(c.updatedAt ?? c.createdAt ?? 0).getTime();
+    return Number.isNaN(v) ? 0 : v;
+  };
+  const buckets: Record<ConversationGroupKey, ConversationSummary[]> = {
+    today: [],
+    yesterday: [],
+    previous7Days: [],
+    previous30Days: [],
+    older: [],
+  };
+  for (const c of [...conversations].sort((a, b) => stamp(b) - stamp(a))) {
+    const v = stamp(c);
+    if (v >= todayMs) buckets.today.push(c);
+    else if (v >= todayMs - DAY) buckets.yesterday.push(c);
+    else if (v >= todayMs - 7 * DAY) buckets.previous7Days.push(c);
+    else if (v >= todayMs - 30 * DAY) buckets.previous30Days.push(c);
+    else buckets.older.push(c);
+  }
+  return GROUP_ORDER.filter((k) => buckets[k].length > 0).map((key) => ({ key, items: buckets[key] }));
+}
+
 export function ConversationsSidebar({
   userId,
   apiBase,
@@ -165,24 +220,33 @@ export function ConversationsSidebar({
         ) : visible.length === 0 ? (
           <div className="px-3 py-4 text-xs text-muted-foreground">{t('console.ai.noMatchingChats')}</div>
         ) : (
-          <ul className="flex flex-col py-1">
-            {visible.map((c) => (
-              <ConversationRow
-                key={c.id}
-                conversation={c}
-                active={c.id === activeId}
-                renaming={c.id === renamingId}
-                onSelect={() => {
-                  navigate(`/ai/${c.id}`);
-                  onNavigate?.();
-                }}
-                onDelete={(e) => handleDelete(e, c.id)}
-                onStartRename={() => setRenamingId(c.id)}
-                onCancelRename={() => setRenamingId(undefined)}
-                onSubmitRename={(title) => handleRenameSubmit(c.id, title)}
-              />
+          <div className="flex flex-col py-1">
+            {groupConversationsByDate(visible).map((group) => (
+              <section key={group.key} data-testid={`ai-conversation-group-${group.key}`}>
+                <h3 className="px-3 pb-1 pt-3 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {t(`console.ai.group.${group.key}`, { defaultValue: CONVERSATION_GROUP_LABELS[group.key] })}
+                </h3>
+                <ul className="flex flex-col">
+                  {group.items.map((c) => (
+                    <ConversationRow
+                      key={c.id}
+                      conversation={c}
+                      active={c.id === activeId}
+                      renaming={c.id === renamingId}
+                      onSelect={() => {
+                        navigate(`/ai/${c.id}`);
+                        onNavigate?.();
+                      }}
+                      onDelete={(e) => handleDelete(e, c.id)}
+                      onStartRename={() => setRenamingId(c.id)}
+                      onCancelRename={() => setRenamingId(undefined)}
+                      onSubmitRename={(title) => handleRenameSubmit(c.id, title)}
+                    />
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </ScrollArea>
     </aside>
