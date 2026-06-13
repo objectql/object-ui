@@ -1,6 +1,13 @@
 @import 'tailwindcss';
 @import '@object-ui/app-shell/styles.css';
 
+/* Typography plugin — generates the `prose` utilities. plugin-markdown's
+   MarkdownImpl renders docs/markdown inside `prose prose-h1:text-3xl …`;
+   without this plugin those classes are no-ops and Markdown renders with
+   NO heading sizes, list markers, or spacing (ADR-0046 docs looked unstyled
+   — headings indistinguishable from body text). */
+@plugin '@tailwindcss/typography';
+
 /* Scan sources for Tailwind classes */
 @source '../src/**/*.{ts,tsx}';
 @source '../../../packages/app-shell/src/**/*.{ts,tsx}';
