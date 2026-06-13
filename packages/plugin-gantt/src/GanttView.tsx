@@ -1325,7 +1325,11 @@ export function GanttView({
     if (typeof document === 'undefined' || !tasks.length) return;
     const esc = (s: string) =>
       String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-    const headerH = 28;
+    // Two-row header like the live chart: a month/year group band over the
+    // day/week/… unit labels.
+    const groupH = 18;
+    const unitH = 18;
+    const headerH = groupH + unitH;
     const nameW = Math.max(taskListWidth, 200);
     const W = Math.ceil(nameW + totalWidth);
     const H = Math.ceil(headerH + rows.length * rowHeight);
@@ -1333,16 +1337,22 @@ export function GanttView({
 
     const parts: string[] = [];
     parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>`);
+    parts.push(`<rect x="0" y="0" width="${W}" height="${headerH}" fill="#f8fafc"/>`);
 
-    // Header band — column labels + a divider under the header.
+    // Header — top row: month/year groups; bottom row: unit labels.
     parts.push(`<g transform="translate(${nameW},0)" font-family="sans-serif" font-size="10" fill="#475569">`);
+    headerGroups.forEach((group) => {
+      parts.push(`<line x1="${group.offset.toFixed(1)}" y1="0" x2="${group.offset.toFixed(1)}" y2="${headerH}" stroke="#e2e8f0"/>`);
+      parts.push(`<text x="${(group.offset + group.width / 2).toFixed(1)}" y="${groupH - 6}" text-anchor="middle" font-weight="600">${esc(group.label)}</text>`);
+    });
     timeColumns.forEach((col, i) => {
       const x = colOffsets[i];
-      parts.push(`<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${H}" stroke="#eef2f7"/>`);
-      parts.push(`<text x="${(x + col.width / 2).toFixed(1)}" y="${headerH - 9}" text-anchor="middle">${esc(col.label)}</text>`);
+      parts.push(`<line x1="${x.toFixed(1)}" y1="${groupH}" x2="${x.toFixed(1)}" y2="${H}" stroke="#eef2f7"/>`);
+      parts.push(`<text x="${(x + col.width / 2).toFixed(1)}" y="${headerH - 6}" text-anchor="middle" fill="#1f2937">${esc(col.label)}</text>`);
     });
     parts.push(`</g>`);
-    parts.push(`<line x1="0" y1="${headerH}" x2="${W}" y2="${headerH}" stroke="#e2e8f0"/>`);
+    parts.push(`<line x1="0" y1="${groupH}" x2="${W}" y2="${groupH}" stroke="#e2e8f0"/>`);
+    parts.push(`<line x1="0" y1="${headerH}" x2="${W}" y2="${headerH}" stroke="#cbd5e1"/>`);
     parts.push(`<line x1="${nameW}" y1="0" x2="${nameW}" y2="${H}" stroke="#cbd5e1"/>`);
 
     // Left name column.
@@ -1444,7 +1454,7 @@ export function GanttView({
     };
     img.onerror = () => URL.revokeObjectURL(url);
     img.src = url;
-  }, [tasks, rows, links, linkPath, styleFor, isCriticalTask, critical, timeColumns, colOffsets, totalWidth, taskListWidth, rowHeight, barTop, barHeight, summaryBarTop, summaryBarHeight, milestoneSize, todayLeftPx, viewMode, showBaselines, baselineTop, baselineHeight, BASELINE_FILL, BASELINE_BORDER, resolvedMarkers]);
+  }, [tasks, rows, links, linkPath, styleFor, isCriticalTask, critical, timeColumns, colOffsets, totalWidth, taskListWidth, rowHeight, barTop, barHeight, summaryBarTop, summaryBarHeight, milestoneSize, todayLeftPx, viewMode, showBaselines, baselineTop, baselineHeight, BASELINE_FILL, BASELINE_BORDER, resolvedMarkers, headerGroups]);
 
   return (
     <div ref={containerRef} className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}>
@@ -1882,8 +1892,8 @@ export function GanttView({
                   aria-label={t('gantt.toolbar.today')}
                 >
                   <div
-                    className="absolute -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap"
-                    style={{ top: -8, backgroundColor: '#ef4444' }}
+                    className="absolute -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap z-30"
+                    style={{ top: 2, backgroundColor: '#ef4444' }}
                   >
                     {t('gantt.toolbar.today')}
                   </div>
@@ -1900,8 +1910,8 @@ export function GanttView({
                 >
                   {m.label && (
                     <div
-                      className="absolute -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap"
-                      style={{ top: -8, backgroundColor: m.color }}
+                      className="absolute -translate-x-1/2 left-0 text-[10px] font-semibold text-white rounded-sm px-1 py-0.5 whitespace-nowrap z-30"
+                      style={{ top: 2, backgroundColor: m.color }}
                     >
                       {m.label}
                     </div>

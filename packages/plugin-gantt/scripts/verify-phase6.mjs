@@ -145,6 +145,9 @@ const png = await page.evaluate(async () => {
     baselineCount: (svg.match(/rgba\(100, ?116, ?139, ?0\.35\)/g) || []).length,
     hasSprint2: svg.includes('Sprint 2'),
     hasCodeFreeze: svg.includes('Code freeze'),
+    // Two-row header: the month/year band carries the year; unit labels and
+    // bars never do, so the year string proves the group band is drawn.
+    hasMonthBand: /20\d\d/.test(svg),
   };
 });
 check('export produces a valid SVG (no NaN geometry)', png.svgLen > 0 && png.svgNaN === 0, `${png.svgLen} chars, ${png.svgNaN} NaN`);
@@ -153,6 +156,7 @@ check('rasterized PNG is non-trivial', png.type === 'image/png' && png.bytes > 5
 check('PNG is 2× scale of the SVG', png.dims && png.dims.w > 0 && png.dims.h > 0, png.dims ? `${png.dims.w}×${png.dims.h}` : 'no dims');
 check('export includes baseline strips (t1/t4/t5)', png.baselineCount === 3, `${png.baselineCount} baselines`);
 check('export includes custom markers (Sprint 2 + Code freeze)', png.hasSprint2 && png.hasCodeFreeze, `sprint2=${png.hasSprint2} codeFreeze=${png.hasCodeFreeze}`);
+check('export includes the month/year header band', png.hasMonthBand, `hasYear=${png.hasMonthBand}`);
 
 await browser.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');

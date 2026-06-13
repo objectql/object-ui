@@ -175,7 +175,7 @@ pnpm --dir packages/plugin-gantt exec vite demo --port 5199
 node packages/plugin-gantt/scripts/verify-phase6.mjs
 ```
 
-## Latest run: 15/15 checks passed
+## Latest run: 16/16 checks passed
 
 ### 1. Critical path (CPM)
 
@@ -209,13 +209,16 @@ rasterizes it to a 2× PNG via a canvas and downloads `gantt-<mode>.png`.
 Zero third-party dependencies.
 
 - The latest run produced a valid SVG (0 NaN coordinates) rasterized to an
-  **11920×1096** `gantt-day.png` (~341 KB).
-- The export carries the **same information the live chart shows**: the planned
-  baseline strips (`t1`/`t4`/`t5`) and the custom vertical markers with labels
-  (Sprint 2 + Code freeze) are both re-drawn into the SVG — verified by
-  asserting 3 baseline fills and both marker labels are present in the export
-  output. (Earlier the export omitted baselines and markers; that gap is now
-  closed.)
+  **11920×1112** `gantt-day.png` (~360 KB).
+- The export carries the **same information the live chart shows**:
+  - the **two-row header** (month/year group band over the day/week/… unit
+    labels) — earlier the export drew only the unit row, so the downloaded
+    image had no month/year context;
+  - the planned **baseline strips** (`t1`/`t4`/`t5`);
+  - the custom vertical **markers** with labels (Sprint 2 + Code freeze).
+  All three are asserted in the export SVG (3 baseline fills, both marker
+  labels, and a 4-digit year from the group band). Earlier the export omitted
+  the month band, baselines and markers; those gaps are now closed.
 
 ---
 
