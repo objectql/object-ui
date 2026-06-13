@@ -34,7 +34,7 @@ import {
 import { Share2, SquarePen } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   sanitizeChatMessagesForCache,
   useChatConversation,
@@ -250,6 +250,52 @@ function buildEditorSuggestions(
     : [`Add fields to ${subject}`, `Suggest validations for ${subject}`, 'Add a status picklist field'];
 }
 
+/** Segments after `:appName` that are route prefixes, not object names. */
+const NON_OBJECT_ROUTE_SEGMENTS = new Set([
+  'view', 'record', 'page', 'dashboard', 'design', 'report', 'metadata',
+]);
+
+/** Decode a URL segment, falling back to the raw value on malformed input. */
+function safeDecodeSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * Derive the object (and record) the user is currently viewing from the
+ * console URL, so the agent can act on "this object" without the user
+ * restating it. Mirrors the URL layout parsed by `useTrackRouteAsRecent`:
+ *
+ *   /apps/:appName/:objectName
+ *   /apps/:appName/:objectName/:recordId
+ *   /apps/:appName/:objectName/new
+ *
+ * Tolerates an optional shell prefix (e.g. `/_console`) by locating the
+ * `apps` segment dynamically. Returns an empty object when the path isn't an
+ * object route (dashboard/page/report/metadata) or the segment doesn't match
+ * a known object in the current app.
+ */
+function resolveCurrentRouteObject(
+  pathname: string,
+  objects: ConsoleObject[],
+): { objectName?: string; recordId?: string } {
+  const parts = pathname.split('/').filter(Boolean);
+  const appsIdx = parts.indexOf('apps');
+  // Need at least [apps, appName, objectName].
+  if (appsIdx === -1 || parts.length < appsIdx + 3) return {};
+
+  const objectSeg = safeDecodeSegment(parts[appsIdx + 2]);
+  if (NON_OBJECT_ROUTE_SEGMENTS.has(objectSeg)) return {};
+  if (!objects.some((o) => o.name === objectSeg)) return {};
+
+  const recordSeg = parts[appsIdx + 3] ? safeDecodeSegment(parts[appsIdx + 3]) : undefined;
+  const recordId = recordSeg && recordSeg !== 'new' ? recordSeg : undefined;
+  return { objectName: objectSeg, ...(recordId ? { recordId } : {}) };
+}
+
 interface ChatbotInnerProps {
   appLabel: string;
   appName?: string;
@@ -301,6 +347,15 @@ function ChatbotInner({
 }: ChatbotInnerProps) {
   const { language } = useObjectTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // The object/record the user is currently viewing in the runtime console,
+  // derived from the route. Lets the agent answer "analyse this object" and
+  // scope data queries to the open page without the user naming it.
+  const currentRouteObject = React.useMemo(
+    () => resolveCurrentRouteObject(location.pathname, objects),
+    [location.pathname, objects],
+  );
 
   // What the user is currently editing in a designer (if any). Merged into
   // the agent context so "add a priority field" acts on the open object,
@@ -350,6 +405,11 @@ function ChatbotInner({
         // Publish posture, so the agent's narration matches reality (an
         // auto-published build is live, not "to publish").
         autoPublishAiBuilds: getRuntimeConfig().features.autoPublishAiBuilds,
+        // The object/record currently open in the runtime console — the
+        // backend injects its schema and scopes data queries to it, so
+        // "analyse this object" works without the user naming it.
+        ...(currentRouteObject.objectName ? { objectName: currentRouteObject.objectName } : {}),
+        ...(currentRouteObject.recordId ? { recordId: currentRouteObject.recordId } : {}),
         // The metadata item currently open in a designer, so the agent
         // can act on "this object/view/…" without the user restating it.
         ...(editor ? { editing: editor } : {}),
