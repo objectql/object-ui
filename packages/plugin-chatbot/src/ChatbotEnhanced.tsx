@@ -116,6 +116,14 @@ export interface ChatBuildProgress {
   /** Count of artifacts done and the rough total (for the progress bar). */
   done: number;
   total: number;
+  /**
+   * Monotonic emit counter from the server. Bumps on every progress update —
+   * including the keep-alive heartbeats sent during long, quiet seed-generation
+   * awaits — so it's the reliable "a fresh byte just arrived" signal the build
+   * panel keys its liveness off (content fields stay identical across a
+   * heartbeat). Absent from older runtimes.
+   */
+  seq?: number;
 }
 
 export interface ChatToolInvocation {
@@ -1849,12 +1857,15 @@ function BuildProgressPanel({
   previewDraftLabel?: string;
   waitingLabel?: string;
 }) {
-  const { phase, appLabel, items, done, total } = progress;
+  const { phase, appLabel, items, done, total, seq } = progress;
   const isDone = phase === 'done';
   // Real activity key: bumps whenever the server streams another build-progress
-  // part (a new artifact / phase). Drives the liveness indicator off observed
-  // bytes, so a healthy build reads as "receiving" and a genuine stall as amber.
-  const activityKey = `${phase}:${done}:${items.length}`;
+  // part. Prefer the server's monotonic `seq` (it also advances on the keep-alive
+  // heartbeats during long, quiet seed-generation awaits, where the content
+  // fields don't change); fall back to the content signature for older runtimes
+  // that don't send `seq`. Drives the liveness indicator off observed bytes, so a
+  // healthy build reads as "receiving" and a genuine stall as amber.
+  const activityKey = seq ?? `${phase}:${done}:${items.length}`;
   // The created `app` artifact (navigation shell) — the natural "open it" target.
   const builtApp = items.find((it) => it.type === 'app');
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : isDone ? 100 : 6;

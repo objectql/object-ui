@@ -277,6 +277,10 @@ function extractBuildProgress(parts: AnyPart[]): ChatBuildProgress | undefined {
     items,
     done: typeof d.done === 'number' ? d.done : items.length,
     total: typeof d.total === 'number' ? d.total : items.length,
+    // Monotonic emit counter — advances even on keep-alive heartbeats (identical
+    // content), so the build panel can keep its liveness "live" during long
+    // quiet seed-generation awaits. Absent on older runtimes.
+    ...(typeof d.seq === 'number' ? { seq: d.seq } : {}),
   };
 }
 

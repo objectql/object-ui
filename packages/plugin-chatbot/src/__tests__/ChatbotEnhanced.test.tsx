@@ -661,4 +661,43 @@ describe('ChatbotEnhanced — activity-driven liveness (not a fake clock)', () =
     // Back to "receiving" — the m:ss is the whole-turn duration (7s stall + 1s).
     expect(screen.getByText('0:08')).toBeInTheDocument();
   });
+
+  it('server keep-alive heartbeats (bumped seq, identical content) keep the build panel "receiving" through a quiet stretch', () => {
+    // A seeding level can run >6s with no new artifact — content stays identical.
+    // The server re-emits a heartbeat that only advances `seq`; that must keep
+    // the panel green (receiving), proving liveness rides REAL server bytes and
+    // not a free clock (without the heartbeat, this same gap goes amber — see the
+    // test above).
+    const seedingMsg = (seq: number): ChatMessage[] => [
+      {
+        id: 'b1',
+        role: 'assistant',
+        content: '',
+        buildProgress: {
+          phase: 'data',
+          appLabel: '进销存',
+          items: [{ type: 'object', name: 'product' }],
+          done: 1,
+          total: 4,
+          seq,
+        },
+      },
+    ];
+    const { rerender } = render(<ChatbotEnhanced messages={seedingMsg(1)} />);
+    // Heartbeats arrive every ~3s; advance 9s but re-stamp via seq at 3s and 6s.
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    rerender(<ChatbotEnhanced messages={seedingMsg(2)} />);
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    rerender(<ChatbotEnhanced messages={seedingMsg(3)} />);
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    // Never went amber — the heartbeats kept it honestly "receiving".
+    expect(screen.queryByText(/Waiting for server/i)).not.toBeInTheDocument();
+    expect(screen.getByText('0:08')).toBeInTheDocument();
+  });
 });
