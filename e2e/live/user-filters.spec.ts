@@ -103,3 +103,43 @@ test.describe('ADR-0047 interface mode — Task Workbench', () => {
     await expect(page.getByTestId('record-count-bar')).toContainText(/^2 /, { timeout: 15000 });
   });
 });
+
+test.describe('ADR-0047 lookup quick filter (CRM parity)', () => {
+  // The Task List view exposes `project` (a master-detail lookup) as a
+  // quick filter — the record-picker dropdown path hotcrm's account
+  // workbench (owner: user lookup) depends on. Requires the showcase
+  // metadata from framework feat/adr-0047-lookup-filter-example or later.
+  test('lookup field renders a record picker and filters by reference', async ({ page }) => {
+    await page.goto('/apps/showcase_app/showcase_task/view/showcase_task.tabular');
+
+    // Wait for the filter bar to render before probing for the overflow.
+    await expect(page.getByTestId('filter-badge-status')).toBeVisible({ timeout: 15000 });
+
+    const projectBadge = page.getByTestId('filter-badge-project');
+    // maxVisible folds the 4th field into the "More" overflow when present.
+    if (!(await projectBadge.isVisible().catch(() => false))) {
+      const more = page.getByTestId('user-filters').getByRole('button', { name: /More|更多/ });
+      if (!(await more.isVisible().catch(() => false))) {
+        test.skip(true, 'showcase metadata without the project lookup filter — skipping');
+      }
+      await more.click();
+    }
+    await projectBadge.click();
+
+    // The lookup picker renders with a search box and record options.
+    const picker = page.getByTestId('filter-lookup-project');
+    await expect(picker).toBeVisible();
+    // The picker is a trigger button that opens the record search list;
+    // records render as multi-select checkboxes.
+    await picker.getByRole('button', { name: /Search|搜索/ }).click();
+    const option = page.getByRole('checkbox', { name: 'Website Relaunch' });
+    await expect(option).toBeVisible();
+
+    // Picking a record narrows the list and persists as a uf_* param.
+    await option.click();
+    await expect(page).toHaveURL(/uf_project=/);
+    await expect(page.getByTestId('record-count-bar')).toContainText(/\d+/, { timeout: 15000 });
+    // The badge reflects one active selection.
+    await expect(page.getByTestId('filter-badge-project')).toContainText('1');
+  });
+});
