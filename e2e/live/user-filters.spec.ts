@@ -70,6 +70,22 @@ test.describe('ADR-0047 interface mode — Task Workbench', () => {
     await expect(page.getByTestId('view-switcher-dropdown')).toHaveCount(0);
   });
 
+  test('grid renders data columns even when the source view is hollow', async ({ page }) => {
+    // Regression: some backends serve the referenced default view without
+    // columns (they live only in named views). The interface page must fall
+    // back to object-derived columns instead of rendering a bare # column.
+    await page.goto('/apps/showcase_app/page/showcase_task_workbench');
+
+    await expect(page.getByTestId('interface-list-page')).toBeVisible();
+    const headers = page.locator('table thead th');
+    // More than just the row-number column.
+    await expect(async () => {
+      expect(await headers.count()).toBeGreaterThan(2);
+    }).toPass({ timeout: 15000 });
+    // The title/assignee business fields are present (not only "#").
+    await expect(page.getByRole('cell', { name: /example\.com/ }).first()).toBeVisible();
+  });
+
   test('dropdown selection filters, keeps counts, persists, and restores', async ({ page }) => {
     await page.goto('/apps/showcase_app/page/showcase_task_workbench');
 

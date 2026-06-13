@@ -35,11 +35,17 @@ interface InterfaceListPageProps {
  * Views merged from ADR-0017 ViewItems are keyed `<object>.<key>`;
  * the page author writes the bare key (`sourceView: 'default'`).
  */
+/** A view "carries columns" only when its column list is actually non-empty. */
+function hasColumns(v: any): boolean {
+  return Array.isArray(v?.columns) && v.columns.length > 0;
+}
+
 function resolveSourceView(objectDef: any, sourceView?: string): any | undefined {
   const views: Record<string, any> = objectDef?.listViews || objectDef?.list_views || {};
   // ADR-0017 expansion can serve a default-view item with an empty config
   // while the full body lives on `objectDef.list` — prefer candidates that
-  // actually carry columns over hollow name matches.
+  // actually carry columns over hollow name matches. An empty `columns: []`
+  // is truthy in JS but renders a column-less grid, so check for non-empty.
   const candidates = sourceView
     ? [
         views[`${objectDef?.name}.${sourceView}`],
@@ -48,7 +54,32 @@ function resolveSourceView(objectDef: any, sourceView?: string): any | undefined
       ]
     : [objectDef?.list, ...Object.values(views)];
   const present = candidates.filter(Boolean);
-  return present.find((v: any) => v?.columns) ?? present[0];
+  return present.find(hasColumns) ?? present[0];
+}
+
+/**
+ * Default column set when the resolved view carries none — mirrors
+ * ObjectView's data-mode fallback so an interface page never renders a
+ * column-less grid. Priority: curated `compactLayout`, else the first
+ * business fields (system/audit columns excluded).
+ */
+const SYSTEM_FIELDS = new Set([
+  'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
+  'deleted_at', 'deletedAt', 'created_by', 'createdBy',
+  'updated_by', 'updatedBy', '_version', '_rev',
+]);
+function defaultColumnsFromObject(objectDef: any): string[] {
+  if (Array.isArray(objectDef?.compactLayout) && objectDef.compactLayout.length > 0) {
+    return objectDef.compactLayout.filter((n: string) => objectDef.fields?.[n]);
+  }
+  const fields = objectDef?.fields;
+  if (fields && typeof fields === 'object') {
+    return Object.entries(fields)
+      .filter(([name, f]: [string, any]) => f && !f.hidden && !SYSTEM_FIELDS.has(name))
+      .map(([name]) => name)
+      .slice(0, 6);
+  }
+  return [];
 }
 
 export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
@@ -91,7 +122,9 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
   // (full)` into an infinite render/refetch loop the moment anything (e.g.
   // a `uf_*` URL write) re-renders this component after hydration settled.
   const objectDefName: string | undefined = objectDef?.name;
-  const resolvedViewHollow = !!resolvedView && !resolvedView.columns;
+  // Hollow = no *non-empty* column list. An empty `columns: []` reads as
+  // truthy but renders nothing, so it must still trigger hydration.
+  const resolvedViewHollow = !!resolvedView && !hasColumns(resolvedView);
   const resolvedViewKey = resolvedView?.name
     ?? (cfg.sourceView ? `${cfg.source}.${cfg.sourceView}` : undefined);
   const [hydratedView, setHydratedView] = React.useState<any>(null);
@@ -107,7 +140,7 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
           const all = await ds.listViewOverrides(cfg.source);
           full = all?.[resolvedViewKey] ?? null;
         }
-        if (!full?.columns && typeof ds?.getView === 'function') {
+        if (!hasColumns(full) && typeof ds?.getView === 'function') {
           full = await ds.getView(cfg.source, resolvedViewKey);
         }
         if (!cancelled && full && typeof full === 'object') setHydratedView(full);
@@ -139,11 +172,17 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
       ...(Array.isArray(cfg.filterBy) ? cfg.filterBy : []),
     ];
 
+    // Columns: the referenced view's, else a sensible default derived from
+    // the object (compactLayout / business fields). Some backends serve the
+    // default view hollow (columns live only in named views), so without
+    // this fallback the grid would render just the row-number column.
+    const columns = hasColumns(view) ? view.columns : defaultColumnsFromObject(objectDef);
+
     return {
       type: 'list-view' as const,
       objectName: objectDef.name,
       viewType: (allowed[0] ?? view.type ?? 'grid'),
-      fields: view.columns,
+      fields: columns,
       ...(filters.length ? { filters } : {}),
       ...(view.sort?.length ? { sort: view.sort } : {}),
       grouping: view.grouping,
