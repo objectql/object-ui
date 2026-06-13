@@ -24,6 +24,8 @@ import {
   Download,
   Activity,
   Wand2,
+  Undo2,
+  Redo2,
 } from "lucide-react"
 import {
   cn,
@@ -31,7 +33,7 @@ import {
   Separator,
   useResizeObserver,
 } from "@object-ui/components"
-import { computeCriticalPath, computeProjectReschedule } from "./scheduling"
+import { computeCriticalPath, computeProjectReschedule, type WorkingCalendar } from "./scheduling"
 import { useGanttTranslation } from "./useGanttTranslation"
 
 const HEADER_HEIGHT = 50;
@@ -97,6 +99,12 @@ export interface GanttTask {
   /** Parent task id — builds the hierarchy. Unknown ids render as roots. */
   parent?: string | number | null
   type?: GanttTaskType
+  /**
+   * Baseline (planned) start/end. When both are present a thin reference bar is
+   * drawn beneath the live bar so planned-vs-actual drift is visible at a glance.
+   */
+  baselineStart?: Date
+  baselineEnd?: Date
   /**
    * Extra label/value rows for the hover tooltip (悬浮详情), in display order.
    * Populated from the view's `tooltipFields` config (resolved + formatted by
@@ -214,6 +222,14 @@ export interface GanttViewProps {
   autoSchedule?: boolean
   /** Start with the critical-path highlight enabled (toggle stays in the toolbar). */
   criticalPathDefault?: boolean
+  /**
+   * Working calendar for duration math. When set, auto-schedule and critical
+   * path count working days only — weekends (`skipWeekends`) and any `holidays`
+   * (ISO `yyyy-mm-dd` UTC keys) are skipped rather than consumed.
+   */
+  workingCalendar?: WorkingCalendar
+  /** Render planned-vs-actual baseline bars when tasks carry baseline dates. */
+  showBaselines?: boolean
 }
 
 export function GanttView({
@@ -232,6 +248,8 @@ export function GanttView({
   inlineEdit = false,
   autoSchedule = false,
   criticalPathDefault = false,
+  workingCalendar,
+  showBaselines = true,
 }: GanttViewProps) {
   const { t } = useGanttTranslation();
   const [currentDate, setCurrentDate] = React.useState(new Date());
@@ -358,6 +376,88 @@ export function GanttView({
     return { start, end };
   }, [viewMode]);
 
+  // --- Undo / redo (Phase 6) --------------------------------------------
+  // GanttView is presentational — the parent owns task state — so we can't
+  // snapshot it directly. Instead each committed mutation (drag/resize, group
+  // drag, progress, inline edit, auto-schedule) is recorded as a batch of
+  // {taskId, before, after} field deltas and replayed through onTaskUpdate.
+  // Undo applies `before`, redo re-applies `after`; both look the task up by id
+  // in the latest `tasks` so a parent re-render between commits is fine.
+  type HistoryItem = { taskId: string; before: Partial<GanttTask>; after: Partial<GanttTask> };
+  const tasksRef = React.useRef(tasks);
+  tasksRef.current = tasks;
+  const undoStackRef = React.useRef<HistoryItem[][]>([]);
+  const redoStackRef = React.useRef<HistoryItem[][]>([]);
+  const [historyVersion, setHistoryVersion] = React.useState(0);
+
+  const commitTaskUpdates = React.useCallback(
+    (updates: Array<{ task: GanttTask; changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>> }>) => {
+      if (!onTaskUpdate) return;
+      const batch: HistoryItem[] = [];
+      for (const { task, changes } of updates) {
+        const before: Partial<GanttTask> = {};
+        const after: Partial<GanttTask> = {};
+        let dirty = false;
+        for (const k of Object.keys(changes) as Array<keyof GanttTask>) {
+          const next = (changes as Record<string, unknown>)[k as string];
+          const prev = (task as unknown as Record<string, unknown>)[k as string];
+          const same =
+            next instanceof Date && prev instanceof Date
+              ? next.getTime() === prev.getTime()
+              : next === prev;
+          (before as Record<string, unknown>)[k as string] = prev;
+          (after as Record<string, unknown>)[k as string] = next;
+          if (!same) dirty = true;
+        }
+        onTaskUpdate(task, changes);
+        if (dirty) batch.push({ taskId: String(task.id), before, after });
+      }
+      if (batch.length) {
+        undoStackRef.current.push(batch);
+        redoStackRef.current = [];
+        setHistoryVersion((v) => v + 1);
+      }
+    },
+    [onTaskUpdate],
+  );
+
+  const applyHistory = React.useCallback(
+    (batch: HistoryItem[], dir: 'undo' | 'redo') => {
+      if (!onTaskUpdate) return;
+      for (const item of batch) {
+        const task = tasksRef.current.find((tk) => String(tk.id) === item.taskId);
+        if (task) {
+          onTaskUpdate(task, (dir === 'undo' ? item.before : item.after) as Partial<
+            Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>
+          >);
+        }
+      }
+    },
+    [onTaskUpdate],
+  );
+
+  const undo = React.useCallback(() => {
+    const batch = undoStackRef.current.pop();
+    if (!batch) return;
+    applyHistory(batch, 'undo');
+    redoStackRef.current.push(batch);
+    setHistoryVersion((v) => v + 1);
+  }, [applyHistory]);
+
+  const redo = React.useCallback(() => {
+    const batch = redoStackRef.current.pop();
+    if (!batch) return;
+    applyHistory(batch, 'redo');
+    undoStackRef.current.push(batch);
+    setHistoryVersion((v) => v + 1);
+  }, [applyHistory]);
+
+  // historyVersion bumps on every push/pop so these re-read the live refs.
+  const { canUndo, canRedo } = React.useMemo(
+    () => ({ canUndo: undoStackRef.current.length > 0, canRedo: redoStackRef.current.length > 0 }),
+    [historyVersion],
+  );
+
   // Window-level pointer listeners: track horizontal motion snapped to whole
   // columns (days/weeks/months/quarters depending on the active granularity),
   // commit via onTaskUpdate on pointerup, suppress the trailing click.
@@ -380,17 +480,19 @@ export function GanttView({
           const { start, end } = computeDragChanges(cur);
           if (cur.group) {
             // Move the summary and every descendant by the same ms offset so
-            // the subtree keeps its internal spacing and durations.
+            // the subtree keeps its internal spacing and durations — recorded as
+            // a single undoable batch.
             const deltaMs = start.getTime() - cur.originStart.getTime();
-            const shift = (t: GanttTask) =>
-              onTaskUpdate(t, {
+            const shifted = [task, ...collectDescendants(task.id)].map((t) => ({
+              task: t,
+              changes: {
                 start: new Date(t.start.getTime() + deltaMs),
                 end: new Date(t.end.getTime() + deltaMs),
-              });
-            shift(task);
-            for (const d of collectDescendants(task.id)) shift(d);
+              },
+            }));
+            commitTaskUpdates(shifted);
           } else {
-            onTaskUpdate(task, { start, end });
+            commitTaskUpdates([{ task, changes: { start, end } }]);
           }
         }
         suppressNextClickRef.current = true;
@@ -407,7 +509,7 @@ export function GanttView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [dragState, columnWidth, tasks, onTaskUpdate, computeDragChanges, collectDescendants]);
+  }, [dragState, columnWidth, tasks, onTaskUpdate, computeDragChanges, collectDescendants, commitTaskUpdates]);
 
   const beginDrag = React.useCallback((
     task: GanttTask,
@@ -459,7 +561,7 @@ export function GanttView({
       if (!cur) return;
       if (cur.value !== cur.originProgress) {
         const task = tasks.find((t) => t.id === cur.taskId);
-        if (task && onTaskUpdate) onTaskUpdate(task, { progress: cur.value });
+        if (task && onTaskUpdate) commitTaskUpdates([{ task, changes: { progress: cur.value } }]);
         suppressNextClickRef.current = true;
         window.setTimeout(() => { suppressNextClickRef.current = false; }, 0);
       }
@@ -473,7 +575,7 @@ export function GanttView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [progressDrag, tasks, onTaskUpdate]);
+  }, [progressDrag, tasks, onTaskUpdate, commitTaskUpdates]);
 
   // --- Drag-to-create dependency -------------------------------------------
   // Dragging the connector dot on a bar draws a dashed rubber band; releasing
@@ -665,6 +767,18 @@ export function GanttView({
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    // Undo / redo: Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl+Y.
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      redo();
+      return;
+    }
     if (!rows.length) return;
     const idx = selectedTaskId == null
       ? -1
@@ -703,7 +817,7 @@ export function GanttView({
       e.preventDefault();
       toggleCollapsed(row.task.id);
     }
-  }, [rows, selectedTaskId, onTaskClick, onTaskDelete, collapsedIds, toggleCollapsed, rowHeight]);
+  }, [rows, selectedTaskId, onTaskClick, onTaskDelete, collapsedIds, toggleCollapsed, rowHeight, undo, redo]);
 
   // Calculate timeline range
   const timelineRange = React.useMemo(() => {
@@ -1090,6 +1204,12 @@ export function GanttView({
   // uniform across row kinds.
   const summaryBarHeight = barHeight;
   const summaryBarTop = barTop;
+  // Baseline (planned) reference strip — a thin bar hugging the row bottom,
+  // beneath the live bar, so planned-vs-actual drift reads at a glance.
+  const baselineHeight = Math.max(3, Math.round(rowHeight * 0.13));
+  const baselineTop = rowHeight - baselineHeight - 1;
+  const BASELINE_FILL = 'rgba(100, 116, 139, 0.35)';
+  const BASELINE_BORDER = 'rgba(100, 116, 139, 0.6)';
 
   // Orthogonal elbow path from the predecessor anchor to the dependent
   // anchor. Anchors per link type: fs = source end → target start,
@@ -1149,8 +1269,8 @@ export function GanttView({
   // and the links joining them. Pure display — never mutates data.
   const [criticalOn, setCriticalOn] = React.useState(criticalPathDefault);
   const critical = React.useMemo(
-    () => (criticalOn ? computeCriticalPath(tasks) : null),
-    [criticalOn, tasks],
+    () => (criticalOn ? computeCriticalPath(tasks, workingCalendar) : null),
+    [criticalOn, tasks, workingCalendar],
   );
   const isCriticalTask = React.useCallback(
     (id: string | number) => critical?.criticalIds.has(String(id)) ?? false,
@@ -1161,15 +1281,17 @@ export function GanttView({
   // --- Auto-schedule (Phase 6) ------------------------------------------
   // One-shot dependency-driven reschedule (顺延): push successors later until
   // their link constraints hold, preserving durations, then persist each
-  // changed task through onTaskUpdate.
+  // changed task through onTaskUpdate (as one undoable batch).
   const runAutoSchedule = React.useCallback(() => {
     if (!onTaskUpdate) return;
-    const changes = computeProjectReschedule(tasks);
+    const changes = computeProjectReschedule(tasks, workingCalendar);
+    const updates: Array<{ task: GanttTask; changes: Partial<Pick<GanttTask, 'start' | 'end'>> }> = [];
     for (const c of changes) {
       const task = tasks.find((tk) => String(tk.id) === c.id);
-      if (task) onTaskUpdate(task, { start: c.start, end: c.end });
+      if (task) updates.push({ task, changes: { start: c.start, end: c.end } });
     }
-  }, [tasks, onTaskUpdate]);
+    commitTaskUpdates(updates);
+  }, [tasks, onTaskUpdate, workingCalendar, commitTaskUpdates]);
 
   // --- Export PNG (Phase 6) ---------------------------------------------
   // Self-contained: re-draw the WHOLE chart (every row, unaffected by row
@@ -1401,6 +1523,32 @@ export function GanttView({
           >
             <CalendarDays className="h-4 w-4" />
           </Button>
+          {onTaskUpdate ? (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={undo}
+                disabled={!canUndo}
+                aria-label={t('gantt.toolbar.undo')}
+                data-testid="gantt-undo"
+              >
+                <Undo2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={redo}
+                disabled={!canRedo}
+                aria-label={t('gantt.toolbar.redo')}
+                data-testid="gantt-redo"
+              >
+                <Redo2 className="h-4 w-4" />
+              </Button>
+            </>
+          ) : null}
           <Button
             variant="ghost"
             size="icon"
@@ -1609,12 +1757,15 @@ export function GanttView({
                       onChange={(e) => setEditValues(prev => ({ ...prev, title: e.target.value }))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          onTaskUpdate?.(task, {
-                            title: editValues.title,
-                            start: new Date(editValues.start),
-                            end: new Date(editValues.end),
-                            progress: Number(editValues.progress) || 0,
-                          });
+                          commitTaskUpdates([{
+                            task,
+                            changes: {
+                              title: editValues.title,
+                              start: new Date(editValues.start),
+                              end: new Date(editValues.end),
+                              progress: Number(editValues.progress) || 0,
+                            },
+                          }]);
                           setEditingTask(null);
                         } else if (e.key === 'Escape') {
                           setEditingTask(null);
@@ -1746,6 +1897,25 @@ export function GanttView({
                    const task = row.task;
                    const isCrit = isCriticalTask(task.id);
                    const baseStyle = styleFor(row.start, row.end);
+                   // Baseline (planned) reference strip beneath the live bar.
+                   const baseline = showBaselines && task.baselineStart && task.baselineEnd
+                     ? styleFor(task.baselineStart, task.baselineEnd)
+                     : null;
+                   const baselineEl = baseline ? (
+                     <div
+                       className="absolute pointer-events-none rounded-[1px]"
+                       style={{
+                         left: baseline.left,
+                         width: Math.max(2, baseline.width),
+                         top: baselineTop,
+                         height: baselineHeight,
+                         backgroundColor: BASELINE_FILL,
+                         border: `1px solid ${BASELINE_BORDER}`,
+                       }}
+                       data-testid={`gantt-baseline-${task.id}`}
+                       aria-hidden="true"
+                     />
+                   ) : null;
                    const isDragging = dragState?.taskId === task.id;
                    const inDragGroup = dragGroupIds?.has(String(task.id)) ?? false;
                    const inDragStretch = dragStretchAncestorIds?.has(String(task.id)) ?? false;
@@ -1816,6 +1986,7 @@ export function GanttView({
                         style={{ height: rowHeight }}
                         onPointerMove={clearLinkTarget}
                       >
+                        {baselineEl}
                         <div
                           className={cn(
                             'gantt-bar-hover absolute rounded-sm border shadow-sm flex items-center px-2 select-none',
@@ -1883,6 +2054,7 @@ export function GanttView({
                         style={{ height: rowHeight }}
                         onPointerMove={clearLinkTarget}
                       >
+                        {baselineEl}
                         <div
                           className={cn(
                             "gantt-bar-hover absolute rotate-45 rounded-[2px] border shadow-sm select-none",
@@ -1942,6 +2114,7 @@ export function GanttView({
                           aria-hidden="true"
                         />
                       )}
+                      {baselineEl}
                       <div
                         className={cn(
                           "gantt-bar-hover absolute rounded-sm bg-primary border shadow-sm flex items-center px-2 group select-none",

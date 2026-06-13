@@ -32,6 +32,8 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.toolbar.criticalPath': 'Highlight critical path',
   'gantt.toolbar.autoSchedule': 'Auto-schedule dependencies',
   'gantt.toolbar.exportPng': 'Export as PNG',
+  'gantt.toolbar.undo': 'Undo',
+  'gantt.toolbar.redo': 'Redo',
   'gantt.viewMode.day': 'Day',
   'gantt.viewMode.week': 'Week',
   'gantt.viewMode.month': 'Month',

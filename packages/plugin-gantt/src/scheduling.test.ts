@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { computeCriticalPath, computeProjectReschedule, type SchedulableTask } from './scheduling';
+import {
+  computeCriticalPath,
+  computeProjectReschedule,
+  type SchedulableTask,
+  type WorkingCalendar,
+} from './scheduling';
 
 const d = (iso: string) => new Date(iso + 'T00:00:00.000Z');
 
@@ -130,5 +135,81 @@ describe('computeProjectReschedule', () => {
       { id: 'Y', start: d('2024-01-03'), end: d('2024-01-05'), dependencies: ['X'] },
     ];
     expect(computeProjectReschedule(cyclic)).toEqual([]);
+  });
+});
+
+// 2024-01-01 is a Monday, so the weekends fall on Jan 6/7, 13/14, 20/21.
+const weekdaysOnly: WorkingCalendar = { skipWeekends: true };
+
+describe('working calendar', () => {
+  it('snaps a rescheduled successor to the next working day (fs over a weekend)', () => {
+    // A finishes Sat Jan 6; B (2 working days) must start Mon Jan 8, end Jan 10.
+    const tasks: SchedulableTask[] = [
+      { id: 'A', start: d('2024-01-01'), end: d('2024-01-06') }, // ends on a Saturday
+      { id: 'B', start: d('2024-01-04'), end: d('2024-01-06'), dependencies: ['A'] }, // 2 working days
+    ];
+    const out = computeProjectReschedule(tasks, weekdaysOnly);
+    const b = out.find((c) => c.id === 'B')!;
+    expect(b.start.toISOString()).toBe(d('2024-01-08').toISOString()); // Monday, skipped Sat/Sun
+    expect(b.end.toISOString()).toBe(d('2024-01-10').toISOString()); // 2 working days later
+  });
+
+  it('without a calendar the same fixture lands on the weekend (calendar-day math)', () => {
+    const tasks: SchedulableTask[] = [
+      { id: 'A', start: d('2024-01-01'), end: d('2024-01-06') },
+      { id: 'B', start: d('2024-01-04'), end: d('2024-01-06'), dependencies: ['A'] },
+    ];
+    const b = computeProjectReschedule(tasks).find((c) => c.id === 'B')!;
+    expect(b.start.toISOString()).toBe(d('2024-01-06').toISOString()); // straight onto Saturday
+    expect(b.end.toISOString()).toBe(d('2024-01-08').toISOString()); // +2 calendar days
+  });
+
+  it('preserves working-day duration when cascading over weekends', () => {
+    // C has a 3-working-day span; pushed past B it must keep 3 working days,
+    // stepping over the Jan 13/14 weekend.
+    const tasks: SchedulableTask[] = [
+      { id: 'A', start: d('2024-01-01'), end: d('2024-01-10') },
+      { id: 'B', start: d('2024-01-05'), end: d('2024-01-11'), dependencies: ['A'] }, // pushed to Wed Jan 10 → 4 wd
+      { id: 'C', start: d('2024-01-08'), end: d('2024-01-11'), dependencies: ['B'] }, // 3 working days
+    ];
+    const out = computeProjectReschedule(tasks, weekdaysOnly);
+    const c = out.find((x) => x.id === 'C')!;
+    // B finishes mid-Jan; C keeps exactly 3 working days regardless of weekends.
+    const start = c.start.getTime();
+    const end = c.end.getTime();
+    let working = 0;
+    for (let t = start; t < end; t += 86_400_000) {
+      const wd = new Date(t).getUTCDay();
+      if (wd !== 0 && wd !== 6) working++;
+    }
+    expect(working).toBe(3);
+    expect(new Date(start).getUTCDay()).not.toBe(0); // not a Sunday start
+    expect(new Date(start).getUTCDay()).not.toBe(6); // not a Saturday start
+  });
+
+  it('treats holidays as non-working days', () => {
+    // A finishes on Fri Jan 5, which is a holiday; B must skip the holiday and
+    // the Sat/Sun weekend to start Mon Jan 8.
+    const cal: WorkingCalendar = { skipWeekends: true, holidays: new Set(['2024-01-05']) };
+    const tasks: SchedulableTask[] = [
+      { id: 'A', start: d('2024-01-01'), end: d('2024-01-05') }, // finish lands on the holiday
+      { id: 'B', start: d('2024-01-02'), end: d('2024-01-04'), dependencies: ['A'] },
+    ];
+    const b = computeProjectReschedule(tasks, cal).find((c) => c.id === 'B')!;
+    expect(b.start.toISOString()).toBe(d('2024-01-08').toISOString()); // skips Fri holiday + weekend
+  });
+
+  it('critical path counts working days, flipping a weekend-inflated leg', () => {
+    // A→B→D vs A→C→D. B spans a weekend (5 calendar / 3 working days); C is a
+    // clean 4 working days. Calendar-day math makes the B leg longest; working
+    // days make the C leg longest, flipping which parallel branch is critical.
+    const tasks: SchedulableTask[] = [
+      { id: 'A', start: d('2024-01-01'), end: d('2024-01-02') }, // 1 wd
+      { id: 'B', start: d('2024-01-05'), end: d('2024-01-10'), dependencies: ['A'] }, // Fri→Wed: 5 cal / 3 wd
+      { id: 'C', start: d('2024-01-02'), end: d('2024-01-06'), dependencies: ['A'] }, // 4 wd
+      { id: 'D', start: d('2024-01-10'), end: d('2024-01-11'), dependencies: ['B', 'C'] }, // 1 wd
+    ];
+    expect([...computeCriticalPath(tasks).criticalIds].sort()).toEqual(['A', 'B', 'D']);
+    expect([...computeCriticalPath(tasks, weekdaysOnly).criticalIds].sort()).toEqual(['A', 'C', 'D']);
   });
 });

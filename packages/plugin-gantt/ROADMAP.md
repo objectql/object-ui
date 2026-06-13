@@ -58,8 +58,8 @@ Today marker + jump-to-today, weekend highlighting, semantic color fallback, i18
 ## Phase 6 — Advanced (SVAR PRO territory, differentiators)
 
 - [x] Critical path computation + slack visualization — CPM forward/backward passes in `scheduling.ts` (zero-slack chain), toolbar toggle (Activity icon) highlights critical bars/milestones/summaries + joining link arrows in red; `criticalPathDefault` prop / `schema.criticalPath` start it on
-- [ ] Baselines (planned vs actual bars)
+- [x] Baselines (planned vs actual bars) — `baselineStart`/`baselineEnd` per task render a thin reference strip hugging each row's bottom (summary / task / milestone) on the shared ms→px mapping; `showBaselines` prop / `schema.showBaselines`, mapped in `ObjectGantt` via `baselineStartField` / `baselineEndField`
 - [x] Auto-scheduling: dependency-driven date shifting (forward, finish-to-start first) — `computeProjectReschedule` (顺延: push successors later, durations preserved, never earlier; honors fs/ss/ff/sf; summaries fixed), toolbar button (Wand2) does a one-shot whole-project reschedule via `onTaskUpdate`; `autoSchedule` prop, auto-on in `ObjectGantt` when `dependenciesField` set
-- [ ] Working calendar (skip weekends/holidays in duration math)
-- [ ] Undo/redo for drag/edit operations
+- [x] Working calendar (skip weekends/holidays in duration math) — `WorkingCalendar` (`skipWeekends`, `holidays` ISO-day Set) measures durations in working days; `computeCriticalPath` / `computeProjectReschedule` snap rescheduled tasks to working-day boundaries (fs/ss bump via `nextWorkingDay`, ff/sf back-derive via `subWorkingDays`); `workingCalendar` prop, derived in `ObjectGantt` from `schema.skipWeekends` / `schema.holidays`
+- [x] Undo/redo for drag/edit operations — `commitTaskUpdates` records before/after field deltas per mutation (group-drag / auto-schedule batched into one entry) and replays through `onTaskUpdate` against `tasksRef`; toolbar Undo/Redo buttons + Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z, Ctrl/Cmd+Y; only shown when `onTaskUpdate` is wired
 - [x] Export PNG (client-side) — toolbar button (Download) rebuilds the whole chart (virtualization-independent) as a standalone SVG with concrete hex colors, rasterizes to a 2× PNG via canvas, downloads `gantt-<mode>.png`; zero dependencies. _(PDF / MS Project XML still pending.)_

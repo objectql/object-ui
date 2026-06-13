@@ -210,3 +210,64 @@ Zero third-party dependencies.
 
 - The latest run produced a valid SVG (0 NaN coordinates) rasterized to an
   **11920×1096** `gantt-day.png` (~334 KB).
+
+---
+
+## Phase 6.2 — Baselines · Working calendar · Undo/redo
+
+Driven by [`scripts/verify-phase6b.mjs`](../../scripts/verify-phase6b.mjs)
+against the demo. The scheduling maths (working-day reschedule + critical
+path) live in [`src/scheduling.ts`](../../src/scheduling.ts), unit-tested in
+[`src/scheduling.test.ts`](../../src/scheduling.test.ts) (working-calendar
+block added). Undo/redo and baseline rendering are in
+[`src/GanttView.tsx`](../../src/GanttView.tsx).
+
+Run it with the demo server up:
+
+```sh
+pnpm --dir packages/plugin-gantt exec vite demo --port 5199
+node packages/plugin-gantt/scripts/verify-phase6b.mjs
+```
+
+## Latest run: 16/16 checks passed
+
+### 1. Baselines (planned vs actual)
+
+Tasks carrying `baselineStart` / `baselineEnd` render a thin slate reference
+strip hugging the row bottom, beneath the live bar — for summary, task and
+milestone rows alike. `showBaselines` (default on; `?baselines=0` to hide)
+gates them; `ObjectGantt` maps them from `baselineStartField` /
+`baselineEndField`.
+
+- The fixture plants baselines on **t1, t4, t5**.
+- **t4** (Backend) slipped: its planned baseline ends Jul 2 while the live bar
+  runs to Jul 8 — the strip is visibly shorter than and offset from the bar
+  (verified by geometry: baseline end < bar end).
+- `?baselines=0` removes every strip.
+- ![Baselines](17-baselines.png)
+
+### 2. Working calendar
+
+`workingCalendar` (`?cal=1` → `{ skipWeekends: true }`) measures durations in
+working days and snaps rescheduled tasks to working-day boundaries. After
+auto-scheduling under the calendar, **no leaf task starts on a Saturday or
+Sunday**, and the resulting schedule differs from the calendar-off run on the
+same fixture (e.g. t5 lands Jun 22→Jun 23, t7 Jul 26→Jul 24, Release Aug
+11→Aug 10).
+
+- ![Working calendar](18-working-calendar.png)
+
+### 3. Undo/redo
+
+`commitTaskUpdates` records before/after field deltas for every drag / inline
+edit / auto-schedule (group drags batched into one entry) and replays them
+through `onTaskUpdate`. Toolbar Undo/Redo buttons appear only when
+`onTaskUpdate` is wired; Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z and Ctrl/Cmd+Y also
+drive history.
+
+- Both buttons start disabled. Dragging **t4** two columns right enables Undo.
+- Toolbar **Undo** returns t4 to its exact origin (px-identical) and enables
+  Redo; with the only entry undone, Undo disables again.
+- Keyboard **Ctrl+Y** re-applies the drag; **Ctrl+Z** restores the origin.
+- ![After drag](19-undo-after-drag.png)
+- ![After undo/redo cycle](20-undo-redo-final.png)

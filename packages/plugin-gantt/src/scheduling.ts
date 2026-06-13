@@ -25,6 +25,87 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 export type SchedLinkType = 'fs' | 'ss' | 'ff' | 'sf';
 
+/**
+ * Working-calendar model. When supplied to the scheduling functions, durations
+ * are measured in *working* days and rescheduled tasks never start on a
+ * non-working day. Days are evaluated at UTC midnight granularity.
+ */
+export interface WorkingCalendar {
+  /** Treat Saturday/Sunday as non-working. */
+  skipWeekends?: boolean;
+  /** ISO `yyyy-mm-dd` (UTC) keys to treat as non-working (holidays). */
+  holidays?: Set<string>;
+}
+
+const dayKeyUTC = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Whether the calendar marks this day as workable (UTC day granularity). */
+function isWorkingDay(d: Date, cal: WorkingCalendar): boolean {
+  if (cal.skipWeekends) {
+    const wd = d.getUTCDay();
+    if (wd === 0 || wd === 6) return false;
+  }
+  return !(cal.holidays && cal.holidays.has(dayKeyUTC(d)));
+}
+
+/** Floor an instant to UTC midnight. */
+function floorDayUTC(ms: number): Date {
+  const d = new Date(ms);
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+/** First working day at or after `ms` (returns a UTC-midnight instant). */
+function nextWorkingDay(ms: number, cal: WorkingCalendar): number {
+  let d = floorDayUTC(ms);
+  while (!isWorkingDay(d, cal)) d = new Date(d.getTime() + MS_PER_DAY);
+  return d.getTime();
+}
+
+/** Count working days in the half-open range [startMs, endMs). */
+function workingDaysSpan(startMs: number, endMs: number, cal: WorkingCalendar): number {
+  if (endMs <= startMs) return 0;
+  let count = 0;
+  let d = floorDayUTC(startMs);
+  const end = floorDayUTC(endMs).getTime();
+  while (d.getTime() < end) {
+    if (isWorkingDay(d, cal)) count++;
+    d = new Date(d.getTime() + MS_PER_DAY);
+  }
+  return count;
+}
+
+/**
+ * The (exclusive) end instant that lies `n` working days after a working-day
+ * start — i.e. the day after the n-th consumed working day.
+ */
+function addWorkingDays(startMs: number, n: number, cal: WorkingCalendar): number {
+  if (n <= 0) return floorDayUTC(startMs).getTime();
+  let d = floorDayUTC(startMs);
+  let remaining = n;
+  while (remaining > 0) {
+    if (isWorkingDay(d, cal)) remaining--;
+    d = new Date(d.getTime() + MS_PER_DAY);
+  }
+  return d.getTime();
+}
+
+/**
+ * The (inclusive) start instant whose half-open range [start, endMs) holds
+ * exactly `n` working days — the inverse of {@link addWorkingDays}. Used to
+ * back-derive a successor's start from a finish-based (ff/sf) constraint.
+ */
+function subWorkingDays(endMs: number, n: number, cal: WorkingCalendar): number {
+  if (n <= 0) return floorDayUTC(endMs).getTime();
+  let d = floorDayUTC(endMs);
+  let remaining = n;
+  while (remaining > 0) {
+    d = new Date(d.getTime() - MS_PER_DAY);
+    if (isWorkingDay(d, cal)) remaining--;
+  }
+  return d.getTime();
+}
+
 export interface SchedulableTask {
   id: string | number;
   start: Date;
@@ -128,14 +209,19 @@ export interface CriticalPathResult {
  * critical-path display; the four link types still all contribute edges to the
  * longest-path graph. Returns the zero-slack task ids and the edges joining
  * consecutive critical tasks.
+ *
+ * When a {@link WorkingCalendar} is supplied, durations are counted in working
+ * days (weekends/holidays excluded) so the longest path reflects real effort.
  */
-export function computeCriticalPath(tasks: SchedulableTask[]): CriticalPathResult {
+export function computeCriticalPath(tasks: SchedulableTask[], cal?: WorkingCalendar): CriticalPathResult {
   const empty: CriticalPathResult = { criticalIds: new Set(), criticalEdges: new Set() };
   if (!tasks.length) return empty;
 
   const dur = new Map<string, number>();
   for (const t of tasks) {
-    const d = (t.end.getTime() - t.start.getTime()) / MS_PER_DAY;
+    const d = cal
+      ? workingDaysSpan(t.start.getTime(), t.end.getTime(), cal)
+      : (t.end.getTime() - t.start.getTime()) / MS_PER_DAY;
     dur.set(key(t.id), Number.isFinite(d) && d > 0 ? d : 0);
   }
   const edges = buildEdges(tasks);
@@ -223,9 +309,13 @@ export interface RescheduleChange {
  * (parents) are treated as fixed rollup nodes — they constrain successors but
  * are not themselves moved. Returns only the tasks whose dates change.
  *
+ * When a {@link WorkingCalendar} is supplied, each task's duration is measured
+ * in working days and rescheduled tasks are snapped to start (and finish) on
+ * working days only — weekends/holidays are stepped over rather than consumed.
+ *
  * Returns an empty array when the graph has a cycle (ambiguous ordering).
  */
-export function computeProjectReschedule(tasks: SchedulableTask[]): RescheduleChange[] {
+export function computeProjectReschedule(tasks: SchedulableTask[], cal?: WorkingCalendar): RescheduleChange[] {
   if (!tasks.length) return [];
   const edges = buildEdges(tasks);
   const allIds = tasks.map((t) => key(t.id));
@@ -251,7 +341,10 @@ export function computeProjectReschedule(tasks: SchedulableTask[]): RescheduleCh
   for (const id of order) {
     const t = byId.get(id);
     if (!t) continue;
-    const duration = endMs.get(id)! - startMs.get(id)!;
+    // Calendar mode measures spans in working days; otherwise raw ms.
+    const duration = cal
+      ? workingDaysSpan(startMs.get(id)!, endMs.get(id)!, cal)
+      : endMs.get(id)! - startMs.get(id)!;
     const origStart = t.start.getTime();
     // Never pull earlier than the current start — this is 顺延, not ASAP.
     let reqStart = origStart;
@@ -264,10 +357,12 @@ export function computeProjectReschedule(tasks: SchedulableTask[]): RescheduleCh
           candidate = pStart;
           break;
         case 'ff':
-          candidate = pEnd - duration;
+          // Successor must finish no earlier than the predecessor: back off the
+          // duration from the required finish (in working days when calendared).
+          candidate = cal ? subWorkingDays(pEnd, duration, cal) : pEnd - duration;
           break;
         case 'sf':
-          candidate = pStart - duration;
+          candidate = cal ? subWorkingDays(pStart, duration, cal) : pStart - duration;
           break;
         case 'fs':
         default:
@@ -279,8 +374,14 @@ export function computeProjectReschedule(tasks: SchedulableTask[]): RescheduleCh
     // Summaries are derived rollups: keep them where they are, only let them
     // act as predecessors. Everything else shifts to satisfy its links.
     if (summaries.has(id)) continue;
-    startMs.set(id, reqStart);
-    endMs.set(id, reqStart + duration);
+    if (cal) {
+      const s = nextWorkingDay(reqStart, cal);
+      startMs.set(id, s);
+      endMs.set(id, addWorkingDays(s, duration, cal));
+    } else {
+      startMs.set(id, reqStart);
+      endMs.set(id, reqStart + duration);
+    }
   }
 
   const changes: RescheduleChange[] = [];
@@ -288,8 +389,11 @@ export function computeProjectReschedule(tasks: SchedulableTask[]): RescheduleCh
     const id = key(t.id);
     if (summaries.has(id)) continue;
     const ns = startMs.get(id)!;
-    if (ns !== t.start.getTime()) {
-      changes.push({ id, start: new Date(ns), end: new Date(endMs.get(id)!) });
+    const ne = endMs.get(id)!;
+    // In calendar mode a task can keep its start yet have its finish snapped off
+    // a weekend, so report end-only moves too.
+    if (ns !== t.start.getTime() || ne !== t.end.getTime()) {
+      changes.push({ id, start: new Date(ns), end: new Date(ne) });
     }
   }
   return changes;

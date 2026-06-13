@@ -49,6 +49,7 @@ import {
   formatCurrency,
 } from '@object-ui/fields';
 import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, type GanttTaskType } from './GanttView';
+import type { WorkingCalendar } from './scheduling';
 
 /**
  * Hierarchy/type fields are ObjectUI extensions on top of the spec's
@@ -57,6 +58,9 @@ import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, ty
 type GanttConfigEx = GanttConfig & {
   parentField?: string;
   typeField?: string;
+  /** Baseline (planned) start/end fields → planned-vs-actual reference bars. */
+  baselineStartField?: string;
+  baselineEndField?: string;
 };
 
 /** Map a record's type value onto a GanttTaskType (undefined = infer). */
@@ -187,6 +191,8 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           parentField: schema.parentField,
           typeField: schema.typeField,
           tooltipFields: schema.tooltipFields,
+          baselineStartField: schema.baselineStartField,
+          baselineEndField: schema.baselineEndField,
       };
       return config;
   }
@@ -308,7 +314,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return [];
     }
 
-    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField, tooltipFields } = ganttConfig;
+    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField, tooltipFields, baselineStartField, baselineEndField } = ganttConfig;
     const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
 
     // Resolve a value through nested paths like "account.name". Returns the
@@ -415,6 +421,10 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     return data.map((record, index) => {
       const startDate = record[startDateField];
       const endDate = record[endDateField];
+      const baselineStartRaw = baselineStartField ? record[baselineStartField] : undefined;
+      const baselineEndRaw = baselineEndField ? record[baselineEndField] : undefined;
+      const baselineStart = baselineStartRaw ? new Date(baselineStartRaw) : undefined;
+      const baselineEnd = baselineEndRaw ? new Date(baselineEndRaw) : undefined;
       const title = resolveTitle(record);
       const progress = progressField ? record[progressField] : 0;
       const dependencies = dependenciesField ? record[dependenciesField] : [];
@@ -443,11 +453,26 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         parent: parentField ? record[parentField] ?? null : undefined,
         type: typeField ? normalizeTaskType(record[typeField]) : undefined,
         color,
+        baselineStart: baselineStart && !isNaN(baselineStart.getTime()) ? baselineStart : undefined,
+        baselineEnd: baselineEnd && !isNaN(baselineEnd.getTime()) ? baselineEnd : undefined,
         fields: buildTooltipFields(record),
         data: record,
       };
     }).filter(task => !isNaN(task.start.getTime()) && !isNaN(task.end.getTime()));
   }, [data, ganttConfig, objectSchema]);
+
+  // Working calendar: when the schema opts into weekend-skipping or supplies a
+  // holiday list, duration/reschedule math is measured in working days. The
+  // holidays array (ISO yyyy-mm-dd strings) becomes a Set for O(1) lookups.
+  const workingCalendar = useMemo<WorkingCalendar | undefined>(() => {
+    const sw = (schema as any).skipWeekends;
+    const hol = (schema as any).holidays as string[] | undefined;
+    if (!sw && (!hol || hol.length === 0)) return undefined;
+    return {
+      skipWeekends: !!sw,
+      holidays: hol && hol.length ? new Set(hol) : undefined,
+    };
+  }, [schema]);
 
   // Default to a right-side drawer so clicking a task opens an editable
   // detail panel inline (no full-page navigation). Schema can override by
@@ -645,6 +670,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           markers={(schema as any).markers}
           autoSchedule={!!ganttConfig?.dependenciesField}
           criticalPathDefault={!!(schema as any).criticalPath}
+          workingCalendar={workingCalendar}
+          showBaselines={(schema as any).showBaselines !== false}
           inlineEdit
         />
       </div>
