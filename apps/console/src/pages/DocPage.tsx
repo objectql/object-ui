@@ -34,7 +34,9 @@ interface DocItem {
  * "not found" notice — never an install-time or hard failure.
  */
 export default function DocPage() {
-  const { name } = useParams<{ name: string }>();
+  // `appName` is the parent route's package-id segment
+  // (/apps/:appName/docs/:name); undefined on the legacy top-level /docs/:name.
+  const { name, appName } = useParams<{ name: string; appName?: string }>();
   const navigate = useNavigate();
   const adapter = useAdapter();
   const [doc, setDoc] = useState<DocItem | null>(null);
@@ -47,7 +49,10 @@ export default function DocPage() {
       if (!name || !adapter) return;
       setState('loading');
       try {
-        const raw: any = await adapter.getClient().meta.getItem('doc', name);
+        // ADR-0048 — pass the route's package so the single-doc fetch is
+        // package-scoped (prefer-local) on the server. With this, doc names
+        // need not be globally namespace-prefixed; the prefix becomes optional.
+        const raw: any = await adapter.getClient().meta.getItem('doc', name, appName ? { packageId: appName } : undefined);
         const item = raw?.item ?? raw?.data ?? raw;
         if (cancelled) return;
         if (item && typeof item.content === 'string') {
@@ -73,7 +78,7 @@ export default function DocPage() {
     return () => {
       cancelled = true;
     };
-  }, [name, adapter]);
+  }, [name, appName, adapter]);
 
   // SPA navigation for rewritten doc-to-doc links: anchors render as
   // plain <a href="/docs/...">; intercept same-app clicks so following a
