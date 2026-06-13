@@ -307,6 +307,30 @@ export function PageBlockCanvas({
 
   // Empty draft → empty canvas with hint.
   if (regions.length === 0) {
+    // ADR-0047 interface pages are config-driven, not composed from regions:
+    // the list surface is generated from `interfaceConfig` (source view +
+    // user filters + visualizations). Inviting the author to "add a region"
+    // here is misleading — point them at the Properties panel instead.
+    const isInterfacePage =
+      !!(draft as any)?.interfaceConfig ||
+      ((draft as any)?.type === 'list' && !(draft as any)?.regions?.length);
+    if (isInterfacePage) {
+      return (
+        <div className="h-full overflow-auto bg-muted/20" onClick={handleBgClick}>
+          <div className="mx-auto max-w-3xl px-6 py-8">
+            <div className="rounded-lg border-2 border-dashed bg-background py-16 px-6 text-center space-y-3">
+              <div className="text-sm font-medium">Interface page — configured in Properties</div>
+              <div className="text-xs text-muted-foreground">
+                This page renders a list from a source view; there are no regions
+                to design. Use the <span className="font-medium">Properties</span> panel
+                → <span className="font-medium">Interface</span> section to set the data
+                source, user filters, visualizations and toolbar actions.
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="h-full overflow-auto bg-muted/20" onClick={handleBgClick}>
         <div className="mx-auto max-w-3xl px-6 py-8">

@@ -84,12 +84,12 @@ export function PageView() {
             <button
               type="button"
               onClick={openInStudio}
-              className="absolute right-3 top-3 z-30 inline-flex items-center gap-1.5 rounded-md border border-input bg-background/90 px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-accent-foreground"
+              className="absolute right-3 top-3 z-30 inline-flex h-7 w-7 items-center justify-center rounded-md border border-input bg-background/90 text-muted-foreground shadow-sm backdrop-blur hover:bg-accent hover:text-accent-foreground"
               data-testid="page-edit-in-studio-button"
               title={t('common.editInStudio', { defaultValue: 'Edit in studio' })}
+              aria-label={t('common.editInStudio', { defaultValue: 'Edit in studio' })}
             >
               <Pencil className="h-3.5 w-3.5" />
-              {t('common.editInStudio', { defaultValue: 'Edit in studio' })}
             </button>
           )}
           {(page as any).interfaceConfig?.source ? (
