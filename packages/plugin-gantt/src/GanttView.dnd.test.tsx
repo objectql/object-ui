@@ -150,6 +150,51 @@ describe('GanttView drag-and-drop', () => {
   });
 });
 
+describe('GanttView read-only mode', () => {
+  function renderReadOnly(onTaskUpdate: (task: GanttTask, changes: any) => void) {
+    return render(
+      <div style={{ width: 1280, height: 600 }}>
+        <GanttView
+          tasks={[baseTask]}
+          startDate={new Date('2024-06-01T00:00:00.000Z')}
+          endDate={new Date('2024-06-30T00:00:00.000Z')}
+          onTaskUpdate={onTaskUpdate}
+          onTaskDelete={() => {}}
+          inlineEdit
+          autoSchedule
+          readOnly
+        />
+      </div>
+    );
+  }
+
+  it('renders the bar but attaches NO drag affordances even though onTaskUpdate is passed', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderReadOnly(onTaskUpdate);
+    expect(container.querySelector('[data-testid="gantt-task-bar-t1"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="gantt-task-resize-left-t1"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-task-resize-right-t1"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-progress-handle-t1"]')).toBeFalsy();
+  });
+
+  it('dragging the bar body does NOT emit updates in read-only mode', () => {
+    const onTaskUpdate = vi.fn();
+    const { container } = renderReadOnly(onTaskUpdate);
+    const bar = container.querySelector('[data-testid="gantt-task-bar-t1"]') as HTMLElement;
+    act(() => { bar.dispatchEvent(pointer('pointerdown', 500)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 680)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 680)); });
+    expect(onTaskUpdate).not.toHaveBeenCalled();
+  });
+
+  it('hides the Undo / Redo and auto-schedule toolbar buttons', () => {
+    const { container } = renderReadOnly(vi.fn());
+    expect(container.querySelector('[data-testid="gantt-undo"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-redo"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-auto-schedule"]')).toBeFalsy();
+  });
+});
+
 describe('GanttView summary group drag', () => {
   const FAMILY: GanttTask[] = [
     {

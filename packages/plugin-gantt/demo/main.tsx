@@ -108,6 +108,7 @@ function App() {
   const workingCalendar: WorkingCalendar | undefined =
     params.get('cal') === '1' ? { skipWeekends: true } : undefined;
   const showBaselines = params.get('baselines') !== '0';
+  const readOnly = params.get('readonly') === '1';
   const t0 = React.useMemo(() => performance.now(), []);
   const [tasks, setTasks] = React.useState<GanttTask[]>(() =>
     perf > 0 ? perfFixture(perf) : edge ? edgeFixture() : projectFixture()
@@ -142,6 +143,7 @@ function App() {
         <a href="?">project fixture</a>
         <a href="?cal=1">working calendar</a>
         <a href="?baselines=0">no baselines</a>
+        <a href="?readonly=1">read-only</a>
         <a href="?perf=5000&mode=week">perf: 5000 tasks</a>
       </div>
       <div style={{ flex: 1, minHeight: 0 }}>
@@ -153,6 +155,7 @@ function App() {
           criticalPathDefault={params.get('critical') === '1'}
           workingCalendar={workingCalendar}
           showBaselines={showBaselines}
+          readOnly={readOnly}
           inlineEdit
           onTaskClick={(t) => console.log('[gantt-demo] click', t.id)}
           onTaskUpdate={(t, changes) => patch(t.id, changes)}

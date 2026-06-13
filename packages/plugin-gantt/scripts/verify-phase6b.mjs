@@ -194,6 +194,44 @@ check('Ctrl+Z keyboard undo restores the origin',
   `${afterKeyUndo.t4?.left} vs origin ${before.t4.left}`);
 await page.screenshot({ path: join(OUT, '20-undo-redo-final.png') });
 
+// --- 4. Read-only mode -----------------------------------------------------
+// The demo still wires every write callback; `?readonly=1` must override them.
+await page.goto(`${BASE}/?readonly=1`);
+await page.waitForSelector('[data-testid="gantt-task-bar-t4"]');
+await page.click('[data-testid="gantt-view-mode-week"]');
+await page.waitForTimeout(120);
+
+const ro = await page.evaluate(() => ({
+  bars: document.querySelectorAll('[data-testid^="gantt-task-bar-"]').length,
+  baselines: document.querySelectorAll('[data-testid^="gantt-baseline-"]').length,
+  resizeHandles: document.querySelectorAll('[data-testid^="gantt-task-resize-"]').length,
+  progressHandles: document.querySelectorAll('[data-testid^="gantt-progress-handle-"]').length,
+  undo: !!document.querySelector('[data-testid="gantt-undo"]'),
+  redo: !!document.querySelector('[data-testid="gantt-redo"]'),
+  autoSchedule: !!document.querySelector('[data-testid="gantt-auto-schedule"]'),
+}));
+check('read-only still renders task bars', ro.bars > 0, `${ro.bars} bars`);
+check('read-only still renders baselines', ro.baselines > 0, `${ro.baselines} baselines`);
+check('read-only attaches NO resize handles', ro.resizeHandles === 0, `${ro.resizeHandles}`);
+check('read-only attaches NO progress handles', ro.progressHandles === 0, `${ro.progressHandles}`);
+check('read-only hides Undo/Redo + auto-schedule buttons',
+  !ro.undo && !ro.redo && !ro.autoSchedule,
+  `undo=${ro.undo} redo=${ro.redo} auto=${ro.autoSchedule}`);
+
+// Dragging a bar must not move it (no write path).
+const roBefore = await barGeom();
+const roBox = await page.locator('[data-testid="gantt-task-bar-t4"]').boundingBox();
+await page.mouse.move(roBox.x + roBox.width / 2, roBox.y + roBox.height / 2);
+await page.mouse.down();
+await page.mouse.move(roBox.x + roBox.width / 2 + 200, roBox.y + roBox.height / 2, { steps: 10 });
+await page.mouse.up();
+await page.waitForTimeout(200);
+const roAfter = await barGeom();
+check('read-only: dragging a bar does not move it',
+  roAfter.t4 && roAfter.t4.left === roBefore.t4.left,
+  `${roBefore.t4?.left} → ${roAfter.t4?.left}`);
+await page.screenshot({ path: join(OUT, '21-read-only.png') });
+
 await browser.close();
 console.log(failures ? `\n${failures} check(s) failed` : '\nall checks passed');
 process.exit(failures ? 1 : 0);

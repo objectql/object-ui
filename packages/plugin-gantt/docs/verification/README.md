@@ -229,7 +229,7 @@ pnpm --dir packages/plugin-gantt exec vite demo --port 5199
 node packages/plugin-gantt/scripts/verify-phase6b.mjs
 ```
 
-## Latest run: 16/16 checks passed
+## Latest run: 22/22 checks passed
 
 ### 1. Baselines (planned vs actual)
 
@@ -271,3 +271,31 @@ drive history.
 - Keyboard **Ctrl+Y** re-applies the drag; **Ctrl+Z** restores the origin.
 - ![After drag](19-undo-after-drag.png)
 - ![After undo/redo cycle](20-undo-redo-final.png)
+
+### 4. Read-only mode (`readOnly` / `?readonly=1`)
+
+An explicit `readOnly` prop on `GanttView` (mapped from the view schema's
+top-level `readOnly` by `ObjectGantt`) disables **every** write interaction in
+one place, regardless of which callbacks are wired. Internally each write prop
+is prop-shadowed (`onTaskUpdate`, `onTaskDelete`, `onDependencyCreate`,
+`onTaskReorder`, `inlineEdit`, `autoSchedule` are forced to `undefined`/`false`
+when `readOnly` is set), so bar drag / resize / progress handles, inline edit,
+the right-click Edit/Delete items, dependency-link drag, row reorder,
+auto-schedule, and the Undo/Redo toolbar buttons all drop out together.
+Non-mutating affordances stay live — task click, view-mode switch, zoom,
+list collapse, critical-path highlight, export PNG, fullscreen.
+
+The demo passes the prop through `?readonly=1` and a unit suite
+([`src/GanttView.dnd.test.tsx`](../../src/GanttView.dnd.test.tsx)) asserts that
+passing all the write callbacks **and** `readOnly` still renders no resize /
+progress handles, a bar-body drag does not call `onTaskUpdate`, and the
+Undo/Redo/auto-schedule buttons are absent.
+
+[`scripts/verify-phase6b.mjs`](../../scripts/verify-phase6b.mjs) loads
+`?readonly=1` in week mode (6/6 checks passed):
+
+- Bars, baselines, dependency arrows, milestones and markers all still render.
+- **0** resize handles and **0** progress handles across the chart.
+- The Undo/Redo arrows and the auto-schedule wand are absent from the toolbar.
+- A real mouse drag on **t4** leaves it pixel-identical — no write fires.
+- ![Read-only mode](21-read-only.png)

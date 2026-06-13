@@ -672,6 +672,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           criticalPathDefault={!!(schema as any).criticalPath}
           workingCalendar={workingCalendar}
           showBaselines={(schema as any).showBaselines !== false}
+          readOnly={!!(schema as any).readOnly}
           inlineEdit
         />
       </div>

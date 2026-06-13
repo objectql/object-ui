@@ -127,6 +127,7 @@ Display project timeline with tasks:
   viewMode?: 'day' | 'week' | 'month',
   onTaskClick?: (task) => void,
   onTaskUpdate?: (task) => void,
+  readOnly?: boolean,          // disable all editing (drag/resize/inline/delete/link/undo)
   className?: string
 }
 ```

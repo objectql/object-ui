@@ -330,8 +330,14 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
       "dependenciesField": "depends_on",
       "typeField": "item_type",
       "colorField": "status",
+      "baselineStartField": "planned_start",
+      "baselineEndField": "planned_end",
       "tooltipFields": [{ "field": "owner", "label": "Owner" }, "status", "effort"]
-    }
+    },
+    "criticalPath": true,
+    "skipWeekends": true,
+    "holidays": ["2026-01-01", "2026-12-25"],
+    "readOnly": false
   },
   "bind": "project_task"
 }
@@ -343,8 +349,22 @@ children's span + weighted progress), `typeField` distinguishes
 `task` / `summary` / `milestone`, `dependenciesField` draws the dependency
 arrows (accepts CSV, an id array, or `[{ id, type: 'fs'|'ss'|'ff'|'sf' }]`),
 and `tooltipFields` configures the hover detail (悬浮详情) — each entry a
-field name or `{ field, label }`, formatted by field type. The gantt config
-may also be hoisted to top-level `props` instead of nesting under `gantt`.
+field name or `{ field, label }`, formatted by field type.
+`baselineStartField` / `baselineEndField` draw a thin planned-vs-actual
+baseline strip under each bar. The gantt field config may also be hoisted to
+top-level `props` instead of nesting under `gantt`.
+
+**Top-level display / behavior options** (siblings of `gantt` on `props`, not
+field mappings):
+
+| Option | Effect |
+|--------|--------|
+| `criticalPath: true` | Start with the critical-path (zero-slack chain) highlight on; a toolbar toggle stays available. |
+| `showBaselines: false` | Hide the baseline strips even when baseline fields are mapped (default `true`). |
+| `skipWeekends: true` | Working-calendar math: auto-schedule + critical path count working days only, snapping reschedules off Sat/Sun. |
+| `holidays: ["yyyy-mm-dd", …]` | Extra non-working days for the working calendar (combine with or instead of `skipWeekends`). |
+| `markers: [{ date, label?, color? }]` | Extra vertical marker lines (like the Today line). |
+| `readOnly: true` | **Disable all editing** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. Task click + granularity switching still work. Use for dashboards / shared read-only views. |
 
 Import plugins in your app entry point to trigger registration:
 ```typescript

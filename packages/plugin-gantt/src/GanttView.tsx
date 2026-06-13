@@ -230,6 +230,16 @@ export interface GanttViewProps {
   workingCalendar?: WorkingCalendar
   /** Render planned-vs-actual baseline bars when tasks carry baseline dates. */
   showBaselines?: boolean
+  /**
+   * Read-only mode. When true, every write interaction is disabled regardless
+   * of which callbacks are passed: no bar drag / resize / progress handle, no
+   * inline editing, no delete, no dependency-link drag, no row reorder, no
+   * auto-schedule, and the Undo/Redo toolbar buttons are hidden. Clicking a
+   * task (`onTaskClick`) and switching granularity still work — those don't
+   * mutate data. Equivalent to omitting all write callbacks, but explicit and
+   * metadata-drivable.
+   */
+  readOnly?: boolean
 }
 
 export function GanttView({
@@ -239,18 +249,29 @@ export function GanttView({
   endDate,
   markers,
   onTaskClick,
-  onTaskUpdate,
-  onTaskDelete,
+  onTaskUpdate: onTaskUpdateProp,
+  onTaskDelete: onTaskDeleteProp,
   onViewChange,
-  onDependencyCreate,
-  onTaskReorder,
+  onDependencyCreate: onDependencyCreateProp,
+  onTaskReorder: onTaskReorderProp,
   className,
-  inlineEdit = false,
-  autoSchedule = false,
+  inlineEdit: inlineEditProp = false,
+  autoSchedule: autoScheduleProp = false,
   criticalPathDefault = false,
   workingCalendar,
   showBaselines = true,
+  readOnly = false,
 }: GanttViewProps) {
+  // Read-only gating, applied once at the top so every downstream usage —
+  // drag/resize/progress, inline edit, delete, link-drag, reorder,
+  // auto-schedule, and the Undo/Redo toolbar (which keys off onTaskUpdate) —
+  // inherits it. `onTaskClick` / `onViewChange` stay live: they don't mutate.
+  const onTaskUpdate = readOnly ? undefined : onTaskUpdateProp;
+  const onTaskDelete = readOnly ? undefined : onTaskDeleteProp;
+  const onDependencyCreate = readOnly ? undefined : onDependencyCreateProp;
+  const onTaskReorder = readOnly ? undefined : onTaskReorderProp;
+  const inlineEdit = readOnly ? false : inlineEditProp;
+  const autoSchedule = readOnly ? false : autoScheduleProp;
   const { t } = useGanttTranslation();
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const containerRef = React.useRef<HTMLDivElement>(null);
