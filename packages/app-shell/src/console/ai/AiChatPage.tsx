@@ -31,6 +31,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  cn,
 } from '@object-ui/components';
 import { PanelLeft, PanelLeftClose, PanelLeftOpen, Share2 } from 'lucide-react';
 import {
@@ -230,6 +231,136 @@ export function useCollapsibleChatsList(): CollapsibleChatsList {
   }, []);
 
   return { collapsed, toggle, handleCanvasOpenChange };
+}
+
+const CHAT_PANE_WIDTH_STORAGE_KEY = 'ai-chat-pane-width';
+/** Default chat-column width (px) when the preview opens. */
+const CHAT_PANE_DEFAULT_WIDTH = 480;
+/** Chat column never narrower than this. */
+const CHAT_PANE_MIN_WIDTH = 360;
+/** Preview pane always keeps at least this much room (caps how wide chat can grow). */
+const CHAT_PREVIEW_MIN_WIDTH = 420;
+/** Keyboard resize step (px) when the divider is focused. */
+const CHAT_PANE_KEYBOARD_STEP = 24;
+
+/**
+ * Clamp a desired chat-column width so neither pane collapses: at least
+ * `min`, and never so wide that the preview drops below `previewMin`. Pure +
+ * exported for tests. `containerWidth <= 0` (unmeasured) skips the upper bound.
+ */
+export function clampChatPaneWidth(
+  desired: number,
+  opts: { min: number; previewMin: number; containerWidth: number },
+): number {
+  const upper = opts.containerWidth > 0 ? Math.max(opts.min, opts.containerWidth - opts.previewMin) : Infinity;
+  return Math.min(Math.max(desired, opts.min), upper);
+}
+
+interface ResizableChatPane {
+  /** Current chat-column width in px (clamped). */
+  width: number;
+  /** True while a drag is in progress (for cursor/overlay styling). */
+  dragging: boolean;
+  /** Ref for the split container — measures available width to bound the preview. */
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  /** Start a pointer drag from the divider. */
+  onHandlePointerDown: (e: React.PointerEvent) => void;
+  /** Keyboard resize (←/→) when the divider is focused. */
+  onHandleKeyDown: (e: React.KeyboardEvent) => void;
+  /** Reset to the default width (double-click the divider). */
+  reset: () => void;
+}
+
+/**
+ * Draggable width for the chat column when the Live Canvas preview is open
+ * (ChatGPT/Claude-style split). Width persists; drags and keyboard nudges are
+ * clamped against the live container so the preview always keeps room, and a
+ * ResizeObserver re-clamps when the window shrinks. All DOM reads happen in
+ * handlers/effects, never during render.
+ */
+export function useResizableChatPane(active: boolean): ResizableChatPane {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(CHAT_PANE_WIDTH_STORAGE_KEY));
+      return Number.isFinite(saved) && saved > 0 ? saved : CHAT_PANE_DEFAULT_WIDTH;
+    } catch {
+      return CHAT_PANE_DEFAULT_WIDTH;
+    }
+  });
+  const [dragging, setDragging] = useState(false);
+
+  const clampToContainer = useCallback(
+    (desired: number) =>
+      clampChatPaneWidth(desired, {
+        min: CHAT_PANE_MIN_WIDTH,
+        previewMin: CHAT_PREVIEW_MIN_WIDTH,
+        containerWidth: containerRef.current?.clientWidth ?? 0,
+      }),
+    [],
+  );
+
+  const persist = useCallback((w: number) => {
+    try {
+      localStorage.setItem(CHAT_PANE_WIDTH_STORAGE_KEY, String(Math.round(w)));
+    } catch {
+      /* storage disabled — width just won't persist */
+    }
+  }, []);
+
+  // Re-clamp when the available width changes (window resize, sidebar collapse),
+  // so a previously-saved wide chat can't starve the preview.
+  useEffect(() => {
+    if (!active) return;
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setWidth((w) => clampToContainer(w)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [active, clampToContainer]);
+
+  const onHandlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = width; // state is the style source, so it == the rendered width
+      setDragging(true);
+      const onMove = (ev: PointerEvent) => setWidth(clampToContainer(startWidth + (ev.clientX - startX)));
+      const onUp = (ev: PointerEvent) => {
+        const final = clampToContainer(startWidth + (ev.clientX - startX));
+        setWidth(final);
+        persist(final);
+        setDragging(false);
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    },
+    [clampToContainer, persist, width],
+  );
+
+  const onHandleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const delta = e.key === 'ArrowLeft' ? -CHAT_PANE_KEYBOARD_STEP : e.key === 'ArrowRight' ? CHAT_PANE_KEYBOARD_STEP : 0;
+      if (!delta) return;
+      e.preventDefault();
+      setWidth((w) => {
+        const next = clampToContainer(w + delta);
+        persist(next);
+        return next;
+      });
+    },
+    [clampToContainer, persist],
+  );
+
+  const reset = useCallback(() => {
+    const next = clampToContainer(CHAT_PANE_DEFAULT_WIDTH);
+    setWidth(next);
+    persist(next);
+  }, [clampToContainer, persist]);
+
+  return { width, dragging, containerRef, onHandlePointerDown, onHandleKeyDown, reset };
 }
 
 export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentProp }: AiChatPageProps = {}) {
@@ -533,6 +664,8 @@ function ChatPane({
   useEffect(() => {
     onCanvasOpenChange?.(canvasOpen);
   }, [canvasOpen, onCanvasOpenChange]);
+  // Draggable chat ↔ preview split (active only while the preview is open).
+  const split = useResizableChatPane(canvasOpen);
   const handleDraftArtifacts = useCallback((artifacts: Array<{ type: string; name: string }>) => {
     const app = artifacts.find((a) => a.type === 'app');
     if (app) setCanvasApp((prev) => prev ?? { name: app.name, materialized: false });
@@ -675,13 +808,15 @@ function ChatPane({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 px-0">
+    <div ref={split.containerRef} className="relative flex min-h-0 flex-1 px-0">
       <div
+        data-chat-column
         className={
           canvasApp
-            ? 'flex min-h-0 w-[42%] min-w-[380px] max-w-[640px] shrink-0 justify-center'
+            ? 'flex min-h-0 shrink-0 justify-center'
             : 'flex min-h-0 flex-1 justify-center'
         }
+        style={canvasApp ? { width: split.width } : undefined}
       >
       <ChatbotEnhanced
         className="min-h-0 flex-1 bg-background md:max-w-5xl"
@@ -803,12 +938,44 @@ function ChatPane({
       />
       </div>
       {canvasApp ? (
-        <LiveCanvas
-          appName={canvasApp.name}
-          materialized={canvasApp.materialized}
-          refreshKey={canvasRefreshKey}
-          onClose={() => setCanvasApp(null)}
-        />
+        <>
+          {/* Draggable divider — resize the chat ↔ preview split. */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t('console.ai.resizeSplit', { defaultValue: 'Resize chat and preview' })}
+            tabIndex={0}
+            onPointerDown={split.onHandlePointerDown}
+            onKeyDown={split.onHandleKeyDown}
+            onDoubleClick={split.reset}
+            data-testid="ai-chat-split-handle"
+            className={cn(
+              'group relative hidden w-1.5 shrink-0 cursor-col-resize touch-none select-none md:block',
+              'focus:outline-none',
+            )}
+          >
+            {/* Hit area is wider than the visible line for easier grabbing. */}
+            <span aria-hidden className="absolute inset-y-0 -left-1.5 -right-1.5" />
+            <span
+              aria-hidden
+              className={cn(
+                'absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border transition-colors',
+                'group-hover:bg-primary/60 group-focus-visible:bg-primary',
+                split.dragging && 'bg-primary',
+              )}
+            />
+          </div>
+          <LiveCanvas
+            appName={canvasApp.name}
+            materialized={canvasApp.materialized}
+            refreshKey={canvasRefreshKey}
+            onClose={() => setCanvasApp(null)}
+          />
+          {/* While dragging, an overlay above the canvas iframe keeps pointer
+              events flowing to the window listeners (an iframe would otherwise
+              swallow them) and shows the resize cursor everywhere. */}
+          {split.dragging ? <div className="fixed inset-0 z-50 cursor-col-resize" data-testid="ai-chat-split-overlay" /> : null}
+        </>
       ) : null}
     </div>
   );
