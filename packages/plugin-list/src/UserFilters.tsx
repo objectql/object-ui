@@ -59,6 +59,18 @@ export interface UserFiltersProps {
   /** Maximum visible filter badges before collapsing into "More" dropdown (dropdown mode only) */
   maxVisible?: number;
   className?: string;
+  /**
+   * Initial selections to restore (e.g. from URL params). Keyed by field
+   * name → selected values; the active tab preset is carried under the
+   * reserved `_tab` key as a single-entry array.
+   */
+  initialSelections?: Record<string, Array<string | number | boolean>>;
+  /**
+   * Fires with the raw selection state on every user change (same shape as
+   * `initialSelections`). Hosts use this to persist selections — e.g.
+   * ObjectView/InterfaceListPage mirror them into `uf_*` URL params.
+   */
+  onSelectionsChange?: (selections: Record<string, Array<string | number | boolean>>) => void;
 }
 
 /** Map @objectstack/spec ViewFilterRule operators to ObjectQL AST operators. */
@@ -110,6 +122,8 @@ export function UserFilters({
   onFilterChange,
   maxVisible,
   className,
+  initialSelections,
+  onSelectionsChange,
 }: UserFiltersProps) {
   switch (config.element) {
     case 'dropdown':
@@ -121,6 +135,8 @@ export function UserFilters({
           onFilterChange={onFilterChange}
           maxVisible={maxVisible}
           className={className}
+          initialSelections={initialSelections}
+          onSelectionsChange={onSelectionsChange}
         />
       );
     case 'tabs':
@@ -131,6 +147,8 @@ export function UserFilters({
           allowAddTab={config.allowAddTab}
           onFilterChange={onFilterChange}
           className={className}
+          initialTab={typeof initialSelections?._tab?.[0] === 'string' ? (initialSelections._tab[0] as string) : undefined}
+          onSelectionsChange={onSelectionsChange}
         />
       );
     case 'toggle':
@@ -245,9 +263,11 @@ interface DropdownFiltersProps {
   onFilterChange: (filters: any[]) => void;
   maxVisible?: number;
   className?: string;
+  initialSelections?: Record<string, Array<string | number | boolean>>;
+  onSelectionsChange?: (selections: Record<string, Array<string | number | boolean>>) => void;
 }
 
-function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, className }: DropdownFiltersProps) {
+function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, className, initialSelections, onSelectionsChange }: DropdownFiltersProps) {
   const { fieldLabel, translateOptions } = useSafeFieldLabel();
   const moreLabel = useMoreLabel();
   const objectName: string | undefined = objectDef?.name;
@@ -258,6 +278,11 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
     fields.forEach(f => {
       if (f.defaultValues && f.defaultValues.length > 0) {
         init[f.field] = f.defaultValues;
+      }
+      // Restored selections (e.g. from URL params) override author defaults.
+      const restored = initialSelections?.[f.field];
+      if (restored && restored.length > 0) {
+        init[f.field] = restored;
       }
     });
     return init;
@@ -303,12 +328,35 @@ function DropdownFilters({ fields, objectDef, data, onFilterChange, maxVisible, 
     const next = { ...selectedValues, [field]: values };
     setSelectedValues(next);
     emitFilters(next);
+    onSelectionsChange?.(next);
   };
 
-  // Emit default filters on mount
+  // Emit default/restored filters on mount. URL-restored values arrive as
+  // strings; coerce them against the resolved option value types so the
+  // checkbox state (`selected.includes(opt.value)`) matches typed options
+  // (numbers, booleans) — the query condition uses the same coerced value.
   React.useEffect(() => {
-    const hasDefaults = Object.values(selectedValues).some(v => v.length > 0);
-    if (hasDefaults) emitFilters(selectedValues);
+    let current = selectedValues;
+    const coerced: Record<string, (string | number | boolean)[]> = {};
+    let changed = false;
+    for (const [field, values] of Object.entries(current)) {
+      const rf = resolvedFields.find(f => f.field === field);
+      const next = values.map(v => {
+        if (!rf || typeof v !== 'string') return v;
+        const opt = rf.options.find(o => String(o.value) === v);
+        if (opt && opt.value !== v) return opt.value;
+        if (rf.type === 'boolean' && (v === 'true' || v === 'false')) return v === 'true';
+        return v;
+      });
+      coerced[field] = next;
+      if (next.some((v, i) => v !== values[i])) changed = true;
+    }
+    if (changed) {
+      setSelectedValues(coerced);
+      current = coerced;
+    }
+    const hasSelections = Object.values(current).some(v => v.length > 0);
+    if (hasSelections) emitFilters(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -476,10 +524,18 @@ interface TabFiltersProps {
   allowAddTab?: boolean;
   onFilterChange: (filters: any[]) => void;
   className?: string;
+  /** Tab id to activate on mount (e.g. restored from URL); wins over `default`. */
+  initialTab?: string;
+  /** Fires with `{ _tab: [tabId] }` when the user switches tabs. */
+  onSelectionsChange?: (selections: Record<string, Array<string | number | boolean>>) => void;
 }
 
-function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, className }: TabFiltersProps) {
+function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, className, initialTab, onSelectionsChange }: TabFiltersProps) {
   const [activeTab, setActiveTab] = React.useState<string>(() => {
+    // URL-restored tab wins over the author's default.
+    if (initialTab && (initialTab === '__all__' || tabs.some(t => t.id === initialTab))) {
+      return initialTab;
+    }
     const defaultTab = tabs.find(t => t.default);
     return defaultTab?.id || (showAllRecords ? '__all__' : tabs[0]?.id || '');
   });
@@ -493,8 +549,9 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
         const tab = tabs.find(t => t.id === tabId);
         onFilterChange(tab?.filters || []);
       }
+      onSelectionsChange?.({ _tab: [tabId] });
     },
-    [tabs, onFilterChange],
+    [tabs, onFilterChange, onSelectionsChange],
   );
 
   const allTabs = React.useMemo(() => {
@@ -505,11 +562,12 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
     return result;
   }, [tabs, showAllRecords]);
 
-  // Emit default tab filters on mount
+  // Emit the initially-active tab's filters on mount (restored tab or
+  // author default — `activeTab` already resolved the precedence).
   React.useEffect(() => {
-    const defaultTab = tabs.find(t => t.default);
-    if (defaultTab) {
-      onFilterChange(defaultTab.filters || []);
+    if (activeTab && activeTab !== '__all__') {
+      const tab = tabs.find(t => t.id === activeTab);
+      if (tab) onFilterChange(tab.filters || []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

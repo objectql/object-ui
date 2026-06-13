@@ -39,6 +39,10 @@ export interface ListViewProps {
   onRowClick?: (record: Record<string, unknown>) => void;
   /** Show view type switcher (Grid/Kanban/etc). Default: false (view type is fixed) */
   showViewSwitcher?: boolean;
+  /** Initial user-filter selections to restore (field → values; `_tab` for the active preset). */
+  userFilterSelections?: Record<string, Array<string | number | boolean>>;
+  /** Fires with the raw user-filter selections whenever the user changes them. */
+  onUserFilterSelectionsChange?: (selections: Record<string, Array<string | number | boolean>>) => void;
   [key: string]: any;
 }
 
@@ -319,6 +323,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   onColumnStateChange,
   onRowClick,
   showViewSwitcher: showViewSwitcherProp,
+  userFilterSelections,
+  onUserFilterSelectionsChange,
   ...props
 }, ref) => {
   // The switcher can be enabled either by the host component (prop) or by
@@ -455,16 +461,35 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     conditions: []
   });
 
-  // Tab State
+  // Tab State. A URL-restored tab (`userFilterSelections._tab`) wins over
+  // the author's `isDefault` (ADR-0047 filter persistence).
   const [activeTab, setActiveTab] = React.useState<string | undefined>(() => {
     if (!schema.tabs || schema.tabs.length === 0) return undefined;
+    const restored = userFilterSelections?._tab?.[0];
+    if (typeof restored === 'string' && schema.tabs.some((t: any) => t.name === restored)) {
+      return restored;
+    }
     const defaultTab = schema.tabs.find((t: any) => t.isDefault);
     return defaultTab?.name ?? schema.tabs[0]?.name;
   });
 
+  // Apply the initially-active tab's filter on mount so a restored tab
+  // scopes the first fetch the same way a user click would.
+  React.useEffect(() => {
+    const tab = schema.tabs?.find((t: any) => t.name === activeTab);
+    if (tab && Array.isArray(tab.filter) && tab.filter.length > 0) {
+      const conditions = tab.filter
+        .filter((r: any) => r && typeof r.field === 'string')
+        .map((r: any) => ({ field: r.field, operator: r.operator ?? 'equals', value: r.value }));
+      setCurrentFilters({ id: `tab-filter-${tab.name}`, logic: 'and', conditions });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleTabChange = React.useCallback(
     (tab: ViewTab) => {
       setActiveTab(tab.name);
+      onUserFilterSelectionsChange?.({ _tab: [tab.name] });
       // Apply tab filter if defined. Two shapes are accepted:
       // - @objectstack/spec ViewTab.filter: ViewFilterRule[] — an array of
       //   `{ field, operator, value }` rules (the canonical metadata shape)
@@ -488,7 +513,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         onFilterChange?.(emptyFilters);
       }
     },
-    [onFilterChange],
+    [onFilterChange, onUserFilterSelectionsChange],
   );
 
   // Data State
@@ -1585,6 +1610,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   data={data}
                   onFilterChange={setUserFilterConditions}
                   maxVisible={3}
+                  initialSelections={userFilterSelections}
+                  onSelectionsChange={onUserFilterSelectionsChange}
                 />
               </div>
           )}

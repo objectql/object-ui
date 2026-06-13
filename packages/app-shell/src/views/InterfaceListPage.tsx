@@ -16,12 +16,14 @@
  */
 
 import * as React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ListView } from '@object-ui/plugin-list';
 import { useAdapter } from '@object-ui/react';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useMetadata } from '../providers/MetadataProvider';
+import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 
 interface InterfaceListPageProps {
   page: any;
@@ -53,6 +55,19 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
   const { t } = useObjectTranslation();
   const { objects } = useMetadata();
   const dataSource = useAdapter();
+  const [, setSearchParams] = useSearchParams();
+
+  // ADR-0047 filter persistence: restore `uf_*` URL params once at mount,
+  // mirror every selection change back (replace — no history spam).
+  const [initialUfSelections] = React.useState<Record<string, string[]> | undefined>(
+    () => parseUserFilterParams(new URLSearchParams(window.location.search)),
+  );
+  const handleUserFilterSelectionsChange = React.useCallback(
+    (selections: Record<string, Array<string | number | boolean>>) => {
+      setSearchParams(prev => applyUserFilterParams(prev, selections), { replace: true });
+    },
+    [setSearchParams],
+  );
 
   const cfg = page?.interfaceConfig || {};
   const objectDef = React.useMemo(
@@ -181,7 +196,12 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
         )}
       </div>
       <div className="flex-1 min-h-0 overflow-auto">
-        <ListView schema={schema} dataSource={dataSource} />
+        <ListView
+          schema={schema}
+          dataSource={dataSource}
+          userFilterSelections={initialUfSelections}
+          onUserFilterSelectionsChange={handleUserFilterSelectionsChange}
+        />
       </div>
     </div>
   );

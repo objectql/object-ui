@@ -11,6 +11,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
+import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 const ObjectChart = lazy(() =>
   import('@object-ui/plugin-charts').then((m) => ({ default: m.ObjectChart })),
 );
@@ -919,17 +920,39 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
      * which matches the shape consumed by the list view's data fetcher when
      * merging base filters.
      */
+    // Dep on the serialized `filter[...]` entries only — `uf_*` user-filter
+    // params also live in the URL and must not invalidate this memo (a new
+    // array identity here rebuilds the whole list schema and refetches).
+    const filterParamsKey = Array.from(searchParams.entries())
+        .filter(([k]) => k.startsWith('filter['))
+        .map(([k, v]) => `${k}=${v}`)
+        .join('&');
     const urlFilters = useMemo(() => {
         const out: Array<[string, string, any]> = [];
-        searchParams.forEach((value, key) => {
+        new URLSearchParams(filterParamsKey).forEach((value, key) => {
             const m = /^filter\[(.+)\]$/.exec(key);
             if (m && m[1] && value !== '') {
                 out.push([m[1], '=', value]);
             }
         });
         return out;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchParams.toString()]);
+    }, [filterParamsKey]);
+
+    /**
+     * End-user filter selections restored from `uf_*` URL params (ADR-0047
+     * persistence). Captured once per ObjectView mount — UserFilters only
+     * reads them at its own mount, and later URL writes must not churn the
+     * schema memo.
+     */
+    const [initialUfSelections] = useState<Record<string, string[]> | undefined>(
+        () => parseUserFilterParams(new URLSearchParams(window.location.search)),
+    );
+    const handleUserFilterSelectionsChange = useCallback(
+        (selections: Record<string, Array<string | number | boolean>>) => {
+            setSearchParams(prev => applyUserFilterParams(prev, selections), { replace: true });
+        },
+        [setSearchParams],
+    );
     // Memoize onNavigate to prevent stale closure in useNavigationOverlay's handleClick
     const handleNavOverlayNavigate = useCallback(
         (recordId: string | number, action?: string) => {
@@ -1331,10 +1354,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 onColumnStateChange={(state: { order?: string[]; widths?: Record<string, number> }) => {
                     persistViewPatch(viewDef.id, viewDef, { columnState: state });
                 }}
+                userFilterSelections={initialUfSelections}
+                onUserFilterSelectionsChange={handleUserFilterSelectionsChange}
                 dataSource={ds}
             />
         );
-    }, [activeView, objectDef, objectName, refreshKey, navOverlay, actions, persistViewPatch, urlFilters]);
+    }, [activeView, objectDef, objectName, refreshKey, navOverlay, actions, persistViewPatch, urlFilters, initialUfSelections, handleUserFilterSelectionsChange]);
 
     // Memoize the merged views array so PluginObjectView doesn't get a new
     // reference on every render (which would trigger unnecessary data refetches).
