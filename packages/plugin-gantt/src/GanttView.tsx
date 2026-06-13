@@ -240,6 +240,17 @@ export interface GanttViewProps {
    * metadata-drivable.
    */
   readOnly?: boolean
+  /**
+   * Dynamic grouping accessor (动态 Group by). When provided, leaf tasks are
+   * bucketed by the returned `key` and rendered beneath one synthesized summary
+   * row per group — the original `parent` hierarchy is replaced by the grouping.
+   * Return `null` to drop a task into the "ungrouped" bucket. Grouping is purely
+   * presentational: the timeline range, critical path and auto-schedule still run
+   * on the real task list, and the synthetic group rows are never draggable.
+   */
+  groupBy?: (task: GanttTask) => { key: string | number; label: string } | null
+  /** Label for the bucket collecting tasks whose `groupBy` returns null. */
+  ungroupedLabel?: string
 }
 
 export function GanttView({
@@ -261,6 +272,8 @@ export function GanttView({
   workingCalendar,
   showBaselines = true,
   readOnly = false,
+  groupBy,
+  ungroupedLabel = 'Ungrouped',
 }: GanttViewProps) {
   // Read-only gating, applied once at the top so every downstream usage —
   // drag/resize/progress, inline edit, delete, link-drag, reorder,
@@ -346,13 +359,60 @@ export function GanttView({
   // Hovered bar id — used to highlight its dependency links.
   const [hoveredTaskId, setHoveredTaskId] = React.useState<string | number | null>(null);
 
+  // Dynamic Group by (动态 Group by). When `groupBy` is set we synthesize one
+  // summary row per bucket and reparent each leaf task onto it, replacing the
+  // original hierarchy. The existing rollup/collapse/summary machinery then
+  // renders the groups for free. This is a PRESENTATIONAL transform: the
+  // timeline range, critical path and auto-schedule deliberately keep reading
+  // the real `tasks` prop (see those memos), and synthetic rows carry
+  // `data.__group` so drag is suppressed. With no accessor, `displayTasks === tasks`.
+  const displayTasks = React.useMemo<GanttTask[]>(() => {
+    if (!groupBy) return tasks;
+    // Grouping operates on leaf tasks; original parent rows (summaries) are
+    // dropped and their leaves regrouped under the new buckets.
+    const parentIds = new Set<string>();
+    for (const tk of tasks) {
+      const p = tk.parent != null && tk.parent !== '' ? String(tk.parent) : null;
+      if (p) parentIds.add(p);
+    }
+    type Bucket = { key: string; label: string; items: GanttTask[] };
+    const buckets = new Map<string, Bucket>(); // insertion order = first-seen
+    for (const tk of tasks) {
+      if (parentIds.has(String(tk.id))) continue;
+      const g = groupBy(tk);
+      const key = g ? String(g.key) : '__ungrouped__';
+      const label = g ? g.label : ungroupedLabel;
+      let b = buckets.get(key);
+      if (!b) { b = { key, label, items: [] }; buckets.set(key, b); }
+      b.items.push(tk);
+    }
+    const out: GanttTask[] = [];
+    for (const b of buckets.values()) {
+      const gid = `__group__${b.key}`;
+      const first = b.items[0];
+      // Placeholder dates — rollup recomputes the true span from the children.
+      out.push({
+        id: gid,
+        title: b.label,
+        start: first.start,
+        end: first.end,
+        progress: 0,
+        type: 'summary',
+        parent: null,
+        data: { __group: true },
+      });
+      for (const tk of b.items) out.push({ ...tk, parent: gid });
+    }
+    return out;
+  }, [groupBy, tasks, ungroupedLabel]);
+
   // Children index for group operations: dragging a summary bar moves its
   // whole subtree by the same offset. Mirrors the orphan/self-parent rules
   // of the row tree below.
   const childrenByParent = React.useMemo(() => {
-    const ids = new Set(tasks.map((t) => String(t.id)));
+    const ids = new Set(displayTasks.map((t) => String(t.id)));
     const map = new Map<string, GanttTask[]>();
-    for (const t of tasks) {
+    for (const t of displayTasks) {
       const p = t.parent != null && t.parent !== '' ? String(t.parent) : null;
       if (p && p !== String(t.id) && ids.has(p)) {
         const list = map.get(p);
@@ -361,13 +421,13 @@ export function GanttView({
       }
     }
     return map;
-  }, [tasks]);
+  }, [displayTasks]);
 
   const taskById = React.useMemo(() => {
     const m = new Map<string, GanttTask>();
-    for (const t of tasks) m.set(String(t.id), t);
+    for (const t of displayTasks) m.set(String(t.id), t);
     return m;
-  }, [tasks]);
+  }, [displayTasks]);
 
   const collectDescendants = React.useCallback((id: string | number): GanttTask[] => {
     const out: GanttTask[] = [];
@@ -569,7 +629,8 @@ export function GanttView({
     e: React.PointerEvent,
     opts?: { group?: boolean; originStart?: Date; originEnd?: Date }
   ) => {
-    if (!onTaskUpdate) return;
+    // Synthetic Group-by rows have no real backing task to mutate.
+    if (!onTaskUpdate || task.data?.__group) return;
     e.stopPropagation();
     e.preventDefault();
     setDragState({
@@ -732,10 +793,10 @@ export function GanttView({
   }, []);
 
   const rows = React.useMemo<GanttRow[]>(() => {
-    const ids = new Set(tasks.map((t) => String(t.id)));
+    const ids = new Set(displayTasks.map((t) => String(t.id)));
     const byParent = new Map<string, GanttTask[]>();
     const roots: GanttTask[] = [];
-    for (const t of tasks) {
+    for (const t of displayTasks) {
       const p = t.parent != null && t.parent !== '' ? String(t.parent) : null;
       // Orphans (unknown parent id) and self-parents render as roots.
       if (p && p !== String(t.id) && ids.has(p)) {
@@ -813,9 +874,9 @@ export function GanttView({
     for (const r of roots) walk(r, 0);
     // Parent cycles (a↔b) are unreachable from any root — surface them flat
     // at the bottom rather than dropping rows silently.
-    for (const t of tasks) if (!visited.has(String(t.id))) walk(t, 0);
+    for (const t of displayTasks) if (!visited.has(String(t.id))) walk(t, 0);
     return out;
-  }, [tasks, collapsedIds]);
+  }, [displayTasks, collapsedIds]);
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1787,9 +1848,11 @@ export function GanttView({
                   e.preventDefault();
                   const srcId = e.dataTransfer.getData('text/plain');
                   if (!srcId || srcId === String(task.id)) return;
-                  const src = tasks.find((t) => String(t.id) === srcId);
+                  const src = taskById.get(srcId);
                   // Reorder is sibling-scoped: dropping on a row with a
-                  // different parent is ignored rather than re-parenting.
+                  // different parent is ignored rather than re-parenting. In
+                  // grouped mode both `src` and `task` carry the synthetic group
+                  // parent, so same-group drops still match.
                   if (src && String(src.parent ?? '') === String(task.parent ?? '')) {
                     onTaskReorder(src, task);
                   }

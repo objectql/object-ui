@@ -61,6 +61,13 @@ type GanttConfigEx = GanttConfig & {
   /** Baseline (planned) start/end fields → planned-vs-actual reference bars. */
   baselineStartField?: string;
   baselineEndField?: string;
+  /**
+   * Dynamic Group by (动态 Group by). When set, leaf tasks are bucketed by this
+   * field and rendered under one synthesized summary row per distinct value
+   * (replacing the parent hierarchy). Select options / lookups resolve to their
+   * display label, matching list/kanban grouping.
+   */
+  groupByField?: string;
 };
 
 /** Map a record's type value onto a GanttTaskType (undefined = infer). */
@@ -193,6 +200,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           tooltipFields: schema.tooltipFields,
           baselineStartField: schema.baselineStartField,
           baselineEndField: schema.baselineEndField,
+          groupByField: schema.groupByField,
       };
       return config;
   }
@@ -461,6 +469,49 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     }).filter(task => !isNaN(task.start.getTime()) && !isNaN(task.end.getTime()));
   }, [data, ganttConfig, objectSchema]);
 
+  // Dynamic Group by accessor (动态 Group by). Resolves each task's grouping
+  // value off its backing record, mapping select options / lookups to their
+  // display label — the same value story as list/kanban grouping. Returns null
+  // for empty values so those tasks fall into GanttView's "ungrouped" bucket.
+  const groupByAccessor = useMemo(() => {
+    const field = ganttConfig?.groupByField;
+    if (!field) return undefined;
+    const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
+    const resolvePath = (record: any, path: string): unknown => {
+      if (!path) return undefined;
+      let cur: any = record;
+      for (const p of path.split('.')) {
+        if (cur == null) return undefined;
+        cur = cur[p];
+      }
+      return cur;
+    };
+    const labelFor = (value: unknown): string => {
+      const def = fieldDefs[field] ?? fieldDefs[field.split('.')[0]];
+      const options: Array<{ value: unknown; label: string }> | undefined = def?.options;
+      if (Array.isArray(options) && options.length) {
+        const opt = options.find((o) => String(o.value) === String(value));
+        if (opt) return opt.label;
+      }
+      if (typeof value === 'object' && value !== null) {
+        const o = value as any;
+        return String(o.name ?? o.label ?? o.title ?? o.id ?? value);
+      }
+      return String(value);
+    };
+    return (task: GanttTask): { key: string | number; label: string } | null => {
+      const raw = resolvePath((task as any).data, field);
+      if (raw == null || raw === '') return null;
+      // Group key uses the embedded record's id for lookups so two labels that
+      // collide still split correctly; otherwise the scalar value.
+      const key =
+        typeof raw === 'object' && raw !== null
+          ? String((raw as any).id ?? (raw as any)._id ?? labelFor(raw))
+          : (raw as string | number);
+      return { key, label: labelFor(raw) };
+    };
+  }, [ganttConfig?.groupByField, objectSchema]);
+
   // Working calendar: when the schema opts into weekend-skipping or supplies a
   // holiday list, duration/reschedule math is measured in working days. The
   // holidays array (ISO yyyy-mm-dd strings) becomes a Set for O(1) lookups.
@@ -673,6 +724,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           workingCalendar={workingCalendar}
           showBaselines={(schema as any).showBaselines !== false}
           readOnly={!!(schema as any).readOnly}
+          groupBy={groupByAccessor}
           inlineEdit
         />
       </div>

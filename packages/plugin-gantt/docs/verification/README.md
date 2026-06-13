@@ -355,3 +355,30 @@ strings (critical path, auto-schedule, export, undo/redo) are translated
 - **Chinese** — chrome and dates both Chinese (`日/周/月/季`,
   `任务名称/开始/结束`, `2026年5月`, weekday `一/二/三`).
 - ![i18n — 中文](23-i18n-chinese.png)
+
+---
+
+## Dynamic Group by (动态 Group by) (`?group=owner` / `?group=status`)
+
+Driven by [`scripts/verify-groupby.mjs`](../../scripts/verify-groupby.mjs)
+against the demo's `group: owner` / `group: status` toolbar links.
+
+`GanttView` takes a `groupBy(task) => { key, label } | null` accessor. When set,
+leaf tasks are bucketed by `key` and rendered beneath **one synthesized summary
+row per group** — the original `parent` hierarchy is replaced by the grouping,
+and the existing rollup/collapse/summary machinery renders the buckets for free.
+It is a purely presentational transform: the timeline range, critical path and
+auto-schedule still read the real task list, and the synthetic group rows carry
+`data.__group` so they are never draggable. `ObjectGantt` exposes this as a
+`groupByField` config key (select options / lookups resolve to their label).
+
+The script asserts (6/6 checks passed):
+
+- **Group by owner** — three owner summary rows synthesized
+  (`Sam K. / Lee W. / Priya N.`), the original phase summaries (`p1/p2/p3`) are
+  gone, all eight leaf tasks render once, and collapsing a group hides its
+  members (8 → 5 bars). Cross-group dependency links still route correctly.
+- ![Group by owner](24-groupby-owner.png)
+- **Group by status** — three status summary rows (`Todo / In Progress / Done`),
+  original hierarchy replaced.
+- ![Group by status](25-groupby-status.png)

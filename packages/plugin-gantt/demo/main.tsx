@@ -134,6 +134,19 @@ const markers: GanttMarker[] = [
   { date: d('2026-07-25'), label: 'Code freeze', color: '#ef4444' },
 ];
 
+// Round-robin owner/status so ?group=owner|status has something to bucket by.
+const OWNERS = ['Priya N.', 'Sam K.', 'Lee W.'];
+const STATUSES = ['Todo', 'In Progress', 'Done'];
+
+/** Attach owner/status to leaf tasks so the Group-by demo has fields to group. */
+function decorateForGrouping(tasks: GanttTask[]): GanttTask[] {
+  let i = 0;
+  return tasks.map((t) => ({
+    ...t,
+    data: { ...(t.data ?? {}), owner: OWNERS[i % OWNERS.length], status: STATUSES[i++ % STATUSES.length] },
+  }));
+}
+
 function App() {
   const params = new URLSearchParams(window.location.search);
   const perf = Number(params.get('perf') || 0);
@@ -142,10 +155,22 @@ function App() {
     params.get('cal') === '1' ? { skipWeekends: true } : undefined;
   const showBaselines = params.get('baselines') !== '0';
   const readOnly = params.get('readonly') === '1';
+  // ?group=owner|status — dynamic Group by (动态 Group by). Buckets leaf tasks
+  // under one synthesized summary row per distinct value.
+  const groupField = params.get('group');
+  const groupBy = React.useMemo(() => {
+    if (groupField !== 'owner' && groupField !== 'status') return undefined;
+    return (task: GanttTask) => {
+      const v = (task.data ?? {})[groupField];
+      if (v == null || v === '') return null;
+      return { key: String(v), label: String(v) };
+    };
+  }, [groupField]);
   const t0 = React.useMemo(() => performance.now(), []);
-  const [tasks, setTasks] = React.useState<GanttTask[]>(() =>
-    perf > 0 ? perfFixture(perf) : edge ? edgeFixture() : projectFixture()
-  );
+  const [tasks, setTasks] = React.useState<GanttTask[]>(() => {
+    const base = perf > 0 ? perfFixture(perf) : edge ? edgeFixture() : projectFixture();
+    return groupField ? decorateForGrouping(base) : base;
+  });
   const [renderMs, setRenderMs] = React.useState<number | null>(null);
   React.useEffect(() => {
     const ms = performance.now() - t0;
@@ -178,6 +203,8 @@ function App() {
         <a href="?baselines=0">no baselines</a>
         <a href="?readonly=1">read-only</a>
         <a href="?perf=5000&mode=week">perf: 5000 tasks</a>
+        <a href="?group=owner">group: owner</a>
+        <a href="?group=status">group: status</a>
         <span style={{ marginLeft: 'auto' }}>
           {/* Language toggle: chrome + dates localize together. */}
           <a href={withParam('lang', 'en')}>English</a>
@@ -195,6 +222,8 @@ function App() {
           workingCalendar={workingCalendar}
           showBaselines={showBaselines}
           readOnly={readOnly}
+          groupBy={groupBy}
+          ungroupedLabel="未分组"
           inlineEdit
           onTaskClick={(t) => console.log('[gantt-demo] click', t.id)}
           onTaskUpdate={(t, changes) => patch(t.id, changes)}
