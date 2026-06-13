@@ -12,6 +12,7 @@ import { AlertCircle, FileQuestion, Loader2 } from 'lucide-react';
 import { useAdapter } from '@object-ui/app-shell';
 import { MarkdownRenderer } from '@object-ui/plugin-markdown';
 import { rewriteDocLinks } from './doc-links';
+import { DocShell } from './DocShell';
 
 interface DocItem {
   name: string;
@@ -100,32 +101,38 @@ export default function DocPage() {
 
   if (state === 'missing') {
     return (
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-10 text-center">
-        <FileQuestion className="h-10 w-10 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Documentation not found</h1>
-        <p className="text-sm text-muted-foreground">
-          No document named <code className="rounded bg-muted px-1 py-0.5">{name}</code> is installed.
-          It may belong to a package that is not installed, or it was removed in a newer version.
-        </p>
-      </div>
+      <DocShell breadcrumb={name}>
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-10 text-center">
+          <FileQuestion className="h-10 w-10 text-muted-foreground" />
+          <h1 className="text-lg font-semibold">Documentation not found</h1>
+          <p className="text-sm text-muted-foreground">
+            No document named <code className="rounded bg-muted px-1 py-0.5">{name}</code> is installed.
+            It may belong to a package that is not installed, or it was removed in a newer version.
+          </p>
+        </div>
+      </DocShell>
     );
   }
 
   if (state === 'error') {
     return (
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-10 text-center">
-        <AlertCircle className="h-10 w-10 text-destructive" />
-        <h1 className="text-lg font-semibold">Failed to load documentation</h1>
-        <p className="text-sm text-muted-foreground">{errorMessage}</p>
-      </div>
+      <DocShell breadcrumb={name}>
+        <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-10 text-center">
+          <AlertCircle className="h-10 w-10 text-destructive" />
+          <h1 className="text-lg font-semibold">Failed to load documentation</h1>
+          <p className="text-sm text-muted-foreground">{errorMessage}</p>
+        </div>
+      </DocShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-4 sm:p-6" onClick={onContentClick}>
-      <MarkdownRenderer
-        schema={{ type: 'markdown', content: rewriteDocLinks(doc?.content ?? '') }}
-      />
-    </div>
+    <DocShell breadcrumb={doc?.label ?? name}>
+      <div className="mx-auto max-w-3xl p-4 sm:p-6" onClick={onContentClick}>
+        <MarkdownRenderer
+          schema={{ type: 'markdown', content: rewriteDocLinks(doc?.content ?? '') }}
+        />
+      </div>
+    </DocShell>
   );
 }

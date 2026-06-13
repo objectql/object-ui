@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { AlertCircle, BookOpen, Loader2 } from 'lucide-react';
 import { useAdapter } from '@object-ui/app-shell';
 import { type DocGroup, groupDocsByPackage } from './doc-groups';
+import { DocShell } from './DocShell';
 
 /**
  * `/docs` — the platform-level documentation portal (ADR-0046).
@@ -86,12 +87,8 @@ export default function DocsIndex() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-4 sm:p-6">
-      <div className="mb-6 flex items-center gap-2">
-        <BookOpen className="h-6 w-6 text-muted-foreground" />
-        <h1 className="text-2xl font-semibold">Documentation</h1>
-      </div>
-
+    <DocShell>
+      <div className="mx-auto max-w-3xl p-4 sm:p-6">
       {groups.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
           <BookOpen className="h-10 w-10" />
@@ -126,6 +123,7 @@ export default function DocsIndex() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </DocShell>
   );
 }
