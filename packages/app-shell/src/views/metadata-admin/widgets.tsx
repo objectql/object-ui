@@ -29,6 +29,7 @@ import {
   Input,
   Button,
   Label,
+  Switch,
 } from '@object-ui/components';
 import { Plus, Trash2 } from 'lucide-react';
 import { detectLocale, t } from './i18n';
@@ -832,8 +833,143 @@ function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetP
 // now use the built-in `RecordField` engine in SchemaForm, which renders
 // inline cards with the full per-entry sub-form derived from the protocol.
 
+/* -------------------------------------------------------------------------- */
+/* FilterModeWidget — ADR-0047 end-user filter element selector.              */
+/*                                                                            */
+/* Airtable-parity authoring control for `interfaceConfig.userFilters`. The   */
+/* protocol stores "no filter bar" as ABSENCE of the field (omit-is-none),    */
+/* not a literal `element: 'none'` — so this widget exposes None as a         */
+/* first-class, selectable UI state that maps to `onChange(undefined)`,       */
+/* keeping the metadata clean while giving authors the explicit tri/quad-     */
+/* state selector they expect. Dropdown/Toggle modes edit the exposed fields  */
+/* inline (matching Airtable's "Dropdowns: <fields>").                        */
+/* -------------------------------------------------------------------------- */
+
+type UFElement = 'dropdown' | 'tabs' | 'toggle';
+interface UFField { field: string; showCount?: boolean; label?: string; [k: string]: unknown }
+interface UFValue { element?: UFElement; fields?: UFField[]; tabs?: unknown[]; showAllRecords?: boolean; [k: string]: unknown }
+
+const FILTER_MODES: Array<{ key: 'none' | UFElement; label: string }> = [
+  { key: 'none', label: 'None' },
+  { key: 'tabs', label: 'Tabs' },
+  { key: 'dropdown', label: 'Dropdown' },
+  { key: 'toggle', label: 'Toggle' },
+];
+
+function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
+  const uf = (value && typeof value === 'object' ? value : undefined) as UFValue | undefined;
+  const mode: 'none' | UFElement = uf?.element ?? (uf ? 'dropdown' : 'none');
+  const objectFields = context?.objectFields ?? [];
+
+  const setMode = (next: 'none' | UFElement) => {
+    if (readOnly) return;
+    if (next === 'none') { onChange(undefined); return; }       // omit-is-none
+    onChange({ ...(uf ?? {}), element: next });
+  };
+
+  const fields: UFField[] = Array.isArray(uf?.fields) ? (uf!.fields as UFField[]) : [];
+  const patchFields = (nextFields: UFField[]) =>
+    onChange({ ...(uf ?? {}), element: mode === 'none' ? 'dropdown' : mode, fields: nextFields });
+
+  const selected = new Set(fields.map((f) => f.field));
+  const remaining = objectFields.filter((f) => !selected.has(f.name));
+  const labelFor = (name: string) => objectFields.find((f) => f.name === name)?.label || name;
+
+  const isFieldMode = mode === 'dropdown' || mode === 'toggle';
+
+  return (
+    <div className="space-y-3">
+      {/* Segmented mode selector */}
+      <div className="inline-flex rounded-md border border-input bg-background p-0.5" role="radiogroup" aria-label="Filter element">
+        {FILTER_MODES.map((m) => {
+          const active = mode === m.key;
+          return (
+            <button
+              key={m.key}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              data-testid={`filter-mode-${m.key}`}
+              disabled={readOnly}
+              onClick={() => setMode(m.key)}
+              className={
+                'px-3 py-1 text-xs font-medium rounded transition-colors ' +
+                (active
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted')
+              }
+            >
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Field picker for dropdown / toggle modes */}
+      {isFieldMode && (
+        <div className="space-y-2" data-testid="filter-mode-fields">
+          {fields.length > 0 && (
+            <div className="space-y-1">
+              {fields.map((f, i) => (
+                <div key={f.field} className="flex items-center gap-2 rounded border border-input bg-background px-2 py-1 text-sm">
+                  <span className="flex-1 truncate">
+                    {labelFor(f.field)}
+                    <code className="ml-2 text-xs text-muted-foreground">{f.field}</code>
+                  </span>
+                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Switch
+                      checked={!!f.showCount}
+                      disabled={readOnly}
+                      onCheckedChange={(c) => patchFields(fields.map((x, j) => (j === i ? { ...x, showCount: c } : x)))}
+                    />
+                    count
+                  </label>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      aria-label="Remove field"
+                      onClick={() => patchFields(fields.filter((_, j) => j !== i))}
+                      className="px-1 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {!readOnly && remaining.length > 0 && (
+            <Select onValueChange={(name) => patchFields([...fields, { field: name }])}>
+              <SelectTrigger className="h-8 text-xs" data-testid="filter-mode-add-field">
+                <SelectValue placeholder="+ Add filter field…" />
+              </SelectTrigger>
+              <SelectContent>
+                {remaining.map((f) => (
+                  <SelectItem key={f.name} value={f.name}>
+                    {f.label || f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {objectFields.length === 0 && (
+            <p className="text-xs text-muted-foreground">Bind a source object to pick filter fields.</p>
+          )}
+        </div>
+      )}
+
+      {mode === 'tabs' && (
+        <p className="text-xs text-muted-foreground" data-testid="filter-mode-tabs-hint">
+          Tab presets (name + filter rules) are edited in the source / JSON view.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export const WIDGETS: Record<string, WidgetRenderer> = {
   'ref:object': RefObjectWidget,
+  'filter-mode': FilterModeWidget,
   'object-selector': ObjectSelectorWidget,
   'field-selector': FieldSelectorWidget,
   'field-ref': FieldRefWidget,

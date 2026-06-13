@@ -461,9 +461,43 @@ function MetadataResourceEditPageImpl({
       cancelled = true;
     };
   }, [client]);
+  // Field catalog of the draft's bound/source object — fuels field-picker
+  // widgets (e.g. the interface-page filter-mode selector). For a page the
+  // source is `interfaceConfig.source` (interface mode) or the bound
+  // `object`; other types fall back to their own `object`/`objectName`.
+  const sourceObjectName: string | undefined =
+    ((draft as any)?.interfaceConfig?.source as string | undefined) ||
+    ((draft as any)?.object as string | undefined) ||
+    ((draft as any)?.objectName as string | undefined);
+  const [objectFields, setObjectFields] = React.useState<Array<{ name: string; label?: string; type?: string }>>([]);
+  const [objectFieldsLoading, setObjectFieldsLoading] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!sourceObjectName) { setObjectFields([]); return; }
+    setObjectFieldsLoading(true);
+    (async () => {
+      try {
+        const obj = (await client.get('object', sourceObjectName)) as { fields?: Record<string, any> | Array<any> } | null;
+        if (cancelled) return;
+        const raw = obj?.fields;
+        const list = Array.isArray(raw)
+          ? raw.map((f: any) => ({ name: f?.name, label: f?.label, type: f?.type }))
+          : raw && typeof raw === 'object'
+            ? Object.entries(raw).map(([name, f]: [string, any]) => ({ name, label: f?.label, type: f?.type }))
+            : [];
+        setObjectFields(list.filter((f) => !!f.name));
+      } catch {
+        if (!cancelled) setObjectFields([]);
+      } finally {
+        if (!cancelled) setObjectFieldsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [client, sourceObjectName]);
+
   const widgetContext = React.useMemo(
-    () => ({ objectNames, objectsLoading }),
-    [objectNames, objectsLoading],
+    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading }),
+    [objectNames, objectsLoading, objectFields, objectFieldsLoading],
   );
 
   // Load layered view + initial draft.
