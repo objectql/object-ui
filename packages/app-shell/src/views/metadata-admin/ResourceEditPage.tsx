@@ -892,10 +892,13 @@ function MetadataResourceEditPageImpl({
         mode: 'draft',
         ...(activePackage ? { packageId: activePackage } : {}),
       });
-      // Refresh layered + draft state after save.
+      // Refresh layered + draft state after save — scope to the same package
+      // as the initial load (ADR-0048) so a same-name collision re-reads this
+      // package's own row, not another's.
+      const refreshScope = ownerPackageId ? { packageId: ownerPackageId } : {};
       const [lay, draftResp] = await Promise.all([
-        client.layered<any>(type, savedName),
-        client.getDraft<any>(type, savedName).catch(() => null),
+        client.layered<any>(type, savedName, refreshScope),
+        client.getDraft<any>(type, savedName, refreshScope).catch(() => null),
       ]);
       setLayered(lay);
       const draftReal = extractDraftBody(draftResp);
