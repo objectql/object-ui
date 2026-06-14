@@ -156,6 +156,29 @@ function extractDraftBody(
     : null;
 }
 
+/**
+ * Decide whether the validation-diagnostics banner should render at all.
+ *
+ * The gate has two reasons to stay hidden:
+ *   - `loadFailed` — the layered/draft fetch itself failed, so the form is
+ *     sitting on empty defaults. Any required-field issues the client
+ *     validator produces are an artefact of the empty form, not a verdict on
+ *     the item; the explicit "failed to load" banner already tells the real
+ *     story. Suppress so a transport failure never masquerades as a broken
+ *     item.
+ *   - no diagnostics source — there is neither a server `_diagnostics`
+ *     payload nor a client-side validator for this type, so there is nothing
+ *     to show.
+ */
+export function shouldRenderDiagnostics(opts: {
+  loadFailed: boolean;
+  hasDiag: boolean;
+  hasClientValidator: boolean;
+}): boolean {
+  if (opts.loadFailed) return false;
+  return opts.hasDiag || opts.hasClientValidator;
+}
+
 export interface MetadataResourceEditPageProps {
   type?: string;
   name?: string;
@@ -253,6 +276,13 @@ function MetadataResourceEditPageImpl({
   const [loading, setLoading] = React.useState(!createMode);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // Distinguishes "the layered/draft fetch itself failed" (network/500/
+  // timeout) from "we loaded an item that fails validation". Without it a
+  // failed load renders the form with empty defaults and the client
+  // validator fires spurious "name/label/regions required" diagnostics,
+  // making a transport failure look like a structurally broken item. Set
+  // in the load catch block, reset at the start of each load.
+  const [loadFailed, setLoadFailed] = React.useState(false);
   const [issues, setIssues] = React.useState<SchemaFormIssue[]>([]);
 
   // Wrap setDraft so that editing a field clears any *server-side*
@@ -548,6 +578,7 @@ function MetadataResourceEditPageImpl({
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setLoadFailed(false);
     (async () => {
       try {
         const scope = ownerPackageId ? { packageId: ownerPackageId } : {};
@@ -602,7 +633,18 @@ function MetadataResourceEditPageImpl({
         setLoading(false);
       } catch (err: any) {
         if (!cancelled) {
-          setError(err?.message ?? String(err));
+          // A failed fetch is a LOAD error, not a validation error: flag it
+          // so the diagnostics banner suppresses the spurious required-field
+          // issues the empty-default form would otherwise produce, and make
+          // the top error banner explicit about what actually went wrong.
+          setLoadFailed(true);
+          setError(
+            tFormat('engine.edit.loadFailed', locale, {
+              type,
+              name: name ?? '',
+              message: err?.message ?? String(err),
+            }),
+          );
           setLoading(false);
         }
       }
@@ -610,7 +652,7 @@ function MetadataResourceEditPageImpl({
     return () => {
       cancelled = true;
     };
-  }, [client, type, name, ownerPackageId, createMode, reloadKey]);
+  }, [client, type, name, ownerPackageId, createMode, reloadKey, locale]);
 
   // Lazy-load references the first time the References sheet opens.
   const [refsLoading, setRefsLoading] = React.useState(false);
@@ -1799,7 +1841,20 @@ function MetadataResourceEditPageImpl({
               const liveValid = hasClientValidator(type)
                 ? liveErrors.length === 0
                 : diag?.valid !== false;
-              if (!diag && !hasClientValidator(type)) return null;
+              // Gate the whole diagnostics block on a successful load with
+              // a diagnostics source. A failed load shows the explicit
+              // "failed to load" banner above instead; the empty-default
+              // form's required-field issues here would be noise, not a
+              // verdict on the item (see shouldRenderDiagnostics).
+              if (
+                !shouldRenderDiagnostics({
+                  loadFailed,
+                  hasDiag: !!diag,
+                  hasClientValidator: hasClientValidator(type),
+                })
+              ) {
+                return null;
+              }
               const errs = liveErrors;
               const warns = diag?.warnings ?? [];
               const hasErrs = !liveValid && errs.length > 0;

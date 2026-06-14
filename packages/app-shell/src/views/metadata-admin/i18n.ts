@@ -469,6 +469,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
     'This metadata does not match the spec — {count} validation error(s).',
   'engine.edit.diagnostics.warnTitle': '{count} warning(s) — review recommended.',
   'engine.edit.diagnostics.more': '+{count} more…',
+  'engine.edit.loadFailed': 'Failed to load {type}/{name}: {message}',
   'engine.edit.unsavedLeaveConfirm':
     'You have unsaved changes. Leave this page anyway?',
   'engine.edit.saving': 'Saving…',
@@ -1110,6 +1111,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.diagnostics.title': '元数据不符合规范 — 共 {count} 个校验错误。',
   'engine.edit.diagnostics.warnTitle': '{count} 个警告 — 建议复查。',
   'engine.edit.diagnostics.more': '还有 {count} 个…',
+  'engine.edit.loadFailed': '加载 {type}/{name} 失败：{message}',
   'engine.edit.unsavedHint': '当前存在未保存的修改。',
   'engine.edit.unsavedLeaveConfirm': '当前存在未保存的修改，确定离开此页面吗？',
   'engine.edit.saving': '保存中…',
