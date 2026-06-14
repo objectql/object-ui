@@ -1197,6 +1197,11 @@ const ko = {
     members: "구성원",
     settings: "워크스페이스 설정",
   },
+  help: {
+    appDocs: '이 앱의 문서',
+    allDocs: '전체 문서',
+    onlineDocs: '온라인 문서',
+  },
   sidebar: {
     settings: "설정",
     help: "도움말",

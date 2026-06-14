@@ -1197,6 +1197,11 @@ const ar = {
     members: "الأعضاء",
     settings: "إعدادات مساحة العمل",
   },
+  help: {
+    appDocs: 'وثائق هذا التطبيق',
+    allDocs: 'كل الوثائق',
+    onlineDocs: 'الوثائق عبر الإنترنت',
+  },
   sidebar: {
     settings: "الإعدادات",
     help: "المساعدة",

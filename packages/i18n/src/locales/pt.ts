@@ -1197,6 +1197,11 @@ const pt = {
     members: "Membros",
     settings: "Configurações do espaço de trabalho",
   },
+  help: {
+    appDocs: 'Documentação deste app',
+    allDocs: 'Toda a documentação',
+    onlineDocs: 'Documentação online',
+  },
   sidebar: {
     settings: "Configurações",
     help: "Ajuda",

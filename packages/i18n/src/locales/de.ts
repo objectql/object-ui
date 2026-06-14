@@ -1197,6 +1197,11 @@ const de = {
     members: "Mitglieder",
     settings: "Arbeitsbereichseinstellungen",
   },
+  help: {
+    appDocs: 'Dokumentation dieser App',
+    allDocs: 'Gesamte Dokumentation',
+    onlineDocs: 'Online-Dokumentation',
+  },
   sidebar: {
     settings: "Einstellungen",
     help: "Hilfe",

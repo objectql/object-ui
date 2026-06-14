@@ -1197,6 +1197,11 @@ const ja = {
     members: "メンバー",
     settings: "ワークスペース設定",
   },
+  help: {
+    appDocs: 'このアプリのドキュメント',
+    allDocs: 'すべてのドキュメント',
+    onlineDocs: 'オンラインドキュメント',
+  },
   sidebar: {
     settings: "設定",
     help: "ヘルプ",
