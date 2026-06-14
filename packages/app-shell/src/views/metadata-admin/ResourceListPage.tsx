@@ -221,47 +221,61 @@ function DefaultMetadataList({ type }: { type: string }) {
   }, [client, type, refreshKey]);
 
   const searchableFields = config.searchableFields ?? ['name', 'label', 'description'];
-  const filtered = items.filter((row) => {
-    // Per-type hide hook (e.g. `view` drops the bare aggregated container
-    // that the framework keeps for runtime dual-read).
-    if (config.listFilter && !config.listFilter(row.item)) return false;
+  // Structural scope — every row this package could ever show for this
+  // type, before the user's search box / source dropdown narrow it. Header
+  // counts, the source filter, and the empty-state copy all key off this so
+  // a package with zero items of a type reads as "暂无…条目", not "no match
+  // for an (empty) query" just because *other* packages own rows of the
+  // same type (server list() is not package-scoped; we scope client-side).
+  const scopedItems = React.useMemo(
+    () =>
+      items.filter((row) => {
+        // Per-type hide hook (e.g. `view` drops the bare aggregated
+        // container the framework keeps for runtime dual-read).
+        if (config.listFilter && !config.listFilter(row.item)) return false;
+        // Mandatory project-package scope: show nothing until a concrete
+        // project package is active, then only rows tagged with it. The
+        // 'sys_metadata' sentinel and untagged rows never match.
+        if (!activePackage) return false;
+        const pkg = (row.item as any)?._packageId;
+        const effectivePkg = !pkg || pkg === 'sys_metadata' ? null : pkg;
+        return effectivePkg === activePackage;
+      }),
+    [items, activePackage, config],
+  );
+
+  // User-driven filters (search query + source provenance) on top of scope.
+  const filtered = scopedItems.filter((row) => {
     if (!matchesQuery(row.item, query, searchableFields)) return false;
     if (sourceFilter !== 'all' && row.source !== sourceFilter) return false;
-    // Mandatory project-package scope: show nothing until a concrete project
-    // package is active, then only rows tagged with it. The 'sys_metadata'
-    // sentinel and untagged rows never match a concrete package.
-    if (!activePackage) return false;
-    const pkg = (row.item as any)?._packageId;
-    const effectivePkg = !pkg || pkg === 'sys_metadata' ? null : pkg;
-    if (effectivePkg !== activePackage) return false;
     return true;
   });
 
   // Compute source + invalid counts for filter / header stats.
   const sourceCounts = React.useMemo(() => {
-    const c = { all: items.length, artifact: 0, runtime: 0 };
-    for (const r of items) {
+    const c = { all: scopedItems.length, artifact: 0, runtime: 0 };
+    for (const r of scopedItems) {
       c[r.source]++;
     }
     return c;
-  }, [items]);
+  }, [scopedItems]);
 
   const invalidCount = React.useMemo(
-    () => items.filter((r) => r.diagnostics && r.diagnostics.valid === false).length,
-    [items],
+    () => scopedItems.filter((r) => r.diagnostics && r.diagnostics.valid === false).length,
+    [scopedItems],
   );
 
   // Items with warnings but no errors — softer, advisory tier. We
   // count rows (not warning instances) for consistency with `invalid`.
   const warnOnlyCount = React.useMemo(
     () =>
-      items.filter(
+      scopedItems.filter(
         (r) =>
           r.diagnostics &&
           r.diagnostics.valid !== false &&
           (r.diagnostics.warnings?.length ?? 0) > 0,
       ).length,
-    [items],
+    [scopedItems],
   );
 
   const columns = config.listColumns ?? defaultColumns(config.primaryKey ?? 'name');
@@ -280,7 +294,7 @@ function DefaultMetadataList({ type }: { type: string }) {
     <PageShell
       entry={entry ?? { type, label: type }}
       stats={[
-        { label: t('engine.list.items', locale), value: items.length },
+        { label: t('engine.list.items', locale), value: scopedItems.length },
         { label: t('engine.list.filtered', locale), value: filtered.length },
         ...(invalidCount > 0
           ? [
@@ -390,7 +404,7 @@ function DefaultMetadataList({ type }: { type: string }) {
         {!loading && !error && projectPackages !== null && projectPackages.length > 0 && filtered.length === 0 && (
           <Empty>
             <EmptyTitle>
-              {items.length === 0
+              {scopedItems.length === 0
                 ? tFormat('engine.list.emptyType', locale, { type: typeLabel })
                 : tFormat('engine.list.emptyQuery', locale, { query })}
             </EmptyTitle>
@@ -400,7 +414,7 @@ function DefaultMetadataList({ type }: { type: string }) {
                   ? tFormat('engine.list.createHint', locale, { type: typeLabel })
                   : t('engine.list.readOnlyHint', locale))}
             </EmptyDescription>
-            {items.length === 0 && (entry?.allowOrgOverride || entry?.allowRuntimeCreate) && (
+            {scopedItems.length === 0 && (entry?.allowOrgOverride || entry?.allowRuntimeCreate) && (
               <div className="mt-4">
                 <Button onClick={() => navigate(`./new${pkgSuffix}`)}>
                   <Plus className="h-4 w-4 mr-1" />
