@@ -49,6 +49,18 @@ function formatTimestamp(
   return d.toLocaleDateString();
 }
 
+/**
+ * Full, locale-aware date+time for the row's `title` tooltip. The visible
+ * label is relative ("2 minutes ago") which is scannable but vague — hovering
+ * reveals the exact moment, matching ChatGPT/Claude. Returns '' for a missing
+ * or invalid timestamp so no empty tooltip appears.
+ */
+function absoluteTimestamp(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+}
+
 export type ConversationGroupKey = 'today' | 'yesterday' | 'previous7Days' | 'previous30Days' | 'older';
 
 export interface ConversationGroup {
@@ -394,7 +406,10 @@ function ConversationRow({
               {highlightQuery(conversation.preview, query)}
             </span>
           ) : null}
-          <span className="mt-0.5 block text-[10px] text-muted-foreground">
+          <span
+            className="mt-0.5 block text-[10px] text-muted-foreground"
+            title={absoluteTimestamp(conversation.updatedAt ?? conversation.createdAt)}
+          >
             {formatTimestamp(conversation.updatedAt ?? conversation.createdAt, t)}
           </span>
         </button>

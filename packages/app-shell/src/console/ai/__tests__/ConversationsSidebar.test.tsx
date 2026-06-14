@@ -83,6 +83,14 @@ describe('ConversationsSidebar', () => {
     expect(screen.getByText('How many users are in the system?')).toBeInTheDocument();
   });
 
+  it('exposes the absolute date as a title tooltip on the relative timestamp', () => {
+    renderSidebar();
+    const stamp = screen.getAllByText('console.ai.justNow')[0];
+    const title = stamp.getAttribute('title') ?? '';
+    expect(title.length).toBeGreaterThan(0);
+    expect(/\d/.test(title)).toBe(true);
+  });
+
   it('filters by query and highlights the matched substring', () => {
     renderSidebar();
     fireEvent.change(screen.getByPlaceholderText('Search chats...'), {
