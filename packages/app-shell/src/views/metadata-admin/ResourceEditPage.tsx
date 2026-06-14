@@ -542,10 +542,16 @@ function MetadataResourceEditPageImpl({
         // Prefer the pending draft as the editing baseline — the
         // operator is mid-flight on this item and should see their
         // own in-progress state, not the last published version.
-        const rawInitial = (draftReal
-          ?? lay.effective
-          ?? lay.code
-          ?? {}) as Record<string, unknown>;
+        // A pending draft overlay can carry only the edited fields, so using
+        // it wholesale would drop inherited fields that were never touched —
+        // notably `type`, which section-level `visibleOn` predicates depend on
+        // (ADR-0047 hides Data Context / Layout when `data.type == 'list'`).
+        // Merge the draft over the effective baseline so those fields survive;
+        // the draft still wins for anything it does carry.
+        const baseline = (lay.effective ?? lay.code ?? {}) as Record<string, unknown>;
+        const rawInitial: Record<string, unknown> = draftReal
+          ? { ...baseline, ...(draftReal as Record<string, unknown>) }
+          : baseline;
         // Normalise the wire shape into the editor's draft shape (e.g.
         // `view` unwraps an expanded ViewItem's `config` into a
         // `{ list | form }` family key). No-op for types without a hook.
@@ -893,7 +899,12 @@ function MetadataResourceEditPageImpl({
       setLayered(lay);
       const draftReal = extractDraftBody(draftResp);
       setHasDraft(!!draftReal);
-      const rawFresh = (draftReal ?? lay.effective ?? itemToSave) as Record<string, unknown>;
+      // Merge the draft over the effective baseline (see the load effect):
+      // a partial draft overlay must not drop inherited fields like `type`.
+      const freshBaseline = (lay.effective ?? itemToSave) as Record<string, unknown>;
+      const rawFresh: Record<string, unknown> = draftReal
+        ? { ...freshBaseline, ...(draftReal as Record<string, unknown>) }
+        : freshBaseline;
       // Re-normalise the refreshed wire shape so the editor keeps showing
       // the canonical draft shape after a save (e.g. the backend re-expands
       // a view into the ViewItem `config` wrapper).
@@ -1010,7 +1021,13 @@ function MetadataResourceEditPageImpl({
       setLayered(lay);
       const draftReal = extractDraftBody(draftResp);
       setHasDraft(!!draftReal);
-      const fresh = (draftReal ?? lay.effective ?? draft) as Record<string, unknown>;
+      // Merge the draft over the effective baseline so a partial draft overlay
+      // doesn't drop inherited fields like `type` (section visibleOn depends
+      // on it — ADR-0047).
+      const freshBaseline = (lay.effective ?? draft) as Record<string, unknown>;
+      const fresh: Record<string, unknown> = draftReal
+        ? { ...freshBaseline, ...(draftReal as Record<string, unknown>) }
+        : freshBaseline;
       setDraft(fresh);
       draftSnapshotRef.current = fresh;
     } catch (err: any) {
