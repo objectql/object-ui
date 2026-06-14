@@ -1,5 +1,77 @@
 # @object-ui/core
 
+## 7.0.0
+
+### Minor Changes
+
+- c12986e: Add resultDialog + target interpolation for one-shot action reveals
+
+  Some platform actions return values the user MUST copy now because the
+  server will not surface them again — 2FA TOTP URI + backup codes, freshly
+  minted OAuth client_secret, regenerated recovery codes. Previously these
+  had to ship as bespoke pages in `apps/account` because actions only
+  emitted a fire-and-forget toast.
+
+  **`@object-ui/core` — ActionRunner**
+  - New `ActionDef.resultDialog: ResultDialogSpec` field. When set on a
+    successful action, the runner suppresses the `successMessage` toast and
+    awaits the registered `ResultDialogHandler` instead. Missing handler is
+    non-fatal (logs a warning); rejected handler is treated as acknowledged.
+  - New `setResultDialogHandler(handler)` setter.
+  - New types: `ResultDialogSpec`, `ResultDialogFieldSpec`,
+    `ResultDialogHandler`.
+  - `executeUrl` and `executeAPI` now run `${param.X}` and `${ctx.X}`
+    interpolation against `target` before fetching / navigating. Values are
+    `encodeURIComponent`'d, missing keys resolve to empty string. `ctx`
+    exposes `origin`, `user`, `org`, `recordId` by default; consumers can
+    inject more via `context.ctx`.
+
+  **`@object-ui/react`**
+  - `ActionProvider` and `useActionRunner` both gained an `onResultDialog`
+    option that wires straight through to the runner.
+
+  **`@object-ui/app-shell`**
+  - New `ActionResultDialog` component — promise-based, blocks click-outside
+    and Escape (the user MUST click acknowledge), renders five field
+    formats: `qrcode` (client-side via the `qrcode` package — never sent
+    off-device, so 2FA URIs stay secret), `code-list`, `secret`, `text`,
+    `json`. Falls back to `json` when a value's shape doesn't match its
+    declared format.
+  - `ObjectView` and `RecordDetailView` install the handler and mount the
+    dialog automatically, so any action with `resultDialog` declared in
+    metadata now works without code changes.
+  - New dependency: `qrcode@^1.5.x` for client-side QR rendering.
+
+  Pairs with the framework-side `Action.resultDialog` schema added in
+  `@objectstack/spec` and the `sys_two_factor` / `sys_oauth_application` /
+  `sys_account` updates in `@objectstack/platform-objects`.
+
+- ddbe4a2: B2 step 3: client-side field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`). The form renderer now evaluates these CEL predicates reactively against the live record and gates each field's visibility, read-only state, and required-ness accordingly. Evaluation delegates to the canonical `@objectstack/formula` `ExpressionEngine` — the _same_ dialect the server enforces (`requiredWhen` in the rule-validator, `readonlyWhen` in `stripReadonlyWhenFields`) — so the UX and the persisted verdict always agree. New core helpers `evalFieldPredicate` / `resolveFieldRuleState` (zero-React, fail-open). `FormField` gains `visibleWhen` / `readonlyWhen` / `requiredWhen` (+ deprecated `conditionalRequired` alias), and `ObjectForm` carries them through from object metadata.
+
+### Patch Changes
+
+- 2d47e94: B2 follow-ups (A): field conditional rules in inline grids + submit-time enforcement.
+  - **Grids**: a line-item column's `readonlyWhen` / `requiredWhen` CEL rule is now honored per row — `deriveMasterDetail` carries the props onto the `GridColumn` and `GridField` evaluates them against each row via `resolveFieldRuleState` (a `readonlyWhen`-TRUE cell locks; a `requiredWhen`-TRUE empty cell flags inline-invalid). Rules are row-scoped (`record.*`); the core helpers gained an optional `scope` (and `GridField` a `contextRecord` prop) so a future header-driven lock can bind `parent.*` — that wiring is deferred (it needs the master-detail header's re-renders isolated).
+  - **Submit enforcement**: `requiredWhen` already drove react-hook-form's `required` rule, so submit is blocked with a field error when the predicate is TRUE and the value is empty. Added a reactive cleanup so a stale _required_ error clears when the predicate flips FALSE (and all errors clear when a field is hidden by `visibleWhen`).
+
+- 7c239fd: Add `ComponentRegistry.unregister(type, namespace?)` — the inverse of
+  `register()`. Clears the namespaced key and the bare-name fallback (when it
+  still resolves to that registration) plus any matching lazy stub, and notifies
+  subscribers only when something was removed. Lets callers (and tests) restore
+  prior registry state cleanly.
+- 8d1195d: Fix `type: 'url'` actions so they actually reach the backend in split-origin dev setups, and so reveal-once result dialogs render.
+  - `ActionRunner.executeUrl`: when context provides `apiBase`, relative `/api/...`, `/_auth/...`, and `/_account/...` URLs are now promoted to absolute (`${apiBase}${path}`) before navigation. Same-origin API paths (with or without `apiBase`) trigger a full-page `window.location.href` rather than React-Router push — this is required for server-side OAuth redirect dances (e.g. better-auth `/sign-in/social`) that React Router would otherwise swallow into the SPA's fallback route.
+  - `ActionRunner.buildInterpolationContext`: surfaces `ctx.apiBase` for action targets that want to template it explicitly.
+  - `ObjectView`: passes `apiBase: import.meta.env.VITE_SERVER_URL` into the toolbar `ActionProvider` context so the above resolves.
+  - `action-button` and `action-menu` renderers now forward `resultDialog` when invoking the runner. Previously this field was silently dropped by an explicit whitelist, breaking every "show once, then hide" flow (2FA QR/backup codes, OAuth client_secret, regenerated tokens).
+
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [9049bbe]
+- Updated dependencies [d16566f]
+- Updated dependencies [300d755]
+- Updated dependencies [858ad94]
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

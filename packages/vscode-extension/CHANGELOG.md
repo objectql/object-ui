@@ -1,5 +1,21 @@
 # Changelog
 
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [d16566f]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

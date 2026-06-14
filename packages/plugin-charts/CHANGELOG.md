@@ -1,5 +1,45 @@
 # @object-ui/plugin-charts
 
+## 7.0.0
+
+### Patch Changes
+
+- c5a7d6f: Bar-chart X-axis labels no longer overlap on narrow widgets. When a chart has
+  many categories (>4) or any long label (>8 chars), the tick labels are angled
+  (-32°) and truncated with a hover `title`; few short labels stay horizontal.
+- ab168e4: Dashboard charts no longer render blank on first paint. Recharts'
+  `ResponsiveContainer` was a child of a `flex … justify-center` box, so it
+  collapsed to content width (0) on first paint inside react-grid-layout,
+  measured `width(-1)` and skipped drawing until a later resize fired its
+  ResizeObserver. The chart wrapper is now a definite-width block in both the
+  dashboard chart container (`plugin-charts/ChartContainerImpl`) and the shadcn
+  base (`components/ui/chart`). Follow-up changeset for #1634.
+- Updated dependencies [c12986e]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [97c6831]
+- Updated dependencies [2eb3096]
+- Updated dependencies [18d0339]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2f31406]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

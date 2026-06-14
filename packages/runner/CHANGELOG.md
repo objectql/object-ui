@@ -1,5 +1,32 @@
 # @object-ui/runner
 
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [c5a7d6f]
+- Updated dependencies [9049bbe]
+- Updated dependencies [ab168e4]
+- Updated dependencies [2eb3096]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/plugin-charts@7.0.0
+  - @object-ui/plugin-kanban@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

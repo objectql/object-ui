@@ -1,5 +1,16 @@
 # @object-ui/providers — Changelog
 
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [9049bbe]
+- Updated dependencies [d16566f]
+- Updated dependencies [300d755]
+- Updated dependencies [858ad94]
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

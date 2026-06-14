@@ -1,5 +1,63 @@
 # @object-ui/types
 
+## 7.0.0
+
+### Major Changes
+
+- 858ad94: **Breaking:** remove `@object-ui/plugin-workflow` and its schema types.
+
+  The package's designers (`WorkflowDesigner`, `FlowDesigner`, `AutomationBuilder`,
+  `ApprovalProcess`, `AutomationRunHistory`) authored BPMN-style / standalone-workflow
+  shapes the ObjectStack automation engine does not execute (ADR-0020, ADR-0031), and
+  nothing in the console, runner, or examples consumed them.
+
+  Removed from `@object-ui/types`: `WorkflowSchema`, `WorkflowDesignerSchema`,
+  `ApprovalProcessSchema`, `WorkflowInstanceSchema`, `FlowDesignerSchema` and the
+  related `Workflow*` / `Flow*` helper types (formerly `./workflow`).
+
+  **Migration:** author flows in the Studio's metadata-admin flow designer
+  (`@object-ui/app-shell` → `FlowCanvas`), whose node palette is driven by the
+  engine's published action registry (`GET /api/v1/automation/actions`). Run
+  history is available in the same view via the Runs panel; approval UI ships
+  with the framework's `plugin-approvals`.
+
+### Minor Changes
+
+- ddbe4a2: B2 step 3: client-side field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`). The form renderer now evaluates these CEL predicates reactively against the live record and gates each field's visibility, read-only state, and required-ness accordingly. Evaluation delegates to the canonical `@objectstack/formula` `ExpressionEngine` — the _same_ dialect the server enforces (`requiredWhen` in the rule-validator, `readonlyWhen` in `stripReadonlyWhenFields`) — so the UX and the persisted verdict always agree. New core helpers `evalFieldPredicate` / `resolveFieldRuleState` (zero-React, fail-open). `FormField` gains `visibleWhen` / `readonlyWhen` / `requiredWhen` (+ deprecated `conditionalRequired` alias), and `ObjectForm` carries them through from object metadata.
+- 9049bbe: Add end-user friendly agent process summaries for chatbot tool calls, with a debug mode for raw reasoning and tool details. Console chat surfaces now keep a sanitized browser-side display cache so refreshes can restore user/assistant text plus grouped tool states when the backend returns no message rows.
+- d16566f: Atomic master-detail create via the cross-object transactional batch endpoint (ObjectStack #1604).
+
+  When the server exposes the transactional batch endpoint, a NEW parent record and its child line items are now persisted in ONE server transaction — commit all or roll back all — instead of the previous client-orchestrated "create parent → create children → best-effort cleanup on failure" sequence.
+
+  **`@object-ui/data-objectstack` — `ObjectStackAdapter.batchTransaction(operations)`**
+  - New method posting `{ operations }` to `POST /api/v1/batch`. Operations run in one server transaction. A field value of `{ $ref: <earlier op index> }` resolves to that op's generated id, so a child can reference its parent created earlier in the same batch (master-detail FK). Throws `ObjectStackError('BATCH_ERROR')` on a non-2xx response.
+
+  **`@object-ui/plugin-form`**
+  - `MasterDetailForm` now detects `dataSource.batchTransaction` and, on a NEW parent, builds one atomic batch (parent at index 0, each child FK set to `{ $ref: 0 }`) via the new pure helper `buildMasterDetailBatch`. Client-side total rollups are merged into the parent payload before the batch. Edit mode and adapters without `batchTransaction` keep the existing client-orchestrated path.
+  - `ObjectForm` gained a `submitHandler` hook: when supplied, the form validates and hands the collected values to the host instead of calling `dataSource.create` / `dataSource.update`. `MasterDetailForm` uses it to own the atomic parent+children write while the parent fields are still rendered by `ObjectForm`.
+
+  **`@object-ui/types`**
+  - `ObjectFormSchema.submitHandler?: (values) => any | Promise<any>` — typed override for host-owned persistence.
+
+  Pairs with the framework-side ambient-transaction fix (ObjectQL `AsyncLocalStorage` transaction propagation) and the `/api/v1/batch` endpoint added in `@objectstack/rest`.
+
+- 300d755: feat(form): inline master-detail in a plain ObjectForm via `subforms`
+
+  `ObjectFormSchema` gains a `subforms` array. When set, a regular `object-form`
+  renders as a master-detail form — the object's own fields on top, an editable
+  grid per child collection below, persisted together in one atomic transaction —
+  without a bespoke `object-master-detail-form` page.
+
+  ```ts
+  { type: 'object-form', objectName: 'expense_claim',
+    subforms: [{ childObject: 'expense_line' }] }   // FK + columns auto-derived
+  ```
+
+  Each subform needs only `childObject` (relationship FK and columns are derived
+  from the child object's metadata; override with `relationshipField`/`columns`).
+  This is the config-driven, page-less way to express master-detail entry — a form
+  view can declare its child collections directly.
+
 ## 6.2.3
 
 ## 6.2.2

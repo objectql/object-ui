@@ -1,5 +1,67 @@
 # @object-ui/plugin-dashboard
 
+## 7.0.0
+
+### Minor Changes
+
+- 78f9c16: Dataset-bound dashboard widgets now use the measure's display label + format and
+  render metric widgets with a consistent card.
+  - KPI value and chart legend use the measure `label` (carried on the analytics
+    result `fields`) instead of the raw measure name — "Tasks" not "task_count".
+  - The KPI value is formatted via the measure `format` hint ("$0,0" → "$616,000").
+  - A dataset-bound `metric` widget takes the shared Card wrapper (title + border)
+    like kpi/gauge, instead of rendering as bare untitled text.
+
+  Requires `AnalyticsResult.fields[].label`/`format` (objectstack-ai/framework#1683).
+
+- 92449ef: Dataset-bound dashboard widgets now render their TRUE chart family instead of
+  always a bar chart.
+
+  `DatasetWidget` routes by `widget.type` to the shared advanced chart renderer:
+  pie/donut/line/area/scatter/radar/funnel/treemap/sankey/column/horizontal-bar
+  each draw distinctly (one series per measure, carrying the measure label).
+  `table`/`pivot` render a grouped table of dimensions + measures (formatted via
+  the measure `format`). `metric`/`kpi`/`gauge`/`solid-gauge`/`bullet` keep the
+  single-value KPI rendering. Families without a distinct renderer map to their
+  closest relative (e.g. `spline`→line, `stacked-area`→area, `pyramid`→funnel) so
+  a widget never renders as a silently-wrong bar.
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [97c6831]
+- Updated dependencies [2eb3096]
+- Updated dependencies [bd398df]
+- Updated dependencies [18d0339]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2f31406]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/fields@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

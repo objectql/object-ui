@@ -1,5 +1,56 @@
 # @object-ui/plugin-detail
 
+## 7.0.0
+
+### Patch Changes
+
+- 3cc38fe: perf(detail/header): lazy + dedupe related-list fan-out, coalesce header polls
+
+  Opening a record detail fired ~50 concurrent `/api/v1` requests that
+  head-of-line-blocked one another on a single control-plane container.
+  - `RecordDetailView` no longer eager-preloads reverse-reference children
+    when the reference rail renders them (that data was discarded while the
+    rail re-fetched the same collections).
+  - `record:reference_rail` now gates fetching on visibility
+    (`IntersectionObserver`; the rail is `hidden xl:flex`), caps concurrency
+    at 3, and fetches once per `(parentId + entries)` via a signature guard,
+    applying results through a mounted ref.
+  - `AppHeader` inbox/notification, approvals, and activity pollers gained
+    in-flight guards so bootstrap effect re-runs coalesce to one request; the
+    approvals poll now sends one request with all identities comma-joined
+    instead of one per identity.
+
+  Measured locally: opening an environment detail dropped from ~52 to ~17
+  requests, related collections from ×3–5 each to ×1, approvals from ×9 to ≤3.
+
+- Updated dependencies [c12986e]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [2eb3096]
+- Updated dependencies [bd398df]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/fields@7.0.0
+  - @object-ui/permissions@7.0.0
+
 ## 6.2.3
 
 ## 6.2.2

@@ -1,5 +1,70 @@
 # @object-ui/console
 
+## 7.0.0
+
+### Minor Changes
+
+- 893e530: Package documentation portal + nav entry (ADR-0046).
+
+  The `/docs/:name` viewer already existed but had no way in: no index and no
+  navigation entry, so a doc was reachable only by typing its exact URL. Adds a
+  platform-level docs portal at `/docs` (`DocsIndex`) that lists every installed
+  `doc` metadata item grouped by package namespace, each linking to the existing
+  viewer. A "Documentation" entry now appears in the home/system navigation
+  (`UnifiedSidebar`), visible to all users (not gated behind workspace-admin), so
+  docs are discoverable. The viewer route stays app-independent and
+  single-coordinate (`/docs/<name>`); per-app deep-links remain opt-in `url` nav
+  items pointing at that same global URL. Doc grouping is a pure, unit-tested
+  helper (`groupDocsByPackage`).
+
+- 78d1a56: ADR-0046 P2: `/docs/:name` package-documentation route.
+
+  One authenticated route renders any installed `doc` metadata item (flat Markdown docs compiled from a package's `src/docs/*.md`): fetches the item via the standard metadata API (`meta.getItem('doc', name)`), renders the sanitized body through `@object-ui/plugin-markdown`, and rewrites relative cross-references `[x](./other_doc.md#anchor)` → `/docs/other_doc#anchor` (fenced/inline code untouched, SPA navigation on click). Unknown names degrade to a "Documentation not found" notice per the ADR — never a hard failure.
+
+- 89e113c: ADR-0044 send-back-for-revision in the approvals inbox (framework #1744/#1769). Approvers get a "Send back" action (violet, with its own dialog) that ends the round as `returned` and unlocks the record; the submitter sees a revision panel on the returned request — edit-record link, optional comment, Resubmit (opens round N+1) and Recall (abandons the revision). New `returned` status badge/filter, Round-N chips (list + drawer), timeline rendering for `revise`/`resubmit` actions, `approvalsApi.sendBack/resubmit`, and ten-locale `approvalsInbox` strings.
+
+### Patch Changes
+
+- 8d37b31: fix(ADR-0046): enable Tailwind typography so Markdown docs render styled.
+
+  `plugin-markdown`'s `MarkdownImpl` renders inside `prose prose-h1:text-3xl …`,
+  but the console never registered `@tailwindcss/typography`, so every `prose`
+  utility was a no-op — Markdown rendered with no heading sizes, list markers, or
+  spacing (the `/docs/<name>` page showed its `# Title` at body size, looking
+  unstyled). Register the plugin (`@plugin '@tailwindcss/typography'`) and add the
+  dependency. Now doc headings, paragraphs, inline code, and links render with
+  proper hierarchy.
+
+- d82a580: fix(ADR-0046): docs portal shows summaries, not machine ids.
+
+  The portal listed each doc as title + its raw machine name (`showcase_index`)
+  — noise for the business readers docs are written for. Drop the machine id from
+  the reader-facing list and render the doc's `description` (ADR-0046) as a
+  one-line summary under the title instead. Falls back cleanly when a doc has no
+  description.
+
+- e164c92: feat(ADR-0046): lightweight chrome for the docs routes.
+
+  The `/docs` portal and `/docs/:name` viewer are app-independent top-level
+  routes, so they rendered as bare full-bleed pages with no header and no way
+  back. Add a minimal sticky `DocShell` header — a "Documentation" home link
+  (→ `/docs`) plus a breadcrumb of the current doc — shared by the portal and the
+  viewer. Keeps ADR-0046's "no nav taxonomy in v1" intent (no app sidebar) while
+  giving readers orientation and a way out. The portal's redundant in-body title
+  is dropped in favour of the header.
+
+- 56571d6: ADR-0048: DocPage resolves docs package-scoped. The doc viewer at
+  `/apps/:appName/docs/:name` now passes the route's package segment as
+  `getItem('doc', name, { packageId })`, so the single-doc fetch is package-scoped
+  (prefer-local) on the server. Two installed packages may ship a doc with the
+  same bare name and each resolves within its own package — doc names no longer
+  need a globally-unique namespace prefix (the prefix becomes a convention, like
+  `page`/`dashboard`/`report`). The legacy top-level `/docs/:name` path (no
+  `appName`) keeps its context-free behavior.
+- 77cc6bb: Cloud Connection bind v2 UX (cloud ADR runtime-identity-binding §2.3): the binding flow becomes one click. `CloudConnectionPanel` drops the environment-id input entirely (registration happens cloud-side at approval), auto-opens the approval page in a popup on Connect (user-code display stays as the popup-blocked fallback), and shows the registered runtime name + runtime id once bound. `DeviceAuthPage` displays the requesting device's context (`runtime_name` / `runtime_version` from the verification URL) plus an "only approve if you started this" warning — the informed-consent surface for the RFC 8628 flow. Two new `auth.device.*` keys across all locales.
+- 82bcc87: DeviceAuthPage claims the device code (GET /device?user_code=…) before approve/deny — better-auth's device-authorization plugin rejects both with 400 "not been claimed by a verifying session" otherwise, so approval silently failed.
+- c97513f: DeviceAuthPage preserves the full query string (runtime_name / runtime_version device context) through the login redirect — previously only user_code survived, so a signed-out approver never saw what device they were authorizing.
+
 ## 6.2.3
 
 ## 6.2.2

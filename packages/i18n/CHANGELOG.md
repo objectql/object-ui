@@ -1,5 +1,47 @@
 # @object-ui/i18n
 
+## 7.0.0
+
+### Minor Changes
+
+- 89e113c: ADR-0044 send-back-for-revision in the approvals inbox (framework #1744/#1769). Approvers get a "Send back" action (violet, with its own dialog) that ends the round as `returned` and unlocks the record; the submitter sees a revision panel on the returned request — edit-record link, optional comment, Resubmit (opens round N+1) and Recall (abandons the revision). New `returned` status badge/filter, Round-N chips (list + drawer), timeline rendering for `revise`/`resubmit` actions, `approvalsApi.sendBack/resubmit`, and ten-locale `approvalsInbox` strings.
+- 18d0339: Relabel metadata-driven UI on a language switch without a page refresh (#1319)
+
+  Switching the UI language left server-resolved metadata labels (object/field/
+  view labels, action-dialog text) in the old language until a hard refresh,
+  because renderers cache those labels by object name and never refetch on a
+  language change.
+
+  **`@object-ui/auth`** — `createAuthenticatedFetch` now folds the active
+  `<html lang>` into `Accept-Language` on API calls (never clobbering an explicit
+  header), so a switch carries the new locale on every subsequent request.
+
+  **`@object-ui/app-shell`** — `ConnectedShellInner` drops the adapter's
+  locale-blind metadata cache in the render phase and remounts the metadata
+  subtree via `key={language}`, so every renderer refetches in the new locale.
+  The adapter and its connection sit above the key and are preserved — an in-app
+  relabel, not a reconnect.
+
+  **`@object-ui/i18n`** — dev-mode missing-key warnings: `createI18n` gains
+  `warnMissingKeys` (default on outside production) wiring a deduped i18next
+  `missingKeyHandler`. `useObjectLabel`'s convention-key probes are flagged so
+  their intentional misses (which fall back to server metadata) stay silent.
+
+  Pairs with the framework-side locale-aware metadata changes in
+  `@objectstack/client` / `@objectstack/objectql` / `@objectstack/rest`.
+
+### Patch Changes
+
+- 77cc6bb: Cloud Connection bind v2 UX (cloud ADR runtime-identity-binding §2.3): the binding flow becomes one click. `CloudConnectionPanel` drops the environment-id input entirely (registration happens cloud-side at approval), auto-opens the approval page in a popup on Connect (user-code display stays as the popup-blocked fallback), and shows the registered runtime name + runtime id once bound. `DeviceAuthPage` displays the requesting device's context (`runtime_name` / `runtime_version` from the verification URL) plus an "only approve if you started this" warning — the informed-consent surface for the RFC 8628 flow. Two new `auth.device.*` keys across all locales.
+- 97c6831: Localize AI workspace, shell navigation, startup, connection, toast, and chatbot affordance text across core console screens.
+- 59b6bbb: i18n the managed-by empty states for system / append-only / better-auth object lists.
+
+  `resolveManagedByEmptyState` previously hardcoded English titles and messages (e.g. "No identity records", "No events recorded"), so list views for managed objects (identity, audit logs, system-generated records) rendered English regardless of locale. It now takes the `t` translator and resolves `list.managedBy.{system,appendOnly,betterAuth}.{title,message}` (English kept as `defaultValue` fallbacks); `ObjectView` passes its `t` through. Added the keys to the `en` and `zh` locale packs.
+
+- 2f31406: Refine Studio package-scoped navigation and home overview.
+
+  Studio now treats the selected package as the home overview scope, flattens the root Overview sidebar group, hides the duplicate all-metadata sidebar entry, redirects the invalid package metadata route to package management, preserves the selected package across package-management navigation, and adds a localized package-management sidebar label.
+
 ## 6.2.3
 
 ## 6.2.2

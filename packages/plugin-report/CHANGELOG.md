@@ -1,5 +1,58 @@
 # @object-ui/plugin-report
 
+## 7.0.0
+
+### Major Changes
+
+- 0c95963: ADR-0021 single-form: dataset-native report editing + legacy report surface retired.
+  - The Studio/runtime report inspector now edits the 9.0 dataset binding (dataset picker + values/rows selectors sourced from the dataset's semantic layer) instead of the removed objectName/columns query form.
+  - plugin-report: the pre-9.0 query-form renderers (SpecReportGrid, MatrixRenderer, JoinedReportRenderer), the drill helpers, and the legacy authoring components (ReportBuilder, ReportConfigPanel, ColumnsEditor, GroupingsBuilder, JoinedBlocksEditor, FieldPickerDialog, ChartConfig, ScheduleConfig) are removed. ReportRenderer dispatches dataset-bound reports to DatasetReportRenderer; stored pre-9.0 spec JSON renders through the lossy specReportToPresentation → ReportViewer bridge until migrated.
+
+### Minor Changes
+
+- 39c89e7: ADR-0021 D2: true matrix cross-tab + dataset-path drill-down.
+  - DatasetReportRenderer pivots `type: 'matrix'` reports into a real rows × columns cross-tab (one dataset query over all dimensions, pivoted client-side; matrix without `columns` degrades to the flat grouped table). Joined blocks pivot too.
+  - Drill-down: aggregated rows / matrix cells are clickable when the host passes `onDrill` (and the report doesn't set `drilldown: false`), emitting `{dataset, groupKey, runtimeFilter}`. ReportView resolves the dataset's object + dimension→field mapping (reverse-mapping select option labels back to stored values) and navigates to the object list scoped by `?filter[field]=value`.
+  - Studio: the report inspector gains a Columns (across dimensions) list for matrix reports; ReportPreview renders through the same DatasetReportRenderer as the runtime, so the matrix preview is WYSIWYG.
+
+### Patch Changes
+
+- c849d3b: Remove the dead pre-9.0 client-side report-aggregation pipeline. ADR-0021 moved aggregation into the semantic layer (`queryDataset`), leaving the `useReportData` hook and its helpers (`buildAggregateQuery`, `groupAndAggregate`, `pivotRows`, `aggregateRows`, `collectFields`, `columnKey`, `bucketDate`, `groupingValue`) and the `ReportRow` / `PivotMatrix` / `PivotHeader` / `UseReportDataResult` / `UseReportDataOptions` types with zero consumers across the monorepo and all product repos. The still-used `mergeFilters` combinator moves to its own module and remains exported from the package root.
+- Updated dependencies [c12986e]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [97c6831]
+- Updated dependencies [2eb3096]
+- Updated dependencies [bd398df]
+- Updated dependencies [18d0339]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2f31406]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/fields@7.0.0
+  - @object-ui/plugin-grid@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

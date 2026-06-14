@@ -1,5 +1,207 @@
 # @object-ui/plugin-form
 
+## 7.0.0
+
+### Minor Changes
+
+- 80c133c: Spreadsheet-style line-item grid editor.
+
+  `GridField`'s editable grid mode is reworked into an enterprise line-item editor (the QuickBooks / Stripe / NetSuite pattern), generalised across every inline grid:
+  - **Computed read-only columns** — a child field with an arithmetic `expression` (e.g. `amount = quantity * unit_price`) renders read-only, recomputes live as its inputs change, and writes the result back into the row so it persists and the running total reflects it. A small safe arithmetic evaluator (`+ - * / %`, parens, `record.<field>` refs; no `eval`) powers it.
+  - **Trailing "ghost" row** — start-with-one + auto-append: typing in the ghost materialises a real row (index-stable, so focus/caret survive), so you keep entering lines without clicking "Add".
+  - **Borderless click-to-focus cells** + role-based column widths (description flexes; qty/price/amount stay narrow).
+  - **Keyboard navigation** — Enter / ArrowUp / ArrowDown move between rows in the same column.
+  - Per-row "expand to full form" is gated to grids that omit fields (no redundant expand on thin lines).
+  - `deriveColumns` surfaces a field `expression` as a computed column; the running-total column prefers the computed/last-currency column. Blank/ghost rows are filtered from the persisted batch (`isBlankRow`).
+
+- d16566f: Atomic master-detail create via the cross-object transactional batch endpoint (ObjectStack #1604).
+
+  When the server exposes the transactional batch endpoint, a NEW parent record and its child line items are now persisted in ONE server transaction — commit all or roll back all — instead of the previous client-orchestrated "create parent → create children → best-effort cleanup on failure" sequence.
+
+  **`@object-ui/data-objectstack` — `ObjectStackAdapter.batchTransaction(operations)`**
+  - New method posting `{ operations }` to `POST /api/v1/batch`. Operations run in one server transaction. A field value of `{ $ref: <earlier op index> }` resolves to that op's generated id, so a child can reference its parent created earlier in the same batch (master-detail FK). Throws `ObjectStackError('BATCH_ERROR')` on a non-2xx response.
+
+  **`@object-ui/plugin-form`**
+  - `MasterDetailForm` now detects `dataSource.batchTransaction` and, on a NEW parent, builds one atomic batch (parent at index 0, each child FK set to `{ $ref: 0 }`) via the new pure helper `buildMasterDetailBatch`. Client-side total rollups are merged into the parent payload before the batch. Edit mode and adapters without `batchTransaction` keep the existing client-orchestrated path.
+  - `ObjectForm` gained a `submitHandler` hook: when supplied, the form validates and hands the collected values to the host instead of calling `dataSource.create` / `dataSource.update`. `MasterDetailForm` uses it to own the atomic parent+children write while the parent fields are still rendered by `ObjectForm`.
+
+  **`@object-ui/types`**
+  - `ObjectFormSchema.submitHandler?: (values) => any | Promise<any>` — typed override for host-owned persistence.
+
+  Pairs with the framework-side ambient-transaction fix (ObjectQL `AsyncLocalStorage` transaction propagation) and the `/api/v1/batch` endpoint added in `@objectstack/rest`.
+
+- 69510df: feat(master-detail): derive child columns + relationship FK from metadata
+
+  A master-detail child collection can now be configured with **just the child
+  object name** — the relationship FK and the editable grid columns are derived
+  from the child object's schema (via `DataSource.getObjectSchema`), instead of a
+  hand-authored columns block.
+
+  ```ts
+  // before: ~40 lines of columns + relationshipField
+  details: [{ childObject: 'task', relationshipField: 'project', columns: [ ...12 lines... ] }]
+  // after:
+  details: [{ childObject: 'task' }]
+  ```
+
+  - `relationshipField` is auto-detected from the child's `master_detail`/`lookup`
+    field that references the parent (master_detail preferred).
+  - `columns` are derived from the child's fields, skipping system/audit fields,
+    the back-reference FK, and non-editable types (formula/summary/autonumber/
+    file/json/…); select options and lookup references carry through.
+  - `amountField` (running-total source) defaults to the first numeric/currency
+    column.
+  - Any of these can still be set explicitly to override the derived defaults.
+  - Save is gated until derivation resolves; new pure helpers
+    (`deriveDetail`/`deriveColumns`/`findRelationshipField`) are unit-tested.
+
+- b148daf: feat(master-detail): atomic EDIT via the cross-object batch endpoint
+
+  Edit mode now persists the parent update together with its child line-item
+  create/update/delete diffs in ONE server transaction (commit all or roll back
+  all), matching what create already did. Previously only create used the atomic
+  `/api/v1/batch` path; edit fell back to client-orchestrated writes with
+  best-effort cleanup.
+  - New pure helper `buildMasterDetailEditBatch(parentObject, parentId,
+parentData, details)` — emits a parent `update` op (index 0) then diffs each
+    child collection against its loaded snapshot into `create` / `update` /
+    `delete` ops (children reference the known parent id directly, no `$ref`).
+  - `MasterDetailForm` now treats `canBatch` as available whenever the data
+    source exposes `batchTransaction` (create AND edit). `submitViaBatch` builds
+    create-ops or edit-ops by mode; `onSuccess` → `handleSaved` ("saved" toast,
+    no form reset in edit).
+
+  The server `/api/v1/batch` handler already supports `update`/`delete` actions,
+  and the adapter already forwards `action`/`id`, so this is a front-end change.
+  Unit-tested (parent update + child create/update/delete diff); the create path
+  remains verified by the live e2e.
+
+- 90acb7f: Master-detail subform + lightweight list primitives (SDUI).
+  - `MasterDetailForm` (`object-master-detail-form`): enter a parent record and its child line items together; client-orchestrated transactional create (parent → FK → bulk children → rollup → cleanup). Enterprise-convention layout (header on top, line grid, single Save bar at the bottom).
+  - `LineItemsField` editable child grid (line numbers, right-aligned numerics, running total) and `LineItemsPanel` (`record:line_items`) for detail-page inline edit.
+  - `element:definition-list` and `element:repeater` — lightweight, low-chrome list primitives for simple data.
+
+- 00f8d2d: Master-detail form: live Subtotal / Tax / Total stack.
+
+  `MasterDetailForm` now renders a right-aligned document totals stack under the line items when the parent form has a tax-rate field (`taxRateField`, default `tax_rate`): **Subtotal** (Σ line amounts) → **Tax** (header rate %) → **Total**, recomputed live as lines and the rate change. The header rate is read via scoped event delegation on the form host (no coupling into `ObjectForm` internals). When the stack is shown, the per-grid footer total is subsumed.
+
+- 300d755: feat(form): inline master-detail in a plain ObjectForm via `subforms`
+
+  `ObjectFormSchema` gains a `subforms` array. When set, a regular `object-form`
+  renders as a master-detail form — the object's own fields on top, an editable
+  grid per child collection below, persisted together in one atomic transaction —
+  without a bespoke `object-master-detail-form` page.
+
+  ```ts
+  { type: 'object-form', objectName: 'expense_claim',
+    subforms: [{ childObject: 'expense_line' }] }   // FK + columns auto-derived
+  ```
+
+  Each subform needs only `childObject` (relationship FK and columns are derived
+  from the child object's metadata; override with `relationshipField`/`columns`).
+  This is the config-driven, page-less way to express master-detail entry — a form
+  view can declare its child collections directly.
+
+- 18728c1: Master-detail entry: lighter layout, compact lookup cells, persisted line order.
+  - **De-framed line-item section** — the subform no longer double-frames the grid in a `Card` (border + `p-6`); it renders as a light label + the grid's own bordered table, reclaiming the width the line table needs.
+  - **Compact lookup cells** — `LookupField` gains a `compact` mode (used by grid cells): the selected value shows inline in a borderless single-line trigger instead of a chip stacked above a separate "Select…" button.
+  - **Persisted drag-reorder** — `deriveMasterDetail` detects a sort field (`position`/`sort_order`/…), excludes it from the editable columns/row-form, and threads it as the grid's `sort_field` so reordering stamps `row[position] = index` and survives a reload.
+
+- 8426db7: feat(form): standard New/Edit modal renders form-view subforms (Tier 0)
+
+  The console's standard create/edit record modal now renders inline child
+  collections when the object's form view declares `subforms` — master-detail
+  entry with **no bespoke page**, persisted as one atomic transaction.
+  - `ModalForm` (and the create/edit modal in app-shell `AppContent`) detects
+    `subforms` and renders `MasterDetailForm` inside the dialog (it owns its Save
+    bar; the modal footer is suppressed); on success the modal closes + refreshes.
+  - `AppContent` sources `subforms` from the object's default form view
+    (`form.subforms` / `formViews.default.subforms`).
+  - `ModalFormSchema` gains `subforms`.
+
+  With this, declaring `formViews.default.subforms: [{ childObject }]` is enough
+  to make an object's standard New/Edit screen a master-detail form — completing
+  the config-driven master-detail story (Tier 0 → derive everything from the
+  relationship + child metadata).
+
+### Patch Changes
+
+- ddbe4a2: B2 step 3: client-side field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`). The form renderer now evaluates these CEL predicates reactively against the live record and gates each field's visibility, read-only state, and required-ness accordingly. Evaluation delegates to the canonical `@objectstack/formula` `ExpressionEngine` — the _same_ dialect the server enforces (`requiredWhen` in the rule-validator, `readonlyWhen` in `stripReadonlyWhenFields`) — so the UX and the persisted verdict always agree. New core helpers `evalFieldPredicate` / `resolveFieldRuleState` (zero-React, fail-open). `FormField` gains `visibleWhen` / `readonlyWhen` / `requiredWhen` (+ deprecated `conditionalRequired` alias), and `ObjectForm` carries them through from object metadata.
+- 2d47e94: B2 follow-ups (A): field conditional rules in inline grids + submit-time enforcement.
+  - **Grids**: a line-item column's `readonlyWhen` / `requiredWhen` CEL rule is now honored per row — `deriveMasterDetail` carries the props onto the `GridColumn` and `GridField` evaluates them against each row via `resolveFieldRuleState` (a `readonlyWhen`-TRUE cell locks; a `requiredWhen`-TRUE empty cell flags inline-invalid). Rules are row-scoped (`record.*`); the core helpers gained an optional `scope` (and `GridField` a `contextRecord` prop) so a future header-driven lock can bind `parent.*` — that wiring is deferred (it needs the master-detail header's re-renders isolated).
+  - **Submit enforcement**: `requiredWhen` already drove react-hook-form's `required` rule, so submit is blocked with a field error when the predicate is TRUE and the value is empty. Added a reactive cleanup so a stale _required_ error clears when the predicate flips FALSE (and all errors clear when a field is hidden by `visibleWhen`).
+
+- f6044fa: feat(form): subforms in DrawerForm + full-page record form (Tier 0 everywhere)
+
+  Completes config-driven master-detail across all standard create/edit entry
+  points (after the modal in the previous change):
+  - `DrawerForm` now hosts `MasterDetailForm` inside the drawer when the schema
+    declares `subforms` (its own Save bar; closes + refreshes on success).
+  - `RecordFormPage` (full-page New/Edit) sources `subforms` from the object's
+    form view, so the full-page form renders inline child collections too.
+  - `ObjectForm`'s subforms shortcut now defers to the drawer/modal variants for
+    those formTypes (so they keep their envelope), and only renders the
+    master-detail form directly for inline/simple forms.
+
+  Declaring `formViews.default.subforms: [{ childObject }]` now yields a
+  master-detail experience in the modal, drawer, AND full-page form — no bespoke
+  page anywhere.
+
+- 7913390: fix(master-detail): never silent on save — feedback, reset, and a duplicate-submit guard
+
+  `MasterDetailForm`'s "Create" submitted successfully but gave **no feedback**: no toast, no form reset, no navigation. A successful create looked broken, and re-clicking created duplicate records.
+  - On success: a `toast.success`, and on create the form clears (line items reset + parent `<ObjectForm>` remounts) ready for the next entry. A page-supplied `onSuccess` still runs afterwards (e.g. to navigate).
+  - On failure (validation / network / atomic rollback): a `toast.error` surfaces the message instead of failing silently.
+  - In-flight guard: the Create button shows "Saving…" and is disabled while a submit is running, preventing duplicate submissions, with a safety release if client-side validation blocks the submit.
+  - `@object-ui/components` now re-exports `toast` (alongside `Toaster`) from its sonner wrapper.
+
+  Tests: two new `MasterDetailForm` tests assert success → toast + form clear, and failure → error toast.
+
+- 514f426: fix(master-detail): reliable submit + stable e2e hooks
+
+  Fixes the "click Create, nothing happens" report, surfaced by a new live browser
+  e2e harness that drives the form with real input.
+  - **MasterDetailForm `handleSave`** now triggers the button-less parent form's
+    submit from a deferred macrotask and re-queries the live `<form>` inside it.
+    Calling `requestSubmit()` synchronously inside the click handler (right after
+    the `setSaving` state update) intermittently dropped the nested submit event,
+    so react-hook-form's `onSubmit` never ran and the click appeared to do nothing
+    — only the occasional click got through. Deferring makes it fire every time.
+  - **Stable `data-testid`s** so automation/e2e can drive the widgets
+    deterministically (Radix Select + react-hook-form cannot be driven by
+    synthetic DOM events): `select-trigger-{field}` / `select-option-{value}`
+    (SelectField), `lookup-trigger-{field}` (LookupField), `line-items-add`
+    (GridField), `md-form-submit` / `md-form-cancel` (MasterDetailForm).
+
+- 586a027: B2 follow-up (#1581): parent-scoped conditional rules in inline grids — "paid invoice → lock lines". `MasterDetailForm` now binds the live header record to every line-item grid as `parent`, so a column's `readonlyWhen` / `requiredWhen` CEL rule can react to the header (e.g. `parent.status == 'paid'` locks quantity / unit price / product when the invoice is paid). The line grids + document totals moved into a dedicated `<MasterDetailLines>` child that owns the scraped header record, so a header edit re-renders only the lines and never resets the header `ObjectForm`'s react-hook-form state mid-edit; the scrape is deduped by value to avoid needless churn. (`@object-ui/fields`' `GridField.contextRecord` and column-rule derivation already existed — this wires the last link.)
+- Updated dependencies [c12986e]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [2eb3096]
+- Updated dependencies [bd398df]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/fields@7.0.0
+  - @object-ui/permissions@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

@@ -1,5 +1,39 @@
 # @object-ui/plugin-markdown
 
+## 7.0.0
+
+### Minor Changes
+
+- 1addfda: Markdown grammar v1.1 (ADR-0046): heading anchors, code highlighting, and GitHub-style alerts.
+
+  The shared markdown renderer now applies three enrichments, all behind the existing `rehype-sanitize` gate (which runs last and stays the final XSS boundary):
+  - **Heading anchors** (`rehype-slug` + `rehype-autolink-headings`) — headings get slug ids so intra-doc `#section` links resolve (fixes the ADR-0046 cross-reference anchors, which previously had no target). `clobberPrefix: ''` keeps ids verbatim.
+  - **Code highlighting** (`rehype-highlight`) — fenced code blocks get highlight.js token classes; colors are theme-aware (light/dark) via injected CSS using the console's shadcn variables.
+  - **GitHub-style alerts** (`remark-github-blockquote-alert`) — `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` render as styled callouts. The syntax is valid CommonMark, so it also renders natively in GitHub previews and degrades to a plain blockquote in any older renderer — no lint coordination needed.
+
+  Security posture is unchanged: class names and ids are inert; script/style/event-handler/`javascript:`/iframe vectors stay blocked, and the alert icon SVG is stripped (zero SVG surface in the sanitize schema — callout icons are CSS pseudo-elements). A `class → className` canonicalization step runs before sanitize so the alert plugin's raw `class` attribute survives the whitelist.
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [2eb3096]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

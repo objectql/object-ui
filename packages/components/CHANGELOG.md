@@ -1,5 +1,81 @@
 # @object-ui/components
 
+## 7.0.0
+
+### Minor Changes
+
+- 90acb7f: Master-detail subform + lightweight list primitives (SDUI).
+  - `MasterDetailForm` (`object-master-detail-form`): enter a parent record and its child line items together; client-orchestrated transactional create (parent → FK → bulk children → rollup → cleanup). Enterprise-convention layout (header on top, line grid, single Save bar at the bottom).
+  - `LineItemsField` editable child grid (line numbers, right-aligned numerics, running total) and `LineItemsPanel` (`record:line_items`) for detail-page inline edit.
+  - `element:definition-list` and `element:repeater` — lightweight, low-chrome list primitives for simple data.
+
+### Patch Changes
+
+- ddbe4a2: B2 step 3: client-side field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`). The form renderer now evaluates these CEL predicates reactively against the live record and gates each field's visibility, read-only state, and required-ness accordingly. Evaluation delegates to the canonical `@objectstack/formula` `ExpressionEngine` — the _same_ dialect the server enforces (`requiredWhen` in the rule-validator, `readonlyWhen` in `stripReadonlyWhenFields`) — so the UX and the persisted verdict always agree. New core helpers `evalFieldPredicate` / `resolveFieldRuleState` (zero-React, fail-open). `FormField` gains `visibleWhen` / `readonlyWhen` / `requiredWhen` (+ deprecated `conditionalRequired` alias), and `ObjectForm` carries them through from object metadata.
+- 2d47e94: B2 follow-ups (A): field conditional rules in inline grids + submit-time enforcement.
+  - **Grids**: a line-item column's `readonlyWhen` / `requiredWhen` CEL rule is now honored per row — `deriveMasterDetail` carries the props onto the `GridColumn` and `GridField` evaluates them against each row via `resolveFieldRuleState` (a `readonlyWhen`-TRUE cell locks; a `requiredWhen`-TRUE empty cell flags inline-invalid). Rules are row-scoped (`record.*`); the core helpers gained an optional `scope` (and `GridField` a `contextRecord` prop) so a future header-driven lock can bind `parent.*` — that wiring is deferred (it needs the master-detail header's re-renders isolated).
+  - **Submit enforcement**: `requiredWhen` already drove react-hook-form's `required` rule, so submit is blocked with a field error when the predicate is TRUE and the value is empty. Added a reactive cleanup so a stale _required_ error clears when the predicate flips FALSE (and all errors clear when a field is hidden by `visibleWhen`).
+
+- 2eb3096: fix(form): stop `form.reset()` from wiping user input on re-render
+
+  The form renderer reset react-hook-form whenever the `defaultValues` **object
+  identity** changed:
+
+  ```ts
+  useEffect(() => {
+    form.reset(defaultValues);
+  }, [defaultValues]);
+  ```
+
+  Callers commonly pass a freshly-built `defaultValues` object every render, so an
+  unrelated parent re-render reset the form and discarded whatever the user had
+  typed. This broke master-detail "Create": a re-render between the submit click
+  and the (deferred) `requestSubmit` blanked the form, so RHF then failed
+  required-field validation on the now-empty fields and nothing was submitted —
+  the "click Create, nothing happens" report.
+
+  The effect now resets only when `defaultValues` actually **changes by value**
+  (JSON-compared), so a genuine change (e.g. an edit-mode record finishing
+  loading) still resets while identity churn is ignored.
+
+- 7913390: fix(master-detail): never silent on save — feedback, reset, and a duplicate-submit guard
+
+  `MasterDetailForm`'s "Create" submitted successfully but gave **no feedback**: no toast, no form reset, no navigation. A successful create looked broken, and re-clicking created duplicate records.
+  - On success: a `toast.success`, and on create the form clears (line items reset + parent `<ObjectForm>` remounts) ready for the next entry. A page-supplied `onSuccess` still runs afterwards (e.g. to navigate).
+  - On failure (validation / network / atomic rollback): a `toast.error` surfaces the message instead of failing silently.
+  - In-flight guard: the Create button shows "Saving…" and is disabled while a submit is running, preventing duplicate submissions, with a safety release if client-side validation blocks the submit.
+  - `@object-ui/components` now re-exports `toast` (alongside `Toaster`) from its sonner wrapper.
+
+  Tests: two new `MasterDetailForm` tests assert success → toast + form clear, and failure → error toast.
+
+- 8d1195d: Fix `type: 'url'` actions so they actually reach the backend in split-origin dev setups, and so reveal-once result dialogs render.
+  - `ActionRunner.executeUrl`: when context provides `apiBase`, relative `/api/...`, `/_auth/...`, and `/_account/...` URLs are now promoted to absolute (`${apiBase}${path}`) before navigation. Same-origin API paths (with or without `apiBase`) trigger a full-page `window.location.href` rather than React-Router push — this is required for server-side OAuth redirect dances (e.g. better-auth `/sign-in/social`) that React Router would otherwise swallow into the SPA's fallback route.
+  - `ActionRunner.buildInterpolationContext`: surfaces `ctx.apiBase` for action targets that want to template it explicitly.
+  - `ObjectView`: passes `apiBase: import.meta.env.VITE_SERVER_URL` into the toolbar `ActionProvider` context so the above resolves.
+  - `action-button` and `action-menu` renderers now forward `resultDialog` when invoking the runner. Previously this field was silently dropped by an explicit whitelist, breaking every "show once, then hide" flow (2FA QR/backup codes, OAuth client_secret, regenerated tokens).
+
+- Updated dependencies [c12986e]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [97c6831]
+- Updated dependencies [18d0339]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2f31406]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

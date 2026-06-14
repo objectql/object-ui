@@ -1,5 +1,55 @@
 # @object-ui/plugin-designer
 
+## 7.0.0
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+- Updated dependencies [30ee761]
+- Updated dependencies [b99d9bd]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [97c6831]
+- Updated dependencies [a58c6b8]
+- Updated dependencies [f6044fa]
+- Updated dependencies [2eb3096]
+- Updated dependencies [bd398df]
+- Updated dependencies [18d0339]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [69510df]
+- Updated dependencies [b148daf]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [586a027]
+- Updated dependencies [00f8d2d]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2f31406]
+- Updated dependencies [18728c1]
+- Updated dependencies [8426db7]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/data-objectstack@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/plugin-form@7.0.0
+  - @object-ui/fields@7.0.0
+  - @object-ui/plugin-grid@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

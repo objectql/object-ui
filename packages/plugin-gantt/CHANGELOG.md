@@ -1,5 +1,49 @@
 # @object-ui/plugin-gantt
 
+## 7.0.0
+
+### Minor Changes
+
+- 995c85d: Gantt feature parity, Phases 1–5: dependency links, real time scales, hierarchy, interaction polish, and virtualization.
+  - **Dependency links** — `task.dependencies` renders as orthogonal arrows in an SVG overlay, with all four MS-Project link types (`fs`/`ss`/`ff`/`sf`) via the object form `{ id, type }`. Arrows follow bars live during drag/resize; hovering a bar highlights its links. `normalizeDependencies` (exported) accepts CSV strings, id arrays, and object arrays with id/type aliases. New dependencies can be created by dragging from a bar's link dot onto another bar (`onDependencyCreate`).
+  - **Real time scales** — day/week/month/quarter modes with a two-row header (group row + unit row), weekend tinting, zoom in/out, and a jump-to-today button.
+  - **Hierarchy** — `parent` builds a tree: collapsible summary rows with bracket-style summary bars aggregated from descendants, milestone diamonds, indent guides, and `aria-expanded`/`role="treeitem"` semantics. Dragging a summary bar moves its whole subtree by the same offset (live preview + one `onTaskUpdate` per task); the summary's displayed range rolls up from children, so moving a child past the parent's edge stretches the parent automatically.
+  - **Interaction polish** — progress drag handle, hover tooltip, context menu (including delete), keyboard navigation/editing, inline title editing, and row drag-reorder (`onTaskReorder`).
+  - **Scale** — virtualized rows _and_ columns (spacer-based windowing; only the visible window is in the DOM, verified: 5,000 tasks render in ~27 ms with 26 rows in the DOM), a fullscreen toggle, and custom timeline `markers` (`{ date, label?, color? }`).
+
+  Colors that the prebuilt components stylesheet doesn't emit utilities for use theme CSS variables inline, so everything renders correctly in consuming apps.
+
+### Patch Changes
+
+- Updated dependencies [c12986e]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [2eb3096]
+- Updated dependencies [bd398df]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [3cc38fe]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/fields@7.0.0
+  - @object-ui/plugin-detail@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

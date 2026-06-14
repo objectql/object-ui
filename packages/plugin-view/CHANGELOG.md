@@ -1,5 +1,51 @@
 # @object-ui/plugin-view
 
+## 7.0.0
+
+### Minor Changes
+
+- 7b71cd8: Unify the runtime ObjectView "view editor" onto the studio's spec-driven inspector. The right-rail view editor now hosts the same `ViewVariantInspector` the metadata studio uses (config fields sourced straight from `@objectstack/spec`) instead of the legacy `buildViewConfigSchema` engine, so runtime and studio share one view-editing surface. A new `view-config-adapter` bridges the runtime's flat view shape and the studio's ViewItem draft, keeping the `sys_view` persistence path untouched; field pickers read from the in-memory object definition (no extra network fetch). The legacy `buildViewConfigSchema` engine and its exports are retired; `ConfigPanelRenderer` is retained for the dashboard/report config panels.
+
+### Patch Changes
+
+- 9bef806: feat(view): pass form-view `subforms` through to ObjectForm
+
+  `ObjectView`'s form schema now forwards `form.subforms` to `ObjectForm`, so a
+  form view that declares inline child collections renders as a master-detail
+  form (parent fields + child grids, atomic save) in ObjectView's own
+  create/edit form — no bespoke page. Pairs with `@objectstack/spec`
+  `FormViewSchema.subforms` and ObjectForm's existing `subforms` rendering.
+
+- Updated dependencies [c12986e]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [f6044fa]
+- Updated dependencies [2eb3096]
+- Updated dependencies [80c133c]
+- Updated dependencies [d16566f]
+- Updated dependencies [69510df]
+- Updated dependencies [b148daf]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [586a027]
+- Updated dependencies [00f8d2d]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [18728c1]
+- Updated dependencies [8426db7]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/plugin-form@7.0.0
+  - @object-ui/plugin-grid@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes
