@@ -268,6 +268,10 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
       appearance,
       showViewSwitcher: allowed.length > 1,
       showRecordCount: cfg.showRecordCount,
+      // Add-record entry point (ListView gates the button on addRecord.enabled,
+      // independent of the active visualization). Without forwarding this, the
+      // panel's "Add Record" config silently did nothing at runtime.
+      addRecord: cfg.addRecord,
 
       // userActions toggles → toolbar flags. Interface mode is closed by
       // default: the advanced filter builder and view-management tools are

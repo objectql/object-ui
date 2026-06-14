@@ -2,7 +2,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { WIDGETS } from './widgets';
+import { WIDGETS, resolveStoredViewRef } from './widgets';
 
 afterEach(cleanup);
 
@@ -57,5 +57,50 @@ describe('view-ref widget', () => {
       />,
     );
     expect(screen.getByRole('combobox')).toBeInTheDocument();
+  });
+});
+
+
+/**
+ * resolveStoredViewRef mirrors the runtime InterfaceListPage.resolveSourceView so
+ * the editor doesn't mislabel a working stored value (e.g. bare `default`) as
+ * "(not in object)". View metadata names are object-prefixed FQNs.
+ */
+describe('resolveStoredViewRef', () => {
+  const views = [
+    { name: 'showcase_task.default', label: 'All Tasks' },
+    { name: 'showcase_task.board', label: 'Board (Kanban)' },
+  ];
+
+  it('resolves a bare name via the `<object>.<name>` suffix and exposes the matched view', () => {
+    const r = resolveStoredViewRef(views, 'board');
+    expect(r.resolves).toBe(true);
+    expect(r.suffixMatch?.name).toBe('showcase_task.board');
+    expect(r.showStored).toBe(true); // not an exact catalog entry → synthesize an item
+  });
+
+  it('resolves an exact FQN without needing a synthesized item', () => {
+    const r = resolveStoredViewRef(views, 'showcase_task.default');
+    expect(r.exact?.name).toBe('showcase_task.default');
+    expect(r.resolves).toBe(true);
+    expect(r.showStored).toBe(false);
+  });
+
+  it('treats `default`/`list` as special-case resolvable even without a suffix match', () => {
+    expect(resolveStoredViewRef([], 'default').resolves).toBe(true);
+    expect(resolveStoredViewRef([], 'list').resolves).toBe(true);
+  });
+
+  it('flags a truly unknown value as unresolved (gets the not-in-object tag)', () => {
+    const r = resolveStoredViewRef(views, 'typo_view');
+    expect(r.resolves).toBe(false);
+    expect(r.suffixMatch).toBeUndefined();
+    expect(r.showStored).toBe(true);
+  });
+
+  it('an empty value resolves to nothing and needs no synthesized item', () => {
+    const r = resolveStoredViewRef(views, '');
+    expect(r.resolves).toBe(false);
+    expect(r.showStored).toBe(false);
   });
 });

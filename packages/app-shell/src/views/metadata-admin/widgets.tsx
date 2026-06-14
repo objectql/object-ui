@@ -812,6 +812,24 @@ function FieldRefWidget({ id, value, onChange, readOnly, context }: WidgetProps)
 }
 
 /**
+ * Resolve a stored `sourceView` value against a source object's view catalog,
+ * mirroring the runtime resolver (InterfaceListPage.resolveSourceView): a value
+ * resolves if it's an exact view name, a bare name matching a view's
+ * `<object>.<name>` suffix, or the special `default`/`list` (→ object default
+ * view). `showStored` is true when the stored value needs a synthesized option
+ * (i.e. it isn't already an exact catalog entry). Exported for unit tests.
+ */
+export function resolveStoredViewRef(
+  views: Array<{ name: string; label?: string }>,
+  current: string,
+): { exact?: { name: string; label?: string }; suffixMatch?: { name: string; label?: string }; isSpecial: boolean; resolves: boolean; showStored: boolean } {
+  const exact = current ? views.find((v) => v.name === current) : undefined;
+  const suffixMatch = current && !exact ? views.find((v) => v.name.endsWith(`.${current}`)) : undefined;
+  const isSpecial = current === 'default' || current === 'list';
+  return { exact, suffixMatch, isSpecial, resolves: !!exact || !!suffixMatch || isSpecial, showStored: !!current && !exact };
+}
+
+/**
  * Single view picker for `interfaceConfig.sourceView`. Views come from
  * `context.objectViews` (the source object's views, loaded from the object
  * named by the sibling `source` field). A value not present in the catalog is
@@ -823,7 +841,12 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
   const locale = detectLocale();
   const views = context?.objectViews ?? [];
   const current = value == null ? '' : String(value);
-  const inCatalog = !current || views.some((v) => v.name === current);
+  // Mirror the runtime resolver (InterfaceListPage.resolveSourceView): a stored
+  // value resolves if it's an exact view name, OR a bare name matching a view's
+  // `<object>.<name>` suffix, OR the special `default`/`list` (→ object default
+  // view). Only a value that resolves to NOTHING gets the "(not in object)" tag —
+  // so a working bare value like `default` is no longer mislabelled.
+  const { suffixMatch, resolves, showStored } = resolveStoredViewRef(views, current);
   return (
     <Select
       value={current || NO_FIELD}
@@ -837,10 +860,15 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
         <SelectItem value={NO_FIELD}>
           <span className="text-muted-foreground">{t('engine.form.none', locale)}</span>
         </SelectItem>
-        {!inCatalog && current && (
+        {showStored && (
           <SelectItem value={current}>
-            <span className="font-mono">{current}</span>
-            <span className="ml-2 text-xs text-muted-foreground">{t('engine.form.notInObject', locale)}</span>
+            <span className="flex items-center gap-2">
+              <span>{suffixMatch?.label || current}</span>
+              <code className="text-xs text-muted-foreground">{suffixMatch ? `\u2192 ${suffixMatch.name}` : current}</code>
+              {!resolves && (
+                <span className="ml-1 text-xs text-muted-foreground">{t('engine.form.notInObject', locale)}</span>
+              )}
+            </span>
           </SelectItem>
         )}
         {views.map((v) => (
