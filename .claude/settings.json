@@ -12,5 +12,18 @@
       "mcp__Claude_Preview__preview_console_logs",
       "mcp__Claude_Preview__preview_network"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-main-checkout.sh\""
+          }
+        ]
+      }
+    ]
   }
 }
