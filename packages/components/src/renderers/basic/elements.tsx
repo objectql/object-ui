@@ -26,7 +26,7 @@
 
 import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
-import { useAdapter } from '@object-ui/react';
+import { useAdapter, useAction } from '@object-ui/react';
 import { cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { Button, Separator } from '../../ui';
@@ -199,18 +199,66 @@ function ElementButtonRenderer({ schema }: { schema: any }) {
     iconPosition?: 'left' | 'right';
     disabled?: boolean;
     aria?: Record<string, any>;
+    /**
+     * Optional action executed on click. Any ActionDef the ActionRunner
+     * understands — `url`/`navigation` (link to another page), `api`/`script`
+     * (POST a cloud route, with optional param collection + redirect), `modal`,
+     * `flow`. This is what makes a standalone-page button interactive: without
+     * it the button renders inert (back-compat). Executed via `useAction`,
+     * which falls back to a local runner when no ActionProvider is mounted, so
+     * adding the hook never throws in non-page contexts.
+     */
+    action?: Record<string, any>;
   }>(schema);
   const variant = (SHADCN_BUTTON_VARIANT[props.variant ?? 'primary'] ?? 'default') as any;
   const size = (SHADCN_BUTTON_SIZE[props.size ?? 'medium'] ?? 'default') as any;
   const label = resolveI18nLabel(props.label);
   const iconPosition = props.iconPosition ?? 'left';
   const icon = props.icon ? <LazyIcon name={props.icon} className="h-4 w-4" /> : null;
+
+  const { execute } = useAction();
+  const [running, setRunning] = React.useState(false);
+  const action = props.action;
+
+  const handleClick = React.useCallback(async () => {
+    if (!action || running) return;
+    setRunning(true);
+    try {
+      // Mirror action:button's param routing: an array of {name,type,…} defs is
+      // forwarded for in-dialog collection; a plain object is passed as values.
+      const paramsPayload = Array.isArray(action.params)
+        ? { actionParams: action.params }
+        : { params: action.params };
+      await execute({
+        type: action.actionType || action.type,
+        name: action.name,
+        label: action.label,
+        description: action.description,
+        target: action.target,
+        endpoint: action.endpoint,
+        method: action.method,
+        navigate: action.navigate,
+        to: action.to,
+        opensInNewTab: action.opensInNewTab,
+        confirmText: action.confirmText,
+        successMessage: action.successMessage,
+        errorMessage: action.errorMessage,
+        refreshAfter: action.refreshAfter,
+        ...paramsPayload,
+      } as any);
+    } finally {
+      setRunning(false);
+    }
+  }, [action, execute, running]);
+
   return (
     <Button
+      type="button"
       variant={variant}
       size={size}
-      disabled={props.disabled}
+      disabled={props.disabled || running}
       className={cn(schema?.className)}
+      onClick={action ? handleClick : undefined}
       {...ariaAttrs(props.aria)}
     >
       {iconPosition === 'left' && icon}
