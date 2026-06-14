@@ -143,15 +143,27 @@ export function DashboardPreview({
           }
         >
           <div className="p-3 max-h-[70vh] overflow-auto">
-            <DashboardRenderer
-              schema={draft as any}
-              dataSource={adapter as any}
-              designMode={designMode}
-              selectedWidgetId={selectedWidgetId}
-              onWidgetClick={designMode ? handleWidgetClick : undefined}
-              onWidgetsReorder={designMode && onPatch ? handleReorder : undefined}
-              hideHeaderText
-            />
+            {/*
+             * The runtime dashboard grid is 12 columns wide. Inside the
+             * Studio canvas — especially with the inspector open — the
+             * available width collapses to ~500px, squeezing metric cards
+             * down to ~120px so their titles truncate to a couple of
+             * characters ("管道…"). Pin a desktop-like minimum width so
+             * the grid lays out as end users see it; the parent's
+             * overflow-auto adds a horizontal scrollbar when the canvas is
+             * narrower.
+             */}
+            <div className="min-w-[768px]">
+              <DashboardRenderer
+                schema={draft as any}
+                dataSource={adapter as any}
+                designMode={designMode}
+                selectedWidgetId={selectedWidgetId}
+                onWidgetClick={designMode ? handleWidgetClick : undefined}
+                onWidgetsReorder={designMode && onPatch ? handleReorder : undefined}
+                hideHeaderText
+              />
+            </div>
           </div>
         </React.Suspense>
       </PreviewErrorBoundary>
