@@ -6,11 +6,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, FileQuestion, Loader2 } from 'lucide-react';
 import { useAdapter } from '@object-ui/app-shell';
-import { MarkdownRenderer } from '@object-ui/plugin-markdown';
+import { MarkdownRenderer, extractToc } from '@object-ui/plugin-markdown';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { rewriteDocLinks } from './doc-links';
 import { DocShell } from './DocShell';
 
@@ -39,6 +40,7 @@ export default function DocPage() {
   const { name, appName } = useParams<{ name: string; appName?: string }>();
   const navigate = useNavigate();
   const adapter = useAdapter();
+  const { t } = useObjectTranslation();
   const [doc, setDoc] = useState<DocItem | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
@@ -96,6 +98,12 @@ export default function DocPage() {
     [navigate],
   );
 
+  // Long-doc table of contents (h2–h3). Slugs match rehype-slug so a #id
+  // link resolves to the rendered heading's anchor. Shown only past a few
+  // headings so short docs stay clean.
+  const toc = useMemo(() => extractToc(doc?.content ?? ''), [doc?.content]);
+  const tocLabel = t('help.onThisPage', { defaultValue: 'On this page' });
+
   if (state === 'loading') {
     return (
       <div className="flex h-full items-center justify-center p-10 text-muted-foreground">
@@ -133,10 +141,36 @@ export default function DocPage() {
 
   return (
     <DocShell breadcrumb={doc?.label ?? name}>
-      <div className="mx-auto max-w-3xl p-4 sm:p-6" onClick={onContentClick}>
-        <MarkdownRenderer
-          schema={{ type: 'markdown', content: rewriteDocLinks(doc?.content ?? '') }}
-        />
+      <div className="mx-auto flex max-w-5xl gap-8 p-4 sm:p-6">
+        <article
+          className="min-w-0 max-w-3xl flex-1 [&_h1]:scroll-mt-24 [&_h2]:scroll-mt-24 [&_h3]:scroll-mt-24"
+          onClick={onContentClick}
+        >
+          <MarkdownRenderer
+            schema={{ type: 'markdown', content: rewriteDocLinks(doc?.content ?? '') }}
+          />
+        </article>
+        {toc.length >= 3 ? (
+          <aside className="hidden xl:block w-56 shrink-0">
+            <nav aria-label={tocLabel} className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-auto">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {tocLabel}
+              </div>
+              <ul className="border-l border-border text-sm">
+                {toc.map((item) => (
+                  <li key={item.id} style={{ paddingLeft: (item.depth - 2) * 12 }}>
+                    <a
+                      href={`#${item.id}`}
+                      className="-ml-px block border-l border-transparent py-0.5 pl-3 text-muted-foreground hover:border-primary hover:text-foreground"
+                    >
+                      {item.text}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          </aside>
+        ) : null}
       </div>
     </DocShell>
   );

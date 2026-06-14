@@ -7,7 +7,7 @@
  */
 
 import * as React from "react"
-import ReactMarkdown from "react-markdown"
+import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { remarkAlert } from "remark-github-blockquote-alert"
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize"
@@ -15,6 +15,7 @@ import rehypeSlug from "rehype-slug"
 import rehypeHighlight from "rehype-highlight"
 import rehypeAutolinkHeadings from "rehype-autolink-headings"
 import { ensureMarkdownStyles } from "./markdown-theme"
+import { Mermaid } from "./Mermaid"
 
 /**
  * Props for the Markdown component implementation.
@@ -99,10 +100,38 @@ const rehypePlugins = [
   rehypeNormalizeClassName,
   // Skip code blocks tagged with an unknown language instead of throwing;
   // highlight only what it recognises.
-  [rehypeHighlight, { detect: true, ignoreMissing: true }],
+  [rehypeHighlight, { detect: true, ignoreMissing: true, plainText: ["mermaid"] }],
   [rehypeAutolinkHeadings, { behavior: "append", properties: { className: ["md-anchor"], ariaHidden: true, tabIndex: -1 }, content: { type: "text", value: "#" } }],
   [rehypeSanitize, sanitizeSchema],
 ] as React.ComponentProps<typeof ReactMarkdown>["rehypePlugins"]
+
+// Flatten a react-markdown code child down to its raw text. mermaid blocks are
+// emitted as a plain text node (rehype-highlight is told to skip "mermaid"), so
+// this yields the diagram source verbatim.
+function nodeText(node: React.ReactNode): string {
+  if (typeof node === "string") return node
+  if (typeof node === "number") return String(node)
+  if (Array.isArray(node)) return node.map(nodeText).join("")
+  if (React.isValidElement(node)) return nodeText((node.props as { children?: React.ReactNode }).children)
+  return ""
+}
+
+// Intercept fenced ```mermaid blocks at the <pre> level (so no <pre> wrapper is
+// emitted) and render them as diagrams; every other block renders normally.
+const mdComponents: Components = {
+  pre({ node: _node, children, ...rest }) {
+    const child = React.Children.toArray(children)[0]
+    const className =
+      React.isValidElement(child) && typeof (child.props as { className?: unknown }).className === "string"
+        ? ((child.props as { className?: string }).className as string)
+        : ""
+    if (/\blanguage-mermaid\b/.test(className)) {
+      const source = nodeText((child as React.ReactElement<{ children?: React.ReactNode }>).props.children)
+      return <Mermaid chart={source} />
+    }
+    return <pre {...rest}>{children}</pre>
+  },
+}
 
 /**
  * Internal Markdown implementation component.
@@ -139,6 +168,7 @@ export default function MarkdownImpl({ content, className }: MarkdownImplProps) 
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
+        components={mdComponents}
         // Defense-in-depth beyond rehype-sanitize: these never reach the DOM.
         disallowedElements={['script', 'style', 'iframe', 'object', 'embed']}
         unwrapDisallowed={true}

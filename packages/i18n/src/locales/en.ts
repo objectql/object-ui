@@ -1471,6 +1471,7 @@ const en = {
     settings: 'Workspace settings',
   },
   help: {
+    onThisPage: 'On this page',
     appDocs: "This app's docs",
     allDocs: 'All documentation',
     onlineDocs: 'Online documentation',

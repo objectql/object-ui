@@ -79,3 +79,20 @@ describe('markdown enrichments (ADR-0046)', () => {
     expect(html).not.toContain('<svg');
   });
 });
+
+describe('mermaid diagrams (ADR-0046)', () => {
+  it('routes ```mermaid blocks to a diagram container, not a code block', () => {
+    const html = render('```mermaid\ngraph TD; A-->B;\n```\n');
+    // rendered by the trusted <Mermaid> component, not the highlight pipeline
+    expect(html).toContain('data-mermaid');
+    expect(html).not.toMatch(/hljs[^"]*language-mermaid|language-mermaid[^"]*hljs/);
+    // source preserved (a11y / fallback) while the async render runs
+    expect(html).toContain('graph TD');
+  });
+
+  it('still renders ordinary fenced code as a highlighted block', () => {
+    const html = render('```js\nconst x = 1;\n```\n');
+    expect(html).not.toContain('data-mermaid');
+    expect(html).toContain('hljs');
+  });
+});

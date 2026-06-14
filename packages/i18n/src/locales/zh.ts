@@ -1484,6 +1484,7 @@ const zh = {
     settings: '工作区设置',
   },
   help: {
+    onThisPage: '本页目录',
     appDocs: '本应用文档',
     allDocs: '全部文档',
     onlineDocs: '在线文档',
