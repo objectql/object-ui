@@ -172,19 +172,52 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // app by default.
   const activeApps = apps.filter((a: any) => a.active !== false);
   const launcherApps = activeApps.filter((a: any) => a.hidden !== true);
-  const activeApp =
-    // ADR-0048 (A) — the route segment is the package id; resolve by it,
-    // falling back to the app name (legacy/alias URL).
-    matchAppBySegment(apps, appName) ||
-    launcherApps.find((a: any) => a.isDefault === true) ||
-    launcherApps[0];
+  // ADR-0048 (A) — the route segment is the package id; resolve by it,
+  // falling back to the app name (legacy/alias URL).
+  // Built-in pseudo-routes under /apps/* that are NOT metadata apps (create-app,
+  // system/*, metadata/*, setup). They must keep working — and may fall back to
+  // a default app — regardless of whether the segment resolves to an app.
+  const isCreateAppRoute = location.pathname.endsWith('/create-app');
+  const isSystemRoute = location.pathname.includes('/system');
+  const isMetadataRoute = location.pathname.includes('/metadata');
+  const isSetupRoute =
+    location.pathname === '/apps/setup' || location.pathname.startsWith('/apps/setup/');
+  const isSpecialRoute = isCreateAppRoute || isSystemRoute || isMetadataRoute || isSetupRoute;
 
-  // ADR-0037 — a draft preview is a window onto ONE requested app. When the
-  // overlay doesn't (yet) carry it, the default-app fallback above would
-  // silently preview the WRONG app; treat the request as "not ready" instead
-  // and let the preview-specific empty state below say so.
-  const requestedAppMissing =
-    previewDrafts && !!appName && !matchAppBySegment(apps, appName);
+  const matchedApp = matchAppBySegment(apps, appName);
+  const activeApp =
+    matchedApp ||
+    // Fall back to a default/first app only when NO specific app was requested
+    // (bare /apps, the default redirect) OR for a built-in pseudo-route above.
+    // A normal unmatched appName must NOT silently render a DIFFERENT app — the
+    // readiness guard below shows loading / not-available instead. (Fixes "the
+    // preview / nav renders the WRONG app right after building a new one".)
+    ((!appName || isSpecialRoute)
+      ? (launcherApps.find((a: any) => a.isDefault === true) || launcherApps[0])
+      : undefined);
+
+  // A normal app was requested but isn't present in the loaded metadata — the
+  // post-publish readiness lag, or a genuinely-missing app. Applies in BOTH
+  // preview and published mode (preview already guarded this; published used to
+  // fall through to the wrong-app fallback above — the bug). Pseudo-routes are
+  // excluded so they keep their default-app fallback.
+  const requestedAppMissing = !!appName && !matchedApp && !isSpecialRoute;
+
+  // Post-publish readiness: when a requested app isn't in the loaded metadata,
+  // re-check ONCE (the registry can lag a beat behind a publish) before
+  // concluding it's absent — so a just-built app resolves on its own instead
+  // of flashing "not available", while we still never render a foreign app.
+  const [missingRecheck, setMissingRecheck] = useState<'idle' | 'checking' | 'done'>('idle');
+  useEffect(() => {
+    if (!requestedAppMissing) {
+      if (missingRecheck !== 'idle') setMissingRecheck('idle');
+      return;
+    }
+    if (missingRecheck === 'idle' && !metadataLoading && !previewDrafts) {
+      setMissingRecheck('checking');
+      Promise.resolve(refreshMetadata()).finally(() => setMissingRecheck('done'));
+    }
+  }, [requestedAppMissing, metadataLoading, previewDrafts, missingRecheck, refreshMetadata]);
 
   useEffect(() => {
     if (!activeApp?.name) return;
@@ -376,14 +409,36 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     );
   }
 
-  const isCreateAppRoute = location.pathname.endsWith('/create-app');
-  const isSystemRoute = location.pathname.includes('/system');
-  // The metadata designer (Studio) must be reachable even with no active app —
-  // a brand-new env where AI just drafted everything has ZERO published apps,
-  // so without this exemption the "no apps configured" guard below would block
-  // the very surface you need to REVIEW & PUBLISH those first drafts (a
-  // chicken-and-egg that stranded the AI magic-moment loop).
-  const isMetadataRoute = location.pathname.includes('/metadata');
+  // (isCreateAppRoute / isSystemRoute / isMetadataRoute / isSetupRoute are
+  // computed near the top — before activeApp — so the fallback + readiness
+  // logic can use them. The metadata designer (Studio) in particular must stay
+  // reachable with no active app: a fresh env where AI just drafted everything
+  // has ZERO published apps, and that is the surface you review & publish from.)
+
+  // A normal app was requested but isn't in the loaded metadata. Re-check once
+  // for the post-publish lag, then say it's not available — NEVER render a
+  // different app, and don't show the misleading "no apps configured" screen
+  // below (there ARE apps). requestedAppMissing already excludes pseudo-routes.
+  if (requestedAppMissing) {
+    if (missingRecheck !== 'done') return <LoadingScreen />;
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <Empty>
+          <EmptyTitle>{t('empty.appNotAvailable', { defaultValue: 'App not available' })}</EmptyTitle>
+          <EmptyDescription>
+            {t('empty.appNotAvailableDescription', {
+              defaultValue: 'This app is not available yet — it may still be publishing. Try again in a moment.',
+            })}
+          </EmptyDescription>
+          <div className="mt-4">
+            <Button onClick={() => setMissingRecheck('idle')} data-testid="app-not-available-retry">
+              {t('common.retry', { defaultValue: 'Retry' })}
+            </Button>
+          </div>
+        </Empty>
+      </div>
+    );
+  }
 
   if (!activeApp && !isCreateAppRoute && !isSystemRoute && !isMetadataRoute) return (
     <div className="h-screen flex items-center justify-center">
