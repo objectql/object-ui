@@ -6,7 +6,7 @@
  * `/ai/:id`, the "New chat" button navigates to `/ai`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, Pencil, MessageSquare, Search, Check, X } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -231,6 +231,7 @@ export function ConversationsSidebar({
                     <ConversationRow
                       key={c.id}
                       conversation={c}
+                      query={filter.trim()}
                       active={c.id === activeId}
                       renaming={c.id === renamingId}
                       onSelect={() => {
@@ -255,6 +256,8 @@ export function ConversationsSidebar({
 
 interface RowProps {
   conversation: ConversationSummary;
+  /** Active search query — matched substrings are highlighted in title/preview. */
+  query?: string;
   active: boolean;
   renaming: boolean;
   onSelect: () => void;
@@ -264,8 +267,40 @@ interface RowProps {
   onSubmitRename: (title: string) => void;
 }
 
+/**
+ * Wrap each case-insensitive occurrence of `query` inside `text` in a styled
+ * <mark>, so a conversation-list search makes clear WHICH term matched a row.
+ * Returns the text untouched when there is no active query (the common case),
+ * so non-searching renders pay nothing.
+ */
+function highlightQuery(text: string | undefined | null, query: string | undefined): ReactNode {
+  if (!text) return text ?? null;
+  const needle = query?.trim().toLowerCase();
+  if (!needle) return text;
+  const haystack = text.toLowerCase();
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let key = 0;
+  for (;;) {
+    const idx = haystack.indexOf(needle, cursor);
+    if (idx === -1) {
+      parts.push(text.slice(cursor));
+      break;
+    }
+    if (idx > cursor) parts.push(text.slice(cursor, idx));
+    parts.push(
+      <mark key={key++} className="rounded-[2px] bg-primary/20 px-0.5 text-foreground">
+        {text.slice(idx, idx + needle.length)}
+      </mark>,
+    );
+    cursor = idx + needle.length;
+  }
+  return parts;
+}
+
 function ConversationRow({
   conversation,
+  query,
   active,
   renaming,
   onSelect,
@@ -353,10 +388,10 @@ function ConversationRow({
           className="min-w-0 flex-1 text-left"
           data-testid={`ai-conversation-select-${conversation.id}`}
         >
-          <span className="line-clamp-1 font-medium">{title}</span>
+          <span className="line-clamp-1 font-medium">{highlightQuery(title, query)}</span>
           {conversation.preview && conversation.preview !== title ? (
             <span className="mt-0.5 block line-clamp-1 text-xs text-muted-foreground">
-              {conversation.preview}
+              {highlightQuery(conversation.preview, query)}
             </span>
           ) : null}
           <span className="mt-0.5 block text-[10px] text-muted-foreground">

@@ -82,4 +82,19 @@ describe('ConversationsSidebar', () => {
     expect(screen.getAllByLabelText('Delete conversation')).toHaveLength(2);
     expect(screen.getByText('How many users are in the system?')).toBeInTheDocument();
   });
+
+  it('filters by query and highlights the matched substring', () => {
+    renderSidebar();
+    fireEvent.change(screen.getByPlaceholderText('Search chats...'), {
+      target: { value: 'pipe' },
+    });
+    // Non-matching conversation is filtered out.
+    expect(
+      screen.queryByText('How many users are in the system?'),
+    ).not.toBeInTheDocument();
+    // The matched substring is wrapped in a <mark> (case-insensitive, original case kept).
+    const mark = document.querySelector('mark');
+    expect(mark).toBeInTheDocument();
+    expect(mark).toHaveTextContent(/pipe/i);
+  });
 });
