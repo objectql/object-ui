@@ -1529,6 +1529,9 @@ const en = {
     starred: 'Starred',
     welcome: 'Build your business system with AI',
     welcomeDescription: 'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or start from scratch.',
+    welcomeAdminDescription: 'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or set things up yourself from the menu on the left.',
+    noAppsTitle: 'No applications yet',
+    noAppsDescription: 'There are no applications available to you yet. Please contact your workspace administrator.',
     buildWithAI: 'Build with AI',
     recoveryReminder: {
       message: 'Set a recovery password so you can still sign in if single sign-on is ever unavailable.',

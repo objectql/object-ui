@@ -1542,6 +1542,9 @@ const zh = {
     starred: '收藏',
     welcome: '用 AI 搭建你的业务系统',
     welcomeDescription: '用一句话描述你的业务，AI 帮你生成对象、界面、API 和 agent 工具。也可以手动从零开始。',
+    welcomeAdminDescription: '用一句话描述你的业务，AI 会为你生成对象、界面、API 和智能体工具；也可以从左侧菜单自行搭建。',
+    noAppsTitle: '还没有应用',
+    noAppsDescription: '当前还没有可用的应用。请联系你的工作区管理员。',
     buildWithAI: '用 AI 搭建',
     recoveryReminder: {
       message: '建议设置一个备用密码，这样即使单点登录不可用，你仍能直接登录此环境。',
