@@ -36,6 +36,16 @@
 @source inline("{,group-hover:}list-{inside,outside,decimal,disc,none}");
 @source inline("whitespace-{normal,nowrap,pre,pre-wrap,pre-line}");
 @source inline("[li_&]:pl-{2,3,4,5,6,8}");
+/* Streamdown ALSO emits syntax-highlight color + background utilities as runtime
+   arbitrary-value classes. Without these the per-token color (carried in an
+   inline `--sdm-c` var) has no `color: var(--sdm-c)` rule to apply it, so chat
+   code blocks render MONOCHROME. The previous safelist (above) missed these. */
+@source inline("text-[var(--sdm-c,inherit)]");
+@source inline("dark:text-[var(--shiki-dark,var(--sdm-c,inherit))]");
+@source inline("bg-[var(--sdm-tbg)]");
+@source inline("dark:bg-[var(--shiki-dark-bg,var(--sdm-tbg))]");
+@source inline("bg-[var(--sdm-bg,inherit)]");
+@source inline("dark:bg-[var(--shiki-dark-bg,var(--sdm-bg,inherit))]");
 @source '../../../packages/plugin-editor/src/**/*.{ts,tsx}';
 @source '../../../packages/plugin-view/src/**/*.{ts,tsx}';
 @source '../../../packages/plugin-detail/src/**/*.{ts,tsx}';
