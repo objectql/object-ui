@@ -30,8 +30,12 @@ import {
   Button,
   Label,
   Switch,
+  LazyIcon,
+  toKebabIconName,
 } from '@object-ui/components';
-import { Plus, Trash2 } from 'lucide-react';
+import { ChevronsUpDown, Plus, Search, Trash2 } from 'lucide-react';
+// @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
+import { iconNames } from 'lucide-react/dynamic.mjs';
 import { detectLocale, t } from './i18n';
 
 export interface WidgetContext {
@@ -967,6 +971,154 @@ function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetP
 
 
 /* -------------------------------------------------------------------------- */
+/* icon — searchable Lucide icon picker                                       */
+/* -------------------------------------------------------------------------- */
+
+// Lucide ships ~1500+ kebab-case icon names; freeze once for O(1) reuse.
+const LUCIDE_ICON_NAMES: readonly string[] = iconNames as string[];
+const LUCIDE_ICON_SET: Set<string> = new Set(LUCIDE_ICON_NAMES);
+// Cap the rendered grid — each cell mounts a lazily-loaded icon, so showing all
+// ~1500 at once would fire a flood of chunk requests. The search box narrows it.
+const ICON_RESULT_LIMIT = 60;
+
+/**
+ * Searchable icon picker for `widget: 'icon'` string fields (page/app/object
+ * `icon`). Replaces the raw text input where an author had to know and type a
+ * Lucide name. The trigger shows a live preview of the current icon; opening it
+ * reveals a search box + a grid of matching icons (preview + name). Selecting
+ * writes the kebab-case name string.
+ *
+ * Out-of-catalog values survive: a name that isn't a Lucide icon (e.g. one from
+ * another library, or a typo to be fixed later) is still shown on the trigger as
+ * plain text (LazyIcon degrades to a fallback glyph) and is offered as the first
+ * "keep" option so re-opening the picker never silently drops it.
+ *
+ * Built inline (no Radix portal) so the search + grid render eagerly — the same
+ * jsdom-friendly choice the other pickers' tests rely on.
+ */
+function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps) {
+  const locale = detectLocale();
+  const current = value == null ? '' : String(value);
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const rootRef = React.useRef<HTMLDivElement>(null);
+
+  const currentKebab = current ? toKebabIconName(current) : '';
+  const inCatalog = !current || LUCIDE_ICON_SET.has(currentKebab);
+
+  // Close when focus/click leaves the widget.
+  React.useEffect(() => {
+    if (!open) return;
+    const onDocPointer = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocPointer);
+    return () => document.removeEventListener('mousedown', onDocPointer);
+  }, [open]);
+
+  const results = React.useMemo(() => {
+    const q = toKebabIconName(query.trim());
+    const matches = q
+      ? LUCIDE_ICON_NAMES.filter((n) => n.includes(q))
+      : LUCIDE_ICON_NAMES;
+    return matches.slice(0, ICON_RESULT_LIMIT);
+  }, [query]);
+
+  const select = (name: string) => {
+    onChange(name || undefined);
+    setOpen(false);
+    setQuery('');
+  };
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        id={id}
+        type="button"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={id ? `${id}-listbox` : undefined}
+        disabled={readOnly}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-left disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        <LazyIcon name={inCatalog ? current : undefined} className="h-4 w-4 shrink-0 text-muted-foreground" />
+        <span className={'flex-1 truncate ' + (current ? 'font-mono' : 'text-muted-foreground')}>
+          {current || t('engine.form.selectEllipsis', locale)}
+        </span>
+        {!inCatalog && current && (
+          <span className="shrink-0 text-xs text-muted-foreground">{t('engine.form.notInObject', locale)}</span>
+        )}
+        <ChevronsUpDown aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-50" />
+      </button>
+
+      {open && !readOnly && (
+        <div
+          id={id ? `${id}-listbox` : undefined}
+          role="listbox"
+          className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover p-1 shadow-md"
+        >
+          <div className="flex items-center gap-2 border-b border-border/50 px-2 pb-1.5">
+            <Search aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <input
+              type="text"
+              autoFocus
+              value={query}
+              aria-label={t('engine.form.searchIcons', locale)}
+              placeholder={t('engine.form.searchIcons', locale)}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full bg-transparent py-1 text-sm outline-none"
+            />
+          </div>
+          <div className="mt-1 grid max-h-56 grid-cols-6 gap-1 overflow-y-auto">
+            {/* Keep an unknown value reachable so re-opening never drops it. */}
+            {!inCatalog && current && (
+              <button
+                type="button"
+                role="option"
+                aria-selected
+                title={current}
+                onClick={() => select(current)}
+                className="col-span-6 flex items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent hover:text-accent-foreground"
+              >
+                <LazyIcon name={undefined} className="h-4 w-4 shrink-0" />
+                <span className="font-mono">{current}</span>
+                <span className="ml-auto text-muted-foreground">{t('engine.form.keep', locale)}</span>
+              </button>
+            )}
+            {results.map((name) => {
+              const selected = name === currentKebab;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  title={name}
+                  onClick={() => select(name)}
+                  className={
+                    'flex aspect-square flex-col items-center justify-center gap-1 rounded p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground ' +
+                    (selected ? 'bg-accent text-accent-foreground ring-1 ring-primary' : '')
+                  }
+                >
+                  <LazyIcon name={name} className="h-4 w-4" />
+                  <span className="w-full truncate text-center text-[9px] leading-tight">{name}</span>
+                </button>
+              );
+            })}
+            {results.length === 0 && (
+              <p className="col-span-6 px-2 py-3 text-center text-xs text-muted-foreground">
+                {t('engine.form.noMatchingIcons', locale)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* registry                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -1127,6 +1279,7 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'field-ref': FieldRefWidget,
   'field-multi': FieldRefMultiWidget,
   'view-ref': ViewRefWidget,
+  'icon': IconPickerWidget,
   'master-detail': MasterDetailWidget,
   'string-tags': StringTagsWidget,
   'multiselect': MultiSelectWidget,
