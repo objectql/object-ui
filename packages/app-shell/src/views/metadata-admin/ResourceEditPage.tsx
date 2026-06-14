@@ -501,9 +501,42 @@ function MetadataResourceEditPageImpl({
     return () => { cancelled = true; };
   }, [client, sourceObjectName]);
 
+  // View catalog of the source object — fuels the `view-ref` picker for
+  // `interfaceConfig.sourceView` so the author chooses an existing view
+  // instead of typing (and mistyping) a name. Views are standalone metadata
+  // keyed to their object via `objectName`/`object`; the LIST endpoint returns
+  // name + label, which is all the picker needs.
+  const [objectViews, setObjectViews] = React.useState<Array<{ name: string; label?: string }>>([]);
+  const [objectViewsLoading, setObjectViewsLoading] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!sourceObjectName) { setObjectViews([]); return; }
+    setObjectViewsLoading(true);
+    (async () => {
+      try {
+        const all = (await client.list('view')) as Array<Record<string, any>>;
+        if (cancelled) return;
+        const forObject = (all || []).filter((v) => {
+          const obj = v?.objectName ?? v?.object ?? v?.object_name;
+          return obj === sourceObjectName;
+        });
+        const seen = new Set<string>();
+        const list = forObject
+          .map((v) => ({ name: v?.name as string, label: (v?.label as string) || undefined }))
+          .filter((v) => !!v.name && !seen.has(v.name) && seen.add(v.name));
+        setObjectViews(list);
+      } catch {
+        if (!cancelled) setObjectViews([]);
+      } finally {
+        if (!cancelled) setObjectViewsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [client, sourceObjectName]);
+
   const widgetContext = React.useMemo(
-    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading }),
-    [objectNames, objectsLoading, objectFields, objectFieldsLoading],
+    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading }),
+    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading],
   );
 
   // Load layered view + initial draft.

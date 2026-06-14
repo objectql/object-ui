@@ -48,6 +48,14 @@ export interface WidgetContext {
   objectFields?: Array<{ name: string; label?: string; type?: string }>;
   /** Loading flag for the field catalog. */
   objectFieldsLoading?: boolean;
+  /**
+   * View catalog of the bound/source object. Drives the `view-ref` picker
+   * so `interfaceConfig.sourceView` renders as a dropdown of the source
+   * object's real views instead of a free-text name the author can typo.
+   */
+  objectViews?: Array<{ name: string; label?: string }>;
+  /** Loading flag for the view catalog. */
+  objectViewsLoading?: boolean;
 }
 
 export interface WidgetProps {
@@ -804,6 +812,51 @@ function FieldRefWidget({ id, value, onChange, readOnly, context }: WidgetProps)
 }
 
 /**
+ * Single view picker for `interfaceConfig.sourceView`. Views come from
+ * `context.objectViews` (the source object's views, loaded from the object
+ * named by the sibling `source` field). A value not present in the catalog is
+ * still shown so stale/custom names survive; clearing to "None" omits the
+ * field, which the protocol treats as the object's default view. Replaces the
+ * free-text input where an author could type a non-existent view name.
+ */
+function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
+  const locale = detectLocale();
+  const views = context?.objectViews ?? [];
+  const current = value == null ? '' : String(value);
+  const inCatalog = !current || views.some((v) => v.name === current);
+  return (
+    <Select
+      value={current || NO_FIELD}
+      onValueChange={(v) => onChange(v === NO_FIELD ? undefined : v)}
+      disabled={readOnly}
+    >
+      <SelectTrigger id={id}>
+        <SelectValue placeholder={views.length ? t('engine.form.selectEllipsis', locale) : t('engine.form.noObjectBound', locale)} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_FIELD}>
+          <span className="text-muted-foreground">{t('engine.form.none', locale)}</span>
+        </SelectItem>
+        {!inCatalog && current && (
+          <SelectItem value={current}>
+            <span className="font-mono">{current}</span>
+            <span className="ml-2 text-xs text-muted-foreground">{t('engine.form.notInObject', locale)}</span>
+          </SelectItem>
+        )}
+        {views.map((v) => (
+          <SelectItem key={v.name} value={v.name}>
+            <span className="flex items-center gap-2">
+              <span>{v.label || v.name}</span>
+              <code className="text-xs text-muted-foreground">{v.name}</code>
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/**
  * Ordered multi object-field picker. Used for props that reference a list of
  * fields (kanban card `columns`, gallery `visibleFields`, chart
  * `yAxisFields`, `searchableFields`, …). Preserves order; supports reorder
@@ -1073,6 +1126,7 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'field-selector': FieldSelectorWidget,
   'field-ref': FieldRefWidget,
   'field-multi': FieldRefMultiWidget,
+  'view-ref': ViewRefWidget,
   'master-detail': MasterDetailWidget,
   'string-tags': StringTagsWidget,
   'multiselect': MultiSelectWidget,
