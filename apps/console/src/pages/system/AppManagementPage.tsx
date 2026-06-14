@@ -226,7 +226,9 @@ export function AppManagementPage() {
                       size="icon"
                       title="Open app"
                       aria-label={`Open ${app.label || app.name}`}
-                      onClick={() => navigate(`/apps/${app.name}`)}
+                      // ADR-0048 — open via the canonical package-id route segment
+                      // (falls back to name for runtime apps without a package id).
+                      onClick={() => navigate(`/apps/${app._packageId ?? app.name}`)}
                     >
                       <ExternalLink className="h-4 w-4" />
                     </Button>

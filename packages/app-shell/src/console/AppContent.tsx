@@ -184,18 +184,22 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // silently preview the WRONG app; treat the request as "not ready" instead
   // and let the preview-specific empty state below say so.
   const requestedAppMissing =
-    previewDrafts && !!appName && !apps.some((a: any) => a.name === appName);
+    previewDrafts && !!appName && !matchAppBySegment(apps, appName);
 
   useEffect(() => {
     if (!activeApp?.name) return;
-    const packageMetadataPath = `/apps/${activeApp.name}/metadata/package`;
+    // ADR-0048 — build against the URL's own segment (`appName`, which may be the
+    // package id) so the match works and the redirect keeps the same segment;
+    // `activeApp.name` would flip a `/apps/<packageId>/…` URL to the name form.
+    const seg = appName ?? activeApp.name;
+    const packageMetadataPath = `/apps/${seg}/metadata/package`;
     if (
       location.pathname === packageMetadataPath ||
       location.pathname.startsWith(`${packageMetadataPath}/`)
     ) {
-      navigate(`/apps/${activeApp.name}/component/developer/packages`, { replace: true });
+      navigate(`/apps/${seg}/component/developer/packages`, { replace: true });
     }
-  }, [activeApp?.name, location.pathname, navigate]);
+  }, [activeApp?.name, appName, location.pathname, navigate]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
@@ -331,7 +335,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     // preserved for any object without the flag.
     const target = resolveRecordFormTarget({
       objectDef: currentObjectDef as any,
-      baseUrl: activeApp?.name ? `/apps/${activeApp.name}` : '',
+      baseUrl: appName ? `/apps/${appName}` : (activeApp?.name ? `/apps/${activeApp.name}` : ''),
       record,
     });
     if (target.kind === 'page') {
@@ -470,7 +474,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                     score 16; declaration order breaks the tie). */}
                 <Route
                   path="metadata/package/*"
-                  element={<Navigate to={`/apps/${activeApp.name}/component/developer/packages`} replace />}
+                  element={<Navigate to={`/apps/${appName ?? activeApp.name}/component/developer/packages`} replace />}
                 />
                 <Route path="metadata">
                   <Route index element={<MetadataDirectoryPage />} />
