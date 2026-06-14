@@ -1483,6 +1483,11 @@ const zh = {
     members: '成员',
     settings: '工作区设置',
   },
+  help: {
+    appDocs: '本应用文档',
+    allDocs: '全部文档',
+    onlineDocs: '在线文档',
+  },
   sidebar: {
     settings: '设置',
     help: '帮助',

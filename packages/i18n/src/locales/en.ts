@@ -1470,6 +1470,11 @@ const en = {
     members: 'Members',
     settings: 'Workspace settings',
   },
+  help: {
+    appDocs: "This app's docs",
+    allDocs: 'All documentation',
+    onlineDocs: 'Online documentation',
+  },
   sidebar: {
     settings: 'Settings',
     help: 'Help',

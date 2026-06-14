@@ -44,6 +44,8 @@ import {
   Layers,
   Bot,
   User,
+  BookOpen,
+  ExternalLink,
 } from 'lucide-react';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -130,6 +132,41 @@ export function AppHeader({
   const { apps: metadataApps, dashboards: metadataDashboards, pages: metadataPages, reports: metadataReports } = useMetadata();
   const { currentAppName, recordTitle } = useNavigationContext();
   const mobileSwitcher = useMobileViewSwitcher();
+
+  /**
+   * Help menu — lazily-loaded `doc` metadata (ADR-0046) so the "?" menu can
+   * surface a contextual "This app's docs" entry. Fetched once on first menu
+   * open (names/labels only — `content` is omitted from the list response);
+   * `null` = not yet loaded, `[]` = loaded-but-empty.
+   */
+  const [helpDocs, setHelpDocs] = useState<Array<{ name: string; label?: string; _packageId?: string }> | null>(null);
+  const loadHelpDocs = useCallback(async () => {
+    if (helpDocs !== null) return; // fetch at most once per mount
+    try {
+      const client: any = dataSource?.getClient?.();
+      if (!client?.meta?.getItems) {
+        setHelpDocs([]);
+        return;
+      }
+      const result: any = await client.meta.getItems('doc');
+      const items: any[] = Array.isArray(result)
+        ? result
+        : Array.isArray(result?.items)
+          ? result.items
+          : Array.isArray(result?.value)
+            ? result.value
+            : [];
+      setHelpDocs(
+        items
+          .map((it) => ({ name: it?.name, label: it?.label, _packageId: it?._packageId }))
+          .filter((d) => d.name),
+      );
+    } catch {
+      // Soft-degrade: docs are an optional feature — a failed fetch just
+      // means the menu shows the static entries (All docs / Online docs).
+      setHelpDocs([]);
+    }
+  }, [helpDocs, dataSource]);
 
   const [apiActivities, setApiActivities] = useState<ActivityItem[] | null>(null);
   /**
@@ -472,6 +509,14 @@ export function AppHeader({
     ? safeObjects.filter((o: any) => appNavObjectNames.has(o.name))
     : safeObjects.filter((o: any) => !o.name.startsWith('sys_') && !o.name.startsWith('auth_'));
 
+  // Help menu — docs owned by the current app (matched by package id, the
+  // precise owner link; ADR-0048). Empty when not inside an app, the app
+  // ships no docs, or the lazy fetch hasn't run yet.
+  const currentAppPackageId = (currentApp as any)?._packageId as string | undefined;
+  const currentAppDocs = currentAppPackageId
+    ? (helpDocs ?? []).filter((d) => d._packageId === currentAppPackageId)
+    : [];
+
   const objectSiblings = appObjects.map((o: any) => ({
     label: objectLabel(o),
     href: `${baseHref}/${o.name}`,
@@ -772,18 +817,51 @@ export function AppHeader({
             </Link>
           </Button>
 
-          {/* Help */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 hidden md:flex shrink-0"
-            asChild
-            aria-label={t('sidebar.helpTooltip', { defaultValue: 'Help & Documentation' })}
-          >
-            <a href="https://docs.objectstack.ai" target="_blank" rel="noopener noreferrer">
-              <HelpCircle className="h-4 w-4" />
-            </a>
-          </Button>
+          {/* Help & Documentation — an aggregated menu rather than a bare
+              external link: contextual "This app's docs" (only when the
+              current app ships docs), the in-product docs hub, and the online
+              docs. The left-sidebar already links the hub, so this entry point
+              earns its place by being context-aware. */}
+          <DropdownMenu onOpenChange={(open) => { if (open) void loadHelpDocs(); }}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 hidden md:flex shrink-0"
+                aria-label={t('sidebar.helpTooltip', { defaultValue: 'Help & Documentation' })}
+              >
+                <HelpCircle className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56 rounded-lg" sideOffset={4}>
+              {currentAppDocs.length > 0 && currentAppPackageId ? (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() =>
+                    navigate(
+                      currentAppDocs.length === 1
+                        ? `/apps/${currentAppPackageId}/docs/${currentAppDocs[0].name}`
+                        : `/apps/${currentAppPackageId}/docs`,
+                    )
+                  }
+                >
+                  <BookOpen className="mr-2 h-4 w-4" />
+                  {t('help.appDocs', { defaultValue: "This app's docs" })}
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/docs')}>
+                <Layers className="mr-2 h-4 w-4" />
+                {t('help.allDocs', { defaultValue: 'All documentation' })}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <a href="https://docs.objectstack.ai" target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  {t('help.onlineDocs', { defaultValue: 'Online documentation' })}
+                </a>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Group 3: Account (theme + lang moved into avatar dropdown) */}
