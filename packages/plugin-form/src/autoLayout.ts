@@ -158,9 +158,16 @@ export function filterSystemFields(
 ): FormField[] {
   return fields.filter((field) => {
     if (SYSTEM_FIELD_NAMES.has(field.name)) return false;
+    const objField = objectSchema?.fields?.[field.name];
+    // Honor `hidden: true` — internal/system fields (e.g. database_url,
+    // metadata JSON blobs) must never surface as editable inputs in an
+    // auto-generated form. The list grid (ObjectGrid) and detail drawer
+    // already drop hidden fields; the auto-form is the one place that did
+    // not, which leaked e.g. sys_environment.metadata as a raw JSON
+    // textarea into the edit dialog. Applied in create AND edit.
+    if (objField?.hidden === true) return false;
     // Also drop fields the schema explicitly marks readonly — these are
     // platform-managed (e.g. id alias, formula result columns).
-    const objField = objectSchema?.fields?.[field.name];
     if (objField?.readonly === true) return false;
     return true;
   });

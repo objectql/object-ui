@@ -6,6 +6,7 @@ import {
   inferModalSize,
   applyAutoColSpan,
   filterCreateModeFields,
+  filterSystemFields,
   applyAutoLayout,
 } from '../autoLayout';
 import type { FormField } from '@object-ui/types';
@@ -174,7 +175,62 @@ describe('autoLayout', () => {
     });
   });
 
+  describe('filterSystemFields', () => {
+    const objectSchema = {
+      name: 'sys_environment',
+      fields: {
+        display_name: { type: 'text', label: 'Name' },
+        // hidden internal field — must never reach an auto-generated form
+        metadata: { type: 'textarea', label: 'Metadata', hidden: true },
+        database_url: { type: 'url', label: 'DB URL', hidden: true, readonly: true },
+        plan: { type: 'select', label: 'Plan', readonly: true },
+        created_at: { type: 'datetime', label: 'Created' },
+      },
+    };
+
+    it('drops fields marked hidden in the object schema', () => {
+      const fields: FormField[] = [
+        { name: 'display_name', label: 'Name', type: 'field:text' },
+        { name: 'metadata', label: 'Metadata', type: 'field:textarea' },
+        { name: 'database_url', label: 'DB URL', type: 'field:text' },
+        { name: 'plan', label: 'Plan', type: 'field:select' },
+        { name: 'created_at', label: 'Created', type: 'field:datetime' },
+      ];
+
+      const result = filterSystemFields(fields, objectSchema);
+
+      // hidden (metadata, database_url) + readonly (plan) + system name
+      // (created_at) all dropped — only the editable display_name remains.
+      expect(result.map(f => f.name)).toEqual(['display_name']);
+    });
+
+    it('keeps fields when no objectSchema metadata is available', () => {
+      const fields: FormField[] = [
+        { name: 'metadata', label: 'Metadata', type: 'field:textarea' },
+      ];
+      // Without schema metadata we cannot know it is hidden — keep it.
+      expect(filterSystemFields(fields, undefined)).toHaveLength(1);
+    });
+  });
+
   describe('applyAutoLayout', () => {
+    it('drops hidden schema fields in edit mode', () => {
+      const objectSchema = {
+        name: 'sys_environment',
+        fields: {
+          display_name: { type: 'text', label: 'Name' },
+          metadata: { type: 'textarea', label: 'Metadata', hidden: true },
+        },
+      };
+      const fields: FormField[] = [
+        { name: 'display_name', label: 'Name', type: 'field:text' },
+        { name: 'metadata', label: 'Metadata', type: 'field:textarea' },
+      ];
+
+      const result = applyAutoLayout(fields, objectSchema, undefined, 'edit');
+      expect(result.fields.map(f => f.name)).toEqual(['display_name']);
+    });
+
     it('infers 1 column for 3 fields', () => {
       const fields: FormField[] = [
         { name: 'a', label: 'A', type: 'field:text' },
