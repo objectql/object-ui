@@ -40,6 +40,20 @@ export interface RuntimeFeatures {
    * (env-revertible via `OS_AI_AUTOPUBLISH_DISABLED`). Default true.
    */
   autoPublishAiBuilds: boolean;
+  /**
+   * Branded subdomains + custom (BYO-DNS) domains are available on this
+   * environment's plan. Optional commercial flag — absent on self-hosted /
+   * vanilla runtimes (treated as off). When false the SPA hides custom-domain
+   * settings (or shows them as an upgrade affordance). Server-derived from the
+   * plan entitlements (cloud ADR-0011/0012).
+   */
+  customDomain?: boolean;
+  /**
+   * SSO / SAML enterprise login is available on this environment's plan.
+   * Optional commercial flag — absent on self-hosted / vanilla runtimes
+   * (treated as off). Server-derived from the plan entitlements.
+   */
+  sso?: boolean;
 }
 
 export interface RuntimeBranding {
@@ -69,7 +83,7 @@ const defaults: RuntimeConfig = {
   singleEnvironment: false,
   defaultOrgId: null,
   defaultEnvironmentId: null,
-  features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true },
+  features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true, customDomain: false, sso: false },
   branding: { productName: 'ObjectOS', productShortName: 'ObjectOS' },
 };
 
@@ -123,6 +137,10 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
           marketplace: body.features.marketplace !== false,
           aiStudio: body.features.aiStudio !== false,
           autoPublishAiBuilds: body.features.autoPublishAiBuilds !== false,
+          // Commercial flags default OFF unless the server explicitly grants
+          // them — never show a paid surface on an unknown/older runtime.
+          customDomain: body.features.customDomain === true,
+          sso: body.features.sso === true,
         }
         : current.features,
       branding: body.branding
