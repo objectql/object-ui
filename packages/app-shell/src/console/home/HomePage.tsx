@@ -26,6 +26,7 @@ import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { AppCard } from './AppCard';
 import { RecentApps } from './RecentApps';
 import { StarredApps } from './StarredApps';
+import { appRouteSegment } from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid, ShieldAlert, X, UploadCloud } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
@@ -406,7 +407,7 @@ export function HomePage() {
                   key={app.name}
                   app={app}
                   index={idx}
-                  onClick={() => navigate(`/apps/${app.name}`)}
+                  onClick={() => navigate(`/apps/${appRouteSegment(app) ?? app.name}`)}
                   isFavorite={favorites.some(f => f.id === `app:${app.name}`)}
                 />
               ))}

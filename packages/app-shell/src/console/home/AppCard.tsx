@@ -9,7 +9,7 @@
 import { Star, StarOff, ArrowUpRight } from 'lucide-react';
 import { Card, CardContent, Button, Badge } from '@object-ui/components';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
-import { resolveI18nLabel } from '../../utils';
+import { resolveI18nLabel, appRouteSegment } from '../../utils';
 import { useFavorites } from '../../hooks/useFavorites';
 import { getIcon } from '../../utils/getIcon';
 import { cn } from '@object-ui/components';
@@ -53,7 +53,9 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
     toggleFavorite({
       id: `app:${app.name}`,
       label,
-      href: `/apps/${app.name}`,
+      // ADR-0048 — link to the canonical package-id route segment, not the
+      // app name, so the favorite opens `/apps/<packageId>` like the nav does.
+      href: `/apps/${appRouteSegment(app) ?? app.name}`,
       type: 'object',
     });
   };
