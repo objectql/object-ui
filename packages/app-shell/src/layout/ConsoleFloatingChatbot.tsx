@@ -11,6 +11,7 @@
  * @module
  */
 import React from 'react';
+import { useReconcileOnError } from '../hooks/useReconcileOnError';
 import {
   FloatingChatbot,
   useObjectChat,
@@ -385,6 +386,11 @@ function ChatbotInner({
     [editor, language],
   );
 
+  // ADR-0013 D2: reconcile a stream-transport failure instead of blindly
+  // retrying. Shared across chat surfaces — see useReconcileOnError.
+  const { errorSuppressed, handleChatError, setMessagesRef, resetSuppression } =
+    useReconcileOnError({ chatApi, conversationId });
+
   const {
     messages,
     isLoading,
@@ -393,9 +399,11 @@ function ChatbotInner({
     stop,
     reload,
     clear,
+    setMessages,
   } = useObjectChat({
     api: chatApi,
     conversationId,
+    onError: handleChatError,
     body: {
       context: {
         activeApp: appLabel,
@@ -431,6 +439,10 @@ function ChatbotInner({
   });
 
   React.useEffect(() => {
+    setMessagesRef.current = setMessages;
+  }, [setMessages]);
+
+  React.useEffect(() => {
     writeConversationMessagesCache(
       conversationId,
       sanitizeChatMessagesForCache(messages as ChatMessage[]),
@@ -446,6 +458,7 @@ function ChatbotInner({
     messages: messages as ChatMessage[],
     apiBase,
     continueConversation: (prompt) => {
+      resetSuppression();
       sendMessage(prompt);
     },
   });
@@ -547,12 +560,12 @@ function ChatbotInner({
               ? locale.loadingPlaceholder
               : locale.placeholder
         }
-        onSendMessage={(content: string) => sendMessage(content)}
+        onSendMessage={(content: string) => { resetSuppression(); sendMessage(content); }}
         onClear={clear}
         onStop={isLoading ? stop : undefined}
         onReload={reload}
         isLoading={isLoading}
-        error={error}
+        error={errorSuppressed ? undefined : error}
         enableMarkdown
         onToolApprove={hitl.decide}
         toolDecisions={hitl.decisions}

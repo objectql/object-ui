@@ -56,10 +56,8 @@ import {
   writeConversationMessagesCache,
   type HydratedUIMessage,
   type HydratedUIMessagePart,
-  fetchConversation,
-  toUIMessages,
 } from '../../hooks/useChatConversation';
-import { isReconcilableCompletedTurn } from './reconcileTurn';
+import { useReconcileOnError } from '../../hooks/useReconcileOnError';
 import { ConversationsSidebar } from './ConversationsSidebar';
 import { LiveCanvas } from './LiveCanvas';
 
@@ -745,34 +743,10 @@ function ChatPane({
     return buildAgentSuggestions(activeAgent, activeAgentLabel, t);
   }, [hydrated.length, activeAgent, activeAgentLabel, t]);
 
-  // ADR-0013 D2: a stream-transport drop may happen AFTER the server already
-  // persisted the final reply (it persists before streaming). Before surfacing a
-  // scary "Response failed", reconcile from the server — if the turn completed,
-  // render the persisted reply instead of offering a re-run.
-  const [errorSuppressed, setErrorSuppressed] = useState(false);
-  const setMessagesRef = useRef<((m: unknown[]) => void) | undefined>(undefined);
-  const handleChatError = useCallback(
-    async (_err: Error) => {
-      const aiBase = chatApi?.replace(/\/agents\/[^/]+\/chat$/, '');
-      if (!conversationId || !aiBase) {
-        setErrorSuppressed(false);
-        return;
-      }
-      try {
-        const conv = await fetchConversation(aiBase, conversationId);
-        const ui = toUIMessages(conv?.messages);
-        if (isReconcilableCompletedTurn(ui) && setMessagesRef.current) {
-          setMessagesRef.current(ui as unknown[]);
-          setErrorSuppressed(true);
-          return;
-        }
-      } catch {
-        /* fall through to the normal error banner */
-      }
-      setErrorSuppressed(false);
-    },
-    [conversationId, chatApi],
-  );
+  // ADR-0013 D2: reconcile a stream-transport failure instead of blindly
+  // retrying. Shared across chat surfaces — see useReconcileOnError.
+  const { errorSuppressed, handleChatError, setMessagesRef, resetSuppression } =
+    useReconcileOnError({ chatApi, conversationId });
 
   const {
     messages,
@@ -823,7 +797,7 @@ function ChatPane({
 
   const handleSend = useCallback(
     (content: string, files?: File[]) => {
-      setErrorSuppressed(false);
+      resetSuppression();
       sendMessage(content, files);
       onSent(content);
     },
