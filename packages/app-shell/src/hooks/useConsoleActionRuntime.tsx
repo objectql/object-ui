@@ -44,7 +44,7 @@ import { ActionResultDialog, type ResultDialogState } from '../views/ActionResul
 import { FlowRunner, type ScreenFlowState } from '../views/FlowRunner';
 import { resolveActionParams } from '../utils/resolveActionParams';
 
-const FALLBACK_USER = { id: 'current-user', name: 'Demo User' };
+const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
 export interface ConsoleActionRuntimeOptions {
   /** Adapter for generic CRUD / execute calls. */
@@ -156,7 +156,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText]);
 
   const currentUser = user
-    ? { id: user.id, name: user.name, avatar: user.image }
+    ? { id: user.id, name: user.name, avatar: user.image, isPlatformAdmin: (user as any)?.isPlatformAdmin ?? false }
     : FALLBACK_USER;
 
   const toastHandler = useCallback<ToastHandler>((message, options) => {
