@@ -601,6 +601,15 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 // them as an atomic master-detail form (no bespoke page).
                 subforms: (currentObjectDef as any).form?.subforms
                   ?? (currentObjectDef as any).formViews?.default?.subforms,
+                // ADR-0050 (#1890): forward the default form view's layout so the
+                // New/Edit modal can be tabbed (not just a flat stack). `formType`
+                // stays 'modal' (the container); `contentLayout` carries the layout.
+                ...(() => {
+                  const fd: any = (currentObjectDef as any).form ?? (currentObjectDef as any).formViews?.default;
+                  return fd?.type === 'tabbed' && Array.isArray(fd?.sections)
+                    ? { contentLayout: 'tabbed' as const, sections: fd.sections }
+                    : {};
+                })(),
                 title: editingRecord
                   ? t('form.editTitle', { object: objectLabel(currentObjectDef as any) })
                   : t('form.createTitle', { object: objectLabel(currentObjectDef as any) }),

@@ -24,6 +24,10 @@ import {
   Skeleton,
   Button,
   cn,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
 } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
@@ -51,6 +55,9 @@ export interface ModalFormSchema {
   title?: string;
   description?: string;
   sections?: ModalFormSectionConfig[];
+  /** Internal content layout (ADR-0050, #1890): 'tabbed' renders sections as
+   *  tabs inside the modal, so "modal + tabbed" composes. Default stacks them. */
+  contentLayout?: 'simple' | 'tabbed';
   fields?: string[];
   customFields?: FormField[];
 
@@ -449,28 +456,59 @@ export const ModalForm: React.FC<ModalFormProps> = ({
 
     // Sections layout
     if (schema.sections?.length) {
+      const sections = schema.sections;
+      const sectionKey = (sec: ModalFormSectionConfig, i: number) => sec.name || sec.label || String(i);
+      const renderBody = (section: ModalFormSectionConfig) => (
+        <SchemaRenderer
+          schema={{
+            ...baseFormSchema,
+            fields: applyFieldPerms(buildSectionFields(section)),
+            // Actions are in the sticky footer, not inside sections
+          }}
+        />
+      );
+
+      // ADR-0050 (#1890): a modal can host a tabbed layout — sections render as
+      // tabs (label on the trigger) instead of a vertical stack, so a modal
+      // create/edit form composes with `tabbed`.
+      if (schema.contentLayout === 'tabbed' && sections.length > 1) {
+        return (
+          <Tabs defaultValue={sectionKey(sections[0], 0)} className="w-full">
+            <TabsList className="mb-4">
+              {sections.map((section, index) => (
+                <TabsTrigger key={sectionKey(section, index)} value={sectionKey(section, index)}>
+                  {section.label || `Section ${index + 1}`}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {sections.map((section, index) => (
+              <TabsContent key={sectionKey(section, index)} value={sectionKey(section, index)}>
+                <FormSection
+                  description={section.description}
+                  columns={section.columns || 1}
+                  gridClassName={CONTAINER_GRID_COLS[section.columns || 1]}
+                >
+                  {renderBody(section)}
+                </FormSection>
+              </TabsContent>
+            ))}
+          </Tabs>
+        );
+      }
+
       return (
         <div className="space-y-6">
-          {schema.sections.map((section, index) => {
-            const sectionCols = section.columns || 1;
-            return (
-              <FormSection
-                key={section.name || section.label || index}
-                label={section.label}
-                description={section.description}
-                columns={sectionCols}
-                gridClassName={CONTAINER_GRID_COLS[sectionCols]}
-              >
-                <SchemaRenderer
-                  schema={{
-                    ...baseFormSchema,
-                    fields: applyFieldPerms(buildSectionFields(section)),
-                    // Actions are in the sticky footer, not inside sections
-                  }}
-                />
-              </FormSection>
-            );
-          })}
+          {sections.map((section, index) => (
+            <FormSection
+              key={sectionKey(section, index)}
+              label={section.label}
+              description={section.description}
+              columns={section.columns || 1}
+              gridClassName={CONTAINER_GRID_COLS[section.columns || 1]}
+            >
+              {renderBody(section)}
+            </FormSection>
+          ))}
         </div>
       );
     }
