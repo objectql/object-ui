@@ -87,7 +87,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const { dataSource, objects, objectName, onRefresh } = opts;
   const navigate = useNavigate();
   const { user, activeOrganization } = useAuth();
-  const { fieldLabel, fieldOptionLabel, actionParamText } = useObjectLabel();
+  const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel } = useObjectLabel();
 
   const objectDef = useMemo(
     () => (objectName ? objects?.find((o: any) => o.name === objectName) : undefined),
@@ -144,6 +144,9 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         label: actionParamText(objForI18n, action?.name, p.name, 'label', p.label) ?? p.label,
         placeholder: actionParamText(objForI18n, action?.name, p.name, 'placeholder', p.placeholder) ?? p.placeholder,
         helpText: actionParamText(objForI18n, action?.name, p.name, 'helpText', p.helpText) ?? p.helpText,
+        options: Array.isArray(p.options)
+          ? p.options.map((o: any) => ({ ...o, label: actionParamOptionLabel(objForI18n, action?.name, p.name, o.value, o.label) }))
+          : p.options,
       }));
       setParamState({
         open: true,
@@ -153,7 +156,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         resolve,
       });
     });
-  }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText]);
+  }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel]);
 
   const currentUser = user
     ? { id: user.id, name: user.name, avatar: user.image, isPlatformAdmin: (user as any)?.isPlatformAdmin ?? false }

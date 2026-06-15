@@ -119,7 +119,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const location = useLocation();
   const originFrom = (location.state as any)?.from as { pathname?: string; label?: string } | undefined;
   const { t } = useObjectTranslation();
-  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, fieldLabel, fieldOptionLabel } = useObjectLabel();
+  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, fieldLabel, fieldOptionLabel } = useObjectLabel();
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
   const { addRecentItem } = useRecentItems();
   const [isLoading, setIsLoading] = useState(true);
@@ -332,6 +332,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         label: actionParamText(objForI18n, action?.name, p.name, 'label', p.label) ?? p.label,
         placeholder: actionParamText(objForI18n, action?.name, p.name, 'placeholder', p.placeholder) ?? p.placeholder,
         helpText: actionParamText(objForI18n, action?.name, p.name, 'helpText', p.helpText) ?? p.helpText,
+        options: Array.isArray(p.options)
+          ? p.options.map((o: any) => ({ ...o, label: actionParamOptionLabel(objForI18n, action?.name, p.name, o.value, o.label) }))
+          : p.options,
       }));
       setParamState({
         open: true,
@@ -342,7 +345,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         resolve,
       });
     });
-  }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText]);
+  }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel]);
 
   const toastHandler = useCallback((message: string, options?: { type?: string }) => {
     if (options?.type === 'error') toast.error(message);

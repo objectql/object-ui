@@ -407,6 +407,25 @@ export function useObjectLabel() {
       const resolved = resolve(suffixes, fb);
       return resolved || undefined;
     },
+    /**
+     * Resolve a translated action-parameter SELECT OPTION label.
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.params.{paramName}.options.{optionValue}`.
+     * Falls back to the provided (English metadata) label when untranslated.
+     */
+    actionParamOptionLabel: (
+      objectName: string | undefined,
+      actionName: string | undefined,
+      paramName: string,
+      optionValue: string,
+      fallback: string,
+    ) => {
+      if (!actionName || !paramName) return fallback;
+      const suffix = `_actions.${actionName}.params.${paramName}.options.${optionValue}`;
+      const suffixes = objectName
+        ? objectSuffixes(objectName, suffix)
+        : `globalActions.${actionName}.params.${paramName}.options.${optionValue}`;
+      return resolve(suffixes, fallback);
+    },
   };
   }, [t, i18n]);
 }
