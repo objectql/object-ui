@@ -225,6 +225,28 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
     );
   }
 
+  // Honour the object's form view layout (#1890): wire the declared `type`
+  // (simple/tabbed/wizard/split) + `sections` through to ObjectForm, which
+  // already renders each variant. Page-level layouts only — `drawer`/`modal`
+  // are presentation/open-modes, not record-page layouts, so they fall back to
+  // `simple` here (see the form-layout-vs-presentation modelling note in #1890).
+  const formDef: any = (objectDef as any).form ?? (objectDef as any).formViews?.default ?? {};
+  const pageFormType: 'simple' | 'tabbed' | 'wizard' | 'split' =
+    ['tabbed', 'wizard', 'split'].includes(formDef.type) ? formDef.type : 'simple';
+  const formLayoutProps =
+    pageFormType !== 'simple' && Array.isArray(formDef.sections)
+      ? {
+          sections: formDef.sections,
+          defaultTab: formDef.defaultTab,
+          tabPosition: formDef.tabPosition,
+          allowSkip: formDef.allowSkip,
+          showStepIndicator: formDef.showStepIndicator,
+          splitDirection: formDef.splitDirection,
+          splitSize: formDef.splitSize,
+          splitResizable: formDef.splitResizable,
+        }
+      : {};
+
   return (
     <ExpressionProvider user={expressionUser} app={{ name: appName }} data={{}} features={features}>
       <div
@@ -270,7 +292,8 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
               key={`${mode}:${objectName}:${recordId ?? 'new'}`}
               schema={{
                 type: 'object-form',
-                formType: 'simple',
+                formType: pageFormType,
+                ...formLayoutProps,
                 objectName: objectDef.name,
                 mode,
                 recordId: mode === 'edit' ? recordId : undefined,
