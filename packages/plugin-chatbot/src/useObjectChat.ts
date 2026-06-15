@@ -13,6 +13,31 @@ import { DefaultChatTransport } from 'ai';
 import { generateUniqueId } from './utils';
 import { uiMessagesToChatMessages } from './mapMessages';
 
+/**
+ * Stamp a stable per-turn idempotency key (ADR-0013 D1) onto the outgoing
+ * request body, derived from the id of the user message that triggered the
+ * turn. On Retry the AI SDK re-sends the SAME triggering user message
+ * (regenerate-message keeps the trailing user turn), so its id — and thus the
+ * turnId — is identical across the original send and the retry. The server
+ * dedups the inbound user message by (conversationId, turnId) and
+ * short-circuits a completed turn instead of re-running tools / replanning.
+ *
+ * Exported for unit testing; wired into the transport's
+ * `prepareSendMessagesRequest` below.
+ */
+export function withTurnId(req: {
+  body: Record<string, unknown> | undefined;
+  messages: Array<{ id: string; role: string }>;
+}): { body: Record<string, unknown> } {
+  const lastUser = [...req.messages].reverse().find((m) => m.role === 'user');
+  return {
+    body: {
+      ...(req.body ?? {}),
+      ...(lastUser ? { turnId: lastUser.id } : {}),
+    },
+  };
+}
+
 type InitialMessage = OuiChatMessage & {
   parts?: Array<Record<string, unknown>>;
   reasoning?: string;
@@ -231,6 +256,9 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
         ...(systemPrompt ? { systemPrompt } : {}),
         ...(streamingEnabled !== undefined ? { stream: streamingEnabled } : {}),
       },
+      // Stamp a stable per-turn idempotency key (ADR-0013 D1). See withTurnId.
+      prepareSendMessagesRequest: ({ body: reqBody, messages }) =>
+        withTurnId({ body: reqBody, messages }),
     });
   }, [isApiMode, api, headers, body, model, systemPrompt, streamingEnabled, conversationId]);
 
