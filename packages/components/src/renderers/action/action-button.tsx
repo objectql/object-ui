@@ -51,8 +51,15 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
     // Record data may be passed from SchemaRenderer (e.g. DetailView passes record data)
     const recordData = data != null && typeof data === 'object' ? data as Record<string, any> : {};
 
-    // Evaluate visibility and enabled conditions with record data context
+    // Evaluate visibility and disabled conditions with record data context.
     const isVisible = useCondition(toPredicateInput(schema.visible), recordData);
+    // Spec field is `disabled` (boolean | CEL predicate — disabled when TRUE).
+    // It previously had zero consumers (the renderer only read a non-spec
+    // `enabled`), so a spec-authored `disabled` guard did nothing (#1885,
+    // ADR-0049). We now consume `disabled` as the primary control and keep the
+    // legacy non-spec `enabled` as a deprecated fallback so existing metadata
+    // keeps working.
+    const isDisabled = useCondition(toPredicateInput((schema as any).disabled), recordData);
     const isEnabled = useCondition(toPredicateInput(schema.enabled), recordData);
 
     // Resolve icon
@@ -113,7 +120,13 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
         variant={variant as any}
         size={size as any}
         className={cn(schema.className, className)}
-        disabled={(schema.enabled ? !isEnabled : false) || loading}
+        disabled={(
+          (schema as any).disabled != null
+            ? isDisabled
+            : schema.enabled != null
+              ? !isEnabled
+              : false
+        ) || loading}
         onClick={handleClick}
         {...rest}
         {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
