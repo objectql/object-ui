@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@object-ui/types": "workspace:*",
-    "@objectstack/formula": "^9.0.0",
+    "@objectstack/formula": "^9.5.1",
     "@objectstack/spec": "^9.5.1",
     "lodash": "^4.18.1",
     "zod": "^4.4.3"

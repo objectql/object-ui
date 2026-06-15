@@ -1035,8 +1035,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^9.0.0
-        version: 9.0.0(ai@6.0.205(zod@4.4.3))
+        specifier: ^9.5.1
+        version: 9.5.1(ai@6.0.205(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^9.5.1
         version: 9.5.1(ai@6.0.205(zod@4.4.3))
@@ -4012,17 +4012,8 @@ packages:
     resolution: {integrity: sha512-45uA5bvBkJU4BoruI7WKhP/jYQnOxZTaRcPutx4AD9rzComrSfCmI6Bq0gr6RQKlTtOH3cV95q1DFVS3CorZPw==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/formula@9.0.0':
-    resolution: {integrity: sha512-Ng5Hjf14il8gph09QRoX6LWD9QmURCdap8KHD44Ro25hudN4oSA2VhfHwDt31kSmedqUNsnYo4BjgAZLEWQaiw==}
-
-  '@objectstack/spec@9.0.0':
-    resolution: {integrity: sha512-02/NF7c/oAFr4pfpyBgsly9Tv1LFZFaX5rXVtjLCJOMYBVBqAXctOUuhUsv7G7RGOYubNuuig0PsNlK+EtX1DA==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      ai: ^6.0.0
-    peerDependenciesMeta:
-      ai:
-        optional: true
+  '@objectstack/formula@9.5.1':
+    resolution: {integrity: sha512-p0BkDZPxfLHywG/UAS+kMSsN9DaIMiT7Az3NpGK4nOgrbe/F9BEqfz9U83zHFmm0+odTO+I456OvteRM+lA5Fg==}
 
   '@objectstack/spec@9.5.1':
     resolution: {integrity: sha512-g57Q0bDH/Miw8OD8BRizl5meAMcIMdlfpL/3yKB0sr2AZHuppE8UuINwNtabdtTVlIYXUtQI1x9twcoxr2zqcg==}
@@ -11906,18 +11897,12 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@9.0.0(ai@6.0.205(zod@4.4.3))':
+  '@objectstack/formula@9.5.1(ai@6.0.205(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 7.6.1
-      '@objectstack/spec': 9.0.0(ai@6.0.205(zod@4.4.3))
+      '@objectstack/spec': 9.5.1(ai@6.0.205(zod@4.4.3))
     transitivePeerDependencies:
       - ai
-
-  '@objectstack/spec@9.0.0(ai@6.0.205(zod@4.4.3))':
-    dependencies:
-      zod: 4.4.3
-    optionalDependencies:
-      ai: 6.0.205(zod@4.4.3)
 
   '@objectstack/spec@9.5.1(ai@6.0.205(zod@4.4.3))':
     dependencies:
