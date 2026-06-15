@@ -20,7 +20,7 @@ import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadataClient } from './metadata-admin/useMetadata';
 import { persistRuntimeMetadata } from './runtime-metadata-persistence';
 import { useAuth } from '@object-ui/auth';
-import type { DataSource } from '@object-ui/types';
+import type { DataSource, ReportViewerSchema } from '@object-ui/types';
 import type { DatasetDrillArgs } from '@object-ui/plugin-report';
 
 // Fallback fields when no schema is available
@@ -496,7 +496,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
         Array.isArray(previewReport.columns)),
   );
   const reportForViewer = mapReportForViewer(previewReport);
-  const viewerSchema = {
+  const viewerSchema: ReportViewerSchema = {
       type: 'report-viewer',
       report: reportForViewer, // The report definition
       data: reportRuntimeData, // Runtime data fetched from the data source

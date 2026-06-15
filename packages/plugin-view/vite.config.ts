@@ -11,7 +11,8 @@ export default defineConfig({
     react(),
     dts({
       insertTypesEntry: true,
-      compilerOptions: { rootDir: resolve(__dirname, '../..') },
+      compilerOptions: { rootDir: resolve(__dirname, 'src') },
+      aliasesExclude: [/^@object-ui\//],
       include: ['src'],
       exclude: ['**/*.test.ts', '**/*.test.tsx'],
     }),

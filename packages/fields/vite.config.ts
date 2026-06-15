@@ -8,7 +8,8 @@ export default defineConfig({
     react(),
     dts({
       insertTypesEntry: true,
-      compilerOptions: { rootDir: path.resolve(__dirname, '../..') },
+      compilerOptions: { rootDir: path.resolve(__dirname, 'src') },
+      aliasesExclude: [/^@object-ui\//],
     }),
   ],
   resolve: {

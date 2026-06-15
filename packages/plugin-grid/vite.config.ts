@@ -9,7 +9,8 @@ export default defineConfig({
     dts({
       insertTypesEntry: true,
       include: ['src'],
-      compilerOptions: { rootDir: resolve(__dirname, '../..') },
+      compilerOptions: { rootDir: resolve(__dirname, 'src') },
+      aliasesExclude: [/^@object-ui\//],
     }),
   ],
   resolve: {
