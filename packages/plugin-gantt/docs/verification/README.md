@@ -553,3 +553,36 @@ The script asserts (7/7 checks passed):
 - **导出 PNG / PDF** — both export buttons download real files: a valid PNG
   (`‰PNG` magic bytes) and a dependency-free single-page PDF (`%PDF-` header)
   embedding the rasterized chart as a JPEG via `DCTDecode`.
+
+## Read-only experience + mobile read-only thumbnail — 只读体验 + 移动端只读缩略
+
+`scripts/verify-readonly-mobile.mjs` drives the `?lang=zh` project fixture for
+the Group 4 additions. Where Phase 6.2 added the bare `readOnly` gate, this
+group layers a visible **read-only badge**, **context-menu suppression**, and a
+**mobile-narrow auto-read-only** mode on top. Covered by unit tests in
+[`GanttView.readonly.test.tsx`](../../src/GanttView.readonly.test.tsx) (12 cases)
+and [`ObjectGantt.test.tsx`](../../src/ObjectGantt.test.tsx) (mobileReadOnly
+wiring). Internally a single `effectiveReadOnly = readOnly || (mobileReadOnly &&
+isNarrow)` folds the mobile-narrow case into the existing read-only gate, so all
+eight write callbacks inherit it in one place; the root carries `data-readonly`
+and `data-mobile-readonly` for styling/testing.
+
+The script asserts (14/14 checks passed):
+
+- **只读体验** — `?readonly=1` shows a 🔒 只读 badge in the toolbar and strips
+  every write affordance together: bar resize / progress handles, the
+  dependency-link dot, and the Undo/Redo + auto-schedule buttons. The root
+  carries `data-readonly`. Non-mutating affordances (task click, view-mode
+  switch, zoom, export, fullscreen) stay live.
+- ![Read-only desktop](49-readonly-desktop.png)
+- **只读右键菜单** — right-clicking a bar in read-only opens a view-only menu
+  (查看详情) with no edit / delete / add-dependency items; when *no* action at
+  all is available (no `onTaskClick` and every mutation gated off) the menu is
+  suppressed entirely rather than opening an empty popover.
+- ![Read-only context menu](50-readonly-context-menu.png)
+- **移动端只读缩略** — with `mobileReadOnly` on (default from `ObjectGantt`;
+  opt out with `mobileReadOnly: false`), a narrow viewport (≤ 640px) auto-enters
+  read-only so touch users get a clean, scrollable thumbnail. At 420px the badge
+  shows, the root carries `data-mobile-readonly`, and the resize handles are
+  gone; wider viewports stay fully editable.
+- ![Mobile read-only thumbnail](51-mobile-readonly.png)

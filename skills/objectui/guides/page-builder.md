@@ -392,7 +392,8 @@ field mappings):
 | `markers: [{ date, label?, color? }]` | Extra vertical marker lines (like the Today line). |
 | `viewMode: "day"\|"week"\|"month"\|"quarter"\|"year"` | Initial timeline granularity (default `day`); the toolbar segmented control switches it live. `year` widens the axis to one column per year with a decade (`2020s`) band above. |
 | `persistLayout: false` | Disable layout persistence. By default the toolbar's **保存布局 (save layout)** button snapshots the current granularity + zoom + task-list collapse to `localStorage` (key `gantt-layout:<object>:<view>`) and restores it on next load; set `false` to opt out. |
-| `readOnly: true` | **Disable all editing** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. Task click + granularity switching still work. Use for dashboards / shared read-only views. |
+| `readOnly: true` | **Disable all editing** — no bar drag/resize/progress, no inline edit, no delete, no dependency-link drag, no reorder, no auto-schedule, and the Undo/Redo buttons are hidden. A 🔒 只读 badge shows in the toolbar, and the right-click menu drops to view-only (or is suppressed when nothing is actionable). Task click + granularity switching still work. Use for dashboards / shared read-only views. |
+| `mobileReadOnly: false` | On a narrow viewport (≤ 640px) the chart **auto-enters read-only** to give touch users a clean, scrollable thumbnail (移动端只读缩略) — same gating as `readOnly`, applied only while narrow. Enabled by default; set `false` to keep editing live on small screens. |
 
 The toolbar also carries **navigation** (今天 / 本周 / 本月 jump-to buttons that
 scroll the timeline to the start of today/this-week/this-month) and **export**

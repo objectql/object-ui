@@ -56,6 +56,8 @@ const GANTT_ZH = {
       cancel: '取消保留',
     },
     resource: { header: '资源', peak: '峰值', over: '超载', empty: '没有可分配的任务。' },
+    readOnly: '只读',
+    readOnlyHint: '此视图已禁用编辑。',
   },
 };
 
@@ -281,6 +283,8 @@ function App() {
     params.get('cal') === '1' ? { skipWeekends: true } : undefined;
   const showBaselines = params.get('baselines') !== '0';
   const readOnly = params.get('readonly') === '1';
+  // ?mobilereadonly=1 — force read-only on narrow viewports (移动端只读缩略).
+  const mobileReadOnly = params.get('mobilereadonly') === '1';
   // ?group=owner|status — dynamic Group by (动态 Group by). Buckets leaf tasks
   // under one synthesized summary row per distinct value.
   const groupField = params.get('group');
@@ -374,6 +378,7 @@ function App() {
           workingCalendar={workingCalendar}
           showBaselines={showBaselines}
           readOnly={readOnly}
+          mobileReadOnly={mobileReadOnly}
           groupBy={groupBy}
           ungroupedLabel="未分组"
           persistLayoutKey="demo-project"

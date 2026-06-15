@@ -9,10 +9,10 @@ import { DataSource } from '@object-ui/types';
 // for "Create", "View", and "Delete" so CRUD wiring can be unit-tested
 // without rendering the full timeline.
 vi.mock('./GanttView', () => ({
-  GanttView: ({ tasks, onTaskClick, onTaskUpdate, onTaskDelete, onDependencyCreate, onDependencyDelete, rescheduleOnConflict, persistLayoutKey }: any) => {
+  GanttView: ({ tasks, onTaskClick, onTaskUpdate, onTaskDelete, onDependencyCreate, onDependencyDelete, rescheduleOnConflict, persistLayoutKey, mobileReadOnly }: any) => {
     const byId = (id: any) => tasks.find((t: any) => String(t.id) === String(id));
     return (
-      <div data-testid="gantt-view" data-reschedule-on-conflict={String(!!rescheduleOnConflict)} data-persist-layout-key={persistLayoutKey || ''}>
+      <div data-testid="gantt-view" data-reschedule-on-conflict={String(!!rescheduleOnConflict)} data-persist-layout-key={persistLayoutKey || ''} data-mobile-readonly={String(!!mobileReadOnly)}>
         {tasks.map((t: any) => (
           <div key={t.id} data-testid="gantt-task">
             <span>{t.title}</span>
@@ -349,6 +349,21 @@ describe('ObjectGantt', () => {
     render(<ObjectGantt schema={noPersist} dataSource={ds} />);
     await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
     expect(screen.getByTestId('gantt-view').getAttribute('data-persist-layout-key')).toBe('');
+  });
+
+  it('enables mobileReadOnly by default (移动端只读缩略)', async () => {
+    const ds: DataSource = { ...mockDataSource, find: vi.fn().mockResolvedValue({ data: depData }) };
+    render(<ObjectGantt schema={depSchema} dataSource={ds} />);
+    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
+    expect(screen.getByTestId('gantt-view').getAttribute('data-mobile-readonly')).toBe('true');
+  });
+
+  it('opts out of mobileReadOnly when schema.mobileReadOnly is false', async () => {
+    const noMobile = { ...depSchema, mobileReadOnly: false } as any;
+    const ds: DataSource = { ...mockDataSource, find: vi.fn().mockResolvedValue({ data: depData }) };
+    render(<ObjectGantt schema={noMobile} dataSource={ds} />);
+    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
+    expect(screen.getByTestId('gantt-view').getAttribute('data-mobile-readonly')).toBe('false');
   });
 });
 

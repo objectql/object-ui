@@ -28,6 +28,7 @@ import {
   Redo2,
   FileDown,
   Save,
+  Lock,
 } from "lucide-react"
 import {
   cn,
@@ -261,6 +262,14 @@ export interface GanttViewProps {
    */
   readOnly?: boolean
   /**
+   * Mobile read-only (移动端只读缩略). When true, the chart auto-enters read-only
+   * mode on narrow viewports (< 640px) so touch users get a clean, scrollable
+   * thumbnail of the schedule instead of error-prone drag editing — equivalent
+   * to `readOnly` but scoped to small screens. Wider viewports are unaffected.
+   * Independent of (and OR-combined with) `readOnly`.
+   */
+  mobileReadOnly?: boolean
+  /**
    * Dynamic grouping accessor (动态 Group by). When provided, leaf tasks are
    * bucketed by the returned `key` and rendered beneath one synthesized summary
    * row per group — the original `parent` hierarchy is replaced by the grouping.
@@ -429,23 +438,12 @@ export function GanttView({
   workingCalendar,
   showBaselines = true,
   readOnly = false,
+  mobileReadOnly = false,
   groupBy,
   ungroupedLabel = 'Ungrouped',
   persistLayoutKey,
   onLayoutChange,
 }: GanttViewProps) {
-  // Read-only gating, applied once at the top so every downstream usage —
-  // drag/resize/progress, inline edit, delete, link-drag, reorder,
-  // auto-schedule, and the Undo/Redo toolbar (which keys off onTaskUpdate) —
-  // inherits it. `onTaskClick` / `onViewChange` stay live: they don't mutate.
-  const onTaskUpdate = readOnly ? undefined : onTaskUpdateProp;
-  const onTaskDelete = readOnly ? undefined : onTaskDeleteProp;
-  const onDependencyCreate = readOnly ? undefined : onDependencyCreateProp;
-  const onDependencyDelete = readOnly ? undefined : onDependencyDeleteProp;
-  const onTaskReorder = readOnly ? undefined : onTaskReorderProp;
-  const inlineEdit = readOnly ? false : inlineEditProp;
-  const autoSchedule = readOnly ? false : autoScheduleProp;
-  const rescheduleOnConflict = readOnly ? false : rescheduleOnConflictProp;
   const { t, language } = useGanttTranslation();
   // Locale for every user-facing date label. Falls back to the runtime default
   // (browser locale) when no I18nProvider supplies a language, so standalone
@@ -456,6 +454,21 @@ export function GanttView({
   const { width: containerWidth } = useResizeObserver(containerRef);
   const effectiveWidth = containerWidth || (typeof window !== 'undefined' ? window.innerWidth : 1024);
   const isNarrow = effectiveWidth < 640;
+  // Read-only gating, applied once at the top so every downstream usage —
+  // drag/resize/progress, inline edit, delete, link-drag, reorder,
+  // auto-schedule, and the Undo/Redo toolbar (which keys off onTaskUpdate) —
+  // inherits it. `mobileReadOnly` folds in on narrow viewports so touch users
+  // get a read-only thumbnail (移动端只读缩略). `onTaskClick` / `onViewChange`
+  // stay live: they don't mutate.
+  const effectiveReadOnly = readOnly || (mobileReadOnly && isNarrow);
+  const onTaskUpdate = effectiveReadOnly ? undefined : onTaskUpdateProp;
+  const onTaskDelete = effectiveReadOnly ? undefined : onTaskDeleteProp;
+  const onDependencyCreate = effectiveReadOnly ? undefined : onDependencyCreateProp;
+  const onDependencyDelete = effectiveReadOnly ? undefined : onDependencyDeleteProp;
+  const onTaskReorder = effectiveReadOnly ? undefined : onTaskReorderProp;
+  const inlineEdit = effectiveReadOnly ? false : inlineEditProp;
+  const autoSchedule = effectiveReadOnly ? false : autoScheduleProp;
+  const rescheduleOnConflict = effectiveReadOnly ? false : rescheduleOnConflictProp;
   const rowHeight = rowHeightForContainer(effectiveWidth);
   const baseColumnWidth = columnWidthForContainer(effectiveWidth);
   // Restore a persisted layout once on first render (when persistLayoutKey set).
@@ -1037,20 +1050,27 @@ export function GanttView({
   // Delete deletes, Left/Right collapse/expand summary rows.
   const [selectedTaskId, setSelectedTaskId] = React.useState<string | number | null>(null);
 
+  // The menu only ever lists actions whose callback is live; in read-only mode
+  // those are all stripped, so opening it would show an empty popover. Select
+  // the row (for keyboard nav / highlight) but suppress the empty menu.
+  const hasTaskMenuActions = !!(onTaskClick || onTaskUpdate || onDependencyCreate || onTaskDelete);
   const openContextMenu = React.useCallback((task: GanttTask, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setSelectedTaskId(task.id);
+    if (!hasTaskMenuActions) return;
     setCtxMenu({ x: e.clientX, y: e.clientY, taskId: task.id });
-  }, []);
+  }, [hasTaskMenuActions]);
 
   const openLinkContextMenu = React.useCallback(
     (sourceId: string | number, targetId: string | number, type: GanttLinkType, e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      // No add/remove callbacks (e.g. read-only) → nothing actionable to show.
+      if (!onDependencyCreate && !onDependencyDelete) return;
       setLinkCtxMenu({ x: e.clientX, y: e.clientY, sourceId, targetId, type });
     },
-    [],
+    [onDependencyCreate, onDependencyDelete],
   );
 
   // --- Task hierarchy -----------------------------------------------------
@@ -2018,7 +2038,12 @@ export function GanttView({
   }, [layoutSaved]);
 
   return (
-    <div ref={containerRef} className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}>
+    <div
+      ref={containerRef}
+      className={cn("flex flex-col h-full bg-background overflow-hidden min-w-0", className)}
+      data-readonly={effectiveReadOnly ? 'true' : undefined}
+      data-mobile-readonly={mobileReadOnly && isNarrow ? 'true' : undefined}
+    >
       {/* Hover and responsive rules the prebuilt components CSS can't provide
           (alpha utilities like hover:bg-white/40 and several sm: variants are
           never emitted there). */}
@@ -2047,6 +2072,16 @@ export function GanttView({
           <span className="font-semibold text-xs sm:text-sm">
             {timelineRange.start.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' })}
           </span>
+          {effectiveReadOnly && (
+            <span
+              className="inline-flex items-center gap-1 rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
+              data-testid="gantt-readonly-badge"
+              title={t('gantt.readOnlyHint')}
+            >
+              <Lock className="h-3 w-3" />
+              {t('gantt.readOnly')}
+            </span>
+          )}
         </div>
         
         <div className="flex items-center gap-2">

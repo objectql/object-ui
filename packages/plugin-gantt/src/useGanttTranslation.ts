@@ -66,6 +66,8 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.resource.peak': 'Peak',
   'gantt.resource.over': 'overloaded',
   'gantt.resource.empty': 'No tasks to allocate.',
+  'gantt.readOnly': 'Read-only',
+  'gantt.readOnlyHint': 'Editing is disabled for this view.',
 };
 
 const TEST_KEY = 'gantt.column.taskName';

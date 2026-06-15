@@ -1043,6 +1043,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           workingCalendar={workingCalendar}
           showBaselines={(schema as any).showBaselines !== false}
           readOnly={!!(schema as any).readOnly}
+          mobileReadOnly={(schema as any).mobileReadOnly !== false}
           persistLayoutKey={
             (schema as any).persistLayout === false
               ? undefined
