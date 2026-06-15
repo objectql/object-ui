@@ -71,6 +71,18 @@
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "devDependencies": {
+    "@object-ui/plugin-calendar": "workspace:*",
+    "@object-ui/plugin-charts": "workspace:*",
+    "@object-ui/plugin-chatbot": "workspace:*",
+    "@object-ui/plugin-dashboard": "workspace:*",
+    "@object-ui/plugin-designer": "workspace:*",
+    "@object-ui/plugin-detail": "workspace:*",
+    "@object-ui/plugin-form": "workspace:*",
+    "@object-ui/plugin-grid": "workspace:*",
+    "@object-ui/plugin-kanban": "workspace:*",
+    "@object-ui/plugin-list": "workspace:*",
+    "@object-ui/plugin-report": "workspace:*",
+    "@object-ui/plugin-view": "workspace:*",
     "@types/node": "^25.9.3",
     "@types/qrcode": "^1.5.6",
     "@types/react": "19.2.17",

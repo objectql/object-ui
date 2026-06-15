@@ -648,45 +648,9 @@ importers:
       '@object-ui/permissions':
         specifier: workspace:*
         version: link:../permissions
-      '@object-ui/plugin-calendar':
-        specifier: workspace:^
-        version: link:../plugin-calendar
-      '@object-ui/plugin-charts':
-        specifier: workspace:^
-        version: link:../plugin-charts
-      '@object-ui/plugin-chatbot':
-        specifier: workspace:^
-        version: link:../plugin-chatbot
-      '@object-ui/plugin-dashboard':
-        specifier: workspace:^
-        version: link:../plugin-dashboard
-      '@object-ui/plugin-designer':
-        specifier: workspace:^
-        version: link:../plugin-designer
-      '@object-ui/plugin-detail':
-        specifier: workspace:^
-        version: link:../plugin-detail
       '@object-ui/plugin-editor':
         specifier: workspace:*
         version: link:../plugin-editor
-      '@object-ui/plugin-form':
-        specifier: workspace:^
-        version: link:../plugin-form
-      '@object-ui/plugin-grid':
-        specifier: workspace:^
-        version: link:../plugin-grid
-      '@object-ui/plugin-kanban':
-        specifier: workspace:^
-        version: link:../plugin-kanban
-      '@object-ui/plugin-list':
-        specifier: workspace:^
-        version: link:../plugin-list
-      '@object-ui/plugin-report':
-        specifier: workspace:^
-        version: link:../plugin-report
-      '@object-ui/plugin-view':
-        specifier: workspace:^
-        version: link:../plugin-view
       '@object-ui/providers':
         specifier: workspace:*
         version: link:../providers
@@ -718,6 +682,42 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@object-ui/plugin-calendar':
+        specifier: workspace:*
+        version: link:../plugin-calendar
+      '@object-ui/plugin-charts':
+        specifier: workspace:*
+        version: link:../plugin-charts
+      '@object-ui/plugin-chatbot':
+        specifier: workspace:*
+        version: link:../plugin-chatbot
+      '@object-ui/plugin-dashboard':
+        specifier: workspace:*
+        version: link:../plugin-dashboard
+      '@object-ui/plugin-designer':
+        specifier: workspace:*
+        version: link:../plugin-designer
+      '@object-ui/plugin-detail':
+        specifier: workspace:*
+        version: link:../plugin-detail
+      '@object-ui/plugin-form':
+        specifier: workspace:*
+        version: link:../plugin-form
+      '@object-ui/plugin-grid':
+        specifier: workspace:*
+        version: link:../plugin-grid
+      '@object-ui/plugin-kanban':
+        specifier: workspace:*
+        version: link:../plugin-kanban
+      '@object-ui/plugin-list':
+        specifier: workspace:*
+        version: link:../plugin-list
+      '@object-ui/plugin-report':
+        specifier: workspace:*
+        version: link:../plugin-report
+      '@object-ui/plugin-view':
+        specifier: workspace:*
+        version: link:../plugin-view
       '@types/node':
         specifier: ^25.9.3
         version: 25.9.3
@@ -5213,12 +5213,6 @@ packages:
   '@tailwindcss/node@4.3.1':
     resolution: {integrity: sha512-6NDaqRoAMSXD1mr/RXu0HBvNE9a2n5tHPsxu9XHLws8o4Twes5rBM2205SUUiJ9goAtadrN6xTGX0UDEwp/N4A==}
 
-  '@tailwindcss/oxide-android-arm64@4.3.1':
-    resolution: {integrity: sha512-SVlyf61g374l5cHyg8x9kf5xmLcOaxvOTsbsqDnSsDJaKOEFZ7GCvi84VAVGpxojYOs1+3K6M0UjXfqPU8vmOQ==}
-    engines: {node: '>= 20'}
-    cpu: [arm64]
-    os: [android]
-
   '@tailwindcss/oxide-darwin-arm64@4.3.1':
     resolution: {integrity: sha512-hVnWLwv+e/l7c4WKyVtHVrIPvYdqWHjRB3MDIqARynzFtnQg85kmQEFCbV9Ja0VVx4xXTIiDWY60Y7iz/iNoDA==}
     engines: {node: '>= 20'}
@@ -5236,12 +5230,6 @@ packages:
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [freebsd]
-
-  '@tailwindcss/oxide-linux-arm-gnueabihf@4.3.1':
-    resolution: {integrity: sha512-/Ah/xik0LaMYfv9DZ0S/t4pBlBNYOcqtRwusjgovHkvT8ixueWCLyJjsaF5kQIckjb4IT8Q6K6p/iPmZMixYgg==}
-    engines: {node: '>= 20'}
-    cpu: [arm]
-    os: [linux]
 
   '@tailwindcss/oxide-linux-arm64-gnu@4.3.1':
     resolution: {integrity: sha512-gqdFoVJlw444GvpnheZLHmvTzSxI/cOUUh2KSNejQjTcYkW062SVD+En0rUgD+QV91bz1XGIGtt1HJd48xUGbQ==}
@@ -5263,13 +5251,6 @@ packages:
     cpu: [x64]
     os: [linux]
     libc: [glibc]
-
-  '@tailwindcss/oxide-linux-x64-musl@4.3.1':
-    resolution: {integrity: sha512-M+P/91qJ6uILLw4k2G93GMDRAXj61SMvFQYt39AqvUqYgExXpLL5aepfns7sj4HiAQeolirQF9E0lzRvdf4zPQ==}
-    engines: {node: '>= 20'}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
 
   '@tailwindcss/oxide-wasm32-wasi@4.3.1':
     resolution: {integrity: sha512-zsM8uOeqvVGHsAXsJxsT28ttosFahLJKCLOTUBqRAtKnVgGSRitds9T432QiT8b77Yga7JIBkulIRRlJPtYhRA==}
@@ -5387,16 +5368,6 @@ packages:
   '@ts-morph/common@0.27.0':
     resolution: {integrity: sha512-Wf29UqxWDpc+i61k3oIOzcUfQt79PIT9y/MWfAGlrkjg6lBC1hwDECLXPVJAhWjiGbfBCxZd65F/LIZF3+jeJQ==}
 
-  '@turbo/darwin-64@2.9.18':
-    resolution: {integrity: sha512-9f27peFu16ur8c0v9nUFUEyBnbKuuFsUTjHFWfmwGfzySBXbHwzU44QhZon6Mznz0cHsIr3984NQj/bVrnGSRw==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@turbo/darwin-arm64@2.9.18':
-    resolution: {integrity: sha512-9A6TMRq/Ib+QnbhLlgkhOm+624wO4pzSQ/yQviQfWHOlFvaYxdnIAYmu2H6TS6y7kSVL0DvzNe04NbESTOzFVQ==}
-    cpu: [arm64]
-    os: [darwin]
-
   '@turbo/linux-64@2.9.18':
     resolution: {integrity: sha512-zCdIDtz69AnbYh913elJRRoF3QY5aa2HNnf+4rAkc7bQ+tWujiDkCNV7stazOUPggaDvhKIf2Z87qHftTeXSkw==}
     cpu: [x64]
@@ -5406,11 +5377,6 @@ packages:
     resolution: {integrity: sha512-Va1kXI04naMgYwqv/5Dfa36dTDx8015U7oaQAjrXa45ua9OoFjSV4OmvkML4EmXvUclQHCiBRbY8bvd0jV7eAg==}
     cpu: [arm64]
     os: [linux]
-
-  '@turbo/windows-64@2.9.18':
-    resolution: {integrity: sha512-m0kDhZANxSNz9ck1ybogFscHabriAsp4eDFNrN/1H5WrgTF7b3VlcPZnhuO3v2+E2KnCbeAc+UUT10BZZHdDKw==}
-    cpu: [x64]
-    os: [win32]
 
   '@turbo/windows-arm64@2.9.18':
     resolution: {integrity: sha512-nUdR8WqoomUys9iIQmG45TMiizJ+5BV8egSeLLZba/AWblyp3fVBcIH1kSE58OtK4g2YzbMJEth6Ttv9w5rqMA==}
@@ -13064,9 +13030,6 @@ snapshots:
       source-map-js: 1.2.1
       tailwindcss: 4.3.1
 
-  '@tailwindcss/oxide-android-arm64@4.3.1':
-    optional: true
-
   '@tailwindcss/oxide-darwin-arm64@4.3.1':
     optional: true
 
@@ -13076,9 +13039,6 @@ snapshots:
   '@tailwindcss/oxide-freebsd-x64@4.3.1':
     optional: true
 
-  '@tailwindcss/oxide-linux-arm-gnueabihf@4.3.1':
-    optional: true
-
   '@tailwindcss/oxide-linux-arm64-gnu@4.3.1':
     optional: true
 
@@ -13086,9 +13046,6 @@ snapshots:
     optional: true
 
   '@tailwindcss/oxide-linux-x64-gnu@4.3.1':
-    optional: true
-
-  '@tailwindcss/oxide-linux-x64-musl@4.3.1':
     optional: true
 
   '@tailwindcss/oxide-wasm32-wasi@4.3.1':
@@ -13102,15 +13059,12 @@ snapshots:
 
   '@tailwindcss/oxide@4.3.1':
     optionalDependencies:
-      '@tailwindcss/oxide-android-arm64': 4.3.1
       '@tailwindcss/oxide-darwin-arm64': 4.3.1
       '@tailwindcss/oxide-darwin-x64': 4.3.1
       '@tailwindcss/oxide-freebsd-x64': 4.3.1
-      '@tailwindcss/oxide-linux-arm-gnueabihf': 4.3.1
       '@tailwindcss/oxide-linux-arm64-gnu': 4.3.1
       '@tailwindcss/oxide-linux-arm64-musl': 4.3.1
       '@tailwindcss/oxide-linux-x64-gnu': 4.3.1
-      '@tailwindcss/oxide-linux-x64-musl': 4.3.1
       '@tailwindcss/oxide-wasm32-wasi': 4.3.1
       '@tailwindcss/oxide-win32-arm64-msvc': 4.3.1
       '@tailwindcss/oxide-win32-x64-msvc': 4.3.1
@@ -13237,19 +13191,10 @@ snapshots:
       minimatch: 10.2.5
       path-browserify: 1.0.1
 
-  '@turbo/darwin-64@2.9.18':
-    optional: true
-
-  '@turbo/darwin-arm64@2.9.18':
-    optional: true
-
   '@turbo/linux-64@2.9.18':
     optional: true
 
   '@turbo/linux-arm64@2.9.18':
-    optional: true
-
-  '@turbo/windows-64@2.9.18':
     optional: true
 
   '@turbo/windows-arm64@2.9.18':
@@ -18538,11 +18483,8 @@ snapshots:
 
   turbo@2.9.18:
     optionalDependencies:
-      '@turbo/darwin-64': 2.9.18
-      '@turbo/darwin-arm64': 2.9.18
       '@turbo/linux-64': 2.9.18
       '@turbo/linux-arm64': 2.9.18
-      '@turbo/windows-64': 2.9.18
       '@turbo/windows-arm64': 2.9.18
 
   type-check@0.4.0:
