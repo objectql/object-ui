@@ -26,6 +26,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
+import { buildChartSeries } from '@object-ui/core';
 import { cn } from '@object-ui/components';
 import { Loader2, BarChart3, AlertTriangle } from 'lucide-react';
 import { resolveDateMacros } from './utils';
@@ -217,11 +218,13 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // and one series per measure. Series carry the measure display label so the
   // legend reads "Tasks" rather than "task_count".
   const chartType = CHART_TYPE_MAP[widgetType] ?? 'bar';
-  const series = values.map((v) => ({ dataKey: v, label: measureField(v)?.label ?? v }));
+  // ADR-0021 (#1759): shared helper — pivots a second dimension into grouped
+  // series so multi-dimension dataset widgets match the chart-view renderer.
+  const { data: chartData, xAxisKey, series } = buildChartSeries(state.rows, dimensions, values, state.fields);
   return (
     <div className={cn('h-full w-full min-h-[220px]')}>
       <SchemaRenderer
-        schema={{ type: 'chart', chartType, data: state.rows, xAxisKey: dimensions[0], series } as any}
+        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series } as any}
       />
     </div>
   );

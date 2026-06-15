@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, type CompareToConfig, type DrillEvent } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, type CompareToConfig, type DrillEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator } from '@object-ui/components';
 import { AlertCircle } from 'lucide-react';
 import { useSafeFieldLabel } from '@object-ui/i18n';
@@ -548,11 +548,16 @@ export const ObjectChart = (props: any) => {
     ];
   }, [enableComparisonSeries, (schema as any).series, schema.aggregate, schema.filter, compareToConfig]);
 
-  const finalSchema = {
-    ...schema,
-    data: finalData,
-    ...(augmentedSeries ? { series: augmentedSeries } : {}),
-  };
+  // ADR-0021 (#1759): when the chart binds to a dataset, derive data/xAxisKey/
+  // series from its dimensions/measures via the shared buildChartSeries helper —
+  // this pivots a second dimension into grouped series, matching DatasetWidget.
+  const datasetChart = schema.dataset
+    ? buildChartSeries(finalData, schema.dimensions, schema.values)
+    : null;
+
+  const finalSchema = datasetChart
+    ? { ...schema, data: datasetChart.data, xAxisKey: datasetChart.xAxisKey, series: datasetChart.series }
+    : { ...schema, data: finalData, ...(augmentedSeries ? { series: augmentedSeries } : {}) };
   
   if (loading && finalData.length === 0) {
       return <div className={"flex items-center justify-center text-muted-foreground text-sm p-4 " + (schema.className || '')} data-testid="chart-loading">Loading chart data…</div>;
