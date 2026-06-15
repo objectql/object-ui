@@ -22,17 +22,31 @@ import { uiMessagesToChatMessages } from './mapMessages';
  * dedups the inbound user message by (conversationId, turnId) and
  * short-circuits a completed turn instead of re-running tools / replanning.
  *
- * Exported for unit testing; wired into the transport's
- * `prepareSendMessagesRequest` below.
+ * Used as `DefaultChatTransport.prepareSendMessagesRequest`. IMPORTANT: when
+ * that hook returns a `body`, the SDK sends it VERBATIM — the default body
+ * (`id`/`messages`/`trigger`/`messageId`) is NOT merged in. So we must
+ * reconstruct exactly what the default transport would send and only ADD
+ * `turnId`; otherwise the server receives no `messages` array (400).
+ *
+ * Exported for unit testing.
  */
 export function withTurnId(req: {
-  body: Record<string, unknown> | undefined;
+  id?: string;
+  body?: Record<string, unknown>;
   messages: Array<{ id: string; role: string }>;
+  trigger?: unknown;
+  messageId?: string;
 }): { body: Record<string, unknown> } {
   const lastUser = [...req.messages].reverse().find((m) => m.role === 'user');
   return {
     body: {
+      // Replicate the transport's default body (see HttpChatTransport.sendMessages)…
       ...(req.body ?? {}),
+      id: req.id,
+      messages: req.messages,
+      trigger: req.trigger,
+      messageId: req.messageId,
+      // …then add the per-turn idempotency key.
       ...(lastUser ? { turnId: lastUser.id } : {}),
     },
   };
@@ -256,9 +270,10 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
         ...(systemPrompt ? { systemPrompt } : {}),
         ...(streamingEnabled !== undefined ? { stream: streamingEnabled } : {}),
       },
-      // Stamp a stable per-turn idempotency key (ADR-0013 D1). See withTurnId.
-      prepareSendMessagesRequest: ({ body: reqBody, messages }) =>
-        withTurnId({ body: reqBody, messages }),
+      // Stamp a stable per-turn idempotency key (ADR-0013 D1). See withTurnId —
+      // it reconstructs the full default body (incl. messages) + adds turnId.
+      prepareSendMessagesRequest: ({ id, body: reqBody, messages, trigger, messageId }) =>
+        withTurnId({ id, body: reqBody, messages, trigger, messageId }),
     });
   }, [isApiMode, api, headers, body, model, systemPrompt, streamingEnabled, conversationId]);
 

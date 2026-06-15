@@ -26,6 +26,26 @@ describe('withTurnId', () => {
     expect(out.body.conversationId).toBe('conv_1');
   });
 
+  it('reconstructs the default body fields (the hook output is sent VERBATIM)', () => {
+    // Regression: returning a body WITHOUT messages makes the server 400 with
+    // "messages array is required". The hook must re-include id/messages/
+    // trigger/messageId, since the SDK does not merge its defaults back in.
+    const messages = [{ id: 'u1', role: 'user' }];
+    const out = withTurnId({
+      id: 'chat_1',
+      body: { conversationId: 'conv_1' },
+      messages,
+      trigger: 'submit-message',
+      messageId: 'u1',
+    });
+    expect(out.body.messages).toBe(messages);
+    expect(out.body.id).toBe('chat_1');
+    expect(out.body.trigger).toBe('submit-message');
+    expect(out.body.messageId).toBe('u1');
+    expect(out.body.turnId).toBe('u1');
+    expect(out.body.conversationId).toBe('conv_1');
+  });
+
   it('is stable across a Retry — same triggering user message → same turnId', () => {
     // Initial submit: messages end with the new user turn.
     const submit = withTurnId({
