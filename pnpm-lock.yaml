@@ -249,8 +249,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^9.0.0
-        version: 9.0.0(ai@6.0.205(zod@4.4.3))
+        specifier: ^9.5.1
+        version: 9.5.1(ai@6.0.205(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^9.1.0
         version: 9.1.0(ai@6.0.205(zod@4.4.3))
@@ -1097,8 +1097,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^9.0.0
-        version: 9.0.0(ai@6.0.205(zod@4.4.3))
+        specifier: ^9.5.1
+        version: 9.5.1(ai@6.0.205(zod@4.4.3))
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -3994,12 +3994,12 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@9.0.0':
-    resolution: {integrity: sha512-oUPU6M83LgKb4fILS2ybBzAszhjqL2HmlfvDsJnXJTV7GV8FBZvVf2t8BLdlfsMdGsM4TWUS8BJtIjk1eo45Xw==}
+  '@objectstack/client@9.5.1':
+    resolution: {integrity: sha512-ES533c6FRqown7InZOygEz0fHTdtR/aircgb2eCZrHt6j9uYmrcCrNZeeMN0J+YsknAnX7rN08/VgwJMbzvTdw==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/core@9.0.0':
-    resolution: {integrity: sha512-rt/INTfuHWsOQqraO+5CaT6PM28eofl0edH2YMxqcVjM7gscHTvRrlafSyAM+1T4OXP3OkBniQp7zgw+rgZySg==}
+  '@objectstack/core@9.5.1':
+    resolution: {integrity: sha512-45uA5bvBkJU4BoruI7WKhP/jYQnOxZTaRcPutx4AD9rzComrSfCmI6Bq0gr6RQKlTtOH3cV95q1DFVS3CorZPw==}
     engines: {node: '>=18.0.0'}
 
   '@objectstack/formula@9.0.0':
@@ -4016,6 +4016,15 @@ packages:
 
   '@objectstack/spec@9.1.0':
     resolution: {integrity: sha512-KaWZUlKOCVzFfYb9xjsGMY2IoC6DQ/ylTJmRy5IxZL9hjkZaXflgW8QB0lApWMT5ojZDTsbA/qywyl9Wr4428w==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      ai: ^6.0.0
+    peerDependenciesMeta:
+      ai:
+        optional: true
+
+  '@objectstack/spec@9.5.1':
+    resolution: {integrity: sha512-g57Q0bDH/Miw8OD8BRizl5meAMcIMdlfpL/3yKB0sr2AZHuppE8UuINwNtabdtTVlIYXUtQI1x9twcoxr2zqcg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       ai: ^6.0.0
@@ -11875,16 +11884,16 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@9.0.0(ai@6.0.205(zod@4.4.3))':
+  '@objectstack/client@9.5.1(ai@6.0.205(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 9.0.0(ai@6.0.205(zod@4.4.3))
-      '@objectstack/spec': 9.0.0(ai@6.0.205(zod@4.4.3))
+      '@objectstack/core': 9.5.1(ai@6.0.205(zod@4.4.3))
+      '@objectstack/spec': 9.5.1(ai@6.0.205(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@9.0.0(ai@6.0.205(zod@4.4.3))':
+  '@objectstack/core@9.5.1(ai@6.0.205(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 9.0.0(ai@6.0.205(zod@4.4.3))
+      '@objectstack/spec': 9.5.1(ai@6.0.205(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
@@ -11903,6 +11912,12 @@ snapshots:
       ai: 6.0.205(zod@4.4.3)
 
   '@objectstack/spec@9.1.0(ai@6.0.205(zod@4.4.3))':
+    dependencies:
+      zod: 4.4.3
+    optionalDependencies:
+      ai: 6.0.205(zod@4.4.3)
+
+  '@objectstack/spec@9.5.1(ai@6.0.205(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:
