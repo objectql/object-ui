@@ -2092,16 +2092,22 @@ export interface KanbanConditionalFormattingRule {
  */
 export interface ObjectChartSchema extends BaseSchema {
   type: 'object-chart';
-  /** ObjectQL object name */
-  objectName: string;
+  /** ObjectQL object name (legacy inline path; optional under ADR-0021 dataset binding) */
+  objectName?: string;
   /** Chart type */
   chartType: 'bar' | 'line' | 'pie' | 'area' | 'scatter';
-  /** Field for X axis (categories) */
-  xAxisField: string;
-  /** Fields for Y axis (values) */
+  /** Field for X axis (categories) — legacy inline path */
+  xAxisField?: string;
+  /** Fields for Y axis (values) — legacy */
   yAxisFields?: string[];
-  /** Aggregation function */
+  /** Aggregation function — legacy */
   aggregation?: 'cardinality' | 'sum' | 'avg' | 'min' | 'max';
+  /** Semantic-layer dataset name (ADR-0021, #1890) */
+  dataset?: string;
+  /** Dataset dimension names */
+  dimensions?: string[];
+  /** Dataset measure names */
+  values?: string[];
 }
 
 /**

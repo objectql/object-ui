@@ -421,11 +421,18 @@ export const ObjectKanbanSchema = BaseSchema.extend({
  */
 export const ObjectChartSchema = BaseSchema.extend({
   type: z.literal('object-chart'),
-  objectName: z.string().describe('ObjectQL object name'),
+  // Legacy inline path (objectName + aggregate). Optional now that a chart may
+  // instead bind to a semantic-layer dataset (ADR-0021, #1890).
+  objectName: z.string().optional().describe('ObjectQL object name (legacy inline path)'),
   chartType: z.enum(['bar', 'line', 'pie', 'area', 'scatter']).describe('Chart type'),
-  xAxisField: z.string().describe('X axis field'),
-  yAxisFields: z.array(z.string()).optional().describe('Y axis fields'),
-  aggregation: z.enum(['cardinality', 'sum', 'avg', 'min', 'max']).optional().describe('Aggregation'),
+  xAxisField: z.string().optional().describe('X axis field (legacy inline path)'),
+  yAxisFields: z.array(z.string()).optional().describe('Y axis fields (legacy)'),
+  aggregation: z.enum(['cardinality', 'sum', 'avg', 'min', 'max']).optional().describe('Aggregation (legacy)'),
+  // ADR-0021 semantic-layer binding: dimensions/measures selected BY NAME from a
+  // dataset, queried via the governed queryDataset path.
+  dataset: z.string().optional().describe('Semantic-layer dataset name (ADR-0021)'),
+  dimensions: z.array(z.string()).optional().describe('Dataset dimension names'),
+  values: z.array(z.string()).optional().describe('Dataset measure names'),
 });
 
 /**

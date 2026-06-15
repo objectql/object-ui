@@ -752,6 +752,22 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         // Aggregated chart of the object's records, delegating to the same
         // object-chart component the dashboard uses.
         const chartCfg = viewOptions.chart || {};
+        // ADR-0021 (#1890): dataset-bound chart — the single author-facing shape.
+        if (chartCfg.dataset) {
+          const dims: string[] = Array.isArray(chartCfg.dimensions) ? chartCfg.dimensions : [];
+          const vals: string[] = Array.isArray(chartCfg.values) ? chartCfg.values : [];
+          return {
+            type: 'object-chart',
+            dataset: chartCfg.dataset,
+            dimensions: dims,
+            values: vals,
+            chartType: chartCfg.chartType || 'bar',
+            xAxisKey: dims[0],
+            series: vals.map((v: string) => ({ dataKey: v, label: v })),
+            className: 'h-[400px] w-full',
+          };
+        }
+        // Legacy inline aggregate (deprecated — pre-ADR-0021 metadata).
         const valueField = (Array.isArray(chartCfg.yAxisFields) && chartCfg.yAxisFields[0])
           || chartCfg.valueField || 'value';
         const categoryField = chartCfg.xAxisField || chartCfg.categoryField || 'name';

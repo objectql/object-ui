@@ -1411,6 +1411,25 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         // records (e.g. sum of estimate_hours grouped by status), delegating
         // to the same object-chart component the dashboard uses.
         const chartCfg = (schema as any).chart || schema.options?.chart || {};
+        // ADR-0021 (#1890): the single author-facing shape binds to a semantic
+        // `dataset` and selects dimensions/measures BY NAME, so the chart runs
+        // through the governed queryDataset path (numbers consistent everywhere).
+        if (chartCfg.dataset) {
+          const dims: string[] = Array.isArray(chartCfg.dimensions) ? chartCfg.dimensions : [];
+          const vals: string[] = Array.isArray(chartCfg.values) ? chartCfg.values : [];
+          return {
+            type: 'object-chart',
+            dataset: chartCfg.dataset,
+            dimensions: dims,
+            values: vals,
+            chartType: chartCfg.chartType || 'bar',
+            xAxisKey: dims[0],
+            series: vals.map((v: string) => ({ dataKey: v, label: v })),
+            className: 'h-[400px] w-full',
+          };
+        }
+        // Legacy inline aggregate (deprecated — pre-ADR-0021 metadata). Kept as a
+        // fallback so existing authored chart views keep rendering.
         const valueField = (Array.isArray(chartCfg.yAxisFields) && chartCfg.yAxisFields[0])
           || chartCfg.valueField || 'value';
         const categoryField = chartCfg.xAxisField || chartCfg.categoryField || 'name';

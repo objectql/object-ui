@@ -1074,6 +1074,31 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
         if (viewDef.type === 'chart') {
             const chartConfig = viewDef.chart || {};
+            // ADR-0021 (#1890): dataset-bound chart — the single author-facing
+            // shape. Selects dimensions/measures BY NAME and runs through the
+            // governed queryDataset path (numbers consistent across surfaces).
+            if (chartConfig.dataset) {
+                const dims: string[] = Array.isArray(chartConfig.dimensions) ? chartConfig.dimensions : [];
+                const vals: string[] = Array.isArray(chartConfig.values) ? chartConfig.values : [];
+                return (
+                    <Suspense key={key} fallback={<div className="p-4 text-sm text-muted-foreground">Loading chart…</div>}>
+                        <ObjectChart
+                            dataSource={ds}
+                            schema={{
+                                type: 'object-chart',
+                                dataset: chartConfig.dataset,
+                                dimensions: dims,
+                                values: vals,
+                                chartType: chartConfig.chartType || 'bar',
+                                xAxisKey: dims[0],
+                                series: vals.map((v: string) => ({ dataKey: v, label: v })),
+                                config: chartConfig.config,
+                                className: 'h-[400px] w-full',
+                            } as any}
+                        />
+                    </Suspense>
+                );
+            }
             // ObjectChart consumes a structured `aggregate` ({ field, function,
             // groupBy }) + `xAxisKey` + `series`, NOT the flat spec-level
             // `xAxisField`/`yAxisFields`/`aggregation` keys. Translate here so the

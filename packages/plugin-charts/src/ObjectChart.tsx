@@ -244,7 +244,7 @@ export const ObjectChart = (props: any) => {
   // doesn't flash before the fetch effect runs and flips loading to true.
   const [loading, setLoading] = useState<boolean>(() => {
     const hasInline = Array.isArray(schema.data) && schema.data.length > 0;
-    return !hasInline && !!schema.objectName;
+    return !hasInline && (!!schema.objectName || !!schema.dataset);
   });
   const [error, setError] = useState<string | null>(null);
   // Drill-down click event — must be declared with the other hooks (above
@@ -265,6 +265,15 @@ export const ObjectChart = (props: any) => {
   const compareToKey = useMemo(
     () => ((schema as any).compareTo ? JSON.stringify((schema as any).compareTo) : ''),
     [(schema as any).compareTo],
+  );
+  // ADR-0021 (#1890): a chart can bind to a semantic-layer `dataset` instead of
+  // the legacy inline `objectName` + `aggregate` query. Stable key over the
+  // dataset selection so a fresh object literal each render doesn't refetch-loop.
+  const datasetKey = useMemo(
+    () => (schema.dataset
+      ? JSON.stringify({ d: schema.dataset, dim: schema.dimensions ?? [], val: schema.values ?? [] })
+      : ''),
+    [schema.dataset, schema.dimensions, schema.values],
   );
 
   // Pie / donut / funnel are single-distribution charts where a comparison
@@ -323,7 +332,7 @@ export const ObjectChart = (props: any) => {
   }, [schema.objectName, aggregateKey]);
 
   const fetchData = useCallback(async (ds: any, mounted: { current: boolean }) => {
-      if (!ds || !schema.objectName) {
+      if (!ds || (!schema.objectName && !schema.dataset)) {
         // No way to fetch — clear loading so the no-datasource / empty state
         // can render instead of an indefinite "Loading chart data…".
         if (mounted.current) setLoading(false);
@@ -334,6 +343,25 @@ export const ObjectChart = (props: any) => {
         setError(null);
       }
       try {
+          // ── Dataset-bound path (ADR-0021, #1890) ──────────────
+          // When the chart binds to a semantic-layer `dataset`, run the same
+          // governed `queryDataset` path the dashboard DatasetWidget and
+          // dataset-bound reports use, so the numbers match everywhere. The
+          // server resolves dimension labels + measure formats, so the legacy
+          // client-side aggregate / groupBy-label resolution below is skipped.
+          if (schema.dataset && typeof ds.queryDataset === 'function') {
+              const runtimeFilter = resolveDateMacros(schema.filter);
+              const res = await ds.queryDataset(schema.dataset, {
+                  dimensions: Array.isArray(schema.dimensions) ? schema.dimensions : [],
+                  measures: Array.isArray(schema.values) ? schema.values : [],
+                  ...(runtimeFilter ? { runtimeFilter } : {}),
+              });
+              if (mounted.current) {
+                  setFetchedData(Array.isArray(res?.rows) ? res.rows : []);
+              }
+              return;
+          }
+
           // Resolve relative-date macros (e.g. "{current_quarter_start}")
           // so both aggregate and find see real ISO dates and any drill-down
           // filter further down the line stays consistent.
@@ -440,12 +468,12 @@ export const ObjectChart = (props: any) => {
           if (mounted.current) setLoading(false);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, aggregateKey, filterKey, compareToKey, schema.xAxisKey, schema.chartType, runAggregate]);
+  }, [schema.objectName, datasetKey, aggregateKey, filterKey, compareToKey, schema.xAxisKey, schema.chartType, runAggregate]);
 
   useEffect(() => {
     const mounted = { current: true };
 
-    if (schema.objectName && !boundData && !schema.data) {
+    if ((schema.objectName || schema.dataset) && !boundData && !schema.data) {
         fetchData(dataSource, mounted);
     } else if (mounted.current) {
         // Have inline / bound data — won't fetch; clear loading.
@@ -453,7 +481,7 @@ export const ObjectChart = (props: any) => {
     }
     return () => { mounted.current = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema.objectName, dataSource, boundData, schema.data, filterKey, aggregateKey, compareToKey, fetchData]);
+  }, [schema.objectName, datasetKey, dataSource, boundData, schema.data, filterKey, aggregateKey, compareToKey, fetchData]);
 
   const rawData = boundData || schema.data || fetchedData;
   const finalData = Array.isArray(rawData) ? rawData : [];
