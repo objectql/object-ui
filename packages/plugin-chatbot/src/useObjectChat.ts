@@ -109,6 +109,8 @@ export interface UseObjectChatReturn {
   reload: () => void;
   /** Clear all messages */
   clear: () => void;
+  /** ADR-0013 D2: re-hydrate the thread (API mode only); undefined in local mode. */
+  setMessages?: (messages: unknown[]) => void;
   /** Whether the hook is operating in API (streaming) mode */
   isApiMode: boolean;
   /** Input value (controlled by the hook for API mode) */
@@ -322,6 +324,10 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       stop,
       reload: regenerate,
       clear,
+      // ADR-0013 D2: expose the underlying useChat setMessages so the host can
+      // re-hydrate the thread from the server after a stream-transport failure
+      // (the reply may already be persisted server-side — reconcile, don't re-run).
+      setMessages,
       isApiMode: true,
       input: apiInput,
       setInput: setApiInput,

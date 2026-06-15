@@ -56,7 +56,10 @@ import {
   writeConversationMessagesCache,
   type HydratedUIMessage,
   type HydratedUIMessagePart,
+  fetchConversation,
+  toUIMessages,
 } from '../../hooks/useChatConversation';
+import { isReconcilableCompletedTurn } from './reconcileTurn';
 import { ConversationsSidebar } from './ConversationsSidebar';
 import { LiveCanvas } from './LiveCanvas';
 
@@ -742,6 +745,35 @@ function ChatPane({
     return buildAgentSuggestions(activeAgent, activeAgentLabel, t);
   }, [hydrated.length, activeAgent, activeAgentLabel, t]);
 
+  // ADR-0013 D2: a stream-transport drop may happen AFTER the server already
+  // persisted the final reply (it persists before streaming). Before surfacing a
+  // scary "Response failed", reconcile from the server — if the turn completed,
+  // render the persisted reply instead of offering a re-run.
+  const [errorSuppressed, setErrorSuppressed] = useState(false);
+  const setMessagesRef = useRef<((m: unknown[]) => void) | undefined>(undefined);
+  const handleChatError = useCallback(
+    async (_err: Error) => {
+      const aiBase = chatApi?.replace(/\/agents\/[^/]+\/chat$/, '');
+      if (!conversationId || !aiBase) {
+        setErrorSuppressed(false);
+        return;
+      }
+      try {
+        const conv = await fetchConversation(aiBase, conversationId);
+        const ui = toUIMessages(conv?.messages);
+        if (isReconcilableCompletedTurn(ui) && setMessagesRef.current) {
+          setMessagesRef.current(ui as unknown[]);
+          setErrorSuppressed(true);
+          return;
+        }
+      } catch {
+        /* fall through to the normal error banner */
+      }
+      setErrorSuppressed(false);
+    },
+    [conversationId, chatApi],
+  );
+
   const {
     messages,
     isLoading,
@@ -750,9 +782,11 @@ function ChatPane({
     stop,
     reload,
     clear,
+    setMessages,
   } = useObjectChat({
     api: chatApi,
     conversationId,
+    onError: handleChatError,
     body: {
       context: {
         activeApp: 'AI',
@@ -767,6 +801,10 @@ function ChatPane({
     autoResponseText: "Thanks for your message! I'm here to help.",
     autoResponseDelay: 600,
   });
+
+  useEffect(() => {
+    setMessagesRef.current = setMessages;
+  }, [setMessages]);
 
   useEffect(() => {
     writeConversationMessagesCache(
@@ -785,6 +823,7 @@ function ChatPane({
 
   const handleSend = useCallback(
     (content: string, files?: File[]) => {
+      setErrorSuppressed(false);
       sendMessage(content, files);
       onSent(content);
     },
@@ -900,7 +939,7 @@ function ChatPane({
         onStop={isLoading ? stop : undefined}
         onReload={reload}
         isLoading={isLoading}
-        error={error}
+        error={errorSuppressed ? undefined : error}
         enableMarkdown
         onToolApprove={hitl.decide}
         toolDecisions={hitl.decisions}

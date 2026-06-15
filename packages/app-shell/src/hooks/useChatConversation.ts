@@ -226,7 +226,7 @@ function contentToParts(content: unknown): HydratedUIMessagePart[] {
   return [];
 }
 
-function toUIMessages(rows: ServerMessage[] | undefined): HydratedUIMessage[] {
+export function toUIMessages(rows: ServerMessage[] | undefined): HydratedUIMessage[] {
   if (!rows) return [];
   const out: HydratedUIMessage[] = [];
   rows.forEach((row, idx) => {
@@ -243,7 +243,7 @@ function toUIMessages(rows: ServerMessage[] | undefined): HydratedUIMessage[] {
   return out;
 }
 
-async function fetchConversation(apiBase: string, id: string): Promise<ServerConversation | null> {
+export async function fetchConversation(apiBase: string, id: string): Promise<ServerConversation | null> {
   const res = await fetch(`${apiBase}/conversations/${encodeURIComponent(id)}`, {
     credentials: 'include',
   });
