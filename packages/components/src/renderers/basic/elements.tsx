@@ -27,6 +27,7 @@
 import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useAdapter, useAction } from '@object-ui/react';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { Button, Separator } from '../../ui';
@@ -72,11 +73,12 @@ const VARIANT_CLASS: Record<string, string> = {
 
 function ElementTextRenderer({ schema }: { schema: any }) {
   const props = readProps<{
-    content?: string;
+    content?: unknown;
     variant?: 'heading' | 'subheading' | 'body' | 'caption';
     align?: 'left' | 'center' | 'right';
     aria?: Record<string, any>;
   }>(schema);
+  const { language } = useObjectTranslation();
   const variant = props.variant ?? 'body';
   const align = props.align ?? 'left';
   const Tag = variant === 'heading' ? 'h2' : variant === 'subheading' ? 'h3' : 'p';
@@ -85,7 +87,7 @@ function ElementTextRenderer({ schema }: { schema: any }) {
       className={cn(VARIANT_CLASS[variant] ?? VARIANT_CLASS.body, ALIGN_CLASS[align], schema?.className)}
       {...ariaAttrs(props.aria)}
     >
-      {props.content ?? ''}
+      {pickLocalized(props.content, language)}
     </Tag>
   );
 }
@@ -178,17 +180,6 @@ const SHADCN_BUTTON_SIZE: Record<string, string> = {
   large: 'lg',
 };
 
-function resolveI18nLabel(label: unknown): string {
-  if (label == null) return '';
-  if (typeof label === 'string') return label;
-  if (typeof label === 'object') {
-    // I18nLabel: { en: 'Save', zh: '保存', default?: '...' } — pick a
-    // reasonable default without coupling to a locale helper here.
-    const o = label as Record<string, string>;
-    return o.default ?? o.en ?? Object.values(o)[0] ?? '';
-  }
-  return String(label);
-}
 
 function ElementButtonRenderer({ schema }: { schema: any }) {
   const props = readProps<{
@@ -212,7 +203,8 @@ function ElementButtonRenderer({ schema }: { schema: any }) {
   }>(schema);
   const variant = (SHADCN_BUTTON_VARIANT[props.variant ?? 'primary'] ?? 'default') as any;
   const size = (SHADCN_BUTTON_SIZE[props.size ?? 'medium'] ?? 'default') as any;
-  const label = resolveI18nLabel(props.label);
+  const { language } = useObjectTranslation();
+  const label = pickLocalized(props.label, language);
   const iconPosition = props.iconPosition ?? 'left';
   const icon = props.icon ? <LazyIcon name={props.icon} className="h-4 w-4" /> : null;
 

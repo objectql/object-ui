@@ -88,3 +88,5 @@ export {
   transformSpecTranslations,
   type SpecTranslationData,
 } from './utils/index';
+
+export { pickLocalized } from './pickLocalized';

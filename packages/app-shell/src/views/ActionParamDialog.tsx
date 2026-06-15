@@ -29,7 +29,7 @@ import {
   SelectValue,
   Checkbox,
 } from '@object-ui/components';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionParamDef } from '@object-ui/core';
 import { LookupField } from '@object-ui/fields';
 
@@ -50,7 +50,7 @@ interface ActionParamDialogProps {
 }
 
 export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProps) {
-  const { t } = useObjectTranslation();
+  const { t, language } = useObjectTranslation();
   const [values, setValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
 
@@ -116,7 +116,13 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {state.params.map((param) => {
+          {state.params.map((rawParam) => {
+            const param = {
+              ...rawParam,
+              label: pickLocalized(rawParam.label, language),
+              helpText: rawParam.helpText != null ? pickLocalized(rawParam.helpText, language) : rawParam.helpText,
+              options: rawParam.options?.map((o) => ({ ...o, label: pickLocalized(o.label, language) })),
+            };
             const isBooleanParam =
               param.type === 'boolean' || param.type === 'checkbox';
             // Boolean → render as inline checkbox row (label sits beside the
