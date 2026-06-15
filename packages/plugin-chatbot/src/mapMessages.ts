@@ -128,9 +128,7 @@ function detectPendingApproval(
  * "Review N change(s)" affordance that opens the designer's review/diff.
  * `blueprint_proposed` (propose_blueprint) has no draft yet → not surfaced here.
  */
-function detectDraftResult(
-  result: unknown,
-): {
+export interface DraftReview {
   items: Array<{ type: string; name: string }>;
   summary?: string;
   packageId?: string;
@@ -138,7 +136,9 @@ function detectDraftResult(
   failedCount?: number;
   materialized?: boolean;
   verification?: { errors: number; warnings: number };
-} | undefined {
+}
+
+export function detectDraftResult(result: unknown): DraftReview | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;
   const items: Array<{ type: string; name: string }> = [];
@@ -186,6 +186,31 @@ function detectDraftResult(
     // hidden). The canvas then previews the REAL app URL, not the draft overlay.
     ...(obj.materialized === true ? { materialized: true } : {}),
     ...(verification ? { verification } : {}),
+  };
+}
+
+/**
+ * Synthesize a COMPLETED build-progress summary from a persisted apply_blueprint
+ * draft envelope. The live "build tree" (`buildProgress`) is driven by transient
+ * `data-build-progress` stream parts that are never persisted — so a reloaded
+ * conversation loses the "Built X" panel (ADR-0037/0045). On hydration we
+ * reconstruct the done-state from the draft result, which IS persisted, so the
+ * summary + its preview/open affordances survive a refresh. Only whole-app
+ * builds (a draft set that includes an `app`) get a panel — incremental edits
+ * keep their draft card but no build tree, matching the live behaviour.
+ */
+export function buildProgressFromDraftReview(
+  draft: DraftReview | undefined,
+): ChatBuildProgress | undefined {
+  if (!draft || !Array.isArray(draft.items) || draft.items.length === 0) return undefined;
+  const app = draft.items.find((it) => it.type === 'app');
+  if (!app) return undefined;
+  return {
+    phase: 'done',
+    appLabel: app.name,
+    items: draft.items,
+    done: draft.items.length,
+    total: draft.items.length,
   };
 }
 
@@ -338,14 +363,26 @@ export function uiMessageToChatMessage(
   // other (historical) message a dangling tool state is stale by definition.
   const tools = extractToolInvocations(parts, { liveTail: opts.streaming });
   const legacyTools = Array.isArray(msg.toolInvocations) ? msg.toolInvocations : [];
+  const resolvedTools = tools.length > 0 ? tools : legacyTools;
+  // The live `data-build-progress` parts are transient (never persisted), so a
+  // reloaded whole-app build loses its "Built X" panel. Fall back to a summary
+  // synthesized from the apply_blueprint draft envelope — which IS persisted on
+  // the tool result — so the panel + its open/preview affordances survive a
+  // refresh. Re-derived on every map (incl. useObjectChat's round-trip), so it
+  // cannot be lost the way a one-shot hydration value would.
+  const buildProgress =
+    extractBuildProgress(parts) ??
+    resolvedTools
+      .map((tool) => buildProgressFromDraftReview(tool.draftReview))
+      .find((bp): bp is ChatBuildProgress => Boolean(bp));
   return {
     id: (msg.id ?? `msg-${Math.random().toString(36).slice(2, 8)}`) as string,
     role: (msg.role ?? 'assistant') as ChatMessage['role'],
     content: extractText(msg, parts),
     reasoning: extractReasoning(parts),
-    toolInvocations: tools.length > 0 ? tools : legacyTools,
+    toolInvocations: resolvedTools,
     sources: extractSources(parts),
-    buildProgress: extractBuildProgress(parts),
+    buildProgress,
     charts: extractCharts(parts),
     streaming: opts.streaming,
   };

@@ -41,6 +41,8 @@ import {
   useHitlInChat,
   resolveDefaultAgentName,
   publishHealthFromResponse,
+  detectDraftResult,
+  buildProgressFromDraftReview,
   type AgentDescriptor,
   type ChatbotEnhancedToolInvocation,
   type ChatMessage,
@@ -100,6 +102,7 @@ function partToolState(part: HydratedUIMessagePart): ChatbotEnhancedToolInvocati
 export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): ChatMessage[] {
   return messages.map((message) => {
     const toolInvocations: ChatbotEnhancedToolInvocation[] = [];
+    let buildProgress: ReturnType<typeof buildProgressFromDraftReview>;
     const content = message.parts
       .filter((part) => part.type === 'text')
       .map((part) => part.text ?? '')
@@ -111,12 +114,26 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
         const toolName = partString(part, 'toolName') ?? part.type.slice('tool-'.length);
         const toolCallId = partString(part, 'toolCallId') ?? `${message.id}-${toolName}`;
         const state = partToolState(part);
+        // The tool RESULT (merged onto the call part by toUIMessages from the
+        // separate `tool` row) carries the ADR-0033 draft envelope. Rebuild
+        // `draftReview` so the publish / preview / review affordances return,
+        // and synthesize the "Built X" panel so the blueprint summary survives
+        // a refresh (the live progress bar is transient and not persisted).
+        const result =
+          (part as { output?: unknown }).output ?? (part as { result?: unknown }).result;
+        const draftReview = detectDraftResult(result);
         toolInvocations.push({
           toolCallId,
           toolName,
           ...(state ? { state } : {}),
+          ...(result !== undefined ? { result } : {}),
+          ...(draftReview ? { draftReview } : {}),
           ...(part.errorText ? { errorText: String(part.errorText) } : {}),
         });
+        if (!buildProgress) {
+          const synthesized = buildProgressFromDraftReview(draftReview);
+          if (synthesized) buildProgress = synthesized;
+        }
       }
     }
 
@@ -125,6 +142,7 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
       role: message.role,
       content,
       ...(toolInvocations.length > 0 ? { toolInvocations } : {}),
+      ...(buildProgress ? { buildProgress } : {}),
     };
   });
 }

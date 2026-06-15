@@ -7,7 +7,12 @@
  * `@ai-sdk/react`'s `useChat()` directly (e.g. Studio's chat panel).
  */
 import { describe, it, expect } from 'vitest';
-import { uiMessageToChatMessage, uiMessagesToChatMessages } from '../mapMessages';
+import {
+  uiMessageToChatMessage,
+  uiMessagesToChatMessages,
+  detectDraftResult,
+  buildProgressFromDraftReview,
+} from '../mapMessages';
 
 describe('uiMessageToChatMessage', () => {
   it('concatenates text parts and falls back to streaming=false by default', () => {
@@ -322,5 +327,104 @@ describe('uiMessagesToChatMessages', () => {
       { isStreaming: false },
     );
     expect(out[0]?.streaming).toBeFalsy();
+  });
+});
+
+// Refresh-survival (the user-reported bug): the live `data-build-progress` parts
+// are transient and never persisted, so a reloaded whole-app build lost its
+// "Built X" panel + Open/Preview affordances. We reconstruct a completed summary
+// from the apply_blueprint draft envelope, which IS persisted on the tool result.
+describe('buildProgressFromDraftReview (reload synthesis)', () => {
+  it('synthesizes a done panel from a whole-app draft (includes an app item)', () => {
+    const bp = buildProgressFromDraftReview({
+      items: [
+        { type: 'object', name: 'expense' },
+        { type: 'view', name: 'expense.list' },
+        { type: 'app', name: 'expense_tracker' },
+      ],
+      packageId: 'com.workspace',
+    });
+    expect(bp).toEqual({
+      phase: 'done',
+      appLabel: 'expense_tracker',
+      items: [
+        { type: 'object', name: 'expense' },
+        { type: 'view', name: 'expense.list' },
+        { type: 'app', name: 'expense_tracker' },
+      ],
+      done: 3,
+      total: 3,
+    });
+  });
+
+  it('returns undefined for an incremental edit (no app item) — keeps the draft card but no build tree', () => {
+    expect(
+      buildProgressFromDraftReview({ items: [{ type: 'field', name: 'expense.payment_method' }] }),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined for empty / missing input', () => {
+    expect(buildProgressFromDraftReview(undefined)).toBeUndefined();
+    expect(buildProgressFromDraftReview({ items: [] })).toBeUndefined();
+  });
+
+  it('uiMessageToChatMessage reconstructs buildProgress from a persisted apply_blueprint result (no live build-progress part)', () => {
+    const out = uiMessageToChatMessage({
+      id: 'm-reload-build',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-apply_blueprint',
+          toolCallId: 'call_reload',
+          state: 'output-available',
+          input: { blueprint: {} },
+          // The persisted ModelMessage result merged back onto the call part —
+          // no `data-build-progress` part exists after reload.
+          output: {
+            status: 'drafted',
+            drafted: [
+              { type: 'object', name: 'expense' },
+              { type: 'app', name: 'expense_tracker' },
+            ],
+            packageId: 'com.workspace',
+            materialized: true,
+          },
+        },
+      ],
+    });
+    expect(out.buildProgress).toMatchObject({ phase: 'done', appLabel: 'expense_tracker', done: 2, total: 2 });
+    // and the draft affordances survive too
+    expect(out.toolInvocations?.[0]?.draftReview?.packageId).toBe('com.workspace');
+  });
+
+  it('does NOT override a live data-build-progress part with the synthesized summary', () => {
+    const out = uiMessageToChatMessage({
+      id: 'm-live-build',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'data-build-progress',
+          id: 'build-progress',
+          data: { phase: 'data', appLabel: 'Live', items: [{ type: 'object', name: 'x' }], done: 1, total: 4 },
+        },
+        {
+          type: 'tool-apply_blueprint',
+          toolCallId: 'call_live',
+          state: 'output-available',
+          input: {},
+          output: { status: 'drafted', drafted: [{ type: 'app', name: 'x_app' }], packageId: 'p' },
+        },
+      ],
+    });
+    // live progress wins (phase 'data', not the synthesized 'done')
+    expect(out.buildProgress).toMatchObject({ phase: 'data', appLabel: 'Live', done: 1, total: 4 });
+  });
+});
+
+describe('detectDraftResult is exported for shared hydration', () => {
+  it('parses a batch envelope into items', () => {
+    expect(detectDraftResult({ status: 'drafted', drafted: [{ type: 'app', name: 'a' }] })?.items).toEqual([
+      { type: 'app', name: 'a' },
+    ]);
   });
 });

@@ -226,14 +226,59 @@ function contentToParts(content: unknown): HydratedUIMessagePart[] {
   return [];
 }
 
+/**
+ * Merge a `tool`-role message's tool-result outputs back onto the assistant
+ * tool-call parts that requested them. The server persists conversations in
+ * ModelMessage format, where a tool CALL (assistant message) and its RESULT (a
+ * separate `tool` row) live in different messages. The chat UI needs the output
+ * ON the call part so `detectDraftResult` can rebuild the publish/preview
+ * affordances after a reload — otherwise the result, and the whole `tool` row
+ * (which the UI never renders directly), is dropped and the build card + publish
+ * button vanish on refresh.
+ */
+function mergeToolResultsInto(
+  content: unknown,
+  byCallId: Map<string, HydratedUIMessagePart>,
+): void {
+  for (const part of contentToParts(content)) {
+    const callId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
+    if (!callId) continue;
+    const target = byCallId.get(callId);
+    if (!target) continue;
+    const output =
+      (part as { output?: unknown }).output ?? (part as { result?: unknown }).result;
+    if (output === undefined) continue;
+    target.output = output;
+    const errorText = (part as { errorText?: unknown }).errorText;
+    const isError = Boolean((part as { isError?: unknown }).isError) || typeof errorText === 'string';
+    target.state = isError ? 'output-error' : 'output-available';
+    if (typeof errorText === 'string') target.errorText = errorText;
+  }
+}
+
 export function toUIMessages(rows: ServerMessage[] | undefined): HydratedUIMessage[] {
   if (!rows) return [];
   const out: HydratedUIMessage[] = [];
+  // Index assistant tool-call parts by id so a later `tool`-role result row can
+  // merge its output onto the matching call (see mergeToolResultsInto).
+  const toolPartByCallId = new Map<string, HydratedUIMessagePart>();
   rows.forEach((row, idx) => {
-    const role = row.role as HydratedUIMessage['role'];
+    const role = row.role as HydratedUIMessage['role'] | 'tool';
+    if (role === 'tool') {
+      mergeToolResultsInto(row.content, toolPartByCallId);
+      return;
+    }
     if (role !== 'user' && role !== 'assistant' && role !== 'system') return;
     const parts = contentToParts(row.content);
     if (parts.length === 0) return;
+    if (role === 'assistant') {
+      for (const part of parts) {
+        const callId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
+        if (callId && (part.type === 'tool-call' || part.type.startsWith('tool-'))) {
+          toolPartByCallId.set(callId, part);
+        }
+      }
+    }
     out.push({
       id: row.id ?? `msg-${idx}`,
       role,

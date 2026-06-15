@@ -299,7 +299,10 @@ export * as AIElements from './elements';
 export {
   uiMessageToChatMessage,
   uiMessagesToChatMessages,
+  detectDraftResult,
+  buildProgressFromDraftReview,
 } from './mapMessages';
+export type { DraftReview } from './mapMessages';
 
 // Display helpers used internally by ChatbotEnhanced. Exported so app
 // authors composing their own chat surface get the same pretty tool-call
