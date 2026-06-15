@@ -31,14 +31,14 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@ai-sdk/react": "^3.0.200",
+    "@ai-sdk/react": "^3.0.207",
     "@object-ui/components": "workspace:*",
     "@object-ui/core": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@radix-ui/react-slot": "^1.2.5",
     "@radix-ui/react-use-controllable-state": "^1.2.3",
-    "ai": "^6.0.198",
+    "ai": "^6.0.205",
     "class-variance-authority": "^0.7.1",
     "lucide-react": "^1.17.0",
     "motion": "^12.40.0",
