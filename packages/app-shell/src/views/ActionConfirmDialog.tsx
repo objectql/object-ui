@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@object-ui/components';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 export interface ConfirmDialogState {
   open: boolean;
@@ -29,6 +30,7 @@ interface ActionConfirmDialogProps {
 }
 
 export function ActionConfirmDialog({ state, onOpenChange }: ActionConfirmDialogProps) {
+  const { t } = useObjectTranslation();
   const handleConfirm = () => {
     state.resolve?.(true);
     onOpenChange(false);
@@ -45,15 +47,15 @@ export function ActionConfirmDialog({ state, onOpenChange }: ActionConfirmDialog
     }}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{state.options?.title || 'Confirm Action'}</AlertDialogTitle>
+          <AlertDialogTitle>{state.options?.title || t('actionConfirm.title')}</AlertDialogTitle>
           <AlertDialogDescription>{state.message}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={handleCancel}>
-            {state.options?.cancelText || 'Cancel'}
+            {state.options?.cancelText || t('actionConfirm.cancel')}
           </AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirm}>
-            {state.options?.confirmText || 'Continue'}
+            {state.options?.confirmText || t('actionConfirm.confirm')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

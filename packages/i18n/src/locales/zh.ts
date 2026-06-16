@@ -1730,6 +1730,11 @@ const zh = {
     defaultActionTitle: '操作',
     ok: '确定',
   },
+  actionConfirm: {
+    title: '确认操作',
+    confirm: '继续',
+    cancel: '取消',
+  },
   rowAction: {
     openMenu: '更多操作',
     edit: '编辑',

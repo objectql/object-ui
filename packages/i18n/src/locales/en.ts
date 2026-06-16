@@ -1718,6 +1718,11 @@ const en = {
     defaultActionTitle: 'Action',
     ok: 'OK',
   },
+  actionConfirm: {
+    title: 'Confirm Action',
+    confirm: 'Continue',
+    cancel: 'Cancel',
+  },
   rowAction: {
     openMenu: 'Open menu',
     edit: 'Edit',
