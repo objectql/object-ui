@@ -414,6 +414,18 @@ export const RecordActivityTimeline: React.FC<RecordActivityTimelineProps> = ({
                           </p>
                         )}
 
+                        {/* Drill to source rich entity (ADR-0052 ActivityPointer) */}
+                        {item.sourceObject && item.sourceId != null && (
+                          <a
+                            href={`/objects/${item.sourceObject}/${item.sourceId}`}
+                            className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                            data-testid="activity-source-link"
+                          >
+                            {t('detail.viewSource')}
+                            <span aria-hidden>→</span>
+                          </a>
+                        )}
+
                         {/* Field changes */}
                         {item.type === 'field_change' && item.fieldChanges && (
                           <div className="space-y-1 mt-1">

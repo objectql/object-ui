@@ -991,6 +991,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             actorAvatarUrl: row.actor_avatar_url ?? undefined,
             body: row.summary ?? '',
             createdAt: when,
+            // ADR-0052 ActivityPointer: drill from the summary to the source
+            // rich entity (sys_email row, call/meeting task, …) when present.
+            sourceObject: row.source_object ?? undefined,
+            sourceId: row.source_id ?? undefined,
           } as FeedItem);
         }
         if (!mapped.length) return;
