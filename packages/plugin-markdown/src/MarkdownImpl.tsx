@@ -125,7 +125,7 @@ function nodeText(node: React.ReactNode): string {
 // (data, not code: type / name / object / mode / detail), parsed here. Like
 // mermaid, the language is excluded from rehype-highlight (plainText above) so
 // nodeText yields the body verbatim.
-function parseMetadataFence(src: string): Record<string, string> {
+export function parseMetadataFence(src: string): Record<string, string> {
   const out: Record<string, string> = {}
   for (const raw of src.split("\n")) {
     const line = raw.trim()
