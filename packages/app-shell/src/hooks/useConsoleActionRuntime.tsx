@@ -25,7 +25,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectLabel } from '@object-ui/i18n';
-import { ActionProvider } from '@object-ui/react';
+import { ActionProvider, useGlobalUndo } from '@object-ui/react';
 import { toast } from 'sonner';
 import type {
   ActionContext,
@@ -99,6 +99,14 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
 
   const refresh = useCallback(() => { onRefresh?.(); }, [onRefresh]);
 
+  // Global undo/redo (Ctrl+Z / Ctrl+Shift+Z), backed by the dataSource. The
+  // success toast's "Undo" button calls `undoCtl.undo()` for `undoable` actions
+  // (the ActionRunner has already pushed the operation onto the UndoManager).
+  const undoCtl = useGlobalUndo({
+    dataSource,
+    onUndo: () => { refresh(); toast.success('Change undone'); },
+  });
+
   // Promise-based confirm / param / result dialogs.
   const [confirmState, setConfirmState] = useState<ConfirmDialogState>({ open: false, message: '' });
   const [paramState, setParamState] = useState<ParamDialogState>({ open: false, params: [] });
@@ -163,9 +171,16 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     : FALLBACK_USER;
 
   const toastHandler = useCallback<ToastHandler>((message, options) => {
-    if (options?.type === 'error') toast.error(message);
-    else toast.success(message);
-  }, []);
+    if (options?.type === 'error') { toast.error(message); return; }
+    if (options?.undo) {
+      toast.success(message, {
+        duration: options.duration,
+        action: { label: options.undo.label || 'Undo', onClick: () => { void undoCtl.undo(); } },
+      });
+      return;
+    }
+    toast.success(message, { duration: options?.duration });
+  }, [undoCtl]);
 
   const navigateHandler = useCallback<NavigationHandler>((url, options) => {
     if (options?.external || options?.newTab) {
@@ -252,15 +267,43 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       // meaningful when an object context exists (ObjectView); pages without an
       // object resolve their actions through the absolute path above.
       const obj = action.objectName || objApiName;
+      // The row record is stashed under `_rowRecord` for list_item actions —
+      // separate it from the field values, and resolve the record id from it
+      // (the action's static params carry the field changes, not the id).
+      const rowRecord = (params as any)._rowRecord as Record<string, any> | undefined;
+      const fields: Record<string, any> = { ...(params as Record<string, any>) };
+      delete fields._rowRecord;
+      const recId = fields.recordId ?? rowRecord?.[(action as any).recordIdField || 'id'];
+      delete fields.recordId;
+
       if (obj && typeof dataSource?.execute === 'function') {
-        await dataSource.execute(obj, target, params);
-      } else if (obj && (params as any).recordId && Object.keys(params).length > 1 && typeof dataSource?.update === 'function') {
-        await dataSource.update(obj, (params as any).recordId, params);
+        await dataSource.execute(obj, target, fields);
+      } else if (obj && recId && Object.keys(fields).length > 0 && typeof dataSource?.update === 'function') {
+        await dataSource.update(obj, recId, fields);
+      }
+
+      // Undoable single-record update: capture the prior values of the changed
+      // fields from the row record so the success toast can offer "Undo".
+      let undo: ActionResult['undo'];
+      if (action.undoable && obj && recId && rowRecord && Object.keys(fields).length > 0
+          && typeof dataSource?.update === 'function') {
+        const undoData: Record<string, unknown> = {};
+        for (const k of Object.keys(fields)) undoData[k] = rowRecord[k] ?? null;
+        undo = {
+          id: `undo-${obj}-${recId}-${Date.now()}`,
+          type: 'update',
+          objectName: obj,
+          recordId: String(recId),
+          timestamp: Date.now(),
+          description: action.label || `Undo ${obj}`,
+          undoData,
+          redoData: { ...fields },
+        };
       }
 
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) refresh();
-      return { success: true, reload: shouldRefresh };
+      return { success: true, reload: shouldRefresh, undo };
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }

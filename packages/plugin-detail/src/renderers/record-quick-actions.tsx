@@ -19,6 +19,7 @@ import React from 'react';
 import { useRecordContext, useActionEngine, useMetadataItem } from '@object-ui/react';
 import { usePermissions } from '@object-ui/permissions';
 import { Button, cn } from '@object-ui/components';
+import { Loader2 } from 'lucide-react';
 import type { ActionDef, ActionLocation } from '@object-ui/core';
 
 const splitDesigner = (props: Record<string, any>) => {
@@ -109,6 +110,11 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
   // (see packages/react/src/hooks/useActionEngine.ts) so executeAction
   // automatically picks up confirm/param/modal/result-dialog/toast handlers
   // — no need to thread a separate globalExecute.
+  // Tracks the action currently executing so its button shows a spinner and
+  // disables — a visible progress state for record-header actions (e.g. a
+  // `flow` action opening its wizard, or a slow server action).
+  const [runningName, setRunningName] = React.useState<string | null>(null);
+
   const { getActionsForLocation, executeAction } = useActionEngine({
     actions,
     context: {
@@ -158,20 +164,28 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
         const size = (action as any).size || schema.size || 'sm';
         const disabled =
           typeof action.disabled === 'boolean' ? action.disabled : undefined;
+        const isRunning = runningName === (action.name || `qa-${idx}`);
         return (
           <Button
             key={action.name || `qa-${idx}`}
             variant={variant}
             size={size}
-            disabled={disabled}
-            onClick={() => {
-              if (typeof action.onClick === 'function') {
-                void action.onClick();
-                return;
+            disabled={disabled || isRunning}
+            onClick={async () => {
+              const key = action.name || `qa-${idx}`;
+              setRunningName(key);
+              try {
+                if (typeof action.onClick === 'function') {
+                  await action.onClick();
+                } else if (action.name) {
+                  await executeAction(action.name);
+                }
+              } finally {
+                setRunningName((c) => (c === key ? null : c));
               }
-              if (action.name) void executeAction(action.name);
             }}
           >
+            {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {label}
           </Button>
         );
