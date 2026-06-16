@@ -511,6 +511,34 @@ describe('ActionRunner', () => {
       expect(toastHandler).toHaveBeenCalledWith('Saved!', { type: 'success', duration: undefined });
     });
 
+    it('should prefer a dynamic server message (result.data.message) over successMessage', async () => {
+      const toastHandler = vi.fn();
+      runner.setToastHandler(toastHandler);
+      // Server-driven actions (check_app_updates / publish / install) return a
+      // computed outcome the static label cannot express.
+      runner.registerHandler('check-updates', vi.fn().mockResolvedValue({
+        success: true,
+        data: { message: '2 app update(s) available: CRM 1.0.0\u21921.0.1', update_count: 2 },
+      }));
+
+      await runner.execute({ type: 'check-updates', successMessage: 'Checked.' });
+
+      expect(toastHandler).toHaveBeenCalledWith(
+        '2 app update(s) available: CRM 1.0.0\u21921.0.1',
+        { type: 'success', duration: undefined },
+      );
+    });
+
+    it('should fall back to successMessage when result.data has no message', async () => {
+      const toastHandler = vi.fn();
+      runner.setToastHandler(toastHandler);
+      runner.registerHandler('noop', vi.fn().mockResolvedValue({ success: true, data: { update_count: 0 } }));
+
+      await runner.execute({ type: 'noop', successMessage: 'Done.' });
+
+      expect(toastHandler).toHaveBeenCalledWith('Done.', { type: 'success', duration: undefined });
+    });
+
     it('should emit error toast on failure', async () => {
       const toastHandler = vi.fn();
       runner.setToastHandler(toastHandler);

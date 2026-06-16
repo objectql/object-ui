@@ -711,17 +711,22 @@ export function MarketplacePackagePage() {
               {data.versions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('marketplace.detail.noApprovedVersions')}</p>
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {data.versions.map((v) => (
-                    <li key={v.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex items-center gap-1.5">
-                        <Package className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                        <code className="font-mono">v{v.version}</code>
-                        {v.is_prerelease && <Badge variant="outline" className="text-xs">{t('marketplace.detail.prerelease')}</Badge>}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {v.published_at ? new Date(v.published_at).toLocaleDateString() : '—'}
-                      </span>
+                    <li key={v.id} className="space-y-1 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5">
+                          <Package className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                          <code className="font-mono">v{v.version}</code>
+                          {v.is_prerelease && <Badge variant="outline" className="text-xs">{t('marketplace.detail.prerelease')}</Badge>}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {v.published_at ? new Date(v.published_at).toLocaleDateString() : '\u2014'}
+                        </span>
+                      </div>
+                      {v.release_notes && v.release_notes.trim() && (
+                        <p className="whitespace-pre-line pl-5 text-xs text-muted-foreground">{v.release_notes.trim()}</p>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -530,7 +530,17 @@ export class ActionRunner {
       const duration = action.toast?.duration;
 
       if (result.success && !hasResultDialog && showToast.showOnSuccess !== false) {
-        const message = action.successMessage || 'Action completed successfully';
+        // Prefer a DYNAMIC message the server returned (result.data.message)
+        // over the static action.successMessage. Server-driven actions like
+        // check_app_updates / publish / install compute a real outcome
+        // ("2 app updates available: CRM 1.0.0→1.0.1", "Published v1.2.0")
+        // that the static label can't express; without this the user only ever
+        // sees a generic "Done". Falls back to the static label, then a default.
+        const dyn = (result.data && typeof result.data === 'object'
+          && typeof (result.data as { message?: unknown }).message === 'string')
+          ? String((result.data as { message?: unknown }).message).trim()
+          : '';
+        const message = dyn || action.successMessage || 'Action completed successfully';
         this.toastHandler(message, { type: 'success', duration });
       }
 

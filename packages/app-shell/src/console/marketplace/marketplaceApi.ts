@@ -95,6 +95,10 @@ export interface MarketplacePackageVersion {
   status?: string;
   is_prerelease?: boolean;
   published_at?: string | null;
+  // Human-authored "what changed in this version" notes (ADR-0010 version
+  // lifecycle / UX#6). Distinct from the package-level description; shown per
+  // version in the detail page's version history.
+  release_notes?: string | null;
   listing_status?: string;
   reviewed_at?: string | null;
 

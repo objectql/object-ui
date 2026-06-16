@@ -228,6 +228,9 @@ const en = {
     firstRunMessage: 'Create your first record to get started.',
     noMatches: 'No matching records',
     noMatchesMessage: 'No records match your current filters or search. Try adjusting or clearing them.',
+    loadErrorTitle: 'Couldn\u2019t load records',
+    loadErrorMessage: 'Something went wrong while loading this data. Check your connection and try again.',
+    retry: 'Retry',
     managedBy: {
       system: {
         title: 'Nothing here yet',

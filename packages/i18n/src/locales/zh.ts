@@ -228,6 +228,9 @@ const zh = {
     firstRunMessage: '创建第一条记录即可开始。',
     noMatches: '没有匹配的记录',
     noMatchesMessage: '没有符合当前筛选或搜索条件的记录，试试调整或清除它们。',
+    loadErrorTitle: '无法加载记录',
+    loadErrorMessage: '加载数据时出错。请检查网络连接后重试。',
+    retry: '重试',
     managedBy: {
       system: {
         title: '这里还没有数据',

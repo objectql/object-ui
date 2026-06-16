@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, RefreshIndicator, DataEmptyState } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, RotateCw, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { TabBar, TabBarSelect } from './components/TabBar';
@@ -213,6 +213,10 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.noMatches': 'No matching records',
   'list.noMatchesMessage': 'No records match your current filters or search. Try adjusting or clearing them.',
   'list.loading': 'Loading records…',
+  // Load FAILED (network / server error) — distinct from empty. Offer retry.
+  'list.loadErrorTitle': 'Couldn\u2019t load records',
+  'list.loadErrorMessage': 'Something went wrong while loading this data. Check your connection and try again.',
+  'list.retry': 'Retry',
   'list.search': 'Search',
   'list.filter': 'Filter',
   'list.filterRecords': 'Filter Records',
@@ -519,6 +523,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // Data State
   const dataSource = props.dataSource;
   const [data, setData] = React.useState<any[]>([]);
+  // Load failure (network / server error) is distinct from "empty": we must
+  // not tell a user to "create your first record" when the fetch actually
+  // failed. Captured here so the render can show a retryable error panel.
+  const [loadError, setLoadError] = React.useState<string | null>(null);
   // Start in loading state when we will fetch from a dataSource so the empty
   // state doesn't flash before the first effect runs. Inline data (schema.data
   // as an array or a `value` provider) starts as not-loading.
@@ -915,6 +923,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       }
       
       setLoading(true);
+      setLoadError(null);
       try {
         // Construct filter
         let finalFilter: any = [];
@@ -1101,9 +1110,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         setData(items);
         setDataLimitReached(items.length >= effectivePageSize);
       } catch (err) {
-        // Only log errors from the latest request
+        // Only log + surface errors from the latest request. A failed fetch is
+        // NOT an empty result — record it so the render shows an error panel
+        // (with retry) rather than "Create your first record".
         if (requestId === fetchRequestIdRef.current) {
           console.error("ListView data fetch error:", err);
+          setData([]);
+          setLoadError((err as any)?.message ? String((err as any).message) : String(err ?? 'Unknown error'));
         }
       } finally {
         if (isMounted && requestId === fetchRequestIdRef.current) {
@@ -2204,7 +2217,27 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             the ListView level so every inner view (grid/kanban/calendar/...)
             gets a consistent indicator instead of momentarily showing an
             empty state on slow networks. */}
-        {loading && data.length === 0 ? (
+        {loadError && data.length === 0 ? (
+          <DataEmptyState
+            data-testid="list-error-state"
+            className="h-full min-h-[200px] p-8 gap-1 [&>h3]:text-lg [&>h3]:font-medium [&>h3]:text-foreground [&>p]:max-w-md"
+            icon={<AlertTriangle className="h-12 w-12 text-destructive/60" />}
+            iconWrapperClassName="mb-3"
+            title={t('list.loadErrorTitle')}
+            description={t('list.loadErrorMessage')}
+            action={(
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="list-error-retry"
+                onClick={() => setRefreshKey((k) => k + 1)}
+              >
+                <RotateCw className="h-4 w-4 mr-1.5" />
+                {t('list.retry')}
+              </Button>
+            )}
+          />
+        ) : loading && data.length === 0 ? (
           <div
             className="flex flex-col h-full min-h-[200px] p-4 gap-2"
             data-testid="list-loading"
