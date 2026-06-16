@@ -26,6 +26,14 @@ export interface ActionResult {
   redirect?: string;
   /** Modal schema to render (for type: 'modal') */
   modal?: any;
+  /**
+   * Suppress the automatic success toast for this result. A handler sets this
+   * when the action only HANDED OFF to a follow-up UI rather than completing —
+   * e.g. a `flow` action that paused at a screen and opened the flow-runner. The
+   * action hasn't "completed yet", so a "success" toast on open would be
+   * misleading; the follow-up surface owns its own completion messaging.
+   */
+  silent?: boolean;
 }
 
 export interface ActionContext {
@@ -529,7 +537,7 @@ export class ActionRunner {
       const showToast = action.toast ?? { showOnSuccess: true, showOnError: true };
       const duration = action.toast?.duration;
 
-      if (result.success && !hasResultDialog && showToast.showOnSuccess !== false) {
+      if (result.success && !hasResultDialog && !result.silent && showToast.showOnSuccess !== false) {
         // Prefer a DYNAMIC message the server returned (result.data.message)
         // over the static action.successMessage. Server-driven actions like
         // check_app_updates / publish / install compute a real outcome

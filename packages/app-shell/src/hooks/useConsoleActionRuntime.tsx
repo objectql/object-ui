@@ -316,7 +316,9 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       const data = json?.data ?? {};
       if (data.status === 'paused' && data.screen) {
         setScreenFlow({ flowName, runId: data.runId, screen: data.screen });
-        return { success: true };
+        // The action only OPENED the wizard — it hasn't completed. Suppress the
+        // action-level success toast; the flow-runner owns completion messaging.
+        return { success: true, silent: true };
       }
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) refresh();

@@ -138,7 +138,8 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
     // would only hit "No suspended run". Close the runner instead of leaving
     // a dead form open.
     if (data.success === false || data.status === 'failed') {
-      toast.error(data.error || 'The flow failed to complete.');
+      // Prefer the flow's friendly `errorMessage`; fall back to the raw error.
+      toast.error(data.errorMessage || data.error || 'The flow failed to complete.');
       onClose();
       return;
     }
@@ -148,7 +149,8 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
       setValues(initialValues(data.screen));
       toast.success('Saved — next step');
     } else {
-      toast.success('Done');
+      // Terminal success — show the flow's declared completion message.
+      toast.success(data.successMessage || 'Done');
       onComplete();
     }
   };
