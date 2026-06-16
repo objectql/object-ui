@@ -355,6 +355,19 @@ export function cloudInstallDeepLink(packageId: string): string {
 }
 
 /**
+ * Deep-link to the cloud upgrade entry point: the environments list, where each
+ * environment's "Upgrade Plan" action opens Stripe checkout. Surfaced from the
+ * tenant SPA when an AI quota refusal (429) offers an upgrade / top-up CTA.
+ * Centralized so the target can be re-pointed (dedicated pricing or credit-pack
+ * page) as the cloud billing UI evolves. Same `cloud-control` app slug as
+ * cloudInstallDeepLink above.
+ */
+export function cloudPricingDeepLink(): string {
+  const base = getCloudBase() || 'https://cloud.objectos.app';
+  return `${base}/apps/cloud-control/sys_environment`;
+}
+
+/**
  * Look up whether a package is already installed in the given environment.
  * Returns the installed version string when an `enabled=true` row exists,
  * or `null` when no install row is found.

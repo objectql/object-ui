@@ -51,6 +51,7 @@ import {
 import { AppHeader } from '../../layout/AppHeader';
 import { fetchPendingDraftCount } from '../../preview/draftStatus';
 import { getRuntimeConfig } from '../../runtime-config';
+import { cloudPricingDeepLink } from '../marketplace/marketplaceApi';
 import { useNavigationContext } from '../../context/NavigationContext';
 import {
   sanitizeChatMessagesForCache,
@@ -906,6 +907,7 @@ function ChatPane({
       >
       <ChatbotEnhanced
         className="min-h-0 flex-1 bg-background md:max-w-5xl"
+        onUpgrade={() => window.open(cloudPricingDeepLink(), '_blank', 'noopener,noreferrer')}
         surface="plain"
         maxHeight="100%"
         headerSlot={headerSlot}

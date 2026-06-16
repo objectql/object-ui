@@ -24,6 +24,7 @@ import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, E
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
+  parseAiQuotaError,
   summarizeChatError,
   unwrapToolResult,
 } from './tool-display';
@@ -297,6 +298,12 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   onStop?: () => void;
   /** Reload / retry the last assistant message */
   onReload?: () => void;
+  /**
+   * Called when the user clicks the upgrade / top-up CTA shown for an AI quota
+   * refusal (429 from the cloud token guardrail). Hosts typically open the cloud
+   * billing/pricing page. When omitted, no CTA button is shown.
+   */
+  onUpgrade?: () => void;
   disabled?: boolean;
   /** Whether the assistant is currently generating a response */
   isLoading?: boolean;
@@ -746,6 +753,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       onClear,
       onStop,
       onReload,
+      onUpgrade,
       disabled = false,
       isLoading = false,
       error,
@@ -1566,7 +1574,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         </Conversation>
 
         {error ? (
-          <ErrorBanner error={error} onReload={onReload} />
+          <ErrorBanner error={error} onReload={onReload} onUpgrade={onUpgrade} />
         ) : null}
 
         <div
@@ -2101,12 +2109,51 @@ function getToolSummaryStatus(
 function ErrorBanner({
   error,
   onReload,
+  onUpgrade,
 }: {
   error: Error;
   onReload?: () => void;
+  onUpgrade?: () => void;
 }) {
+  const quota = React.useMemo(() => parseAiQuotaError(error), [error]);
   const { summary, details } = React.useMemo(() => summarizeChatError(error), [error]);
   const [expanded, setExpanded] = React.useState(false);
+
+  // AI quota refusal (429 from the cloud token guardrail) -> friendly upgrade /
+  // top-up CTA instead of a red "Response failed" banner.
+  if (quota) {
+    const isZh =
+      typeof navigator !== 'undefined' && !!navigator.language?.toLowerCase().startsWith('zh');
+    const text =
+      (isZh ? quota.message : quota.messageEn ?? quota.message) ||
+      (isZh ? 'AI \u989d\u5ea6\u5df2\u7528\u5b8c\u3002' : 'You have reached your AI quota.');
+    const cta = quota.topUp
+      ? (isZh ? '\u8d2d\u4e70\u989d\u5ea6\u5305' : 'Buy a credit pack')
+      : (isZh ? '\u5347\u7ea7\u65b9\u6848' : 'Upgrade plan');
+    const title = isZh ? '\u9700\u8981\u5347\u7ea7' : 'Upgrade needed';
+    return (
+      <div className="border-t bg-background px-3 py-2 text-sm" role="alert">
+        <div className="rounded-md border border-amber-300/40 bg-amber-50/60 px-3 py-2 text-foreground dark:bg-amber-950/20">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="font-medium leading-snug text-foreground">{title}</div>
+              <div className="mt-0.5 break-words leading-snug text-muted-foreground">{text}</div>
+            </div>
+            {onUpgrade ? (
+              <button
+                type="button"
+                onClick={onUpgrade}
+                className="inline-flex h-7 shrink-0 items-center rounded-md border border-amber-400/50 bg-background px-2 text-xs font-medium text-amber-700 hover:bg-amber-100/60 dark:text-amber-300"
+              >
+                {cta}
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="border-t bg-background px-3 py-2 text-sm"
