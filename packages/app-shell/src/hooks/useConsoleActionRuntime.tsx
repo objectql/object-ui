@@ -87,7 +87,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const { dataSource, objects, objectName, onRefresh } = opts;
   const navigate = useNavigate();
   const { user, activeOrganization } = useAuth();
-  const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel } = useObjectLabel();
+  const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel, actionDescription } = useObjectLabel();
 
   const objectDef = useMemo(
     () => (objectName ? objects?.find((o: any) => o.name === objectName) : undefined),
@@ -152,7 +152,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         open: true,
         params: localized,
         title: action?.label || action?.title,
-        description: action?.description,
+        description: actionDescription(objForI18n, action?.name, action?.description),
         resolve,
       });
     });

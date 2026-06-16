@@ -119,7 +119,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const location = useLocation();
   const originFrom = (location.state as any)?.from as { pathname?: string; label?: string } | undefined;
   const { t } = useObjectTranslation();
-  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, fieldLabel, fieldOptionLabel } = useObjectLabel();
+  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, actionDescription, fieldLabel, fieldOptionLabel } = useObjectLabel();
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
   const { addRecentItem } = useRecentItems();
   const [isLoading, setIsLoading] = useState(true);
@@ -341,7 +341,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         params: localized,
         // Title the dialog as the action rather than the generic "Action parameters".
         title: action?.label || action?.title,
-        description: action?.description,
+        description: actionDescription(objForI18n, action?.name, action?.description),
         resolve,
       });
     });
