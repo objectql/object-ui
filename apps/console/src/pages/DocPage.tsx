@@ -82,20 +82,49 @@ export default function DocPage() {
     };
   }, [name, appName, adapter]);
 
-  // SPA navigation for rewritten doc-to-doc links: anchors render as
-  // plain <a href="/docs/...">; intercept same-app clicks so following a
-  // cross-reference doesn't trigger a full page reload.
+  // Scroll a heading into view ourselves rather than letting the browser
+  // follow a bare `#id` href. When the console is served under a sub-path the
+  // host injects `<base href="…/_console/">` so relative asset URLs resolve; a
+  // side effect is that fragment-only links resolve against that base instead
+  // of the current page, so a plain `#id` click navigates to the console root
+  // ("home") rather than scrolling. Reflect the section in the URL via an
+  // absolute path that ignores <base>.
+  const scrollToHeading = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${id}`);
+  }, []);
+
+  // SPA navigation for rewritten doc-to-doc links: anchors render as plain
+  // <a href="/docs/...">; intercept same-app clicks so following a
+  // cross-reference doesn't trigger a full page reload. In-body fragment links
+  // (`[x](#section)`) get the same JS-scroll treatment as the ToC so <base>
+  // doesn't bounce them to home.
   const onContentClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
       const anchor = (e.target as HTMLElement).closest('a');
       const href = anchor?.getAttribute('href');
-      if (href && href.startsWith('/docs/')) {
+      if (!href) return;
+      if (href.startsWith('/docs/')) {
         e.preventDefault();
         navigate(href);
+      } else if (href.startsWith('#')) {
+        e.preventDefault();
+        scrollToHeading(decodeURIComponent(href.slice(1)));
       }
     },
-    [navigate],
+    [navigate, scrollToHeading],
+  );
+
+  // ToC entries are bare `#id` anchors; scroll in JS for the same <base> reason.
+  const onTocClick = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+      // Leave modified / non-primary clicks (new tab, etc.) to the browser.
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+      e.preventDefault();
+      scrollToHeading(id);
+    },
+    [scrollToHeading],
   );
 
   // Long-doc table of contents (h2–h3). Slugs match rehype-slug so a #id
@@ -161,6 +190,7 @@ export default function DocPage() {
                   <li key={item.id} style={{ paddingLeft: (item.depth - 2) * 12 }}>
                     <a
                       href={`#${item.id}`}
+                      onClick={(e) => onTocClick(e, item.id)}
                       className="-ml-px block border-l border-transparent py-0.5 pl-3 text-muted-foreground hover:border-primary hover:text-foreground"
                     >
                       {item.text}
