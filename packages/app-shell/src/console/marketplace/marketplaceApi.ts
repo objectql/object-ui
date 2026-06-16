@@ -421,34 +421,28 @@ export async function getCloudInstallationInfo(
   }
 
   // ── Cloud control-plane path (runtime IS cloud) ───────────────────────
-  // Same-origin read against the control plane's data API.
+  // Use the dedicated installed-state route, NOT the generic
+  // `/api/v1/data/sys_package_installation`. The control plane does not expose
+  // sys_package_installation rows through the generic data API (the row exists
+  // but the read returns empty), and that row carries `package_version_id`, not
+  // a version string. The dedicated route reads the control DB directly and
+  // resolves the human-readable version — and now enforces org membership for
+  // user-mode callers. Same response shape as the tenant proxy above.
   if (!environmentId) return null;
   const base = SERVER_URL;
-  const filter = JSON.stringify([
-    'and',
-    ['package_id', '=', packageId],
-    ['environment_id', '=', environmentId],
-  ]);
-  const url = `${base}/api/v1/data/sys_package_installation?top=1&filter=${encodeURIComponent(filter)}`;
   try {
-    const res = await fetch(url, {
-      credentials: 'include',
-      headers: { 'Accept': 'application/json' },
-    });
+    const res = await fetch(
+      `${base}/api/v1/cloud/environments/${encodeURIComponent(environmentId)}/installations/${encodeURIComponent(packageId)}`,
+      { credentials: 'include', headers: { 'Accept': 'application/json' } },
+    );
     if (!res.ok) return null;
     const payload: any = await res.json().catch(() => ({}));
-    const rows: any[] = payload?.records ?? payload?.data ?? payload?.items ?? [];
-    if (!Array.isArray(rows) || rows.length === 0) return null;
-    const row = rows[0];
-    const enabled = row?.enabled;
-    if (enabled === false || enabled === 0 || enabled === '0') return null;
+    const data: any = payload?.data ?? payload ?? {};
+    if (!data.installed) return null;
     return {
-      installationId: String(row?.id ?? ''),
-      version: String(row?.version ?? row?.installed_version ?? 'installed'),
-      withSampleData: row?.with_sample_data === true
-        || row?.with_sample_data === 1
-        || row?.with_sample_data === '1'
-        || row?.with_sample_data === 'true',
+      installationId: String(data.installationId ?? ''),
+      version: String(data.version ?? 'installed'),
+      withSampleData: data.withSampleData === true,
     };
   } catch {
     return null;
