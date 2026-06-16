@@ -507,6 +507,8 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         state={screenFlow}
         authFetch={authFetch}
         baseUrl={import.meta.env.VITE_SERVER_URL || ''}
+        dataSource={dataSource}
+        objects={objects}
         onClose={() => setScreenFlow(null)}
         onComplete={() => { setScreenFlow(null); refresh(); }}
       />

@@ -115,6 +115,10 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           objectName: schema.objectName,
           mode: schema.mode === 'edit' ? 'edit' : 'create',
           recordId: schema.recordId,
+          // Forward prefilled header values so create-mode wizards (e.g. lead
+          // conversion) seed the parent fields, not just plain forms.
+          initialValues: (schema as any).initialValues,
+          initialData: (schema as any).initialData,
           formType: schema.formType === 'tabbed' ? 'tabbed' : 'simple',
           sections: schema.sections as any,
           fields: schema.fields as any,
