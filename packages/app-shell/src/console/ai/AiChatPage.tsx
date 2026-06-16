@@ -495,6 +495,23 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     [apiBase],
   );
 
+  // Public share-link landing base. SharedRecordPage lives UNDER the console
+  // SPA basename (e.g. `/_console/s/:token`), so the ShareDialog default of
+  // `${origin}/s/:token` 404s for recipients. Derive the base from the SPA's
+  // BASE_URL so the copyable link points at the actually-served route.
+  const publicShareBase = useMemo(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return undefined;
+    // Mirror the console's own basename resolution (App.tsx resolveBasename):
+    // the published SPA uses a relative Vite base, so the mount path is carried
+    // by the injected `<base href>` tag, NOT import.meta.env.BASE_URL.
+    let base = '';
+    try {
+      const href = document.querySelector('base')?.getAttribute('href');
+      if (href) base = new URL(href, window.location.origin).pathname.replace(/\/+$/, '');
+    } catch { /* no <base> → root-mounted SPA */ }
+    return `${window.location.origin}${base}/s`;
+  }, []);
+
   // New-conversation race guard. On an IN-SPA `/ai?new=1` navigation the
   // URL-mirroring effect below fires in the SAME commit as the hook's effect,
   // with this render's (stale) `conversationId` still in its closure — the
@@ -630,6 +647,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
           recordId={conversationId}
           recordLabel="this conversation"
           apiBase={restApiBase}
+          publicBaseUrl={publicShareBase}
         />
       )}
       <div className="flex min-h-0 flex-1 w-full bg-muted/20">
