@@ -241,6 +241,53 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
     },
   },
 
+  book: {
+    type: 'object',
+    title: 'Documentation Book',
+    required: ['name', 'groups'],
+    properties: {
+      ...headerProps,
+      slug: {
+        type: 'string',
+        title: 'Slug',
+        description: 'Portal URL segment; defaults to the name without its package prefix.',
+      },
+      icon: { type: 'string', title: 'Icon' },
+      order: {
+        type: 'number',
+        title: 'Order',
+        description: 'Orders books within the portal.',
+      },
+      audience: {
+        title: 'Audience',
+        description: "Access audience. 'org' (default) inherits the package grant; 'public' is anonymously readable; { profile } gates by role.",
+        // Union of the two scalar literals and the { profile } object — kept lax
+        // so the role-gated object form round-trips untouched through the form.
+        oneOf: [
+          { type: 'string', enum: ['org', 'public'] },
+          { type: 'object', title: 'Role-gated', properties: { profile: { type: 'string', title: 'Profile' } }, required: ['profile'] },
+        ],
+      },
+      groups: {
+        type: 'array',
+        title: 'Groups (spine)',
+        description: 'Ordered sections. Membership is derived from each group\'s include rule — edit the structure visually in the Preview tab.',
+        items: {
+          type: 'object',
+          required: ['key', 'label'],
+          properties: {
+            key: { type: 'string', title: 'Key', pattern: '^[a-z][a-z0-9_]*$' },
+            label: { type: 'string', title: 'Label' },
+            order: { type: 'number', title: 'Order' },
+            include: { title: 'Include rule', description: 'Glob over doc names (e.g. crm_guide_*) or { tag }.' },
+            package: { type: 'string', title: 'Package scope' },
+            pages: { type: 'array', title: 'Explicit pages (override)', items: {} },
+          },
+        },
+      },
+    },
+  },
+
   email_template: {
     type: 'object',
     title: 'Email Template',

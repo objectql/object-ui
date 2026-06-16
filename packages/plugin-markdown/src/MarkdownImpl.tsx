@@ -14,6 +14,7 @@ import rehypeSanitize, { defaultSchema } from "rehype-sanitize"
 import rehypeSlug from "rehype-slug"
 import rehypeHighlight from "rehype-highlight"
 import rehypeAutolinkHeadings from "rehype-autolink-headings"
+import { ComponentRegistry } from "@object-ui/core"
 import { ensureMarkdownStyles } from "./markdown-theme"
 import { Mermaid } from "./Mermaid"
 
@@ -100,7 +101,7 @@ const rehypePlugins = [
   rehypeNormalizeClassName,
   // Skip code blocks tagged with an unknown language instead of throwing;
   // highlight only what it recognises.
-  [rehypeHighlight, { detect: true, ignoreMissing: true, plainText: ["mermaid"] }],
+  [rehypeHighlight, { detect: true, ignoreMissing: true, plainText: ["mermaid", "metadata"] }],
   [rehypeAutolinkHeadings, { behavior: "append", properties: { className: ["md-anchor"], ariaHidden: true, tabIndex: -1 }, content: { type: "text", value: "#" } }],
   [rehypeSanitize, sanitizeSchema],
 ] as React.ComponentProps<typeof ReactMarkdown>["rehypePlugins"]
@@ -116,8 +117,59 @@ function nodeText(node: React.ReactNode): string {
   return ""
 }
 
-// Intercept fenced ```mermaid blocks at the <pre> level (so no <pre> wrapper is
-// emitted) and render them as diagrams; every other block renders normally.
+// ── ```metadata fence (ADR-0051) ─────────────────────────────────────────
+// A ```metadata block is a declarative reference to a metadata item that is
+// lifted into the live, read-only `element:metadata_viewer` SDUI component —
+// the same component an `element:metadata_viewer` node renders on a page, so
+// docs and pages share one runtime. The body is a flat `key: value` block
+// (data, not code: type / name / object / mode / detail), parsed here. Like
+// mermaid, the language is excluded from rehype-highlight (plainText above) so
+// nodeText yields the body verbatim.
+function parseMetadataFence(src: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const raw of src.split("\n")) {
+    const line = raw.trim()
+    if (!line || line.startsWith("#")) continue
+    const i = line.indexOf(":")
+    if (i < 1) continue
+    const key = line.slice(0, i).trim()
+    let value = line.slice(i + 1).trim()
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1)
+    }
+    if (key) out[key] = value
+  }
+  return out
+}
+
+function MetadataFence({ source }: { source: string }) {
+  const properties = React.useMemo(() => parseMetadataFence(source), [source])
+  const Comp = ComponentRegistry.get("element:metadata_viewer") as
+    | React.ComponentType<{ schema: unknown }>
+    | undefined
+  // Degrade gracefully when the SDUI component isn't registered (e.g. a
+  // consumer that renders Markdown without @object-ui/components loaded):
+  // show the raw reference rather than throwing.
+  if (!Comp) {
+    return (
+      <pre>
+        <code>{source}</code>
+      </pre>
+    )
+  }
+  return (
+    <div className="not-prose my-4">
+      <Comp schema={{ type: "element:metadata_viewer", properties }} />
+    </div>
+  )
+}
+
+// Intercept fenced ```mermaid / ```metadata blocks at the <pre> level (so no
+// <pre> wrapper is emitted) and render them as live views; every other block
+// renders normally.
 const mdComponents: Components = {
   pre({ node: _node, children, ...rest }) {
     const child = React.Children.toArray(children)[0]
@@ -128,6 +180,10 @@ const mdComponents: Components = {
     if (/\blanguage-mermaid\b/.test(className)) {
       const source = nodeText((child as React.ReactElement<{ children?: React.ReactNode }>).props.children)
       return <Mermaid chart={source} />
+    }
+    if (/\blanguage-metadata\b/.test(className)) {
+      const source = nodeText((child as React.ReactElement<{ children?: React.ReactNode }>).props.children)
+      return <MetadataFence source={source} />
     }
     return <pre {...rest}>{children}</pre>
   },

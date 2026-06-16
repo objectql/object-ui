@@ -165,3 +165,39 @@ registerMetadataResource({
     { key: 'route', label: 'Route' },
   ],
 });
+
+/* -------------------------------------------------------------------------- */
+/* 5) Documentation — the `book` navigation spine (ADR-0046 §6). A book is an  */
+/*    ordered set of groups whose membership over docs is DERIVED from each    */
+/*    group's include rule; the Preview tab renders that spine for authoring.  */
+/* -------------------------------------------------------------------------- */
+
+registerMetadataResource({
+  type: 'book',
+  label: 'Documentation Books',
+  description: 'Documentation navigation spine — ordered groups with membership derived over docs (glob/tag rules), plus an explicit pages override for curated order.',
+  domain: 'system',
+  searchableFields: ['name', 'label', 'description', 'slug'],
+  listColumns: [
+    { key: 'name', label: 'Name', width: '25%' },
+    { key: 'label', label: 'Label', width: '25%' },
+    {
+      key: 'audience',
+      label: 'Audience',
+      width: '12%',
+      render: (v) =>
+        v == null
+          ? 'org'
+          : typeof v === 'object' && v && 'profile' in (v as Record<string, unknown>)
+            ? `profile: ${(v as { profile: string }).profile}`
+            : String(v),
+    },
+    {
+      key: 'groups',
+      label: 'Groups',
+      width: '10%',
+      render: (v) => (Array.isArray(v) ? String(v.length) : '0'),
+    },
+    { key: 'description', label: 'Description' },
+  ],
+});

@@ -29,6 +29,7 @@ import { SkillPreview } from './SkillPreview';
 import { DatasourcePreview } from './DatasourcePreview';
 import { ValidationPreview } from './ValidationPreview';
 import { DatasetPreview } from './DatasetPreview';
+import { BookPreview } from './BookPreview';
 
 export function registerBuiltinPreviews(): void {
   // UI surfaces
@@ -47,6 +48,9 @@ export function registerBuiltinPreviews(): void {
   // System
   registerMetadataPreview('email_template', EmailTemplatePreview);
   registerMetadataPreview('translation', TranslationPreview);
+  // Documentation navigation spine (ADR-0046 §6): ordered groups with
+  // derived membership over docs.
+  registerMetadataPreview('book', BookPreview);
   // Automation
   // Approval is a flow node (`type: 'approval'`) since ADR-0019 — it renders on
   // the Flow canvas with its `approve` / `reject` branches; no standalone

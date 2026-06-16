@@ -49,6 +49,7 @@ const TYPE_LABELS_EN: Record<string, string> = {
   function: 'Function',
   service: 'Service',
   email_template: 'Email Template',
+  book: 'Documentation Book',
   // Security
   permission: 'Permission Set',
   profile: 'Profile',
@@ -94,6 +95,7 @@ const TYPE_LABELS_ZH: Record<string, string> = {
   function: '函数',
   service: '服务',
   email_template: '邮件模板',
+  book: '文档手册',
   permission: '权限集',
   profile: '配置文件',
   role: '角色',
