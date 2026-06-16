@@ -12,6 +12,7 @@ import {
   deriveImplicitPackageBook,
   buildBookCards,
   buildPortalBooks,
+  firstDoc,
   homeBook,
   bookSlug,
   pkgOf,
@@ -142,7 +143,18 @@ describe('buildPortalBooks (ADR-0046 §6.4 — no flat/book fork)', () => {
     expect(portal[0].name).toBe('crm_manual');
     expect(portal[portal.length - 1].name).toBe('misc');
     // implicit label is humanized, not the raw package id
-    expect(portal.find((b) => b.name === 'misc')?.label).toBe('Misc');
+    const misc = portal.find((b) => b.name === 'misc');
+    expect(misc?.label).toBe('Misc');
+    expect(misc?.implicit).toBe(true); // synthetic books are flagged
+  });
+
+  it('cards surface the package id as a subtitle for implicit books only', () => {
+    const authored: Book[] = [
+      { name: 'crm_manual', label: 'CRM Manual', description: 'd', groups: [{ key: 'g', label: 'G', include: 'crm_*' }] },
+    ];
+    const cards = buildBookCards(buildPortalBooks(authored, docs), docs);
+    expect(cards.find((c) => c.name === 'crm_manual')?.subtitle).toBeUndefined(); // authored: has a description
+    expect(cards.find((c) => c.name === 'misc')?.subtitle).toBe('misc'); // implicit: package id
   });
 
   it('with no authored books, every package becomes its own implicit book', () => {
@@ -211,6 +223,26 @@ describe('portal helpers', () => {
       { name: 'guides', label: 'Guides', groups: [{ key: 'g', label: 'G', include: 'crm_guide_*' }] },
     ];
     expect(findBookContainingDoc(books, docs, 'misc_note')).toBeNull();
+  });
+
+  it('firstDoc prefers an *_index doc, else the first in reading order', () => {
+    const withIndex = resolveBookTree(
+      { name: 'b', groups: [{ key: 'g', label: 'G', include: 'crm_*' }] },
+      [
+        { name: 'crm_guide_lead', order: 1 },
+        { name: 'crm_index', order: 9 }, // later in order, but the index wins
+      ],
+    );
+    expect(firstDoc(withIndex)).toBe('crm_index');
+
+    const noIndex = resolveBookTree(
+      { name: 'b', groups: [{ key: 'g', label: 'G', include: 'crm_*' }] },
+      [{ name: 'crm_b', order: 2 }, { name: 'crm_a', order: 1 }],
+    );
+    expect(firstDoc(noIndex)).toBe('crm_a'); // first by order
+
+    // A book with no readable docs → undefined.
+    expect(firstDoc({ name: 'b', label: 'B', groups: [] })).toBeUndefined();
   });
 
   it('countEntries ignores separators', () => {

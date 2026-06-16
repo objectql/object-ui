@@ -94,32 +94,33 @@ describe('book-driven docs portal (integration)', () => {
     expect(screen.getByText('1 article')).toBeInTheDocument();
   });
 
-  it('/docs/:slug renders the book landing with its docs (resolved spine)', async () => {
+  it('/docs/:slug opens the book to its overview doc (no duplicated TOC)', async () => {
     render(<Harness entry="/docs/crm" />);
-    // Both the sidebar and the overview list the book's docs.
-    expect(await screen.findAllByText('CRM Intro')).not.toHaveLength(0);
-    expect(screen.getAllByText('Leads').length).toBeGreaterThan(0);
-    // The overview links a doc to the in-book reader URL.
-    const links = screen.getAllByRole('link', { name: 'CRM Intro' });
-    expect(links.some((a) => a.getAttribute('href') === '/docs/crm/crm_intro')).toBe(true);
+    // The landing redirects into the reader of the first doc; content + sidebar.
+    expect(await screen.findByTestId('doc-content')).toHaveTextContent('Welcome to the CRM');
+    const intro = screen.getAllByRole('link', { name: 'CRM Intro' });
+    expect(intro.every((l) => l.getAttribute('aria-current') === 'page')).toBe(true);
   });
 
   it('/docs/:slug/:name renders the doc content with the book sidebar (active)', async () => {
     render(<Harness entry="/docs/crm/crm_intro" />);
     expect(await screen.findByTestId('doc-content')).toHaveTextContent('Welcome to the CRM');
-    // Sidebar marks the current doc as active.
-    const active = screen.getByRole('link', { name: 'CRM Intro' });
-    expect(active).toHaveAttribute('aria-current', 'page');
+    // The sidebar is rendered twice (persistent on wide, a disclosure on narrow);
+    // both mark the current doc active.
+    const active = screen.getAllByRole('link', { name: 'CRM Intro' });
+    expect(active.length).toBeGreaterThanOrEqual(1);
+    expect(active.every((l) => l.getAttribute('aria-current') === 'page')).toBe(true);
     // A sibling doc is reachable from the sidebar.
-    expect(screen.getByRole('link', { name: 'Leads' })).toHaveAttribute('href', '/docs/crm/crm_guide_lead');
+    const leads = screen.getAllByRole('link', { name: 'Leads' });
+    expect(leads.some((l) => l.getAttribute('href') === '/docs/crm/crm_guide_lead')).toBe(true);
   });
 
   it('legacy /docs/:name redirects to the doc\'s canonical in-book URL', async () => {
     render(<Harness entry="/docs/crm_intro" />);
-    // 'crm_intro' is not a book slug → dispatcher redirects to /docs/crm/crm_intro,
-    // which renders the reader.
+    // 'crm_intro' is not a book slug → dispatcher redirects to /docs/crm/crm_intro.
     expect(await screen.findByTestId('doc-content')).toHaveTextContent('Welcome to the CRM');
-    expect(screen.getByRole('link', { name: 'CRM Intro' })).toHaveAttribute('aria-current', 'page');
+    const active = screen.getAllByRole('link', { name: 'CRM Intro' });
+    expect(active.every((l) => l.getAttribute('aria-current') === 'page')).toBe(true);
   });
 
   it('an unknown segment degrades to a not-found notice', async () => {
@@ -127,13 +128,10 @@ describe('book-driven docs portal (integration)', () => {
     expect(await screen.findByText('Documentation not found')).toBeInTheDocument();
   });
 
-  it('clicking a book card navigates to its landing (real router flow)', async () => {
+  it('clicking a book card opens it (real router flow)', async () => {
     render(<Harness entry="/docs" />);
     fireEvent.click(await screen.findByRole('link', { name: /ops/i }));
-    // Now on /docs/ops — the ops book landing renders, headed by the book
-    // (its label is the humanized package id, "Ops"), with its doc reachable.
-    expect(await screen.findByRole('heading', { name: /ops/i })).toBeInTheDocument();
-    const setupLinks = screen.getAllByRole('link', { name: 'Setup' });
-    expect(setupLinks.some((a) => a.getAttribute('href') === '/docs/ops/ops_setup')).toBe(true);
+    // /docs/ops opens the ops book → reader of its single doc.
+    expect(await screen.findByTestId('doc-content')).toHaveTextContent('Operations setup');
   });
 });

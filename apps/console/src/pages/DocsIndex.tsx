@@ -48,7 +48,13 @@ export default function DocsIndex() {
 
   return (
     <DocShell>
-      <div className="mx-auto max-w-3xl p-4 sm:p-6">
+      <div className="mx-auto max-w-4xl p-4 sm:p-6">
+        <header className="mb-6">
+          <h1 className="text-2xl font-bold tracking-tight">Documentation</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Books and guides from your installed packages.
+          </p>
+        </header>
         {cards.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
             <BookOpen className="h-10 w-10" />
@@ -59,9 +65,9 @@ export default function DocsIndex() {
             </p>
           </div>
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="grid items-stretch gap-3 sm:grid-cols-2">
             {cards.map((card) => (
-              <li key={card.name}>
+              <li key={card.name} className="h-full">
                 <Link
                   to={`/docs/${card.slug}`}
                   className="flex h-full items-start gap-3 rounded-md border border-border p-3 hover:bg-muted/50"
@@ -72,6 +78,10 @@ export default function DocsIndex() {
                     {card.description ? (
                       <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                         {card.description}
+                      </div>
+                    ) : card.subtitle ? (
+                      <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/70">
+                        {card.subtitle}
                       </div>
                     ) : null}
                     <div className="mt-1 text-xs text-muted-foreground/80">

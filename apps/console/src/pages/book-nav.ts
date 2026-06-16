@@ -53,6 +53,8 @@ export interface Book {
   groups?: BookGroup[];
   /** Owning package id (`_packageId`), stamped by the metadata API. */
   packageId?: string;
+  /** True for a synthetic implicit per-package book (ADR-0046 §6.4). */
+  implicit?: boolean;
 }
 
 /** Minimal doc header the resolver needs. */
@@ -267,6 +269,8 @@ export interface BookCard {
   slug: string;
   label: string;
   description?: string;
+  /** Context line for cards without a description — the owning package id. */
+  subtitle?: string;
   icon?: string;
   packageId?: string;
   /** Number of docs the book currently resolves to (excludes separators/links). */
@@ -335,6 +339,9 @@ export function buildBookCards(books: Book[], docs: ResolverDoc[]): BookCard[] {
     slug: bookSlug(b),
     label: b.label ?? b.name,
     description: b.description,
+    // Implicit per-package books have no authored description; surface the
+    // package id so the card still says where the docs come from.
+    subtitle: b.implicit && !b.description ? b.packageId : undefined,
     icon: b.icon,
     packageId: b.packageId,
     docCount: countBookDocs(b, docs),
@@ -356,7 +363,7 @@ export function buildPortalBooks(authored: Book[], docs: ResolverDoc[]): Book[] 
     // Humanize the package id for the visible label (the slug/name stays the
     // full id so it remains unique and reversible); keep the group as the
     // generic "Documentation".
-    .map((p) => ({ ...deriveImplicitPackageBook(p), label: humanizePackageId(p), packageId: p }));
+    .map((p) => ({ ...deriveImplicitPackageBook(p), label: humanizePackageId(p), packageId: p, implicit: true }));
   // Authored books lead (curated, primary) in their own order; the synthetic
   // per-package books follow, alphabetically — so an authored book with an
   // explicit `order` is never pushed below a fallback.
@@ -402,6 +409,19 @@ export function findBookContainingDoc(
     if (has) return { book, resolved };
   }
   return null;
+}
+
+/**
+ * The doc a book opens to — its overview. Prefers an `*_index` doc, else the
+ * first doc in reading order. Returns undefined for a book with no readable
+ * docs (only external links / separators).
+ */
+export function firstDoc(resolved: ResolvedBook): string | undefined {
+  const names: string[] = [];
+  for (const g of resolved.groups) {
+    for (const e of g.entries) if (e.doc && !e.separator) names.push(e.doc);
+  }
+  return names.find((n) => /(^|_)index$/.test(n)) ?? names[0];
 }
 
 /** Total docs an entry list covers — handy for "N articles" labels. */

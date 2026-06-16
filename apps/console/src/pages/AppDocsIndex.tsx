@@ -73,6 +73,10 @@ export default function AppDocsIndex() {
                       <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                         {card.description}
                       </div>
+                    ) : card.subtitle ? (
+                      <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/70">
+                        {card.subtitle}
+                      </div>
                     ) : null}
                     <div className="mt-1 text-xs text-muted-foreground/80">
                       {card.docCount} {card.docCount === 1 ? 'article' : 'articles'}

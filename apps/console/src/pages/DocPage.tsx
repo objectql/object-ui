@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, FileQuestion, Loader2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, FileQuestion, Loader2, Menu } from 'lucide-react';
 import { useAdapter } from '@object-ui/app-shell';
 import { MarkdownRenderer, extractToc } from '@object-ui/plugin-markdown';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -156,6 +156,20 @@ export default function DocPage() {
 
   return (
     <DocShell breadcrumb={doc?.label ?? name}>
+      {/* Narrow screens: the persistent left sidebar is hidden, so the book
+        * nav collapses into a disclosure above the content instead of vanishing. */}
+      {resolvedBook ? (
+        <details className="group mx-auto max-w-6xl px-4 pt-4 sm:px-6 lg:hidden">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            <Menu className="h-4 w-4 text-muted-foreground" />
+            <span className="truncate">{resolvedBook.label ?? 'Contents'}</span>
+            <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="mt-2 rounded-md border p-3">
+            <BookSidebar book={resolvedBook} activeDoc={name} docHref={docHref} />
+          </div>
+        </details>
+      ) : null}
       <div className={`mx-auto flex gap-8 p-4 sm:p-6 ${resolvedBook ? 'max-w-6xl' : 'max-w-5xl'}`}>
         {resolvedBook ? (
           <aside className="hidden w-56 shrink-0 lg:block">
