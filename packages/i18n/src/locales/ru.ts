@@ -1372,6 +1372,11 @@ const ru = {
     lookupPlaceholder: "Вставить ID записи (UUID) для {{label}}",
     lookupHelpText: "Введите ID записи связанного объекта. Выбор записи будет добавлен позже.",
   },
+  actionConfirm: {
+    title: "Подтвердите действие",
+    confirm: "Продолжить",
+    cancel: "Отмена",
+  },
   rowAction: {
     openMenu: "Открыть меню",
     edit: "Редактировать",

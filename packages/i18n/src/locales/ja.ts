@@ -1372,6 +1372,11 @@ const ja = {
     lookupPlaceholder: "{{label}} のレコードID（UUID）を貼り付け",
     lookupHelpText: "参照オブジェクトのレコードIDを入力してください。ピッカーは近日公開予定です。",
   },
+  actionConfirm: {
+    title: "操作の確認",
+    confirm: "続行",
+    cancel: "キャンセル",
+  },
   rowAction: {
     openMenu: "メニューを開く",
     edit: "編集",

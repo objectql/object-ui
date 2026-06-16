@@ -1372,6 +1372,11 @@ const ko = {
     lookupPlaceholder: "{{label}}의 레코드 ID(UUID) 붙여넣기",
     lookupHelpText: "참조된 개체의 레코드 ID를 입력하세요. 선택기가 곧 추가됩니다.",
   },
+  actionConfirm: {
+    title: "작업 확인",
+    confirm: "계속",
+    cancel: "취소",
+  },
   rowAction: {
     openMenu: "메뉴 열기",
     edit: "편집",

@@ -1372,6 +1372,11 @@ const es = {
     lookupPlaceholder: "Pegar ID de registro (UUID) para {{label}}",
     lookupHelpText: "Ingrese el ID del registro del objeto referenciado. Pronto se añadirá un selector.",
   },
+  actionConfirm: {
+    title: "Confirmar acción",
+    confirm: "Continuar",
+    cancel: "Cancelar",
+  },
   rowAction: {
     openMenu: "Abrir menú",
     edit: "Editar",

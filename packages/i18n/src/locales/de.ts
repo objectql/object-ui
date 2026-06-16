@@ -1372,6 +1372,11 @@ const de = {
     lookupPlaceholder: "Datensatz-ID (UUID) für {{label}} einfügen",
     lookupHelpText: "Geben Sie die Datensatz-ID des referenzierten Objekts ein. Eine Auswahlhilfe kommt bald.",
   },
+  actionConfirm: {
+    title: "Aktion bestätigen",
+    confirm: "Weiter",
+    cancel: "Abbrechen",
+  },
   rowAction: {
     openMenu: "Menü öffnen",
     edit: "Bearbeiten",

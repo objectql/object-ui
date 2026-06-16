@@ -1372,6 +1372,11 @@ const ar = {
     lookupPlaceholder: "لصق معرف السجل (UUID) لـ {{label}}",
     lookupHelpText: "أدخل معرف سجل الكائن المرجع. سيتم إضافة أداة اختيار قريباً.",
   },
+  actionConfirm: {
+    title: "تأكيد الإجراء",
+    confirm: "متابعة",
+    cancel: "إلغاء",
+  },
   rowAction: {
     openMenu: "فتح القائمة",
     edit: "تعديل",

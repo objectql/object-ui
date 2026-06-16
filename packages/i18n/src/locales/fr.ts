@@ -1372,6 +1372,11 @@ const fr = {
     lookupPlaceholder: "Coller l'ID d'enregistrement (UUID) pour {{label}}",
     lookupHelpText: "Entrez l'ID de l'enregistrement de l'objet référencé. Un sélecteur sera bientôt ajouté.",
   },
+  actionConfirm: {
+    title: "Confirmer l’action",
+    confirm: "Continuer",
+    cancel: "Annuler",
+  },
   rowAction: {
     openMenu: "Ouvrir le menu",
     edit: "Modifier",
