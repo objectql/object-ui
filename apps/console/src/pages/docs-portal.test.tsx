@@ -61,17 +61,21 @@ vi.mock('@object-ui/i18n', () => ({
 }));
 
 // Imported AFTER the mocks so the pages pick up the mocked modules.
+import DocsLayout from './DocsLayout';
 import DocsIndex from './DocsIndex';
 import DocsSlug from './DocsSlug';
 import DocPage from './DocPage';
 
+// Mirrors the real route table: the layout fetches once and shares the data.
 function Harness({ entry }: { entry: string }) {
   return (
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
-        <Route path="/docs" element={<DocsIndex />} />
-        <Route path="/docs/:slug" element={<DocsSlug />} />
-        <Route path="/docs/:slug/:name" element={<DocPage />} />
+        <Route path="/docs" element={<DocsLayout />}>
+          <Route index element={<DocsIndex />} />
+          <Route path=":slug" element={<DocsSlug />} />
+          <Route path=":slug/:name" element={<DocPage />} />
+        </Route>
       </Routes>
     </MemoryRouter>
   );

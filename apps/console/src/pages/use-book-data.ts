@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAdapter } from '@object-ui/app-shell';
 import { buildPortalBooks, type Book, type ResolverDoc } from './book-nav';
 
@@ -77,7 +77,12 @@ interface RawState {
   error?: string;
 }
 
-export function useBookData(): BookData {
+/**
+ * Fetch the book + doc metadata once. Used by {@link BookDataProvider} at the
+ * `/docs` layout route so the whole docs section shares a single fetch, rather
+ * than each page (index, book landing, reader) re-fetching independently.
+ */
+function useBookDataFetch(): BookData {
   const adapter = useAdapter();
   const [data, setData] = useState<RawState>({ authoredBooks: [], docs: [], state: 'loading' });
 
@@ -124,4 +129,21 @@ export function useBookData(): BookData {
   );
 
   return { ...data, books };
+}
+
+const LOADING: BookData = { authoredBooks: [], books: [], docs: [], state: 'loading' };
+
+/**
+ * Shared book/doc data, provided once at the `/docs` layout route (see
+ * DocsLayout) and consumed by {@link useBookData}. Exported so the layout's
+ * provider — which lives in a `.tsx` file — can supply it.
+ */
+export const BookDataContext = createContext<BookData | null>(null);
+
+/** The one-time fetcher the layout drives. Internal to the docs section. */
+export { useBookDataFetch };
+
+/** Read the shared book/doc data. Returns a loading state outside the provider. */
+export function useBookData(): BookData {
+  return useContext(BookDataContext) ?? LOADING;
 }
