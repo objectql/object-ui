@@ -323,9 +323,14 @@ export function countBookDocs(book: Book, docs: ResolverDoc[]): number {
   return seen.size;
 }
 
-/** Build the index cards for the portal landing, in display order. */
+/**
+ * Build the index cards for the portal landing. Input order is preserved —
+ * callers pass {@link buildPortalBooks} output, which already orders authored
+ * books (by `order`) ahead of the synthetic per-package ones; re-sorting here
+ * would undo that.
+ */
 export function buildBookCards(books: Book[], docs: ResolverDoc[]): BookCard[] {
-  return sortBooks(books).map((b) => ({
+  return books.map((b) => ({
     name: b.name,
     slug: bookSlug(b),
     label: b.label ?? b.name,
@@ -348,8 +353,20 @@ export function buildPortalBooks(authored: Book[], docs: ResolverDoc[]): Book[] 
   const docPkgs = new Set(docs.map(pkgOf));
   const implicit: Book[] = [...docPkgs]
     .filter((p) => !ownPkgs.has(p))
-    .map((p) => ({ ...deriveImplicitPackageBook(p), packageId: p }));
-  return sortBooks([...authored, ...implicit]);
+    // Humanize the package id for the visible label (the slug/name stays the
+    // full id so it remains unique and reversible); keep the group as the
+    // generic "Documentation".
+    .map((p) => ({ ...deriveImplicitPackageBook(p), label: humanizePackageId(p), packageId: p }));
+  // Authored books lead (curated, primary) in their own order; the synthetic
+  // per-package books follow, alphabetically — so an authored book with an
+  // explicit `order` is never pushed below a fallback.
+  return [...sortBooks(authored), ...sortBooks(implicit)];
+}
+
+/** "com.objectstack.setup" → "Setup" — a readable label for an implicit book. */
+function humanizePackageId(pkg: string): string {
+  const seg = pkg.split('.').pop() || pkg;
+  return seg.charAt(0).toUpperCase() + seg.slice(1);
 }
 
 /**

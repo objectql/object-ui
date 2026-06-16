@@ -126,9 +126,9 @@ describe('book-driven docs portal (integration)', () => {
   it('clicking a book card navigates to its landing (real router flow)', async () => {
     render(<Harness entry="/docs" />);
     fireEvent.click(await screen.findByRole('link', { name: /ops/i }));
-    // Now on /docs/ops — the ops book landing renders, headed by the book, with
-    // its doc reachable (in both the sidebar and the overview list).
-    expect(await screen.findByRole('heading', { name: 'ops' })).toBeInTheDocument();
+    // Now on /docs/ops — the ops book landing renders, headed by the book
+    // (its label is the humanized package id, "Ops"), with its doc reachable.
+    expect(await screen.findByRole('heading', { name: /ops/i })).toBeInTheDocument();
     const setupLinks = screen.getAllByRole('link', { name: 'Setup' });
     expect(setupLinks.some((a) => a.getAttribute('href') === '/docs/ops/ops_setup')).toBe(true);
   });

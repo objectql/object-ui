@@ -138,6 +138,11 @@ describe('buildPortalBooks (ADR-0046 §6.4 — no flat/book fork)', () => {
     expect(portal.map((b) => b.name)).toContain('misc'); // implicit book keyed by packageId
     // no duplicate implicit 'crm' book, since crm_manual already owns 'crm'
     expect(portal.filter((b) => b.name === 'crm').length).toBe(0);
+    // authored books lead, implicit ones follow
+    expect(portal[0].name).toBe('crm_manual');
+    expect(portal[portal.length - 1].name).toBe('misc');
+    // implicit label is humanized, not the raw package id
+    expect(portal.find((b) => b.name === 'misc')?.label).toBe('Misc');
   });
 
   it('with no authored books, every package becomes its own implicit book', () => {
