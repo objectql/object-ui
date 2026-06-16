@@ -310,6 +310,15 @@ export interface DataTableSchema extends BaseSchema {
    */
   borderless?: boolean;
   /**
+   * Drop the table's own horizontal/vertical scroll container so the table
+   * overflows into a shared parent scroll container instead. Used by the
+   * grouped grid so every per-group sub-table participates in ONE shared
+   * horizontal scrollbar (and keeps columns aligned) rather than each group
+   * scrolling independently.
+   * @default false
+   */
+  disableInnerScroll?: boolean;
+  /**
    * Table caption
    */
   caption?: string;

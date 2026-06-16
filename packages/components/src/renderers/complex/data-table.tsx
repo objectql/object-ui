@@ -183,6 +183,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     showRowNumbers = false,
     showAddRow = false,
     borderless = false,
+    disableInnerScroll = false,
   } = schema;
 
   // i18n support for pagination labels
@@ -756,7 +757,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
           the table sits flush against its container without a floating
           right-edge gradient that looked odd without a surrounding border. */}
       <div className={cn(
-        "flex-1 min-h-0 overflow-auto relative bg-background [-webkit-overflow-scrolling:touch]",
+        "relative bg-background",
+        // When embedded in a shared scroll container (grouped grid), let the
+        // table overflow outward instead of creating its own scrollbar so all
+        // sub-tables share one horizontal scrollbar with aligned columns.
+        disableInnerScroll
+          ? "overflow-visible"
+          : "flex-1 min-h-0 overflow-auto [-webkit-overflow-scrolling:touch]",
         !borderless && "rounded-md border shadow-[inset_-8px_0_8px_-8px_rgba(0,0,0,0.08)]",
       )}>
         <Table>
