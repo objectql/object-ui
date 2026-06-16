@@ -544,8 +544,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         },
       );
       const json = await res.json().catch(() => null);
-      if (!res.ok || (json && json.success === false)) {
-        const errMsg = json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
+      // The action route wraps the handler's return value in a {success, data}
+      // envelope. A script action that THROWS is reported as
+      // `data: { success: false, error }` while the OUTER success stays true,
+      // so we must inspect the inner envelope too — otherwise a failed action
+      // is mistaken for success and fires the green "completed" toast while the
+      // real error is swallowed.
+      const inner = json?.data;
+      const innerFailed = inner && typeof inner === 'object' && inner.success === false;
+      if (!res.ok || (json && json.success === false) || innerFailed) {
+        const errMsg = (innerFailed && inner.error) || json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
         // Surface the failure — this custom new-tab path bypasses
         // ActionRunner's toast-on-error, so otherwise the user gets no feedback.
