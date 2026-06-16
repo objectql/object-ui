@@ -134,7 +134,7 @@ const CSS = `
    borderless tables. We add cell borders (prose-th/td:border), so restore
    symmetric horizontal padding — otherwise the first column's text sits
    flush against the left border, misaligned with every other column. The
-   0.6666667em matches prose-sm's inner-cell padding. The `.os-markdown`
+   0.6666667em matches prose-sm's inner-cell padding. The .os-markdown
    class selector outranks typography's zero-specificity :where() rules. */
 .os-markdown table th:first-child,
 .os-markdown table td:first-child { padding-inline-start: 0.6666667em; }
