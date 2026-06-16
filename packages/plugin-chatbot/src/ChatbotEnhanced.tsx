@@ -1960,9 +1960,11 @@ function BuildProgressPanel({
         {!isDone && phase === 'data' ? (
           <span className="text-xs font-normal text-muted-foreground">adding sample data</span>
         ) : null}
-        <span className="ml-auto">
-          <LivenessIndicator active={!isDone} activityKey={activityKey} waitingLabel={waitingLabel} />
-        </span>
+        {!isDone ? (
+          <span className="ml-auto">
+            <LivenessIndicator active activityKey={activityKey} waitingLabel={waitingLabel} />
+          </span>
+        ) : null}
       </div>
       <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
         <div

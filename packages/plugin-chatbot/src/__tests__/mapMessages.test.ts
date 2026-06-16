@@ -346,7 +346,7 @@ describe('buildProgressFromDraftReview (reload synthesis)', () => {
     });
     expect(bp).toEqual({
       phase: 'done',
-      appLabel: 'expense_tracker',
+      appLabel: 'Expense Tracker',
       items: [
         { type: 'object', name: 'expense' },
         { type: 'view', name: 'expense.list' },
@@ -392,7 +392,7 @@ describe('buildProgressFromDraftReview (reload synthesis)', () => {
         },
       ],
     });
-    expect(out.buildProgress).toMatchObject({ phase: 'done', appLabel: 'expense_tracker', done: 2, total: 2 });
+    expect(out.buildProgress).toMatchObject({ phase: 'done', appLabel: 'Expense Tracker', done: 2, total: 2 });
     // and the draft affordances survive too
     expect(out.toolInvocations?.[0]?.draftReview?.packageId).toBe('com.workspace');
   });

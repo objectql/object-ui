@@ -805,6 +805,20 @@ function ChatPane({
     );
   }, [conversationId, messages]);
 
+  // ADR-0037: refresh the live preview when a turn finishes while the canvas is
+  // open. The per-artifact `onDraftArtifacts` signal covers a build streaming in,
+  // but an incremental edit (add a field, rename) can land without growing the
+  // de-duped artifact set — so its draft never reached the iframe and the pane
+  // (and its "Changes (N)" count) went stale until a manual reload. Bumping on
+  // the loading falling-edge guarantees the preview reflects every change.
+  const prevLoadingRef = useRef(false);
+  useEffect(() => {
+    if (prevLoadingRef.current && !isLoading && canvasApp) {
+      setCanvasRefreshKey((k) => k + 1);
+    }
+    prevLoadingRef.current = isLoading;
+  }, [isLoading, canvasApp]);
+
   const hitl = useHitlInChat({
     messages: messages as ChatMessage[],
     apiBase,

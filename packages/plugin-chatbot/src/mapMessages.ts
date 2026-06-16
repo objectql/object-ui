@@ -189,6 +189,15 @@ export function detectDraftResult(result: unknown): DraftReview | undefined {
   };
 }
 
+/** snake/kebab artifact name → human title, e.g. `expense_tracker` → `Expense Tracker`. */
+function humanizeArtifactName(name: string): string {
+  return name
+    .replace(/[._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /**
  * Synthesize a COMPLETED build-progress summary from a persisted apply_blueprint
  * draft envelope. The live "build tree" (`buildProgress`) is driven by transient
@@ -207,7 +216,7 @@ export function buildProgressFromDraftReview(
   if (!app) return undefined;
   return {
     phase: 'done',
-    appLabel: app.name,
+    appLabel: humanizeArtifactName(app.name),
     items: draft.items,
     done: draft.items.length,
     total: draft.items.length,
