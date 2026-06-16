@@ -33,7 +33,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@object-ui/components';
-import { ArrowLeft, ExternalLink, Download, AlertCircle, Package, Trash2, MoreHorizontal, CheckCircle2, Database, Loader2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Download, AlertCircle, Package, Trash2, MoreHorizontal, CheckCircle2, ArrowUpCircle, Database, Loader2 } from 'lucide-react';
 import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { PackageIcon } from './PackageIcon';
@@ -481,9 +481,15 @@ export function MarketplacePackagePage() {
   const localInstall = localInstalls.find((i) => i.manifestId === pkg.manifest_id) ?? null;
   // PD4 (ADR-0025 §3.11): code-bearing packages must disclose + be acknowledged.
   const containsCode = !!pkg.latest_version?.contains_code;
+  // ADR-0010 version lifecycle: installed cloud env is on an OLDER version than
+  // the package's latest published → surface an update affordance.
+  const cloudUpdateAvailable = !!cloudInstalledVersion
+    && cloudInstalledVersion !== 'installed'
+    && !!latestVersion
+    && cloudInstalledVersion !== latestVersion;
 
   const supportsLocal = getRuntimeConfig().features.installLocal;
-  const primaryDisabled = !latestVersion || installingLocal || installing || (!supportsLocal && !!cloudInstalledVersion);
+  const primaryDisabled = !latestVersion || installingLocal || installing || (!supportsLocal && !!cloudInstalledVersion && !cloudUpdateAvailable);
   const primaryAction = supportsLocal
     ? {
       label: installingLocal
@@ -497,7 +503,9 @@ export function MarketplacePackagePage() {
       label: installing
         ? t('marketplace.action.installing')
         : cloudInstalledVersion
-          ? t('marketplace.action.installed', { defaultValue: 'Installed' })
+          ? (cloudUpdateAvailable
+              ? t('marketplace.action.updateTo', { defaultValue: 'Update', version: latestVersion })
+              : t('marketplace.action.installed', { defaultValue: 'Installed' }))
           : t('marketplace.action.installToCloud'),
       onClick: openInstall,
     };
@@ -557,6 +565,12 @@ export function MarketplacePackagePage() {
               <Badge variant="default" className="bg-green-600 hover:bg-green-600 gap-1">
                 <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                 {t('marketplace.detail.installedV', { version: cloudInstalledVersion })}
+              </Badge>
+            )}
+            {cloudUpdateAvailable && (
+              <Badge variant="default" className="bg-amber-500 hover:bg-amber-500 gap-1">
+                <ArrowUpCircle className="h-3 w-3" aria-hidden="true" />
+                {t('marketplace.detail.updateAvailable', { defaultValue: 'Update available' })} → v{latestVersion}
               </Badge>
             )}
           </div>
