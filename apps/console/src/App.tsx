@@ -44,6 +44,7 @@ import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
 import DocPage from './pages/DocPage';
 import DocsIndex from './pages/DocsIndex';
+import DocsSlug from './pages/DocsSlug';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -189,7 +190,16 @@ export function App() {
                 <DocsIndex />
               </ProtectedRoute>
             } />
-            <Route path="/docs/:name" element={
+            {/* One portal segment: a book landing (slug) or a flat-doc permalink
+              * that redirects to its canonical /docs/<book>/<name> (ADR-0046 §6). */}
+            <Route path="/docs/:slug" element={
+              <ProtectedRoute>
+                <DocsSlug />
+              </ProtectedRoute>
+            } />
+            {/* In-book reader: <slug> = book, <name> = doc (doc identity stays
+              * single-coordinate; the book segment is derived navigation). */}
+            <Route path="/docs/:slug/:name" element={
               <ProtectedRoute>
                 <DocPage />
               </ProtectedRoute>

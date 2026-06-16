@@ -35,6 +35,7 @@ const IntegrationsPage = lazy(() => import('./pages/developer/IntegrationsPage')
 // app-scoped index at /apps/:packageId/docs (AppDocsIndex).
 const DocPage = lazy(() => import('./pages/DocPage'));
 const AppDocsIndex = lazy(() => import('./pages/AppDocsIndex'));
+const DocsSlug = lazy(() => import('./pages/DocsSlug'));
 
 // Note: marketplace routes (`system/marketplace`, `system/marketplace/:packageId`)
 // are registered by DefaultAppContent in @object-ui/app-shell so they're
@@ -92,7 +93,10 @@ const systemRoutes = (
     {/* ADR-0048 — package docs under the package container: app-scoped index
         (/apps/:packageId/docs) + single-doc viewer (/apps/:packageId/docs/:name) */}
     <Route path="docs" element={<Suspense fallback={<LoadingScreen />}><AppDocsIndex /></Suspense>} />
-    <Route path="docs/:name" element={<Suspense fallback={<LoadingScreen />}><DocPage /></Suspense>} />
+    {/* ADR-0046 §6 — one segment resolves to a book landing or redirects a flat
+        doc to its canonical /docs/<book>/<name>; then the in-book reader. */}
+    <Route path="docs/:slug" element={<Suspense fallback={<LoadingScreen />}><DocsSlug /></Suspense>} />
+    <Route path="docs/:slug/:name" element={<Suspense fallback={<LoadingScreen />}><DocPage /></Suspense>} />
     {/* Legacy URL redirects → metadata-admin engine (zero-cost compatibility). */}
     <Route path="system/objects" element={<ObjectRedirect />} />
     <Route path="system/objects/:objectName" element={<ObjectRedirect />} />
