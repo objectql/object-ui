@@ -33,6 +33,7 @@ vi.mock('@object-ui/i18n', () => ({
     fieldOptionLabel: (_o: any, _f: any, _v: any, l: any) => l,
     actionParamText: (_o: any, _a: any, _p: any, _attr: any, fallback: any) => fallback,
     actionParamOptionLabel: (_o: any, _a: any, _p: any, _v: any, fallback: any) => fallback,
+    actionDescription: (_o: any, _a: any, fallback: any) => fallback,
   }),
 }));
 

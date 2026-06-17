@@ -80,6 +80,11 @@ export function MarketplacePackagePage() {
   const [envsLoading, setEnvsLoading] = useState(false);
   const [envsError, setEnvsError] = useState<string | null>(null);
   const [selectedEnv, setSelectedEnv] = useState<string>('');
+  // env id -> installed version, for annotating the picker with each env's
+  // current install state ("Installed v1.0.0" / "Update → v1.0.1"). Lets a
+  // multi-env operator see at a glance where this app already lives and which
+  // copies are out of date before choosing a target.
+  const [envInstallMap, setEnvInstallMap] = useState<Record<string, string>>({});
   const [seedSampleData, setSeedSampleData] = useState(false);
   // PD4: a code-bearing package requires explicit acknowledgement of its
   // requested permissions before the install button is enabled.
@@ -184,6 +189,24 @@ export function MarketplacePackagePage() {
         return orgId ? adminOrgIds.has(String(orgId)) : false;
       });
       setEnvs(installable);
+      // Annotate each installable env with its current install state (best
+      // effort, parallel; a failed lookup just omits the annotation).
+      setEnvInstallMap({});
+      const pkgId = packageId;
+      if (pkgId) void Promise.all(
+        installable.map(async (env) => {
+          try {
+            const info = await getCloudInstallationInfo(pkgId, env.id);
+            return info ? ([env.id, info.version] as const) : null;
+          } catch {
+            return null;
+          }
+        }),
+      ).then((pairs) => {
+        const map: Record<string, string> = {};
+        for (const pair of pairs) if (pair) map[pair[0]] = pair[1];
+        setEnvInstallMap(map);
+      });
       if (list.length > 0 && installable.length === 0) {
         setEnvsError(t('marketplace.install.noPermission'));
       } else if (installable.length === 1) {
@@ -711,17 +734,22 @@ export function MarketplacePackagePage() {
               {data.versions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('marketplace.detail.noApprovedVersions')}</p>
               ) : (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {data.versions.map((v) => (
-                    <li key={v.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex items-center gap-1.5">
-                        <Package className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                        <code className="font-mono">v{v.version}</code>
-                        {v.is_prerelease && <Badge variant="outline" className="text-xs">{t('marketplace.detail.prerelease')}</Badge>}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {v.published_at ? new Date(v.published_at).toLocaleDateString() : '—'}
-                      </span>
+                    <li key={v.id} className="space-y-1 text-sm">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5">
+                          <Package className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                          <code className="font-mono">v{v.version}</code>
+                          {v.is_prerelease && <Badge variant="outline" className="text-xs">{t('marketplace.detail.prerelease')}</Badge>}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {v.published_at ? new Date(v.published_at).toLocaleDateString() : '\u2014'}
+                        </span>
+                      </div>
+                      {v.release_notes && v.release_notes.trim() && (
+                        <p className="whitespace-pre-line pl-5 text-xs text-muted-foreground">{v.release_notes.trim()}</p>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -779,12 +807,22 @@ export function MarketplacePackagePage() {
                     <SelectValue placeholder={t('marketplace.install.environmentPlaceholder')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {envs.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.display_name || e.hostname || e.id}
-                        {e.plan && <span className="text-muted-foreground"> · {e.plan}</span>}
-                      </SelectItem>
-                    ))}
+                    {envs.map((e) => {
+                      const installedHere = envInstallMap[e.id];
+                      const hasUpdate = !!installedHere && !!latestVersion
+                        && installedHere !== 'installed' && installedHere !== latestVersion;
+                      return (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.display_name || e.hostname || e.id}
+                          {e.plan && <span className="text-muted-foreground"> · {e.plan}</span>}
+                          {installedHere && (
+                            hasUpdate
+                              ? <span className="text-amber-600"> · {t('marketplace.install.updateTo', { defaultValue: 'Update \u2192 v{{version}}', version: latestVersion })}</span>
+                              : <span className="text-muted-foreground"> · {t('marketplace.install.installedVersion', { defaultValue: 'Installed v{{version}}', version: installedHere })}</span>
+                          )}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>

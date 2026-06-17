@@ -60,7 +60,25 @@ import {
   Lock,
 } from 'lucide-react';
 import { cn } from '@object-ui/components';
+import { useObjectTranslation } from '@object-ui/react';
 import type { ViewTabItem } from './ViewTabBar';
+
+/**
+ * Translation helper resilient to rendering outside an I18nProvider (mirrors
+ * ViewTabBar.useViewTabLabel): returns the English `fallback` when the key is
+ * missing or the provider is absent.
+ */
+function useViewLabel() {
+  try {
+    const { t } = useObjectTranslation();
+    return (key: string, fallback: string, vars?: Record<string, unknown>) => {
+      const v = t(key, vars as any);
+      return !v || v === key ? fallback : v;
+    };
+  } catch {
+    return (_k: string, fallback: string) => fallback;
+  }
+}
 
 export interface ManageViewsDialogProps {
   /** Whether the dialog is open */
@@ -125,6 +143,7 @@ const SortableRow: React.FC<RowProps> = ({
   onSetPinned,
   onConfigView,
 }) => {
+  const vt = useViewLabel();
   const {
     attributes,
     listeners,
@@ -181,7 +200,7 @@ const SortableRow: React.FC<RowProps> = ({
         type="button"
         {...attributes}
         {...listeners}
-        aria-label="Drag to reorder"
+        aria-label={vt('view.dragToReorder', 'Drag to reorder')}
         data-testid={`manage-views-drag-${view.id}`}
         className="shrink-0 h-6 w-5 flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground cursor-grab active:cursor-grabbing rounded hover:bg-accent"
         onClick={(e) => e.stopPropagation()}
@@ -231,7 +250,7 @@ const SortableRow: React.FC<RowProps> = ({
             <span className="truncate">{view.label}</span>
             {isReadonly && (
               <Lock
-                aria-label="Read-only view"
+                aria-label={vt('view.readonlyAriaLabel', 'Read-only view')}
                 data-testid={`manage-views-readonly-${view.id}`}
                 className="h-3 w-3 text-muted-foreground shrink-0"
               />
@@ -239,9 +258,9 @@ const SortableRow: React.FC<RowProps> = ({
             {view.isDefault && (
               <span
                 className="ml-1 inline-flex items-center text-[10px] uppercase tracking-wide text-muted-foreground"
-                title="Default view"
+                title={vt('view.defaultView', 'Default view')}
               >
-                <Star className="h-3 w-3 mr-0.5 fill-current" /> default
+                <Star className="h-3 w-3 mr-0.5 fill-current" /> {vt('view.defaultBadge', 'default')}
               </span>
             )}
           </button>
@@ -255,7 +274,7 @@ const SortableRow: React.FC<RowProps> = ({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label={view.isPinned ? 'Unpin view' : 'Pin view'}
+                aria-label={view.isPinned ? vt('view.unpinView', 'Unpin View') : vt('view.pinView', 'Pin View')}
                 data-testid={`manage-views-pin-${view.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -270,7 +289,7 @@ const SortableRow: React.FC<RowProps> = ({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              {view.isPinned ? 'Unpin view' : 'Pin view'}
+              {view.isPinned ? vt('view.unpinView', 'Unpin View') : vt('view.pinView', 'Pin View')}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -283,7 +302,7 @@ const SortableRow: React.FC<RowProps> = ({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label="Set as default"
+                aria-label={vt('view.setAsDefault', 'Set as Default')}
                 data-testid={`manage-views-default-${view.id}`}
                 onClick={(e) => {
                   e.stopPropagation();
@@ -294,7 +313,7 @@ const SortableRow: React.FC<RowProps> = ({
                 <Star className="h-4 w-4" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top">Set as default</TooltipContent>
+            <TooltipContent side="top">{vt('view.setAsDefault', 'Set as Default')}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}
@@ -305,7 +324,7 @@ const SortableRow: React.FC<RowProps> = ({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              aria-label={`Actions for ${view.label}`}
+              aria-label={vt('view.tabActionsFor', `View actions for ${view.label}`, { name: view.label })}
               data-testid={`manage-views-actions-${view.id}`}
               onClick={(e) => e.stopPropagation()}
               className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground opacity-60 group-hover/row:opacity-100 transition-opacity"
@@ -319,7 +338,7 @@ const SortableRow: React.FC<RowProps> = ({
                 data-testid={`manage-views-action-rename-${view.id}`}
                 onClick={() => onStartRename(view.id)}
               >
-                <Pencil className="h-4 w-4 mr-2" /> Rename
+                <Pencil className="h-4 w-4 mr-2" /> {vt('view.rename', 'Rename')}
               </DropdownMenuItem>
             )}
             {onDuplicate && (
@@ -327,7 +346,7 @@ const SortableRow: React.FC<RowProps> = ({
                 data-testid={`manage-views-action-duplicate-${view.id}`}
                 onClick={() => onDuplicate(view.id)}
               >
-                <Copy className="h-4 w-4 mr-2" /> Duplicate
+                <Copy className="h-4 w-4 mr-2" /> {vt('view.duplicateView', 'Duplicate View')}
               </DropdownMenuItem>
             )}
             {onConfigView && !isReadonly && (
@@ -335,7 +354,7 @@ const SortableRow: React.FC<RowProps> = ({
                 data-testid={`manage-views-action-config-${view.id}`}
                 onClick={() => onConfigView(view.id)}
               >
-                <Pencil className="h-4 w-4 mr-2" /> Edit configuration…
+                <Pencil className="h-4 w-4 mr-2" /> {vt('view.editViewConfig', 'Edit view config')}
               </DropdownMenuItem>
             )}
             {onSetDefault && !view.isDefault && !isReadonly && (
@@ -343,7 +362,7 @@ const SortableRow: React.FC<RowProps> = ({
                 data-testid={`manage-views-action-default-${view.id}`}
                 onClick={() => onSetDefault(view.id)}
               >
-                <Star className="h-4 w-4 mr-2" /> Set as default
+                <Star className="h-4 w-4 mr-2" /> {vt('view.setAsDefault', 'Set as Default')}
               </DropdownMenuItem>
             )}
             {onSetPinned && !isReadonly && (
@@ -352,8 +371,8 @@ const SortableRow: React.FC<RowProps> = ({
                 onClick={() => onSetPinned(view.id, !view.isPinned)}
               >
                 {view.isPinned
-                  ? <><PinOff className="h-4 w-4 mr-2" /> Unpin</>
-                  : <><Pin className="h-4 w-4 mr-2" /> Pin</>}
+                  ? <><PinOff className="h-4 w-4 mr-2" /> {vt('view.unpinView', 'Unpin View')}</>
+                  : <><Pin className="h-4 w-4 mr-2" /> {vt('view.pinView', 'Pin View')}</>}
               </DropdownMenuItem>
             )}
             {onDelete && !isReadonly && (
@@ -364,7 +383,7 @@ const SortableRow: React.FC<RowProps> = ({
                   onClick={() => onDelete(view.id)}
                   className="text-destructive focus:text-destructive"
                 >
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  <Trash2 className="h-4 w-4 mr-2" /> {vt('view.deleteView', 'Delete View')}
                 </DropdownMenuItem>
               </>
             )}
@@ -376,7 +395,7 @@ const SortableRow: React.FC<RowProps> = ({
         <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
-            aria-label="Save name"
+            aria-label={vt('common.save', 'Save')}
             onMouseDown={(e) => e.preventDefault()}
             onClick={commit}
             className="h-7 w-7 inline-flex items-center justify-center rounded hover:bg-accent text-emerald-600"
@@ -385,7 +404,7 @@ const SortableRow: React.FC<RowProps> = ({
           </button>
           <button
             type="button"
-            aria-label="Cancel rename"
+            aria-label={vt('common.cancel', 'Cancel')}
             onMouseDown={(e) => e.preventDefault()}
             onClick={onCancelRename}
             className="h-7 w-7 inline-flex items-center justify-center rounded hover:bg-accent text-muted-foreground"
@@ -413,6 +432,7 @@ export const ManageViewsDialog: React.FC<ManageViewsDialogProps> = ({
   onAddView,
   onConfigView,
 }) => {
+  const vt = useViewLabel();
   const [search, setSearch] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   // Local copy so drag reorder feels instant; we sync from props when they change.
@@ -470,9 +490,9 @@ export const ManageViewsDialog: React.FC<ManageViewsDialogProps> = ({
         data-testid="manage-views-dialog"
       >
         <DialogHeader className="px-5 pt-5 pb-3">
-          <DialogTitle className="text-base">Manage views</DialogTitle>
+          <DialogTitle className="text-base">{vt('view.manageViews', 'Manage views')}</DialogTitle>
           <DialogDescription className="text-xs">
-            Reorder, rename, pin, or delete every view in this object.
+            {vt('view.manageViewsDescription', 'Reorder, rename, pin, or delete every view in this object.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -483,7 +503,7 @@ export const ManageViewsDialog: React.FC<ManageViewsDialogProps> = ({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search views"
+              placeholder={vt('view.searchViews', 'Search views')}
               className="pl-8 h-9"
               data-testid="manage-views-search"
             />
@@ -497,7 +517,7 @@ export const ManageViewsDialog: React.FC<ManageViewsDialogProps> = ({
         >
           {visibleViews.length === 0 ? (
             <div className="text-center text-sm text-muted-foreground py-10">
-              No views match your search.
+              {vt('view.noViewsFound', 'No views match your search.')}
             </div>
           ) : (
             <DndContext
@@ -551,7 +571,7 @@ export const ManageViewsDialog: React.FC<ManageViewsDialogProps> = ({
               data-testid="manage-views-add"
               className="text-sm"
             >
-              <Plus className="h-4 w-4 mr-1.5" /> Add new view
+              <Plus className="h-4 w-4 mr-1.5" /> {vt('view.addNewView', 'Add new view')}
             </Button>
           ) : <span />}
           <Button
@@ -559,7 +579,7 @@ export const ManageViewsDialog: React.FC<ManageViewsDialogProps> = ({
             onClick={() => onOpenChange(false)}
             data-testid="manage-views-done"
           >
-            Done
+            {vt('view.done', 'Done')}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -360,6 +360,14 @@ export interface FeedItem {
   pinned?: boolean;
   /** Whether this item has been edited */
   edited?: boolean;
+  /**
+   * Source rich-entity pointer (ADR-0052 ActivityPointer). When the activity
+   * was derived from a separate record — an email in `sys_email`, a call/meeting
+   * task — these identify it so the timeline can drill from the one-line summary
+   * to the full record. Distinct from `source` (the origin channel).
+   */
+  sourceObject?: string;
+  sourceId?: string | number;
 }
 
 /**

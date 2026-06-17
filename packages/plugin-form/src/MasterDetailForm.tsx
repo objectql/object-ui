@@ -69,6 +69,10 @@ export interface MasterDetailFormSchema {
   objectName: string;
   mode?: 'create' | 'edit';
   recordId?: string;
+  /** Prefilled parent header values (create mode) — seeds the parent form's
+   *  initial values, e.g. a conversion wizard carrying the lead/account over. */
+  initialValues?: Record<string, any>;
+  initialData?: Record<string, any>;
   /** Parent form sections/fields — passed straight through to ObjectForm. */
   sections?: any[];
   fields?: any[];
@@ -573,6 +577,10 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       objectName: schema.objectName,
       mode: schema.mode ?? 'create',
       recordId: schema.recordId,
+      // Carry prefilled header values into the parent form (create-mode
+      // wizards, e.g. lead conversion prefilling name/account).
+      initialValues: schema.initialValues,
+      initialData: schema.initialData,
       formType: schema.formType,
       sections: schema.sections,
       fields: schema.fields,

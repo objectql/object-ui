@@ -173,6 +173,7 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.loadMore': 'Load more',
   'detail.edited': '(edited)',
   'detail.via': 'via {{source}}',
+  'detail.viewSource': 'View source',
   // Replies
   'detail.replyCount': '{{count}} reply',
   'detail.replyCountPlural': '{{count}} replies',

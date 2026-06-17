@@ -98,6 +98,11 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
           successMessage: schema.successMessage,
           errorMessage: schema.errorMessage,
           refreshAfter: schema.refreshAfter,
+          // Forward `undoable` (and the row id field) so update actions can
+          // offer an Undo affordance — without this the flag is dropped and the
+          // handler never builds the undo operation.
+          undoable: (schema as any).undoable,
+          recordIdField: (schema as any).recordIdField,
           toast: schema.toast,
           // One-shot reveal dialog for actions whose response is shown
           // exactly once (2FA setup, OAuth client_secret, regenerated

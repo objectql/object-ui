@@ -16,6 +16,7 @@
  */
 
 import { ExpressionEvaluator } from '../evaluator/ExpressionEvaluator';
+import { globalUndoManager, type UndoableOperation } from './UndoManager';
 
 export interface ActionResult {
   success: boolean;
@@ -26,6 +27,20 @@ export interface ActionResult {
   redirect?: string;
   /** Modal schema to render (for type: 'modal') */
   modal?: any;
+  /**
+   * Suppress the automatic success toast for this result. A handler sets this
+   * when the action only HANDED OFF to a follow-up UI rather than completing —
+   * e.g. a `flow` action that paused at a screen and opened the flow-runner. The
+   * action hasn't "completed yet", so a "success" toast on open would be
+   * misleading; the follow-up surface owns its own completion messaging.
+   */
+  silent?: boolean;
+  /**
+   * An undoable operation captured by the handler (e.g. an `undoable` update
+   * action's prior field values). When present, the runner pushes it onto the
+   * global UndoManager and the success toast offers an "Undo" affordance.
+   */
+  undo?: UndoableOperation;
 }
 
 export interface ActionContext {
@@ -99,6 +114,8 @@ export interface ActionDef {
   errorMessage?: string;
   /** Whether to refresh data after execution (from UIActionSchema) */
   refreshAfter?: boolean;
+  /** Single-record update actions: offer an Undo affordance on success. */
+  undoable?: boolean;
   /** Params object (for custom handlers) */
   params?: Record<string, any>;
   /** ActionParam definitions to collect from user before execution (from spec ActionSchema.params) */
@@ -158,6 +175,9 @@ export type ConfirmationHandler = (message: string, options?: {
 export type ToastHandler = (message: string, options?: {
   type?: 'success' | 'error' | 'info' | 'warning';
   duration?: number;
+  /** When set, the toast offers an "Undo" affordance (the runner has already
+   *  pushed the operation onto the global UndoManager). */
+  undo?: { label?: string };
 }) => void;
 
 /**
@@ -365,11 +385,21 @@ export class ActionRunner {
         }
       }
 
-      if (action.disabled) {
-        const isDisabled = typeof action.disabled === 'string'
-          ? this.evaluator.evaluateCondition(action.disabled)
-          : action.disabled;
-        
+      if (action.disabled != null && action.disabled !== false) {
+        // `disabled` may be a boolean, a CEL string, or the normalized envelope
+        // `{ dialect, source }` (what `objectstack build` emits). The previous
+        // code only evaluated the STRING form and treated any object as truthy,
+        // so an envelope-disabled action was ALWAYS "disabled" — silently
+        // blocking every execution (param dialog never opened, handler never
+        // ran). `evaluateCondition` already handles boolean/string/envelope;
+        // and the renderers are authoritative for the visual disabled state, so
+        // any eval failure here defaults to NOT-disabled (don't false-block).
+        let isDisabled = false;
+        try {
+          isDisabled = this.evaluator.evaluateCondition(action.disabled as never);
+        } catch {
+          isDisabled = false;
+        }
         if (isDisabled) {
           return { success: false, error: 'Action is disabled' };
         }
@@ -529,9 +559,25 @@ export class ActionRunner {
       const showToast = action.toast ?? { showOnSuccess: true, showOnError: true };
       const duration = action.toast?.duration;
 
-      if (result.success && !hasResultDialog && showToast.showOnSuccess !== false) {
-        const message = action.successMessage || 'Action completed successfully';
-        this.toastHandler(message, { type: 'success', duration });
+      if (result.success && !hasResultDialog && !result.silent && showToast.showOnSuccess !== false) {
+        // Prefer a DYNAMIC message the server returned (result.data.message)
+        // over the static action.successMessage. Server-driven actions like
+        // check_app_updates / publish / install compute a real outcome
+        // ("2 app updates available: CRM 1.0.0→1.0.1", "Published v1.2.0")
+        // that the static label can't express; without this the user only ever
+        // sees a generic "Done". Falls back to the static label, then a default.
+        const dyn = (result.data && typeof result.data === 'object'
+          && typeof (result.data as { message?: unknown }).message === 'string')
+          ? String((result.data as { message?: unknown }).message).trim()
+          : '';
+        const message = dyn || action.successMessage || 'Action completed successfully';
+        // Undoable action: register the captured operation on the global
+        // UndoManager and surface an "Undo" affordance on the toast (the
+        // consumer's toast handler wires the button to UndoManager).
+        if (result.undo) {
+          try { globalUndoManager.push(result.undo); } catch { /* non-fatal */ }
+        }
+        this.toastHandler(message, { type: 'success', duration, undo: result.undo ? {} : undefined });
       }
 
       if (!result.success && showToast.showOnError !== false && result.error) {

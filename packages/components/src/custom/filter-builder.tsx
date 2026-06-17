@@ -11,6 +11,7 @@
 import * as React from "react"
 import { X, Plus, Trash2, Search, Loader2, ChevronDown } from "lucide-react"
 import { SchemaRendererContext } from "@object-ui/react"
+import { createSafeTranslation } from "@object-ui/i18n"
 
 import { cn } from "../lib/utils"
 import { Button } from "../ui/button"
@@ -51,6 +52,9 @@ export interface FilterBuilderProps {
   showClearAll?: boolean
 }
 
+// `label` is the English fallback; the actual rendered text comes from
+// `filterBuilder.operators.<value>` so operators are translated like the rest
+// of the builder. Keep the two in sync when adding operators.
 const defaultOperators = [
   { value: "equals", label: "Equals" },
   { value: "notEquals", label: "Does not equal" },
@@ -68,6 +72,42 @@ const defaultOperators = [
   { value: "in", label: "In" },
   { value: "notIn", label: "Not in" },
 ]
+
+const useSafeFilterTranslation = createSafeTranslation(
+  {
+    'filterBuilder.where': 'Where',
+    'filterBuilder.and': 'AND',
+    'filterBuilder.or': 'OR',
+    'filterBuilder.clearAll': 'Clear all',
+    'filterBuilder.selectField': 'Select field',
+    'filterBuilder.operator': 'Operator',
+    'filterBuilder.selectValue': 'Select value',
+    'filterBuilder.value': 'Value',
+    'filterBuilder.addFilter': 'Add filter',
+    'filterBuilder.removeCondition': 'Remove condition',
+    'filterBuilder.trueLabel': 'True',
+    'filterBuilder.falseLabel': 'False',
+    'filterBuilder.noResults': 'No results',
+    'filterBuilder.searchField': 'Search {{label}}…',
+    'filterBuilder.enterId': 'Enter {{label}} id',
+    'filterBuilder.operators.equals': 'Equals',
+    'filterBuilder.operators.notEquals': 'Does not equal',
+    'filterBuilder.operators.contains': 'Contains',
+    'filterBuilder.operators.notContains': 'Does not contain',
+    'filterBuilder.operators.isEmpty': 'Is empty',
+    'filterBuilder.operators.isNotEmpty': 'Is not empty',
+    'filterBuilder.operators.greaterThan': 'Greater than',
+    'filterBuilder.operators.lessThan': 'Less than',
+    'filterBuilder.operators.greaterOrEqual': 'Greater than or equal',
+    'filterBuilder.operators.lessOrEqual': 'Less than or equal',
+    'filterBuilder.operators.before': 'Before',
+    'filterBuilder.operators.after': 'After',
+    'filterBuilder.operators.between': 'Between',
+    'filterBuilder.operators.in': 'In',
+    'filterBuilder.operators.notIn': 'Not in',
+  },
+  'filterBuilder.where',
+)
 
 const textOperators = ["equals", "notEquals", "contains", "notContains", "isEmpty", "isNotEmpty"]
 const numberOperators = ["equals", "notEquals", "greaterThan", "lessThan", "greaterOrEqual", "lessOrEqual", "isEmpty", "isNotEmpty"]
@@ -117,6 +157,7 @@ function FilterBuilder({
   className,
   showClearAll = true,
 }: FilterBuilderProps) {
+  const { t } = useSafeFilterTranslation()
   const [filterGroup, setFilterGroup] = React.useState<FilterGroup>(
     isValidGroup(value) ? value : EMPTY_GROUP,
   )
@@ -272,7 +313,7 @@ function FilterBuilder({
           }
         >
           <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="Select value" />
+            <SelectValue placeholder={t('filterBuilder.selectValue')} />
           </SelectTrigger>
           <SelectContent>
             {field.options.map((opt) => (
@@ -295,11 +336,11 @@ function FilterBuilder({
           }
         >
           <SelectTrigger className="h-9 text-sm">
-            <SelectValue placeholder="Select value" />
+            <SelectValue placeholder={t('filterBuilder.selectValue')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="true">True</SelectItem>
-            <SelectItem value="false">False</SelectItem>
+            <SelectItem value="true">{t('filterBuilder.trueLabel')}</SelectItem>
+            <SelectItem value="false">{t('filterBuilder.falseLabel')}</SelectItem>
           </SelectContent>
         </Select>
       )
@@ -335,7 +376,7 @@ function FilterBuilder({
       <Input
         type={inputType}
         className="h-9 text-sm"
-        placeholder="Value"
+        placeholder={t('filterBuilder.value')}
         value={formatValue()}
         onChange={(e) => handleValueChange(e.target.value)}
       />
@@ -346,7 +387,7 @@ function FilterBuilder({
     <div className={cn("space-y-3", className)}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Where</span>
+          <span className="text-sm font-medium">{t('filterBuilder.where')}</span>
           {filterGroup.conditions.length > 1 && (
             <Button
               variant="outline"
@@ -354,7 +395,7 @@ function FilterBuilder({
               onClick={toggleLogic}
               className="h-7 text-xs"
             >
-              {filterGroup.logic.toUpperCase()}
+              {filterGroup.logic === "or" ? t('filterBuilder.or') : t('filterBuilder.and')}
             </Button>
           )}
         </div>
@@ -366,7 +407,7 @@ function FilterBuilder({
             className="h-7 text-xs text-muted-foreground hover:text-destructive"
           >
             <Trash2 className="h-3 w-3 mr-1" />
-            Clear all
+            {t('filterBuilder.clearAll')}
           </Button>
         )}
       </div>
@@ -383,7 +424,7 @@ function FilterBuilder({
                   }
                 >
                   <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Select field" />
+                    <SelectValue placeholder={t('filterBuilder.selectField')} />
                   </SelectTrigger>
                   <SelectContent>
                     {fields.map((field) => (
@@ -403,12 +444,12 @@ function FilterBuilder({
                   }
                 >
                   <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Operator" />
+                    <SelectValue placeholder={t('filterBuilder.operator')} />
                   </SelectTrigger>
                   <SelectContent>
                     {getOperatorsForField(condition.field).map((op) => (
                       <SelectItem key={op.value} value={op.value}>
-                        {op.label}
+                        {t(`filterBuilder.operators.${op.value}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -429,7 +470,7 @@ function FilterBuilder({
               onClick={() => removeCondition(condition.id)}
             >
               <X className="h-4 w-4" />
-              <span className="sr-only">Remove condition</span>
+              <span className="sr-only">{t('filterBuilder.removeCondition')}</span>
             </Button>
           </div>
         ))}
@@ -443,7 +484,7 @@ function FilterBuilder({
         disabled={fields.length === 0}
       >
         <Plus className="h-3 w-3" />
-        Add filter
+        {t('filterBuilder.addFilter')}
       </Button>
     </div>
   )
@@ -475,6 +516,7 @@ interface LookupValuePickerProps {
 }
 
 function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePickerProps) {
+  const { t } = useSafeFilterTranslation()
   const ctx = React.useContext(SchemaRendererContext)
   const dataSource: any = ctx?.dataSource ?? null
 
@@ -614,7 +656,7 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
     if (selectedIds.length === 0) {
       return (
         <span className="text-muted-foreground truncate">
-          Search {field.label}…
+          {t('filterBuilder.searchField', { label: field.label })}
         </span>
       )
     }
@@ -639,7 +681,7 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
     return (
       <Input
         className="h-9 text-sm"
-        placeholder={`Enter ${field.label} id`}
+        placeholder={t('filterBuilder.enterId', { label: field.label })}
         value={selectedIds[0] ?? ""}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -677,7 +719,7 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
             autoFocus
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder={`Search ${field.label}…`}
+            placeholder={t('filterBuilder.searchField', { label: field.label })}
             className="flex h-9 w-full bg-transparent px-2 py-1 text-sm outline-none placeholder:text-muted-foreground"
             data-testid={`lookup-search-${field.value}`}
           />
@@ -689,7 +731,7 @@ function LookupValuePicker({ field, value, multiple, onChange }: LookupValuePick
           )}
           {!error && !loading && options.length === 0 && (
             <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-              No results
+              {t('filterBuilder.noResults')}
             </div>
           )}
           {options.map((opt) => {

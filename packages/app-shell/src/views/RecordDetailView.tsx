@@ -11,7 +11,7 @@ import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { DetailView, RecordChatterPanel, buildDefaultPageSchema, extractMentions } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
-import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider } from '@object-ui/react';
+import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, useGlobalUndo } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
@@ -119,7 +119,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const location = useLocation();
   const originFrom = (location.state as any)?.from as { pathname?: string; label?: string } | undefined;
   const { t } = useObjectTranslation();
-  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, fieldLabel, fieldOptionLabel } = useObjectLabel();
+  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, actionDescription, fieldLabel, fieldOptionLabel } = useObjectLabel();
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
   const { addRecentItem } = useRecentItems();
   const [isLoading, setIsLoading] = useState(true);
@@ -341,16 +341,30 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         params: localized,
         // Title the dialog as the action rather than the generic "Action parameters".
         title: action?.label || action?.title,
-        description: action?.description,
+        description: actionDescription(objForI18n, action?.name, action?.description),
         resolve,
       });
     });
   }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel]);
 
-  const toastHandler = useCallback((message: string, options?: { type?: string }) => {
-    if (options?.type === 'error') toast.error(message);
-    else toast.success(message);
-  }, []);
+  // Global undo/redo (Ctrl+Z), backed by the dataSource — the success toast's
+  // "Undo" button (for `undoable` actions) restores the record's prior values.
+  const undoCtl = useGlobalUndo({
+    dataSource,
+    onUndo: () => { setActionRefreshKey(k => k + 1); toast.success('Change undone'); },
+  });
+
+  const toastHandler = useCallback((message: string, options?: { type?: string; duration?: number; undo?: { label?: string } }) => {
+    if (options?.type === 'error') { toast.error(message); return; }
+    if (options?.undo) {
+      toast.success(message, {
+        duration: options.duration,
+        action: { label: options.undo.label || 'Undo', onClick: () => { void undoCtl.undo(); } },
+      });
+      return;
+    }
+    toast.success(message, { duration: options?.duration });
+  }, [undoCtl]);
 
   const navigateHandler = useCallback((url: string, options?: { external?: boolean; newTab?: boolean }) => {
     if (options?.external || options?.newTab) {
@@ -364,8 +378,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const apiHandler = useCallback(async (action: ActionDef) => {
     try {
       const target = action.target || action.name;
-      const params = action.params || {};
+      const params: Record<string, any> = { ...(action.params || {}) };
+      delete params._rowRecord;
 
+      let undo: any;
       switch (target) {
         case 'opportunity_change_stage':
           await dataSource.update(objectName!, pureRecordId!, { stage: params.new_stage });
@@ -379,6 +395,22 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         default:
           // Generic: update record with collected params
           if (Object.keys(params).length > 0) {
+            // Undoable single-record update: capture the changed fields' prior
+            // values from the loaded record so the success toast can offer Undo.
+            if (action.undoable && pageRecord && objectName && pureRecordId) {
+              const undoData: Record<string, unknown> = {};
+              for (const k of Object.keys(params)) undoData[k] = (pageRecord as any)[k] ?? null;
+              undo = {
+                id: `undo-${objectName}-${pureRecordId}-${Date.now()}`,
+                type: 'update',
+                objectName,
+                recordId: String(pureRecordId),
+                timestamp: Date.now(),
+                description: action.label || `Undo ${objectName}`,
+                undoData,
+                redoData: { ...params },
+              };
+            }
             await dataSource.update(objectName!, pureRecordId!, params);
           }
           break;
@@ -387,12 +419,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       const shouldRefresh = action.refreshAfter === true;
       if (shouldRefresh) {
         setActionRefreshKey(k => k + 1);
+      } else if (undo) {
+        // Even when refreshAfter isn't set, reflect the change so the user sees
+        // it (and the subsequent Undo) on the open record.
+        setActionRefreshKey(k => k + 1);
       }
-      return { success: true, reload: shouldRefresh };
+      return { success: true, reload: shouldRefresh, undo };
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }, [dataSource, objectName, pureRecordId]);
+  }, [dataSource, objectName, pureRecordId, pageRecord]);
 
   // Client-side modal transport: `type:'modal'` actions open here (Dialog /
   // Sheet / Drawer by `placement`) and render arbitrary SchemaNode content.
@@ -435,7 +471,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       const data = json?.data ?? {};
       if (data.status === 'paused' && data.screen) {
         setScreenFlow({ flowName, runId: data.runId, screen: data.screen });
-        return { success: true };
+        // The action only OPENED the wizard — it hasn't completed. Suppress the
+        // action-level success toast; the flow-runner owns completion messaging.
+        return { success: true, silent: true };
       }
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) {
@@ -544,8 +582,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         },
       );
       const json = await res.json().catch(() => null);
-      if (!res.ok || (json && json.success === false)) {
-        const errMsg = json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
+      // The action route wraps the handler's return value in a {success, data}
+      // envelope. A script action that THROWS is reported as
+      // `data: { success: false, error }` while the OUTER success stays true,
+      // so we must inspect the inner envelope too — otherwise a failed action
+      // is mistaken for success and fires the green "completed" toast while the
+      // real error is swallowed.
+      const inner = json?.data;
+      const innerFailed = inner && typeof inner === 'object' && inner.success === false;
+      if (!res.ok || (json && json.success === false) || innerFailed) {
+        const errMsg = (innerFailed && inner.error) || json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
         // Surface the failure — this custom new-tab path bypasses
         // ActionRunner's toast-on-error, so otherwise the user gets no feedback.
@@ -991,6 +1037,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             actorAvatarUrl: row.actor_avatar_url ?? undefined,
             body: row.summary ?? '',
             createdAt: when,
+            // ADR-0052 ActivityPointer: drill from the summary to the source
+            // rich entity (sys_email row, call/meeting task, …) when present.
+            sourceObject: row.source_object ?? undefined,
+            sourceId: row.source_id ?? undefined,
           } as FeedItem);
         }
         if (!mapped.length) return;
@@ -1806,6 +1856,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           state={screenFlow}
           authFetch={authFetch}
           baseUrl={import.meta.env.VITE_SERVER_URL || ''}
+          dataSource={dataSource}
+          objects={objects}
           onClose={() => setScreenFlow(null)}
           onComplete={() => { setScreenFlow(null); setActionRefreshKey(k => k + 1); }}
         />
@@ -1915,6 +1967,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         state={screenFlow}
         authFetch={authFetch}
         baseUrl={import.meta.env.VITE_SERVER_URL || ''}
+        dataSource={dataSource}
+        objects={objects}
         onClose={() => setScreenFlow(null)}
         onComplete={() => { setScreenFlow(null); setActionRefreshKey(k => k + 1); }}
       />

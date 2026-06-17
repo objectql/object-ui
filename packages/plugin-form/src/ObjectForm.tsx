@@ -25,8 +25,8 @@ import { SplitForm } from './SplitForm';
 import { DrawerForm } from './DrawerForm';
 import { ModalForm } from './ModalForm';
 import { MasterDetailForm } from './MasterDetailForm';
-import { FormSection } from './FormSection';
 import { applyAutoLayout } from './autoLayout';
+import { deriveFieldGroupSections } from './fieldGroups';
 
 export interface ObjectFormProps {
   /**
@@ -115,6 +115,10 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           objectName: schema.objectName,
           mode: schema.mode === 'edit' ? 'edit' : 'create',
           recordId: schema.recordId,
+          // Forward prefilled header values so create-mode wizards (e.g. lead
+          // conversion) seed the parent fields, not just plain forms.
+          initialValues: (schema as any).initialValues,
+          initialData: (schema as any).initialData,
           formType: schema.formType === 'tabbed' ? 'tabbed' : 'simple',
           sections: schema.sections as any,
           fields: schema.fields as any,
@@ -460,6 +464,10 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           visibleWhen: field.visibleWhen,
           readonlyWhen: field.readonlyWhen,
           requiredWhen: field.requiredWhen ?? field.conditionalRequired,
+          // Field-group membership (Field.group → object.fieldGroups[].key).
+          // Carried through so the form can auto-derive sections from the
+          // object's declared field groups when no explicit sections are given.
+          group: field.group,
           // Important: Pass the original field metadata so widgets can access properties like precision, currency, etc.
           field: field,
         };
@@ -647,6 +655,25 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
      ...initialData
   };
 
+  // Auto-derive sections from the object's declared `fieldGroups` when the
+  // consumer hasn't supplied explicit sections. This makes field groups laid
+  // out in the object designer render as sections on the actual form — not just
+  // in the designer preview. Falls back to a flat form (null) when the object
+  // declares no groups or no field opts into one.
+  const fieldGroupSections = React.useMemo(
+    () =>
+      schema.sections?.length
+        ? null
+        : deriveFieldGroupSections(formFields, objectSchema?.fieldGroups),
+    [schema.sections, formFields, objectSchema],
+  );
+  const effectiveSections = schema.sections?.length ? schema.sections : fieldGroupSections;
+
+  // Per-section collapse state for the simple grouped form. Keyed by section
+  // name/label; an unseeded key falls back to the section's declared `collapsed`
+  // (so a group declared `collapsed: true` starts closed without pre-seeding).
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
   // Render error state
   if (error) {
     return (
@@ -674,43 +701,71 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     ? schema.layout 
     : 'vertical';
 
-  // If sections are provided for the simple form, render with FormSection grouping
-  if (schema.sections?.length && (!schema.formType || schema.formType === 'simple')) {
+  // If sections are provided (explicitly, or derived from the object's
+  // `fieldGroups`) for the simple form, render them as full-width, optionally
+  // collapsible groups.
+  //
+  // All sections share ONE SchemaRenderer / react-hook-form instance: a virtual
+  // `section-divider` field renders each group's header, and the group's own
+  // fields follow inline. This is the same single-form pattern DrawerForm uses,
+  // and it matters for correctness — N separate per-section <form> elements
+  // would each own isolated form state, so a submit (which only fired the last
+  // section) silently dropped every other group's edits. One form also lets
+  // collapse simply hide a group's fields (`hidden: true`) while react-hook-form
+  // retains their values, and lets cross-section conditions resolve via watch().
+  if (effectiveSections?.length && (!schema.formType || schema.formType === 'simple')) {
+    const groupedFields: FormField[] = [];
+    effectiveSections.forEach((section, index) => {
+      const sectionFieldNames = section.fields.map(f => typeof f === 'string' ? f : f.name);
+      const sectionFields = applyFieldPerms(formFields.filter(f => sectionFieldNames.includes(f.name)));
+      if (sectionFields.length === 0) return;
+
+      const sectionKey = section.name || section.label || String(index);
+      // Untitled trailing bucket (ungrouped fields) renders flat — no divider.
+      const label = section.name
+        ? sectionLabel(schema.objectName, section.name, section.label || section.name)
+        : section.label;
+      const isCollapsed = collapsedSections[sectionKey] ?? (section.collapsed ?? false);
+
+      if (label) {
+        groupedFields.push({
+          name: `__section_${sectionKey}`,
+          label,
+          type: 'section-divider',
+          colSpan: 4,
+          collapsible: section.collapsible,
+          collapsed: isCollapsed,
+          onToggle: section.collapsible
+            ? () => setCollapsedSections(prev => ({ ...prev, [sectionKey]: !isCollapsed }))
+            : undefined,
+        } as FormField);
+      }
+
+      // Collapsed groups keep their fields registered (values preserved) but
+      // hidden from the DOM. An untitled bucket is never collapsible.
+      if (label && isCollapsed) {
+        groupedFields.push(...sectionFields.map(f => ({ ...f, hidden: true })));
+      } else {
+        groupedFields.push(...sectionFields);
+      }
+    });
+
     return (
-      <div className="w-full space-y-6">
-        {schema.sections.map((section, index) => {
-          // Filter formFields to only include fields in this section
-          const sectionFieldNames = section.fields.map(f => typeof f === 'string' ? f : f.name);
-          const sectionFields = applyFieldPerms(formFields.filter(f => sectionFieldNames.includes(f.name)));
-          
-          return (
-            <FormSection
-              key={section.name || section.label || index}
-              label={section.name ? sectionLabel(schema.objectName, section.name, section.label || section.name) : section.label}
-              description={section.description}
-              collapsible={section.collapsible}
-              collapsed={section.collapsed}
-              columns={section.columns}
-              showBorder={(section as any).showBorder}
-            >
-              <SchemaRenderer
-                schema={{
-                  type: 'form',
-                  fields: sectionFields,
-                  layout: formLayout,
-                  defaultValues: finalDefaultValues,
-                  // Only show action buttons after the last section
-                  showSubmit: index === schema.sections!.length - 1 && schema.showSubmit !== false && schema.mode !== 'view',
-                  showCancel: index === schema.sections!.length - 1 && schema.showCancel !== false,
-                  submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
-                  cancelLabel: schema.cancelText,
-                  onSubmit: handleSubmit,
-                  onCancel: handleCancel,
-                } as FormSchema}
-              />
-            </FormSection>
-          );
-        })}
+      <div className="w-full">
+        <SchemaRenderer
+          schema={{
+            type: 'form',
+            fields: groupedFields,
+            layout: formLayout,
+            defaultValues: finalDefaultValues,
+            showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
+            showCancel: schema.showCancel !== false,
+            submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
+            cancelLabel: schema.cancelText,
+            onSubmit: handleSubmit,
+            onCancel: handleCancel,
+          } as FormSchema}
+        />
       </div>
     );
   }

@@ -41,7 +41,7 @@ import { Badge } from '../ui/badge';
 import { cn } from '../lib/utils';
 
 export type ShareLinkPermission = 'view' | 'comment' | 'edit';
-export type ShareLinkAudience = 'link_only' | 'signed_in' | 'workspace' | 'email_allowlist';
+export type ShareLinkAudience = 'public' | 'link_only' | 'signed_in' | 'email';
 
 export interface ShareLink {
   id: string;
@@ -106,11 +106,14 @@ const EXPIRY_OPTIONS: { label: string; value: number | null }[] = [
   { label: 'Never', value: null },
 ];
 
+// Audience values match the framework's ShareLinkAudience contract
+// (@objectstack/spec). Only the two that need no extra input are offered;
+// 'email' (allowlist) / 'public' require UI not yet built. The target
+// object's `publicSharing.allowedAudiences` further constrains this — the
+// server returns 422 AUDIENCE_NOT_ALLOWED if a value is not permitted.
 const AUDIENCE_OPTIONS: { value: ShareLinkAudience; label: string; help: string }[] = [
   { value: 'link_only', label: 'Anyone with the link', help: 'No sign-in required' },
   { value: 'signed_in', label: 'Signed-in users', help: 'Must be logged in to view' },
-  { value: 'workspace', label: 'Workspace members', help: 'Same tenant only' },
-  { value: 'email_allowlist', label: 'Specific emails', help: 'Restricted to listed addresses' },
 ];
 
 function buildPublicUrl(base: string | undefined, token: string): string {

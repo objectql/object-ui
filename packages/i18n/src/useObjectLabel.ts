@@ -386,6 +386,23 @@ export function useObjectLabel() {
     },
 
     /**
+     * Resolve translated action description (the explanatory line shown in the
+     * action's param dialog / sheet / drawer header).
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.description`.
+     * Falls back to `{ns}.globalActions.{actionName}.description`, then the
+     * metadata's literal string; undefined when nothing resolves.
+     */
+    actionDescription: (objectName: string | undefined, actionName: string | undefined, fallback?: string) => {
+      const fb = fallback ?? '';
+      if (!actionName) return fb || undefined;
+      const suffixes = objectName
+        ? objectSuffixes(objectName, `_actions.${actionName}.description`)
+        : `globalActions.${actionName}.description`;
+      const resolved = resolve(suffixes, fb);
+      return resolved || undefined;
+    },
+
+    /**
      * Resolve translated action-PARAMETER text (label / placeholder / helpText).
      * Convention: `{ns}.objects.{objectName}._actions.{actionName}.params.{paramName}.{attr}`.
      * Falls back to the provided value (the metadata's literal string) when no

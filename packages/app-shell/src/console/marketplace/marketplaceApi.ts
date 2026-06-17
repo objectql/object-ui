@@ -95,6 +95,10 @@ export interface MarketplacePackageVersion {
   status?: string;
   is_prerelease?: boolean;
   published_at?: string | null;
+  // Human-authored "what changed in this version" notes (ADR-0010 version
+  // lifecycle / UX#6). Distinct from the package-level description; shown per
+  // version in the detail page's version history.
+  release_notes?: string | null;
   listing_status?: string;
   reviewed_at?: string | null;
 
@@ -351,6 +355,19 @@ export function cloudInstallDeepLink(packageId: string): string {
 }
 
 /**
+ * Deep-link to the cloud upgrade entry point: the environments list, where each
+ * environment's "Upgrade Plan" action opens Stripe checkout. Surfaced from the
+ * tenant SPA when an AI quota refusal (429) offers an upgrade / top-up CTA.
+ * Centralized so the target can be re-pointed (dedicated pricing or credit-pack
+ * page) as the cloud billing UI evolves. Same `cloud-control` app slug as
+ * cloudInstallDeepLink above.
+ */
+export function cloudPricingDeepLink(): string {
+  const base = getCloudBase() || 'https://cloud.objectos.app';
+  return `${base}/apps/cloud-control/sys_environment`;
+}
+
+/**
  * Look up whether a package is already installed in the given environment.
  * Returns the installed version string when an `enabled=true` row exists,
  * or `null` when no install row is found.
@@ -417,34 +434,28 @@ export async function getCloudInstallationInfo(
   }
 
   // ── Cloud control-plane path (runtime IS cloud) ───────────────────────
-  // Same-origin read against the control plane's data API.
+  // Use the dedicated installed-state route, NOT the generic
+  // `/api/v1/data/sys_package_installation`. The control plane does not expose
+  // sys_package_installation rows through the generic data API (the row exists
+  // but the read returns empty), and that row carries `package_version_id`, not
+  // a version string. The dedicated route reads the control DB directly and
+  // resolves the human-readable version — and now enforces org membership for
+  // user-mode callers. Same response shape as the tenant proxy above.
   if (!environmentId) return null;
   const base = SERVER_URL;
-  const filter = JSON.stringify([
-    'and',
-    ['package_id', '=', packageId],
-    ['environment_id', '=', environmentId],
-  ]);
-  const url = `${base}/api/v1/data/sys_package_installation?top=1&filter=${encodeURIComponent(filter)}`;
   try {
-    const res = await fetch(url, {
-      credentials: 'include',
-      headers: { 'Accept': 'application/json' },
-    });
+    const res = await fetch(
+      `${base}/api/v1/cloud/environments/${encodeURIComponent(environmentId)}/installations/${encodeURIComponent(packageId)}`,
+      { credentials: 'include', headers: { 'Accept': 'application/json' } },
+    );
     if (!res.ok) return null;
     const payload: any = await res.json().catch(() => ({}));
-    const rows: any[] = payload?.records ?? payload?.data ?? payload?.items ?? [];
-    if (!Array.isArray(rows) || rows.length === 0) return null;
-    const row = rows[0];
-    const enabled = row?.enabled;
-    if (enabled === false || enabled === 0 || enabled === '0') return null;
+    const data: any = payload?.data ?? payload ?? {};
+    if (!data.installed) return null;
     return {
-      installationId: String(row?.id ?? ''),
-      version: String(row?.version ?? row?.installed_version ?? 'installed'),
-      withSampleData: row?.with_sample_data === true
-        || row?.with_sample_data === 1
-        || row?.with_sample_data === '1'
-        || row?.with_sample_data === 'true',
+      installationId: String(data.installationId ?? ''),
+      version: String(data.version ?? 'installed'),
+      withSampleData: data.withSampleData === true,
     };
   } catch {
     return null;

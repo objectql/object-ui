@@ -144,3 +144,65 @@ export function summarizeChatError(err: unknown): {
     details: stripped.length > sentence.length ? stripped : undefined,
   };
 }
+
+/** AI quota refusal codes emitted by the cloud token guardrail (HTTP 429). */
+export type AiQuotaCode =
+  | 'ai_design_quota_exhausted'
+  | 'ai_data_chat_trial_exhausted'
+  | 'ai_allowance_exhausted';
+
+export interface AiQuotaError {
+  code: AiQuotaCode;
+  /** Localized (zh) message from the backend. */
+  message: string;
+  /** English message from the backend. */
+  messageEn?: string;
+  /** Free tier -> upgrade to a paid plan. */
+  upgrade: boolean;
+  /** Paid tier -> buy a credit top-up pack. */
+  topUp: boolean;
+}
+
+const AI_QUOTA_CODES = new Set<string>([
+  'ai_design_quota_exhausted',
+  'ai_data_chat_trial_exhausted',
+  'ai_allowance_exhausted',
+]);
+
+/**
+ * Recognize the cloud AI token guardrail's 429 quota refusals so the chat UI can
+ * show a friendly upgrade / top-up CTA instead of a generic "response failed".
+ *
+ * The ai-sdk chat transport throws a plain Error whose `message` is the response
+ * body text (no HTTP status is preserved), so the only signal is the JSON body:
+ * strip the same retry/format prefixes summarizeChatError handles, locate the
+ * JSON object, and match its `error` code. Returns null for anything else.
+ */
+export function parseAiQuotaError(err: unknown): AiQuotaError | null {
+  const raw = err instanceof Error ? err.message : String(err ?? '');
+  if (!raw) return null;
+  const stripped = raw
+    .replace(/^Failed after \d+ attempts?\.\s*Last error:\s*/i, '')
+    .replace(/^Invalid error response format:\s*/i, '')
+    .trim();
+  const start = stripped.indexOf('{');
+  const end = stripped.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  let body: any;
+  try {
+    body = JSON.parse(stripped.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  if (!body || typeof body.error !== 'string' || !AI_QUOTA_CODES.has(body.error)) {
+    return null;
+  }
+  return {
+    code: body.error as AiQuotaCode,
+    message: typeof body.message === 'string' ? body.message : '',
+    messageEn: typeof body.messageEn === 'string' ? body.messageEn : undefined,
+    upgrade: body.upgrade === true,
+    topUp: body.topUp === true,
+  };
+}
+

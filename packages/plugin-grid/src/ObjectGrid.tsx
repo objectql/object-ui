@@ -33,7 +33,7 @@ import {
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { evaluatePlainCondition, buildExpandFields } from '@object-ui/core';
-import { ChevronRight, ChevronDown, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
 import { GroupRow } from './GroupRow';
@@ -92,6 +92,9 @@ const GRID_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.yes': 'Yes',
   'grid.no': 'No',
   'grid.systemFields': 'System',
+  // Reused by the grouped-view pager (falls back here when no I18nProvider).
+  'table.rowsPerPage': 'Rows per page',
+  'table.pageInfo': 'Page {{current}} of {{total}}',
 };
 
 /**
@@ -240,6 +243,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [activeBulkDef, setActiveBulkDef] = useState<BulkActionDef | null>(null);
   const [activeBulkRows, setActiveBulkRows] = useState<any[]>([]);
   const lastFindParamsRef = React.useRef<Record<string, unknown> | null>(null);
+  // Grouped view paginates whole groups (groups stay intact, never split across
+  // pages). Defaults to the schema page size, falling back to 10 groups/page.
+  const [groupedPage, setGroupedPage] = useState(1);
+  const [groupedPageSize, setGroupedPageSize] = useState<number>(
+    (schema.pagination as any)?.pageSize ?? schema.pageSize ?? 10,
+  );
 
   // Sync internal rowHeightMode when schema.rowHeight prop changes (e.g., parent ListView density toggle)
   React.useEffect(() => {
@@ -651,6 +660,16 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     schema.aggregations,
     groupValueFormatter,
   );
+
+  // Reset grouped pagination to page 1 whenever the grouping config, page size
+  // or the underlying data changes (e.g. switching grouping field, reload).
+  const groupingKey = React.useMemo(
+    () => JSON.stringify(schema.grouping ?? null),
+    [schema.grouping],
+  );
+  React.useEffect(() => {
+    setGroupedPage(1);
+  }, [groupingKey, groupedPageSize, refreshKey]);
 
   // --- Column summary support ---
   const summaryColumns = React.useMemo(() => {
@@ -1556,6 +1575,28 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     },
   };
 
+  // Shared column widths for the grouped view. Each per-group sub-table would
+  // otherwise auto-size its columns from its own (often 1–2) rows, so columns
+  // never line up between groups and each group gets its own horizontal
+  // scrollbar. Pre-computing explicit widths from the FULL dataset (same
+  // heuristic as DataTable's autosize) keeps every group's columns aligned and
+  // lets them share ONE horizontal scrollbar provided by the wrapper below.
+  const groupedColumnWidths: Record<string, number | string> = {};
+  for (const col of orderedColumns as any[]) {
+    const key = col.accessorKey;
+    if (!key) continue;
+    const saved = columnState.widths?.[key];
+    if (saved) { groupedColumnWidths[key] = saved; continue; }
+    if (col.width) { groupedColumnWidths[key] = col.width; continue; }
+    let maxLen = String(col.header ?? '').length;
+    for (const row of data.slice(0, 50)) {
+      const v = row?.[key];
+      const len = v != null ? String(v).length : 0;
+      if (len > maxLen) maxLen = len;
+    }
+    groupedColumnWidths[key] = Math.min(400, Math.max(80, maxLen * 8 + 48));
+  }
+
   /** Build a per-group data-table schema (inherits everything except data & pagination). */
   const buildGroupTableSchema = (groupRows: any[]) => ({
     ...dataTableSchema,
@@ -1567,6 +1608,18 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     // Drop the table's outer rounded border so groups look like Airtable's
     // flat sub-tables rather than nested cards.
     borderless: true,
+    // Let every group's table overflow into the single shared horizontal
+    // scroll container (see grouped gridContent) instead of scrolling on its
+    // own — this restores a working x-axis scrollbar and aligned columns.
+    disableInnerScroll: true,
+    // Frozen columns rely on per-table sticky offsets that don't compose with
+    // the shared scroll container; disable them in grouped mode.
+    frozenColumns: 0,
+    // Pin explicit, shared widths so columns align across all groups.
+    columns: (dataTableSchema.columns as any[]).map((c: any) => ({
+      ...c,
+      width: groupedColumnWidths[c.accessorKey] ?? c.width,
+    })),
   });
 
   // Build record detail title
@@ -2015,8 +2068,63 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     );
   };
 
+  // Grouped pagination — paginate whole top-level groups so a group is never
+  // split across pages. Clamp the current page in case the group count shrank.
+  const totalGroupPages = Math.max(1, Math.ceil(groups.length / groupedPageSize));
+  const safeGroupedPage = Math.min(groupedPage, totalGroupPages);
+  const pagedGroups = groups.slice(
+    (safeGroupedPage - 1) * groupedPageSize,
+    safeGroupedPage * groupedPageSize,
+  );
+
+  const groupedPager = groups.length > 0 && totalGroupPages > 1 ? (
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-3 sm:px-4 py-2 border-t">
+      <div className="flex items-center gap-2">
+        <span className="text-xs sm:text-sm text-muted-foreground">{t('table.rowsPerPage')}:</span>
+        <select
+          className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+          value={groupedPageSize}
+          onChange={(e) => { setGroupedPageSize(Number(e.target.value)); setGroupedPage(1); }}
+        >
+          {[5, 10, 20, 50, 100].map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="text-xs sm:text-sm text-muted-foreground">
+          {t('table.pageInfo', { current: safeGroupedPage, total: totalGroupPages })}
+        </span>
+        <div className="flex items-center gap-1">
+          <Button variant="outline" size="icon" onClick={() => setGroupedPage(1)} disabled={safeGroupedPage === 1}>
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setGroupedPage(Math.max(1, safeGroupedPage - 1))} disabled={safeGroupedPage === 1}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setGroupedPage(Math.min(totalGroupPages, safeGroupedPage + 1))} disabled={safeGroupedPage === totalGroupPages}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={() => setGroupedPage(totalGroupPages)} disabled={safeGroupedPage === totalGroupPages}>
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   const gridContent = isGrouped ? (
-    <div className="space-y-4 px-3 sm:px-4 pt-2 pb-4">{groups.map(renderGroup)}</div>
+    <div className="flex flex-col h-full min-h-0">
+      {/* Single shared horizontal scroll container: every group's sub-table
+          overflows into this one scroller (disableInnerScroll), so columns
+          stay aligned and there is exactly one x-axis scrollbar. */}
+      <div className="flex-1 min-h-0 overflow-auto [-webkit-overflow-scrolling:touch]">
+        <div className="min-w-max space-y-4 px-3 sm:px-4 pt-2 pb-4">
+          {pagedGroups.map(renderGroup)}
+        </div>
+      </div>
+      {groupedPager}
+    </div>
   ) : (
     <>
       <SchemaRenderer schema={dataTableSchema} />

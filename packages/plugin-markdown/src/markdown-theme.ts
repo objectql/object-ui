@@ -128,6 +128,18 @@ const CSS = `
 .dark .os-markdown .markdown-alert-important .markdown-alert-title { color: #ab7df8; }
 .dark .os-markdown .markdown-alert-warning { border-left-color: #d29922; }
 .dark .os-markdown .markdown-alert-warning .markdown-alert-title { color: #d29922; }
+
+/* Bordered tables: @tailwindcss/typography zeroes padding on each row's
+   first (inline-start) and last (inline-end) cell because it assumes
+   borderless tables. We add cell borders (prose-th/td:border), so restore
+   symmetric horizontal padding — otherwise the first column's text sits
+   flush against the left border, misaligned with every other column. The
+   0.6666667em matches prose-sm's inner-cell padding. The .os-markdown
+   class selector outranks typography's zero-specificity :where() rules. */
+.os-markdown table th:first-child,
+.os-markdown table td:first-child { padding-inline-start: 0.6666667em; }
+.os-markdown table th:last-child,
+.os-markdown table td:last-child { padding-inline-end: 0.6666667em; }
 `
 
 /**

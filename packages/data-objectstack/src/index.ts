@@ -870,6 +870,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
+      // Send the session cookie too: in the browser console auth is cookie-based
+      // (no bearer `token`), so without `credentials: 'include'` this raw fetch
+      // is unauthenticated — every master-detail batch save would 401. Bearer
+      // (server-to-server) and cookie (console) auth now both work.
+      credentials: 'include',
       body: JSON.stringify({ operations }),
     });
     if (!response.ok) {

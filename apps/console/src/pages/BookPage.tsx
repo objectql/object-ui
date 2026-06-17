@@ -1,0 +1,68 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { useMemo } from 'react';
+import { Navigate, useParams } from 'react-router-dom';
+import { BookOpen, FileQuestion, Loader2 } from 'lucide-react';
+import { DocShell } from './DocShell';
+import { useBookData } from './use-book-data';
+import { resolveBookTree, scopeDocsToBook, bookSlug, firstDoc } from './book-nav';
+
+/**
+ * `/docs/:slug` — a book landing (ADR-0046 §6). Opening a book means starting
+ * to read it, so this resolves the book's spine and redirects to its overview
+ * doc (`*_index`, else the first doc in order); the reader then shows that doc
+ * with the book sidebar. This avoids duplicating the table of contents (the
+ * sidebar already is it). A book with no readable docs shows an empty state.
+ */
+export default function BookPage() {
+  const { slug, appName } = useParams<{ slug: string; appName?: string }>();
+  const { books, docs, state } = useBookData();
+
+  const found = useMemo(() => books.find((b) => bookSlug(b) === slug), [books, slug]);
+  const opensTo = useMemo(
+    () => (found ? firstDoc(resolveBookTree(found, scopeDocsToBook(found, docs))) : undefined),
+    [found, docs],
+  );
+
+  if (state === 'loading') {
+    return (
+      <div className="flex h-full items-center justify-center p-10 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" aria-label="Loading documentation" />
+      </div>
+    );
+  }
+
+  if (found && opensTo) {
+    const base = appName ? `/apps/${appName}/docs` : '/docs';
+    return <Navigate to={`${base}/${slug}/${opensTo}`} replace />;
+  }
+
+  // Unknown book, or a book with no readable docs yet.
+  return (
+    <DocShell breadcrumb={found ? (found.label ?? slug) : slug}>
+      <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-10 text-center">
+        {found ? (
+          <>
+            <BookOpen className="h-10 w-10 text-muted-foreground" />
+            <h1 className="text-lg font-semibold">{found.label ?? slug}</h1>
+            <p className="text-sm text-muted-foreground">This book has no documents yet.</p>
+          </>
+        ) : (
+          <>
+            <FileQuestion className="h-10 w-10 text-muted-foreground" />
+            <h1 className="text-lg font-semibold">Book not found</h1>
+            <p className="text-sm text-muted-foreground">
+              No book named <code className="rounded bg-muted px-1 py-0.5">{slug}</code> is installed.
+            </p>
+          </>
+        )}
+      </div>
+    </DocShell>
+  );
+}

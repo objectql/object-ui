@@ -45,6 +45,7 @@ import {
 import { useAssistant, requestAssistantReview, emitCanvasInvalidate, type AssistantEditorContext } from '../assistant/assistantBus';
 import { fetchPendingDraftCount } from '../preview/draftStatus';
 import { getRuntimeConfig } from '../runtime-config';
+import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi';
 
 /**
  * Display names for the built-in platform agents. The backend ships English
@@ -537,6 +538,7 @@ function ChatbotInner({
   return (
     <>
       <FloatingChatbot
+        onUpgrade={() => window.open(cloudPricingDeepLink(), '_blank', 'noopener,noreferrer')}
         floatingConfig={{
           position: 'bottom-right',
           defaultOpen,

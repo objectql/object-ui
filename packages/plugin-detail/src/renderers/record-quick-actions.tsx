@@ -16,9 +16,10 @@
  */
 
 import React from 'react';
-import { useRecordContext, useActionEngine, useMetadataItem } from '@object-ui/react';
+import { useRecordContext, useActionEngine, useMetadataItem, useCondition, toPredicateInput } from '@object-ui/react';
 import { usePermissions } from '@object-ui/permissions';
 import { Button, cn } from '@object-ui/components';
+import { Loader2 } from 'lucide-react';
 import type { ActionDef, ActionLocation } from '@object-ui/core';
 
 const splitDesigner = (props: Record<string, any>) => {
@@ -152,32 +153,62 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
       aria-label={schema.aria?.label || 'Quick actions'}
       {...designer}
     >
-      {visibleActions.map((action, idx) => {
-        const label = action.label || action.name || `Action ${idx + 1}`;
-        const variant = (action as any).variant || schema.variant || 'default';
-        const size = (action as any).size || schema.size || 'sm';
-        const disabled =
-          typeof action.disabled === 'boolean' ? action.disabled : undefined;
-        return (
-          <Button
-            key={action.name || `qa-${idx}`}
-            variant={variant}
-            size={size}
-            disabled={disabled}
-            onClick={() => {
-              if (typeof action.onClick === 'function') {
-                void action.onClick();
-                return;
-              }
-              if (action.name) void executeAction(action.name);
-            }}
-          >
-            {label}
-          </Button>
-        );
-      })}
+      {visibleActions.map((action, idx) => (
+        <QuickActionButton
+          key={action.name || `qa-${idx}`}
+          action={action}
+          record={ctx?.data}
+          variant={(action as any).variant || schema.variant || 'default'}
+          size={(action as any).size || schema.size || 'sm'}
+          label={action.label || action.name || `Action ${idx + 1}`}
+          onRun={async () => {
+            if (typeof action.onClick === 'function') await action.onClick();
+            else if (action.name) await executeAction(action.name);
+          }}
+        />
+      ))}
     </div>
   );
 };
+
+/**
+ * A single quick-action button. Owns its own running/loading state (a spinner +
+ * disable while the action executes — a visible progress state for slow / flow
+ * actions) and evaluates a CEL `disabled` predicate against the record (so an
+ * action can grey out conditionally, not just hide via `visible`).
+ */
+function QuickActionButton({
+  action, record, variant, size, label, onRun,
+}: {
+  action: ActionDef;
+  record: Record<string, unknown> | undefined;
+  variant: any;
+  size: any;
+  label: string;
+  onRun: () => Promise<void> | void;
+}) {
+  const [running, setRunning] = React.useState(false);
+  const recordCtx = React.useMemo(() => ({ record: record || {} }), [record]);
+  // `disabled` may be a boolean or a CEL predicate. Evaluate the predicate form
+  // against the record; useCondition must be called unconditionally (hook).
+  const disabledPred = toPredicateInput((action as any).disabled);
+  const condDisabled = useCondition(typeof disabledPred === 'string' ? disabledPred : undefined, recordCtx);
+  const isDisabled =
+    (typeof disabledPred === 'string' ? condDisabled : disabledPred === true) || running;
+  return (
+    <Button
+      variant={variant}
+      size={size}
+      disabled={isDisabled}
+      onClick={async () => {
+        setRunning(true);
+        try { await onRun(); } finally { setRunning(false); }
+      }}
+    >
+      {running && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {label}
+    </Button>
+  );
+}
 
 export default RecordQuickActionsRenderer;

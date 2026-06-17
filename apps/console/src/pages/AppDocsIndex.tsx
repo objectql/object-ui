@@ -6,77 +6,33 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { AlertCircle, BookOpen, Loader2 } from 'lucide-react';
-import { useAdapter } from '@object-ui/app-shell';
+import { useMemo } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
+import { BookOpen, Loader2 } from 'lucide-react';
 import { DocShell } from './DocShell';
-
-interface AppDocItem {
-  name: string;
-  label?: string;
-  description?: string;
-}
+import { useBookData } from './use-book-data';
+import { buildBookCards, pkgOfBook, type Book } from './book-nav';
 
 /**
- * `/apps/:appName/docs` — the app-scoped documentation index (ADR-0046/0048).
+ * `/apps/:appName/docs` — the app-scoped documentation index (ADR-0046 §6 /
+ * ADR-0048). The package-scoped sibling of the platform `/docs` portal: it
+ * shows the books owned by the app whose container this route renders inside
+ * (`:appName` is the package-id segment).
  *
- * The platform `/docs` portal lists *every* installed doc grouped by package;
- * this is its package-scoped sibling: the docs owned by the app whose
- * container this route renders inside (`:appName` is the package-id segment,
- * matched against each doc's `_packageId`). It is the landing target for the
- * header Help menu's "This app's docs" entry when an app ships more than one
- * doc — a single-doc app deep-links straight to the viewer instead.
- *
- * Like the rest of the doc routes it degrades softly: an app with no docs
- * shows an empty-state notice, never a hard error.
+ * Book-driven like the portal: a package always has at least its implicit book
+ * (§6.4). The common single-book case lands straight on that book's grouped
+ * reader; a package with several books lists them. Reads the shared book/doc
+ * data provided by the `/docs` layout — no separate fetch.
  */
 export default function AppDocsIndex() {
-  // `appName` is the parent route's package-id segment (/apps/:appName/docs).
   const { appName } = useParams<{ appName?: string }>();
-  const adapter = useAdapter();
-  const [docs, setDocs] = useState<AppDocItem[]>([]);
-  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const { books, docs, state } = useBookData();
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      if (!adapter) return;
-      const client: any = adapter.getClient();
-      if (!client?.meta?.getItems) {
-        setErrorMessage('meta.getItems is not available on this client');
-        setState('error');
-        return;
-      }
-      setState('loading');
-      try {
-        const result: any = await client.meta.getItems('doc');
-        const items: any[] = Array.isArray(result)
-          ? result
-          : Array.isArray(result?.items)
-            ? result.items
-            : Array.isArray(result?.value)
-              ? result.value
-              : [];
-        if (cancelled) return;
-        const mine = items
-          .filter((it) => it && it.name && it._packageId === appName)
-          .map((it) => ({ name: it.name, label: it.label, description: it.description }))
-          .sort((a, b) => (a.label ?? a.name).localeCompare(b.label ?? b.name));
-        setDocs(mine);
-        setState('ready');
-      } catch (err: any) {
-        if (cancelled) return;
-        setErrorMessage(err?.message ?? 'Failed to load documentation');
-        setState('error');
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [adapter, appName]);
+  const myBooks = useMemo<Book[]>(
+    () => books.filter((b) => pkgOfBook(b) === appName),
+    [books, appName],
+  );
+  const cards = useMemo(() => buildBookCards(myBooks, docs), [myBooks, docs]);
 
   if (state === 'loading') {
     return (
@@ -86,45 +42,45 @@ export default function AppDocsIndex() {
     );
   }
 
-  if (state === 'error') {
-    return (
-      <div className="mx-auto flex max-w-3xl flex-col items-center gap-3 p-10 text-center">
-        <AlertCircle className="h-10 w-10 text-destructive" />
-        <h1 className="text-lg font-semibold">Failed to load documentation</h1>
-        <p className="text-sm text-muted-foreground">{errorMessage}</p>
-      </div>
-    );
+  // One book (the usual case) → land directly on its grouped reader.
+  if (cards.length === 1) {
+    return <Navigate to={`/apps/${appName}/docs/${cards[0].slug}`} replace />;
   }
 
   return (
     <DocShell>
       <div className="mx-auto max-w-3xl p-4 sm:p-6">
-        {docs.length === 0 ? (
+        {cards.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
             <BookOpen className="h-10 w-10" />
-            <p className="text-sm">
-              This app does not ship any documentation yet.
-            </p>
+            <p className="text-sm">This app does not ship any documentation yet.</p>
             <Link to="/docs" className="text-sm font-medium text-primary hover:underline">
               Browse all documentation
             </Link>
           </div>
         ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {docs.map((doc) => (
-              <li key={doc.name}>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {cards.map((card) => (
+              <li key={card.name}>
                 <Link
-                  to={`/apps/${appName}/docs/${doc.name}`}
-                  className="flex items-start gap-3 px-3 py-3 hover:bg-muted/50"
+                  to={`/apps/${appName}/docs/${card.slug}`}
+                  className="flex h-full items-start gap-3 rounded-md border border-border p-3 hover:bg-muted/50"
                 >
-                  <BookOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <BookOpen className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium">{doc.label ?? doc.name}</div>
-                    {doc.description ? (
+                    <div className="text-sm font-semibold">{card.label}</div>
+                    {card.description ? (
                       <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {doc.description}
+                        {card.description}
+                      </div>
+                    ) : card.subtitle ? (
+                      <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground/70">
+                        {card.subtitle}
                       </div>
                     ) : null}
+                    <div className="mt-1 text-xs text-muted-foreground/80">
+                      {card.docCount} {card.docCount === 1 ? 'article' : 'articles'}
+                    </div>
                   </div>
                 </Link>
               </li>

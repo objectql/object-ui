@@ -35,6 +35,8 @@ const IntegrationsPage = lazy(() => import('./pages/developer/IntegrationsPage')
 // app-scoped index at /apps/:packageId/docs (AppDocsIndex).
 const DocPage = lazy(() => import('./pages/DocPage'));
 const AppDocsIndex = lazy(() => import('./pages/AppDocsIndex'));
+const DocsSlug = lazy(() => import('./pages/DocsSlug'));
+const DocsLayout = lazy(() => import('./pages/DocsLayout'));
 
 // Note: marketplace routes (`system/marketplace`, `system/marketplace/:packageId`)
 // are registered by DefaultAppContent in @object-ui/app-shell so they're
@@ -91,8 +93,14 @@ const systemRoutes = (
     <Route path="developer/integrations" element={<Suspense fallback={<LoadingScreen />}><IntegrationsPage /></Suspense>} />
     {/* ADR-0048 — package docs under the package container: app-scoped index
         (/apps/:packageId/docs) + single-doc viewer (/apps/:packageId/docs/:name) */}
-    <Route path="docs" element={<Suspense fallback={<LoadingScreen />}><AppDocsIndex /></Suspense>} />
-    <Route path="docs/:name" element={<Suspense fallback={<LoadingScreen />}><DocPage /></Suspense>} />
+    {/* ADR-0046 §6 — the docs layout fetches book + doc once and shares it with
+        the app-scoped index, book landings, and reader (one segment resolves to
+        a book landing or redirects a flat doc to /docs/<book>/<name>). */}
+    <Route path="docs" element={<Suspense fallback={<LoadingScreen />}><DocsLayout /></Suspense>}>
+      <Route index element={<Suspense fallback={<LoadingScreen />}><AppDocsIndex /></Suspense>} />
+      <Route path=":slug" element={<Suspense fallback={<LoadingScreen />}><DocsSlug /></Suspense>} />
+      <Route path=":slug/:name" element={<Suspense fallback={<LoadingScreen />}><DocPage /></Suspense>} />
+    </Route>
     {/* Legacy URL redirects → metadata-admin engine (zero-cost compatibility). */}
     <Route path="system/objects" element={<ObjectRedirect />} />
     <Route path="system/objects/:objectName" element={<ObjectRedirect />} />

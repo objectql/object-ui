@@ -44,6 +44,8 @@ import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
 import DocPage from './pages/DocPage';
 import DocsIndex from './pages/DocsIndex';
+import DocsSlug from './pages/DocsSlug';
+import DocsLayout from './pages/DocsLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
@@ -184,16 +186,22 @@ export function App() {
               * lists every installed `doc` (grouped by package), and one
               * viewer route renders any item; cross-references between docs
               * resolve to that same viewer route. Both are app-independent. */}
+            {/* Docs portal (ADR-0046 §6). The layout fetches book + doc once
+              * and shares it with every child route via context. Children:
+              *   index        → book index
+              *   :slug        → a book landing, or a flat-doc permalink that
+              *                  redirects to its canonical /docs/<book>/<name>
+              *   :slug/:name  → in-book reader (doc identity stays single-
+              *                  coordinate; the book segment is derived nav). */}
             <Route path="/docs" element={
               <ProtectedRoute>
-                <DocsIndex />
+                <DocsLayout />
               </ProtectedRoute>
-            } />
-            <Route path="/docs/:name" element={
-              <ProtectedRoute>
-                <DocPage />
-              </ProtectedRoute>
-            } />
+            }>
+              <Route index element={<DocsIndex />} />
+              <Route path=":slug" element={<DocsSlug />} />
+              <Route path=":slug/:name" element={<DocPage />} />
+            </Route>
             <Route path="/home" element={
               <ProtectedRoute>
                 <HomeRoute />

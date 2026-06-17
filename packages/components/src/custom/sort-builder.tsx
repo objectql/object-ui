@@ -8,10 +8,24 @@
 
 import * as React from "react"
 import { X, Plus, Trash2 } from "lucide-react"
+import { createSafeTranslation } from "@object-ui/i18n"
 
 import { cn } from "../lib/utils"
 import { Button } from "../ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
+
+const useSafeSortTranslation = createSafeTranslation(
+  {
+    'sortBuilder.sortBy': 'Sort by',
+    'sortBuilder.thenBy': 'Then by',
+    'sortBuilder.selectField': 'Select field',
+    'sortBuilder.ascending': 'A → Z',
+    'sortBuilder.descending': 'Z → A',
+    'sortBuilder.addSort': 'Add sort',
+    'sortBuilder.removeSort': 'Remove sort',
+  },
+  'sortBuilder.sortBy',
+)
 
 export interface SortItem {
   id: string;
@@ -35,6 +49,7 @@ export function SortBuilder({
   onChange,
   className,
 }: SortBuilderProps) {
+  const { t } = useSafeSortTranslation()
   // Normalize incoming items: ensure every row has an `id` (React key) and
   // accept either `order` (internal) or `sortOrder` (spec) for the direction.
   const normalize = React.useCallback((rows: any[]): SortItem[] => {
@@ -86,7 +101,7 @@ export function SortBuilder({
         {items.map((item, index) => (
           <div key={item.id} className="flex items-center gap-2">
              <span className="text-sm font-medium w-16 text-muted-foreground">
-               {index === 0 ? "Sort by" : "Then by"}
+               {index === 0 ? t('sortBuilder.sortBy') : t('sortBuilder.thenBy')}
              </span>
              <div className="flex-1">
                 <Select
@@ -94,7 +109,7 @@ export function SortBuilder({
                   onValueChange={(val) => updateItem(item.id, { field: val })}
                 >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Select field" />
+                    <SelectValue placeholder={t('sortBuilder.selectField')} />
                   </SelectTrigger>
                   <SelectContent>
                     {fields.map(f => (
@@ -112,8 +127,8 @@ export function SortBuilder({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="asc">A -&gt; Z</SelectItem>
-                    <SelectItem value="desc">Z -&gt; A</SelectItem>
+                    <SelectItem value="asc">{t('sortBuilder.ascending')}</SelectItem>
+                    <SelectItem value="desc">{t('sortBuilder.descending')}</SelectItem>
                   </SelectContent>
                 </Select>
              </div>
@@ -136,7 +151,7 @@ export function SortBuilder({
         disabled={fields.length === 0}
       >
         <Plus className="h-3 w-3 mr-2" />
-        Add sort
+        {t('sortBuilder.addSort')}
       </Button>
     </div>
   );
