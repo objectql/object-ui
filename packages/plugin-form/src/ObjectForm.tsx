@@ -27,6 +27,7 @@ import { ModalForm } from './ModalForm';
 import { MasterDetailForm } from './MasterDetailForm';
 import { FormSection } from './FormSection';
 import { applyAutoLayout } from './autoLayout';
+import { deriveFieldGroupSections } from './fieldGroups';
 
 export interface ObjectFormProps {
   /**
@@ -464,6 +465,10 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           visibleWhen: field.visibleWhen,
           readonlyWhen: field.readonlyWhen,
           requiredWhen: field.requiredWhen ?? field.conditionalRequired,
+          // Field-group membership (Field.group → object.fieldGroups[].key).
+          // Carried through so the form can auto-derive sections from the
+          // object's declared field groups when no explicit sections are given.
+          group: field.group,
           // Important: Pass the original field metadata so widgets can access properties like precision, currency, etc.
           field: field,
         };
@@ -651,6 +656,20 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
      ...initialData
   };
 
+  // Auto-derive sections from the object's declared `fieldGroups` when the
+  // consumer hasn't supplied explicit sections. This makes field groups laid
+  // out in the object designer render as sections on the actual form — not just
+  // in the designer preview. Falls back to a flat form (null) when the object
+  // declares no groups or no field opts into one.
+  const fieldGroupSections = React.useMemo(
+    () =>
+      schema.sections?.length
+        ? null
+        : deriveFieldGroupSections(formFields, objectSchema?.fieldGroups),
+    [schema.sections, formFields, objectSchema],
+  );
+  const effectiveSections = schema.sections?.length ? schema.sections : fieldGroupSections;
+
   // Render error state
   if (error) {
     return (
@@ -678,15 +697,16 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     ? schema.layout 
     : 'vertical';
 
-  // If sections are provided for the simple form, render with FormSection grouping
-  if (schema.sections?.length && (!schema.formType || schema.formType === 'simple')) {
+  // If sections are provided (explicitly, or derived from the object's
+  // `fieldGroups`) for the simple form, render with FormSection grouping.
+  if (effectiveSections?.length && (!schema.formType || schema.formType === 'simple')) {
     return (
       <div className="w-full space-y-6">
-        {schema.sections.map((section, index) => {
+        {effectiveSections.map((section, index) => {
           // Filter formFields to only include fields in this section
           const sectionFieldNames = section.fields.map(f => typeof f === 'string' ? f : f.name);
           const sectionFields = applyFieldPerms(formFields.filter(f => sectionFieldNames.includes(f.name)));
-          
+
           return (
             <FormSection
               key={section.name || section.label || index}
@@ -704,8 +724,8 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
                   layout: formLayout,
                   defaultValues: finalDefaultValues,
                   // Only show action buttons after the last section
-                  showSubmit: index === schema.sections!.length - 1 && schema.showSubmit !== false && schema.mode !== 'view',
-                  showCancel: index === schema.sections!.length - 1 && schema.showCancel !== false,
+                  showSubmit: index === effectiveSections!.length - 1 && schema.showSubmit !== false && schema.mode !== 'view',
+                  showCancel: index === effectiveSections!.length - 1 && schema.showCancel !== false,
                   submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
                   cancelLabel: schema.cancelText,
                   onSubmit: handleSubmit,

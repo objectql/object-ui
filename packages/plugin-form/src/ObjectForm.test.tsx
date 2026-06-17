@@ -113,6 +113,72 @@ describe('ObjectForm Integration', () => {
         });
     });
 
+    it('auto-derives sections from the object fieldGroups metadata', async () => {
+        // Fields opt into groups via `field.group`; the object declares the
+        // groups via top-level `fieldGroups`. Even without explicit
+        // schema.sections, the form must render those groups as sections.
+        const ds: any = {
+            getObjectSchema: vi.fn().mockResolvedValue({
+                name: 'test_object',
+                fieldGroups: [
+                    { key: 'contact', label: 'Contact Info' },
+                    { key: 'billing', label: 'Billing' },
+                ],
+                fields: {
+                    email: { type: 'email', label: 'Email', group: 'contact' },
+                    phone: { type: 'phone', label: 'Phone', group: 'contact' },
+                    amount: { type: 'currency', label: 'Amount', group: 'billing' },
+                    notes: { type: 'textarea', label: 'Notes' },
+                },
+            }),
+        };
+
+        const { container } = render(
+            <ObjectForm
+                schema={{
+                    type: 'object-form',
+                    objectName: 'test_object',
+                    mode: 'create',
+                } as any}
+                dataSource={ds}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Contact Info')).toBeTruthy();
+        });
+        expect(screen.getByText('Billing')).toBeTruthy();
+        // All fields still render, including the ungrouped one.
+        expect(container.querySelector('input[name="email"]')).toBeTruthy();
+        expect(container.querySelector('input[name="amount"]')).toBeTruthy();
+        expect(container.querySelector('[name="notes"]')).toBeTruthy();
+    });
+
+    it('stays flat when the object declares no fieldGroups', async () => {
+        const ds: any = {
+            getObjectSchema: vi.fn().mockResolvedValue({
+                name: 'test_object',
+                fields: {
+                    name: { type: 'text', label: 'Name' },
+                    email: { type: 'email', label: 'Email' },
+                },
+            }),
+        };
+
+        render(
+            <ObjectForm
+                schema={{ type: 'object-form', objectName: 'test_object', mode: 'create' } as any}
+                dataSource={ds}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText('Name')).toBeTruthy();
+        });
+        // No section headers should appear for a flat form.
+        expect(screen.queryByText('Contact Info')).toBeNull();
+    });
+
     it('renders as a master-detail form when schema.subforms is set', async () => {
         // A plain object form becomes master-detail by config (no bespoke page):
         // parent fields on top + an editable child grid + a single Save action.
