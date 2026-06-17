@@ -33,7 +33,8 @@ import { Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
 import { MasterDetailForm } from './MasterDetailForm';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
-import { mapFieldTypeToFormType, buildValidationRules, evaluateCondition } from '@object-ui/fields';
+import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
+import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoLayout, inferModalSize } from './autoLayout';
 import { sanitizeFormData } from './sanitize';
 import { usePermissions } from '@object-ui/permissions';
@@ -258,53 +259,17 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   }, [objectSchema, schema.mode, schema.recordId, schema.initialData, schema.initialValues, dataSource, schema.objectName]);
 
   // Build form fields from section config
-  const buildSectionFields = useCallback((section: ModalFormSectionConfig): FormField[] => {
-    const fields: FormField[] = [];
-
-    // Convert spec-level `visibleOn` CEL string (or object-field `visible_on`
-    // hyphen-cased mirror) into a reactive `visible(formData)` predicate so
-    // FormSection's children honor live field-level visibility.
-    const attachVisibility = (formField: FormField, expr: any): FormField => {
-      if (typeof expr === 'string' && expr.trim()) {
-        return {
-          ...formField,
-          visible: (formData: any) => evaluateCondition(expr, formData),
-        };
-      }
-      return formField;
-    };
-
-    for (const fieldDef of section.fields) {
-      const fieldName = typeof fieldDef === 'string' ? fieldDef : fieldDef.name;
-
-      if (typeof fieldDef === 'object') {
-        fields.push(attachVisibility(fieldDef as FormField, (fieldDef as any).visibleOn));
-      } else if (objectSchema?.fields?.[fieldName]) {
-        const field = objectSchema.fields[fieldName];
-        fields.push(attachVisibility({
-          name: fieldName,
-          label: fieldLabel(schema.objectName, fieldName, field.label || fieldName),
-          type: mapFieldTypeToFormType(field.type),
-          required: field.required || false,
-          disabled: schema.readOnly || schema.mode === 'view' || field.readonly,
-          placeholder: field.placeholder,
-          description: field.help || field.description,
-          validation: buildValidationRules(field),
-          field: field,
-          options: field.options,
-          multiple: field.multiple,
-        }, (field as any).visible_on ?? (field as any).visibleOn));
-      } else {
-        fields.push({
-          name: fieldName,
-          label: fieldName,
-          type: 'input',
-        });
-      }
-    }
-
-    return fields;
-  }, [objectSchema, schema.readOnly, schema.mode, schema.objectName]);
+  const buildSectionFields = useCallback(
+    (section: ModalFormSectionConfig): FormField[] =>
+      buildSectionFieldsShared(section as any, {
+        objectSchema,
+        objectName: schema.objectName,
+        readOnly: schema.readOnly,
+        mode: schema.mode,
+        fieldLabel,
+      }),
+    [objectSchema, schema.readOnly, schema.mode, schema.objectName, fieldLabel],
+  );
 
   // Build fields from flat field list (when no sections)
   useEffect(() => {

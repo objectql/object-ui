@@ -27,6 +27,7 @@ import {
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { MasterDetailForm } from './MasterDetailForm';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
+import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoLayout } from './autoLayout';
 import { sanitizeFormData } from './sanitize';
 
@@ -196,40 +197,17 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   }, [objectSchema, schema.mode, schema.recordId, schema.initialData, schema.initialValues, dataSource, schema.objectName]);
 
   // Build form fields from section config
-  const buildSectionFields = useCallback((section: DrawerFormSectionConfig): FormField[] => {
-    const fields: FormField[] = [];
-
-    for (const fieldDef of section.fields) {
-      const fieldName = typeof fieldDef === 'string' ? fieldDef : fieldDef.name;
-
-      if (typeof fieldDef === 'object') {
-        fields.push(fieldDef);
-      } else if (objectSchema?.fields?.[fieldName]) {
-        const field = objectSchema.fields[fieldName];
-        fields.push({
-          name: fieldName,
-          label: fieldLabel(schema.objectName, fieldName, field.label || fieldName),
-          type: mapFieldTypeToFormType(field.type),
-          required: field.required || false,
-          disabled: schema.readOnly || schema.mode === 'view' || field.readonly,
-          placeholder: field.placeholder,
-          description: field.help || field.description,
-          validation: buildValidationRules(field),
-          field: field,
-          options: field.options,
-          multiple: field.multiple,
-        });
-      } else {
-        fields.push({
-          name: fieldName,
-          label: fieldName,
-          type: 'input',
-        });
-      }
-    }
-
-    return fields;
-  }, [objectSchema, schema.readOnly, schema.mode]);
+  const buildSectionFields = useCallback(
+    (section: DrawerFormSectionConfig): FormField[] =>
+      buildSectionFieldsShared(section as any, {
+        objectSchema,
+        objectName: schema.objectName,
+        readOnly: schema.readOnly,
+        mode: schema.mode,
+        fieldLabel,
+      }),
+    [objectSchema, schema.readOnly, schema.mode, schema.objectName, fieldLabel],
+  );
 
   // Build fields from flat field list (when no sections provided)
   useEffect(() => {

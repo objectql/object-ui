@@ -716,7 +716,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   if (effectiveSections?.length && (!schema.formType || schema.formType === 'simple')) {
     const groupedFields: FormField[] = [];
     effectiveSections.forEach((section, index) => {
-      const sectionFieldNames = section.fields.map(f => typeof f === 'string' ? f : f.name);
+      const sectionFieldNames = section.fields.map(f => typeof f === 'string' ? f : ((f as any).field ?? f.name));
       const sectionFields = applyFieldPerms(formFields.filter(f => sectionFieldNames.includes(f.name)));
       if (sectionFields.length === 0) return;
 

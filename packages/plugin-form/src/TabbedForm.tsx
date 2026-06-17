@@ -18,7 +18,7 @@ import type { FormField, DataSource } from '@object-ui/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from '@object-ui/components';
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
-import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
+import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 
 export interface FormSectionConfig {
   /**
@@ -219,43 +219,17 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
   }, [objectSchema, schema.mode, schema.recordId, schema.initialData, schema.initialValues, dataSource, schema.objectName]);
 
   // Build form fields from section config
-  const buildSectionFields = useCallback((section: FormSectionConfig): FormField[] => {
-    const fields: FormField[] = [];
-    
-    for (const fieldDef of section.fields) {
-      const fieldName = typeof fieldDef === 'string' ? fieldDef : fieldDef.name;
-      
-      if (typeof fieldDef === 'object') {
-        // Use the field definition directly
-        fields.push(fieldDef);
-      } else if (objectSchema?.fields?.[fieldName]) {
-        // Build from object schema
-        const field = objectSchema.fields[fieldName];
-        fields.push({
-          name: fieldName,
-          label: fieldLabel(schema.objectName, fieldName, field.label || fieldName),
-          type: mapFieldTypeToFormType(field.type),
-          required: field.required || false,
-          disabled: schema.readOnly || schema.mode === 'view' || field.readonly,
-          placeholder: field.placeholder,
-          description: field.help || field.description,
-          validation: buildValidationRules(field),
-          field: field,
-          options: field.options,
-          multiple: field.multiple,
-        });
-      } else {
-        // Fallback for unknown fields
-        fields.push({
-          name: fieldName,
-          label: fieldName,
-          type: 'input',
-        });
-      }
-    }
-    
-    return fields;
-  }, [objectSchema, schema.readOnly, schema.mode]);
+  const buildSectionFields = useCallback(
+    (section: FormSectionConfig): FormField[] =>
+      buildSectionFieldsShared(section as any, {
+        objectSchema,
+        objectName: schema.objectName,
+        readOnly: schema.readOnly,
+        mode: schema.mode,
+        fieldLabel,
+      }),
+    [objectSchema, schema.readOnly, schema.mode, schema.objectName, fieldLabel],
+  );
 
   // Handle form submission
   const handleSubmit = useCallback(async (data: Record<string, any>) => {
