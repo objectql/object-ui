@@ -91,10 +91,16 @@ const RowActionMenuItem: React.FC<{
   onActionDef?: (def: RowActionDef, row: any) => void;
 }> = ({ def, row, onActionDef }) => {
   const isVisible = useCondition(toPredicateInput(def.visible), row);
+  // `disabled` may be a boolean or a CEL predicate evaluated against the row
+  // (e.g. grey out "Reassign" once a lead is converted) — previously ignored.
+  const disabledPred = toPredicateInput((def as any).disabled);
+  const evalDisabled = useCondition(typeof disabledPred === 'string' ? disabledPred : undefined, row);
+  const isDisabled = typeof disabledPred === 'string' ? evalDisabled : disabledPred === true;
   if (def.visible && !isVisible) return null;
   return (
     <DropdownMenuItem
-      onClick={() => onActionDef?.(def, row)}
+      disabled={isDisabled}
+      onClick={() => { if (!isDisabled) onActionDef?.(def, row); }}
       data-testid={`row-action-${def.name}`}
       className={def.variant === 'danger' ? 'text-destructive focus:text-destructive' : undefined}
     >

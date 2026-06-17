@@ -804,11 +804,30 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     const useOverflow = headerActions.length > INLINE_MAX + 1;
     const inlineActions = useOverflow ? headerActions.slice(0, INLINE_MAX) : headerActions;
     const overflowActions = useOverflow ? headerActions.slice(INLINE_MAX) : [];
+    // Resolve a `disabled` predicate against the record. Mirrors the `visible`
+    // evaluation above — a boolean OR a CEL expression (`'record.status == …'`
+    // or the `{ dialect, source }` envelope). Without this a CEL `disabled`
+    // silently did nothing (only boolean was honoured).
+    const dRecord: any = ctx?.data;
+    const dEvaluator = new ExpressionEvaluator({
+      ...(dRecord && typeof dRecord === 'object' ? dRecord : {}),
+      record: dRecord,
+      data: dRecord,
+    });
+    const resolveDisabled = (d: any): boolean => {
+      if (d === undefined || d === null) return false;
+      if (typeof d === 'boolean') return d;
+      const src = typeof d === 'string'
+        ? d
+        : (d && typeof d === 'object' && typeof (d as any).source === 'string' ? (d as any).source : undefined);
+      if (!src) return false;
+      try { return !!dEvaluator.evaluateExpression(src); } catch { return false; }
+    };
     const renderButton = (action: any, idx: number) => {
       const label = resolveLabel(action, idx);
       const variant = action.variant || 'default';
       const size = action.size || 'sm';
-      const disabled = typeof action.disabled === 'boolean' ? action.disabled : undefined;
+      const disabled = resolveDisabled(action.disabled);
       const icon = typeof action.icon === 'string' ? action.icon : null;
       return (
         <Button
@@ -852,7 +871,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
             <DropdownMenuContent align="end" className="w-44">
               {overflowActions.map((action, idx) => {
                 const label = resolveLabel(action, idx + INLINE_MAX);
-                const disabled = typeof action.disabled === 'boolean' ? action.disabled : undefined;
+                const disabled = resolveDisabled(action.disabled);
                 const icon = typeof action.icon === 'string' ? action.icon : null;
                 const isDestructive =
                   action.variant === 'destructive' || action.name === 'sys_delete';

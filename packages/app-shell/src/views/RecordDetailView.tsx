@@ -11,7 +11,7 @@ import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { DetailView, RecordChatterPanel, buildDefaultPageSchema, extractMentions } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
-import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider } from '@object-ui/react';
+import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, useGlobalUndo } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
@@ -347,10 +347,24 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     });
   }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel]);
 
-  const toastHandler = useCallback((message: string, options?: { type?: string }) => {
-    if (options?.type === 'error') toast.error(message);
-    else toast.success(message);
-  }, []);
+  // Global undo/redo (Ctrl+Z), backed by the dataSource — the success toast's
+  // "Undo" button (for `undoable` actions) restores the record's prior values.
+  const undoCtl = useGlobalUndo({
+    dataSource,
+    onUndo: () => { setActionRefreshKey(k => k + 1); toast.success('Change undone'); },
+  });
+
+  const toastHandler = useCallback((message: string, options?: { type?: string; duration?: number; undo?: { label?: string } }) => {
+    if (options?.type === 'error') { toast.error(message); return; }
+    if (options?.undo) {
+      toast.success(message, {
+        duration: options.duration,
+        action: { label: options.undo.label || 'Undo', onClick: () => { void undoCtl.undo(); } },
+      });
+      return;
+    }
+    toast.success(message, { duration: options?.duration });
+  }, [undoCtl]);
 
   const navigateHandler = useCallback((url: string, options?: { external?: boolean; newTab?: boolean }) => {
     if (options?.external || options?.newTab) {
@@ -364,8 +378,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const apiHandler = useCallback(async (action: ActionDef) => {
     try {
       const target = action.target || action.name;
-      const params = action.params || {};
+      const params: Record<string, any> = { ...(action.params || {}) };
+      delete params._rowRecord;
 
+      let undo: any;
       switch (target) {
         case 'opportunity_change_stage':
           await dataSource.update(objectName!, pureRecordId!, { stage: params.new_stage });
@@ -379,6 +395,22 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         default:
           // Generic: update record with collected params
           if (Object.keys(params).length > 0) {
+            // Undoable single-record update: capture the changed fields' prior
+            // values from the loaded record so the success toast can offer Undo.
+            if (action.undoable && pageRecord && objectName && pureRecordId) {
+              const undoData: Record<string, unknown> = {};
+              for (const k of Object.keys(params)) undoData[k] = (pageRecord as any)[k] ?? null;
+              undo = {
+                id: `undo-${objectName}-${pureRecordId}-${Date.now()}`,
+                type: 'update',
+                objectName,
+                recordId: String(pureRecordId),
+                timestamp: Date.now(),
+                description: action.label || `Undo ${objectName}`,
+                undoData,
+                redoData: { ...params },
+              };
+            }
             await dataSource.update(objectName!, pureRecordId!, params);
           }
           break;
@@ -387,12 +419,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       const shouldRefresh = action.refreshAfter === true;
       if (shouldRefresh) {
         setActionRefreshKey(k => k + 1);
+      } else if (undo) {
+        // Even when refreshAfter isn't set, reflect the change so the user sees
+        // it (and the subsequent Undo) on the open record.
+        setActionRefreshKey(k => k + 1);
       }
-      return { success: true, reload: shouldRefresh };
+      return { success: true, reload: shouldRefresh, undo };
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }, [dataSource, objectName, pureRecordId]);
+  }, [dataSource, objectName, pureRecordId, pageRecord]);
 
   // Client-side modal transport: `type:'modal'` actions open here (Dialog /
   // Sheet / Drawer by `placement`) and render arbitrary SchemaNode content.
