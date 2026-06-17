@@ -3,6 +3,12 @@
  *
  * A simple in-memory data source that demonstrates the DataSource interface.
  * In a real application, replace this with calls to your REST API, GraphQL, etc.
+ *
+ * The runtime (list / form / detail) drives every schema-aware component off
+ * `getObjectSchema(objectName)`, which must return the object's `fields` as a
+ * **map** (`{ [fieldName]: fieldDef }`) plus optional top-level `fieldGroups`.
+ * The `contact` object below declares `fieldGroups` so the runtime ObjectForm
+ * renders grouped sections — matching the designer.
  */
 
 interface DataSource {
@@ -11,14 +17,15 @@ interface DataSource {
   create(objectName: string, data: any): Promise<any>;
   update(objectName: string, id: string, data: any): Promise<any>;
   delete(objectName: string, id: string): Promise<void>;
+  getObjectSchema(objectName: string): Promise<any>;
   getMetadata(): Promise<any>;
 }
 
 // Mock data storage
 const mockData: Record<string, any[]> = {
   contact: [
-    { id: '1', name: 'John Doe', email: 'john@example.com', phone: '555-1234' },
-    { id: '2', name: 'Jane Smith', email: 'jane@example.com', phone: '555-5678' },
+    { id: '1', name: 'John Doe', email: 'john@example.com', phone: '555-1234', notes: 'VIP customer' },
+    { id: '2', name: 'Jane Smith', email: 'jane@example.com', phone: '555-5678', notes: '' },
   ],
   account: [
     { id: '1', name: 'Acme Corp', industry: 'Technology', website: 'acme.com' },
@@ -26,34 +33,40 @@ const mockData: Record<string, any[]> = {
   ],
 };
 
-// Mock metadata
-const mockMetadata = {
-  objects: [
-    {
-      name: 'contact',
-      label: 'Contacts',
-      fields: [
-        { name: 'name', label: 'Name', type: 'text', required: true },
-        { name: 'email', label: 'Email', type: 'email' },
-        { name: 'phone', label: 'Phone', type: 'text' },
-      ],
-      views: [
-        { id: 'grid', name: 'All Contacts', type: 'grid' },
-      ],
+/**
+ * Per-object schemas keyed by object name. `fields` is a map (not an array) and
+ * `contact` carries `fieldGroups` + per-field `group` to exercise grouped form
+ * sections at runtime.
+ */
+const objectSchemas: Record<string, any> = {
+  contact: {
+    name: 'contact',
+    label: 'Contacts',
+    fieldGroups: [
+      // `collapsible` renders a chevron toggle on the section header; `collapsed`
+      // would start the group closed. Each group spans the full form width.
+      { key: 'identity', label: 'Identity', collapsible: true },
+      { key: 'contact_info', label: 'Contact Info', collapsible: true },
+    ],
+    fields: {
+      name: { name: 'name', label: 'Name', type: 'text', required: true, group: 'identity' },
+      email: { name: 'email', label: 'Email', type: 'email', group: 'contact_info' },
+      phone: { name: 'phone', label: 'Phone', type: 'text', group: 'contact_info' },
+      // No `group` → renders in the trailing ungrouped section.
+      notes: { name: 'notes', label: 'Notes', type: 'textarea' },
     },
-    {
-      name: 'account',
-      label: 'Accounts',
-      fields: [
-        { name: 'name', label: 'Name', type: 'text', required: true },
-        { name: 'industry', label: 'Industry', type: 'text' },
-        { name: 'website', label: 'Website', type: 'url' },
-      ],
-      views: [
-        { id: 'grid', name: 'All Accounts', type: 'grid' },
-      ],
+    views: [{ id: 'grid', name: 'All Contacts', type: 'grid' }],
+  },
+  account: {
+    name: 'account',
+    label: 'Accounts',
+    fields: {
+      name: { name: 'name', label: 'Name', type: 'text', required: true },
+      industry: { name: 'industry', label: 'Industry', type: 'text' },
+      website: { name: 'website', label: 'Website', type: 'url' },
     },
-  ],
+    views: [{ id: 'grid', name: 'All Accounts', type: 'grid' }],
+  },
 };
 
 export const mockDataSource: DataSource = {
@@ -78,7 +91,7 @@ export const mockDataSource: DataSource = {
 
   async create(objectName: string, data: any) {
     await delay(300);
-    const newId = String(Date.now());
+    const newId = String(mockData[objectName]?.length ?? 0) + '-' + (data.name || 'rec');
     const newRecord = { ...data, id: newId };
 
     if (!mockData[objectName]) {
@@ -116,9 +129,18 @@ export const mockDataSource: DataSource = {
     mockData[objectName].splice(index, 1);
   },
 
+  async getObjectSchema(objectName: string) {
+    await delay(150);
+    const schema = objectSchemas[objectName];
+    if (!schema) {
+      throw new Error(`Unknown object: ${objectName}`);
+    }
+    return schema;
+  },
+
   async getMetadata() {
     await delay(200);
-    return mockMetadata;
+    return { objects: Object.values(objectSchemas) };
   },
 };
 

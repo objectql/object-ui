@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Link, useParams } from 'react-router-dom';
 import { AppShell } from '@object-ui/app-shell';
 import { ObjectView } from '@object-ui/plugin-view';
+import { ObjectForm } from '@object-ui/plugin-form';
 import { ThemeProvider, DataSourceProvider } from '@object-ui/providers';
 import { mockDataSource } from './mockDataSource';
 
@@ -19,6 +20,7 @@ function App() {
           <AppShell sidebar={<Sidebar />}>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/form/:objectName" element={<ObjectFormPage />} />
               <Route path="/:objectName" element={<ObjectPage />} />
             </Routes>
           </AppShell>
@@ -51,6 +53,12 @@ function Sidebar() {
           className="block rounded px-3 py-2 text-sm hover:bg-accent"
         >
           Accounts
+        </Link>
+        <Link
+          to="/form/contact"
+          className="block rounded px-3 py-2 text-sm hover:bg-accent"
+        >
+          Contact Form (grouped)
         </Link>
       </div>
 
@@ -130,6 +138,31 @@ function ObjectPage() {
           listViews: [
             { id: 'default', label: 'All', type: 'grid' },
           ],
+        }}
+        dataSource={mockDataSource}
+      />
+    </div>
+  );
+}
+
+/**
+ * Standalone simple ObjectForm. Unlike the grid's modal create/view dialogs,
+ * this is the default `formType: 'simple'` form — so when the object declares
+ * `fieldGroups` (see mockDataSource), the form renders grouped sections.
+ */
+function ObjectFormPage() {
+  const { objectName } = useParams<{ objectName: string }>();
+
+  return (
+    <div className="mx-auto max-w-2xl p-8">
+      <h1 className="mb-6 text-2xl font-bold">
+        New {objectName} (simple form)
+      </h1>
+      <ObjectForm
+        schema={{
+          type: 'object-form',
+          objectName: objectName || '',
+          mode: 'create',
         }}
         dataSource={mockDataSource}
       />

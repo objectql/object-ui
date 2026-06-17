@@ -35,6 +35,21 @@ describe('readObjectFieldGroups', () => {
     expect(readObjectFieldGroups(null)).toEqual([]);
     expect(readObjectFieldGroups({})).toEqual([]);
   });
+
+  it('reads collapsible/collapsed flags when present and ignores non-booleans', () => {
+    expect(
+      readObjectFieldGroups([
+        { key: 'a', label: 'A', collapsible: true, collapsed: true },
+        { key: 'b', label: 'B', collapsible: false },
+        { key: 'c', label: 'C', collapsible: 'yes' },
+      ]),
+    ).toEqual([
+      { key: 'a', label: 'A', collapsible: true, collapsed: true },
+      { key: 'b', label: 'B', collapsible: false },
+      // 'yes' is not a boolean → dropped (treated as not set)
+      { key: 'c', label: 'C' },
+    ]);
+  });
 });
 
 describe('deriveFieldGroupSections', () => {
@@ -92,5 +107,25 @@ describe('deriveFieldGroupSections', () => {
       [{ key: 'contact' }],
     );
     expect(sections).toEqual([{ name: 'contact', label: 'contact', fields: ['email'] }]);
+  });
+
+  it('passes collapsible/collapsed through to derived sections', () => {
+    const sections = deriveFieldGroupSections(
+      [field('email', 'contact'), field('amount', 'billing')],
+      [
+        { key: 'contact', label: 'Contact Info', collapsible: true, collapsed: true },
+        { key: 'billing', label: 'Billing', collapsible: true },
+      ],
+    );
+    expect(sections).toEqual([
+      { name: 'contact', label: 'Contact Info', fields: ['email'], collapsible: true, collapsed: true },
+      { name: 'billing', label: 'Billing', fields: ['amount'], collapsible: true },
+    ]);
+  });
+
+  it('omits collapse flags entirely when a group does not declare them', () => {
+    const [section] = deriveFieldGroupSections([field('email', 'contact')], groups)!;
+    expect(section).not.toHaveProperty('collapsible');
+    expect(section).not.toHaveProperty('collapsed');
   });
 });

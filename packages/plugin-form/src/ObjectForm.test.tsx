@@ -154,6 +154,52 @@ describe('ObjectForm Integration', () => {
         expect(container.querySelector('[name="notes"]')).toBeTruthy();
     });
 
+    it('collapses a collapsible fieldGroup section on header click, hiding its fields', async () => {
+        // A group declared `collapsible: true` renders a clickable header; toggling
+        // it hides that group's fields (while a single shared form preserves their
+        // values) without affecting other groups or the ungrouped bucket.
+        const ds: any = {
+            getObjectSchema: vi.fn().mockResolvedValue({
+                name: 'test_object',
+                fieldGroups: [
+                    { key: 'contact', label: 'Contact Info', collapsible: true },
+                    { key: 'billing', label: 'Billing' },
+                ],
+                fields: {
+                    email: { type: 'email', label: 'Email', group: 'contact' },
+                    amount: { type: 'currency', label: 'Amount', group: 'billing' },
+                    notes: { type: 'textarea', label: 'Notes' },
+                },
+            }),
+        };
+
+        const { container } = render(
+            <ObjectForm
+                schema={{ type: 'object-form', objectName: 'test_object', mode: 'create' } as any}
+                dataSource={ds}
+            />,
+        );
+
+        await waitFor(() => {
+            expect(container.querySelector('input[name="email"]')).toBeTruthy();
+        });
+
+        // Collapse the Contact Info group → its email field leaves the DOM,
+        // while the other group's field and the ungrouped field stay.
+        fireEvent.click(screen.getByText('Contact Info'));
+        await waitFor(() => {
+            expect(container.querySelector('input[name="email"]')).toBeNull();
+        });
+        expect(container.querySelector('input[name="amount"]')).toBeTruthy();
+        expect(container.querySelector('[name="notes"]')).toBeTruthy();
+
+        // Expand again → the field returns.
+        fireEvent.click(screen.getByText('Contact Info'));
+        await waitFor(() => {
+            expect(container.querySelector('input[name="email"]')).toBeTruthy();
+        });
+    });
+
     it('stays flat when the object declares no fieldGroups', async () => {
         const ds: any = {
             getObjectSchema: vi.fn().mockResolvedValue({

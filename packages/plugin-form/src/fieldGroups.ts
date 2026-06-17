@@ -26,19 +26,22 @@ import type { FormField, ObjectFormSection } from '@object-ui/types';
 export interface DeclaredFieldGroup {
   key: string;
   label?: string;
+  /** Render the group's section header with a collapse toggle. */
+  collapsible?: boolean;
+  /** Start the (collapsible) group collapsed. */
+  collapsed?: boolean;
 }
 
 /** Read an object's `fieldGroups` into a normalized, well-typed list. */
 export function readObjectFieldGroups(input: unknown): DeclaredFieldGroup[] {
   if (!Array.isArray(input)) return [];
   return input
-    .filter((g): g is { key?: unknown; label?: unknown } => !!g && typeof g === 'object')
+    .filter((g): g is Record<string, unknown> => !!g && typeof g === 'object')
     .map((g) => ({
-      key: typeof (g as { key?: unknown }).key === 'string' ? ((g as { key: string }).key) : '',
-      label:
-        typeof (g as { label?: unknown }).label === 'string'
-          ? ((g as { label: string }).label)
-          : undefined,
+      key: typeof g.key === 'string' ? (g.key as string) : '',
+      label: typeof g.label === 'string' ? (g.label as string) : undefined,
+      collapsible: typeof g.collapsible === 'boolean' ? (g.collapsible as boolean) : undefined,
+      collapsed: typeof g.collapsed === 'boolean' ? (g.collapsed as boolean) : undefined,
     }))
     .filter((g) => g.key);
 }
@@ -90,6 +93,8 @@ export function deriveFieldGroupSections(
       name: g.key,
       label: g.label ?? g.key,
       fields: items.map((f) => f.name),
+      ...(g.collapsible !== undefined ? { collapsible: g.collapsible } : {}),
+      ...(g.collapsed !== undefined ? { collapsed: g.collapsed } : {}),
     });
   }
   // Trailing untitled bucket for ungrouped fields. Omitting `name`/`label`

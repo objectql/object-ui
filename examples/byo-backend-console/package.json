@@ -12,6 +12,7 @@
   "dependencies": {
     "@object-ui/app-shell": "workspace:*",
     "@object-ui/components": "workspace:*",
+    "@object-ui/plugin-form": "workspace:*",
     "@object-ui/plugin-view": "workspace:*",
     "@object-ui/providers": "workspace:*",
     "@object-ui/react": "workspace:*",
