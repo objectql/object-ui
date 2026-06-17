@@ -90,11 +90,15 @@ const RowActionMenuItem: React.FC<{
   row: any;
   onActionDef?: (def: RowActionDef, row: any) => void;
 }> = ({ def, row, onActionDef }) => {
-  const isVisible = useCondition(toPredicateInput(def.visible), row);
+  // Evaluate predicates against the row with BOTH a bare-field scope (`status`)
+  // and a `record.` scope (`record.status`) so authors can use either
+  // convention consistently with the record-header / spec evaluators.
+  const predicateCtx = { ...(row && typeof row === 'object' ? row : {}), record: row };
+  const isVisible = useCondition(toPredicateInput(def.visible), predicateCtx);
   // `disabled` may be a boolean or a CEL predicate evaluated against the row
   // (e.g. grey out "Reassign" once a lead is converted) — previously ignored.
   const disabledPred = toPredicateInput((def as any).disabled);
-  const evalDisabled = useCondition(typeof disabledPred === 'string' ? disabledPred : undefined, row);
+  const evalDisabled = useCondition(typeof disabledPred === 'string' ? disabledPred : undefined, predicateCtx);
   const isDisabled = typeof disabledPred === 'string' ? evalDisabled : disabledPred === true;
   if (def.visible && !isVisible) return null;
   return (
@@ -132,7 +136,7 @@ const RowActionInlineButton: React.FC<{
   row: any;
   onActionDef?: (def: RowActionDef, row: any) => void;
 }> = ({ def, row, onActionDef }) => {
-  const isVisible = useCondition(toPredicateInput(def.visible), row);
+  const isVisible = useCondition(toPredicateInput(def.visible), { ...(row && typeof row === 'object' ? row : {}), record: row });
   if (def.visible && !isVisible) return null;
   return (
     <Button

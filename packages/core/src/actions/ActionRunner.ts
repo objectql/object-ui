@@ -385,11 +385,21 @@ export class ActionRunner {
         }
       }
 
-      if (action.disabled) {
-        const isDisabled = typeof action.disabled === 'string'
-          ? this.evaluator.evaluateCondition(action.disabled)
-          : action.disabled;
-        
+      if (action.disabled != null && action.disabled !== false) {
+        // `disabled` may be a boolean, a CEL string, or the normalized envelope
+        // `{ dialect, source }` (what `objectstack build` emits). The previous
+        // code only evaluated the STRING form and treated any object as truthy,
+        // so an envelope-disabled action was ALWAYS "disabled" — silently
+        // blocking every execution (param dialog never opened, handler never
+        // ran). `evaluateCondition` already handles boolean/string/envelope;
+        // and the renderers are authoritative for the visual disabled state, so
+        // any eval failure here defaults to NOT-disabled (don't false-block).
+        let isDisabled = false;
+        try {
+          isDisabled = this.evaluator.evaluateCondition(action.disabled as never);
+        } catch {
+          isDisabled = false;
+        }
         if (isDisabled) {
           return { success: false, error: 'Action is disabled' };
         }

@@ -213,14 +213,36 @@ export class ExpressionEvaluator {
       condition = (condition as any).source as string;
     }
 
+    // No condition → default to visible/enabled (undefined, null, '').
     if (!condition) {
-      return true; // Default to visible/enabled if no condition
+      return true;
     }
 
-    const result = this.evaluate(condition, options);
-    
-    // Convert result to boolean
-    return Boolean(result);
+    if (typeof condition !== 'string') {
+      return Boolean(condition);
+    }
+
+    const trimmed = condition.trim();
+    if (!trimmed) {
+      return true; // Whitespace-only → treat as "no condition".
+    }
+
+    // A condition is semantically a single boolean expression. When it's a
+    // `${...}` template, evaluate via the template path. Otherwise treat the
+    // ENTIRE string as one expression (bare CEL like `record.status == "x"`):
+    // `evaluate` would short-circuit a non-`${}` string and return it verbatim,
+    // so `Boolean('record.status == "x"')` was ALWAYS true — silently making
+    // every bare-expression `disabled`/`condition`/`visible` predicate truthy.
+    if (trimmed.includes('${')) {
+      return Boolean(this.evaluate(trimmed, options));
+    }
+    try {
+      return Boolean(this.evaluateExpression(trimmed, { sanitize: options.sanitize !== false }));
+    } catch {
+      // Unparseable predicate — preserve the historical "default to
+      // visible/enabled" behaviour rather than hiding/blocking on a typo.
+      return true;
+    }
   }
 
   /**
