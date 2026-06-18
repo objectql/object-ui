@@ -23,13 +23,12 @@ import { useRecentItems } from '../../hooks/useRecentItems';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { AppCard } from './AppCard';
-import { RecentApps } from './RecentApps';
-import { HomeApprovals, HomePinned, HomeActivity } from './HomeRail';
+import { HomeAppsStrip } from './HomeAppsStrip';
+import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
 import { appRouteSegment } from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid, ShieldAlert, X, UploadCloud } from 'lucide-react';
+import { Sparkles, Star, Clock, ArrowDown, ShieldAlert, X, UploadCloud, Search } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
 
@@ -198,7 +197,7 @@ export function HomePage() {
   const { favorites } = useFavorites();
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
-  const { pendingApprovalsCount, activities } = useHomeInbox();
+  const { pendingApprovalsCount, notifications, activities } = useHomeInbox();
 
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
 
@@ -275,8 +274,8 @@ export function HomePage() {
 
       <div className="px-4 sm:px-6 lg:px-8 pt-8 pb-16">
         <div className="max-w-7xl mx-auto">
-          {/* Slim hero: greeting + AI action on one row (no oversized banner). */}
-          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          {/* Greeting + global search + AI */}
+          <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-pretty">
                 <span className="text-foreground">
@@ -290,83 +289,58 @@ export function HomePage() {
                 {t('home.heroTagline', { defaultValue: 'Pick up where you left off, or explore something new.' })}
               </p>
             </div>
-            <Button
-              onClick={() => navigate('/ai?agent=metadata_assistant')}
-              data-testid="home-build-with-ai"
-              className="shrink-0"
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
-            </Button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+                className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-border bg-card/80 px-4 text-sm text-muted-foreground backdrop-blur-sm transition hover:bg-muted/50 lg:w-72 lg:flex-none"
+                data-testid="home-search"
+              >
+                <Search className="h-4 w-4 shrink-0" />
+                <span className="flex-1 truncate text-left">
+                  {t('home.searchPlaceholder', { defaultValue: 'Search apps, records, anything' })}
+                </span>
+                <kbd className="pointer-events-none hidden items-center gap-0.5 rounded border bg-background px-1.5 text-[10px] text-muted-foreground sm:inline-flex">
+                  ⌘K
+                </kbd>
+              </button>
+              <Button onClick={() => navigate('/ai?agent=metadata_assistant')} data-testid="home-build-with-ai" className="shrink-0">
+                <Sparkles className="mr-2 h-4 w-4" />
+                {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
+              </Button>
+            </div>
           </div>
 
           {starredApps.length === 0 && recentApps.length === 0 && (
-            <div className="mb-8">
+            <div className="mb-6">
               <GettingStartedHint t={t} />
             </div>
           )}
 
-          {recentApps.length > 0 && (
-            <div className="mb-8">
-              <RecentApps items={recentApps} />
-            </div>
-          )}
+          {/* Your apps — compact, scalable launcher (favorites first) */}
+          <HomeAppsStrip
+            apps={activeApps}
+            favorites={favorites}
+            onOpen={(app) => navigate(`/apps/${appRouteSegment(app) ?? app.name}`)}
+            onBrowseMarketplace={() => navigate('/apps/setup/system/marketplace')}
+            isAdmin={isAdmin}
+          />
 
-          {/* All Applications — full width */}
-          <section className="mb-8">
-                <div className="mb-5 flex items-end justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-muted text-muted-foreground">
-                      <LayoutGrid className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <h2 className="text-xl font-semibold tracking-tight">
-                        {t('home.allApps', { defaultValue: 'All Applications' })}
-                      </h2>
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        {activeApps.length}
-                        {' \u00b7 '}
-                        {t('home.stats.apps', { defaultValue: 'Applications' })}
-                      </p>
-                    </div>
-                  </div>
-                  {isAdmin && (
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate('/apps/setup/system/marketplace')}
-                      data-testid="browse-marketplace-btn"
-                    >
-                      <Store className="mr-2 h-4 w-4" />
-                      {t('home.browseMarketplace', { defaultValue: 'Browse App Marketplace' })}
-                    </Button>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {activeApps.map((app: any, idx: number) => (
-                    <AppCard
-                      key={app.name}
-                      app={app}
-                      index={idx}
-                      onClick={() => navigate(`/apps/${appRouteSegment(app) ?? app.name}`)}
-                      isFavorite={favorites.some((f) => f.id === `app:${app.name}`)}
-                    />
-                  ))}
-                </div>
-          </section>
-
-          {/* Inbox — needs-attention / pinned / activity, balanced 3-up. */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <HomeApprovals
-              count={pendingApprovalsCount}
-              onOpen={() => navigate('/apps/setup/system/approvals')}
+          {/* Action center — what needs the user; leads the dashboard */}
+          <div className="mb-6">
+            <HomeActionCenter
+              pendingApprovalsCount={pendingApprovalsCount}
+              notifications={notifications}
+              onOpenApprovals={() => navigate('/apps/setup/system/approvals')}
+              onOpenNotification={(n) => navigate(n.actionUrl || '/apps/setup/sys_inbox_message?view=mine')}
               t={t}
             />
-            <HomePinned items={starredApps} onOpen={(href) => navigate(href)} t={t} />
-            <HomeActivity
-              items={activities}
-              onViewAll={() => navigate('/apps/setup/sys_activity')}
-              t={t}
-            />
+          </div>
+
+          {/* Continue where you left off + ambient activity */}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <HomeContinue items={recentApps} onOpen={(href) => navigate(href)} t={t} />
+            <HomeActivity items={activities} onViewAll={() => navigate('/apps/setup/sys_activity')} t={t} />
           </div>
         </div>
       </div>

@@ -1,14 +1,16 @@
 /**
  * useHomeInbox
  *
- * One-shot fetch of the two inbox streams worth surfacing on the Home
- * launcher rail: the pending-approvals count and the recent activity feed.
- * Both degrade silently to empty on 404 / error so deployments without the
- * approvals plugin or a `sys_activity` object still render the rail.
+ * One-shot fetch of the inbox streams the Home work-dashboard surfaces:
+ *   - pendingApprovalsCount — items waiting on the user (REST endpoint)
+ *   - notifications         — latest in-app inbox messages (assignments/@mentions)
+ *   - activities            — recent human activity feed (sys_activity)
  *
- * Unlike the top-bar bell (AppHeader), this does NOT poll — Home is a landing
- * surface, so a single fetch on mount is enough; the bell stays the live
- * source of truth. Mirrors AppHeader's query shapes so the two never diverge.
+ * Everything degrades silently to empty on 404 / error so deployments without
+ * the approvals plugin, the inbox pipeline, or a `sys_activity` object still
+ * render Home. Unlike the top-bar bell (AppHeader) this does NOT poll — Home is
+ * a landing surface, one fetch on mount is enough; the bell stays the live
+ * source of truth. Query shapes mirror AppHeader so the two never diverge.
  *
  * @module
  */
@@ -17,8 +19,16 @@ import { useAdapter } from '../providers/AdapterProvider';
 import { useAuth } from '@object-ui/auth';
 import type { ActivityItem } from '../layout/ActivityFeed';
 
+export interface HomeNotification {
+  id: string;
+  title: string;
+  actionUrl?: string;
+  createdAt?: string;
+}
+
 export interface HomeInboxData {
   pendingApprovalsCount: number;
+  notifications: HomeNotification[];
   activities: ActivityItem[];
 }
 
@@ -26,6 +36,7 @@ export function useHomeInbox(limit = 5): HomeInboxData {
   const dataSource = useAdapter();
   const { user } = useAuth();
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+  const [notifications, setNotifications] = useState<HomeNotification[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const mountedRef = useRef(true);
 
@@ -35,9 +46,9 @@ export function useHomeInbox(limit = 5): HomeInboxData {
   }, []);
 
   // Recent activity (sys_activity). Raw rows use plugin-audit's column names
-  // (actor_name / summary / object_name / timestamp); map them onto ActivityItem
-  // and drop content-less noise (login/logout/system rows with no summary) so
-  // the rail shows meaningful edits, not blank lines. Degrades to [] if absent.
+  // (actor_name / summary / object_name / timestamp); map onto ActivityItem and
+  // keep only real human actions — drop sys_*/ai_* system churn (UUID-titled,
+  // actor "System"). Degrades to [] if the object is absent.
   useEffect(() => {
     if (!dataSource) return;
     let cancelled = false;
@@ -51,9 +62,6 @@ export function useHomeInbox(limit = 5): HomeInboxData {
           .filter((r) => {
             if (!r || typeof r.type !== 'string') return false;
             if (!(r.summary ?? '').toString().trim()) return false;
-            // Home activity is about *people's* actions, not internal churn
-            // (sys_* tables, ai_conversations, job runs) — those carry a
-            // 'System' actor and UUID titles. Keep only real human actors.
             const actor = String(r.actor_name ?? '').trim();
             return actor.length > 0 && actor.toLowerCase() !== 'system';
           })
@@ -83,6 +91,35 @@ export function useHomeInbox(limit = 5): HomeInboxData {
     return () => { cancelled = true; };
   }, [dataSource, limit]);
 
+  // Latest in-app inbox messages (assignments / @mentions / alerts).
+  useEffect(() => {
+    if (!dataSource || !user?.id) return;
+    let cancelled = false;
+    Promise.resolve(
+      dataSource.find('sys_inbox_message', {
+        $filter: { user_id: user.id },
+        $orderby: { created_at: 'desc' },
+        $top: limit,
+      }) as Promise<any>,
+    )
+      .then((res) => {
+        if (cancelled || !mountedRef.current) return;
+        const rows: any[] = Array.isArray(res?.data) ? res.data : [];
+        setNotifications(
+          rows
+            .filter((m) => m && (m.title ?? '').toString().trim())
+            .map((m) => ({
+              id: String(m.id),
+              title: String(m.title),
+              actionUrl: m.action_url ?? undefined,
+              createdAt: m.created_at ?? undefined,
+            })),
+        );
+      })
+      .catch(() => { /* inbox pipeline absent → empty */ });
+    return () => { cancelled = true; };
+  }, [dataSource, user?.id, limit]);
+
   // Pending-approvals count (framework REST endpoint). 404 / error → 0.
   useEffect(() => {
     if (!user?.id) return;
@@ -106,5 +143,5 @@ export function useHomeInbox(limit = 5): HomeInboxData {
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  return { pendingApprovalsCount, activities };
+  return { pendingApprovalsCount, notifications, activities };
 }

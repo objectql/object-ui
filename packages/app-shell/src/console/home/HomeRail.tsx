@@ -1,25 +1,27 @@
 /**
  * HomeRail
  *
- * Right-rail blocks for the bento Home layout. Each is a self-contained,
- * data-light card that surfaces a launcher-relevant slice of the inbox:
- *   - HomeApprovals — items waiting on the user (the highest-value home block)
- *   - HomePinned    — starred items (reuses the favorites store)
- *   - HomeActivity  — recent activity feed (ambient "what's happening")
+ * Dashboard cards for the Home work-dashboard:
+ *   - HomeActionCenter — "what needs me" (approvals + inbox notifications);
+ *     the reason a business user opens Home, so it leads the page.
+ *   - HomeContinue     — recent items, compact "pick up where you left off".
+ *   - HomeActivity     — recent human activity feed (ambient context).
  *
- * All blocks render a graceful empty state so an empty workspace (or a
- * deployment without the approvals / activity features) still looks intentional.
+ * Each renders a graceful empty state so a quiet workspace still looks
+ * intentional rather than broken.
  *
  * @module
  */
-import { Button } from '@object-ui/components';
-import { CheckSquare, Star, Activity, ArrowRight } from 'lucide-react';
+import {
+  CheckSquare, Activity, ArrowRight, CheckCheck, Bell, Clock,
+  FileText, Database, LayoutDashboard, File,
+} from 'lucide-react';
 import type { ActivityItem } from '../../layout/ActivityFeed';
-import type { FavoriteItem } from '../../hooks/useFavorites';
+import type { HomeNotification } from '../../hooks/useHomeInbox';
+import type { RecentItem } from '../../hooks/useRecentItems';
 
 type TFn = (key: string, opts?: any) => string;
 
-/** Compact relative-time formatter (e.g. "2m", "3h", "1d"). */
 function timeAgo(iso?: string): string {
   if (!iso) return '';
   const ms = new Date(iso).getTime();
@@ -31,21 +33,28 @@ function timeAgo(iso?: string): string {
   return `${Math.floor(diff / 86400)}d`;
 }
 
-function RailCard({
+function Card({
   icon: Icon,
   title,
   count,
+  accent,
   children,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   count?: number;
+  accent?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-border/70 bg-card/80 backdrop-blur-sm p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Icon className="h-4 w-4 text-muted-foreground" />
+    <section
+      className={
+        'rounded-2xl bg-card/80 backdrop-blur-sm p-4 ' +
+        (accent ? 'border border-primary/30' : 'border border-border/70')
+      }
+    >
+      <div className="mb-3 flex items-center gap-2">
+        <Icon className={'h-4 w-4 ' + (accent ? 'text-primary' : 'text-muted-foreground')} />
         <h2 className="flex-1 text-sm font-semibold tracking-tight">{title}</h2>
         {typeof count === 'number' && count > 0 && (
           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-medium text-primary-foreground tabular-nums">
@@ -58,68 +67,132 @@ function RailCard({
   );
 }
 
-export function HomeApprovals({ count, onOpen, t }: { count: number; onOpen: () => void; t: TFn }) {
+function Row({
+  icon: Icon,
+  iconClass,
+  label,
+  meta,
+  trailing,
+  onClick,
+  testId,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconClass: string;
+  label: string;
+  meta?: string;
+  trailing?: React.ReactNode;
+  onClick: () => void;
+  testId?: string;
+}) {
   return (
-    <RailCard icon={CheckSquare} title={t('home.rail.approvalsTitle', { defaultValue: 'Needs your attention' })} count={count}>
-      {count > 0 ? (
-        <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            {t('notifications.approvalsPending', { defaultValue: '{{count}} pending approvals', count })}
-          </p>
-          <Button size="sm" className="w-full" onClick={onOpen} data-testid="home-approvals-open">
-            {t('notifications.viewApprovals', { defaultValue: 'View approvals' })}
-          </Button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
-          data-testid="home-approvals-empty"
-        >
-          {t('notifications.noPendingApprovals', { defaultValue: 'No pending approvals' })}
-        </button>
-      )}
-    </RailCard>
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        data-testid={testId}
+        className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-muted/60 active:scale-[0.99]"
+      >
+        <span className={'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ' + iconClass}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
+        {meta && <span className="shrink-0 text-[11px] text-muted-foreground">{meta}</span>}
+        {trailing}
+      </button>
+    </li>
   );
 }
 
-export function HomePinned({ items, onOpen, t }: { items: FavoriteItem[]; onOpen: (href: string) => void; t: TFn }) {
+export function HomeActionCenter({
+  pendingApprovalsCount,
+  notifications,
+  onOpenApprovals,
+  onOpenNotification,
+  t,
+}: {
+  pendingApprovalsCount: number;
+  notifications: HomeNotification[];
+  onOpenApprovals: () => void;
+  onOpenNotification: (n: HomeNotification) => void;
+  t: TFn;
+}) {
+  const total = pendingApprovalsCount + notifications.length;
   return (
-    <RailCard icon={Star} title={t('home.starredApps.title', { defaultValue: 'Pinned' })}>
+    <Card icon={CheckSquare} accent count={total} title={t('home.actionCenter.title', { defaultValue: 'Needs your attention' })}>
+      {total === 0 ? (
+        <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+          <CheckCheck className="h-4 w-4 text-emerald-500" />
+          {t('home.actionCenter.empty', { defaultValue: "You're all caught up" })}
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-0.5">
+          {pendingApprovalsCount > 0 && (
+            <Row
+              icon={CheckSquare}
+              iconClass="bg-amber-500/10 text-amber-600 dark:text-amber-400"
+              label={t('notifications.approvalsPending', { defaultValue: '{{count}} pending approvals', count: pendingApprovalsCount })}
+              trailing={<ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+              onClick={onOpenApprovals}
+              testId="home-action-approvals"
+            />
+          )}
+          {notifications.map((n) => (
+            <Row
+              key={n.id}
+              icon={Bell}
+              iconClass="bg-primary/10 text-primary"
+              label={n.title}
+              meta={timeAgo(n.createdAt)}
+              onClick={() => onOpenNotification(n)}
+            />
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+const RECENT_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  object: Database,
+  record: FileText,
+  dashboard: LayoutDashboard,
+  page: File,
+};
+
+export function HomeContinue({ items, onOpen, t }: { items: RecentItem[]; onOpen: (href: string) => void; t: TFn }) {
+  return (
+    <Card icon={Clock} title={t('home.recentApps.title', { defaultValue: 'Recently Accessed' })}>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {t('home.rail.pinnedEmpty', { defaultValue: 'Star an app or record to pin it here.' })}
+          {t('home.continueEmpty', { defaultValue: 'Items you open will show up here.' })}
         </p>
       ) : (
-      <ul className="space-y-0.5">
-        {items.slice(0, 6).map((it) => (
-          <li key={it.id}>
-            <button
-              type="button"
+        <ul className="flex flex-col gap-0.5">
+          {items.map((it) => (
+            <Row
+              key={it.id}
+              icon={RECENT_ICON[it.type] || FileText}
+              iconClass="bg-muted text-muted-foreground"
+              label={it.label}
+              meta={t(`home.recentApps.itemType.${it.type}`, { defaultValue: it.type })}
               onClick={() => onOpen(it.href)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition hover:bg-muted/60 active:scale-[0.99]"
-            >
-              <Star className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-              <span className="truncate text-sm">{it.label}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+            />
+          ))}
+        </ul>
       )}
-    </RailCard>
+    </Card>
   );
 }
 
 export function HomeActivity({ items, onViewAll, t }: { items: ActivityItem[]; onViewAll: () => void; t: TFn }) {
   return (
-    <RailCard icon={Activity} title={t('sidebar.activityFeed', { defaultValue: 'Activity' })}>
+    <Card icon={Activity} title={t('sidebar.activityFeed', { defaultValue: 'Activity' })}>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t('layout.activityFeed.empty', { defaultValue: 'No recent activity' })}
         </p>
       ) : (
-        <ul className="space-y-2.5">
+        <ul className="flex flex-col gap-2.5">
           {items.slice(0, 5).map((a) => (
             <li key={a.id} className="text-sm leading-snug">
               <span className="font-medium">{a.user}</span>{' '}
@@ -139,6 +212,6 @@ export function HomeActivity({ items, onViewAll, t }: { items: ActivityItem[]; o
         {t('layout.activityFeed.viewAll', { defaultValue: 'View all activity' })}
         <ArrowRight className="h-3 w-3" />
       </button>
-    </RailCard>
+    </Card>
   );
 }
