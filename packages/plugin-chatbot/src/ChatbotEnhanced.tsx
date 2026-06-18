@@ -222,6 +222,12 @@ export interface ChatToolInvocation {
      * separate statements they are. Absent on older tool output.
      */
     verification?: { errors: number; warnings: number };
+    /**
+     * ADR-0038 L1 — the individual findings behind the `verification` counts,
+     * surfaced under the chip so "N issues" expands into WHAT is wrong instead
+     * of being a dead-end badge.
+     */
+    issues?: Array<{ severity: 'error' | 'warning'; code: string; message: string; fix?: string }>;
   };
 }
 
@@ -1285,6 +1291,39 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     </span>
                   ) : null}
                 </div>
+                {/* ADR-0038 L1 — the findings behind the issues chip, so the
+                    user sees WHAT is broken (and the fix hint) instead of a
+                    bare "N issues" count with no way to learn more. Mirrors the
+                    L3 health line below. */}
+                {tool.draftReview.issues && tool.draftReview.issues.length > 0 ? (
+                  <div
+                    className="flex flex-col gap-1 border-t bg-muted/20 px-3 py-2"
+                    data-testid="draft-issues"
+                  >
+                    {tool.draftReview.issues
+                      .filter((i) => i.severity === 'error')
+                      .map((iss, idx) => (
+                        <div
+                          key={`e${idx}`}
+                          className="flex items-start gap-1.5 text-xs text-red-600"
+                        >
+                          <XCircle className="mt-0.5 size-3.5 shrink-0" />
+                          <span>{iss.fix ? `${iss.message} — ${iss.fix}` : iss.message}</span>
+                        </div>
+                      ))}
+                    {tool.draftReview.issues
+                      .filter((i) => i.severity !== 'error')
+                      .map((iss, idx) => (
+                        <div
+                          key={`w${idx}`}
+                          className="flex items-start gap-1.5 text-xs text-amber-600"
+                        >
+                          <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+                          <span>{iss.message}</span>
+                        </div>
+                      ))}
+                  </div>
+                ) : null}
                 {/* ADR-0038 L3 — build-health line: what the publish actually
                     did at runtime. Renders only when the host supplied health
                     data; "Published" alone never implies "verified". */}

@@ -290,6 +290,43 @@ describe('draftReview detection (ADR-0033)', () => {
     expect(draftReviewOf({ users: [] })).toBeUndefined();
     expect(draftReviewOf({ status: 'drafted' })).toBeUndefined(); // no type/name → no target
   });
+
+  it('lifts ADR-0038 lint issues (message + fix) alongside the verification counts', () => {
+    const dr = draftReviewOf({
+      status: 'drafted',
+      type: 'object',
+      name: 'book',
+      summary: 'Drafted new object "book"',
+      verification: { errors: 1, warnings: 1 },
+      issues: [
+        {
+          layer: 'graph',
+          severity: 'error',
+          artifact: { type: 'object', name: 'book' },
+          code: 'select_without_options',
+          message: 'genre is a required select with no options',
+          fix: 'Add an options array.',
+        },
+        { severity: 'warning', code: 'unknown_column', message: 'author renders empty' },
+        { code: 'no_message_dropped' }, // malformed → must be dropped
+      ],
+    });
+    expect(dr?.verification).toEqual({ errors: 1, warnings: 1 });
+    expect(dr?.issues).toEqual([
+      {
+        severity: 'error',
+        code: 'select_without_options',
+        message: 'genre is a required select with no options',
+        fix: 'Add an options array.',
+      },
+      { severity: 'warning', code: 'unknown_column', message: 'author renders empty' },
+    ]);
+  });
+
+  it('omits the issues key entirely when there are none (no envelope churn)', () => {
+    const dr = draftReviewOf({ status: 'drafted', type: 'view', name: 'grid_v' });
+    expect(dr).toEqual({ items: [{ type: 'view', name: 'grid_v' }] });
+  });
 });
 
 describe('uiMessagesToChatMessages', () => {

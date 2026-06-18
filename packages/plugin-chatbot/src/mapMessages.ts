@@ -136,6 +136,12 @@ export interface DraftReview {
   failedCount?: number;
   materialized?: boolean;
   verification?: { errors: number; warnings: number };
+  /**
+   * ADR-0038 L1 — the individual lint findings behind the `verification`
+   * counts, so the chat can show WHAT is wrong (not just "N issues"). Each
+   * carries an agent-actionable `message`; `fix` is the mechanical hint.
+   */
+  issues?: Array<{ severity: 'error' | 'warning'; code: string; message: string; fix?: string }>;
 }
 
 export function detectDraftResult(result: unknown): DraftReview | undefined {
@@ -176,6 +182,25 @@ export function detectDraftResult(result: unknown): DraftReview | undefined {
           warnings: (rawVerification as { warnings: number }).warnings,
         }
       : undefined;
+  // The lint findings themselves (`issues: BuildIssue[]`) ride alongside the
+  // counts on the same envelope. Lift the user-facing fields so the chip can
+  // expand into "WHAT is wrong" instead of a bare "N issues". Defensive: only
+  // well-formed entries with a string message survive.
+  const rawIssues = (obj as { issues?: unknown }).issues;
+  const issues = Array.isArray(rawIssues)
+    ? rawIssues.flatMap((i) => {
+        const r = i as { severity?: unknown; code?: unknown; message?: unknown; fix?: unknown };
+        if (typeof r?.message !== 'string' || !r.message) return [];
+        return [
+          {
+            severity: r.severity === 'error' ? ('error' as const) : ('warning' as const),
+            code: typeof r.code === 'string' ? r.code : 'issue',
+            message: r.message,
+            ...(typeof r.fix === 'string' && r.fix ? { fix: r.fix } : {}),
+          },
+        ];
+      })
+    : [];
   return {
     items,
     summary: typeof obj.summary === 'string' ? obj.summary : undefined,
@@ -186,6 +211,7 @@ export function detectDraftResult(result: unknown): DraftReview | undefined {
     // hidden). The canvas then previews the REAL app URL, not the draft overlay.
     ...(obj.materialized === true ? { materialized: true } : {}),
     ...(verification ? { verification } : {}),
+    ...(issues.length ? { issues } : {}),
   };
 }
 

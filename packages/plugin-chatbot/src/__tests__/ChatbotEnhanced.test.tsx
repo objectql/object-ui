@@ -209,6 +209,43 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText('Parameters')).toBeInTheDocument();
   });
 
+  it('expands the verification chip into the actual lint findings (ADR-0038 L1)', () => {
+    const issueTool: ChatMessage = {
+      id: 'a2',
+      role: 'assistant',
+      content: 'Drafted your app.',
+      toolInvocations: [
+        {
+          toolCallId: 'tc2',
+          toolName: 'create_metadata',
+          state: 'output-available',
+          args: {},
+          result: { status: 'drafted', type: 'object', name: 'book' },
+          draftReview: {
+            items: [{ type: 'object', name: 'book' }],
+            summary: 'Drafted new object "book"',
+            verification: { errors: 1, warnings: 0 },
+            issues: [
+              {
+                severity: 'error',
+                code: 'select_without_options',
+                message: 'genre is a required select with no options',
+                fix: 'Add an options array.',
+              },
+            ],
+          },
+        },
+      ],
+    };
+    render(<ChatbotEnhanced messages={[issueTool]} onReviewDraft={vi.fn()} />);
+    // The chip still shows the COUNT, and the new detail block expands it into
+    // the actual finding + fix hint \u2014 no more dead-end "1 issue" badge.
+    expect(screen.getByTestId('draft-verification-chip')).toHaveTextContent('1 issue');
+    const detail = screen.getByTestId('draft-issues');
+    expect(detail).toHaveTextContent('genre is a required select with no options');
+    expect(detail).toHaveTextContent('Add an options array.');
+  });
+
   it('renders a model picker and forwards changes', () => {
     const onModelChange = vi.fn();
     render(
