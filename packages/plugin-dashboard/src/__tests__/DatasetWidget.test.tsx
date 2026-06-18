@@ -78,4 +78,26 @@ describe('DatasetWidget', () => {
     expect(screen.getByText(/Pick measures/)).toBeInTheDocument();
     expect(src.queryDataset).not.toHaveBeenCalled();
   });
+
+  it('shows 0 (not "No rows") for a metric over an empty dataset', async () => {
+    const src = makeSource(async () => ({ rows: [] }));
+    render(<DatasetWidget widget={{ type: 'metric', dataset: 'books', values: ['count'] }} dataSource={src} />);
+    expect(await screen.findByText('0')).toBeInTheDocument();
+    expect(screen.queryByText('No rows')).not.toBeInTheDocument();
+  });
+
+  it('formats the empty-metric zero (e.g. $0) using the measure format', async () => {
+    const src = { queryDataset: vi.fn(async () => ({
+      rows: [],
+      fields: [{ name: 'revenue', type: 'number', label: 'Revenue', format: '$0,0' }],
+    })) };
+    render(<DatasetWidget widget={{ type: 'metric', dataset: 'sales', values: ['revenue'] }} dataSource={src} />);
+    expect(await screen.findByText('$0')).toBeInTheDocument();
+  });
+
+  it('still shows "No rows" for a dimensioned chart over an empty dataset', async () => {
+    const src = makeSource(async () => ({ rows: [] }));
+    render(<DatasetWidget widget={{ type: 'bar', dataset: 'sales', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
+    expect(await screen.findByText('No rows')).toBeInTheDocument();
+  });
 });

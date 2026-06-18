@@ -164,7 +164,10 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       </div>
     );
   }
-  if (state.rows.length === 0) {
+  // A metric (single value) over an empty dataset is 0, not "No rows" — the
+  // latter reads as broken for KPIs like "Total Books" on a fresh app. Charts
+  // and tables keep the empty state (there is genuinely nothing to plot).
+  if (state.rows.length === 0 && !isMetric) {
     return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground"><BarChart3 className="mr-2 h-4 w-4" />No rows</div>;
   }
 
@@ -176,7 +179,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // measure's display label (not the raw name) and its format (e.g. "$616,000").
   if (isMetric) {
     const f = measureField(values[0]);
-    const value = state.rows[0]?.[values[0]];
+    const value = state.rows[0]?.[values[0]] ?? 0;
     return (
       <div className="flex h-full w-full flex-col items-start justify-center gap-1 p-2">
         <span className="text-2xl font-semibold tabular-nums">{formatMeasure(value, f?.format)}</span>
