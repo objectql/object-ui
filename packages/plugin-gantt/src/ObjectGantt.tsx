@@ -455,6 +455,24 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         case 'checkbox':
           return value ? 'Yes' : 'No';
         default:
+          // Multi-value lookup / multiselect: a populated relation array is
+          // [{name},{name}] — also `typeof 'object'`, but with no
+          // name/label/title/id of its own. Map each element to its display
+          // value (scalars pass through) and join, so e.g. 执行责任人 renders
+          // the assignees instead of collapsing to '—'.
+          if (Array.isArray(value)) {
+            const parts = value
+              .map((el) => {
+                if (el == null) return '';
+                if (typeof el === 'object') {
+                  const o = el as any;
+                  return String(o.name ?? o.label ?? o.title ?? o.id ?? '');
+                }
+                return String(el);
+              })
+              .filter(Boolean);
+            return parts.length ? parts.join(', ') : '—';
+          }
           if (typeof value === 'object') {
             const o = value as any;
             return String(o.name ?? o.label ?? o.title ?? o.id ?? '—');

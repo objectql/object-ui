@@ -139,6 +139,46 @@ describe('ObjectGantt', () => {
     expect(screen.getByTestId('gv-field-1-3').textContent).toBe('Effort=12.00');
   });
 
+  it('formats a multi-value lookup (array of records) by joining display names', async () => {
+    const ttData = [
+      {
+        id: '1', name: 'Task 1', start_date: '2024-01-01', end_date: '2024-01-05',
+        // Multi-value lookup populated to an array of records.
+        executors: [{ name: '班组长-测' }, { name: '操作工-测' }],
+        tags: ['a', 'b'],
+      },
+    ];
+    const ds: DataSource = {
+      ...mockDataSource,
+      find: vi.fn().mockResolvedValue({ data: ttData }),
+      getObjectSchema: vi.fn().mockResolvedValue({
+        fields: {
+          name: { type: 'text' },
+          start_date: { type: 'date' },
+          end_date: { type: 'date' },
+          executors: { type: 'lookup', label: '执行责任人', multiple: true },
+          tags: { type: 'text', label: 'Tags', multiple: true },
+        },
+      }),
+    };
+    const schema: any = {
+      type: 'gantt',
+      gantt: {
+        titleField: 'name', startDateField: 'start_date', endDateField: 'end_date',
+        tooltipFields: ['executors', 'tags'],
+      },
+      data: { provider: 'object', object: 'tasks' },
+    };
+    render(<ObjectGantt schema={schema} dataSource={ds} />);
+
+    await waitFor(() => expect(screen.getByTestId('gv-fields-1')).toBeDefined());
+
+    // Array of records → joined display names (not the '—' empty fallback).
+    expect(screen.getByTestId('gv-field-1-0').textContent).toBe('执行责任人=班组长-测, 操作工-测');
+    // Array of scalars → joined as-is.
+    expect(screen.getByTestId('gv-field-1-1').textContent).toBe('Tags=a, b');
+  });
+
   it('omits tooltip fields when none configured', async () => {
     const ds: DataSource = { ...mockDataSource, find: vi.fn().mockResolvedValue({ data: mockData }) };
     const schema: any = {

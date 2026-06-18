@@ -92,6 +92,33 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     expect(onRefresh).not.toHaveBeenCalled();
   });
 
+  it('apiHandler merges bodyExtra into the dataSource update payload (pure-confirmation action)', async () => {
+    // A pure-confirmation action carries no params array; its mutation lives in
+    // `bodyExtra`. Without merging it, `fields` is empty and the update below is
+    // skipped — the confirmation "succeeds" but nothing is persisted.
+    const updateSpy = vi.fn().mockResolvedValue(undefined);
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({
+        dataSource: { update: updateSpy } as any,
+        objects: [],
+        objectName: 'work_order',
+        onRefresh,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.apiHandler({
+        type: 'api', name: 'close', // non-absolute target → dataSource branch
+        params: { recordId: 'wo_1' },
+        bodyExtra: { status: 'closed', closed_at: '2026-06-18' },
+      } as any);
+    });
+
+    expect(updateSpy).toHaveBeenCalledTimes(1);
+    expect(updateSpy).toHaveBeenCalledWith('work_order', 'wo_1', { status: 'closed', closed_at: '2026-06-18' });
+  });
+
   it('serverActionHandler targets /actions/global/<name> when no object is bound (page scope)', async () => {
     authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
     const { result } = renderHook(() =>

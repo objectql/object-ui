@@ -276,6 +276,15 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       const recId = fields.recordId ?? rowRecord?.[(action as any).recordIdField || 'id'];
       delete fields.recordId;
 
+      // Constant body fields merged last (overrides user params), matching the
+      // absolute-HTTP branch and the spec's documented `bodyExtra` semantics.
+      // Without this a pure-confirmation action (confirmText, no params array)
+      // carries its mutation only in bodyExtra, leaving `fields` empty so the
+      // update below is skipped and nothing is persisted.
+      if (action.bodyExtra && typeof action.bodyExtra === 'object') {
+        Object.assign(fields, action.bodyExtra);
+      }
+
       if (obj && typeof dataSource?.execute === 'function') {
         await dataSource.execute(obj, target, fields);
       } else if (obj && recId && Object.keys(fields).length > 0 && typeof dataSource?.update === 'function') {

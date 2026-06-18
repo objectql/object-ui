@@ -1317,12 +1317,18 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     subtitleField: viewDef.gallery?.subtitleField,
                 },
                 gantt: {
+                    // Spread the full view-defined gantt config first so the
+                    // renderer's extended fields (parentField/typeField for the
+                    // summary→step hierarchy, baseline*, groupByField,
+                    // resourceView/assignee*, tooltipFields, quickFilters, …)
+                    // survive; then layer the three required defaults last so an
+                    // omitted source value still falls back. (Mirrors the gallery
+                    // branch above — a bare whitelist here was dropping every
+                    // field past colorField and flattening the chart.)
+                    ...(viewDef.gantt || {}),
                     startDateField: viewDef.gantt?.startDateField || 'start_date',
                     endDateField: viewDef.gantt?.endDateField || 'end_date',
                     titleField: viewDef.gantt?.titleField || 'name',
-                    progressField: viewDef.gantt?.progressField,
-                    dependenciesField: viewDef.gantt?.dependenciesField,
-                    colorField: viewDef.gantt?.colorField,
                 },
                 chart: {
                     chartType: viewDef.chart?.chartType,
