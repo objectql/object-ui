@@ -381,6 +381,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       const params: Record<string, any> = { ...(action.params || {}) };
       delete params._rowRecord;
 
+      // Merge `bodyExtra` constant fields into the update payload. Per the
+      // ActionSchema contract these are "applied last; overrides user params",
+      // and the PageView/list executeAPI path already honors them. Without this
+      // merge, a pure-confirm action (confirmText, no `params` array — the
+      // trigger carried entirely in `bodyExtra`) collects empty `params`, so the
+      // generic `default` branch below skips the update and the action silently
+      // no-ops on the record-detail page while working from a list row.
+      if (action.bodyExtra && typeof action.bodyExtra === 'object') {
+        Object.assign(params, action.bodyExtra);
+      }
+
       let undo: any;
       switch (target) {
         case 'opportunity_change_stage':
