@@ -10,7 +10,7 @@ import { MetadataClient, type ObjectStackAdapter } from '@object-ui/data-objects
 import { resolveInlineMode } from '@object-ui/plugin-form';
 import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataState } from '@object-ui/react';
 import { usePreviewDrafts } from '../preview/PreviewModeContext';
-import { subscribeCanvasInvalidate } from '../assistant/assistantBus';
+import { subscribeCanvasInvalidate, subscribePublished } from '../assistant/assistantBus';
 
 export type { MetadataState, MetadataContextValue };
 export { useMetadataItem } from '@object-ui/react';
@@ -534,6 +534,18 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
       invalidate(type);
     });
   }, [previewDrafts, invalidate]);
+
+  // Post-publish refresh: a publish promoted staged drafts to the live
+  // registry, so the schema this tree cached is stale. Refetch every loaded
+  // type — open forms/views then reflect the new live world without a manual
+  // page reload (the chat-card "Publish" path does not reload, unlike the
+  // DraftPreviewBar). NOT gated to preview-drafts mode: a publish changes the
+  // live world every tree reads, draft-overlay or published.
+  useEffect(() => {
+    return subscribePublished(() => {
+      void refresh();
+    });
+  }, [refresh]);
 
   const [initialLoading, setInitialLoading] = useState(true);
   const [initialError, setInitialError] = useState<Error | null>(null);

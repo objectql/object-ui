@@ -50,6 +50,7 @@ import {
 
 import { AppHeader } from '../../layout/AppHeader';
 import { fetchPendingDraftCount } from '../../preview/draftStatus';
+import { emitPublished } from '../../assistant/assistantBus';
 import { getRuntimeConfig } from '../../runtime-config';
 import { cloudPricingDeepLink } from '../marketplace/marketplaceApi';
 import { useNavigationContext } from '../../context/NavigationContext';
@@ -1014,6 +1015,12 @@ function ChatPane({
             } else {
               toast.success(t('console.ai.publishOk', { defaultValue: 'Published — objects are now live.' }));
             }
+            // The live registry just changed but the chat-card publish path
+            // does not reload the page (unlike DraftPreviewBar). Pulse every
+            // mounted MetadataProvider so open forms/views (incl. the canvas
+            // preview) refetch the new schema instead of showing stale, empty
+            // dropdowns until a manual reload.
+            emitPublished();
             // ADR-0038 L3 — hand the runtime verification (seedApplied +
             // probes) back to the chat so the Published card grows a
             // build-health line instead of claiming bare success.

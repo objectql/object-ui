@@ -142,6 +142,29 @@ export function subscribeCanvasInvalidate(
   };
 }
 
+// ── Publish signal ───────────────────────────────────────────
+// A publish just promoted staged drafts to the live registry. Unlike the
+// per-artifact, draft-only canvas invalidations above, this is a coarse "the
+// published world changed" pulse: every mounted MetadataProvider refetches its
+// loaded types so already-open forms/views pick up the new schema WITHOUT a
+// full page reload. Fire-and-forget, off the snapshot bus (same reasoning as
+// canvas invalidations — an event, not state).
+
+const publishedListeners = new Set<() => void>();
+
+/** Announce that staged drafts were just published (publish hosts call this). */
+export function emitPublished(): void {
+  for (const l of publishedListeners) l();
+}
+
+/** Subscribe to publish events; returns an unsubscriber. */
+export function subscribePublished(listener: () => void): () => void {
+  publishedListeners.add(listener);
+  return () => {
+    publishedListeners.delete(listener);
+  };
+}
+
 /** Subscribe a component to the assistant bus snapshot. */
 export function useAssistant(): AssistantSnapshot {
   return useSyncExternalStore(
