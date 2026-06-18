@@ -95,21 +95,9 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
     );
   }
 
-  // Chevron clip paths: outer stages get half-clipped, middle stages get
-  // both a left notch and a right point so they tessellate into a path.
-  // We use a 14px arrow head; first segment has no left notch and last
-  // segment has no right point.
-  const CHEVRON = 14;
-  const clipFor = (idx: number, last: number) => {
-    if (stages.length === 1) return undefined;
-    if (idx === 0) {
-      return `polygon(0 0, calc(100% - ${CHEVRON}px) 0, 100% 50%, calc(100% - ${CHEVRON}px) 100%, 0 100%)`;
-    }
-    if (idx === last) {
-      return `polygon(0 0, 100% 0, 100% 100%, 0 100%, ${CHEVRON}px 50%)`;
-    }
-    return `polygon(0 0, calc(100% - ${CHEVRON}px) 0, 100% 50%, calc(100% - ${CHEVRON}px) 100%, 0 100%, ${CHEVRON}px 50%)`;
-  };
+  // iOS-style connected segments (no chevron tessellation): each stage is a
+  // rounded segment in a gapped row — completed = mint, current = accent,
+  // upcoming = muted track.
 
   const last = forwardStages.length - 1;
 
@@ -124,37 +112,26 @@ export const RecordPathRenderer: React.FC<RecordPathRendererProps> = ({
         role="list"
         aria-label={(schema.aria as any)?.label || 'Record path'}
       >
-        <div className="flex flex-1 items-stretch">
+        <div className="flex flex-1 items-stretch gap-1.5">
           {forwardStages.map((stage, idx) => {
             const isCompleted = !currentInLost && currentIdx >= 0 && idx < currentIdx;
             const isCurrent = !currentInLost && idx === currentIdx;
             const isWonTerminus = forwardKinds[idx] === 'won' && idx === last;
-            const clipPath = clipFor(idx, last);
             return (
               <div
                 key={`${stage.value}-${idx}`}
                 role="listitem"
                 aria-current={isCurrent ? 'step' : undefined}
-                style={clipPath ? { clipPath, WebkitClipPath: clipPath } : undefined}
                 className={cn(
-                  'relative flex-1 min-w-0 px-5 py-2 text-xs font-medium text-center',
-                  idx > 0 && '-ml-2',
-                  forwardStages.length === 1 && 'rounded-md border',
-                  isCurrent && 'bg-primary text-primary-foreground shadow-sm ring-1 ring-primary/40',
+                  'relative flex-1 min-w-0 px-4 py-2 text-xs font-medium text-center rounded-xl',
+                  isCurrent && 'bg-primary text-primary-foreground shadow-sm',
                   isCompleted && 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200',
-                  // Style the won-terminus subtly so it reads as "the goal"
-                  // even when we haven't reached it yet.
-                  !isCurrent && !isCompleted && isWonTerminus && 'bg-emerald-500/5 text-emerald-700/85 dark:text-emerald-300/85 border border-emerald-500/20',
-                  !isCurrent && !isCompleted && !isWonTerminus && 'bg-background text-foreground/85 border border-border/60',
+                  // Won-terminus reads as "the goal" even before it's reached.
+                  !isCurrent && !isCompleted && isWonTerminus && 'bg-emerald-500/10 text-emerald-700/85 dark:text-emerald-300/85',
+                  !isCurrent && !isCompleted && !isWonTerminus && 'bg-muted text-muted-foreground',
                 )}
               >
-                <span
-                  className="inline-flex items-center gap-1.5 truncate"
-                  style={{
-                    paddingLeft: idx === 0 ? 0 : `${CHEVRON / 2}px`,
-                    paddingRight: idx === last ? 0 : `${CHEVRON / 2}px`,
-                  }}
-                >
+                <span className="inline-flex items-center justify-center gap-1.5 truncate">
                   {isCompleted && <span aria-hidden className="text-emerald-600 dark:text-emerald-400 font-semibold">✓</span>}
                   {isWonTerminus && !isCurrent && <span aria-hidden className="opacity-70">🏆</span>}
                   {stage.label}
