@@ -1248,8 +1248,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             sharing: viewDef.sharing ?? listSchema.sharing,
             addRecord: viewDef.addRecord ?? listSchema.addRecord,
             conditionalFormatting: viewDef.conditionalFormatting ?? listSchema.conditionalFormatting,
-            quickFilters: viewDef.quickFilters ?? listSchema.quickFilters,
-            userFilters: viewDef.userFilters ?? listSchema.userFilters,
+            // ADR-0053: this is the object default list = "views" mode; the
+            // ViewTabBar above is the only nav control. The in-list Airtable-
+            // style filter rows (quickFilters / userFilters / tabs) belong to
+            // page "filters" mode (InterfaceListPage), so suppress them here.
+            quickFilters: undefined,
+            userFilters: undefined,
             showRecordCount: viewDef.showRecordCount ?? listSchema.showRecordCount,
             allowPrinting: viewDef.allowPrinting ?? listSchema.allowPrinting,
             virtualScroll: viewDef.virtualScroll ?? listSchema.virtualScroll,
@@ -1266,7 +1270,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             // take precedence over schema-level tabs. Dropping viewDef.tabs
             // here was the one-line gap that kept spec tab metadata from
             // ever reaching the TabBar.
-            tabs: viewDef.tabs ?? listSchema.tabs,
+            tabs: undefined, // ADR-0053: see note above (views mode)
             // Propagate filter/sort as default filters/sort for data flow
             ...((() => {
                 const combined = [
