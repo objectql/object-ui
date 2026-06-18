@@ -64,7 +64,7 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
     <Card
       className={cn(
         'group relative overflow-hidden border border-border/70 bg-card/80 backdrop-blur-sm',
-        'transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-lg',
+        'transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-lg active:scale-[0.985] active:-translate-y-0',
         'motion-reduce:transition-none motion-reduce:hover:transform-none',
         accent.ring,
       )}

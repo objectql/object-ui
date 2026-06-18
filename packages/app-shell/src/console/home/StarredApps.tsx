@@ -64,7 +64,7 @@ export function StarredApps({ items }: StarredAppsProps) {
           return (
             <Card
               key={item.id}
-              className="group cursor-pointer border border-border/70 bg-card/80 backdrop-blur-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-foreground/20 motion-reduce:transition-none motion-reduce:hover:transform-none"
+              className="group cursor-pointer border border-border/70 bg-card/80 backdrop-blur-sm transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-foreground/20 active:scale-[0.985] active:-translate-y-0 motion-reduce:transition-none motion-reduce:hover:transform-none"
               onClick={() => navigate(item.href)}
               data-testid={`starred-item-${item.id}`}
               role="link"
@@ -78,7 +78,7 @@ export function StarredApps({ items }: StarredAppsProps) {
             >
               <CardContent className="p-3.5">
                 <div className="flex items-center gap-3">
-                  <div className={cn('inline-flex h-10 w-10 items-center justify-center rounded-lg ring-1 shrink-0', tone)}>
+                  <div className={cn('inline-flex h-10 w-10 items-center justify-center rounded-xl ring-1 shrink-0', tone)}>
                     <Icon className="h-5 w-5" />
                   </div>
                   <div className="flex-1 min-w-0">

@@ -361,7 +361,7 @@ export function StudioHomePage() {
                   asChild
                   variant="outline"
                   size="sm"
-                  className="group rounded-full border-dashed hover:border-solid hover:border-primary hover:bg-primary/5"
+                  className="group rounded-full border-transparent bg-muted hover:bg-primary/10 hover:text-primary"
                 >
                   <Link to={`metadata/${encodeURIComponent(e.type)}/new${packageSuffix}`}>
                     <Plus className="mr-1 h-3.5 w-3.5 text-primary transition-transform group-hover:rotate-90" />

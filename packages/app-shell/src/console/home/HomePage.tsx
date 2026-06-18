@@ -98,7 +98,7 @@ function StatPill({
   tone: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm shadow-sm">
+    <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3.5 py-1.5 text-sm text-secondary-foreground">
       <Icon className={`h-4 w-4 ${tone}`} />
       <span className="font-semibold tabular-nums">{value}</span>
       <span className="text-muted-foreground">{label}</span>
