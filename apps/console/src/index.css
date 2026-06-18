@@ -277,3 +277,149 @@
 .dark [data-sidebar="menu-button"][data-active="true"]:hover {
   background-color: hsl(var(--primary) / 0.24);
 }
+
+/* ============================================================
+ * iOS desktop experience — "Liquid Glass" theme layer (iteration 1)
+ *
+ * App-level theming only (console/index.css); no shared component
+ * library (packages/components/src/ui) is touched. Delete this whole
+ * block to revert to the stock look.
+ *
+ * What it changes: iOS-scale concentric corners, a grouped system-gray
+ * canvas so white cards read as floating layers, SF Pro typography with
+ * iOS tracking, a frosted-glass top bar, soft elevation on overlays, and
+ * an iOS press-springback on buttons.
+ * ============================================================ */
+@layer base {
+  :root {
+    /* iOS uses larger, concentric corner radii */
+    --radius: 0.875rem;
+
+    /* iOS "grouped" canvas: soft system gray (≈ #F2F2F7) instead of pure
+       white, so white cards/popovers float above it with real depth. */
+    --background: 240 24% 97%;
+    --secondary: 240 18% 94%;
+    --muted: 240 18% 94%;
+    --accent: 240 18% 94%;
+    --border: 240 16% 90%;
+  }
+
+  .dark {
+    /* iOS dark uses near-black, not blue-black; cards sit slightly above. */
+    --background: 240 6% 6%;
+    --card: 240 6% 10%;
+    --popover: 240 6% 11%;
+    --secondary: 240 5% 16%;
+    --muted: 240 5% 16%;
+    --accent: 240 5% 16%;
+    --border: 240 5% 18%;
+  }
+
+  body {
+    /* SF Pro / system font with iOS rendering + tighter tracking */
+    font-family: -apple-system, "SF Pro Text", "SF Pro Display",
+      BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif,
+      "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.011em;
+  }
+}
+
+/* Frosted-glass top bar (the signature iOS "material") */
+header.sticky {
+  background-color: hsl(var(--background) / 0.72) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom-color: hsl(var(--border) / 0.7);
+}
+.dark header.sticky {
+  background-color: hsl(var(--background) / 0.6) !important;
+}
+
+/* Soft, diffuse iOS elevation on floating surfaces (dialogs, menus, popovers). */
+[role="dialog"],
+[role="menu"],
+[data-radix-popper-content-wrapper] > * {
+  box-shadow:
+    0 12px 32px -8px hsl(240 40% 20% / 0.18),
+    0 4px 12px -4px hsl(240 40% 20% / 0.12) !important;
+}
+
+/* iOS-style press springback on interactive controls. */
+@media (hover: hover) {
+  button:not([disabled]) {
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+      filter 0.18s ease;
+  }
+  button:not([disabled]):active {
+    transform: scale(0.96);
+  }
+}
+
+/* ------------------------------------------------------------
+ * iOS theme — iteration 2: system-blue accent + deeper controls
+ * ------------------------------------------------------------ */
+@layer base {
+  :root {
+    /* iOS system blue (#007AFF) replaces the indigo brand accent.
+       Drives buttons, links, progress bars, focus rings, active nav. */
+    --primary: 211 100% 50%;
+    --ring: 211 100% 50%;
+    --sidebar-primary: 211 100% 50%;
+    --sidebar-ring: 211 100% 50%;
+    /* iOS sidebar is a translucent vibrancy material → near-white base. */
+    --sidebar: 240 24% 98%;
+  }
+  .dark {
+    /* iOS dark blue (#0A84FF) is a touch brighter for contrast. */
+    --primary: 211 100% 60%;
+    --ring: 211 100% 60%;
+    --sidebar-primary: 211 100% 60%;
+    --sidebar-ring: 211 100% 60%;
+    --sidebar: 240 6% 8%;
+  }
+}
+
+/* Frosted-glass sidebar (iPad-style translucent vibrancy). */
+[data-sidebar="sidebar"] {
+  background-color: hsl(var(--sidebar) / 0.7) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* iOS toggle: switches turn system-green (#34C759) when on, not blue. */
+[role="switch"][data-state="checked"] {
+  background-color: hsl(135 59% 49%) !important;
+}
+
+/* iOS sheet/dialog: extra-rounded corners. */
+[role="dialog"] {
+  border-radius: 1.25rem !important;
+}
+
+/* iOS-blue tinted text selection. */
+::selection {
+  background-color: hsl(211 100% 50% / 0.22);
+}
+
+/* Thin, overlay-style iOS scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(240 6% 70% / 0.6) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(240 6% 70% / 0.55);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(240 6% 60% / 0.75);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
