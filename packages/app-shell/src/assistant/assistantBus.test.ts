@@ -1,7 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect } from 'vitest';
-import { assistantBus, emitPublished, subscribePublished } from './assistantBus';
+import { assistantBus, emitMetadataRefresh, subscribeMetadataRefresh } from './assistantBus';
 
 // The bus is a module singleton, so tests share state — assertions are
 // relative (before/after) rather than absolute where openSeq is involved.
@@ -66,16 +66,16 @@ describe('assistantBus — snapshot stability', () => {
 });
 
 
-describe('assistantBus — publish channel', () => {
-  it('emitPublished notifies every subscriber', () => {
+describe('assistantBus — metadata-refresh channel', () => {
+  it('emitMetadataRefresh notifies every subscriber', () => {
     let a = 0;
     let b = 0;
-    const offA = subscribePublished(() => { a += 1; });
-    const offB = subscribePublished(() => { b += 1; });
-    emitPublished();
+    const offA = subscribeMetadataRefresh(() => { a += 1; });
+    const offB = subscribeMetadataRefresh(() => { b += 1; });
+    emitMetadataRefresh();
     expect(a).toBe(1);
     expect(b).toBe(1);
-    emitPublished();
+    emitMetadataRefresh();
     expect(a).toBe(2);
     expect(b).toBe(2);
     offA();
@@ -84,11 +84,11 @@ describe('assistantBus — publish channel', () => {
 
   it('unsubscribed listeners stop receiving publish events', () => {
     let n = 0;
-    const off = subscribePublished(() => { n += 1; });
-    emitPublished();
+    const off = subscribeMetadataRefresh(() => { n += 1; });
+    emitMetadataRefresh();
     expect(n).toBe(1);
     off();
-    emitPublished();
+    emitMetadataRefresh();
     expect(n).toBe(1);
   });
 });

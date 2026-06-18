@@ -61,6 +61,7 @@ import {
   type CloudInstallationInfo,
 } from './marketplaceApi';
 import { getRuntimeConfig } from '../../runtime-config';
+import { emitMetadataRefresh } from '../../assistant/assistantBus';
 import { useMetadata } from '../../providers/MetadataProvider';
 
 export function MarketplacePackagePage() {
@@ -278,6 +279,7 @@ export function MarketplacePackagePage() {
         }
       }
       setInstallResult({ ok: true, message: t('marketplace.install.success') });
+      emitMetadataRefresh();
     } catch (e: any) {
       setInstallResult({ ok: false, message: e?.message ?? String(e) });
     } finally {
@@ -309,6 +311,7 @@ export function MarketplacePackagePage() {
           name: data?.package ? localizePackage(data.package as any, language).displayName : result.manifestId,
         }),
       });
+      emitMetadataRefresh();
     } catch (e: any) {
       const code = e?.code;
       let msg = e?.message ?? String(e);

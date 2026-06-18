@@ -142,26 +142,28 @@ export function subscribeCanvasInvalidate(
   };
 }
 
-// ── Publish signal ───────────────────────────────────────────
-// A publish just promoted staged drafts to the live registry. Unlike the
-// per-artifact, draft-only canvas invalidations above, this is a coarse "the
-// published world changed" pulse: every mounted MetadataProvider refetches its
-// loaded types so already-open forms/views pick up the new schema WITHOUT a
-// full page reload. Fire-and-forget, off the snapshot bus (same reasoning as
-// canvas invalidations — an event, not state).
+// ── Live-metadata-changed signal ─────────────────────────────
+// The live registry just changed out-of-band from the metadata trees — a
+// publish promoted staged drafts, or a marketplace install merged a package.
+// Unlike the per-artifact, draft-only canvas invalidations above, this is a
+// coarse "the live world changed, refetch" pulse: EVERY mounted
+// MetadataProvider (nav sidebar included, not just the surface that triggered
+// it) refetches its loaded types so already-open forms/views/nav pick up the
+// change WITHOUT a full page reload. Fire-and-forget, off the snapshot bus
+// (same reasoning as canvas invalidations — an event, not state).
 
-const publishedListeners = new Set<() => void>();
+const metadataRefreshListeners = new Set<() => void>();
 
-/** Announce that staged drafts were just published (publish hosts call this). */
-export function emitPublished(): void {
-  for (const l of publishedListeners) l();
+/** Announce that the live metadata registry changed (publish / install hosts call this). */
+export function emitMetadataRefresh(): void {
+  for (const l of metadataRefreshListeners) l();
 }
 
-/** Subscribe to publish events; returns an unsubscriber. */
-export function subscribePublished(listener: () => void): () => void {
-  publishedListeners.add(listener);
+/** Subscribe to live-metadata-changed events; returns an unsubscriber. */
+export function subscribeMetadataRefresh(listener: () => void): () => void {
+  metadataRefreshListeners.add(listener);
   return () => {
-    publishedListeners.delete(listener);
+    metadataRefreshListeners.delete(listener);
   };
 }
 

@@ -37,6 +37,7 @@ import {
   type OrgPackageSummary,
 } from './marketplaceApi';
 import { getRuntimeConfig } from '../../runtime-config';
+import { emitMetadataRefresh } from '../../assistant/assistantBus';
 
 /**
  * Format a published-at timestamp as a localized relative string.
@@ -141,6 +142,10 @@ export function MarketplacePage() {
       }
       setOrgMsg({ ok: true, text: t('marketplace.org.installed', { defaultValue: `Installed ${pkg.display_name}`, name: pkg.display_name }) });
       await load();
+      // The install merged a package into the live registry. Pulse every
+      // mounted MetadataProvider so the new app appears in the nav (and its
+      // objects/views resolve) without a manual browser refresh.
+      emitMetadataRefresh();
     } catch (e: any) {
       setOrgMsg({ ok: false, text: e?.message ?? String(e) });
     } finally {
