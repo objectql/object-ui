@@ -423,3 +423,28 @@ header.sticky {
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ------------------------------------------------------------
+ * iOS theme — iteration 3: high-confidence control polish
+ * (CSS-only overrides; shadcn ui components not edited)
+ * ------------------------------------------------------------ */
+
+/* iOS "spotlight"-style backdrop: blur + lighten the dim behind any
+   dialog / sheet / command palette overlay instead of a flat 80% black. */
+.fixed.inset-0.z-50.bg-black\/80 {
+  background-color: rgb(0 0 0 / 0.35) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  backdrop-filter: blur(8px) saturate(140%);
+}
+
+/* iOS slider thumb: solid white knob with a soft drop shadow instead of a
+   hollow accent-ring. (Radix SliderThumb carries role="slider".) */
+[role="slider"] {
+  height: 1.5rem !important;
+  width: 1.5rem !important;
+  background-color: #fff !important;
+  border-color: transparent !important;
+  box-shadow:
+    0 1px 4px rgb(0 0 0 / 0.25),
+    0 0 0 0.5px rgb(0 0 0 / 0.06) !important;
+}
