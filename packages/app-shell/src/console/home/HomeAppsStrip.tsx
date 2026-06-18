@@ -20,6 +20,28 @@ import type { FavoriteItem } from '../../hooks/useFavorites';
 
 const COMPACT_LIMIT = 11;
 
+// iOS-springboard-style icon tints: a vibrant gradient per app, assigned
+// deterministically by name so an app keeps its colour across sessions.
+// (Literal class strings so Tailwind's source scan emits them.)
+const ICON_GRADIENTS = [
+  'from-blue-500 to-indigo-600',
+  'from-violet-500 to-purple-600',
+  'from-pink-500 to-rose-600',
+  'from-amber-400 to-orange-500',
+  'from-emerald-500 to-teal-600',
+  'from-sky-500 to-cyan-600',
+  'from-fuchsia-500 to-pink-600',
+  'from-orange-500 to-red-600',
+  'from-indigo-500 to-blue-600',
+  'from-teal-500 to-green-600',
+];
+
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
 export function HomeAppsStrip({
   apps,
   favorites,
@@ -79,6 +101,7 @@ export function HomeAppsStrip({
           const Icon = getIcon(app.icon);
           const label = appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) });
           const fav = favNames.has(app.name);
+          const grad = ICON_GRADIENTS[hashStr(app.name) % ICON_GRADIENTS.length];
           return (
             <button
               key={app.name}
@@ -87,7 +110,14 @@ export function HomeAppsStrip({
               className="group relative flex items-center gap-2.5 rounded-xl border border-border/70 bg-card/80 px-3 py-2.5 text-left backdrop-blur-sm transition hover:border-foreground/20 hover:bg-muted/40 active:scale-[0.98]"
               data-testid={`app-tile-${app.name}`}
             >
-              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <span
+                className={cn(
+                  'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]',
+                  'bg-gradient-to-br text-white shadow-sm ring-1 ring-black/5',
+                  'transition-transform group-hover:scale-105',
+                  grad,
+                )}
+              >
                 <Icon className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
