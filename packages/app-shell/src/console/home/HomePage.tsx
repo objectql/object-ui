@@ -306,12 +306,14 @@ export function HomePage() {
             </div>
           )}
 
-          {/* Bento launcher: main column (continue + apps) + right rail (inbox). */}
-          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="min-w-0 space-y-8">
-              {recentApps.length > 0 && <RecentApps items={recentApps} />}
+          {recentApps.length > 0 && (
+            <div className="mb-8">
+              <RecentApps items={recentApps} />
+            </div>
+          )}
 
-              <section>
+          {/* All Applications — full width */}
+          <section className="mb-8">
                 <div className="mb-5 flex items-end justify-between">
                   <div className="flex items-center gap-2.5">
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-muted text-muted-foreground">
@@ -339,7 +341,7 @@ export function HomePage() {
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {activeApps.map((app: any, idx: number) => (
                     <AppCard
                       key={app.name}
@@ -350,24 +352,21 @@ export function HomePage() {
                     />
                   ))}
                 </div>
-              </section>
-            </div>
+          </section>
 
-            <aside className="space-y-4 lg:sticky lg:top-20">
-              <HomeApprovals
-                count={pendingApprovalsCount}
-                onOpen={() => navigate('/apps/setup/system/approvals')}
-                t={t}
-              />
-              {starredApps.length > 0 && (
-                <HomePinned items={starredApps} onOpen={(href) => navigate(href)} t={t} />
-              )}
-              <HomeActivity
-                items={activities}
-                onViewAll={() => navigate('/apps/setup/sys_activity')}
-                t={t}
-              />
-            </aside>
+          {/* Inbox — needs-attention / pinned / activity, balanced 3-up. */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <HomeApprovals
+              count={pendingApprovalsCount}
+              onOpen={() => navigate('/apps/setup/system/approvals')}
+              t={t}
+            />
+            <HomePinned items={starredApps} onOpen={(href) => navigate(href)} t={t} />
+            <HomeActivity
+              items={activities}
+              onViewAll={() => navigate('/apps/setup/sys_activity')}
+              t={t}
+            />
           </div>
         </div>
       </div>

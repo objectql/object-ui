@@ -48,7 +48,15 @@ export function useHomeInbox(limit = 5): HomeInboxData {
         if (cancelled || !mountedRef.current) return;
         const rows: any[] = Array.isArray(res?.data) ? res.data : [];
         const mapped: ActivityItem[] = rows
-          .filter((r) => r && typeof r.type === 'string' && (r.summary ?? '').toString().trim())
+          .filter((r) => {
+            if (!r || typeof r.type !== 'string') return false;
+            if (!(r.summary ?? '').toString().trim()) return false;
+            // Home activity is about *people's* actions, not internal churn
+            // (sys_* tables, ai_conversations, job runs) — those carry a
+            // 'System' actor and UUID titles. Keep only real human actors.
+            const actor = String(r.actor_name ?? '').trim();
+            return actor.length > 0 && actor.toLowerCase() !== 'system';
+          })
           .map((r) => {
             let when = r.timestamp;
             if (!when || when === 'NOW()' || Number.isNaN(Date.parse(when))) when = r.created_at;

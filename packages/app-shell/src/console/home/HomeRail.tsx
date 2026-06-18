@@ -87,6 +87,11 @@ export function HomeApprovals({ count, onOpen, t }: { count: number; onOpen: () 
 export function HomePinned({ items, onOpen, t }: { items: FavoriteItem[]; onOpen: (href: string) => void; t: TFn }) {
   return (
     <RailCard icon={Star} title={t('home.starredApps.title', { defaultValue: 'Pinned' })}>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {t('home.rail.pinnedEmpty', { defaultValue: 'Star an app or record to pin it here.' })}
+        </p>
+      ) : (
       <ul className="space-y-0.5">
         {items.slice(0, 6).map((it) => (
           <li key={it.id}>
@@ -101,6 +106,7 @@ export function HomePinned({ items, onOpen, t }: { items: FavoriteItem[]; onOpen
           </li>
         ))}
       </ul>
+      )}
     </RailCard>
   );
 }
