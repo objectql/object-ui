@@ -80,11 +80,6 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
 
       <div
         aria-hidden
-        className={cn('absolute inset-x-0 top-0 h-1', accent.solid)}
-      />
-
-      <div
-        aria-hidden
         className={cn(
           'absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100',
           accent.from,
@@ -113,7 +108,7 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
 
         <div
           className={cn(
-            'inline-flex h-14 w-14 items-center justify-center rounded-xl mb-4 ring-1 ring-inset',
+            'inline-flex h-14 w-14 items-center justify-center rounded-2xl mb-4 ring-1 ring-inset',
             'bg-gradient-to-br ring-border/40',
             accent.from,
             accent.to,
@@ -133,10 +128,7 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
               </Badge>
             )}
           </div>
-          <p className={cn(
-            'text-sm text-muted-foreground mt-1.5 line-clamp-2 min-h-[2.5rem]',
-            !description && 'italic',
-          )}>
+          <p className="text-sm text-muted-foreground mt-1.5 line-clamp-2 min-h-[2.5rem]">
             {description || t('home.appCard.noDescription', { defaultValue: 'No description' })}
           </p>
         </div>

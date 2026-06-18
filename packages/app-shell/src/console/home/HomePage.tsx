@@ -317,7 +317,7 @@ export function HomePage() {
               {displayName ? ', ' : ''}
             </span>
             {displayName && (
-              <span className="bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-violet-400 dark:to-fuchsia-400">
+              <span className="text-primary">
                 {displayName}
               </span>
             )}
