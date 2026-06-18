@@ -31,6 +31,22 @@ export function SelectField({ value, onChange, field, readonly, ...props }: Fiel
     return display ? <span className="text-sm">{display}</span> : <EmptyValue />;
   }
 
+  // A select with no options is unfillable — a silently-empty Radix dropdown
+  // reads as "broken widget" and hides the real cause (the field metadata has
+  // no `options`). Surface a legible empty state instead, without needing to
+  // open the popover. Mirrors the inline form renderer's behaviour
+  // (see plugin form `renderFieldComponent`'s `case 'select'`).
+  if (options.length === 0) {
+    return (
+      <div
+        data-testid={fieldName ? `select-empty-${fieldName}` : undefined}
+        className="flex h-9 w-full items-center rounded-md border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
+      >
+        No options available
+      </div>
+    );
+  }
+
   return (
     <Select 
       {...props}
