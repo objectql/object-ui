@@ -1,12 +1,14 @@
 /**
  * HomeAppsStrip
  *
- * Compact, scalable app launcher for Home. Business users live in a handful of
- * apps and switch via the top-bar AppSwitcher / ⌘K — so Home shows apps as
- * small icon+name tiles (favorites first), not a wall of marketing cards.
+ * iOS-springboard-style app launcher for Home: vibrant gradient squircle
+ * icons with the name beneath. Business users live in a handful of apps and
+ * switch via the top-bar AppSwitcher / ⌘K — so Home shows apps as recognizable
+ * icons, not a wall of marketing cards.
  *
- * Scales from a few apps to hundreds: a capped strip with a "Show all (N)"
- * toggle keeps the fold stable no matter how many apps exist.
+ * Scales from a few apps to hundreds: a capped grid with a "+N more / Show all"
+ * toggle keeps the fold stable no matter how many apps exist. Favorites sort
+ * first.
  *
  * @module
  */
@@ -18,9 +20,9 @@ import { resolveI18nLabel } from '../../utils';
 import { getIcon } from '../../utils/getIcon';
 import type { FavoriteItem } from '../../hooks/useFavorites';
 
-const COMPACT_LIMIT = 11;
+const COMPACT_LIMIT = 19;
 
-// iOS-springboard-style icon tints: a vibrant gradient per app, assigned
+// iOS-springboard icon tints: a vibrant gradient per app, assigned
 // deterministically by name so an app keeps its colour across sessions.
 // (Literal class strings so Tailwind's source scan emits them.)
 const ICON_GRADIENTS = [
@@ -35,6 +37,10 @@ const ICON_GRADIENTS = [
   'from-indigo-500 to-blue-600',
   'from-teal-500 to-green-600',
 ];
+
+// Soft top-highlight + drop shadow → iOS icon depth/gloss.
+const ICON_GLOSS =
+  'shadow-[0_4px_10px_-2px_rgb(0_0_0/0.25),inset_0_1px_0_0_rgb(255_255_255/0.45)]';
 
 function hashStr(s: string): number {
   let h = 0;
@@ -63,7 +69,6 @@ export function HomeAppsStrip({
     () => new Set(favorites.filter((f) => f.id.startsWith('app:')).map((f) => f.id.slice(4))),
     [favorites],
   );
-  // Favorites first, otherwise keep declared order — a stable, recognizable strip.
   const ordered = useMemo(
     () => [...apps].sort((a, b) => (favNames.has(b.name) ? 1 : 0) - (favNames.has(a.name) ? 1 : 0)),
     [apps, favNames],
@@ -96,7 +101,7 @@ export function HomeAppsStrip({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+      <div className="grid grid-cols-4 gap-1 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10">
         {visible.map((app) => {
           const Icon = getIcon(app.icon);
           const label = appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) });
@@ -107,21 +112,25 @@ export function HomeAppsStrip({
               key={app.name}
               type="button"
               onClick={() => onOpen(app)}
-              className="group relative flex items-center gap-2.5 rounded-xl border border-border/70 bg-card/80 px-3 py-2.5 text-left backdrop-blur-sm transition hover:border-foreground/20 hover:bg-muted/40 active:scale-[0.98]"
+              className="group relative flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition hover:bg-muted/40 active:scale-[0.96]"
               data-testid={`app-tile-${app.name}`}
             >
               <span
                 className={cn(
-                  'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]',
-                  'bg-gradient-to-br text-white shadow-sm ring-1 ring-black/5',
-                  'transition-transform group-hover:scale-105',
+                  'relative inline-flex h-12 w-12 items-center justify-center rounded-[13px]',
+                  'bg-gradient-to-br text-white transition-transform group-hover:scale-105',
+                  ICON_GLOSS,
                   grad,
                 )}
               >
-                <Icon className="h-[18px] w-[18px]" />
+                <Icon className="h-6 w-6" />
+                {fav && (
+                  <span className="absolute -right-1 -top-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 ring-2 ring-background">
+                    <Star className="h-2.5 w-2.5 fill-white text-white" />
+                  </span>
+                )}
               </span>
-              <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
-              {fav && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />}
+              <span className="w-full truncate text-xs font-medium">{label}</span>
             </button>
           );
         })}
@@ -130,13 +139,15 @@ export function HomeAppsStrip({
           <button
             type="button"
             onClick={() => setShowAll(true)}
-            className={cn(
-              'flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-border',
-              'px-3 py-2.5 text-sm text-muted-foreground transition hover:border-foreground/30 hover:text-foreground active:scale-[0.98]',
-            )}
+            className="group flex flex-col items-center gap-2 rounded-xl p-2.5 text-center transition hover:bg-muted/40 active:scale-[0.96]"
             data-testid="apps-show-all"
           >
-            {t('home.showAllApps', { defaultValue: '+{{count}} more', count: overflow })}
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-[13px] border border-dashed border-border text-sm font-medium text-muted-foreground transition-colors group-hover:border-foreground/30 group-hover:text-foreground">
+              +{overflow}
+            </span>
+            <span className="w-full truncate text-xs text-muted-foreground">
+              {t('home.showMoreApps', { defaultValue: 'More' })}
+            </span>
           </button>
         )}
       </div>

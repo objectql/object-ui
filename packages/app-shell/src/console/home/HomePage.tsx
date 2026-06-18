@@ -28,7 +28,7 @@ import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
 import { appRouteSegment } from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { Sparkles, Star, Clock, ArrowDown, ShieldAlert, X, UploadCloud, Search } from 'lucide-react';
+import { Sparkles, Star, Clock, ArrowDown, ShieldAlert, X, UploadCloud } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
 
@@ -289,26 +289,10 @@ export function HomePage() {
                 {t('home.heroTagline', { defaultValue: 'Pick up where you left off, or explore something new.' })}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
-                className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-full border border-border bg-card/80 px-4 text-sm text-muted-foreground backdrop-blur-sm transition hover:bg-muted/50 lg:w-72 lg:flex-none"
-                data-testid="home-search"
-              >
-                <Search className="h-4 w-4 shrink-0" />
-                <span className="flex-1 truncate text-left">
-                  {t('home.searchPlaceholder', { defaultValue: 'Search apps, records, anything' })}
-                </span>
-                <kbd className="pointer-events-none hidden items-center gap-0.5 rounded border bg-background px-1.5 text-[10px] text-muted-foreground sm:inline-flex">
-                  ⌘K
-                </kbd>
-              </button>
-              <Button onClick={() => navigate('/ai?agent=metadata_assistant')} data-testid="home-build-with-ai" className="shrink-0">
-                <Sparkles className="mr-2 h-4 w-4" />
-                {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
-              </Button>
-            </div>
+            <Button onClick={() => navigate('/ai?agent=metadata_assistant')} data-testid="home-build-with-ai" className="shrink-0">
+              <Sparkles className="mr-2 h-4 w-4" />
+              {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
+            </Button>
           </div>
 
           {starredApps.length === 0 && recentApps.length === 0 && (

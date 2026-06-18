@@ -159,6 +159,15 @@ const RECENT_ICON: Record<string, React.ComponentType<{ className?: string }>> =
   page: File,
 };
 
+// Soft per-type tint — gives the recent list life without competing with the
+// vibrant app icons above it (apps stay the colourful primary layer).
+const RECENT_TONE: Record<string, string> = {
+  object: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  record: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  dashboard: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  page: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+};
+
 export function HomeContinue({ items, onOpen, t }: { items: RecentItem[]; onOpen: (href: string) => void; t: TFn }) {
   return (
     <Card icon={Clock} title={t('home.recentApps.title', { defaultValue: 'Recently Accessed' })}>
@@ -172,7 +181,7 @@ export function HomeContinue({ items, onOpen, t }: { items: RecentItem[]; onOpen
             <Row
               key={it.id}
               icon={RECENT_ICON[it.type] || FileText}
-              iconClass="bg-muted text-muted-foreground"
+              iconClass={RECENT_TONE[it.type] || 'bg-muted text-muted-foreground'}
               label={it.label}
               meta={t(`home.recentApps.itemType.${it.type}`, { defaultValue: it.type })}
               onClick={() => onOpen(it.href)}

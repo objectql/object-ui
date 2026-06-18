@@ -105,16 +105,19 @@ export function useHomeInbox(limit = 5): HomeInboxData {
       .then((res) => {
         if (cancelled || !mountedRef.current) return;
         const rows: any[] = Array.isArray(res?.data) ? res.data : [];
-        setNotifications(
-          rows
-            .filter((m) => m && (m.title ?? '').toString().trim())
-            .map((m) => ({
-              id: String(m.id),
-              title: String(m.title),
-              actionUrl: m.action_url ?? undefined,
-              createdAt: m.created_at ?? undefined,
-            })),
-        );
+        const seenTitles = new Set<string>();
+        const deduped = rows
+          .filter((m) => m && (m.title ?? '').toString().trim())
+          .map((m) => ({
+            id: String(m.id),
+            title: String(m.title),
+            actionUrl: m.action_url ?? undefined,
+            createdAt: m.created_at ?? undefined,
+          }))
+          // Collapse repeated identical notifications (e.g. recurring digests)
+          // — keep the most recent of each title (rows are newest-first).
+          .filter((n) => (seenTitles.has(n.title) ? false : (seenTitles.add(n.title), true)));
+        setNotifications(deduped);
       })
       .catch(() => { /* inbox pipeline absent → empty */ });
     return () => { cancelled = true; };
