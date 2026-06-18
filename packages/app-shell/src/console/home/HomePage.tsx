@@ -16,7 +16,7 @@
  * @module
  */
 
-import { useMemo, useState, useEffect, type ComponentType } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMetadata } from '../../providers/MetadataProvider';
 import { useRecentItems } from '../../hooks/useRecentItems';
@@ -25,13 +25,13 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { AppCard } from './AppCard';
 import { RecentApps } from './RecentApps';
-import { StarredApps } from './StarredApps';
+import { HomeApprovals, HomePinned, HomeActivity } from './HomeRail';
+import { useHomeInbox } from '../../hooks/useHomeInbox';
 import { appRouteSegment } from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { Sparkles, Star, Clock, ArrowDown, Store, LayoutGrid, ShieldAlert, X, UploadCloud } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
-import { toast } from 'sonner';
 
 function pickGreetingKey(hour: number): string {
   if (hour < 5) return 'home.greetingNight';
@@ -78,31 +78,6 @@ function GettingStartedHint({ t }: { t: (key: string, opts?: any) => string }) {
         </div>
       </div>
     </section>
-  );
-}
-
-/**
- * Compact at-a-glance metric pill shown under the hero greeting — gives
- * the workspace a sense of scale ("3 apps · 6 recent · 2 starred") the
- * moment the page loads.
- */
-function StatPill({
-  icon: Icon,
-  value,
-  label,
-  tone,
-}: {
-  icon: ComponentType<{ className?: string }>;
-  value: number;
-  label: string;
-  tone: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3.5 py-1.5 text-sm text-secondary-foreground">
-      <Icon className={`h-4 w-4 ${tone}`} />
-      <span className="font-semibold tabular-nums">{value}</span>
-      <span className="text-muted-foreground">{label}</span>
-    </span>
   );
 }
 
@@ -223,6 +198,7 @@ export function HomePage() {
   const { favorites } = useFavorites();
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
+  const { pendingApprovalsCount, activities } = useHomeInbox();
 
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
 
@@ -294,125 +270,105 @@ export function HomePage() {
 
   return (
     <div className="relative min-h-full bg-background">
-      {/*
-        Content-first neutral canvas (Linear/Vercel-console style): no ambient
-        color wash. Hierarchy comes from typography, spacing, and hairline
-        borders + micro-shadows on cards — the only brand-color highlight is
-        the gradient display name in the hero.
-      */}
-
       <PendingDraftsBanner t={t} />
       <RecoveryPasswordReminder t={t} />
 
-      {/* Hero */}
-      <section className="px-4 sm:px-6 lg:px-8 pt-10 pb-6">
+      <div className="px-4 sm:px-6 lg:px-8 pt-8 pb-16">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-3">
-            <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="uppercase tracking-wider">{t('home.title', { defaultValue: 'Home' })}</span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-pretty">
-            <span className="text-foreground">
-              {greeting}
-              {displayName ? ', ' : ''}
-            </span>
-            {displayName && (
-              <span className="text-primary">
-                {displayName}
-              </span>
-            )}
-            <span className="text-foreground/40">.</span>
-          </h1>
-          <p className="text-base sm:text-lg text-muted-foreground mt-2 max-w-2xl">
-            {t('home.heroTagline', { defaultValue: 'Pick up where you left off, or explore something new.' })}
-          </p>
-
-          {/* AI-first action: keep the magic moment one click away even after
-              the workspace has apps — describe a need, let AI build it. */}
-          <div className="mt-5">
-            <Button onClick={() => navigate('/ai?agent=metadata_assistant')} data-testid="home-build-with-ai">
+          {/* Slim hero: greeting + AI action on one row (no oversized banner). */}
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-pretty">
+                <span className="text-foreground">
+                  {greeting}
+                  {displayName ? ', ' : ''}
+                </span>
+                {displayName && <span className="text-primary">{displayName}</span>}
+                <span className="text-foreground/40">.</span>
+              </h1>
+              <p className="mt-1 text-sm sm:text-base text-muted-foreground">
+                {t('home.heroTagline', { defaultValue: 'Pick up where you left off, or explore something new.' })}
+              </p>
+            </div>
+            <Button
+              onClick={() => navigate('/ai?agent=metadata_assistant')}
+              data-testid="home-build-with-ai"
+              className="shrink-0"
+            >
               <Sparkles className="mr-2 h-4 w-4" />
               {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
             </Button>
           </div>
 
-          {/* At-a-glance stat pills */}
-          <div className="mt-5 flex flex-wrap items-center gap-2.5">
-            <StatPill
-              icon={LayoutGrid}
-              tone="text-indigo-600 dark:text-indigo-400"
-              value={activeApps.length}
-              label={t('home.stats.apps', { defaultValue: 'Applications' })}
-            />
-            {recentItems.length > 0 && (
-              <StatPill
-                icon={Clock}
-                tone="text-sky-600 dark:text-sky-400"
-                value={recentItems.length}
-                label={t('home.recentApps.title', { defaultValue: 'Recently Accessed' })}
-              />
-            )}
-            {favorites.length > 0 && (
-              <StatPill
-                icon={Star}
-                tone="text-amber-500 dark:text-amber-400"
-                value={favorites.length}
-                label={t('home.starredApps.title', { defaultValue: 'Starred' })}
-              />
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Main content */}
-      <div className="px-4 sm:px-6 lg:px-8 pb-16">
-        <div className="max-w-7xl mx-auto space-y-10">
           {starredApps.length === 0 && recentApps.length === 0 && (
-            <GettingStartedHint t={t} />
+            <div className="mb-8">
+              <GettingStartedHint t={t} />
+            </div>
           )}
-          {starredApps.length > 0 && <StarredApps items={starredApps} />}
-          {recentApps.length > 0 && <RecentApps items={recentApps} />}
 
-          <section>
-            <div className="flex items-end justify-between mb-5">
-              <div className="flex items-center gap-2.5">
-                <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground">
-                  <LayoutGrid className="h-4 w-4" />
-                </span>
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight">
-                    {t('home.allApps', { defaultValue: 'All Applications' })}
-                  </h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {activeApps.length}
-                    {' · '}
-                    {t('home.stats.apps', { defaultValue: 'Applications' })}
-                  </p>
+          {/* Bento launcher: main column (continue + apps) + right rail (inbox). */}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="min-w-0 space-y-8">
+              {recentApps.length > 0 && <RecentApps items={recentApps} />}
+
+              <section>
+                <div className="mb-5 flex items-end justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-muted text-muted-foreground">
+                      <LayoutGrid className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <h2 className="text-xl font-semibold tracking-tight">
+                        {t('home.allApps', { defaultValue: 'All Applications' })}
+                      </h2>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {activeApps.length}
+                        {' \u00b7 '}
+                        {t('home.stats.apps', { defaultValue: 'Applications' })}
+                      </p>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      onClick={() => navigate('/apps/setup/system/marketplace')}
+                      data-testid="browse-marketplace-btn"
+                    >
+                      <Store className="mr-2 h-4 w-4" />
+                      {t('home.browseMarketplace', { defaultValue: 'Browse App Marketplace' })}
+                    </Button>
+                  )}
                 </div>
-              </div>
-              {isAdmin && (
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/apps/setup/system/marketplace')}
-                  data-testid="browse-marketplace-btn"
-                >
-                  <Store className="mr-2 h-4 w-4" />
-                  {t('home.browseMarketplace', { defaultValue: 'Browse App Marketplace' })}
-                </Button>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {activeApps.map((app: any, idx: number) => (
+                    <AppCard
+                      key={app.name}
+                      app={app}
+                      index={idx}
+                      onClick={() => navigate(`/apps/${appRouteSegment(app) ?? app.name}`)}
+                      isFavorite={favorites.some((f) => f.id === `app:${app.name}`)}
+                    />
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <aside className="space-y-4 lg:sticky lg:top-20">
+              <HomeApprovals
+                count={pendingApprovalsCount}
+                onOpen={() => navigate('/apps/setup/system/approvals')}
+                t={t}
+              />
+              {starredApps.length > 0 && (
+                <HomePinned items={starredApps} onOpen={(href) => navigate(href)} t={t} />
               )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {activeApps.map((app: any, idx: number) => (
-                <AppCard
-                  key={app.name}
-                  app={app}
-                  index={idx}
-                  onClick={() => navigate(`/apps/${appRouteSegment(app) ?? app.name}`)}
-                  isFavorite={favorites.some(f => f.id === `app:${app.name}`)}
-                />
-              ))}
-            </div>
-          </section>
+              <HomeActivity
+                items={activities}
+                onViewAll={() => navigate('/apps/setup/sys_activity')}
+                t={t}
+              />
+            </aside>
+          </div>
         </div>
       </div>
     </div>
