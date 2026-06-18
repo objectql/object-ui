@@ -24,19 +24,22 @@ export interface ThreadedRepliesProps {
   className?: string;
 }
 
-function formatTimestamp(timestamp: string): string {
+function formatTimestamp(
+  timestamp: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
   try {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1) return t('detail.justNow');
+    if (diffMins < 60) return t('detail.minutesAgo', { count: diffMins });
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return t('detail.hoursAgo', { count: diffHours });
     const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 7) return `${diffDays}d ago`;
+    if (diffDays < 7) return t('detail.daysAgo', { count: diffDays });
     return date.toLocaleDateString();
   } catch {
     return timestamp;
@@ -125,7 +128,7 @@ export const ThreadedReplies: React.FC<ThreadedRepliesProps> = ({
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-medium">{reply.actor}</span>
                   <span className="text-[10px] text-muted-foreground">
-                    {formatTimestamp(reply.createdAt)}
+                    {formatTimestamp(reply.createdAt, t)}
                   </span>
                 </div>
                 <p className="text-xs whitespace-pre-wrap break-words">{reply.body}</p>

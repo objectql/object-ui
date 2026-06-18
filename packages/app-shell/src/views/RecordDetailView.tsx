@@ -961,7 +961,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         const mapped: FeedItem[] = res.data.map((c: any) => ({
           id: c.id,
           type: 'comment' as const,
-          actor: c.author_name ?? 'Unknown',
+          actor: c.author_name ?? t('detail.unknownUser', { defaultValue: 'Unknown' }),
           actorAvatarUrl: c.author_avatar_url ?? undefined,
           body: c.body ?? '',
           createdAt: c.created_at,
@@ -1021,8 +1021,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         if (!res?.data?.length) return;
         const mapped: FeedItem[] = [];
         for (const row of res.data) {
-          const t = activityTypeToFeed[row.type];
-          if (!t) continue;
+          const feedType = activityTypeToFeed[row.type];
+          if (!feedType) continue;
           // Prefer the explicit `timestamp` column, but tolerate older
           // rows where the driver leaked the literal "NOW()" — fall
           // back to created_at (always a real ISO date).
@@ -1032,8 +1032,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           }
           mapped.push({
             id: row.id,
-            type: t,
-            actor: row.actor_name ?? 'System',
+            type: feedType,
+            actor: row.actor_name ?? t('detail.systemActor', { defaultValue: 'System' }),
             actorAvatarUrl: row.actor_avatar_url ?? undefined,
             body: row.summary ?? '',
             createdAt: when,
