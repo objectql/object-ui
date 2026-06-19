@@ -1,170 +1,123 @@
 # ADR-0053: List-view navigation — two mutually-exclusive modes
 
-**Status**: Accepted (2026-06-18)
-**Author**: ObjectUI plugin-view / plugin-list team
-**Consumers**: `@object-ui/plugin-view`, `@object-ui/plugin-list`, `@object-ui/types`, `@object-ui/app-shell` (Studio / metadata-admin), `@object-ui/cli` (`check`), every app with an object list page or a list-in-a-page interface
+**Status**: Accepted (2026-06-18; revised after implementation spike)
+**Author**: ObjectUI plugin-view / plugin-list / app-shell team
+**Consumers**: `@object-ui/types`, `@object-ui/plugin-view`, `@object-ui/plugin-list`, `@object-ui/app-shell` (Studio / metadata-admin), `@object-ui/cli` (`check`), every app with an object list page or a list-in-a-page interface
+**Supersedes**: the list-tab placement of **ADR-0047** (per-view `tabs` on the object data-mode list)
 
 ---
 
 ## TL;DR
 
-A list surface can today render up to **three** overlapping "change what rows
-you see" controls, with no rule stopping them from stacking:
+This is an **architecture decision for a metadata-driven, AI-authored app
+platform**, not a cosmetic fix. A list surface today exposes **five** overlapping
+"change what rows you see" mechanisms with no rule preventing them from stacking
+(an object list renders two tab rows). The goal is a metadata model where the
+**right configuration is correct-by-construction** — an AI author cannot express
+the invalid state.
 
-1. **Named-list-view switcher** (Salesforce-style) — the object's saved views,
-   from `ObjectViewSchema.listViews` / `defaultListView` / `showViewSwitcher`.
-2. **`userFilters`** (Airtable-style) — page-authored, `element: 'dropdown' | 'tabs'`.
-3. **`quickFilters`** — preset chip row, from `NamedListView.quickFilters`.
+**Decision:** a list has exactly **one** navigation mode, chosen by **context**,
+expressed as a discriminated union `ListNav`:
 
-On an object's default list page this produces **two tab-like rows**
-("All Tasks / Task List / Grid / Board" + "All / In Progress / Urgent / Done"),
-blurring *switch view* vs *filter subset* — a long-standing, never-correctly
-resolved confusion.
-
-**Decision:** a list renders **exactly one** navigation mode, selected by
-**context**, and the model is designed so AI-authored metadata is
-*correct-by-construction*:
-
-| Context | Mode | Control shown | Owner |
+| Context | `ListNav.mode` | Control | Owner |
 | --- | --- | --- | --- |
-| Object default list (`ObjectView`) | **`views`** (Salesforce) | named-list-view switcher | **per-user** (author-seeded defaults + each user's own views) |
-| List embedded in a page (`InterfaceListPage`) | **`filters`** (Airtable) | `userFilters` (`dropdown` / `tabs`) | **page author** (fixed, design-time) |
+| Object default list (`ObjectView`) | **`views`** | named-list-view switcher (`ViewTabBar`) | per-user (author-seeded + user-created) |
+| List embedded in a page (`InterfaceListPage`) | **`filters`** | `userFilters` (`dropdown` \| `tabs`) | page author (fixed) |
 
-`quickFilters` is **deprecated** (it only duplicates `userFilters` `'tabs'`).
-`userFilters.element` is canonically **`'dropdown' | 'tabs'`** (`'toggle'`
-deprecated). The two modes are encoded as a **discriminated union** so the two
-can never coexist in metadata.
-
----
-
-## Context — what exists today (file map)
-
-- **Salesforce mode** renders in `ObjectView` (`packages/plugin-view/src/ObjectView.tsx`):
-  `renderNamedViewTabs` (~:1036) and the `ViewSwitcher` toggle (~:1074, gated by
-  `schema.showViewSwitcher`). `ViewSwitcherSchema.variant` already supports
-  `tabs | buttons | dropdown`.
-- **Airtable mode** is `userFilters` (`packages/types/src/objectql.ts` ~:1833),
-  authored by `FilterModeWidget` (None / Tabs / Dropdown,
-  `packages/app-shell/src/views/metadata-admin/widgets.tsx` ~:1161), rendered by
-  `UserFilters` (`packages/plugin-list/src/UserFilters.tsx`) inside `ListView`
-  (~:1666). Page context merges `interfaceConfig.userFilters`
-  (`InterfaceListPage.tsx` ~:267).
-- **quickFilters** (`NamedListView.quickFilters`) renders as chips in
-  `ListView.tsx` (~:2180) — the third, un-owned mechanism.
-
-The only existing mutual-exclusion is `ListView.tsx:~670`
-(`schema.tabs?.length ? undefined : resolvedUserFilters`) — it suppresses
-`userFilters` when view `tabs` exist, but does **not** cover `quickFilters`
-(which always render) nor the view switcher. No single context-driven
-discriminator exists, so the mechanisms render independently and stack.
+We **clean-build** this model (no back-compat adapters). The five mechanisms
+collapse to two; everything else is removed. Showcase / fixtures are rewritten
+to the new model (sample data is disposable).
 
 ---
 
-## Decision
+## The five mechanisms today (implementation spike findings)
 
-1. **`navMode` resolved from context, not from independent fields.**
-   `ObjectView` → `navMode = 'views'`; `InterfaceListPage` (list-in-a-page) →
-   `navMode = 'filters'`. `ListView` honors it: `'views'` renders the named-view
-   switcher and **suppresses** `userFilters` + `quickFilters`; `'filters'`
-   renders `userFilters` and **suppresses** the switcher.
+| # | Mechanism | Source field | Renderer | Verdict |
+| --- | --- | --- | --- | --- |
+| 1 | View switcher | `objectDef.listViews` / saved views | app-shell `ViewTabBar` | **KEEP — canonical** |
+| 2 | Named-view tabs | `schema.listViews` | plugin-view `renderNamedViewTabs` | **REMOVE — duplicates #1** |
+| 3 | In-list tabs | `viewDef.tabs` (ADR-0047) | plugin-list `TabBar` | **FOLD into `userFilters` tabs** |
+| 4 | Quick filters | `quickFilters` | plugin-list chips | **FOLD into `userFilters` tabs** |
+| 5 | User filters | `userFilters` `{element: dropdown\|tabs\|toggle}` | plugin-list `UserFilters` | **KEEP `dropdown`+`tabs`; drop `toggle`** |
 
-2. **Discriminated union `ListNav` is the canonical config** (so invalid
-   "both modes" is unrepresentable):
+Key control point: `app-shell/views/ObjectView.tsx` `renderListView` rebuilds the
+list schema as `viewDef.* ?? listSchema.*` — the real place modes are wired.
+Render paths are already split: `ObjectView` (views) vs `InterfaceListPage`
+(filters, drives `ListView` directly).
+
+## Decision detail
+
+1. **`ListNav` discriminated union** (in `@object-ui/types`) is the single config:
    ```ts
    type ListNav =
-     | { mode: 'views';   views: Record<string, NamedListView>; default?: string;
-         switcherVariant?: 'tabs' | 'buttons' | 'dropdown' }
-     | { mode: 'filters'; element: 'dropdown' | 'tabs'; fields?: …; tabs?: … };
+     | { mode: 'views';   /* object named views drive the switcher */ }
+     | { mode: 'filters'; userFilters: { element: 'dropdown' | 'tabs'; … } };
    ```
-   Legacy fields (`listViews` / `userFilters` / `quickFilters`) are read at
-   runtime and adapted into this union for back-compat.
+   Context resolves `mode` (object list → `views`; page list → `filters`); the
+   union makes "both modes / both controls" unrepresentable.
 
-3. **Deprecate `quickFilters`.** It only duplicates `userFilters` `'tabs'`. Its
-   presets fold into named views (object) or `userFilters` `'tabs'` (page). A
-   read-time adapter maps residual `quickFilters` → derived named views so
-   existing apps render correctly in `views` mode with a single switcher.
+2. **Views mode** = `ViewTabBar` only (object `listViews`, per-user: seeded
+   defaults + user-created/saved views, single-select). Remove
+   `renderNamedViewTabs`.
 
-4. **`userFilters.element` canonical = `'dropdown' | 'tabs'`.**
-   - `'dropdown'` = per-field value filters: each author-selected field renders
-     its own dropdown/popover of that field's values (`DropdownFilters`).
-     A distinct, **retained** capability.
-   - `'tabs'` = named filter presets.
-   - `'toggle'` is **deprecated** (already absent from `FilterModeWidget`; type
-     value kept readable for legacy only, removed from the canonical union).
+3. **Filters mode** = `userFilters` only, `element: 'dropdown' | 'tabs'`:
+   - `dropdown` = per-field value filter (each selected field → its own
+     dropdown of values). Distinct, retained.
+   - `tabs` = named filter presets (single-select).
+   - `toggle` removed.
+   Remove `viewDef.tabs`/`TabBar` and `quickFilters` — both fold into
+   `userFilters` `tabs`.
 
-5. **Views and page-tabs are NOT merged** despite looking alike — they differ on
-   the dimension that matters most, **ownership / lifecycle**:
+4. **Status-style presets become named views** (e.g. "In Progress", "Urgent")
+   so the object page keeps one-click status access *as proper views* in the
+   `ViewTabBar` — the Salesforce model. Authors seed them; users add their own.
 
-   | | List views (`views`) | Page tabs (`filters`/`tabs`) |
-   | --- | --- | --- |
-   | Defined by | each **user** (+ author-seeded defaults) | **page author** only |
-   | Mutable | at **runtime**, per user | **design-time**, fixed |
-   | Persistence | per-user/shared records | page metadata |
+5. **Shared `ListNavBar`** renders both the views switcher and the filters
+   tabs/dropdown — concepts stay separate (different ownership/persistence),
+   presentation is unified.
 
-   Merging would force a bad trade (expose author-fixed tabs to user editing, or
-   strip personalization from list views). Instead: **separate the concepts,
-   share the presentation** — both render through one `ListNavBar` component for
-   visual consistency. The `mode` discriminator therefore also encodes
-   *ownership* (`views` = user-personalizable; `filters` = author-fixed).
+6. **AI-authoring safety** (correct-by-construction): (a) the `ListNav` union
+   makes invalid states untypable; (b) context supplies the default `mode`;
+   (c) `objectql.zod.ts` `refine` + the `check`/`doctor` CLI reject leftover
+   `tabs`/`quickFilters`/`toggle` and any two-mode config — the AI loop self-
+   corrects on the error; (d) the rule lives in field `.describe()`/JSDoc the AI
+   reads; (e) runtime resolves exactly one mode regardless.
 
-6. **Studio**: a given authoring surface exposes only its context's mode —
-   object-view config authors named views; page config authors `userFilters` via
-   `FilterModeWidget`. `quickFilters` editing is removed.
+7. **Studio**: each authoring surface exposes only its context's mode — object
+   views author named views; page config authors `userFilters`.
 
-### Semantic change (accepted)
+## Clean-build, not migrate
 
-`quickFilters` were **additive / multi-select**; folded presets (named views /
-`userFilters` tabs) are **single-select**. This simplification is intentional.
-
----
-
-## AI-authoring safety (correct-by-construction)
-
-Because metadata is authored by AI, the model must make "choose wrong"
-structurally hard, not rely on the author choosing well. Five layers:
-
-1. **Schema** — the `ListNav` discriminated union makes "both modes" a type
-   error; `quickFilters` is absent from the union, so it can't be authored.
-2. **Context default** — `mode` defaults from context (object list → `views`;
-   page list → `filters`), so the AI usually doesn't choose at all.
-3. **Validation** — `objectql.zod.ts` `refine` rejects two-mode configs and
-   `quickFilters`; wired into the `check` / `doctor` CLI + CI. The AI authoring
-   loop receives the validation error and **self-corrects**.
-4. **Descriptions** — the rule lives in the field `.describe()` / JSDoc the AI
-   reads when authoring (not only here), so the assistant's grounding carries it.
-5. **Runtime determinism** — even if bad data slips through, `navMode` renders
-   exactly one mode; the user never sees the two-row state.
-
----
+Because this is foundational architecture and sample data is disposable, there
+are **no runtime back-compat adapters**. The deprecated fields
+(`tabs`, `quickFilters`, `userFilters.toggle`, `schema.listViews` duplication)
+are removed from types and consumers, and showcase / example fixtures are
+rewritten to `ListNav`. (External apps on the old shape get a one-time codemod /
+`check` error with a fix hint, not silent runtime adaptation.)
 
 ## Consequences
 
-- **Positive**: one unambiguous control per list; object page shows a single
-  row; authors (human or AI) pick a mode by *where the list lives*, not by
-  combining flags; invalid states are largely unrepresentable.
-- **Risk**: shared plugin change affecting every app's list surface; the
-  additive→single-select semantic change; needs the read-time adapter + fixture
-  rewrite to fully retire `quickFilters`.
-- **Back-compat**: legacy metadata keeps rendering via the adapter;
-  `quickFilters` / `toggle` stay readable but deprecated until removed later.
+- One unambiguous control per list; the object page shows a single switcher.
+- Authors (human or AI) pick a mode by *where the list lives*; invalid states
+  are largely untypable and otherwise caught by `check`.
+- Larger blast radius: types + plugin-view + plugin-list + app-shell + Studio
+  + CLI. Sequenced as several verified PRs (below).
 
-## Phasing
+## Phasing (each an independent, browser-verified PR)
 
-- **Phase 1 — runtime determinism (stop the bleeding)**: `navMode` mutual
-  exclusion in `ObjectView` / `ListView` + `quickFilters` → derived-named-views
-  read-time adapter. No data change; existing apps render one row.
-- **Phase 2 — correct-by-construction**: introduce the `ListNav` discriminated
-  union + Zod `refine` + `check` rule + field descriptions + shared `ListNavBar`
-  presentation component; canonicalize `userFilters.element` to `dropdown|tabs`.
-- **Phase 3 — migration & removal**: rewrite fixtures (e.g. `showcase_task`) to
-  the union; remove the adapter, `quickFilters`, and `toggle`.
+1. Remove the duplicate renderer (`renderNamedViewTabs`); object list = one
+   switcher. *(landed as the spike — PR #1801)*
+2. `ListNav` union in `@object-ui/types`; runtime reads it.
+3. Fold `tabs` + `quickFilters` → `userFilters`; drop `toggle`; shared
+   `ListNavBar`.
+4. Zod `refine` + `check` rule + field descriptions.
+5. Rewrite showcase / fixtures to `ListNav`; delete removed fields.
 
 ## Alternatives considered
 
-- **Keep all three, add guards only** — leaves three concepts and ongoing author
-  confusion; treats symptom not cause; rejected.
-- **Merge views and page-tabs into one mechanism** — collapses the
-  user-configurable vs author-fixed ownership distinction; rejected (separate
-  concepts, shared presentation instead).
-- **Make `quickFilters` the canonical preset for both modes** — keeps a third
-  concept and re-introduces a second row on the object page; rejected.
+- **Keep all five + guards** — perpetual author confusion; rejected.
+- **Back-compat adapters** — unnecessary given disposable sample data and an
+  architecture-first goal; rejected in favour of a clean model + codemod.
+- **Merge views & page-tabs into one concept** — collapses the user-configurable
+  vs author-fixed ownership distinction; rejected (separate concepts, shared
+  `ListNavBar` presentation).
