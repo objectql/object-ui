@@ -151,14 +151,6 @@ export function UserFilters({
           onSelectionsChange={onSelectionsChange}
         />
       );
-    case 'toggle':
-      return (
-        <ToggleFilters
-          fields={config.fields || []}
-          onFilterChange={onFilterChange}
-          className={className}
-        />
-      );
     default:
       return null;
   }

@@ -1464,7 +1464,6 @@ export interface NamedListView {
    * Supports three display modes configured by `element`:
    * - 'dropdown': Each field renders as a dropdown selector badge
    * - 'tabs': Named filter presets rendered as a tab bar
-   * - 'toggle': Each filter field renders as an on/off toggle button
    */
   userFilters?: ListViewSchema['userFilters'];
 
@@ -1835,11 +1834,10 @@ export interface ListViewSchema extends BaseSchema {
    * Supports three display modes configured by `element`:
    * - 'dropdown': Each field renders as a dropdown selector badge (e.g., "Status ∨")
    * - 'tabs': Named filter presets rendered as a tab bar (e.g., "Tab | my customers | All records")
-   * - 'toggle': Each filter field renders as an on/off toggle button
    */
   userFilters?: {
     /** UI element type for displaying filters */
-    element: 'dropdown' | 'tabs' | 'toggle';
+    element: 'dropdown' | 'tabs';
 
     /**
      * Field-level filter definitions (used by 'dropdown' and 'toggle' modes).

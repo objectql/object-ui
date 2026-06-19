@@ -239,7 +239,7 @@ const UserFilterTabSchema = z.object({
  * User Filters Configuration Schema (Airtable Interfaces-style)
  */
 const UserFiltersSchema = z.object({
-  element: z.enum(['dropdown', 'tabs', 'toggle']).describe('UI element type'),
+  element: z.enum(['dropdown', 'tabs']).describe('UI element type'),
   fields: z.array(UserFilterFieldSchema).optional().describe('Field-level filters'),
   tabs: z.array(UserFilterTabSchema).optional().describe('Named filter presets'),
   allowAddTab: z.boolean().optional().describe('Allow adding new tabs'),
