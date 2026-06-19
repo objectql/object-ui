@@ -42,7 +42,8 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import { Button } from '@object-ui/components';
-import { Plus, Trash2, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { Plus, Trash2, ChevronDown, ChevronRight, GripVertical, Settings2 } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from '@object-ui/components';
 import {
   Tabs,
   TabsList,
@@ -334,6 +335,10 @@ export interface FormFieldSpec {
   hidden?: boolean;
   colSpan?: 1 | 2 | 3 | 4;
   widget?: string;
+  /** Composite rendering: 'inline' (default, bordered box) or 'popover'
+   * (summary line + gear that opens the sub-fields in a popover — Airtable
+   * progressive disclosure, keeps the panel lean). */
+  disclosure?: 'inline' | 'popover';
   /** For `type: 'code'` — syntax highlighting language (e.g. 'javascript', 'sql', 'json'). */
   language?: string;
   visibleOn?: string | { dialect?: string; source: string };
@@ -854,6 +859,7 @@ function FieldControl({
         schema={schema}
         readOnly={readOnly}
         widgetContext={widgetContext}
+        fieldSpec={fieldSpec}
         onChange={onChange}
       />
     );
@@ -1238,12 +1244,30 @@ function pickSubSchema(parent: JsonSchema | undefined, kind: 'composite' | 'repe
   return (props?.[subName] as JsonSchema) ?? {};
 }
 
+// Compact, human-readable summary of a composite value for the popover
+// disclosure trigger — booleans show their field label when true, arrays show
+// their entries, scalars show the value. Keeps the collapsed row informative.
+function summariseComposite(obj: Record<string, unknown>, specs: FormFieldSpec[]): string {
+  const parts: string[] = [];
+  for (const spec of specs) {
+    const v = obj[spec.field];
+    if (v == null || v === '' || v === false) continue;
+    const label = spec.label || spec.field;
+    if (v === true) parts.push(label);
+    else if (Array.isArray(v)) { if (v.length) parts.push(v.map((x) => (typeof x === 'object' && x ? ((x as any).field ?? (x as any).name ?? '') : String(x))).filter(Boolean).join(', ')); }
+    else if (typeof v === 'object') parts.push(label);
+    else parts.push(String(v));
+  }
+  return parts.join(' · ');
+}
+
 function CompositeField({
   value,
   fields,
   schema,
   readOnly,
   widgetContext,
+  fieldSpec,
   onChange,
 }: {
   value: unknown;
@@ -1251,31 +1275,57 @@ function CompositeField({
   schema: JsonSchema;
   readOnly?: boolean;
   widgetContext?: WidgetContext;
+  fieldSpec?: FormFieldSpec;
   onChange: (v: unknown) => void;
 }) {
   const obj = (value && typeof value === 'object' && !Array.isArray(value))
     ? (value as Record<string, unknown>)
     : {};
   const specs = fields.map(normaliseField);
+
+  const rows = specs.map((spec) => {
+    const subSchema = pickSubSchema(schema, 'composite', spec.field);
+    return (
+      <FieldRow
+        key={spec.field}
+        name={spec.field}
+        schema={subSchema}
+        value={obj[spec.field]}
+        required={Boolean(spec.required)}
+        readOnly={readOnly || spec.readonly}
+        fieldSpec={spec}
+        widgetContext={widgetContext}
+        formData={obj}
+        onChange={(v) => onChange({ ...obj, [spec.field]: v })}
+      />
+    );
+  });
+
+  // Progressive disclosure (Airtable parity): summary line + gear → popover.
+  if (fieldSpec?.disclosure === 'popover') {
+    const summary = summariseComposite(obj, specs);
+    return (
+      <div className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-muted/20 px-3 py-1.5">
+        <span className="text-sm text-muted-foreground truncate" title={summary}>
+          {summary || <span className="italic opacity-70">Not configured</span>}
+        </span>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" aria-label="Configure" data-testid={`composite-popover-${fieldSpec.field}`}>
+              <Settings2 className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 space-y-3">
+            {rows}
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-md border border-border/50 bg-muted/20 p-3 space-y-3">
-      {specs.map((spec) => {
-        const subSchema = pickSubSchema(schema, 'composite', spec.field);
-        return (
-          <FieldRow
-            key={spec.field}
-            name={spec.field}
-            schema={subSchema}
-            value={obj[spec.field]}
-            required={Boolean(spec.required)}
-            readOnly={readOnly || spec.readonly}
-            fieldSpec={spec}
-            widgetContext={widgetContext}
-            formData={obj}
-            onChange={(v) => onChange({ ...obj, [spec.field]: v })}
-          />
-        );
-      })}
+      {rows}
     </div>
   );
 }
