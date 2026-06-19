@@ -78,6 +78,12 @@ export interface QuickFilterDef {
  */
 type GanttConfigEx = GanttConfig & {
   parentField?: string;
+  /**
+   * Record field whose value maps onto a node kind (see {@link normalizeTaskType}):
+   * `task` / `summary` (project/phase) / `milestone` / `group`. `group` (or
+   * `folder`) renders a pure tree header with NO bar — for 项目/产品 style levels
+   * that only group, never schedule.
+   */
   typeField?: string;
   /** Baseline (planned) start/end fields → planned-vs-actual reference bars. */
   baselineStartField?: string;
@@ -121,7 +127,10 @@ export function normalizeTaskType(raw: unknown): GanttTaskType | undefined {
   if (raw == null) return undefined;
   const key = String(raw).toLowerCase().trim();
   if (key === 'milestone') return 'milestone';
-  if (key === 'summary' || key === 'project' || key === 'group' || key === 'phase') return 'summary';
+  // Pure grouping header (无条): a tree node with no timeline bar. Use for
+  // 项目/产品 style levels that只分组、不排期.
+  if (key === 'group' || key === 'folder') return 'group';
+  if (key === 'summary' || key === 'project' || key === 'phase') return 'summary';
   if (key === 'task') return 'task';
   return undefined;
 }

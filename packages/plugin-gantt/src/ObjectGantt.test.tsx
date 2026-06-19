@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { ObjectGantt, normalizeDependencies } from './ObjectGantt';
+import { ObjectGantt, normalizeDependencies, normalizeTaskType } from './ObjectGantt';
 import { DataSource } from '@object-ui/types';
 
 // Mock GanttView so we can drive create/update/delete directly via the
@@ -444,5 +444,26 @@ describe('normalizeDependencies', () => {
 
   it('drops unknown link types but keeps the id', () => {
     expect(normalizeDependencies([{ id: 't1', type: 'banana' }])).toEqual([{ id: 't1' }]);
+  });
+});
+
+describe('normalizeTaskType', () => {
+  it('maps group/folder to the no-bar group header (case/space-insensitive)', () => {
+    expect(normalizeTaskType('group')).toBe('group');
+    expect(normalizeTaskType('Folder')).toBe('group');
+    expect(normalizeTaskType('  GROUP ')).toBe('group');
+  });
+
+  it('keeps summary/project/phase as bar-carrying summaries', () => {
+    expect(normalizeTaskType('summary')).toBe('summary');
+    expect(normalizeTaskType('project')).toBe('summary');
+    expect(normalizeTaskType('phase')).toBe('summary');
+  });
+
+  it('maps milestone and task, and infers (undefined) for unknown/empty', () => {
+    expect(normalizeTaskType('milestone')).toBe('milestone');
+    expect(normalizeTaskType('task')).toBe('task');
+    expect(normalizeTaskType('banana')).toBeUndefined();
+    expect(normalizeTaskType(null)).toBeUndefined();
   });
 });
