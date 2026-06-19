@@ -232,18 +232,25 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
     const gallery =
       view.gallery ?? (allowedSet.has('gallery') ? defaultGalleryFromObject(objectDef) : undefined);
 
-    // Inherited data semantics (the iron rule: all from the view) + the
-    // page's own always-on criteria (`filterBy`).
+    // Data semantics — ADR-0047 (revised): the PAGE owns its view metadata.
+    // Precedence everywhere: the page's own config → legacy sourceView view
+    // (back-compat) → a sensible default derived from the object.
     const filters = [
       ...(Array.isArray(view.filter) ? view.filter : []),
       ...(Array.isArray(cfg.filterBy) ? cfg.filterBy : []),
     ];
 
-    // Columns: the referenced view's, else a sensible default derived from
-    // the object (compactLayout / business fields). Some backends serve the
-    // default view hollow (columns live only in named views), so without
-    // this fallback the grid would render just the row-number column.
-    const columns = hasColumns(view) ? view.columns : defaultColumnsFromObject(objectDef);
+    // Columns: the page's own `columns` win; else the legacy referenced view's;
+    // else a default from the object so the grid never renders just the
+    // row-number column.
+    const columns = hasColumns(cfg)
+      ? (cfg.columns as any)
+      : hasColumns(view)
+        ? view.columns
+        : defaultColumnsFromObject(objectDef);
+
+    // Sort: the page's own first, then the legacy view's.
+    const sort = Array.isArray(cfg.sort) && cfg.sort.length ? cfg.sort : view.sort;
 
     return {
       type: 'list-view' as const,
@@ -251,7 +258,7 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
       viewType: (allowed[0] ?? view.type ?? 'grid'),
       fields: columns,
       ...(filters.length ? { filters } : {}),
-      ...(view.sort?.length ? { sort: view.sort } : {}),
+      ...(sort?.length ? { sort } : {}),
       grouping: view.grouping,
       rowColor: view.rowColor,
       pagination: view.pagination,
