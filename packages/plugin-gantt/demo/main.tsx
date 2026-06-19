@@ -116,6 +116,39 @@ function edgeFixture(): GanttTask[] {
   ];
 }
 
+/**
+ * 制造排班 4 层树 (?mfg=1) — mirrors 3.4.1 树状结构 (左侧任务列表区):
+ *   一级 项目      → type:'group'  无条 (pure header, expand/collapse)
+ *   二级 产品      → type:'group'  无条
+ *   三级 排产计划   → summary (has children) 有时间条 · 全部甘特图操作
+ *   四级 派工单     → task leaf     子任务条 (查看/跳转)
+ * The two `group` levels render NO timeline bar; only 排产计划 + 派工单 carry bars.
+ */
+function manufacturingFixture(): GanttTask[] {
+  const PLAN = '#0d9488'; // 排产计划 bar color
+  const WORK = '#5eead4'; // 派工单 child color
+  return [
+    // 一级: 项目 (无条)
+    { id: 'prj-A', title: '项目A（导管架制造）', start: d('2026-06-01'), end: d('2026-06-30'), progress: 0, parent: null, type: 'group' },
+
+    // 二级: 产品 (无条)
+    { id: 'prod-A1', title: '产品A-1（XX项目导管架）', start: d('2026-06-01'), end: d('2026-06-30'), progress: 0, parent: 'prj-A', type: 'group' },
+
+    // 三级: 排产计划 (有时间条) — children drive its rollup range
+    { id: 'plan-1', title: '将军柱组焊（排产计划）', start: d('2026-06-03'), end: d('2026-06-10'), progress: 0, parent: 'prod-A1', color: PLAN },
+    { id: 'wo-001', title: 'WO001 张三（派工单）', start: d('2026-06-03'), end: d('2026-06-06'), progress: 100, parent: 'plan-1', color: WORK },
+    { id: 'wo-002', title: 'WO002 李四（派工单）', start: d('2026-06-06'), end: d('2026-06-10'), progress: 40, parent: 'plan-1', color: WORK, dependencies: [{ id: 'wo-001', type: 'fs' }] },
+
+    { id: 'plan-2', title: '主腿管接长（排产计划）', start: d('2026-06-08'), end: d('2026-06-14'), progress: 0, parent: 'prod-A1', color: PLAN },
+    { id: 'wo-003', title: 'WO003 王五（派工单）', start: d('2026-06-08'), end: d('2026-06-14'), progress: 20, parent: 'plan-2', color: WORK },
+
+    // 二级: 第二个产品 (无条)
+    { id: 'prod-A2', title: '产品A-2（YY项目导管架）', start: d('2026-06-12'), end: d('2026-06-30'), progress: 0, parent: 'prj-A', type: 'group' },
+    { id: 'plan-3', title: '分段预制（排产计划）', start: d('2026-06-12'), end: d('2026-06-20'), progress: 0, parent: 'prod-A2', color: PLAN },
+    { id: 'wo-004', title: 'WO004 赵六（派工单）', start: d('2026-06-12'), end: d('2026-06-20'), progress: 10, parent: 'plan-3', color: WORK },
+  ];
+}
+
 function perfFixture(n: number): GanttTask[] {
   const tasks: GanttTask[] = [];
   const groupSize = 10;
@@ -279,6 +312,7 @@ function App() {
   if (params.get('quickfilter') === '1') return <QuickFilterDemo />;
   const perf = Number(params.get('perf') || 0);
   const edge = params.has('edge');
+  const mfg = params.has('mfg');
   const workingCalendar: WorkingCalendar | undefined =
     params.get('cal') === '1' ? { skipWeekends: true } : undefined;
   const showBaselines = params.get('baselines') !== '0';
@@ -310,7 +344,7 @@ function App() {
   }, [resourceMode, resourceField]);
   const t0 = React.useMemo(() => performance.now(), []);
   const [tasks, setTasks] = React.useState<GanttTask[]>(() => {
-    const base = perf > 0 ? perfFixture(perf) : edge ? edgeFixture() : projectFixture();
+    const base = perf > 0 ? perfFixture(perf) : edge ? edgeFixture() : mfg ? manufacturingFixture() : projectFixture();
     return groupField || resourceMode ? decorateForGrouping(base) : base;
   });
   const [renderMs, setRenderMs] = React.useState<number | null>(null);
@@ -341,6 +375,7 @@ function App() {
         <span>{tasks.length} tasks</span>
         {renderMs != null && <span data-testid="demo-render-ms">initial render: {renderMs.toFixed(1)}ms</span>}
         <a href="?">project fixture</a>
+        <a href="?mfg=1&lang=zh&mode=day">制造排班 (4层树)</a>
         <a href="?cal=1">working calendar</a>
         <a href="?baselines=0">no baselines</a>
         <a href="?readonly=1">read-only</a>

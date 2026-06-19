@@ -320,6 +320,7 @@ const en = {
     row: {
       expand: 'Expand',
       collapse: 'Collapse',
+      locate: 'Locate on timeline',
     },
     aria: {
       taskList: 'Task list',

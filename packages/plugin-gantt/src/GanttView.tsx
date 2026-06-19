@@ -29,6 +29,7 @@ import {
   FileDown,
   Save,
   Lock,
+  Crosshair,
 } from "lucide-react"
 import {
   cn,
@@ -88,7 +89,7 @@ export type GanttDependency = string | number | GanttDependencyObject;
  * Task rendering variant. `summary` is implied for any task that has
  * children; `milestone` is implied when end <= start (zero duration).
  */
-export type GanttTaskType = 'task' | 'summary' | 'milestone';
+export type GanttTaskType = 'task' | 'summary' | 'milestone' | 'group';
 
 export interface GanttTask {
   id: string | number
@@ -101,6 +102,12 @@ export interface GanttTask {
   dependencies?: GanttDependency[]
   /** Parent task id — builds the hierarchy. Unknown ids render as roots. */
   parent?: string | number | null
+  /**
+   * Node kind. Defaults to a leaf `task` (or `summary` automatically when it has
+   * children). Set `'group'` to render a pure tree header — expandable/collapsible
+   * like a summary but with NO timeline bar (用于 项目/产品 这类纯分组层级，左侧成树、右侧无条).
+   * Its children still render their own bars normally.
+   */
   type?: GanttTaskType
   /**
    * Baseline (planned) start/end. When both are present a thin reference bar is
@@ -1516,6 +1523,11 @@ export function GanttView({
   // and the "Today" button can target a stable node.
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
 
+  // 定位闪烁: id of the bar currently pulsing after a "locate" click, plus the
+  // pending timers that toggle it on/off (cleared on re-trigger and unmount).
+  const [flashTaskId, setFlashTaskId] = React.useState<string | number | null>(null);
+  const flashTimerRef = React.useRef<number[]>([]);
+
   // --- Virtualization ------------------------------------------------------
   // Rows and timeline columns render only what's in (or near) the viewport,
   // so the chart stays responsive with thousands of tasks / multi-year day
@@ -1628,6 +1640,41 @@ export function GanttView({
       return true;
     },
     [timelineRange, dateToX],
+  );
+  // 定位到记录: scroll the timeline so a row's bar is centered horizontally,
+  // triggered by the locate icon in the task list's End column. Centers on the
+  // bar's midpoint and clamps so an out-of-range edge still lands on-screen.
+  const scrollToTask = React.useCallback(
+    (start: Date, end: Date, taskId?: string | number) => {
+      const el = scrollAreaRef.current;
+      if (!el) return;
+      const startX = dateToX(start);
+      const endX = dateToX(end);
+      const mid = (startX + endX) / 2;
+      el.scrollTo({ left: Math.max(0, mid - el.clientWidth / 2), behavior: 'smooth' });
+      // 闪烁高亮: pulse the located bar so the eye can catch it after the scroll.
+      // Toggle off → on (rAF) restarts the CSS animation when the same row is
+      // clicked repeatedly; auto-clear once the animation has run its course.
+      if (taskId != null) {
+        flashTimerRef.current.forEach((id) => window.clearTimeout(id));
+        flashTimerRef.current = [];
+        setFlashTaskId(null);
+        flashTimerRef.current.push(
+          window.setTimeout(() => setFlashTaskId(taskId), 40),
+        );
+        flashTimerRef.current.push(
+          window.setTimeout(
+            () => setFlashTaskId((cur) => (cur === taskId ? null : cur)),
+            40 + 1400,
+          ),
+        );
+      }
+    },
+    [dateToX],
+  );
+  React.useEffect(
+    () => () => flashTimerRef.current.forEach((id) => window.clearTimeout(id)),
+    [],
   );
   const jumpToWeek = React.useCallback(
     () => scrollToDate(startOfUnit(new Date(), 'week')),
@@ -2050,6 +2097,22 @@ export function GanttView({
       <style>{`
         .gantt-resize-handle:hover { background-color: rgba(255, 255, 255, 0.4); }
         .gantt-bar-hover:hover { filter: brightness(1.1); }
+        .gantt-locate-btn { opacity: 0; transition: opacity 0.15s ease; }
+        .group\\/task-row:hover .gantt-locate-btn { opacity: 0.6; }
+        .gantt-locate-btn:hover, .gantt-locate-btn:focus-visible { opacity: 1; }
+        /* 定位闪烁: pulse the located bar with a ring. Outline (not box-shadow)
+           so it never clashes with the critical-path bar's inline box-shadow. */
+        @keyframes gantt-flash {
+          0%, 100% { outline-color: rgba(59, 130, 246, 0); }
+          20% { outline-color: rgba(59, 130, 246, 0.95); }
+          45% { outline-color: rgba(59, 130, 246, 0.25); }
+          70% { outline-color: rgba(59, 130, 246, 0.95); }
+        }
+        .gantt-flash {
+          outline: 2px solid transparent;
+          outline-offset: 2px;
+          animation: gantt-flash 1.4s ease-in-out;
+        }
         @media (min-width: 640px) {
           .gantt-sm-h50 { height: 50px; }
           .gantt-sm-w20 { width: 80px; }
@@ -2497,7 +2560,22 @@ export function GanttView({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
+                    <span className="inline-flex items-center justify-end gap-1">
+                      {row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}
+                      {/* 定位到甘特图: scroll the timeline to center this row's bar. */}
+                      <button
+                        type="button"
+                        title={t('gantt.row.locate')}
+                        aria-label={t('gantt.row.locate')}
+                        className="gantt-locate-btn shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollToTask(row.start, row.end, row.task.id);
+                        }}
+                      >
+                        <Crosshair className="w-3 h-3" />
+                      </button>
+                    </span>
                   )}
                 </div>
                 {/* Row actions removed: View / Edit / Delete are reachable
@@ -2664,6 +2742,21 @@ export function GanttView({
                      </div>
                    ) : null;
 
+                   if (task.type === 'group') {
+                     // 分组层级 (项目/产品): a pure tree header — the left list still
+                     // shows the caret + label, but the timeline row carries NO bar.
+                     return (
+                       <div
+                         key={task.id}
+                         className="relative border-b hover:bg-accent/50"
+                         style={{ height: rowHeight }}
+                         onPointerMove={clearLinkTarget}
+                       >
+                         {tooltip}
+                       </div>
+                     );
+                   }
+
                    if (row.isSummary) {
                      // Summary bar: a solid row-centered bar (slightly slimmer
                      // than task bars) with the title and a darker progress
@@ -2682,7 +2775,8 @@ export function GanttView({
                           className={cn(
                             'gantt-bar-hover absolute rounded-sm border shadow-sm flex items-center px-2 select-none',
                             onTaskUpdate ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
-                            isDragging && 'ring-2 ring-primary z-10'
+                            isDragging && 'ring-2 ring-primary z-10',
+                            flashTaskId === task.id && 'gantt-flash z-10'
                           )}
                           /* Explicit colors: alpha utilities aren't emitted in
                              the prebuilt components CSS. */
@@ -2751,7 +2845,8 @@ export function GanttView({
                             "gantt-bar-hover absolute rotate-45 rounded-[2px] border shadow-sm select-none",
                             canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
                             isDragging && "ring-2 ring-primary z-10",
-                            isLinkTarget && "ring-2 ring-primary"
+                            isLinkTarget && "ring-2 ring-primary",
+                            flashTaskId === task.id && "gantt-flash z-10"
                           )}
                           style={{
                             left: liveStyle.left - size / 2,
@@ -2811,7 +2906,8 @@ export function GanttView({
                           "gantt-bar-hover absolute rounded-sm bg-primary border shadow-sm flex items-center px-2 group select-none",
                           canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
                           isDragging && "ring-2 ring-primary z-10",
-                          isLinkTarget && "ring-2 ring-primary"
+                          isLinkTarget && "ring-2 ring-primary",
+                          flashTaskId === task.id && "gantt-flash z-10"
                         )}
                         style={{
                           left: liveStyle.left,

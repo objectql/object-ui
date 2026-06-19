@@ -45,6 +45,7 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.viewMode.year': 'Year',
   'gantt.row.expand': 'Expand',
   'gantt.row.collapse': 'Collapse',
+  'gantt.row.locate': 'Locate on timeline',
   'gantt.aria.taskList': 'Task list',
   'gantt.tooltip.days': 'd',
   'gantt.menu.view': 'View details',

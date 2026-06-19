@@ -320,6 +320,7 @@ const zh = {
     row: {
       expand: '展开',
       collapse: '收起',
+      locate: '在甘特图上定位',
     },
     aria: {
       taskList: '任务列表',
