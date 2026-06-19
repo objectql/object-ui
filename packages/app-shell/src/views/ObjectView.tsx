@@ -1703,6 +1703,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                                             }}
                                             renderListView={renderListView}
                                             onCreateView={handleCreateView}
+                                            hideNamedViewTabs
                                             onViewAction={handleViewAction}
                                         />
                                     </div>
@@ -1745,6 +1746,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                                 }}
                                 renderListView={renderListView}
                                 onCreateView={handleCreateView}
+                                hideNamedViewTabs
                                 onViewAction={handleViewAction}
                             />
                         </div>

@@ -122,6 +122,13 @@ export interface ObjectViewProps {
    * Render a custom ListView implementation for multi-view support.
    * When provided, this replaces the default view rendering for the content area.
    */
+  /**
+   * ADR-0053: when the host (app-shell ObjectView) already renders the view
+   * switcher (ViewTabBar), set this so the inner view doesn't render its own
+   * duplicate named-view tab row. Standalone consumers leave it unset.
+   */
+  hideNamedViewTabs?: boolean;
+
   renderListView?: (props: {
     schema: any;
     dataSource: DataSource;
@@ -209,6 +216,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   onRowClick,
   onEdit: onEditProp,
   renderListView,
+  hideNamedViewTabs,
   toolbarAddon,
   onCreateView,
   onViewAction,
@@ -1034,6 +1042,8 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
 
   // --- Named list views tabs ---
   const renderNamedViewTabs = () => {
+    // ADR-0053: host owns the switcher (ViewTabBar) — don't duplicate it.
+    if (hideNamedViewTabs) return null;
     if (!hasNamedViews) return null;
     const entries = Object.entries(namedListViews!);
     if (entries.length <= 1) return null;
