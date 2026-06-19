@@ -313,10 +313,6 @@ export type {
   ListViewGalleryConfig,
   ListViewTimelineConfig,
   SortConfig,
-  // QuickFilter dual-format types
-  ObjectUIQuickFilterItem,
-  SpecQuickFilterItem,
-  QuickFilterItem,
   // ConditionalFormatting dual-format types
   ObjectUIConditionalFormattingRule,
   SpecConditionalFormattingRule,

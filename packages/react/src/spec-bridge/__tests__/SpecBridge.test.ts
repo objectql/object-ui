@@ -188,7 +188,6 @@ describe('SpecBridge', () => {
           grouping: { field: 'region' },
           rowColor: { field: 'priority' },
           searchableFields: ['name', 'email'],
-          quickFilters: [{ field: 'status', values: ['active'] }],
         },
         {},
       );
@@ -198,7 +197,6 @@ describe('SpecBridge', () => {
       expect(node.grouping).toEqual({ field: 'region' });
       expect(node.rowColor).toEqual({ field: 'priority' });
       expect(node.searchableFields).toEqual(['name', 'email']);
-      expect(node.quickFilters).toHaveLength(1);
     });
 
     it('handles empty spec gracefully', () => {

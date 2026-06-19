@@ -336,13 +336,6 @@ export const ListViewSchema = BaseSchema.extend({
       style: z.record(z.string(), z.string()),
     }),
   ])).optional().describe('Conditional formatting rules'),
-  quickFilters: z.array(z.object({
-    id: z.string(),
-    label: z.string(),
-    filters: z.array(z.union([z.array(z.any()), z.string()])),
-    icon: z.string().optional(),
-    defaultActive: z.boolean().optional(),
-  })).optional().describe('Quick filter presets'),
   showRecordCount: z.boolean().optional().describe('Show total record count'),
   allowPrinting: z.boolean().optional().describe('Allow printing'),
   virtualScroll: z.boolean().optional().describe('Enable virtual scrolling'),

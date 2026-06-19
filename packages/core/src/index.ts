@@ -14,7 +14,6 @@ export * from './registry/WidgetRegistry.js';
 export * from './validation/index.js';
 export * from './builder/schema-builder.js';
 export * from './utils/filter-converter.js';
-export * from './utils/normalize-quick-filter.js';
 export * from './utils/extract-records.js';
 export * from './utils/expand-fields.js';
 export * from './evaluator/index.js';

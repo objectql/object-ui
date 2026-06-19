@@ -173,47 +173,6 @@ export interface SortConfig {
 // QuickFilter Types — Dual-format support
 // ============================================================================
 
-/**
- * ObjectUI-native QuickFilter format.
- * Each quick filter renders as a toggle button with explicit id, label, and filter conditions.
- */
-export interface ObjectUIQuickFilterItem {
-  /** Unique identifier for this quick filter */
-  id: string;
-  /** Display label for the filter button */
-  label: string;
-  /** Filter conditions to apply when activated */
-  filters: Array<any[] | string>;
-  /** Icon name (Lucide icon identifier) */
-  icon?: string;
-  /** Default active state */
-  defaultActive?: boolean;
-}
-
-/**
- * Spec-format QuickFilter item (from @objectstack/spec).
- * A single field-level predicate: `{ field, operator, value }`.
- * Automatically converted to ObjectUI format at runtime.
- */
-export interface SpecQuickFilterItem {
-  /** Field name to filter on */
-  field: string;
-  /** Filter operator (e.g. 'eq', 'equals', 'contains', 'gt', etc.) */
-  operator: string;
-  /** Value to compare against */
-  value: unknown;
-  /** Optional display label (auto-generated if omitted) */
-  label?: string;
-  /** Icon name (Lucide icon identifier) */
-  icon?: string;
-  /** Default active state */
-  defaultActive?: boolean;
-}
-
-/**
- * Union type for QuickFilter items — accepts both ObjectUI and Spec formats.
- */
-export type QuickFilterItem = ObjectUIQuickFilterItem | SpecQuickFilterItem;
 
 // ============================================================================
 // ConditionalFormatting Types — Dual-format support
@@ -1453,10 +1412,6 @@ export interface NamedListView {
    * Supports both ObjectUI field/operator/value rules and Spec expression-based { condition, style } rules. */
   conditionalFormatting?: ConditionalFormattingRule[];
 
-  /** Quick filter buttons for predefined filter presets.
-   * Supports both ObjectUI format and Spec format (auto-converted at runtime). */
-  quickFilters?: QuickFilterItem[];
-
   /**
    * User Filters Configuration (Airtable Interfaces-style).
    * Reuses the ListViewSchema.userFilters type to keep both definitions in parity.
@@ -1705,12 +1660,6 @@ export interface ListViewSchema extends BaseSchema {
     /** Icon name (Lucide icon identifier) for the empty state */
     icon?: string;
   };
-
-  /**
-   * Quick filter buttons for predefined filter presets.
-   * Supports both ObjectUI format and Spec format (auto-converted at runtime).
-   */
-  quickFilters?: QuickFilterItem[];
 
   /**
    * Fields to hide from the current view.

@@ -20,7 +20,7 @@ import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { evaluatePlainCondition, normalizeQuickFilter, normalizeQuickFilters, buildExpandFields } from '@object-ui/core';
+import { evaluatePlainCondition, buildExpandFields } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -614,15 +614,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // Request counter for debounce — only the latest request writes data
   const fetchRequestIdRef = React.useRef(0);
 
-  // Quick Filters State
-  const [activeQuickFilters, setActiveQuickFilters] = React.useState<Set<string>>(() => {
-    const defaults = new Set<string>();
-    schema.quickFilters?.forEach((qf: any) => {
-      const normalized = normalizeQuickFilter(qf);
-      if (normalized.defaultActive) defaults.add(normalized.id);
-    });
-    return defaults;
-  });
 
   // User Filters State (Airtable Interfaces-style)
   const [userFilterConditions, setUserFilterConditions] = React.useState<any[]>([]);
@@ -696,13 +687,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   // Export State
   const [showExport, setShowExport] = React.useState(false);
-
-  // Normalize quickFilters: support both ObjectUI format { id, label, filters[] }
-  // and spec format { field, operator, value }. Spec items are auto-converted.
-  const normalizedQuickFilters = React.useMemo(
-    () => normalizeQuickFilters(schema.quickFilters),
-    [schema.quickFilters],
-  );
 
   // Normalize exportOptions: support both ObjectUI object format and spec string[] format
   const resolvedExportOptions = React.useMemo(() => {
@@ -930,15 +914,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         const baseFilter = schema.filters || [];
         const userFilter = convertFilterGroupToAST(currentFilters);
         
-        // Collect active quick filter conditions
-        const quickFilterConditions: any[] = [];
-        if (normalizedQuickFilters && activeQuickFilters.size > 0) {
-          normalizedQuickFilters.forEach((qf: any) => {
-            if (activeQuickFilters.has(qf.id) && qf.filters && qf.filters.length > 0) {
-              quickFilterConditions.push(qf.filters);
-            }
-          });
-        }
         
         // Normalize userFilter conditions (convert `in` to `or` of `=`)
         const normalizedUserFilterConditions = normalizeFilters(userFilterConditions);
@@ -947,7 +922,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         const allFilters = [
           ...(baseFilter.length > 0 ? [baseFilter] : []),
           ...(userFilter.length > 0 ? [userFilter] : []),
-          ...quickFilterConditions,
           ...normalizedUserFilterConditions,
         ].filter(f => Array.isArray(f) && f.length > 0);
         
@@ -1128,7 +1102,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     fetchData();
     
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, activeQuickFilters, normalizedQuickFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms]); // Re-fetch on filter/sort/search/refreshTrigger/perms change
+  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms]); // Re-fetch on filter/sort/search/refreshTrigger/perms change
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
@@ -1524,19 +1498,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
     return fields;
   }, [objectDef, schema.fields, schema.filterableFields, schema.objectName, tFieldLabel, translateOptions]);
-
-  // Quick filter toggle handler
-  const toggleQuickFilter = React.useCallback((id: string) => {
-    setActiveQuickFilters(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
 
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
@@ -2175,33 +2136,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
       {/* Filters Panel - Removed as it is now in Popover */}
 
-      {/* Quick Filters Row — desktop only. On mobile the chip row eats too
-          much vertical space; users tap the Filter icon for a full sheet. */}
-      {normalizedQuickFilters && normalizedQuickFilters.length > 0 && (
-        <div className="hidden sm:flex border-b px-2 sm:px-4 py-1 items-center gap-1 flex-wrap bg-background" data-testid="quick-filters">
-          {normalizedQuickFilters.map((qf: any) => {
-            const isActive = activeQuickFilters.has(qf.id);
-            const QfIcon: LucideIcon | null = qf.icon
-              ? ((icons as Record<string, LucideIcon>)[
-                  qf.icon.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join('')
-                ] ?? null)
-              : null;
-            return (
-              <Button
-                key={qf.id}
-                variant={isActive ? 'default' : 'outline'}
-                size="sm"
-                className="h-7 px-3 text-xs"
-                onClick={() => toggleQuickFilter(qf.id)}
-              >
-                {QfIcon && <QfIcon className="h-3 w-3 mr-1.5" />}
-                {qf.label}
-              </Button>
-            );
-          })}
-        </div>
-      )}
-
       {/* View Content */}
       <div key={currentView} className="flex-1 min-h-0 bg-background relative overflow-hidden animate-in fade-in-0 duration-200">
         {/* Re-fetch indicator: thin top progress bar shown when refreshing
@@ -2268,7 +2202,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             const hasActiveQuery =
               !!(searchTerm && searchTerm.trim()) ||
               (Array.isArray(userFilterConditions) && userFilterConditions.length > 0) ||
-              activeQuickFilters.size > 0 ||
               (Array.isArray(currentFilters?.conditions) && currentFilters.conditions.length > 0);
             const title = (typeof schema.emptyState?.title === 'string' ? schema.emptyState.title : undefined)
               ?? (hasActiveQuery ? t('list.noMatches') : t('list.firstRunTitle'));
