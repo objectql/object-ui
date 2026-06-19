@@ -106,7 +106,10 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
     return (
       <PreviewShell hint="page · interface">
         <PreviewErrorBoundary fallbackHint="The interface page references a source object/view that isn't available.">
-          <InterfaceListPage page={draft as Record<string, unknown>} />
+          <InterfaceListPage
+            page={draft as Record<string, unknown>}
+            onConfigChange={canEdit ? (patch) => onPatch!({ interfaceConfig: { ...(((draft as any).interfaceConfig) || {}), ...patch } }) : undefined}
+          />
         </PreviewErrorBoundary>
       </PreviewShell>
     );

@@ -507,9 +507,12 @@ function MetadataResourceEditPageImpl({
     ((draft as any)?.objectName as string | undefined);
   const [objectFields, setObjectFields] = React.useState<Array<{ name: string; label?: string; type?: string }>>([]);
   const [objectFieldsLoading, setObjectFieldsLoading] = React.useState(false);
+  // Action catalog of the source object — fuels the `action-multi` picker so
+  // interface-page `buttons` reference the object's real actions.
+  const [objectActions, setObjectActions] = React.useState<Array<{ name: string; label?: string; locations?: string[] }>>([]);
   React.useEffect(() => {
     let cancelled = false;
-    if (!sourceObjectName) { setObjectFields([]); return; }
+    if (!sourceObjectName) { setObjectFields([]); setObjectActions([]); return; }
     setObjectFieldsLoading(true);
     (async () => {
       try {
@@ -522,8 +525,13 @@ function MetadataResourceEditPageImpl({
             ? Object.entries(raw).map(([name, f]: [string, any]) => ({ name, label: f?.label, type: f?.type }))
             : [];
         setObjectFields(list.filter((f) => !!f.name));
+        const rawActions = (obj as any)?.actions;
+        const acts = Array.isArray(rawActions)
+          ? rawActions.map((a: any) => ({ name: a?.name, label: a?.label, locations: a?.locations })).filter((a: any) => !!a.name)
+          : [];
+        if (!cancelled) setObjectActions(acts);
       } catch {
-        if (!cancelled) setObjectFields([]);
+        if (!cancelled) { setObjectFields([]); setObjectActions([]); }
       } finally {
         if (!cancelled) setObjectFieldsLoading(false);
       }
@@ -565,8 +573,8 @@ function MetadataResourceEditPageImpl({
   }, [client, sourceObjectName]);
 
   const widgetContext = React.useMemo(
-    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading }),
-    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading],
+    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions }),
+    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions],
   );
 
   // Load layered view + initial draft.

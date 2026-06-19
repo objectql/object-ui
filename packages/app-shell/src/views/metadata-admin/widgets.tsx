@@ -60,6 +60,14 @@ export interface WidgetContext {
   objectViews?: Array<{ name: string; label?: string }>;
   /** Loading flag for the view catalog. */
   objectViewsLoading?: boolean;
+  /**
+   * Action catalog of the bound/source object. Drives the `action-multi`
+   * picker so interface-page toolbar `buttons` reference the object's real
+   * actions (ActionSchema) instead of free-text — correct-by-construction.
+   */
+  objectActions?: Array<{ name: string; label?: string; locations?: string[] }>;
+  /** Loading flag for the action catalog. */
+  objectActionsLoading?: boolean;
 }
 
 export interface WidgetProps {
@@ -1473,6 +1481,75 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* action-multi — pick toolbar buttons from the source object's actions       */
+/*                                                                            */
+/* Interface-page `buttons` are object Actions (ActionSchema), not free text. */
+/* This makes "buttons = object actions" correct-by-construction (the picker  */
+/* only offers actions the object actually defines).                          */
+/* -------------------------------------------------------------------------- */
+function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
+  const actions = context?.objectActions ?? [];
+  const selected: string[] = Array.isArray(value)
+    ? value.map(String)
+    : typeof value === 'string' && value
+      ? value.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+  const labelFor = (name: string) => actions.find((a) => a.name === name)?.label || name;
+  const remaining = actions.filter((a) => !selected.includes(a.name));
+
+  const add = (name: string) => { if (!selected.includes(name)) onChange([...selected, name]); };
+  const removeAt = (i: number) => { const next = selected.slice(); next.splice(i, 1); onChange(next); };
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= selected.length) return;
+    const next = selected.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <div className="space-y-2" data-testid="action-multi">
+      {selected.length > 0 && (
+        <div className="space-y-1">
+          {selected.map((name, i) => (
+            <div key={name} className="flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-sm">
+              <span className="flex-1 truncate">
+                {labelFor(name)}
+                <code className="ml-2 text-xs text-muted-foreground">{name}</code>
+              </span>
+              {!readOnly && (
+                <>
+                  <button type="button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)} className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">↑</button>
+                  <button type="button" aria-label="Move down" disabled={i === selected.length - 1} onClick={() => move(i, 1)} className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">↓</button>
+                  <button type="button" aria-label={`Remove ${name}`} onClick={() => removeAt(i)} className="px-1 text-muted-foreground hover:text-destructive">×</button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {!readOnly && (
+        <Select value="" onValueChange={add} disabled={remaining.length === 0}>
+          <SelectTrigger id={id} data-testid="action-multi-add">
+            <SelectValue placeholder={actions.length ? (remaining.length ? '+ Add action button…' : 'All actions added') : 'Bind a source object to pick actions'} />
+          </SelectTrigger>
+          <SelectContent>
+            {remaining.map((a) => (
+              <SelectItem key={a.name} value={a.name}>
+                <span className="flex items-center gap-2">
+                  <span>{a.label || a.name}</span>
+                  <code className="text-xs text-muted-foreground">{a.name}</code>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+
 export const WIDGETS: Record<string, WidgetRenderer> = {
   'ref:object': RefObjectWidget,
   'filter-mode': FilterModeWidget,
@@ -1480,6 +1557,7 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'field-selector': FieldSelectorWidget,
   'field-ref': FieldRefWidget,
   'field-multi': FieldRefMultiWidget,
+  'action-multi': ActionMultiWidget,
   'view-ref': ViewRefWidget,
   'icon': IconPickerWidget,
   'master-detail': MasterDetailWidget,

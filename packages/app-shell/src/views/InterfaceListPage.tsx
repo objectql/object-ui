@@ -18,7 +18,7 @@
 import * as React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ListView } from '@object-ui/plugin-list';
-import { useAdapter } from '@object-ui/react';
+import { useAdapter, SchemaRenderer } from '@object-ui/react';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -28,6 +28,10 @@ import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlSta
 interface InterfaceListPageProps {
   page: any;
   className?: string;
+  /** Design-mode only: persist toolbar edits (sort, column order) back to the
+   * page's interfaceConfig metadata (Airtable parity — the toolbar IS the
+   * authoring surface). Receives a partial interfaceConfig patch. */
+  onConfigChange?: (patch: Record<string, unknown>) => void;
 }
 
 /**
@@ -135,7 +139,7 @@ export function defaultGalleryFromObject(objectDef: any): { coverField: string }
   return field ? { coverField: field } : undefined;
 }
 
-export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
+export function InterfaceListPage({ page, className, onConfigChange }: InterfaceListPageProps) {
   const { t } = useObjectTranslation();
   const { objects } = useMetadata();
   const dataSource = useAdapter();
@@ -315,14 +319,34 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
     );
   }
 
+  // Toolbar buttons ARE object actions (ADR-0047): resolve the configured
+  // action names against the source object's ActionSchema and render them via
+  // the shared action:bar (which handles execution).
+  const buttonActions = Array.isArray(cfg.buttons) && cfg.buttons.length
+    ? (cfg.buttons as string[])
+        .map((name) => (objectDef.actions || []).find((a: any) => a?.name === name))
+        .filter(Boolean)
+        // The author explicitly chose these as page buttons, so surface them in
+        // the toolbar regardless of the action's own `locations` (the action:bar
+        // filters by location).
+        .map((a: any) => ({ ...a, locations: ['list_toolbar'] }))
+    : [];
+
   return (
     <div className={className ?? 'h-full flex flex-col'} data-testid="interface-list-page">
-      <div className="px-4 pt-4 pb-2 shrink-0">
-        <h1 className="text-lg font-semibold leading-tight">
-          {typeof page.label === 'string' ? page.label : page.name}
-        </h1>
-        {typeof page.description === 'string' && page.description && (
-          <p className="text-sm text-muted-foreground mt-0.5">{page.description}</p>
+      <div className="px-4 pt-4 pb-2 shrink-0 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold leading-tight">
+            {typeof page.label === 'string' ? page.label : page.name}
+          </h1>
+          {typeof page.description === 'string' && page.description && (
+            <p className="text-sm text-muted-foreground mt-0.5">{page.description}</p>
+          )}
+        </div>
+        {buttonActions.length > 0 && (
+          <div className="shrink-0" data-testid="interface-page-buttons">
+            <SchemaRenderer schema={{ type: 'action:bar', location: 'list_toolbar', actions: buttonActions, size: 'sm', variant: 'outline' }} />
+          </div>
         )}
       </div>
       <div className="flex-1 min-h-0 overflow-auto">
@@ -331,6 +355,8 @@ export function InterfaceListPage({ page, className }: InterfaceListPageProps) {
           dataSource={dataSource}
           userFilterSelections={initialUfSelections}
           onUserFilterSelectionsChange={handleUserFilterSelectionsChange}
+          onSortChange={onConfigChange ? (sort: any) => onConfigChange({ sort }) : undefined}
+          onColumnStateChange={onConfigChange ? (st: { order?: string[] }) => { if (st?.order?.length) onConfigChange({ columns: st.order }); } : undefined}
         />
       </div>
     </div>
