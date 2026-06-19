@@ -678,7 +678,34 @@ describe('ListViewSchema userFilters Zod Validation', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should validate toggle mode userFilters', () => {
+  it('should validate canonical tabs ({ name, label, filter:[{field,operator,value}] })', () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'accounts',
+      userFilters: {
+        element: 'tabs',
+        showAllRecords: true,
+        tabs: [
+          { name: 'active', label: 'Active', filter: [{ field: 'status', operator: 'equals', value: 'active' }], isDefault: true },
+          { name: 'mine', label: 'My Items', filter: [{ field: 'owner', operator: 'equals', value: '$currentUser' }] },
+        ],
+      },
+    };
+    const result = ListViewSchema.safeParse(schema);
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject a tab missing both name and id', () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'accounts',
+      userFilters: { element: 'tabs', tabs: [{ label: 'No identifier', filter: [] }] },
+    };
+    const result = ListViewSchema.safeParse(schema);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject the deprecated toggle element (ADR-0053 — only dropdown | tabs)', () => {
     const schema = {
       type: 'list-view',
       objectName: 'accounts',
@@ -691,7 +718,7 @@ describe('ListViewSchema userFilters Zod Validation', () => {
       },
     };
     const result = ListViewSchema.safeParse(schema);
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
   });
 
   it('should reject invalid element type', () => {

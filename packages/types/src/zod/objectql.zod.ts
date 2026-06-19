@@ -225,15 +225,39 @@ const UserFilterFieldSchema = z.object({
 });
 
 /**
- * User Filters — tab preset definition (tabs mode)
+ * User Filters — tab preset rule: `{ field, operator, value }`, the same
+ * predicate shape used by every other filter in the protocol.
  */
-const UserFilterTabSchema = z.object({
-  id: z.string().describe('Unique tab identifier'),
-  label: z.string().describe('Tab display label'),
-  filters: z.array(z.union([z.array(z.any()), z.string()])).describe('Filter conditions'),
-  icon: z.string().optional().describe('Icon name'),
-  default: z.boolean().optional().describe('Default active tab'),
+const UserFilterTabRuleSchema = z.object({
+  field: z.string().describe('Field name to filter on'),
+  operator: z.string().describe('Filter operator (equals, not_equals, contains, in, greater_than, less_than, …)'),
+  value: z.any().optional().describe('Filter value'),
 });
+
+/**
+ * User Filters — tab preset definition (tabs mode).
+ *
+ * Canonical shape: `{ name, label, icon?, filter, isDefault? }`. The legacy
+ * `{ id, filters, default }` fields stay optional (normalized at runtime by
+ * `normalizeTabPresets`) so older metadata keeps validating, but new authoring
+ * — by AI or the Studio tabs editor — emits the canonical form.
+ */
+const UserFilterTabSchema = z
+  .object({
+    name: z.string().optional().describe('Unique tab identifier (snake_case)'),
+    label: z.string().describe('Tab display label'),
+    filter: z.array(UserFilterTabRuleSchema).optional().describe('Filter rules applied when this tab is active'),
+    icon: z.string().optional().describe('Lucide icon name'),
+    isDefault: z.boolean().optional().describe('Whether this tab is active by default'),
+
+    /** @deprecated use `name` */
+    id: z.string().optional().describe('@deprecated use name'),
+    /** @deprecated use `filter` */
+    filters: z.array(z.union([z.array(z.any()), z.string()])).optional().describe('@deprecated use filter'),
+    /** @deprecated use `isDefault` */
+    default: z.boolean().optional().describe('@deprecated use isDefault'),
+  })
+  .refine((t) => Boolean(t.name || t.id), { message: 'tab requires a name' });
 
 /**
  * User Filters Configuration Schema (Airtable Interfaces-style)

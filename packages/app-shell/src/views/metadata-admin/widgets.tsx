@@ -33,7 +33,7 @@ import {
   LazyIcon,
   toKebabIconName,
 } from '@object-ui/components';
-import { ChevronsUpDown, Plus, Search, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Search, Trash2 } from 'lucide-react';
 // @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { detectLocale, t } from './i18n';
@@ -1177,6 +1177,8 @@ function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps) {
 type UFElement = 'dropdown' | 'tabs' | 'toggle';
 type UFMode = 'dropdown' | 'tabs';
 interface UFField { field: string; showCount?: boolean; label?: string; [k: string]: unknown }
+interface UFRule { field: string; operator: string; value?: unknown }
+interface UFTab { name: string; label: string; icon?: string; filter?: UFRule[]; isDefault?: boolean; [k: string]: unknown }
 interface UFValue { element?: UFElement; fields?: UFField[]; tabs?: unknown[]; showAllRecords?: boolean; [k: string]: unknown }
 
 const FILTER_MODES: Array<{ key: 'none' | UFMode; label: string }> = [
@@ -1184,6 +1186,23 @@ const FILTER_MODES: Array<{ key: 'none' | UFMode; label: string }> = [
   { key: 'tabs', label: 'Tabs' },
   { key: 'dropdown', label: 'Dropdown' },
 ];
+
+// Common predicate operators offered in the tab rule builder. Free-form
+// operators authored elsewhere still round-trip; this is the curated set that
+// keeps AI/Studio authoring consistent (ADR-0053).
+const TAB_OPERATORS = [
+  'equals',
+  'not_equals',
+  'contains',
+  'in',
+  'greater_than',
+  'less_than',
+  'is_empty',
+  'is_not_empty',
+];
+
+const slugifyTabName = (s: string): string =>
+  (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'tab';
 
 function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
   const uf = (value && typeof value === 'object' ? value : undefined) as UFValue | undefined;
@@ -1208,6 +1227,64 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
   // field picker too so it stays editable, even though Toggle isn't offered
   // as a new authoring choice.
   const isFieldMode = mode === 'dropdown' || mode === 'toggle';
+
+  // ── Tabs preset editing (ADR-0053) ──────────────────────────────────────
+  // Read any shape (canonical {name,filter} or legacy {id,filters}) into the
+  // canonical editing model; writes always emit the canonical form so authoring
+  // converges on one schema.
+  const readTabs = (): UFTab[] => {
+    const raw = Array.isArray(uf?.tabs) ? (uf!.tabs as any[]) : [];
+    return raw.map((t) => ({
+      ...t,
+      name: t?.name ?? t?.id ?? '',
+      label: typeof t?.label === 'string' ? t.label : (t?.name ?? t?.id ?? ''),
+      filter: Array.isArray(t?.filter)
+        ? t.filter
+        : Array.isArray(t?.filters)
+          ? t.filters
+              .filter((r: any) => Array.isArray(r) && r.length >= 2)
+              .map((r: any) => ({ field: String(r[0]), operator: String(r[1]), value: r[2] }))
+          : [],
+      isDefault: t?.isDefault ?? t?.default,
+    }));
+  };
+  const tabs = readTabs();
+
+  const canonicalTab = (t: UFTab): UFTab => {
+    const out: UFTab = { name: slugifyTabName(t.label || t.name), label: t.label || t.name || 'Tab' };
+    if (t.icon) out.icon = t.icon;
+    out.filter = Array.isArray(t.filter) ? t.filter : [];
+    if (t.isDefault) out.isDefault = true;
+    return out;
+  };
+  const writeTabs = (next: UFTab[]) => {
+    const seen: Record<string, true> = {};
+    const canon = next.map(canonicalTab).map((o) => {
+      let n = o.name;
+      if (seen[n]) { let k = 2; while (seen[`${o.name}_${k}`]) k++; n = `${o.name}_${k}`; }
+      seen[n] = true;
+      return { ...o, name: n };
+    });
+    onChange({ ...(uf ?? {}), element: 'tabs', tabs: canon });
+  };
+  const addTab = () => writeTabs([...tabs, { name: '', label: `Tab ${tabs.length + 1}`, filter: [] }]);
+  const removeTab = (ti: number) => writeTabs(tabs.filter((_, i) => i !== ti));
+  const moveTab = (ti: number, dir: -1 | 1) => {
+    const next = [...tabs];
+    const j = ti + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[ti], next[j]] = [next[j], next[ti]];
+    writeTabs(next);
+  };
+  const patchTab = (ti: number, patch: Partial<UFTab>) =>
+    writeTabs(tabs.map((t, i) => (i === ti ? { ...t, ...patch } : t)));
+  const addRule = (ti: number) =>
+    patchTab(ti, { filter: [...(tabs[ti].filter ?? []), { field: objectFields[0]?.name ?? '', operator: 'equals', value: '' }] });
+  const patchRule = (ti: number, ri: number, patch: Partial<UFRule>) =>
+    patchTab(ti, { filter: (tabs[ti].filter ?? []).map((r, j) => (j === ri ? { ...r, ...patch } : r)) });
+  const removeRule = (ti: number, ri: number) =>
+    patchTab(ti, { filter: (tabs[ti].filter ?? []).filter((_, j) => j !== ri) });
+  const setShowAllRecords = (c: boolean) => onChange({ ...(uf ?? {}), element: 'tabs', showAllRecords: c });
 
   return (
     <div className="space-y-3">
@@ -1290,10 +1367,107 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
         </div>
       )}
 
+      {/* Visual tab-preset editor for tabs mode (ADR-0053). Each tab is a pure
+          filter preset { name, label, icon?, filter:[{field,operator,value}] };
+          it never switches the view form (that is the Visualizations axis). */}
       {mode === 'tabs' && (
-        <p className="text-xs text-muted-foreground" data-testid="filter-mode-tabs-hint">
-          Tab presets (name + filter rules) are edited in the source / JSON view.
-        </p>
+        <div className="space-y-2" data-testid="filter-mode-tabs-editor">
+          {tabs.map((tab, ti) => (
+            <div key={ti} className="rounded-md border border-input bg-background p-2 space-y-2" data-testid={`tab-preset-${ti}`}>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={tab.label}
+                  placeholder="Tab label"
+                  disabled={readOnly}
+                  className="h-8 text-sm flex-1"
+                  data-testid={`tab-label-${ti}`}
+                  onChange={(e) => patchTab(ti, { label: e.target.value })}
+                />
+                <code className="text-[10px] text-muted-foreground shrink-0 max-w-[6rem] truncate" title={tab.name}>{tab.name}</code>
+                {!readOnly && (
+                  <>
+                    <button type="button" aria-label="Move tab up" disabled={ti === 0}
+                      onClick={() => moveTab(ti, -1)}
+                      className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" aria-label="Move tab down" disabled={ti === tabs.length - 1}
+                      onClick={() => moveTab(ti, 1)}
+                      className="px-1 text-muted-foreground hover:text-foreground disabled:opacity-30">
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </button>
+                    <button type="button" aria-label="Remove tab"
+                      onClick={() => removeTab(ti)}
+                      className="px-1 text-muted-foreground hover:text-destructive">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Per-tab filter rules ({ field, operator, value }) */}
+              <div className="space-y-1 pl-1">
+                {(tab.filter ?? []).map((rule, ri) => (
+                  <div key={ri} className="flex items-center gap-1" data-testid={`tab-${ti}-rule-${ri}`}>
+                    <Select value={rule.field || undefined} disabled={readOnly} onValueChange={(v) => patchRule(ti, ri, { field: v })}>
+                      <SelectTrigger className="h-7 text-xs flex-1 min-w-0"><SelectValue placeholder="Field" /></SelectTrigger>
+                      <SelectContent>
+                        {objectFields.map((f) => (<SelectItem key={f.name} value={f.name}>{f.label || f.name}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={rule.operator || 'equals'} disabled={readOnly} onValueChange={(v) => patchRule(ti, ri, { operator: v })}>
+                      <SelectTrigger className="h-7 text-xs w-[7.5rem] shrink-0"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {TAB_OPERATORS.map((op) => (<SelectItem key={op} value={op}>{op}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={rule.value == null ? '' : String(rule.value)}
+                      placeholder="value"
+                      disabled={readOnly}
+                      className="h-7 text-xs w-[6rem] shrink-0"
+                      onChange={(e) => patchRule(ti, ri, { value: e.target.value })}
+                    />
+                    {!readOnly && (
+                      <button type="button" aria-label="Remove rule" onClick={() => removeRule(ti, ri)}
+                        className="px-1 text-muted-foreground hover:text-destructive shrink-0">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {!readOnly && (
+                  <button type="button" data-testid={`tab-${ti}-add-rule`} onClick={() => addRule(ti)}
+                    disabled={objectFields.length === 0}
+                    className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground disabled:opacity-40">
+                    <Plus className="h-3 w-3 mr-1" /> Add rule
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {!readOnly && (
+            <button type="button" data-testid="filter-mode-add-tab" onClick={addTab}
+              className="inline-flex items-center text-xs font-medium text-primary hover:underline">
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add tab
+            </button>
+          )}
+
+          <label className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+            <Switch
+              checked={uf?.showAllRecords !== false}
+              disabled={readOnly}
+              data-testid="filter-mode-show-all"
+              onCheckedChange={setShowAllRecords}
+            />
+            Show “All records” tab
+          </label>
+
+          {objectFields.length === 0 && (
+            <p className="text-xs text-muted-foreground">Bind a source object to build tab filter rules.</p>
+          )}
+        </div>
       )}
     </div>
   );

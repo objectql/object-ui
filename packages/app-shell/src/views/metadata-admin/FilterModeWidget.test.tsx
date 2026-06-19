@@ -70,9 +70,60 @@ describe('filter-mode widget', () => {
     expect(screen.getByTestId('filter-mode-add-field')).toBeInTheDocument();
   });
 
-  it('tabs mode shows the source-view hint, not a field picker', () => {
+  it('tabs mode renders the visual tab-preset editor, not the field picker', () => {
     render(<FilterMode value={{ element: 'tabs' }} onChange={() => {}} context={ctx} schema={{}} />);
-    expect(screen.getByTestId('filter-mode-tabs-hint')).toBeInTheDocument();
+    expect(screen.getByTestId('filter-mode-tabs-editor')).toBeInTheDocument();
+    expect(screen.getByTestId('filter-mode-add-tab')).toBeInTheDocument();
     expect(screen.queryByTestId('filter-mode-fields')).not.toBeInTheDocument();
+  });
+
+  it('Add tab appends a canonical { name, label, filter } preset', () => {
+    const onChange = vi.fn();
+    render(<FilterMode value={{ element: 'tabs' }} onChange={onChange} context={ctx} schema={{}} />);
+    fireEvent.click(screen.getByTestId('filter-mode-add-tab'));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        element: 'tabs',
+        tabs: [expect.objectContaining({ name: expect.any(String), label: expect.any(String), filter: [] })],
+      }),
+    );
+  });
+
+  it('renders existing tab presets (canonical { name, label, filter })', () => {
+    render(
+      <FilterMode
+        value={{
+          element: 'tabs',
+          tabs: [{ name: 'urgent', label: 'Urgent', filter: [{ field: 'priority', operator: 'equals', value: 'urgent' }] }],
+        }}
+        onChange={() => {}}
+        context={ctx}
+        schema={{}}
+      />,
+    );
+    expect(screen.getByTestId('tab-preset-0')).toBeInTheDocument();
+    expect((screen.getByTestId('tab-label-0') as HTMLInputElement).value).toBe('Urgent');
+    expect(screen.getByTestId('tab-0-rule-0')).toBeInTheDocument();
+  });
+
+  it('normalizes a legacy { id, filters } tab into the canonical shape on edit', () => {
+    const onChange = vi.fn();
+    render(
+      <FilterMode
+        value={{ element: 'tabs', tabs: [{ id: 'done', label: 'Done', filters: [['status', 'equals', 'done']] }] }}
+        onChange={onChange}
+        context={ctx}
+        schema={{}}
+      />,
+    );
+    // editing the label triggers a canonical write: name re-derived from the
+    // new label, legacy `filters` AST normalized to `filter` predicate objects.
+    fireEvent.change(screen.getByTestId('tab-label-0'), { target: { value: 'Resolved' } });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        element: 'tabs',
+        tabs: [expect.objectContaining({ name: 'resolved', label: 'Resolved', filter: [{ field: 'status', operator: 'equals', value: 'done' }] })],
+      }),
+    );
   });
 });

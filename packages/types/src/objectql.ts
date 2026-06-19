@@ -1814,17 +1814,30 @@ export interface ListViewSchema extends BaseSchema {
     /**
      * Named filter presets (used by 'tabs' mode).
      * Each tab represents a pre-configured filter combination.
+     *
+     * Canonical shape is `{ name, label, icon?, filter, isDefault? }` — aligned
+     * with the `{ field, operator, value }` rules used by every other filter in
+     * the protocol, so AI authoring and the Studio tabs editor emit one
+     * consistent form. The legacy `{ id, filters, default }` fields remain
+     * accepted (normalized at runtime by `normalizeTabPresets`) for back-compat.
      */
     tabs?: Array<{
-      /** Unique tab identifier */
-      id: string;
-      /** Tab display label */
+      /** Unique tab identifier (snake_case). Falls back to `id` if omitted. */
+      name?: string;
+      /** Tab display label. */
       label: string;
-      /** Filter conditions to apply when this tab is active */
-      filters: Array<any[] | string>;
-      /** Icon name (Lucide icon identifier) */
+      /** Filter rules applied when this tab is active. */
+      filter?: Array<{ field: string; operator: string; value?: unknown }>;
+      /** Icon name (Lucide icon identifier). */
       icon?: string;
-      /** Whether this is the default active tab */
+      /** Whether this tab is active by default. */
+      isDefault?: boolean;
+
+      /** @deprecated use `name`. */
+      id?: string;
+      /** @deprecated use `filter` ({ field, operator, value }). */
+      filters?: Array<any[] | string>;
+      /** @deprecated use `isDefault`. */
       default?: boolean;
     }>;
 
