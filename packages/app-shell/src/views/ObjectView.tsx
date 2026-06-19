@@ -1266,11 +1266,6 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         ?? resolveManagedByEmptyState((objectDef as any)?.managedBy, t),
                 ),
             aria: viewDef.aria ?? listSchema.aria,
-            // ADR-0047 — per-view filter tabs from metadata (ViewTab presets)
-            // take precedence over schema-level tabs. Dropping viewDef.tabs
-            // here was the one-line gap that kept spec tab metadata from
-            // ever reaching the TabBar.
-            tabs: undefined, // ADR-0053: see note above (views mode)
             // Propagate filter/sort as default filters/sort for data flow
             ...((() => {
                 const combined = [

@@ -1356,61 +1356,6 @@ describe('ListView', () => {
   });
 
   // ============================
-  // tabs rendering
-  // ============================
-  describe('tabs rendering', () => {
-    it('should render view tabs when configured', () => {
-      const schema: ListViewSchema = {
-        type: 'list-view',
-        objectName: 'contacts',
-        viewType: 'grid',
-        fields: ['name', 'email'],
-        tabs: [
-          { name: 'all', label: 'All Records', isDefault: true },
-          { name: 'active', label: 'Active' },
-        ],
-      };
-
-      renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByTestId('view-tabs')).toBeInTheDocument();
-      expect(screen.getByTestId('view-tab-all')).toBeInTheDocument();
-      expect(screen.getByTestId('view-tab-active')).toBeInTheDocument();
-      expect(screen.getAllByText('All Records').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
-    });
-
-    it('should not render tabs when not configured', () => {
-      const schema: ListViewSchema = {
-        type: 'list-view',
-        objectName: 'contacts',
-        viewType: 'grid',
-        fields: ['name', 'email'],
-      };
-
-      renderWithProvider(<ListView schema={schema} />);
-      expect(screen.queryByTestId('view-tabs')).not.toBeInTheDocument();
-    });
-
-    it('should filter out hidden tabs', () => {
-      const schema: ListViewSchema = {
-        type: 'list-view',
-        objectName: 'contacts',
-        viewType: 'grid',
-        fields: ['name', 'email'],
-        tabs: [
-          { name: 'all', label: 'All Records' },
-          { name: 'hidden', label: 'Hidden Tab', visible: 'false' },
-        ],
-      };
-
-      renderWithProvider(<ListView schema={schema} />);
-      expect(screen.getByTestId('view-tabs')).toBeInTheDocument();
-      expect(screen.getAllByText('All Records').length).toBeGreaterThan(0);
-      expect(screen.queryByText('Hidden Tab')).not.toBeInTheDocument();
-    });
-  });
-
-  // ============================
   // userActions toolbar control
   // ============================
   describe('userActions toolbar control', () => {

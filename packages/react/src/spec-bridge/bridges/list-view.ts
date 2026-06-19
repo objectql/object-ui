@@ -161,7 +161,6 @@ export const bridgeListView: BridgeFn<ListViewSpec> = (
   if (spec.userActions) node.userActions = spec.userActions;
   if (spec.appearance) node.appearance = spec.appearance;
   if (spec.compactToolbar != null) node.compactToolbar = spec.compactToolbar;
-  if (spec.tabs) node.tabs = spec.tabs;
   if (spec.addRecord) node.addRecord = spec.addRecord;
   if (spec.showRecordCount != null) node.showRecordCount = spec.showRecordCount;
   if (spec.allowPrinting != null) node.allowPrinting = spec.allowPrinting;

@@ -990,7 +990,6 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           virtualScroll: activeView?.virtualScroll ?? (schema as any).virtualScroll,
           emptyState: activeView?.emptyState ?? (schema as any).emptyState,
           aria: activeView?.aria ?? (schema as any).aria,
-          tabs: (schema as any).tabs,
           // Propagate refresh signal so ListView re-fetches after mutations
           refreshTrigger: refreshKey,
         },

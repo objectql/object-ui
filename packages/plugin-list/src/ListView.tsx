@@ -12,8 +12,6 @@ import type { SortItem } from '@object-ui/components';
 import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, RotateCw, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
-import { TabBar, TabBarSelect } from './components/TabBar';
-import type { ViewTab } from './components/TabBar';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
 import { UserFilters } from './UserFilters';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
@@ -465,61 +463,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     conditions: []
   });
 
-  // Tab State. A URL-restored tab (`userFilterSelections._tab`) wins over
-  // the author's `isDefault` (ADR-0047 filter persistence).
-  const [activeTab, setActiveTab] = React.useState<string | undefined>(() => {
-    if (!schema.tabs || schema.tabs.length === 0) return undefined;
-    const restored = userFilterSelections?._tab?.[0];
-    if (typeof restored === 'string' && schema.tabs.some((t: any) => t.name === restored)) {
-      return restored;
-    }
-    const defaultTab = schema.tabs.find((t: any) => t.isDefault);
-    return defaultTab?.name ?? schema.tabs[0]?.name;
-  });
-
-  // Apply the initially-active tab's filter on mount so a restored tab
-  // scopes the first fetch the same way a user click would.
-  React.useEffect(() => {
-    const tab = schema.tabs?.find((t: any) => t.name === activeTab);
-    if (tab && Array.isArray(tab.filter) && tab.filter.length > 0) {
-      const conditions = tab.filter
-        .filter((r: any) => r && typeof r.field === 'string')
-        .map((r: any) => ({ field: r.field, operator: r.operator ?? 'equals', value: r.value }));
-      setCurrentFilters({ id: `tab-filter-${tab.name}`, logic: 'and', conditions });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleTabChange = React.useCallback(
-    (tab: ViewTab) => {
-      setActiveTab(tab.name);
-      onUserFilterSelectionsChange?.({ _tab: [tab.name] });
-      // Apply tab filter if defined. Two shapes are accepted:
-      // - @objectstack/spec ViewTab.filter: ViewFilterRule[] — an array of
-      //   `{ field, operator, value }` rules (the canonical metadata shape)
-      // - legacy FilterGroup `{ logic, conditions }`
-      if (tab.filter) {
-        const conditions = Array.isArray(tab.filter)
-          ? tab.filter
-              .filter((r: any) => r && typeof r.field === 'string')
-              .map((r: any) => ({ field: r.field, operator: r.operator ?? 'equals', value: r.value }))
-          : (tab.filter.conditions || []);
-        const tabFilters: FilterGroup = {
-          id: `tab-filter-${tab.name}`,
-          logic: (!Array.isArray(tab.filter) && tab.filter.logic) || 'and',
-          conditions,
-        };
-        setCurrentFilters(tabFilters);
-        onFilterChange?.(tabFilters);
-      } else {
-        const emptyFilters: FilterGroup = { id: 'root', logic: 'and', conditions: [] };
-        setCurrentFilters(emptyFilters);
-        onFilterChange?.(emptyFilters);
-      }
-    },
-    [onFilterChange, onUserFilterSelectionsChange],
-  );
-
   // Data State
   const dataSource = props.dataSource;
   const [data, setData] = React.useState<any[]>([]);
@@ -654,11 +597,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     return { ...configured, fields: derivedFields };
   }, [schema.userFilters, objectDef, tFieldLabel]);
 
-  // Tabs and filter elements are mutually exclusive on the toolbar
-  // (Airtable parity: the Elements choice is tabs OR dropdowns, never
-  // both). Metadata tabs win — they are author-curated named presets; a
-  // userFilters config on the same view only renders when no tabs exist.
-  const filterElements = schema.tabs && schema.tabs.length > 0 ? undefined : resolvedUserFilters;
+  // ADR-0053: userFilters (dropdown | tabs) is the sole page filter control.
+  const filterElements = resolvedUserFilters;
 
   // Hidden Fields State (initialized from schema)
   const [hiddenFields, setHiddenFields] = React.useState<Set<string>>(
@@ -1596,29 +1536,6 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           read as one segmented control rather than a loose bag of icons. */}
       <div className="border-b px-2 sm:px-4 py-1.5 flex items-center justify-between gap-1 sm:gap-2 bg-background">
         <div className="flex items-center gap-2 overflow-x-auto min-w-0">
-          {/* View Tabs — split between desktop tab row and a mobile
-              dropdown so phones still get a view switcher (compact, one
-              button) without burning a full row on chip pills. */}
-          {schema.tabs && schema.tabs.length > 0 && (
-            <>
-              <div className="hidden sm:block shrink-0">
-                <TabBar
-                  tabs={schema.tabs}
-                  activeTab={activeTab}
-                  onTabChange={handleTabChange}
-                  className="!px-0 !py-0"
-                />
-              </div>
-              <div className="sm:hidden shrink-0">
-                <TabBarSelect
-                  tabs={schema.tabs}
-                  activeTab={activeTab}
-                  onTabChange={handleTabChange}
-                  className="!px-0 !py-0"
-                />
-              </div>
-            </>
-          )}
           {/* User Filters — filter elements (dropdown chips / preset tabs /
               toggles). Mutually exclusive with view tabs above, so at most
               one filter element group ever renders here. On mobile we keep

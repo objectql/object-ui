@@ -1883,22 +1883,6 @@ export interface ListViewSchema extends BaseSchema {
   };
 
   /**
-   * View tabs configuration.
-   * Aligned with @objectstack/spec ListViewSchema.tabs.
-   */
-  tabs?: Array<{
-    name: string;
-    label: string;
-    icon?: string;
-    view?: string;
-    filter?: any;
-    order?: number;
-    pinned?: boolean;
-    isDefault?: boolean;
-    visible?: string;
-  }>;
-
-  /**
    * Add record configuration.
    * Aligned with @objectstack/spec ListViewSchema.addRecord.
    */
