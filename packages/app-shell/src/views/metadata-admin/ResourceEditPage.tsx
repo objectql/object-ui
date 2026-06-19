@@ -284,6 +284,11 @@ function MetadataResourceEditPageImpl({
   // in the load catch block, reset at the start of each load.
   const [loadFailed, setLoadFailed] = React.useState(false);
   const [issues, setIssues] = React.useState<SchemaFormIssue[]>([]);
+  // In create mode, hold back validation noise until the author has actually
+  // edited a field. A blank new-item form firing 3 red "required" errors before
+  // the user types anything reads as broken, not helpful (the save path still
+  // validates). Flips true on the first real edit.
+  const [createDirty, setCreateDirty] = React.useState(false);
 
   // Wrap setDraft so that editing a field clears any *server-side*
   // diagnostic issues whose path begins with that field. The user
@@ -301,6 +306,7 @@ function MetadataResourceEditPageImpl({
           if (!Object.is(prev?.[k], resolved?.[k])) changed.add(k);
         }
         if (changed.size > 0) {
+          setCreateDirty(true);
           setIssues((prevIssues) =>
             prevIssues.filter((i) => {
               const head = (i.path ?? '').split('.')[0];
@@ -417,6 +423,12 @@ function MetadataResourceEditPageImpl({
       window.clearTimeout(handle);
     };
   }, [type, draft, entry?.schema]);
+  // Issues to DISPLAY (banner + inline). Suppressed on a pristine create form
+  // so a blank new item doesn't open covered in required-field errors.
+  const displayIssues = React.useMemo(
+    () => (createMode && !createDirty ? [] : issues),
+    [createMode, createDirty, issues],
+  );
   // Per-item draft pending publish (mode=draft saves land here).
   // When non-null, the editor is "viewing the draft" and we surface
   // Publish / Discard-draft actions.
@@ -1854,6 +1866,9 @@ function MetadataResourceEditPageImpl({
               // "failed to load" banner above instead; the empty-default
               // form's required-field issues here would be noise, not a
               // verdict on the item (see shouldRenderDiagnostics).
+              if (createMode && !createDirty) {
+                return null;
+              }
               if (
                 !shouldRenderDiagnostics({
                   loadFailed,
@@ -2140,7 +2155,7 @@ function MetadataResourceEditPageImpl({
                             value={draft}
                             onChange={handleDraftChange}
                             readOnly={formReadOnly}
-                            issues={issues.map((i) => ({
+                            issues={displayIssues.map((i) => ({
                               path: i.path ?? '',
                               message: i.message,
                             }))}
@@ -2184,7 +2199,7 @@ function MetadataResourceEditPageImpl({
                             form={createMode && config.createSchema ? undefined : (entry?.form as any)}
                             value={draft}
                             onChange={handleCreateAwareChange}
-                            issues={issues}
+                            issues={displayIssues}
                             hiddenFields={effectiveHiddenFields}
                             fieldOrder={effectiveFieldOrder}
                             readOnly={formReadOnly}
@@ -2207,7 +2222,7 @@ function MetadataResourceEditPageImpl({
                 form={createMode && config.createSchema ? undefined : (entry?.form as any)}
                 value={draft}
                 onChange={handleCreateAwareChange}
-                issues={issues}
+                issues={displayIssues}
                 hiddenFields={effectiveHiddenFields}
                 fieldOrder={effectiveFieldOrder}
                 readOnly={formReadOnly}

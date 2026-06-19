@@ -102,10 +102,10 @@ export function MetadataResourceListPage({ type: typeProp }: MetadataResourceLis
     return <Custom type={type} />;
   }
 
-  return <DefaultMetadataList type={type} />;
+  return <DefaultMetadataList type={type} appName={params.appName} />;
 }
 
-function DefaultMetadataList({ type }: { type: string }) {
+function DefaultMetadataList({ type, appName }: { type: string; appName?: string }) {
   const navigate = useNavigate();
   const client = useMetadataClient();
   const { entries: typesEntries } = useMetadataTypes(client);
@@ -158,14 +158,56 @@ function DefaultMetadataList({ type }: { type: string }) {
     };
   }, [client]);
 
+  // Resolve the CURRENT APP's package so the list defaults to the scope the
+  // admin is actually working in (e.g. opening Pages from the Showcase app
+  // shows that app's pages, not an alphabetically-first empty template). The
+  // route segment may be the app `name` or its package id, so match both.
+  const [appPackage, setAppPackage] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!appName) { setAppPackage(null); return; }
+    (async () => {
+      try {
+        const apps = await client.list<any>('app');
+        if (cancelled) return;
+        const match = (apps ?? [])
+          .map((raw) => (raw && typeof raw === 'object' && 'item' in raw ? (raw as any).item : raw))
+          .find((a: any) => a?.name === appName || a?._packageId === appName);
+        setAppPackage((match as any)?._packageId ?? null);
+      } catch {
+        if (!cancelled) setAppPackage(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [client, appName]);
+
   // Resolve the active package from the URL, validated against the project
   // package set. `null` while packages are still loading (fail closed).
   const urlPackage = searchParams.get('package');
   const activePackage = React.useMemo(() => {
     if (!projectPackages) return null;
     if (urlPackage && projectPackages.some((p) => p.id === urlPackage)) return urlPackage;
-    return projectPackages[0]?.id ?? null;
-  }, [projectPackages, urlPackage]);
+    if (projectPackages.length === 0) return null;
+    // No valid URL package: prefer the CURRENT APP's package (the scope the
+    // admin is working in) when it's a valid project package — this is what
+    // makes "Pages" in the Showcase app default to Showcase's pages.
+    if (appPackage && projectPackages.some((p) => p.id === appPackage)) return appPackage;
+    // Otherwise prefer the project package that actually OWNS rows of this
+    // metadata type, so the list never opens empty on an alphabetically-first
+    // package that happens to own none. Falls back to the first package.
+    const counts = new Map<string, number>();
+    for (const row of items) {
+      const pkg = (row.item as any)?._packageId;
+      if (pkg && pkg !== 'sys_metadata') counts.set(pkg, (counts.get(pkg) ?? 0) + 1);
+    }
+    let best: string | null = null;
+    let bestN = 0;
+    for (const p of projectPackages) {
+      const n = counts.get(p.id) ?? 0;
+      if (n > bestN) { best = p.id; bestN = n; }
+    }
+    return best ?? projectPackages[0]?.id ?? null;
+  }, [projectPackages, urlPackage, items, appPackage]);
 
   // Repair `?package=` so the sidebar selector, deep-links and create/edit
   // navigation all agree on the active scope. Runs once packages resolve
@@ -173,11 +215,18 @@ function DefaultMetadataList({ type }: { type: string }) {
   React.useEffect(() => {
     if (!projectPackages || projectPackages.length === 0) return;
     if (urlPackage && projectPackages.some((p) => p.id === urlPackage)) return;
+    // If the current app's package is known we can repair immediately; otherwise
+    // wait for rows so `activePackage` can resolve to the package that owns this
+    // type (repairing to the alphabetical-first package before then would lock
+    // the list onto an empty scope).
+    const appPkgValid = !!(appPackage && projectPackages.some((p) => p.id === appPackage));
+    if (!appPkgValid && items.length === 0) return;
+    if (!activePackage) return;
     const next = new URLSearchParams(searchParams);
-    next.set('package', projectPackages[0].id);
+    next.set('package', activePackage);
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectPackages, urlPackage]);
+  }, [projectPackages, urlPackage, items, activePackage, appPackage]);
 
   // Carry the active package into create/edit navigation as `?package=` so
   // the editor binds newly-saved rows to that software package.
