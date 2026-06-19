@@ -499,6 +499,10 @@ export function SchemaForm({
           issues={issuesByPath[key]}
           readOnly={readOnly}
           widgetContext={widgetContext}
+          // Honor an explicit `widget` declared on a raw JSON-schema property
+          // (e.g. createSchema's `object: { widget: 'ref:object' }`) so the
+          // flat auto-form can use rich pickers, not just type inference.
+          fieldSpec={(props[key] as any)?.widget ? { field: key, widget: (props[key] as any).widget } : undefined}
           formData={v as Record<string, unknown>}
           onChange={(val) => setField(key, val)}
         />

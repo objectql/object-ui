@@ -137,14 +137,18 @@ export function registerBuiltinAnchors(): void {
         type: {
           type: 'string',
           title: 'Page type',
-          enum: ['record', 'app', 'home', 'dashboard', 'utility'],
-          default: 'record',
-          description: 'A `record` page renders for an object’s records; pick the object below.',
+          // 'list' (interface page) is the primary, most-built page type — offer
+          // it first and as the default. 'dashboard' is roadmap (no distinct
+          // renderer yet), so it's omitted here, matching the edit form.
+          enum: ['list', 'record', 'home', 'app', 'utility'],
+          default: 'list',
+          description: 'List / Interface page = a data view (Airtable-style: columns, filters, visualizations). Record page renders one object record.',
         },
         object: {
           type: 'string',
           title: 'Object',
-          description: 'For a record page — the object whose records this page renders.',
+          widget: 'ref:object',
+          description: 'The object this page reads from — the data source for a list page, or the record object for a record page.',
         },
         kind: {
           type: 'string',
@@ -155,11 +159,17 @@ export function registerBuiltinAnchors(): void {
         },
       },
     },
-    createDefaults: { type: 'record', kind: 'full', regions: [] },
+    createDefaults: { type: 'list', kind: 'full', regions: [] },
     // Seed a record page's regions from the bound object's synthesized default
     // detail page, so authoring starts from the auto-generated layout (the same
     // one the runtime renders by default) instead of a blank canvas.
     createSeed: async (draft, { client }) => {
+      // List/interface page: pre-bind the chosen object as the data source so
+      // the new page renders immediately (the author then curates columns,
+      // filters, visualizations in the editor).
+      if (draft?.type === 'list') {
+        return draft?.object ? { interfaceConfig: { source: String(draft.object) } } : {};
+      }
       if (draft?.type !== 'record' || !draft?.object) return {};
       try {
         const objectDef = await client.get('object', String(draft.object));
