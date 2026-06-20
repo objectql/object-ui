@@ -1036,7 +1036,7 @@ const ICON_RESULT_LIMIT = 60;
  * Built inline (no Radix portal) so the search + grid render eagerly — the same
  * jsdom-friendly choice the other pickers' tests rely on.
  */
-function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps) {
+export function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps) {
   const locale = detectLocale();
   const current = value == null ? '' : String(value);
   const [open, setOpen] = React.useState(false);

@@ -48,6 +48,7 @@ import {
 import { useObjectOptions } from '../previews/useObjectOptions';
 import { useObjectFields } from '../previews/useObjectFields';
 import { ConditionBuilder } from './ConditionBuilder';
+import { IconPickerWidget } from '../widgets';
 
 /* ─────────────── constants ─────────────── */
 
@@ -253,7 +254,10 @@ export function ActionDefaultInspector({
         hint={objectName ? 'Bound action — surfaces in this object’s views per the placement below.' : 'Empty = global action — must be referenced by a page’s quick actions, global nav, a flow, or AI to appear.'}
       />
       <div className="grid grid-cols-2 gap-2">
-        <InspectorTextField label="Icon" value={str('icon')} onCommit={(v) => onPatch({ icon: v })} placeholder="lucide name" disabled={readOnly} />
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Icon</Label>
+          <IconPickerWidget schema={{ type: 'string' }} value={str('icon')} onChange={(v) => onPatch({ icon: (v as string) || undefined })} readOnly={readOnly} />
+        </div>
         <InspectorSelectField label="Variant" value={str('variant') || undefined} options={VARIANT_OPTS} onCommit={(v) => onPatch({ variant: v })} disabled={readOnly} />
       </div>
 
