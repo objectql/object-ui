@@ -15,7 +15,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
-import { Button, cn } from '@object-ui/components';
+import { Button, cn, toast } from '@object-ui/components';
 import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
@@ -258,6 +258,10 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         
         if (schema.onSuccess) {
           await schema.onSuccess(result);
+        } else {
+          // Default feedback so a metadata-only wizard (which cannot pass an
+          // onSuccess function) still confirms the create/update succeeded.
+          toast.success(schema.mode === 'create' ? 'Created' : 'Saved');
         }
         return result;
       } catch (err) {

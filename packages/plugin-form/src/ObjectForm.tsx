@@ -17,7 +17,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectFormSchema, FormField, FormSchema, DataSource } from '@object-ui/types';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, evaluateCondition, formatFileSize } from '@object-ui/fields';
-import { useIsMobile } from '@object-ui/components';
+import { useIsMobile, toast } from '@object-ui/components';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm } from './WizardForm';
@@ -612,9 +612,13 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
         throw new Error('Invalid form mode or missing record ID');
       }
 
-      // Call success callback if provided
+      // Call success callback if provided, else give default feedback. Skip the
+      // default when a `submitHandler` owns persistence (e.g. MasterDetailForm
+      // already toasts) so we never double-confirm.
       if (schema.onSuccess) {
         await schema.onSuccess(result);
+      } else if (!schema.submitHandler) {
+        toast.success(schema.mode === 'create' ? 'Created' : 'Saved');
       }
 
       return result;

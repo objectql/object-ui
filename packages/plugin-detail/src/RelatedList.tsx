@@ -496,8 +496,20 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         return true;
       });
 
-    // Sort by priority: name-like → status/select → others. Stable for the rest.
+    // System audit fields are technically real columns, but they should never
+    // *lead* an auto-derived related list — a child object with no name/title
+    // (e.g. invoice lines) would otherwise show "Created At / Last Modified At"
+    // before its business fields (qty, price, amount). Push them last so the
+    // maxColumns slice keeps the meaningful columns.
+    const SYSTEM_LAST = new Set([
+      'created_at', 'updated_at', 'created_by', 'updated_by',
+      'owner_id', 'organization_id',
+    ]);
+    // Sort by priority: name-like → status/select → others → system audit last.
     entries.sort(([aKey, aDef]: any, [bKey, bDef]: any) => {
+      const aSys = SYSTEM_LAST.has(aKey);
+      const bSys = SYSTEM_LAST.has(bKey);
+      if (aSys !== bSys) return aSys ? 1 : -1;
       const aPri = PRIORITY_NAMES.indexOf(aKey);
       const bPri = PRIORITY_NAMES.indexOf(bKey);
       const aScore = aPri >= 0 ? aPri : 100;
