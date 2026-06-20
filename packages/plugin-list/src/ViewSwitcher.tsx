@@ -92,6 +92,49 @@ export const ViewSwitcherDropdown: React.FC<ViewSwitcherProps> = ({
     [animated, currentView, onViewChange],
   );
 
+  // Few visualizations (2–4): render an iOS/Linear-style segmented control
+  // inline — a unified rounded track where the active segment lifts onto a
+  // white thumb. Clearer and more tactile than a dropdown for a short set.
+  // Many (5+) fall through to the compact dropdown below to keep the toolbar
+  // one line.
+  if (availableViews.length >= 2 && availableViews.length <= 4) {
+    return (
+      <div
+        role="tablist"
+        data-testid="view-switcher-segmented"
+        className={cn(
+          'inline-flex items-center gap-0.5 rounded-lg bg-muted p-0.5 oui-view-switcher',
+          className,
+        )}
+      >
+        {availableViews.map((view) => {
+          const active = view === currentView;
+          return (
+            <button
+              key={view}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              aria-label={VIEW_LABELS[view]}
+              title={VIEW_LABELS[view]}
+              data-state={active ? 'on' : 'off'}
+              onClick={() => handleViewChange(view)}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[7px] text-xs font-medium transition-all duration-150',
+                active
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {VIEW_ICONS[view]}
+              <span className="hidden sm:inline-block">{VIEW_LABELS[view]}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
