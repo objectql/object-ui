@@ -16,14 +16,15 @@
  */
 
 import * as React from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { ListView } from '@object-ui/plugin-list';
-import { useAdapter, SchemaRenderer } from '@object-ui/react';
-import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+import { useAdapter, SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
+import { Empty, EmptyTitle, EmptyDescription, NavigationOverlay } from '@object-ui/components';
 import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useMetadata } from '../providers/MetadataProvider';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
+import { RecordDetailView } from './RecordDetailView';
 
 interface InterfaceListPageProps {
   page: any;
@@ -170,7 +171,8 @@ export function InterfaceListPage({ page, className, onConfigChange }: Interface
   const { t } = useObjectTranslation();
   const { objects } = useMetadata();
   const dataSource = useAdapter();
-  const [, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ADR-0047 filter persistence: restore `uf_*` URL params once at mount,
   // mirror every selection change back (replace — no history spam).
@@ -193,6 +195,54 @@ export function InterfaceListPage({ page, className, onConfigChange }: Interface
     () => resolveSourceView(objectDef, cfg.sourceView),
     [objectDef, cfg.sourceView],
   );
+
+  // ── Record open behavior (ADR-0047) — how clicking a record opens its detail.
+  // 'drawer' (default) = right-side peek panel rendering the record's detail
+  // page; 'page' = full-page navigate to the record route; 'none' = not
+  // clickable. Restores record-opening on interface pages (previously a no-op)
+  // and makes it author-configurable.
+  const recordAction: 'drawer' | 'page' | 'modal' | 'none' =
+    cfg.recordAction === 'page' || cfg.recordAction === 'modal' || cfg.recordAction === 'none'
+      ? cfg.recordAction
+      : 'drawer';
+  const recordUrl = React.useCallback(
+    (id: string | number) => {
+      const seg = window.location.pathname.split('/');
+      const appSeg = seg[2] || '';
+      return `/apps/${appSeg}/${cfg.source}/record/${encodeURIComponent(String(id))}`;
+    },
+    [cfg.source],
+  );
+  const navOverlay = useNavigationOverlay({
+    navigation: { mode: recordAction === 'none' ? 'none' : recordAction },
+    objectName: cfg.source,
+    onNavigate: (id) => navigate(recordUrl(id)),
+  });
+  const drawerRecordId = searchParams.get('recordId');
+  const handleRecordClick = React.useCallback(
+    (record: any, event?: any) => {
+      if (recordAction === 'none') return;
+      const id = record?.id ?? record?._id;
+      const isMod = !!(event && (event.metaKey || event.ctrlKey || event.button === 1));
+      if (isMod && id != null) { window.open(recordUrl(id), '_blank'); return; }
+      // Overlay modes are URL-driven (?recordId=…) so the drawer is shareable
+      // and survives refresh — same convention as ObjectView.
+      if ((recordAction === 'drawer' || recordAction === 'modal') && id != null) {
+        setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set('recordId', String(id)); return n; });
+        return;
+      }
+      navOverlay.handleClick(record, event);
+    },
+    [recordAction, recordUrl, navOverlay, setSearchParams],
+  );
+  const closeRecordDrawer = React.useCallback(() => {
+    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete('recordId'); return n; });
+  }, [setSearchParams]);
+  React.useEffect(() => {
+    if (drawerRecordId && !navOverlay.isOpen) navOverlay.open({ id: drawerRecordId });
+    else if (!drawerRecordId && navOverlay.isOpen) navOverlay.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawerRecordId]);
 
   // The view list endpoint can serve hollow expansion items (no columns);
   // the full body lives behind the per-view overlay API — the same
@@ -391,8 +441,27 @@ export function InterfaceListPage({ page, className, onConfigChange }: Interface
           onUserFilterSelectionsChange={handleUserFilterSelectionsChange}
           onSortChange={onConfigChange ? (sort: any) => onConfigChange({ sort }) : undefined}
           onColumnStateChange={onConfigChange ? (st: { order?: string[] }) => { if (st?.order?.length) onConfigChange({ columns: st.order }); } : undefined}
+          onRowClick={recordAction === 'none' ? undefined : handleRecordClick}
         />
       </div>
+      {navOverlay.isOverlay && (
+        <NavigationOverlay
+          {...navOverlay}
+          setIsOpen={(o: boolean) => { if (!o) closeRecordDrawer(); }}
+          title={typeof page.label === 'string' ? page.label : (cfg.source || 'Record')}
+        >
+          {(record: any) => (
+            <RecordDetailView
+              objectNameOverride={cfg.source}
+              recordIdOverride={String(record?.id ?? record?._id ?? drawerRecordId ?? '')}
+              embedded
+              dataSource={dataSource}
+              objects={objects}
+              onEdit={() => {}}
+            />
+          )}
+        </NavigationOverlay>
+      )}
     </div>
   );
 }
