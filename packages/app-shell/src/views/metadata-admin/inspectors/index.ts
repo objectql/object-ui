@@ -17,6 +17,7 @@ import { ReportDefaultInspector } from './ReportDefaultInspector';
 import { ObjectFieldInspector } from './ObjectFieldInspector';
 import { ObjectDefaultInspector } from './ObjectDefaultInspector';
 import { DatasetDefaultInspector } from './DatasetDefaultInspector';
+import { ActionDefaultInspector } from './ActionDefaultInspector';
 
 export function registerBuiltinInspectors(): void {
   registerMetadataInspector('dashboard', DashboardWidgetInspector);
@@ -40,4 +41,8 @@ export function registerBuiltinInspectors(): void {
   registerMetadataDefaultInspector('object', ObjectDefaultInspector);
   // ADR-0021: structured dataset designer (object/include/dimensions/measures).
   registerMetadataDefaultInspector('dataset', DatasetDefaultInspector);
+  // Type-aware Action authoring (Salesforce/ServiceNow-style): branch the form
+  // by action type, group inputs/placement/feedback/conditions/AI, fall back to
+  // SchemaForm for advanced props.
+  registerMetadataDefaultInspector('action', ActionDefaultInspector);
 }
