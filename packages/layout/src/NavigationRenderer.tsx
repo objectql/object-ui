@@ -62,6 +62,8 @@ import {
   CollapsibleContent,
   Badge,
   Separator,
+  cn,
+  useIsMobile,
 } from '@object-ui/components';
 import type { NavigationItem } from '@object-ui/types';
 
@@ -712,6 +714,11 @@ function NavigationItemRenderer({
   templateContext?: NavTemplateContext;
 }) {
   const location = useLocation();
+  // iOS-native mobile drawer polish: >=44px tap targets, larger text and
+  // icons, rounder rows. Desktop (>=768px) keeps the compact rail untouched.
+  const isMobile = useIsMobile();
+  const mobileBtnClass = isMobile ? 'min-h-[44px] text-[15px] gap-3 rounded-xl' : undefined;
+  const navIconClass = cn('shrink-0', isMobile ? 'h-5 w-5' : 'h-4 w-4');
   // Resolve the initial open state with platform-aware defaults:
   //
   // 1. `expanded` is the spec field name; `defaultOpen` is the legacy
@@ -787,10 +794,10 @@ function NavigationItemRenderer({
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <SidebarGroup>
           <SidebarGroupLabel asChild>
-            <CollapsibleTrigger className="flex w-full items-center justify-between">
+            <CollapsibleTrigger className={cn('flex w-full items-center justify-between', isMobile && 'min-h-[44px] text-[15px] rounded-xl')}>
               {groupLabel}
               <ChevronRight
-                className={`ml-auto h-4 w-4 transition-transform ${isOpen ? 'rotate-90' : ''}`}
+                className={cn('ml-auto transition-transform', isMobile ? 'h-5 w-5' : 'h-4 w-4', isOpen && 'rotate-90')}
               />
             </CollapsibleTrigger>
           </SidebarGroupLabel>
@@ -843,8 +850,9 @@ function NavigationItemRenderer({
         <SidebarMenuButton
           tooltip={actionLabel}
           onClick={() => onAction?.(item)}
+          className={mobileBtnClass}
         >
-          <Icon className="h-4 w-4" />
+          <Icon className={navIconClass} />
           <span>{actionLabel}</span>
           {item.badge != null && (
             <Badge variant={item.badgeVariant ?? 'default'} className="ml-auto text-[10px] px-1.5 py-0">
@@ -884,7 +892,7 @@ function NavigationItemRenderer({
 
   const content = (
     <>
-      <Icon className="h-4 w-4" />
+      <Icon className={navIconClass} />
       <span>{itemLabel}</span>
       {item.badge != null && (
         <Badge variant={item.badgeVariant ?? 'default'} className="ml-auto text-[10px] px-1.5 py-0">
@@ -905,7 +913,7 @@ function NavigationItemRenderer({
           <GripVertical className="h-3.5 w-3.5" />
         </span>
       )}
-      <SidebarMenuButton asChild isActive={isActive} tooltip={itemLabel}>
+      <SidebarMenuButton asChild isActive={isActive} tooltip={itemLabel} className={mobileBtnClass}>
         {external ? (
           <a href={href} target="_blank" rel="noopener noreferrer">
             {content}

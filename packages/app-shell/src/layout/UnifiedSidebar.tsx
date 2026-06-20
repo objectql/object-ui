@@ -355,9 +355,9 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
         <SidebarHeader className="border-b p-1.5">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild className="h-9 text-sm font-medium">
+              <SidebarMenuButton asChild className="min-h-[44px] text-[15px] font-medium rounded-xl">
                 <Link to="/home" onClick={() => setOpenMobile(false)} data-testid="mobile-sidebar-home">
-                  <Home className="h-4 w-4" />
+                  <Home className="h-5 w-5" />
                   <span>{t('home.nav', { defaultValue: 'Home' })}</span>
                 </Link>
               </SidebarMenuButton>
