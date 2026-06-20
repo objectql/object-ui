@@ -139,6 +139,33 @@ export function defaultGalleryFromObject(objectDef: any): { coverField: string }
   return field ? { coverField: field } : undefined;
 }
 
+const LOCATION_TYPES = new Set(['location', 'geo', 'geolocation', 'geopoint', 'point']);
+
+// Gantt needs BOTH a start and an end date. Prefer name-disambiguated fields
+// (start_date / end_date / due_date), else fall back to the first two date
+// fields. Returns undefined unless two distinct dates resolve.
+export function defaultGanttFromObject(objectDef: any): { startDateField: string; endDateField: string; progressField?: string } | undefined {
+  const start =
+    firstFieldMatching(objectDef, (n, f) => DATE_TYPES.has(f.type) && /start|begin|kickoff/i.test(n)) ??
+    firstFieldMatching(objectDef, (_n, f) => DATE_TYPES.has(f.type));
+  if (!start) return undefined;
+  const end =
+    firstFieldMatching(objectDef, (n, f) => DATE_TYPES.has(f.type) && n !== start && /end|due|finish|deadline|close/i.test(n)) ??
+    firstFieldMatching(objectDef, (_n, f) => DATE_TYPES.has(f.type) && _n !== start);
+  if (!end) return undefined;
+  const progress = firstFieldMatching(objectDef, (n, f) => (f.type === 'number' || f.type === 'percent') && /progress|percent|complete/i.test(n));
+  return { startDateField: start, endDateField: end, ...(progress ? { progressField: progress } : {}) };
+}
+
+// Map needs a location/geo field (or address). Auto-derive from a location-typed
+// field, else a field whose name looks geographic.
+export function defaultMapFromObject(objectDef: any): { locationField: string } | undefined {
+  const field =
+    firstFieldMatching(objectDef, (_n, f) => LOCATION_TYPES.has(f.type)) ??
+    firstFieldMatching(objectDef, (n) => /location|address|geo|coords?|place|venue/i.test(n));
+  return field ? { locationField: field } : undefined;
+}
+
 export function InterfaceListPage({ page, className, onConfigChange }: InterfaceListPageProps) {
   const { t } = useObjectTranslation();
   const { objects } = useMetadata();
@@ -235,6 +262,12 @@ export function InterfaceListPage({ page, className, onConfigChange }: Interface
       view.timeline ?? (allowedSet.has('timeline') ? defaultCalendarFromObject(objectDef) : undefined);
     const gallery =
       view.gallery ?? (allowedSet.has('gallery') ? defaultGalleryFromObject(objectDef) : undefined);
+    const gantt =
+      view.gantt ?? (allowedSet.has('gantt') ? defaultGanttFromObject(objectDef) : undefined);
+    // Map binding lives under options.map (locationField); auto-derive when
+    // whitelisted so a map interface page renders without hand-wiring.
+    const mapCfg =
+      (view.options as any)?.map ?? (allowedSet.has('map') ? defaultMapFromObject(objectDef) : undefined);
 
     // Data semantics — ADR-0047 (revised): the PAGE owns its view metadata.
     // Precedence everywhere: the page's own config → legacy sourceView view
@@ -272,7 +305,8 @@ export function InterfaceListPage({ page, className, onConfigChange }: Interface
       calendar,
       gallery,
       timeline,
-      gantt: view.gantt,
+      gantt,
+      ...((mapCfg || (view.options as any)) ? { options: { ...((view.options as any) ?? {}), ...(mapCfg ? { map: mapCfg } : {}) } } : {}),
 
       // Presentation policy — the page layer (ADR-0047).
       userFilters: cfg.userFilters ?? view.userFilters,
