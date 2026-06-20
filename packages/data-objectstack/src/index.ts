@@ -1829,6 +1829,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       limit?: number;
       offset?: number;
       timezone?: string;
+      /** Marginal-aggregate groupings (e.g. `[rows, [colDim], []]`) — server
+       *  computes each subtotal with the measure's TRUE aggregate (never client
+       *  re-derived). `[]` is the grand total. */
+      totals?: { groupings: string[][] };
     },
   ): Promise<{
     rows: Array<Record<string, unknown>>;
@@ -1839,6 +1843,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     dimensionFields?: Record<string, string>;
     /** Raw grouped values per row (aligned to `rows` by index) for drill filters. */
     drillRawRows?: Array<Record<string, unknown>>;
+    /** Server-computed marginal aggregates, one entry per requested grouping. */
+    totals?: Array<{ dimensions: string[]; rows: Array<Record<string, unknown>> }>;
   }> {
     await this.connect();
     const base = (this.baseUrl || '').replace(/\/$/, '');
@@ -1893,7 +1899,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         ? ((data as any).dimensionFields as Record<string, string>)
         : undefined;
     const drillRawRows = Array.isArray((data as any)?.drillRawRows) ? (data as any).drillRawRows : undefined;
-    return { rows, fields, object, dimensionFields, drillRawRows };
+    const totals = Array.isArray((data as any)?.totals) ? (data as any).totals : undefined;
+    return { rows, fields, object, dimensionFields, drillRawRows, totals };
   }
 
   /** Client-side aggregation fallback */

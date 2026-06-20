@@ -38,7 +38,8 @@ import { DrillDownDrawer } from './DrillDownDrawer';
 type Row = Record<string, unknown>;
 /** Measure column metadata from the analytics result (ADR-0021). */
 interface ResultField { name: string; type?: string; label?: string; format?: string; currency?: string }
-interface DatasetResult { rows: Row[]; fields?: ResultField[]; object?: string; dimensionFields?: Record<string, string> }
+interface DatasetTotals { dimensions: string[]; rows: Row[] }
+interface DatasetResult { rows: Row[]; fields?: ResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Row[]; totals?: DatasetTotals[] }
 interface DatasetCapableSource {
   queryDataset?: (dataset: string, selection: unknown) => Promise<DatasetResult>;
 }
@@ -207,6 +208,15 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const widgetType = String(widget?.type ?? '');
   const isMetric = METRIC_TYPES.has(widgetType) || dimensions.length === 0;
   const isTable = widgetType === 'table' || widgetType === 'pivot';
+  // pivot with ≥2 dims → a true cross-tab: last dim spreads across as columns,
+  // the rest go down as rows. Computed up-front so the fetch can also request
+  // the matching subtotal groupings.
+  const isMatrix = widgetType === 'pivot' && dimensions.length >= 2;
+  const rowDims = isMatrix ? dimensions.slice(0, -1) : [];
+  const colDim = isMatrix ? dimensions[dimensions.length - 1] : '';
+  // Row subtotals, column subtotals, and the grand total ([]) — the server
+  // computes each with the measure's TRUE aggregate (never re-derived here).
+  const totalsGroupings = isMatrix ? [rowDims, [colDim], []] : undefined;
 
   const tt = useTranslate();
   const { fieldLabel } = useSafeFieldLabel();
@@ -225,13 +235,13 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     [rawFilter],
   );
 
-  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: ResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; error?: string }>({ status: 'idle', rows: [] });
+  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: ResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
   // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
   const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
 
   // Signature uses the RAW filter (stable) — the resolved one carries a
   // render-time `now` and would otherwise force a refetch loop.
-  const signature = `${datasetName}|${dimensions.join(',')}|${values.join(',')}|${JSON.stringify(rawFilter ?? null)}|${JSON.stringify(compareTo ?? null)}`;
+  const signature = `${widgetType}|${datasetName}|${dimensions.join(',')}|${values.join(',')}|${JSON.stringify(rawFilter ?? null)}|${JSON.stringify(compareTo ?? null)}`;
   useEffect(() => {
     const src = dataSource as DatasetCapableSource | undefined;
     if (!src || typeof src.queryDataset !== 'function') {
@@ -246,8 +256,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       measures: values,
       ...(runtimeFilter ? { runtimeFilter } : {}),
       ...(compareTo ? { compareTo } : {}),
+      ...(totalsGroupings ? { totals: { groupings: totalsGroupings } } : {}),
     })
-      .then((res) => { if (!cancelled) setState({ status: 'ok', rows: Array.isArray(res?.rows) ? res.rows : [], fields: Array.isArray(res?.fields) ? res.fields : [], object: res?.object, dimensionFields: res?.dimensionFields, drillRawRows: Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined }); })
+      .then((res) => { if (!cancelled) setState({ status: 'ok', rows: Array.isArray(res?.rows) ? res.rows : [], fields: Array.isArray(res?.fields) ? res.fields : [], object: res?.object, dimensionFields: res?.dimensionFields, drillRawRows: Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined, totals: Array.isArray(res?.totals) ? res.totals : undefined }); })
       .catch((e) => { if (!cancelled) setState({ status: 'error', rows: [], error: String((e as Error)?.message ?? e) }); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,15 +342,26 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // cells just place those pre-aggregated values — no client re-aggregation
     // (an avg/min/max can't be recombined). With <2 dimensions a cross-tab is
     // meaningless, so it degrades to the flat grouped table.
-    const isMatrix = widgetType === 'pivot' && dimensions.length >= 2;
     if (isMatrix) {
-      const rowDims = dimensions.slice(0, -1);
-      const colDim = dimensions[dimensions.length - 1];
       const pivot = buildPivot(state.rows, rowDims, colDim);
       // Single measure → one column per across-bucket; multiple → bucket × measure.
       const cellCols = pivot.colHeaders.flatMap((col) =>
         values.map((m) => ({ col, measure: m, header: values.length === 1 ? col.label : `${col.label} · ${headerLabel(m)}` })),
       );
+      const fmtMeasure = (v: unknown, m: string) => formatMeasure(v, measureField(m)?.format, measureField(m)?.currency);
+      // Server-supplied marginal totals (ADR-0021): match each grouping by its
+      // dimension array, then its rows to the pivot headers via the same bucket
+      // ids. Absent (older server) → maps stay empty and no totals UI renders.
+      const findTotals = (dims: string[]) =>
+        state.totals?.find((t) => Array.isArray(t.dimensions) && t.dimensions.join(',') === dims.join(','))?.rows;
+      const rowTotalById = new Map<string, Row>();
+      for (const r of findTotals(rowDims) ?? []) rowTotalById.set(rowDims.map((d) => String(r[d] ?? '∅')).join(''), r);
+      const colTotalById = new Map<string, Row>();
+      for (const r of findTotals([colDim]) ?? []) colTotalById.set(String(r[colDim] ?? '∅'), r);
+      const grandTotal = findTotals([])?.[0];
+      const showTotalCol = rowTotalById.size > 0;
+      const showTotalRow = colTotalById.size > 0;
+      const totalLabel = tt('dashboard.total', 'Total');
       return (
         <div className="h-full w-full overflow-auto p-1" data-testid="dataset-matrix">
           <table className="w-full text-xs">
@@ -350,6 +372,11 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                 ))}
                 {cellCols.map((cc) => (
                   <th key={`${cc.col.id}-${cc.measure}`} className="px-2 py-1.5 text-right font-medium whitespace-nowrap">{cc.header}</th>
+                ))}
+                {showTotalCol && values.map((m) => (
+                  <th key={`total-${m}`} className="px-2 py-1.5 text-right font-medium whitespace-nowrap" data-testid="matrix-total-col-header">
+                    {values.length === 1 ? totalLabel : `${totalLabel} · ${headerLabel(m)}`}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -371,12 +398,34 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                         data-testid={clickable ? 'dataset-drill-cell' : undefined}
                         onClick={clickable ? () => openDrill(index as number, title) : undefined}
                       >
-                        {fr ? formatMeasure(fr[cc.measure], measureField(cc.measure)?.format, measureField(cc.measure)?.currency) : '—'}
+                        {fr ? fmtMeasure(fr[cc.measure], cc.measure) : '—'}
                       </td>
                     );
                   })}
+                  {showTotalCol && values.map((m) => (
+                    <td key={`total-${m}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap font-medium" data-testid="matrix-row-total">
+                      {fmtMeasure(rowTotalById.get(rh.id)?.[m], m)}
+                    </td>
+                  ))}
                 </tr>
               ))}
+              {showTotalRow && (
+                <tr className="border-t bg-muted/30 font-medium" data-testid="matrix-total-row">
+                  {rowDims.length > 0 && (
+                    <td colSpan={rowDims.length} className="px-2 py-1 whitespace-nowrap">{totalLabel}</td>
+                  )}
+                  {cellCols.map((cc) => (
+                    <td key={`${cc.col.id}-${cc.measure}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap">
+                      {fmtMeasure(colTotalById.get(cc.col.id)?.[cc.measure], cc.measure)}
+                    </td>
+                  ))}
+                  {showTotalCol && values.map((m) => (
+                    <td key={`grand-${m}`} className="px-2 py-1 text-right tabular-nums whitespace-nowrap" data-testid="matrix-grand-total">
+                      {fmtMeasure(grandTotal?.[m], m)}
+                    </td>
+                  ))}
+                </tr>
+              )}
             </tbody>
           </table>
           {drawer}

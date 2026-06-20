@@ -245,4 +245,58 @@ describe('DatasetWidget', () => {
     render(<DatasetWidget widget={{ type: 'pivot', dataset: 'tasks', dimensions: ['status', 'priority'], values: ['task_count'] }} dataSource={src} />);
     expect(await screen.findByTestId('dataset-drill-cell')).toBeInTheDocument();
   });
+
+  // ── pivot totals ─────────────────────────────────────────────────────────
+  it('requests subtotal groupings (rows, [col], grand) for a pivot matrix', async () => {
+    const src = makeSource(async () => ({ rows: [{ status: 'Open', priority: 'High', task_count: 1 }] }));
+    render(<DatasetWidget widget={{ type: 'pivot', dataset: 'tasks', dimensions: ['status', 'priority'], values: ['task_count'] }} dataSource={src} />);
+    await waitFor(() => expect(src.queryDataset).toHaveBeenCalled());
+    expect((src.queryDataset.mock.calls[0][1] as any).totals).toEqual({ groupings: [['status'], ['priority'], []] });
+  });
+
+  it('does NOT request totals for a flat table', async () => {
+    const src = makeSource(async () => ({ rows: [{ status: 'Open', task_count: 1 }] }));
+    render(<DatasetWidget widget={{ type: 'table', dataset: 'tasks', dimensions: ['status'], values: ['task_count'] }} dataSource={src} />);
+    await waitFor(() => expect(src.queryDataset).toHaveBeenCalled());
+    expect((src.queryDataset.mock.calls[0][1] as any).totals).toBeUndefined();
+  });
+
+  it('renders server-supplied row / column / grand totals in the cross-tab', async () => {
+    const src = { queryDataset: vi.fn(async () => ({
+      rows: [
+        { status: 'Open', priority: 'High', task_count: 2 },
+        { status: 'Open', priority: 'Low', task_count: 1 },
+        { status: 'Done', priority: 'High', task_count: 3 },
+      ],
+      fields: [
+        { name: 'status', type: 'string', label: 'Status' },
+        { name: 'priority', type: 'string', label: 'Priority' },
+        { name: 'task_count', type: 'number', label: 'Tasks' },
+      ],
+      totals: [
+        { dimensions: ['status'], rows: [{ status: 'Open', task_count: 3 }, { status: 'Done', task_count: 3 }] },
+        { dimensions: ['priority'], rows: [{ priority: 'High', task_count: 5 }, { priority: 'Low', task_count: 1 }] },
+        { dimensions: [], rows: [{ task_count: 6 }] },
+      ],
+    })) };
+    render(<DatasetWidget widget={{ type: 'pivot', dataset: 'tasks', dimensions: ['status', 'priority'], values: ['task_count'] }} dataSource={src} />);
+    const m = await screen.findByTestId('dataset-matrix');
+    expect(within(m).getByTestId('matrix-total-col-header')).toBeInTheDocument();
+    expect(within(m).getByTestId('matrix-total-row')).toBeInTheDocument();
+    // Per-row totals (Open=3, Done=3) — server's true aggregate, not re-derived.
+    expect(within(m).getAllByTestId('matrix-row-total').map((e) => e.textContent)).toEqual(['3', '3']);
+    // Grand total.
+    expect(within(m).getByTestId('matrix-grand-total').textContent).toBe('6');
+  });
+
+  it('renders no totals UI when the server omits totals (older server)', async () => {
+    const src = { queryDataset: vi.fn(async () => ({
+      rows: [{ status: 'Open', priority: 'High', task_count: 2 }],
+      fields: [{ name: 'status', type: 'string', label: 'Status' }, { name: 'priority', type: 'string', label: 'Priority' }, { name: 'task_count', type: 'number', label: 'Tasks' }],
+    })) };
+    render(<DatasetWidget widget={{ type: 'pivot', dataset: 'tasks', dimensions: ['status', 'priority'], values: ['task_count'] }} dataSource={src} />);
+    await screen.findByTestId('dataset-matrix');
+    expect(screen.queryByTestId('matrix-total-row')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('matrix-total-col-header')).not.toBeInTheDocument();
+  });
 });
