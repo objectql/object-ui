@@ -167,6 +167,8 @@ export function ActionPreview({ name, draft }: MetadataPreviewProps) {
   const objectName = (d.objectName as string | undefined) || undefined;
   const visible = d.visible as unknown;
   const disabled = d.disabled as unknown;
+  const method = (d.method as string | undefined) || 'POST';
+  const bodyExtra = d.bodyExtra;
 
   const TypeIcon = typeIcon(type);
   const iconOnly = component === 'action:icon';
@@ -243,6 +245,20 @@ export function ActionPreview({ name, draft }: MetadataPreviewProps) {
               </div>
             )}
           </div>
+
+          {/* Placement simulation — where this action surfaces */}
+          {locations.length > 0 && (
+            <Section title="Where it appears">
+              <PlacementPreview locations={locations} label={label} icon={icon} variant={variant} iconOnly={iconOnly} />
+            </Section>
+          )}
+
+          {/* Test request — api type */}
+          {type === 'api' && !!target && (
+            <Section title="Test request" icon={Globe}>
+              <ApiTestPanel target={target} method={method} bodyExtra={bodyExtra} params={params} />
+            </Section>
+          )}
 
           {/* Param dialog mock */}
           {params.length > 0 && (
@@ -482,3 +498,155 @@ function Pill({
   );
 }
 
+
+/* ─────────────── Placement simulation (where it appears) ─────────────── */
+
+function Frame({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function PlacementPreview({ locations, label, icon, variant, iconOnly }: {
+  locations: string[]; label: string; icon?: string; variant?: string; iconOnly?: boolean;
+}) {
+  const btn = <FauxButton label={label} icon={icon} variant={variant} iconOnly={iconOnly} />;
+  return (
+    <div className="space-y-2.5">
+      {locations.includes('record_header') && (
+        <Frame label="record_header">
+          <div className="rounded border bg-background">
+            <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded bg-muted" />
+                <div>
+                  <div className="text-xs font-medium">Sample record</div>
+                  <div className="text-[10px] text-muted-foreground">Record detail</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">{btn}</div>
+            </div>
+            <div className="p-3 text-[10px] text-muted-foreground">…record body…</div>
+          </div>
+        </Frame>
+      )}
+      {locations.includes('list_toolbar') && (
+        <Frame label="list_toolbar">
+          <div className="rounded border bg-background">
+            <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+              <div className="text-xs font-medium">Records</div>
+              <div className="flex items-center gap-1.5">{btn}</div>
+            </div>
+            <div className="px-3 py-2 text-[10px] text-muted-foreground">row 1 · row 2 · row 3</div>
+          </div>
+        </Frame>
+      )}
+      {locations.includes('list_item') && (
+        <Frame label="list_item">
+          <div className="divide-y rounded border bg-background">
+            {[0, 1].map((i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-3 py-1.5">
+                <span className="text-[11px]">Row {i + 1}</span>
+                <div className="origin-right scale-90">{btn}</div>
+              </div>
+            ))}
+          </div>
+        </Frame>
+      )}
+      {(locations.includes('record_section') || locations.includes('record_related')) && (
+        <Frame label={locations.includes('record_related') ? 'record_related' : 'record_section'}>
+          <div className="rounded border bg-background">
+            <div className="flex items-center justify-between border-b px-3 py-2">
+              <span className="text-xs font-medium">Section</span>
+              {btn}
+            </div>
+            <div className="p-3 text-[10px] text-muted-foreground">…section content…</div>
+          </div>
+        </Frame>
+      )}
+      {locations.includes('record_more') && (
+        <Frame label="record_more">
+          <div className="w-52 rounded border bg-background">
+            <div className="flex items-center gap-1.5 border-b px-3 py-1.5 text-[11px] text-muted-foreground">
+              <MoreHorizontal className="h-3.5 w-3.5" /> More
+            </div>
+            <div className="px-2 py-1.5 text-xs"><div className="rounded px-1 py-0.5 hover:bg-accent">{label}</div></div>
+          </div>
+        </Frame>
+      )}
+      {locations.includes('global_nav') && (
+        <Frame label="global_nav">
+          <div className="rounded border bg-background">
+            <div className="px-3 py-2 text-[11px] text-muted-foreground">⌘K · Command palette</div>
+            <div className="border-t px-3 py-1.5 text-xs"><div className="rounded px-1 py-0.5 hover:bg-accent">{label}</div></div>
+          </div>
+        </Frame>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────── Test request runner (api type) ─────────────── */
+
+function ApiTestPanel({ target, method, bodyExtra, params }: {
+  target: string; method?: string; bodyExtra?: unknown; params: ActionParam[];
+}) {
+  const m = (method || 'POST').toUpperCase();
+  const [resp, setResp] = React.useState<{ status: number; ok: boolean; body?: unknown; error?: string } | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const reqBody = (bodyExtra && typeof bodyExtra === 'object') ? (bodyExtra as Record<string, unknown>) : {};
+
+  const run = async () => {
+    setLoading(true);
+    setResp(null);
+    try {
+      const token = (typeof localStorage !== 'undefined') ? localStorage.getItem('auth-session-token') : null;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const init: RequestInit = { method: m, headers, credentials: 'include' };
+      if (m !== 'GET' && m !== 'HEAD') init.body = JSON.stringify(reqBody);
+      const r = await fetch(target, init);
+      const text = await r.text();
+      let parsed: unknown = text;
+      try { parsed = JSON.parse(text); } catch { /* keep text */ }
+      setResp({ status: r.status, ok: r.ok, body: parsed });
+    } catch (e) {
+      setResp({ status: 0, ok: false, error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 text-xs">
+      <div className="rounded border bg-background p-2 font-mono text-[11px] break-all">
+        <span className="font-semibold">{m}</span> {target}
+      </div>
+      {Object.keys(reqBody).length > 0 && (
+        <pre className="m-0 rounded border bg-muted/30 p-2 text-[10px] font-mono whitespace-pre-wrap">{JSON.stringify(reqBody, null, 2)}</pre>
+      )}
+      {params.length > 0 && (
+        <div className="text-[10px] text-muted-foreground">+ {params.length} user-supplied param{params.length > 1 ? 's' : ''} collected at runtime</div>
+      )}
+      {m !== 'GET' && (
+        <div className="flex items-start gap-1.5 text-[10px] text-amber-700">
+          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+          <span>Sends a real {m} request to the live backend — may modify data.</span>
+        </div>
+      )}
+      <button type="button" onClick={run} disabled={loading}
+        className="inline-flex items-center gap-1.5 rounded border bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50">
+        <Globe className="h-3.5 w-3.5" /> {loading ? 'Sending…' : 'Send test request'}
+      </button>
+      {resp && (
+        <div className={'rounded border p-2 ' + (resp.ok ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50')}>
+          <div className="mb-1 text-[11px] font-medium">{resp.error ? 'Network error' : ('HTTP ' + resp.status + (resp.ok ? ' OK' : ''))}</div>
+          <pre className="m-0 max-h-[200px] overflow-auto text-[10px] font-mono whitespace-pre-wrap">{resp.error ?? (typeof resp.body === 'string' ? resp.body : JSON.stringify(resp.body, null, 2))}</pre>
+        </div>
+      )}
+    </div>
+  );
+}

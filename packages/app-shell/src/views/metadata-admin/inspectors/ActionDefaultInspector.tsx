@@ -47,6 +47,7 @@ import {
 } from './_shared';
 import { useObjectOptions } from '../previews/useObjectOptions';
 import { useObjectFields } from '../previews/useObjectFields';
+import { ConditionBuilder } from './ConditionBuilder';
 
 /* ─────────────── constants ─────────────── */
 
@@ -371,10 +372,10 @@ export function ActionDefaultInspector({
       </div>
 
       {/* 6 ─ Conditions */}
-      <div className="border-t pt-3 space-y-2">
-        <SectionHeader title="Conditions" hint="CEL predicates over the record / user / ctx." />
-        <InspectorTextField label="Visible when" value={typeof draft.visible === 'string' ? (draft.visible as string) : ''} onCommit={(v) => onPatch({ visible: v })} placeholder="e.g. record.status != 'done'" disabled={readOnly} mono />
-        <InspectorTextField label="Disabled when" value={typeof draft.disabled === 'string' ? (draft.disabled as string) : ''} onCommit={(v) => onPatch({ disabled: v })} placeholder="e.g. !user.isAdmin" disabled={readOnly} mono />
+      <div className="border-t pt-3 space-y-3">
+        <SectionHeader title="Conditions" hint="No-code predicates over the record / user / ctx (compiled to CEL)." />
+        <ConditionBuilder label="Visible when" value={typeof draft.visible === 'string' ? (draft.visible as string) : ''} onCommit={(v) => onPatch({ visible: v || undefined })} objectName={objectName} disabled={readOnly} />
+        <ConditionBuilder label="Disabled when" value={typeof draft.disabled === 'string' ? (draft.disabled as string) : ''} onCommit={(v) => onPatch({ disabled: v || undefined })} objectName={objectName} disabled={readOnly} />
       </div>
 
       {/* 7 ─ AI exposure */}
