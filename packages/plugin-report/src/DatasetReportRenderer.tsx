@@ -40,6 +40,17 @@ import { mergeFilters } from './mergeFilters';
 
 type Row = Record<string, unknown>;
 
+/** Humanize a dimension NAME for a header label (the renderer only knows
+ *  dimension names, not the dataset's display labels): snake/camel → Title
+ *  Case. e.g. 'status' → 'Status', 'created_at' → 'Created At'. */
+function humanizeDimension(name: string): string {
+  return String(name)
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
 /** One server-computed totals grouping: `dimensions: []` is the grand total. */
 interface DatasetTotals {
   dimensions: string[];
@@ -390,7 +401,7 @@ function DatasetMatrixTable({
           <tr>
             {rows.map((d) => (
               <th key={d} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">
-                {d}
+                {humanizeDimension(d)}
               </th>
             ))}
             {cellCols.map((cc) => (

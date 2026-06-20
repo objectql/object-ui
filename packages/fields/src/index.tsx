@@ -1054,31 +1054,44 @@ export function FileCellRenderer({ value, field }: CellRendererProps): React.Rea
  */
 export function ImageCellRenderer({ value }: CellRendererProps): React.ReactElement {
   if (!value) return <EmptyValue />;
-  
+
+  // An image value may be a plain URL string, an object ({ url | src | href }),
+  // or an array of either. Normalize so a string-URL field (common — e.g. a
+  // `cover` seeded with a CDN link) renders a thumbnail instead of a broken
+  // <img src=""> placeholder.
+  const urlOf = (v: any): string =>
+    typeof v === 'string' ? v : (v?.url || v?.src || v?.href || v?.thumbnailUrl || '');
+  const nameOf = (v: any, fallback: string): string =>
+    (v && typeof v === 'object' && (v.name || v.original_name)) || fallback;
+
   if (Array.isArray(value)) {
+    const imgs = value.map((v) => ({ url: urlOf(v), name: nameOf(v, 'Image') })).filter((i) => i.url);
+    if (imgs.length === 0) return <EmptyValue />;
     return (
       <div className="flex -space-x-2">
-        {value.slice(0, 3).map((img, idx) => (
+        {imgs.slice(0, 3).map((img, idx) => (
           <img
             key={idx}
-            src={img.url || ''}
+            src={img.url}
             alt={img.name || `Image ${idx + 1}`}
             className="size-8 rounded-md border-2 border-white object-cover"
           />
         ))}
-        {value.length > 3 && (
+        {imgs.length > 3 && (
           <div className="size-8 rounded-md border-2 border-white bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
-            +{value.length - 3}
+            +{imgs.length - 3}
           </div>
         )}
       </div>
     );
   }
-  
+
+  const url = urlOf(value);
+  if (!url) return <EmptyValue />;
   return (
     <img
-      src={value.url || ''}
-      alt={value.name || 'Image'}
+      src={url}
+      alt={nameOf(value, 'Image')}
       className="size-10 rounded-md object-cover"
     />
   );

@@ -1628,6 +1628,28 @@ export function GanttView({
     scrollAreaRef.current.scrollTo({ left: target, behavior: 'smooth' });
   }, [todayLeftPx]);
 
+  // One-shot initial scroll: open the timeline where the work is, not at the
+  // padded left edge. Prefer today (when in range); otherwise the earliest
+  // task's start. Runs once after layout is measurable — without this, a board
+  // whose tasks sit weeks into the range opens on empty columns (issue: Gantt
+  // landed on a blank window).
+  const didInitialScrollRef = React.useRef(false);
+  React.useEffect(() => {
+    if (didInitialScrollRef.current || tasks.length === 0) return;
+    const raf = window.requestAnimationFrame(() => {
+      const el = scrollAreaRef.current;
+      if (!el || el.clientWidth === 0) return; // layout not ready yet — retry next render
+      let targetX = todayLeftPx;
+      if (targetX == null) {
+        const earliest = new Date(Math.min(...tasks.map((t) => t.start.getTime())));
+        targetX = Math.round(dateToX(earliest));
+      }
+      el.scrollLeft = Math.max(0, targetX - el.clientWidth / 2);
+      didInitialScrollRef.current = true;
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [tasks, todayLeftPx, dateToX]);
+
   // 导航: scroll the timeline so a given date sits near the left edge. Returns
   // false (no-op) when the date is outside the rendered range.
   const scrollToDate = React.useCallback(

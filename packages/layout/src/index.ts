@@ -39,9 +39,14 @@ export function registerLayout() {
       ]
   });
 
-  // Page Card
+  // Page Card — register ONLY as `layout:page:card`. `skipFallback` keeps this
+  // thin div from clobbering the bare `page:card` key, which belongs to the
+  // record-aware PageCardRenderer in @object-ui/components (it renders
+  // title/body/children; this one only renders React children and would
+  // otherwise leak schema props onto the DOM). Same rationale as `page-header`.
   ComponentRegistry.register('page:card', PageCard, {
     namespace: 'layout',
+    skipFallback: true,
     label: 'Page Card',
     category: 'Layout',
     isContainer: true
