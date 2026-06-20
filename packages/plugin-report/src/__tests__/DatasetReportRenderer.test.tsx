@@ -19,7 +19,13 @@ import '@testing-library/jest-dom';
 import { DatasetReportRenderer, isDatasetReport } from '../DatasetReportRenderer';
 
 type MockRows = Array<Record<string, unknown>>;
-type MockResult = { rows: MockRows; totals?: Array<{ dimensions: string[]; rows: MockRows }> };
+type MockField = { name: string; type?: string; label?: string; format?: string; currency?: string };
+type MockResult = {
+  rows: MockRows;
+  fields?: MockField[];
+  object?: string;
+  totals?: Array<{ dimensions: string[]; rows: MockRows }>;
+};
 
 function makeSource(byDataset: Record<string, MockRows | MockResult>) {
   const calls: Array<{ dataset: string; selection: any }> = [];
@@ -29,7 +35,12 @@ function makeSource(byDataset: Record<string, MockRows | MockResult>) {
       calls.push({ dataset, selection: selection as any });
       const entry = byDataset[dataset];
       if (Array.isArray(entry)) return { rows: entry };
-      return { rows: entry?.rows ?? [], ...(entry?.totals ? { totals: entry.totals } : {}) };
+      return {
+        rows: entry?.rows ?? [],
+        ...(entry?.fields ? { fields: entry.fields } : {}),
+        ...(entry?.object ? { object: entry.object } : {}),
+        ...(entry?.totals ? { totals: entry.totals } : {}),
+      };
     }),
   };
 }
@@ -262,6 +273,170 @@ describe('DatasetReportRenderer', () => {
     );
     await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
     expect(screen.queryByTestId('dataset-drill-row')).not.toBeInTheDocument();
+  });
+
+  // ── label headers ────────────────────────────────────────────────────────
+  it('renders the dataset display label for headers, not the raw field name', async () => {
+    const src = makeSource({
+      task_metrics: {
+        rows: [{ status: 'Backlog', task_count: 4 }],
+        object: 'task',
+        fields: [
+          { name: 'status', type: 'string', label: 'Stage' },
+          { name: 'task_count', type: 'number', label: 'Tasks' },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'task_metrics', rows: ['status'], values: ['task_count'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
+    // Headers use the server field label, not the raw name.
+    expect(screen.getByRole('columnheader', { name: 'Stage' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Tasks' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'status' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'task_count' })).not.toBeInTheDocument();
+  });
+
+  it('falls back to the raw field name when the result carries no field labels', async () => {
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', task_count: 4 }] });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'task_metrics', rows: ['status'], values: ['task_count'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Backlog')).toBeInTheDocument());
+    expect(screen.getByRole('columnheader', { name: 'status' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'task_count' })).toBeInTheDocument();
+  });
+
+  it('uses the dataset display label for matrix row + measure headers', async () => {
+    const src = makeSource({
+      task_metrics: {
+        rows: [{ status: 'Backlog', priority: 'High', est_hours: 10, billed: 5 }],
+        object: 'task',
+        fields: [
+          { name: 'status', type: 'string', label: 'Stage' },
+          { name: 'priority', type: 'string', label: 'Priority' },
+          { name: 'est_hours', type: 'number', label: 'Estimated Hours' },
+          { name: 'billed', type: 'number', label: 'Billed Hours' },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'task_metrics', rows: ['status'], columns: ['priority'], values: ['est_hours', 'billed'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    // Row-dimension header uses the field label (was Title-Cased name before).
+    expect(screen.getByRole('columnheader', { name: 'Stage' })).toBeInTheDocument();
+    // Multi-measure cell header reads "<bucket> · <measure label>", not the raw name.
+    expect(screen.getByRole('columnheader', { name: 'High · Estimated Hours' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'High · Billed Hours' })).toBeInTheDocument();
+  });
+
+  // ── currency-aware measure formatting ──────────────────────────────────────
+  it('formats an amount with NO declared currency as a plain number (no $)', async () => {
+    const src = makeSource({
+      revenue_metrics: {
+        rows: [{ region: 'East', revenue: 1234 }],
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'revenue', type: 'number', label: 'Revenue', format: '0,0' },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'revenue_metrics', rows: ['region'], values: ['revenue'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('East')).toBeInTheDocument());
+    expect(screen.getByText('1,234')).toBeInTheDocument();
+    expect(screen.queryByText('$1,234')).not.toBeInTheDocument();
+  });
+
+  it('uses the declared currency (Intl symbol) for measure cells', async () => {
+    const src = makeSource({
+      revenue_metrics: {
+        rows: [{ region: 'East', revenue: 1234 }],
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'revenue', type: 'number', label: 'Revenue', format: '0,0', currency: 'CNY' },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'revenue_metrics', rows: ['region'], values: ['revenue'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('East')).toBeInTheDocument());
+    // Intl renders CNY with the ¥ symbol — never a bare number, never a wrong $.
+    const cell = screen.getByText((t) => t.includes('1,234') && /[¥￥]|CN¥/.test(t));
+    expect(cell).toBeInTheDocument();
+  });
+
+  it('formats matrix cells + server totals with the measure currency', async () => {
+    const src = makeSource({
+      revenue_metrics: {
+        rows: [{ region: 'East', segment: 'SMB', revenue: 1000 }],
+        object: 'deal',
+        fields: [
+          { name: 'region', type: 'string', label: 'Region' },
+          { name: 'segment', type: 'string', label: 'Segment' },
+          { name: 'revenue', type: 'number', label: 'Revenue', format: '0,0', currency: 'USD' },
+        ],
+        totals: [
+          { dimensions: ['region'], rows: [{ region: 'East', revenue: 1000 }] },
+          { dimensions: ['segment'], rows: [{ segment: 'SMB', revenue: 1000 }] },
+          { dimensions: [], rows: [{ revenue: 1000 }] },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'revenue_metrics', rows: ['region'], columns: ['segment'], values: ['revenue'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    // Both the body cell and the server-supplied row subtotal carry the $ symbol.
+    expect(screen.getByTestId('matrix-row-total')).toHaveTextContent('$1,000');
+    expect(screen.getByTestId('matrix-grand-total')).toHaveTextContent('$1,000');
+  });
+
+  // ── i18n ───────────────────────────────────────────────────────────────────
+  it('renders the English fallback for the totals label with no i18n provider', async () => {
+    const src = makeSource({
+      task_metrics: {
+        rows: [{ status: 'Backlog', priority: 'High', est_hours: 10 }],
+        totals: [
+          { dimensions: ['status'], rows: [{ status: 'Backlog', est_hours: 10 }] },
+          { dimensions: ['priority'], rows: [{ priority: 'High', est_hours: 10 }] },
+          { dimensions: [], rows: [{ est_hours: 10 }] },
+        ],
+      },
+    });
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'task_metrics', rows: ['status'], columns: ['priority'], values: ['est_hours'] }}
+        dataSource={src}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    // graceful fallback → the English default, never a raw "report.total" key.
+    expect(screen.getByTestId('matrix-total-col-header')).toHaveTextContent('Total');
+    expect(screen.getByTestId('matrix-total-row')).toHaveTextContent('Total');
+    expect(screen.queryByText('report.total')).not.toBeInTheDocument();
   });
 
   it('shows an error when the data source cannot run dataset queries', async () => {
