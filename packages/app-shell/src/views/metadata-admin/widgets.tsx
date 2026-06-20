@@ -36,11 +36,15 @@ import {
   PopoverTrigger,
   PopoverContent,
   FilterBuilder,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from '@object-ui/components';
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Search, Trash2 } from 'lucide-react';
 // @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
 import { iconNames } from 'lucide-react/dynamic.mjs';
-import { detectLocale, t } from './i18n';
+import { detectLocale, t, tFormat } from './i18n';
 import { ColorVariantPicker } from './color-variant-field';
 
 export interface WidgetContext {
@@ -1020,7 +1024,7 @@ const LUCIDE_ICON_NAMES: readonly string[] = iconNames as string[];
 const LUCIDE_ICON_SET: Set<string> = new Set(LUCIDE_ICON_NAMES);
 // Cap the rendered grid — each cell mounts a lazily-loaded icon, so showing all
 // ~1500 at once would fire a flood of chunk requests. The search box narrows it.
-const ICON_RESULT_LIMIT = 60;
+const ICON_RESULT_LIMIT = 120;
 
 /**
  * Searchable icon picker for `widget: 'icon'` string fields (page/app/object
@@ -1042,46 +1046,35 @@ export function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps)
   const current = value == null ? '' : String(value);
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
-  const rootRef = React.useRef<HTMLDivElement>(null);
 
   const currentKebab = current ? toKebabIconName(current) : '';
   const inCatalog = !current || LUCIDE_ICON_SET.has(currentKebab);
 
-  // Close when focus/click leaves the widget.
-  React.useEffect(() => {
-    if (!open) return;
-    const onDocPointer = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDocPointer);
-    return () => document.removeEventListener('mousedown', onDocPointer);
-  }, [open]);
+  const q = toKebabIconName(query.trim());
+  const allMatches = React.useMemo(
+    () => (q ? LUCIDE_ICON_NAMES.filter((n) => n.includes(q)) : LUCIDE_ICON_NAMES),
+    [q],
+  );
+  const results = allMatches.slice(0, ICON_RESULT_LIMIT);
+  const truncated = allMatches.length > results.length;
 
-  const results = React.useMemo(() => {
-    const q = toKebabIconName(query.trim());
-    const matches = q
-      ? LUCIDE_ICON_NAMES.filter((n) => n.includes(q))
-      : LUCIDE_ICON_NAMES;
-    return matches.slice(0, ICON_RESULT_LIMIT);
-  }, [query]);
-
-  const select = (name: string) => {
+  const select = (name: string | undefined) => {
     onChange(name || undefined);
     setOpen(false);
     setQuery('');
   };
 
   return (
-    <div ref={rootRef} className="relative">
+    <>
       <button
         id={id}
         type="button"
         role="combobox"
+        aria-haspopup="dialog"
         aria-expanded={open}
-        aria-controls={id ? `${id}-listbox` : undefined}
         disabled={readOnly}
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-left disabled:opacity-60 disabled:cursor-not-allowed"
+        onClick={() => !readOnly && setOpen(true)}
+        className="flex w-full items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-left disabled:cursor-not-allowed disabled:opacity-60"
       >
         <LazyIcon name={inCatalog ? current : undefined} className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span className={'flex-1 truncate ' + (current ? 'font-mono' : 'text-muted-foreground')}>
@@ -1093,14 +1086,14 @@ export function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps)
         <ChevronsUpDown aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-50" />
       </button>
 
-      {open && !readOnly && (
-        <div
-          id={id ? `${id}-listbox` : undefined}
-          role="listbox"
-          className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover p-1 shadow-md"
-        >
-          <div className="flex items-center gap-2 border-b border-border/50 px-2 pb-1.5">
-            <Search aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(''); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t('engine.form.chooseIcon', locale)}</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-2">
+            <Search aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               type="text"
               autoFocus
@@ -1108,11 +1101,28 @@ export function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps)
               aria-label={t('engine.form.searchIcons', locale)}
               placeholder={t('engine.form.searchIcons', locale)}
               onChange={(e) => setQuery(e.target.value)}
-              className="w-full bg-transparent py-1 text-sm outline-none"
+              className="w-full bg-transparent text-sm outline-none"
             />
           </div>
-          <div className="mt-1 grid max-h-56 grid-cols-6 gap-1 overflow-y-auto">
-            {/* Keep an unknown value reachable so re-opening never drops it. */}
+
+          <div
+            id={id ? `${id}-listbox` : undefined}
+            role="listbox"
+            className="grid max-h-[52vh] grid-cols-6 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-8"
+          >
+            {current && (
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                title={t('engine.form.none', locale)}
+                onClick={() => select(undefined)}
+                className="flex aspect-square flex-col items-center justify-center gap-1 rounded border border-dashed border-border p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="w-full truncate text-center text-[9px] leading-tight">none</span>
+              </button>
+            )}
             {!inCatalog && current && (
               <button
                 type="button"
@@ -1120,11 +1130,10 @@ export function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps)
                 aria-selected
                 title={current}
                 onClick={() => select(current)}
-                className="col-span-6 flex items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-accent hover:text-accent-foreground"
+                className="flex aspect-square flex-col items-center justify-center gap-1 rounded bg-accent p-1 text-accent-foreground ring-1 ring-primary"
               >
-                <LazyIcon name={undefined} className="h-4 w-4 shrink-0" />
-                <span className="font-mono">{current}</span>
-                <span className="ml-auto text-muted-foreground">{t('engine.form.keep', locale)}</span>
+                <LazyIcon name={undefined} className="h-4 w-4" />
+                <span className="w-full truncate text-center text-[9px] leading-tight">{current}</span>
               </button>
             )}
             {results.map((name) => {
@@ -1142,20 +1151,26 @@ export function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps)
                     (selected ? 'bg-accent text-accent-foreground ring-1 ring-primary' : '')
                   }
                 >
-                  <LazyIcon name={name} className="h-4 w-4" />
+                  <LazyIcon name={name} className="h-5 w-5" />
                   <span className="w-full truncate text-center text-[9px] leading-tight">{name}</span>
                 </button>
               );
             })}
             {results.length === 0 && (
-              <p className="col-span-6 px-2 py-3 text-center text-xs text-muted-foreground">
+              <p className="col-span-full px-2 py-6 text-center text-sm text-muted-foreground">
                 {t('engine.form.noMatchingIcons', locale)}
               </p>
             )}
           </div>
-        </div>
-      )}
-    </div>
+
+          {truncated && (
+            <p className="text-center text-xs text-muted-foreground">
+              {tFormat('engine.form.iconsTruncated', locale, { shown: results.length, total: allMatches.length })}
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
