@@ -66,6 +66,38 @@ export function buildDrillFilter(
 }
 
 /**
+ * Pivot flat dataset rows into a cross-tab: `rowDims` go DOWN, `colDim` spreads
+ * ACROSS. Returns ordered row/column headers (display labels from the rows) and
+ * a map from a `${rowId} ${colId}` cell key to the FLAT row index holding
+ * that combination's measure values. No re-aggregation — the dataset already
+ * grouped by every dimension, so each cell maps to exactly one row (the index
+ * is also what drill-through uses to read `drillRawRows`).
+ */
+export function buildPivot(
+  rows: Array<Record<string, unknown>>,
+  rowDims: string[],
+  colDim: string,
+): {
+  rowHeaders: Array<{ id: string; labels: string[] }>;
+  colHeaders: Array<{ id: string; label: string }>;
+  cellIndex: Map<string, number>;
+} {
+  const rowHeaders: Array<{ id: string; labels: string[] }> = [];
+  const colHeaders: Array<{ id: string; label: string }> = [];
+  const rowSeen = new Set<string>();
+  const colSeen = new Set<string>();
+  const cellIndex = new Map<string, number>();
+  rows.forEach((row, index) => {
+    const rid = rowDims.map((d) => String(row[d] ?? '∅')).join('');
+    const cid = String(row[colDim] ?? '∅');
+    if (!rowSeen.has(rid)) { rowSeen.add(rid); rowHeaders.push({ id: rid, labels: rowDims.map((d) => formatValue(row[d])) }); }
+    if (!colSeen.has(cid)) { colSeen.add(cid); colHeaders.push({ id: cid, label: formatValue(row[colDim]) }); }
+    cellIndex.set(`${rid} ${cid}`, index);
+  });
+  return { rowHeaders, colHeaders, cellIndex };
+}
+
+/**
  * Translate with a graceful fallback. Mirrors the PivotTable pattern: when no
  * i18n provider is mounted (or the key is missing), return the English default
  * so the widget never renders a raw translation key.
@@ -265,22 +297,95 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     );
   }
 
-  // Table / pivot — a grouped table of the selected dimensions + measures.
+  // Table / pivot — a grouped table or, for a pivot with ≥2 dimensions, a true
+  // cross-tab.
   if (isTable) {
-    const columns = [...dimensions, ...values];
     // Drill-through is available when the server returned the dataset's object +
     // at least one drillable dimension that this widget actually groups by.
     const { object, dimensionFields, drillRawRows } = state;
     const drillDims = dimensionFields ? dimensions.filter((d) => d in dimensionFields) : [];
     const canDrill = !!object && drillDims.length > 0;
 
-    const openDrill = (row: Row, index: number) => {
+    // Drill by FLAT row index — both the flat table and the matrix cells map a
+    // clicked element to a single dataset row (and its `drillRawRows` entry).
+    const openDrill = (index: number, title: string) => {
       if (!object || !dimensionFields) return;
       const merged = buildDrillFilter(drillRawRows?.[index], drillDims, dimensionFields, runtimeFilter);
-      const title = drillDims.map((d) => formatValue(row[d])).filter(Boolean).join(' / ') || String(widget?.title ?? '');
-      setDrill({ filter: merged, title });
+      setDrill({ filter: merged, title: title || String(widget?.title ?? '') });
     };
 
+    const drawer = drill && object ? (
+      <DrillDownDrawer
+        open
+        onClose={() => setDrill(null)}
+        title={drill.title || String(widget?.title ?? tt('dashboard.details', 'Details'))}
+        objectName={object}
+        filter={drill.filter}
+        dataSource={dataSource}
+      />
+    ) : null;
+
+    // pivot → a true cross-tab when there are ≥2 dimensions: the LAST dimension
+    // spreads ACROSS as columns, the rest go DOWN as rows, measures fill the
+    // cells. The dataset already returns one row per dimension combination, so
+    // cells just place those pre-aggregated values — no client re-aggregation
+    // (an avg/min/max can't be recombined). With <2 dimensions a cross-tab is
+    // meaningless, so it degrades to the flat grouped table.
+    const isMatrix = widgetType === 'pivot' && dimensions.length >= 2;
+    if (isMatrix) {
+      const rowDims = dimensions.slice(0, -1);
+      const colDim = dimensions[dimensions.length - 1];
+      const pivot = buildPivot(state.rows, rowDims, colDim);
+      // Single measure → one column per across-bucket; multiple → bucket × measure.
+      const cellCols = pivot.colHeaders.flatMap((col) =>
+        values.map((m) => ({ col, measure: m, header: values.length === 1 ? col.label : `${col.label} · ${headerLabel(m)}` })),
+      );
+      return (
+        <div className="h-full w-full overflow-auto p-1" data-testid="dataset-matrix">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40">
+              <tr>
+                {rowDims.map((d) => (
+                  <th key={d} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">{headerLabel(d)}</th>
+                ))}
+                {cellCols.map((cc) => (
+                  <th key={`${cc.col.id}-${cc.measure}`} className="px-2 py-1.5 text-right font-medium whitespace-nowrap">{cc.header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pivot.rowHeaders.map((rh) => (
+                <tr key={rh.id} className="border-t">
+                  {rh.labels.map((lbl, di) => (
+                    <td key={di} className="px-2 py-1 whitespace-nowrap font-medium">{lbl}</td>
+                  ))}
+                  {cellCols.map((cc) => {
+                    const index = pivot.cellIndex.get(`${rh.id} ${cc.col.id}`);
+                    const fr = index != null ? state.rows[index] : undefined;
+                    const clickable = canDrill && index != null;
+                    const title = [...rh.labels, cc.col.label].filter(Boolean).join(' / ');
+                    return (
+                      <td
+                        key={`${cc.col.id}-${cc.measure}`}
+                        className={cn('px-2 py-1 text-right tabular-nums whitespace-nowrap', clickable && 'cursor-pointer hover:bg-accent/40')}
+                        data-testid={clickable ? 'dataset-drill-cell' : undefined}
+                        onClick={clickable ? () => openDrill(index as number, title) : undefined}
+                      >
+                        {fr ? formatMeasure(fr[cc.measure], measureField(cc.measure)?.format, measureField(cc.measure)?.currency) : '—'}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {drawer}
+        </div>
+      );
+    }
+
+    // table (and a 1-dimension pivot) → a flat grouped table.
+    const columns = [...dimensions, ...values];
     return (
       <div className="h-full w-full overflow-auto p-1">
         <table className="w-full text-xs">
@@ -297,7 +402,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                 key={i}
                 className={cn('border-t', canDrill && 'cursor-pointer hover:bg-accent/40')}
                 data-testid={canDrill ? 'dataset-drill-row' : undefined}
-                onClick={canDrill ? () => openDrill(row, i) : undefined}
+                onClick={canDrill ? () => openDrill(i, drillDims.map((d) => formatValue(row[d])).filter(Boolean).join(' / ')) : undefined}
               >
                 {columns.map((c) => (
                   <td key={c} className="px-2 py-1 whitespace-nowrap tabular-nums">
@@ -308,16 +413,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
             ))}
           </tbody>
         </table>
-        {drill && object && (
-          <DrillDownDrawer
-            open
-            onClose={() => setDrill(null)}
-            title={drill.title || String(widget?.title ?? tt('dashboard.details', 'Details'))}
-            objectName={object}
-            filter={drill.filter}
-            dataSource={dataSource}
-          />
-        )}
+        {drawer}
       </div>
     );
   }
