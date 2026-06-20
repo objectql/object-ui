@@ -319,8 +319,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     enabled: !!dataSource && !!schema.objectName,
   });
 
+  // Activate the mobile card view below the 768px app mobile breakpoint so
+  // phones and tablet-portrait never need to side-scroll a wide grid.
   useEffect(() => {
-    const checkWidth = () => setUseCardView(window.innerWidth < 480);
+    const checkWidth = () => setUseCardView(window.innerWidth < 768);
     checkWidth();
     window.addEventListener('resize', checkWidth);
     return () => window.removeEventListener('resize', checkWidth);
@@ -1629,7 +1631,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1)} Detail`
       : 'Record Detail';
 
-  // Mobile card-view fallback for screens below 480px
+  // Mobile card-view: below the 768px app breakpoint (matches useIsMobile /
+  // Tailwind md: / the responsive page+grid layout), render stacked cards
+  // instead of a side-scrolling wide table.
   if (useCardView && data.length > 0 && !isGrouped) {
     const displayColumns = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
 
