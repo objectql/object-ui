@@ -40,6 +40,33 @@ const renderWithProvider = (component: React.ReactNode) => {
   );
 };
 
+/**
+ * Reveal the visualization options regardless of which form the switcher
+ * takes. With 2–4 visualizations the switcher renders an inline segmented
+ * control whose option buttons are always visible, so there is nothing to
+ * open. With 5+ it collapses into a "List ▾" dropdown that must be clicked
+ * first. Click the dropdown trigger only when it exists.
+ */
+const openViewSwitcher = () => {
+  const trigger = screen.queryByTestId('view-switcher-dropdown');
+  if (trigger) fireEvent.click(trigger);
+};
+
+/**
+ * Find a visualization option by its accessible name, regardless of switcher
+ * form. The inline segmented control exposes each option as role="tab"; the
+ * collapsed dropdown menu exposes them as plain buttons. Returns null when the
+ * option is not offered.
+ */
+const queryViewOption = (name: string) =>
+  screen.queryByRole('tab', { name }) ?? screen.queryByRole('button', { name });
+
+const getViewOption = (name: string) => {
+  const option = queryViewOption(name);
+  if (!option) throw new Error(`View option "${name}" not found`);
+  return option;
+};
+
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
 describe('ListView', () => {
@@ -114,9 +141,9 @@ describe('ListView', () => {
 
     renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
 
-    // Open the visualization dropdown, then pick Kanban from the menu
-    fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
-    fireEvent.click(screen.getByRole('button', { name: 'Kanban' }));
+    // Reveal the visualization options, then pick Kanban
+    openViewSwitcher();
+    fireEvent.click(getViewOption('Kanban'));
 
     // localStorage should be set with new view
     const storageKey = 'listview-contacts-view';
@@ -1460,11 +1487,11 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      // Should only offer grid and kanban in the dropdown, not calendar
-      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
-      expect(screen.getAllByRole('button', { name: 'Grid' }).length).toBeGreaterThan(0);
-      expect(screen.getByRole('button', { name: 'Kanban' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Calendar' })).not.toBeInTheDocument();
+      // Should only offer grid and kanban, not calendar
+      openViewSwitcher();
+      expect(queryViewOption('Grid')).toBeInTheDocument();
+      expect(queryViewOption('Kanban')).toBeInTheDocument();
+      expect(queryViewOption('Calendar')).not.toBeInTheDocument();
     });
   });
 
@@ -1483,8 +1510,8 @@ describe('ListView', () => {
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
       // Should enable kanban view since kanban.groupField is set
-      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
-      expect(screen.getByRole('button', { name: 'Kanban' })).toBeInTheDocument();
+      openViewSwitcher();
+      expect(queryViewOption('Kanban')).toBeInTheDocument();
     });
 
     it('should use spec gallery config over legacy options', () => {
@@ -1497,8 +1524,8 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
-      expect(screen.getByRole('button', { name: 'Gallery' })).toBeInTheDocument();
+      openViewSwitcher();
+      expect(queryViewOption('Gallery')).toBeInTheDocument();
     });
 
     it('should use spec timeline config over legacy options', () => {
@@ -1511,8 +1538,8 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
-      expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
+      openViewSwitcher();
+      expect(queryViewOption('Timeline')).toBeInTheDocument();
     });
 
     it('should use spec calendar config over legacy options', () => {
@@ -1525,8 +1552,8 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
-      expect(screen.getByRole('button', { name: 'Calendar' })).toBeInTheDocument();
+      openViewSwitcher();
+      expect(queryViewOption('Calendar')).toBeInTheDocument();
     });
 
     it('should use spec gantt config over legacy options', () => {
@@ -1539,8 +1566,8 @@ describe('ListView', () => {
       };
 
       renderWithProvider(<ListView schema={schema} showViewSwitcher={true} />);
-      fireEvent.click(screen.getByTestId('view-switcher-dropdown'));
-      expect(screen.getByRole('button', { name: 'Gantt' })).toBeInTheDocument();
+      openViewSwitcher();
+      expect(queryViewOption('Gantt')).toBeInTheDocument();
     });
   });
 
