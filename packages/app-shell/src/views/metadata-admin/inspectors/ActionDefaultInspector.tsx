@@ -47,6 +47,7 @@ import {
 } from './_shared';
 import { useObjectOptions } from '../previews/useObjectOptions';
 import { useObjectFields } from '../previews/useObjectFields';
+import { useMetaOptions } from '../previews/useMetaOptions';
 import { ConditionBuilder } from './ConditionBuilder';
 import { IconPickerWidget } from '../widgets';
 
@@ -125,6 +126,38 @@ const TARGET_FIELD: Record<string, { label: string; placeholder: string; hint: s
   form: { label: 'Form view name', placeholder: 'object.viewKey', hint: 'Opens /console/forms/<name>.' },
   api: { label: 'API endpoint', placeholder: '/api/v1/…', hint: 'Endpoint called with the request body below.' },
 };
+
+/** Action types whose `target` names another metadata record — render a picker
+ *  of real names instead of free text (flow → flow, modal → page, form → view). */
+const TARGET_META_TYPE: Record<string, string> = { flow: 'flow', modal: 'page', form: 'view' };
+
+/** Target binding: a reference picker for flow/modal/form (names come from the
+ *  matching metadata type), else a free-text input (url/api). An out-of-catalog
+ *  value is preserved as a synthesized option so it is never silently dropped. */
+function ActionTargetField({ type, value, onCommit, cfg, readOnly }: {
+  type: string;
+  value: string;
+  onCommit: (v: string) => void;
+  cfg: { label: string; placeholder: string; hint: string };
+  readOnly?: boolean;
+}) {
+  const metaType = TARGET_META_TYPE[type] ?? null;
+  const { options } = useMetaOptions(metaType);
+  const usePicker = !!metaType && options.length > 0;
+  const opts = usePicker && value && !options.some((o) => o.value === value)
+    ? [{ value, label: `${value} (not found)` }, ...options]
+    : options;
+  return (
+    <div className="space-y-1">
+      {usePicker ? (
+        <InspectorSelectField label={`${cfg.label} *`} value={value || undefined} options={opts} onCommit={onCommit} disabled={readOnly} />
+      ) : (
+        <InspectorTextField label={`${cfg.label} *`} value={value} onCommit={onCommit} placeholder={cfg.placeholder} disabled={readOnly} mono />
+      )}
+      <div className="text-[11px] text-muted-foreground/70">{cfg.hint}</div>
+    </div>
+  );
+}
 
 /** Keys this inspector edits with its own controls — hidden from the fallback. */
 const CURATED_FIELDS = [
@@ -295,10 +328,13 @@ export function ActionDefaultInspector({
               <InspectorSelectField label="Method" value={str('method') || 'POST'} options={METHOD_OPTS} onCommit={(v) => onPatch({ method: v })} disabled={readOnly} />
             )}
             {targetCfg && (
-              <div className="space-y-1">
-                <InspectorTextField label={`${targetCfg.label} *`} value={str('target')} onCommit={(v) => onPatch({ target: v })} placeholder={targetCfg.placeholder} disabled={readOnly} mono />
-                <div className="text-[11px] text-muted-foreground/70">{targetCfg.hint}</div>
-              </div>
+              <ActionTargetField
+                type={type}
+                value={str('target')}
+                onCommit={(v) => onPatch({ target: v })}
+                cfg={targetCfg}
+                readOnly={readOnly}
+              />
             )}
           </>
         )}
