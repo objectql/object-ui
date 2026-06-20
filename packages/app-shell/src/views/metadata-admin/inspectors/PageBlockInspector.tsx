@@ -26,6 +26,7 @@ import {
   moveArray,
 } from './_shared';
 import { BLOCK_CONFIG, blockHasConfig, type BlockPropField } from '../previews/block-config';
+import { ColorVariantPicker } from '../color-variant-field';
 import { useObjectOptions } from '../previews/useObjectOptions';
 import { useObjectFields } from '../previews/useObjectFields';
 import {
@@ -383,6 +384,18 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
         return (
           <InspectorCheckboxField key={k} label={f.label} value={!!read(f.name)}
             onCommit={(v) => write(f.name, v)} disabled={readOnly} />
+        );
+      case 'color':
+        return (
+          <div key={k} className="space-y-1">
+            <Label className="text-xs text-muted-foreground">{f.label}</Label>
+            <ColorVariantPicker
+              value={read(f.name) != null ? String(read(f.name)) : undefined}
+              onChange={(v) => write(f.name, v)}
+              disabled={readOnly}
+              options={f.options}
+            />
+          </div>
         );
       case 'select':
         return (

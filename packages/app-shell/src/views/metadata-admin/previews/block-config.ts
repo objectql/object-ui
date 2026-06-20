@@ -26,6 +26,7 @@ export type BlockPropField =
   | { name: string; label: string; kind: 'select'; options: Array<{ value: string; label: string }> }
   | { name: string; label: string; kind: 'string-list'; placeholder?: string }
   | { name: string; label: string; kind: 'array'; itemFields: BlockPropField[]; addLabel?: string }
+  | { name: string; label: string; kind: 'color'; options?: Array<{ value: string; label: string }> }
   // Schema-driven pickers — dropdowns populated from the live metadata.
   | { name: string; label: string; kind: 'object-picker'; placeholder?: string }
   | ({ name: string; label: string; kind: 'field-picker'; placeholder?: string } & ObjectSource)
@@ -92,7 +93,7 @@ export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
     { name: 'description', label: 'Description', kind: 'text' },
     { name: 'icon', label: 'Icon', kind: 'text', placeholder: 'lucide icon name' },
     {
-      name: 'colorVariant', label: 'Color', kind: 'select',
+      name: 'colorVariant', label: 'Color', kind: 'color',
       options: [
         { value: 'default', label: 'Default' },
         { value: 'blue', label: 'Blue' },

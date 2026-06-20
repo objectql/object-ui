@@ -295,6 +295,22 @@ function detectIconWidget(name: string, schema: JsonSchema | undefined): string 
   return undefined;
 }
 
+/**
+ * Detect the color swatch picker by NAME CONVENTION: a string field named
+ * `color`, `colorVariant`, or `*Color`. An enum gets the semantic swatch row;
+ * a free string gets the native hex picker. Mirrors the icon/field-ref
+ * conventions so color fields are consistent across every metadata type.
+ */
+function detectColorWidget(name: string, schema: JsonSchema | undefined): string | undefined {
+  const isString =
+    schema?.type === 'string' ||
+    Array.isArray(schema?.enum) ||
+    (Array.isArray(schema?.anyOf) && (schema!.anyOf as JsonSchema[]).some((b) => b?.type === 'string'));
+  if (!isString) return undefined;
+  if (name === 'color' || name === 'colorVariant' || /Color$/.test(name)) return 'color-picker';
+  return undefined;
+}
+
 /* -------------------------------------------------------------------------- */
 /* FormView spec (subset)                                                     */
 /* -------------------------------------------------------------------------- */
@@ -758,6 +774,10 @@ function FieldRow({
     else {
       const iconWidget = detectIconWidget(name, schema);
       if (iconWidget) widget = iconWidget;
+      else {
+        const colorWidget = detectColorWidget(name, schema);
+        if (colorWidget) widget = colorWidget;
+      }
     }
   }
 

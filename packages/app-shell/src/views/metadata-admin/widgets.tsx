@@ -41,6 +41,7 @@ import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Search, Trash2 } from 'lu
 // @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { detectLocale, t } from './i18n';
+import { ColorVariantPicker } from './color-variant-field';
 
 export interface WidgetContext {
   /** Names of all object metadata records (for `ref:object`). */
@@ -1584,6 +1585,52 @@ function FilterBuilderWidget({ value, onChange, readOnly, context }: WidgetProps
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* color-picker — semantic swatch row (enum) or native hex input (free color) */
+/* -------------------------------------------------------------------------- */
+
+function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: WidgetProps) {
+  const enumOpts: Array<{ value: string; label?: string }> | null =
+    Array.isArray(fieldSpec?.options) && fieldSpec!.options!.length
+      ? fieldSpec!.options!.map((o) => ({ value: o.value, label: o.label }))
+      : Array.isArray(schema?.enum)
+        ? (schema!.enum as unknown[]).filter((v): v is string => typeof v === 'string').map((v) => ({ value: v }))
+        : null;
+
+  if (enumOpts && enumOpts.length) {
+    return (
+      <ColorVariantPicker
+        value={value == null ? undefined : String(value)}
+        onChange={(v) => onChange(v)}
+        disabled={readOnly}
+        options={enumOpts}
+      />
+    );
+  }
+
+  // Free color → native picker + hex text.
+  const v = value == null ? '' : String(value);
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="color"
+        value={/^#([0-9a-f]{6})$/i.test(v) ? v : '#000000'}
+        disabled={readOnly}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-8 w-10 shrink-0 rounded border border-input bg-background p-0.5 disabled:opacity-60"
+        aria-label="Color"
+      />
+      <Input
+        value={v}
+        placeholder="#RRGGBB"
+        disabled={readOnly}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        className="h-8 text-sm font-mono"
+      />
+    </div>
+  );
+}
+
 export const WIDGETS: Record<string, WidgetRenderer> = {
   'ref:object': RefObjectWidget,
   'filter-mode': FilterModeWidget,
@@ -1595,6 +1642,7 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'filter-builder': FilterBuilderWidget,
   'view-ref': ViewRefWidget,
   'icon': IconPickerWidget,
+  'color-picker': ColorPickerWidget,
   'master-detail': MasterDetailWidget,
   'string-tags': StringTagsWidget,
   'multiselect': MultiSelectWidget,

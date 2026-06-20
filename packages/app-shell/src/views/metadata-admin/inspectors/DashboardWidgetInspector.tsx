@@ -17,6 +17,7 @@
  */
 
 import * as React from 'react';
+import { ColorVariantPicker } from '../color-variant-field';
 import { X } from 'lucide-react';
 import {
   Button,
@@ -296,26 +297,12 @@ export function DashboardWidgetInspector({
       </Field>
 
       <Field id="widget-color" label={t('engine.inspector.widget.color', locale)}>
-        <Select
+        <ColorVariantPicker
           value={widget.colorVariant ?? 'default'}
-          onValueChange={(v) =>
-            patchWidget({
-              colorVariant: v as DashboardWidgetSchema['colorVariant'],
-            })
-          }
+          onChange={(v) => patchWidget({ colorVariant: v as DashboardWidgetSchema['colorVariant'] })}
           disabled={readOnly}
-        >
-          <SelectTrigger id="widget-color">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {COLORS.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={COLORS.map((c) => ({ value: c }))}
+        />
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
