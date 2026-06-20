@@ -31,7 +31,7 @@ import { SchemaRenderer } from '@object-ui/react';
 import { buildChartSeries } from '@object-ui/core';
 import { cn } from '@object-ui/components';
 import { useObjectTranslation, useSafeFieldLabel } from '@object-ui/i18n';
-import { Loader2, BarChart3, AlertTriangle } from 'lucide-react';
+import { Loader2, BarChart3, AlertTriangle, Download } from 'lucide-react';
 import { resolveDateMacros } from './utils';
 import { DrillDownDrawer } from './DrillDownDrawer';
 
@@ -160,6 +160,34 @@ function formatValue(v: unknown): string {
   if (v == null) return '—';
   if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
   return String(v);
+}
+
+/** RFC4180-ish CSV cell: quote when it contains a comma, quote, or newline. */
+function csvCell(v: string | number | null | undefined): string {
+  if (v == null) return '';
+  const str = String(v);
+  return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+/** Serialize a 2D array (first row = headers) to CSV text. */
+export function toCsv(rows: Array<Array<string | number | null | undefined>>): string {
+  return rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+}
+
+/** Trigger a client-side CSV download (no-op outside the browser). A UTF-8 BOM
+ *  is prepended so Excel opens non-ASCII labels (e.g. Chinese) correctly. */
+function downloadCsv(filename: string, rows: Array<Array<string | number | null | undefined>>): void {
+  if (typeof document === 'undefined') return;
+  const base = filename && filename.trim() ? filename.trim() : 'export';
+  const blob = new Blob([`﻿${toCsv(rows)}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = base.endsWith('.csv') ? base : `${base}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /** Single-value KPI widget types — rendered as a number, not a chart. */
@@ -336,6 +364,30 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       />
     ) : null;
 
+    // CSV export — display-label headers + the underlying grouped rows (measures
+    // kept numeric so the data round-trips into a spreadsheet). Shared by the flat
+    // table and the cross-tab.
+    const exportColumns = [...dimensions, ...values];
+    const exportCsv = () => downloadCsv(String(widget?.title ?? datasetName ?? 'export'), [
+      exportColumns.map((c) => headerLabel(c)),
+      ...state.rows.map((r) => exportColumns.map((c) => {
+        const v = r[c];
+        return v == null ? '' : (typeof v === 'number' ? v : String(v));
+      })),
+    ]);
+    const exportBtn = (
+      <button
+        type="button"
+        onClick={exportCsv}
+        data-testid="dataset-export"
+        title={tt('dashboard.exportCsv', 'Export CSV')}
+        aria-label={tt('dashboard.exportCsv', 'Export CSV')}
+        className="absolute right-1 top-1 z-10 rounded p-1 text-muted-foreground opacity-70 hover:bg-accent/50 hover:text-foreground hover:opacity-100"
+      >
+        <Download className="h-3.5 w-3.5" />
+      </button>
+    );
+
     // pivot → a true cross-tab when there are ≥2 dimensions: the LAST dimension
     // spreads ACROSS as columns, the rest go DOWN as rows, measures fill the
     // cells. The dataset already returns one row per dimension combination, so
@@ -363,7 +415,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       const showTotalRow = colTotalById.size > 0;
       const totalLabel = tt('dashboard.total', 'Total');
       return (
-        <div className="h-full w-full overflow-auto p-1" data-testid="dataset-matrix">
+        <div className="relative h-full w-full overflow-auto p-1" data-testid="dataset-matrix">{exportBtn}
           <table className="w-full text-xs">
             <thead className="bg-muted/40">
               <tr>
@@ -436,7 +488,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // table (and a 1-dimension pivot) → a flat grouped table.
     const columns = [...dimensions, ...values];
     return (
-      <div className="h-full w-full overflow-auto p-1">
+      <div className="relative h-full w-full overflow-auto p-1">{exportBtn}
         <table className="w-full text-xs">
           <thead className="bg-muted/40">
             <tr>

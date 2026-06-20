@@ -761,6 +761,7 @@ const en = {
     pickMeasures: 'Pick measures (values) for this dataset widget.',
     datasetUnsupported: 'This data source does not support dataset queries.',
     details: 'Details',
+    exportCsv: 'Export CSV',
     trend: {
       vsLastQuarter: 'vs last quarter',
       vsLastMonth: 'vs last month',

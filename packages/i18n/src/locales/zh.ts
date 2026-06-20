@@ -761,6 +761,7 @@ const zh = {
     pickMeasures: '请为该数据集组件选择度量（值）。',
     datasetUnsupported: '当前数据源不支持数据集查询。',
     details: '明细',
+    exportCsv: '导出 CSV',
     trend: {
       vsLastQuarter: '较上季度',
       vsLastMonth: '较上月',

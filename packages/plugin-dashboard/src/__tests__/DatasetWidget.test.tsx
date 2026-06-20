@@ -1,8 +1,8 @@
 // Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, waitFor, within } from '@testing-library/react';
-import { DatasetWidget, buildDrillFilter, buildPivot } from '../DatasetWidget';
+import { render, screen, cleanup, waitFor, within, fireEvent } from '@testing-library/react';
+import { DatasetWidget, buildDrillFilter, buildPivot, toCsv } from '../DatasetWidget';
 
 afterEach(cleanup);
 
@@ -298,5 +298,51 @@ describe('DatasetWidget', () => {
     await screen.findByTestId('dataset-matrix');
     expect(screen.queryByTestId('matrix-total-row')).not.toBeInTheDocument();
     expect(screen.queryByTestId('matrix-total-col-header')).not.toBeInTheDocument();
+  });
+
+  // ── CSV export ───────────────────────────────────────────────────────────
+  it('toCsv serializes a 2D array, quoting/escaping as needed', () => {
+    expect(toCsv([['a', 'b'], [1, 2]])).toBe('a,b\r\n1,2');
+    // comma, embedded quote (doubled), and newline force quoting.
+    expect(toCsv([['x,y', 'a"b', 'l1\nl2']])).toBe('"x,y","a""b","l1\nl2"');
+    // null/undefined → empty field.
+    expect(toCsv([[null, undefined, 0]])).toBe(',,0');
+  });
+
+  it('shows an export button on table and pivot widgets', async () => {
+    const src = makeSource(async () => ({ rows: [{ status: 'Open', task_count: 5 }] }));
+    render(<DatasetWidget widget={{ type: 'table', dataset: 'tasks', dimensions: ['status'], values: ['task_count'] }} dataSource={src} />);
+    expect(await screen.findByTestId('dataset-export')).toBeInTheDocument();
+  });
+
+  it('does NOT show an export button on a metric widget', async () => {
+    const src = makeSource(async () => ({ rows: [{ task_count: 5 }] }));
+    render(<DatasetWidget widget={{ type: 'metric', dataset: 'tasks', values: ['task_count'] }} dataSource={src} />);
+    expect(await screen.findByText('5')).toBeInTheDocument();
+    expect(screen.queryByTestId('dataset-export')).not.toBeInTheDocument();
+  });
+
+  it('exports display-label headers + grouped rows (measures stay numeric) on click', async () => {
+    const calls: any[] = [];
+    const origCreate = URL.createObjectURL;
+    const origRevoke = URL.revokeObjectURL;
+    (URL as any).createObjectURL = (b: any) => { calls.push(b); return 'blob:x'; };
+    (URL as any).revokeObjectURL = () => {};
+    try {
+      const src = { queryDataset: vi.fn(async () => ({
+        rows: [{ status: 'Open', task_count: 5 }],
+        fields: [{ name: 'status', type: 'string', label: 'Status' }, { name: 'task_count', type: 'number', label: 'Tasks' }],
+      })) };
+      render(<DatasetWidget widget={{ type: 'table', dataset: 'tasks', title: 'My Tasks', dimensions: ['status'], values: ['task_count'] }} dataSource={src} />);
+      fireEvent.click(await screen.findByTestId('dataset-export'));
+      // A Blob was created → download was triggered.
+      expect(calls.length).toBe(1);
+      const text: string = await calls[0].text();
+      expect(text).toContain('Status,Tasks');
+      expect(text).toContain('Open,5');
+    } finally {
+      (URL as any).createObjectURL = origCreate;
+      (URL as any).revokeObjectURL = origRevoke;
+    }
   });
 });
