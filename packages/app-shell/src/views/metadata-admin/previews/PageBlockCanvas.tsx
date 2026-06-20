@@ -35,6 +35,29 @@ import {
   type BlockTypeId,
 } from './block-types';
 import { parsePath, hopsToPath, getByPath, setByPath } from '../inspectors/PageBlockInspector';
+import { SchemaRenderer } from '@object-ui/react';
+import { PreviewErrorBoundary } from './PreviewShell';
+
+/** Render a single block via the real runtime renderer, behind a click-trap,
+ *  so the design canvas mirrors the live preview. SchemaRenderer needs a
+ *  `type` discriminator; the block always carries one. Capped height keeps a
+ *  tall widget (e.g. a data table) from dominating the canvas. */
+function BlockLivePreview({ block, maxHeightClass = 'max-h-72' }: { block: Block; maxHeightClass?: string }) {
+  const typeStr = String(block?.type ?? '');
+  return (
+    <div className={cn('pointer-events-none select-none overflow-hidden p-3', maxHeightClass)}>
+      <PreviewErrorBoundary fallbackHint={`"${typeStr}" can't render with its current configuration — check its Properties.`}>
+        <SchemaRenderer schema={{ ...(block as Record<string, unknown>), type: typeStr } as never} />
+      </PreviewErrorBoundary>
+    </div>
+  );
+}
+
+/** Tailwind needs static class names — map a column count to a grid class. */
+const GRID_COLS_CLASS: Record<number, string> = {
+  1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3',
+  4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-6',
+};
 
 /** Container blocks expose nested child arrays (issue #1499). Returns each
  *  group's display label, the path suffix to its children array (relative to
@@ -590,6 +613,11 @@ function BlockRow({
   };
   const cancelEdit = () => { setDraft(label); setEditingLabel(false); };
 
+  // Container blocks (grid / card / tabs / section) render a slim title bar —
+  // their real content is the nested child cards shown below by NestedChildren.
+  // Leaf blocks render their REAL component so the canvas mirrors the preview.
+  const isContainer = childGroups(block).length > 0;
+
   return (
     <div
       className={cn('relative', dropZone === 'before' && 'pt-1.5')}
@@ -600,61 +628,94 @@ function BlockRow({
       {dropZone === 'before' && (
         <div className="absolute left-0 right-0 -top-0.5 h-0.5 bg-primary rounded-full" />
       )}
-      <button
-        type="button"
-        onClick={onClick}
-        draggable={draggable}
-        onDragStart={handleDragStart}
+      <div
         className={cn(
-          'group w-full text-left rounded-md border bg-card px-3.5 py-2.5 transition-colors',
-          'hover:border-primary/40 hover:bg-card',
+          'group relative rounded-md border bg-card transition-colors hover:border-primary/40',
           selected ? 'border-primary ring-2 ring-primary/30 shadow-sm' : 'border-border',
-          readOnly && 'cursor-default',
-          draggable && 'cursor-grab active:cursor-grabbing',
         )}
-        aria-pressed={selected}
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-            {draggable && (
-              <GripVertical
-                className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground/80"
-                aria-hidden="true"
-              />
+        {isContainer ? (
+          <button
+            type="button"
+            onClick={onClick}
+            draggable={draggable}
+            onDragStart={handleDragStart}
+            className={cn(
+              'flex w-full items-center justify-between gap-2 rounded-md px-3.5 py-2.5 text-left',
+              readOnly && 'cursor-default',
+              draggable && 'cursor-grab active:cursor-grabbing',
             )}
-            <Icon className={cn('h-3.5 w-3.5 shrink-0', tone.icon)} />
-            {editingLabel ? (
-              <input
-                autoFocus
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                  if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
-                  else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
-                }}
-                onBlur={commitEdit}
-                className="text-sm font-medium px-1 py-0.5 -mx-1 -my-0.5 rounded border border-primary bg-background outline-none min-w-0 flex-1"
-              />
-            ) : (
-              <span
-                className={cn('text-sm font-medium truncate', !readOnly && 'cursor-text')}
-                onDoubleClick={beginEdit}
-                title={!readOnly ? 'Double-click to rename' : undefined}
-              >
-                {label}
-              </span>
-            )}
-            {block.id && block.id !== label && (
-              <code className="text-[10px] text-muted-foreground/70 font-mono truncate">#{block.id}</code>
-            )}
-          </div>
-          <Badge variant="outline" className={cn('text-[10px] shrink-0 font-mono', tone.badge)}>
-            {typeStr}
-          </Badge>
-        </div>
-      </button>
+            aria-pressed={selected}
+          >
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              {draggable && (
+                <GripVertical
+                  className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground/80"
+                  aria-hidden="true"
+                />
+              )}
+              <Icon className={cn('h-3.5 w-3.5 shrink-0', tone.icon)} />
+              {editingLabel ? (
+                <input
+                  autoFocus
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+                    else if (e.key === 'Escape') { e.preventDefault(); cancelEdit(); }
+                  }}
+                  onBlur={commitEdit}
+                  className="text-sm font-medium px-1 py-0.5 -mx-1 -my-0.5 rounded border border-primary bg-background outline-none min-w-0 flex-1"
+                />
+              ) : (
+                <span
+                  className={cn('text-sm font-medium truncate', !readOnly && 'cursor-text')}
+                  onDoubleClick={beginEdit}
+                  title={!readOnly ? 'Double-click to rename' : undefined}
+                >
+                  {label}
+                </span>
+              )}
+              {block.id && block.id !== label && (
+                <code className="text-[10px] text-muted-foreground/70 font-mono truncate">#{block.id}</code>
+              )}
+            </div>
+            <Badge variant="outline" className={cn('text-[10px] shrink-0 font-mono', tone.badge)}>
+              {typeStr}
+            </Badge>
+          </button>
+        ) : (
+          <>
+            <BlockLivePreview block={block} />
+            <button
+              type="button"
+              onClick={onClick}
+              draggable={draggable}
+              onDragStart={handleDragStart}
+              aria-label={`Select ${label}`}
+              aria-pressed={selected}
+              className={cn(
+                'absolute inset-0 z-10 rounded-md',
+                readOnly && 'cursor-default',
+                draggable && 'cursor-grab active:cursor-grabbing',
+              )}
+            />
+            <div
+              className={cn(
+                'pointer-events-none absolute right-1.5 top-1.5 z-20 flex items-center gap-1 transition-opacity',
+                selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+              )}
+            >
+              {draggable && <GripVertical className="h-3.5 w-3.5 text-muted-foreground/60" aria-hidden="true" />}
+              <Badge variant="outline" className={cn('text-[10px] font-mono shadow-sm bg-background/90 backdrop-blur', tone.badge)}>
+                {typeStr}
+              </Badge>
+            </div>
+          </>
+        )}
+      </div>
       {dropZone === 'after' && (
         <div className="absolute left-0 right-0 -bottom-1 h-0.5 bg-primary rounded-full" />
       )}
@@ -681,6 +742,13 @@ function NestedChildren({
 }) {
   const groups = childGroups(block);
   if (groups.length === 0) return null;
+  // A grid lays its children in N columns at runtime — mirror that here so the
+  // design canvas matches the preview (other containers stack in one column).
+  const gridCols =
+    block?.type === 'grid'
+      ? Math.min(6, Math.max(1, Number((block.properties as Record<string, unknown> | undefined)?.columns) || 1))
+      : 1;
+  const colsClass = GRID_COLS_CLASS[gridCols] ?? 'grid-cols-1';
   return (
     <div className="ml-5 mt-1.5 space-y-2.5 border-l border-dashed border-border pl-3">
       {groups.map((g, gi) => (
@@ -691,29 +759,41 @@ function NestedChildren({
               Empty — add a block.
             </div>
           ) : (
-            g.children.map((child, ci) => {
-              const cid = `${baseId}.${g.pathSuffix}[${ci}]`;
-              const typeStr = String(child?.type ?? '');
-              const meta = BLOCK_TYPE_META[typeStr as BlockTypeId];
-              const Icon = meta?.Icon ?? UnknownBlockIcon;
-              return (
-                <button
-                  key={ci}
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); onSelectId(cid, blockLabel(child)); }}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded border px-2.5 py-1.5 text-left text-xs transition-colors',
-                    cid === selectedId
-                      ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
-                      : 'border-border bg-background hover:bg-muted/40',
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="flex-1 truncate">{blockLabel(child)}</span>
-                  <span className="font-mono text-[10px] text-muted-foreground/60">{typeStr}</span>
-                </button>
-              );
-            })
+            <div className={cn('grid gap-2', colsClass)}>
+              {g.children.map((child, ci) => {
+                const cid = `${baseId}.${g.pathSuffix}[${ci}]`;
+                const typeStr = String(child?.type ?? '');
+                const childSelected = cid === selectedId;
+                return (
+                  <div
+                    key={ci}
+                    className={cn(
+                      'group relative rounded-md border bg-card transition-colors hover:border-primary/40',
+                      childSelected ? 'border-primary ring-2 ring-primary/30 shadow-sm' : 'border-border',
+                    )}
+                  >
+                    <BlockLivePreview block={child} maxHeightClass="max-h-56" />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onSelectId(cid, blockLabel(child)); }}
+                      aria-label={`Select ${blockLabel(child)}`}
+                      aria-pressed={childSelected}
+                      className="absolute inset-0 z-10 rounded-md cursor-pointer"
+                    />
+                    <div
+                      className={cn(
+                        'pointer-events-none absolute right-1.5 top-1.5 z-20 transition-opacity',
+                        childSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                      )}
+                    >
+                      <Badge variant="outline" className={cn('text-[10px] font-mono shadow-sm bg-background/90 backdrop-blur', resolveBlockTone(typeStr).badge)}>
+                        {typeStr}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
           {!readOnly && <AddBlockButton onPick={(type) => onAddNested(baseId, g.pathSuffix, type)} />}
         </div>

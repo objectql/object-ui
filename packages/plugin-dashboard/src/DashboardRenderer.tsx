@@ -988,12 +988,23 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
       <div
         ref={ref}
         className={cn(
-          "grid auto-rows-min",
-          !hasExplicitColumns && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+          "grid",
+          // Content-sized rows only for the responsive flow layout. The
+          // positioned grid (explicit columns + per-widget layout.h) needs a
+          // baseline row height instead: `auto-rows-min` collapses any widget
+          // whose content has no intrinsic height — notably charts, whose
+          // recharts ResponsiveContainer fills its parent and so reports
+          // width/height -1 and draws nothing. `minmax(5rem, auto)` gives each
+          // spanned row a floor (so `gridRow: span 4` => a real ~20rem box)
+          // while still letting taller widgets (tables) grow.
+          !hasExplicitColumns && "auto-rows-min grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
           className
         )}
         style={{
-            ...(hasExplicitColumns && { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }),
+            ...(hasExplicitColumns && {
+              gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+              gridAutoRows: 'minmax(5rem, auto)',
+            }),
             gap: `${gap * 0.25}rem`
         }}
         data-user-actions={userActionsAttr}
