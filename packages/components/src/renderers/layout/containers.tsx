@@ -484,7 +484,10 @@ const PageCardRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const title = labelText(schema?.title);
   const bordered = schema?.bordered !== false;
-  const body = schema?.body;
+  // Accept `children` as well as `body` — every other container (grid/flex/
+  // section/tabs) renders `children`, so authors expect it to work here too.
+  // `body` kept first for back-compat with existing card schemas.
+  const body = schema?.body ?? schema?.children;
   const footer = schema?.footer;
 
   return (

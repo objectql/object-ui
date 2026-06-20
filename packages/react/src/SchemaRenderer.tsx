@@ -21,6 +21,7 @@ import {
   validateSchema,
 } from '@object-ui/core';
 import { SchemaRendererContext } from './context/SchemaRendererContext';
+import { usePredicateScope } from './hooks/useExpression';
 import { resolveI18nLabel } from './utils/i18n';
 
 /**
@@ -187,6 +188,10 @@ export class SchemaErrorBoundary extends Component<
 export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<string, any>>(({ schema, ...props }, _ref) => {
   const context = useContext(SchemaRendererContext);
   const dataSource = context?.dataSource || {};
+  // Ambient host scope (user / app / features), fed by app-shell's
+  // ExpressionProvider. Threaded into `visible`/expression evaluation so
+  // component predicates can gate on the signed-in user & deployment flags.
+  const predicateScope = usePredicateScope();
 
   // Re-render trigger when the global ComponentRegistry mutates (e.g. a
   // lazy-loaded plugin finishes registering its components).
@@ -207,7 +212,14 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
   const evaluatedSchema = useMemo(() => {
     if (!schema || typeof schema === 'string') return schema;
 
-    const evaluator = new ExpressionEvaluator({ data: dataSource });
+    // `data` (record/datasource) plus the ambient host scope. `current_user`
+    // is aliased to `user` so both `user.email` and `current_user.email`
+    // resolve in component `visible`/`visibleOn` expressions.
+    const evaluator = new ExpressionEvaluator({
+      ...predicateScope,
+      current_user: (predicateScope as any)?.user,
+      data: dataSource,
+    });
     // Shallow copy
     const newSchema = { ...schema };
 
@@ -283,7 +295,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     }
 
     return newSchema;
-  }, [schema, dataSource]);
+  }, [schema, dataSource, predicateScope]);
 
   if (!evaluatedSchema) return null;
   // Handle visibility: if evaluated schema is hidden, render nothing

@@ -287,4 +287,37 @@ describe('Registry', () => {
       expect(registry.get('button')).toBe(component);
     });
   });
+
+  describe('skipFallback / bare-name collisions', () => {
+    it('skipFallback prevents a namespaced registration from claiming the bare name', () => {
+      const layout = () => 'layout-grid';
+      const objectGrid = () => 'object-grid';
+      // Layout component owns the bare `grid` key.
+      registry.register('grid', layout, { namespace: 'layout' });
+      // A view-namespaced alias registered WITHOUT skipFallback would clobber it;
+      // WITH skipFallback it only registers `view:grid` and leaves bare `grid`.
+      registry.register('grid', objectGrid, { namespace: 'view', skipFallback: true });
+
+      expect(registry.get('grid')).toBe(layout);          // bare unchanged
+      expect(registry.get('grid', 'view')).toBe(objectGrid); // namespaced still available
+    });
+
+    it('warns when a namespaced registration overwrites a DIFFERENT bare component', () => {
+      const layout = () => 'layout-grid';
+      const objectGrid = () => 'object-grid';
+      registry.register('grid', layout, { namespace: 'layout' });
+      registry.register('grid', objectGrid, { namespace: 'view' }); // no skipFallback → clobbers + warns
+
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      expect(registry.get('grid')).toBe(objectGrid); // last-wins (documented behaviour)
+    });
+
+    it('does not warn when re-registering the same component under its namespace', () => {
+      const same = () => 'same';
+      registry.register('thing', same, { namespace: 'a' });
+      consoleWarnSpy.mockClear();
+      registry.register('thing', same, { namespace: 'a' });
+      expect(consoleWarnSpy).not.toHaveBeenCalled();
+    });
+  });
 });

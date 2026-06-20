@@ -59,9 +59,13 @@ ComponentRegistry.register('object-grid', ObjectGridRenderer, {
 });
 
 // Alias for view namespace - this allows using { type: 'view:grid' } in schemas
-// which is semantically meaningful for data display components
+// which is semantically meaningful for data display components.
+// `skipFallback` keeps this from also claiming the bare `grid` key, which
+// belongs to the @object-ui/components layout grid (issue: object-grid was
+// shadowing the layout container, so `{type:'grid'}` 404'd needing objectName).
 ComponentRegistry.register('grid', ObjectGridRenderer, {
   namespace: 'view',
+  skipFallback: true,
   label: 'Data Grid',
   category: 'view',
   inputs: [

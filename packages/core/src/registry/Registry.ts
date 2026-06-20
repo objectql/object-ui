@@ -135,6 +135,19 @@ export class Registry<T = any> {
     // the last registration wins for non-namespaced lookups
     // Skip this if skipFallback is true to avoid overwriting other components
     if (meta?.namespace && !meta?.skipFallback) {
+      // Collision guard: a bare-name fallback that overwrites a DIFFERENT
+      // component is almost always an accident (e.g. plugin 'view:grid' silently
+      // clobbering the layout 'grid'). Warn so it surfaces instead of 404-ing at
+      // render time. Pass `skipFallback: true` when a namespaced-only alias is
+      // intended.
+      const existing = this.components.get(type);
+      if (existing && existing.component !== component && existing.type !== fullType) {
+        console.warn(
+          `Component "${type}" bare-name fallback is being overwritten by "${fullType}". ` +
+          `If this is intentional keep going; otherwise register "${fullType}" with ` +
+          `{ skipFallback: true } so it doesn't claim the bare "${type}" key.`,
+        );
+      }
       this.components.set(type, {
         type: fullType, // Keep reference to namespaced type
         component,
