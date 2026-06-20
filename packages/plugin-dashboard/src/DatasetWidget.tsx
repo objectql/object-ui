@@ -11,7 +11,9 @@
  * Rendering dispatch (by `widget.type`):
  *  - metric / kpi / gauge / solid-gauge / bullet (or no dimensions) → KPI value
  *    with the measure's display label + format.
- *  - table / pivot → a grouped table of `dimensions` + `values`.
+ *  - table / pivot → a grouped table of `dimensions` + `values`. Rows drill
+ *    through to the underlying records (ADR-0021 D2) when the server returns the
+ *    dataset's `object` + dimension→field mapping.
  *  - bar / column / horizontal-bar / line / area / pie / donut / funnel /
  *    scatter / radar / treemap / sankey → the shared advanced `chart` renderer
  *    with its TRUE chart type and one series per measure. A type the renderer
@@ -28,34 +30,97 @@ import { useEffect, useMemo, useState } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import { buildChartSeries } from '@object-ui/core';
 import { cn } from '@object-ui/components';
+import { useObjectTranslation, useSafeFieldLabel } from '@object-ui/i18n';
 import { Loader2, BarChart3, AlertTriangle } from 'lucide-react';
 import { resolveDateMacros } from './utils';
+import { DrillDownDrawer } from './DrillDownDrawer';
 
 type Row = Record<string, unknown>;
 /** Measure column metadata from the analytics result (ADR-0021). */
-interface ResultField { name: string; type?: string; label?: string; format?: string }
+interface ResultField { name: string; type?: string; label?: string; format?: string; currency?: string }
+interface DatasetResult { rows: Row[]; fields?: ResultField[]; object?: string; dimensionFields?: Record<string, string> }
 interface DatasetCapableSource {
-  queryDataset?: (dataset: string, selection: unknown) => Promise<{ rows: Row[]; fields?: ResultField[] }>;
+  queryDataset?: (dataset: string, selection: unknown) => Promise<DatasetResult>;
 }
 
 /**
- * Format a measure value using its dataset `format` hint (numeral-style, e.g.
- * "$0,0", "0.0", "0.0%"). Falls back to a thousand-separated number. The format
- * can't be baked into the numeric row value server-side (charts need the raw
- * number), so it is applied here at render time.
+ * Build the record-list filter for a drilled row. Each drillable dimension maps
+ * to its underlying object field, filtered by the dimension's RAW grouped value
+ * (taken from the server's parallel `drillRawRows` array — the visible `row`
+ * carries the display label, which would mis-filter a select/lookup field). The
+ * widget's render-time scope (`runtimeFilter`) is ANDed in so the drilled list
+ * stays within the same slice the aggregate was computed over.
  */
-function formatMeasure(v: unknown, format?: string): string {
+export function buildDrillFilter(
+  rawRow: Record<string, unknown> | undefined,
+  drillDims: string[],
+  dimensionFields: Record<string, string>,
+  runtimeFilter?: Record<string, unknown>,
+): Record<string, unknown> {
+  const drillFilter: Record<string, unknown> = {};
+  for (const d of drillDims) {
+    const raw = rawRow?.[d];
+    drillFilter[dimensionFields[d]] = raw === '' || raw === undefined ? null : raw;
+  }
+  return runtimeFilter ? { ...runtimeFilter, ...drillFilter } : drillFilter;
+}
+
+/**
+ * Translate with a graceful fallback. Mirrors the PivotTable pattern: when no
+ * i18n provider is mounted (or the key is missing), return the English default
+ * so the widget never renders a raw translation key.
+ */
+function useTranslate(): (key: string, fallback: string) => string {
+  let t: ((k: string) => string) | undefined;
+  try {
+    t = useObjectTranslation().t;
+  } catch {
+    t = undefined;
+  }
+  return (key, fallback) => {
+    if (!t) return fallback;
+    const v = t(key);
+    return !v || v === key ? fallback : v;
+  };
+}
+
+/**
+ * Format a measure value. Currency comes from the field's declared `currency`
+ * (locale-correct symbol via `Intl`), NOT from a "$" baked into the format
+ * string — an amount with no declared currency must render as a plain number,
+ * never a misleading "$". The numeral-style `format` hint (e.g. "0,0", "0.0%")
+ * controls grouping / decimals / percent; it can't be baked into the row value
+ * server-side (charts need the raw number), so it is applied here.
+ */
+function formatMeasure(v: unknown, format?: string, currency?: string): string {
   if (v == null) return '—';
   if (typeof v !== 'number') return String(v);
+
+  const decimals = format ? (format.split('.')[1]?.match(/0/g)?.length ?? 0) : undefined;
+
+  if (currency) {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: decimals ?? 0,
+        maximumFractionDigits: decimals ?? 2,
+      }).format(v);
+    } catch {
+      // Unknown currency code → fall through to plain number formatting.
+    }
+  }
+
   if (!format) {
     // No format hint → preserve the plain rendering (integers verbatim).
     return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
   }
   const isPercent = format.includes('%');
-  const isCurrency = format.includes('$');
-  const decimals = format.split('.')[1]?.match(/0/g)?.length ?? 0;
-  const body = v.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-  return `${isCurrency ? '$' : ''}${body}${isPercent ? '%' : ''}`;
+  // A legacy "$" literal in the format string is still honored (explicit author
+  // choice) — but it is NOT how a real currency field gets its symbol.
+  const legacyDollar = format.includes('$') ? '$' : '';
+  const body = v.toLocaleString(undefined, { minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 0 });
+  return `${legacyDollar}${body}${isPercent ? '%' : ''}`;
 }
 
 function formatValue(v: unknown): string {
@@ -111,6 +176,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const isMetric = METRIC_TYPES.has(widgetType) || dimensions.length === 0;
   const isTable = widgetType === 'table' || widgetType === 'pivot';
 
+  const tt = useTranslate();
+  const { fieldLabel } = useSafeFieldLabel();
+
   // ADR-0021 dual-form: the widget's presentation-scope `filter` must flow into
   // the dataset query as `runtimeFilter`, or a dataset-bound widget renders the
   // UNFILTERED total (e.g. "open pipeline" showing the grand total). Resolve
@@ -125,7 +193,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     [rawFilter],
   );
 
-  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: ResultField[]; error?: string }>({ status: 'idle', rows: [] });
+  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: ResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; error?: string }>({ status: 'idle', rows: [] });
+  // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
+  const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
 
   // Signature uses the RAW filter (stable) — the resolved one carries a
   // render-time `now` and would otherwise force a refetch loop.
@@ -133,7 +203,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   useEffect(() => {
     const src = dataSource as DatasetCapableSource | undefined;
     if (!src || typeof src.queryDataset !== 'function') {
-      setState({ status: 'error', rows: [], error: 'This data source does not support dataset queries.' });
+      setState({ status: 'error', rows: [], error: tt('dashboard.datasetUnsupported', 'This data source does not support dataset queries.') });
       return;
     }
     if (values.length === 0) { setState({ status: 'idle', rows: [] }); return; }
@@ -145,14 +215,14 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       ...(runtimeFilter ? { runtimeFilter } : {}),
       ...(compareTo ? { compareTo } : {}),
     })
-      .then((res) => { if (!cancelled) setState({ status: 'ok', rows: Array.isArray(res?.rows) ? res.rows : [], fields: Array.isArray(res?.fields) ? res.fields : [] }); })
+      .then((res) => { if (!cancelled) setState({ status: 'ok', rows: Array.isArray(res?.rows) ? res.rows : [], fields: Array.isArray(res?.fields) ? res.fields : [], object: res?.object, dimensionFields: res?.dimensionFields, drillRawRows: Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined }); })
       .catch((e) => { if (!cancelled) setState({ status: 'error', rows: [], error: String((e as Error)?.message ?? e) }); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
 
   if (values.length === 0) {
-    return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">Pick measures (values) for this dataset widget.</div>;
+    return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">{tt('dashboard.pickMeasures', 'Pick measures (values) for this dataset widget.')}</div>;
   }
   if (state.status === 'loading' || state.status === 'idle') {
     return <div className="flex h-full w-full items-center justify-center p-4 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /></div>;
@@ -168,12 +238,19 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // latter reads as broken for KPIs like "Total Books" on a fresh app. Charts
   // and tables keep the empty state (there is genuinely nothing to plot).
   if (state.rows.length === 0 && !isMetric) {
-    return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground"><BarChart3 className="mr-2 h-4 w-4" />No rows</div>;
+    return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground"><BarChart3 className="mr-2 h-4 w-4" />{tt('dashboard.noRows', 'No rows')}</div>;
   }
 
-  // Measure metadata (label + format) carried on the result fields, keyed by name.
+  // Measure metadata (label + format + currency) carried on the result fields, keyed by name.
   const fieldByName = new Map((state.fields ?? []).map((f) => [f.name, f]));
   const measureField = (name: string) => fieldByName.get(name);
+  // Resolve a column header: the dataset's display label (server-enriched onto
+  // the field, for dimensions and measures alike), then through the i18n
+  // field-label convention so a translated label wins, then the raw name.
+  const headerLabel = (name: string) => {
+    const fallback = measureField(name)?.label ?? name;
+    return state.object ? fieldLabel(state.object, name, fallback) : fallback;
+  };
 
   // Metric / KPI — show the single measure value of the first row, using the
   // measure's display label (not the raw name) and its format (e.g. "$616,000").
@@ -182,8 +259,8 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     const value = state.rows[0]?.[values[0]] ?? 0;
     return (
       <div className="flex h-full w-full flex-col items-start justify-center gap-1 p-2">
-        <span className="text-2xl font-semibold tabular-nums">{formatMeasure(value, f?.format)}</span>
-        <span className="text-xs text-muted-foreground">{f?.label ?? values[0]}</span>
+        <span className="text-2xl font-semibold tabular-nums">{formatMeasure(value, f?.format, f?.currency)}</span>
+        <span className="text-xs text-muted-foreground">{headerLabel(values[0])}</span>
       </div>
     );
   }
@@ -191,28 +268,56 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // Table / pivot — a grouped table of the selected dimensions + measures.
   if (isTable) {
     const columns = [...dimensions, ...values];
+    // Drill-through is available when the server returned the dataset's object +
+    // at least one drillable dimension that this widget actually groups by.
+    const { object, dimensionFields, drillRawRows } = state;
+    const drillDims = dimensionFields ? dimensions.filter((d) => d in dimensionFields) : [];
+    const canDrill = !!object && drillDims.length > 0;
+
+    const openDrill = (row: Row, index: number) => {
+      if (!object || !dimensionFields) return;
+      const merged = buildDrillFilter(drillRawRows?.[index], drillDims, dimensionFields, runtimeFilter);
+      const title = drillDims.map((d) => formatValue(row[d])).filter(Boolean).join(' / ') || String(widget?.title ?? '');
+      setDrill({ filter: merged, title });
+    };
+
     return (
       <div className="h-full w-full overflow-auto p-1">
         <table className="w-full text-xs">
           <thead className="bg-muted/40">
             <tr>
               {columns.map((c) => (
-                <th key={c} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">{measureField(c)?.label ?? c}</th>
+                <th key={c} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">{headerLabel(c)}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {state.rows.map((row, i) => (
-              <tr key={i} className="border-t">
+              <tr
+                key={i}
+                className={cn('border-t', canDrill && 'cursor-pointer hover:bg-accent/40')}
+                data-testid={canDrill ? 'dataset-drill-row' : undefined}
+                onClick={canDrill ? () => openDrill(row, i) : undefined}
+              >
                 {columns.map((c) => (
                   <td key={c} className="px-2 py-1 whitespace-nowrap tabular-nums">
-                    {values.includes(c) ? formatMeasure(row[c], measureField(c)?.format) : formatValue(row[c])}
+                    {values.includes(c) ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency) : formatValue(row[c])}
                   </td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
+        {drill && object && (
+          <DrillDownDrawer
+            open
+            onClose={() => setDrill(null)}
+            title={drill.title || String(widget?.title ?? tt('dashboard.details', 'Details'))}
+            objectName={object}
+            filter={drill.filter}
+            dataSource={dataSource}
+          />
+        )}
       </div>
     );
   }

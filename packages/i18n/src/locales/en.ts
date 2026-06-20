@@ -757,6 +757,10 @@ const en = {
     total: 'Total',
     noDataAvailable: 'No data available',
     noDataSourceFor: 'No data source available for',
+    noRows: 'No rows',
+    pickMeasures: 'Pick measures (values) for this dataset widget.',
+    datasetUnsupported: 'This data source does not support dataset queries.',
+    details: 'Details',
     trend: {
       vsLastQuarter: 'vs last quarter',
       vsLastMonth: 'vs last month',

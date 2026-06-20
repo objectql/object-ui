@@ -757,6 +757,10 @@ const zh = {
     total: '总计',
     noDataAvailable: '暂无数据',
     noDataSourceFor: '没有可用的数据源：',
+    noRows: '暂无数据行',
+    pickMeasures: '请为该数据集组件选择度量（值）。',
+    datasetUnsupported: '当前数据源不支持数据集查询。',
+    details: '明细',
     trend: {
       vsLastQuarter: '较上季度',
       vsLastMonth: '较上月',

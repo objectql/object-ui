@@ -1830,7 +1830,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       offset?: number;
       timezone?: string;
     },
-  ): Promise<{ rows: Array<Record<string, unknown>>; fields: Array<{ name: string; type: string }> }> {
+  ): Promise<{
+    rows: Array<Record<string, unknown>>;
+    fields: Array<{ name: string; type: string }>;
+    /** ADR-0021 D2 drill-through: the dataset's base object (records to drill into). */
+    object?: string;
+    /** Drillable dimension NAME → underlying object FIELD name. */
+    dimensionFields?: Record<string, string>;
+    /** Raw grouped values per row (aligned to `rows` by index) for drill filters. */
+    drillRawRows?: Array<Record<string, unknown>>;
+  }> {
     await this.connect();
     const base = (this.baseUrl || '').replace(/\/$/, '');
     const url = `${base}/api/v1/analytics/dataset/query`;
@@ -1874,7 +1883,17 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       ? (data as any).rows
       : (Array.isArray(data) ? (data as any) : []);
     const fields = Array.isArray((data as any)?.fields) ? (data as any).fields : [];
-    return { rows, fields };
+    // Drill-through metadata (ADR-0021 D2): the server exposes the dataset's
+    // base object + drillable dimension→field mapping, plus a parallel array of
+    // RAW grouped values (the rows themselves carry display labels), so a host
+    // can build an exact-match filter from a clicked bucket.
+    const object = typeof (data as any)?.object === 'string' ? (data as any).object : undefined;
+    const dimensionFields =
+      (data as any)?.dimensionFields && typeof (data as any).dimensionFields === 'object'
+        ? ((data as any).dimensionFields as Record<string, string>)
+        : undefined;
+    const drillRawRows = Array.isArray((data as any)?.drillRawRows) ? (data as any).drillRawRows : undefined;
+    return { rows, fields, object, dimensionFields, drillRawRows };
   }
 
   /** Client-side aggregation fallback */
