@@ -209,6 +209,32 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     })();
     const canCopy = value !== null && value !== undefined && value !== '';
     const isCopied = copiedField === field.name;
+    const fieldLabelText = fieldLabel(objectName || '', field.name, field.label || field.name);
+
+    // iOS-style grouped-inset row (mobile, read mode): label left, value right,
+    // hairline-separated rows inside the section card. The native-feeling
+    // settings/detail form for the mobile target. Editing falls back to the
+    // stacked layout below so inputs have room.
+    if (isMobile && !(isEditing && !field.readonly)) {
+      return (
+        <div
+          key={field.name}
+          className={cn(
+            "flex items-baseline justify-between gap-4 py-2.5 min-h-[44px] group",
+            canCopy && "cursor-pointer active:bg-muted/40 transition-colors",
+          )}
+          onClick={canCopy ? () => handleCopyField(field.name, value) : undefined}
+          onKeyDown={canCopy ? (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCopyField(field.name, value); }
+          } : undefined}
+          role={canCopy ? 'button' : undefined}
+          tabIndex={canCopy ? 0 : undefined}
+        >
+          <span className="text-[15px] text-muted-foreground shrink-0">{fieldLabelText}</span>
+          <span className="text-[15px] text-foreground text-right break-words min-w-0 leading-snug">{displayValue}</span>
+        </div>
+      );
+    }
 
     // Default field rendering with copy button and touch-friendly targets
     return (
@@ -358,17 +384,23 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
 
   const content = (
     <>
-      <div
-        className={cn(
-          "grid gap-3 sm:gap-4",
-          effectiveColumns === 1 ? "grid-cols-1" :
-          effectiveColumns === 2 ? "grid-cols-1 md:grid-cols-2" :
-          effectiveColumns === 3 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" :
-          "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-        )}
-      >
-        {renderedFields.map(renderField)}
-      </div>
+      {isMobile ? (
+        <div className="flex flex-col divide-y divide-border/60">
+          {renderedFields.map(renderField)}
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "grid gap-3 sm:gap-4",
+            effectiveColumns === 1 ? "grid-cols-1" :
+            effectiveColumns === 2 ? "grid-cols-1 md:grid-cols-2" :
+            effectiveColumns === 3 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" :
+            "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          )}
+        >
+          {renderedFields.map(renderField)}
+        </div>
+      )}
       {showEmptyToggle && (
         <div className="mt-3 -ml-2">
           <Button
