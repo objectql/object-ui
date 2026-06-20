@@ -1893,6 +1893,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
       <div className="flex-1 overflow-hidden flex flex-row">
         <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 scroll-pb-48">
+          {/* Cap the detail content at a comfortable reading width — record
+              pages are scan surfaces; full-bleed field rows on wide monitors
+              push values far from labels. Data surfaces (lists/dashboards)
+              stay full-width; this only affects the record detail column. */}
+          <div className="mx-auto w-full max-w-[1400px]">
           <ActionProvider
             context={{ record: {}, objectName, user: currentUser }}
             onConfirm={confirmHandler}
@@ -1943,6 +1948,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             />
             {modalElement}
           </ActionProvider>
+          </div>
         </div>
         <MetadataPanel
           open={showDebug}
