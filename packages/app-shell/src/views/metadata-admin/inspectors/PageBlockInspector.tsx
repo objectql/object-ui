@@ -27,6 +27,7 @@ import {
 } from './_shared';
 import { BLOCK_CONFIG, blockHasConfig, type BlockPropField } from '../previews/block-config';
 import { ColorVariantPicker } from '../color-variant-field';
+import { ConditionBuilder } from './ConditionBuilder';
 import { useObjectOptions } from '../previews/useObjectOptions';
 import { useObjectFields } from '../previews/useObjectFields';
 import {
@@ -536,7 +537,13 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
       <InspectorTextField label={t('engine.inspector.pageBlock.type', locale)} value={block.type ?? ''} onCommit={(v) => patch({ type: v })} disabled={readOnly} mono />
       <InspectorTextField label={t('engine.inspector.pageBlock.id', locale)} value={block.id ?? ''} onCommit={(v) => patch({ id: v })} disabled={readOnly} mono />
       <InspectorTextField label={t('engine.inspector.pageBlock.className', locale)} value={block.className ?? ''} onCommit={(v) => patch({ className: v })} disabled={readOnly} mono />
-      <InspectorTextField label={t('engine.inspector.pageBlock.hidden', locale)} value={block.hidden ?? ''} onCommit={(v) => patch({ hidden: v })} disabled={readOnly} mono />
+      <ConditionBuilder
+        label={t('engine.inspector.pageBlock.hidden', locale)}
+        value={block.hidden ?? ''}
+        onCommit={(v) => patch({ hidden: v || undefined })}
+        objectName={pageObject}
+        disabled={readOnly}
+      />
 
       {blockHasConfig(block.type) && (
         <div className="space-y-3 border-t border-border pt-3">

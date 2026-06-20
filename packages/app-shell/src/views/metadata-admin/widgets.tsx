@@ -46,6 +46,7 @@ import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Search, Trash2 } from 'lu
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { detectLocale, t, tFormat } from './i18n';
 import { ColorVariantPicker } from './color-variant-field';
+import { ConditionBuilder } from './inspectors/ConditionBuilder';
 
 export interface WidgetContext {
   /** Names of all object metadata records (for `ref:object`). */
@@ -1646,6 +1647,21 @@ function ColorPickerWidget({ value, onChange, readOnly, schema, fieldSpec }: Wid
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* condition — no-code CEL predicate builder (visible / hidden / disabled / …) */
+/* -------------------------------------------------------------------------- */
+
+function ConditionWidget({ value, onChange, readOnly, context }: WidgetProps) {
+  return (
+    <ConditionBuilder
+      value={value == null ? '' : String(value)}
+      onCommit={(cel) => onChange(cel || undefined)}
+      fields={context?.objectFields}
+      disabled={readOnly}
+    />
+  );
+}
+
 export const WIDGETS: Record<string, WidgetRenderer> = {
   'ref:object': RefObjectWidget,
   'filter-mode': FilterModeWidget,
@@ -1658,6 +1674,7 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'view-ref': ViewRefWidget,
   'icon': IconPickerWidget,
   'color-picker': ColorPickerWidget,
+  'condition': ConditionWidget,
   'master-detail': MasterDetailWidget,
   'string-tags': StringTagsWidget,
   'multiselect': MultiSelectWidget,

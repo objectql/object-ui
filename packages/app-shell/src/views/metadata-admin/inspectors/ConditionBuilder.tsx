@@ -107,14 +107,18 @@ function initFrom(value: string): { rows: Row[]; join: '&&' | '||'; raw: boolean
   return { rows: [], join: '&&', raw: !!value };
 }
 
-export function ConditionBuilder({ label, value, onCommit, objectName, disabled }: {
-  label: string;
+export function ConditionBuilder({ label, value, onCommit, objectName, fields: fieldsProp, disabled }: {
+  label?: string;
   value: string;
   onCommit: (cel: string) => void;
   objectName?: string;
+  /** Pre-fetched field catalog (e.g. from the generic form's widget context);
+   *  when omitted, fields are loaded from `objectName`. */
+  fields?: Array<{ name: string; label?: string; hidden?: boolean }>;
   disabled?: boolean;
 }) {
-  const { fields } = useObjectFields(objectName);
+  const { fields: hookFields } = useObjectFields(objectName);
+  const fields = fieldsProp ?? hookFields;
   const subjectOptions = React.useMemo(() => {
     const fieldOpts = fields
       .filter((f) => !f.hidden)
@@ -157,7 +161,7 @@ export function ConditionBuilder({ label, value, onCommit, objectName, disabled 
     return (
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <Label className="text-xs text-muted-foreground">{label}</Label>
+          {label ? <Label className="text-xs text-muted-foreground">{label}</Label> : <span />}
           <button type="button" disabled={disabled}
             onClick={() => { const n = initFrom(value); if (!value || !n.raw) { setRowsState(n.rows); setJoin(n.join); setRaw(false); } }}
             className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50">
@@ -183,7 +187,7 @@ export function ConditionBuilder({ label, value, onCommit, objectName, disabled 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <Label className="text-xs text-muted-foreground">{label}</Label>
+        {label ? <Label className="text-xs text-muted-foreground">{label}</Label> : <span />}
         <button type="button" disabled={disabled} onClick={() => setRaw(true)}
           className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-50">
           <Code2 className="h-3 w-3" /> Expression

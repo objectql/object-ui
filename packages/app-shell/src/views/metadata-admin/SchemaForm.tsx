@@ -311,6 +311,22 @@ function detectColorWidget(name: string, schema: JsonSchema | undefined): string
   return undefined;
 }
 
+const CONDITION_FIELD_NAMES = new Set(['visible', 'hidden', 'disabled', 'visibleOn', 'condition', 'predicate']);
+/**
+ * Detect a CEL predicate field by NAME CONVENTION (`visible` / `hidden` /
+ * `disabled` / `visibleOn` / `condition` / `*When`) so it renders the no-code
+ * condition builder instead of a raw expression text box. String-only, no enum.
+ */
+function detectConditionWidget(name: string, schema: JsonSchema | undefined): string | undefined {
+  if (Array.isArray(schema?.enum)) return undefined;
+  const isString =
+    schema?.type === 'string' ||
+    (Array.isArray(schema?.anyOf) && (schema!.anyOf as JsonSchema[]).some((b) => b?.type === 'string'));
+  if (!isString) return undefined;
+  if (CONDITION_FIELD_NAMES.has(name) || /When$/.test(name)) return 'condition';
+  return undefined;
+}
+
 /* -------------------------------------------------------------------------- */
 /* FormView spec (subset)                                                     */
 /* -------------------------------------------------------------------------- */
@@ -777,6 +793,10 @@ function FieldRow({
       else {
         const colorWidget = detectColorWidget(name, schema);
         if (colorWidget) widget = colorWidget;
+        else {
+          const condWidget = detectConditionWidget(name, schema);
+          if (condWidget) widget = condWidget;
+        }
       }
     }
   }
