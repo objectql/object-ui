@@ -779,8 +779,52 @@ function hashToColor(value: string): string {
   return BADGE_FALLBACK_PALETTE[idx];
 }
 
+/**
+ * Map a hex color (e.g. '#8B5CF6') to the nearest named palette color the
+ * badge/dot maps understand. Object field options almost always declare colors
+ * as HEX, so without this the explicit author color is ignored and a semantic/
+ * hash heuristic takes over (e.g. a purple 'In Review' rendered alarming-red).
+ * Low-saturation hexes resolve to 'gray'; otherwise bucket by hue.
+ */
+function hexToPaletteName(hex: string): string | undefined {
+  const m = /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return undefined;
+  let h = m[1];
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  const l = (max + min) / 2;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  if (sat < 0.22) return 'gray';
+  let hue: number;
+  if (max === r) hue = (((g - b) / d) % 6 + 6) % 6;
+  else if (max === g) hue = (b - r) / d + 2;
+  else hue = (r - g) / d + 4;
+  hue *= 60;
+  if (hue >= 345 || hue < 15) return 'red';
+  if (hue < 30) return 'orange';
+  if (hue < 60) return 'yellow';
+  if (hue < 170) return 'green';
+  if (hue < 238) return 'blue';
+  if (hue < 250) return 'indigo';
+  if (hue < 295) return 'purple';
+  return 'pink';
+}
+
+/** Normalize an option color to a named palette key: pass known names through,
+ *  resolve hex to the nearest palette color, else undefined. */
+function resolveColorName(color?: string): string | undefined {
+  if (!color) return undefined;
+  if (BADGE_COLOR_MAP[color]) return color;
+  if (color.charAt(0) === '#') return hexToPaletteName(color);
+  return undefined;
+}
+
 export function getBadgeColorClasses(color?: string, val?: unknown): string {
-  if (color && BADGE_COLOR_MAP[color]) return BADGE_COLOR_MAP[color];
+  const named = resolveColorName(color);
+  if (named && BADGE_COLOR_MAP[named]) return BADGE_COLOR_MAP[named];
   if (val == null || val === '') return 'bg-muted text-muted-foreground border-border';
   const key = String(val).toLowerCase().replace(/[\s-]/g, '_');
   const semantic = SEMANTIC_COLOR_MAP[key];
@@ -800,7 +844,8 @@ export function getBadgeColorClasses(color?: string, val?: unknown): string {
  * supplied so the caller can fall back to its own default.
  */
 export function getSemanticColorName(color?: string, val?: unknown): string | undefined {
-  if (color && BADGE_COLOR_MAP[color]) return color;
+  const named = resolveColorName(color);
+  if (named && BADGE_COLOR_MAP[named]) return named;
   if (val == null || val === '') return undefined;
   const key = String(val).toLowerCase().replace(/[\s-]/g, '_');
   const semantic = SEMANTIC_COLOR_MAP[key];
@@ -872,7 +917,7 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
     if (appearance === 'dot') {
       // Resolve a real CSS color for the dot. Prefer explicit option color,
       // then semantic mapping for the value, then deterministic palette.
-      const colorName = option?.color
+      const colorName = resolveColorName(option?.color)
         || SEMANTIC_COLOR_MAP[String(val).toLowerCase().replace(/[\s-]/g, '_')]
         || hashToColor(String(val).toLowerCase().replace(/[\s-]/g, '_'));
       const dotClass = DOT_COLOR_MAP[colorName] || DOT_COLOR_MAP.gray;
