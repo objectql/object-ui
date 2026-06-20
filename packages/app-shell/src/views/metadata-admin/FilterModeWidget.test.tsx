@@ -103,7 +103,11 @@ describe('filter-mode widget', () => {
     );
     expect(screen.getByTestId('tab-preset-0')).toBeInTheDocument();
     expect((screen.getByTestId('tab-label-0') as HTMLInputElement).value).toBe('Urgent');
-    expect(screen.getByTestId('tab-0-rule-0')).toBeInTheDocument();
+    // The per-tab filter now uses the same unified FilterBuilder as the list
+    // toolbar; its trigger summarizes the existing condition by field label.
+    const tabFilter = screen.getByTestId('tab-0-filter');
+    expect(tabFilter).toBeInTheDocument();
+    expect(tabFilter.textContent).toContain('Priority');
   });
 
   it('normalizes a legacy { id, filters } tab into the canonical shape on edit', () => {

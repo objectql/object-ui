@@ -32,6 +32,10 @@ import {
   Switch,
   LazyIcon,
   toKebabIconName,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  FilterBuilder,
 } from '@object-ui/components';
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Search, Trash2 } from 'lucide-react';
 // @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
@@ -1195,20 +1199,6 @@ const FILTER_MODES: Array<{ key: 'none' | UFMode; label: string }> = [
   { key: 'dropdown', label: 'Dropdown' },
 ];
 
-// Common predicate operators offered in the tab rule builder. Free-form
-// operators authored elsewhere still round-trip; this is the curated set that
-// keeps AI/Studio authoring consistent (ADR-0053).
-const TAB_OPERATORS = [
-  'equals',
-  'not_equals',
-  'contains',
-  'in',
-  'greater_than',
-  'less_than',
-  'is_empty',
-  'is_not_empty',
-];
-
 const slugifyTabName = (s: string): string =>
   (s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'tab';
 
@@ -1286,12 +1276,6 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
   };
   const patchTab = (ti: number, patch: Partial<UFTab>) =>
     writeTabs(tabs.map((t, i) => (i === ti ? { ...t, ...patch } : t)));
-  const addRule = (ti: number) =>
-    patchTab(ti, { filter: [...(tabs[ti].filter ?? []), { field: objectFields[0]?.name ?? '', operator: 'equals', value: '' }] });
-  const patchRule = (ti: number, ri: number, patch: Partial<UFRule>) =>
-    patchTab(ti, { filter: (tabs[ti].filter ?? []).map((r, j) => (j === ri ? { ...r, ...patch } : r)) });
-  const removeRule = (ti: number, ri: number) =>
-    patchTab(ti, { filter: (tabs[ti].filter ?? []).filter((_, j) => j !== ri) });
   const setShowAllRecords = (c: boolean) => onChange({ ...(uf ?? {}), element: 'tabs', showAllRecords: c });
 
   return (
@@ -1413,44 +1397,14 @@ function FilterModeWidget({ value, onChange, readOnly, context }: WidgetProps) {
                 )}
               </div>
 
-              {/* Per-tab filter rules ({ field, operator, value }) */}
-              <div className="space-y-1 pl-1">
-                {(tab.filter ?? []).map((rule, ri) => (
-                  <div key={ri} className="flex items-center gap-1" data-testid={`tab-${ti}-rule-${ri}`}>
-                    <Select value={rule.field || undefined} disabled={readOnly} onValueChange={(v) => patchRule(ti, ri, { field: v })}>
-                      <SelectTrigger className="h-7 text-xs flex-1 min-w-0"><SelectValue placeholder="Field" /></SelectTrigger>
-                      <SelectContent>
-                        {objectFields.map((f) => (<SelectItem key={f.name} value={f.name}>{f.label || f.name}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                    <Select value={rule.operator || 'equals'} disabled={readOnly} onValueChange={(v) => patchRule(ti, ri, { operator: v })}>
-                      <SelectTrigger className="h-7 text-xs w-[7.5rem] shrink-0"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {TAB_OPERATORS.map((op) => (<SelectItem key={op} value={op}>{op}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      value={rule.value == null ? '' : String(rule.value)}
-                      placeholder="value"
-                      disabled={readOnly}
-                      className="h-7 text-xs w-[6rem] shrink-0"
-                      onChange={(e) => patchRule(ti, ri, { value: e.target.value })}
-                    />
-                    {!readOnly && (
-                      <button type="button" aria-label="Remove rule" onClick={() => removeRule(ti, ri)}
-                        className="px-1 text-muted-foreground hover:text-destructive shrink-0">
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {!readOnly && (
-                  <button type="button" data-testid={`tab-${ti}-add-rule`} onClick={() => addRule(ti)}
-                    disabled={objectFields.length === 0}
-                    className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground disabled:opacity-40">
-                    <Plus className="h-3 w-3 mr-1" /> Add rule
-                  </button>
-                )}
+              {/* Per-tab filter — unified runtime FilterBuilder (popover). */}
+              <div className="pl-1" data-testid={`tab-${ti}-filter`}>
+                <FilterBuilderField
+                  value={tab.filter as FilterRuleLite[] | undefined}
+                  onChange={(f) => patchTab(ti, { filter: f as any })}
+                  fields={objectFields}
+                  readOnly={readOnly}
+                />
               </div>
             </div>
           ))}
@@ -1550,6 +1504,86 @@ function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetPro
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* filter-builder — the SAME runtime FilterBuilder used by the list toolbar,   */
+/* reused in Studio for tab presets and the page base filter (unified UX).     */
+/* Stored format stays spec ViewFilterRule[] ({field,operator,value}); the     */
+/* builder's camelCase operators are mapped at the boundary so the runtime     */
+/* (specOperatorToAst) keeps working unchanged.                                */
+/* -------------------------------------------------------------------------- */
+const FB_TO_SPEC: Record<string, string> = {
+  equals: 'equals', notEquals: 'not_equals', contains: 'contains', notContains: 'not_contains',
+  isEmpty: 'is_empty', isNotEmpty: 'is_not_empty', greaterThan: 'gt', lessThan: 'lt',
+  greaterOrEqual: 'gte', lessOrEqual: 'lte', before: 'lt', after: 'gt', between: 'between',
+  in: 'in', notIn: 'not_in',
+};
+const SPEC_TO_FB: Record<string, string> = {
+  equals: 'equals', eq: 'equals', not_equals: 'notEquals', ne: 'notEquals', neq: 'notEquals',
+  contains: 'contains', not_contains: 'notContains', is_empty: 'isEmpty', is_not_empty: 'isNotEmpty',
+  gt: 'greaterThan', greater_than: 'greaterThan', lt: 'lessThan', less_than: 'lessThan',
+  gte: 'greaterOrEqual', lte: 'lessOrEqual', in: 'in', not_in: 'notIn', nin: 'notIn',
+};
+
+interface FilterRuleLite { field: string; operator: string; value?: unknown }
+
+function FilterBuilderField({ value, onChange, fields, readOnly }: {
+  value?: FilterRuleLite[];
+  onChange: (rules: FilterRuleLite[]) => void;
+  fields: Array<{ name: string; label?: string; type?: string }>;
+  readOnly?: boolean;
+}) {
+  const rules = Array.isArray(value) ? value : [];
+  const group = {
+    id: 'g',
+    logic: 'and' as const,
+    conditions: rules.map((r, i) => ({
+      id: `c${i}`,
+      field: r.field,
+      operator: SPEC_TO_FB[r.operator] ?? r.operator ?? 'equals',
+      value: (r.value as any) ?? '',
+    })),
+  };
+  const fbFields = fields.map((f) => ({ value: f.name, label: f.label || f.name, type: f.type }));
+  const summary = rules.length
+    ? rules.map((r) => `${fields.find((f) => f.name === r.field)?.label || r.field}`).filter(Boolean).join(', ')
+    : '';
+  const handle = (g: any) => {
+    const next = (g?.conditions ?? [])
+      .filter((c: any) => c?.field)
+      .map((c: any) => ({ field: c.field, operator: FB_TO_SPEC[c.operator] ?? c.operator, value: c.value }));
+    onChange(next);
+  };
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" disabled={readOnly}
+          className="h-8 w-full justify-between text-xs font-normal" data-testid="filter-builder-trigger">
+          <span className="truncate text-left">{summary || <span className="text-muted-foreground">+ Add filter…</span>}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[440px] max-w-[90vw] p-3">
+        {fields.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Bind a source object to add filter conditions.</p>
+        ) : (
+          <FilterBuilder fields={fbFields} value={group as any} onChange={handle} />
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function FilterBuilderWidget({ value, onChange, readOnly, context }: WidgetProps) {
+  return (
+    <FilterBuilderField
+      value={value as FilterRuleLite[] | undefined}
+      onChange={(rules) => onChange(rules.length ? rules : undefined)}
+      fields={context?.objectFields ?? []}
+      readOnly={readOnly}
+    />
+  );
+}
+
 export const WIDGETS: Record<string, WidgetRenderer> = {
   'ref:object': RefObjectWidget,
   'filter-mode': FilterModeWidget,
@@ -1558,14 +1592,13 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'field-ref': FieldRefWidget,
   'field-multi': FieldRefMultiWidget,
   'action-multi': ActionMultiWidget,
+  'filter-builder': FilterBuilderWidget,
   'view-ref': ViewRefWidget,
   'icon': IconPickerWidget,
   'master-detail': MasterDetailWidget,
   'string-tags': StringTagsWidget,
   'multiselect': MultiSelectWidget,
   'code': CodeWidget,
-  // Reasonable fallbacks until dedicated builders ship:
-  'filter-builder': MasterDetailWidget,
 };
 
 /* -------------------------------------------------------------------------- */
