@@ -44,7 +44,7 @@ describe('block-config', () => {
   it('every field (incl. nested array items) has a name, label and valid kind', () => {
     const kinds = new Set([
       'text', 'number', 'boolean', 'select', 'string-list', 'array',
-      'object-picker', 'field-picker', 'field-list',
+      'object-picker', 'field-picker', 'field-list', 'color',
     ]);
     const check = (f: any, path: string) => {
       expect(f.name, `${path}.name`).toBeTruthy();
