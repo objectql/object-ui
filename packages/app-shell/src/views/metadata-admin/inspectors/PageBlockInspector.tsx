@@ -109,6 +109,77 @@ function FieldListField({ label, objectName, value, onChange, disabled }: {
   );
 }
 
+/** Pretty-print a value for the JSON editor; undefined → empty string. */
+function safeStringify(value: unknown): string {
+  if (value === undefined) return '';
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return '';
+  }
+}
+
+/** Editable JSON field for object/array properties — commits on blur so a
+ *  half-typed value never trips the parser. Empty clears the property. */
+function InspectorJsonField({ label, value, onCommit, disabled }: {
+  label: string; value: unknown; onCommit: (v: unknown) => void; disabled?: boolean;
+}) {
+  const initial = React.useMemo(() => safeStringify(value), [value]);
+  const [text, setText] = React.useState(initial);
+  const [error, setError] = React.useState<string | null>(null);
+  React.useEffect(() => { setText(initial); setError(null); }, [initial]);
+  const commit = () => {
+    if (disabled) return;
+    const trimmed = text.trim();
+    if (trimmed === '') { setError(null); onCommit(undefined); return; }
+    try {
+      const parsed = JSON.parse(trimmed);
+      setError(null);
+      onCommit(parsed);
+    } catch {
+      setError('Invalid JSON');
+    }
+  };
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={commit}
+        disabled={disabled}
+        spellCheck={false}
+        rows={Math.min(12, Math.max(2, text.split('\n').length))}
+        className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-primary resize-y disabled:opacity-60"
+      />
+      {error && <div className="text-[11px] text-destructive">{error}</div>}
+    </div>
+  );
+}
+
+/** Renders one arbitrary block property by inferring an editor from its
+ *  runtime type. Guarantees the inspector can edit anything visible in the
+ *  source, even block types with no curated BLOCK_CONFIG entry. */
+function GenericPropField({ name, value, onCommit, disabled }: {
+  name: string; value: unknown; onCommit: (v: unknown) => void; disabled?: boolean;
+}) {
+  if (typeof value === 'boolean') {
+    return <InspectorCheckboxField label={name} value={value} onCommit={onCommit} disabled={disabled} />;
+  }
+  if (typeof value === 'number') {
+    return <InspectorNumberField label={name} value={value} onCommit={(v) => onCommit(v)} disabled={disabled} />;
+  }
+  if (value === null || typeof value === 'string') {
+    return <InspectorTextField label={name} value={value == null ? '' : value} onCommit={onCommit} disabled={disabled} mono />;
+  }
+  return <InspectorJsonField label={name} value={value} onCommit={onCommit} disabled={disabled} />;
+}
+
+/** Block `properties` keys whose values are nested block trees — these are
+ *  edited visually on the canvas, so they are excluded from the generic
+ *  property editor to avoid two conflicting editors for the same data. */
+const STRUCTURAL_PROP_KEYS = new Set(['children', 'body']);
+
 interface Block {
   type?: string;
   id?: string;
@@ -282,6 +353,15 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
   const patchProp = (name: string, value: unknown) =>
     patch({ properties: { ...blockProps, [name]: value } } as Partial<Block>);
 
+  // Properties already handled by curated fields — excluded from the generic
+  // "Advanced" section so each property has exactly one editor.
+  const curatedNames = new Set(
+    (blockHasConfig(block.type) ? BLOCK_CONFIG[block.type as string] : []).map((f) => f.name),
+  );
+  const advancedKeys = Object.keys(blockProps).filter(
+    (key) => !curatedNames.has(key) && !STRUCTURAL_PROP_KEYS.has(key),
+  );
+
   // Generic, recursive field renderer. `read`/`write` abstract the value source
   // (the block's `properties` at the top level, or an item object inside an
   // `array` field), so the same code drives nested array-item editors.
@@ -451,6 +531,27 @@ export function PageBlockInspector({ selection, draft, onPatch, onClearSelection
             {t('engine.inspector.pageBlock.properties', locale)}
           </div>
           {BLOCK_CONFIG[block.type as string].map((f) => renderField(f, readProp, patchProp))}
+        </div>
+      )}
+
+      {/* Generic fallback: any property present in the source but not covered
+          by a curated field above. Without this, selecting a block with no (or
+          partial) BLOCK_CONFIG left the inspector blank while source showed a
+          full `properties` object — the "config panel ⇄ source" disconnect. */}
+      {advancedKeys.length > 0 && (
+        <div className="space-y-3 border-t border-border pt-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {t('engine.inspector.pageBlock.advanced', locale)}
+          </div>
+          {advancedKeys.map((key) => (
+            <GenericPropField
+              key={key}
+              name={key}
+              value={blockProps[key]}
+              onCommit={(v) => patchProp(key, v)}
+              disabled={readOnly}
+            />
+          ))}
         </div>
       )}
     </InspectorShell>

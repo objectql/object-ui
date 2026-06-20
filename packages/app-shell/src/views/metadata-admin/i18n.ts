@@ -406,6 +406,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.pageBlock.className': 'Class names',
   'engine.inspector.pageBlock.hidden': 'Hidden (CEL)',
   'engine.inspector.pageBlock.properties': 'Properties',
+  'engine.inspector.pageBlock.advanced': 'Advanced',
   'engine.inspector.pageBlock.remove': 'Remove block',
   'engine.inspector.pageBlock.outlineLabel': 'Blocks',
   // Report default ("home") inspector
@@ -1053,6 +1054,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.pageBlock.className': '类名',
   'engine.inspector.pageBlock.hidden': '隐藏条件（CEL）',
   'engine.inspector.pageBlock.properties': '属性',
+  'engine.inspector.pageBlock.advanced': '高级属性',
   'engine.inspector.pageBlock.remove': '删除区块',
   'engine.inspector.pageBlock.outlineLabel': '区块',
   // Report default ("home") inspector

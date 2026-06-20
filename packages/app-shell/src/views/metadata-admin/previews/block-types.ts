@@ -41,10 +41,17 @@ import {
   List,
   Rows3,
   Box,
+  Table,
+  FormInput,
+  Gauge,
+  Columns3,
+  LayoutGrid,
   type LucideIcon,
 } from 'lucide-react';
 
 export type BlockTypeId =
+  // data — object-bound views & layout grid (the high-traffic app-page blocks)
+  | 'grid' | 'object-grid' | 'object-form' | 'object-metric' | 'object-kanban'
   // page:*
   | 'page:header' | 'page:footer' | 'page:sidebar' | 'page:tabs'
   | 'page:accordion' | 'page:card' | 'page:section'
@@ -63,7 +70,7 @@ export type BlockTypeId =
   | 'element:text' | 'element:number' | 'element:image' | 'element:divider'
   | 'element:button' | 'element:definition-list' | 'element:repeater';
 
-export type BlockCategory = 'layout' | 'record' | 'navigation' | 'element' | 'ai' | 'misc';
+export type BlockCategory = 'data' | 'layout' | 'record' | 'navigation' | 'element' | 'ai' | 'misc';
 
 export interface BlockTypeMeta {
   id: BlockTypeId;
@@ -73,6 +80,13 @@ export interface BlockTypeMeta {
 }
 
 export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
+  // Data — object-bound views & layout grid
+  'grid':          { label: 'Grid',          category: 'data', Icon: LayoutGrid },
+  'object-grid':   { label: 'Table',         category: 'data', Icon: Table },
+  'object-form':   { label: 'Form',          category: 'data', Icon: FormInput },
+  'object-metric': { label: 'Metric',        category: 'data', Icon: Gauge },
+  'object-kanban': { label: 'Kanban',        category: 'data', Icon: Columns3 },
+
   // Page layout
   'page:header':    { label: 'Header',    category: 'layout', Icon: PanelTop },
   'page:footer':    { label: 'Footer',    category: 'layout', Icon: PanelBottom },
@@ -114,6 +128,7 @@ export const BLOCK_TYPE_META: Record<BlockTypeId, Omit<BlockTypeMeta, 'id'>> = {
 };
 
 export const CATEGORY_LABEL_EN: Record<BlockCategory, string> = {
+  data:       'Data',
   layout:     'Layout',
   record:     'Record context',
   navigation: 'Navigation',
@@ -124,12 +139,12 @@ export const CATEGORY_LABEL_EN: Record<BlockCategory, string> = {
 
 export const TYPES_BY_CATEGORY: Array<{ category: BlockCategory; types: BlockTypeId[] }> = (() => {
   const out: Record<BlockCategory, BlockTypeId[]> = {
-    layout: [], record: [], navigation: [], element: [], ai: [], misc: [],
+    data: [], layout: [], record: [], navigation: [], element: [], ai: [], misc: [],
   };
   for (const [id, meta] of Object.entries(BLOCK_TYPE_META)) {
     out[meta.category].push(id as BlockTypeId);
   }
-  return (['layout', 'record', 'element', 'navigation', 'ai', 'misc'] as BlockCategory[])
+  return (['data', 'layout', 'record', 'element', 'navigation', 'ai', 'misc'] as BlockCategory[])
     .map((c) => ({ category: c, types: out[c] }))
     .filter((g) => g.types.length > 0);
 })();
@@ -150,6 +165,10 @@ export interface BlockCategoryTone {
 }
 
 export const BLOCK_CATEGORY_TONE: Record<BlockCategory, BlockCategoryTone> = {
+  data: {
+    icon: 'text-emerald-500 dark:text-emerald-400',
+    badge: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300',
+  },
   layout: {
     icon: 'text-slate-500 dark:text-slate-400',
     badge: 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-900/40 dark:text-slate-300',

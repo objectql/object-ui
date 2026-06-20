@@ -51,11 +51,24 @@ function childGroups(block: Block): Array<{ label: string; pathSuffix: string; c
         children: Array.isArray(it?.children) ? it.children : [],
       }));
     }
-    case 'page:card':
-      return [{ label: 'Body', pathSuffix: 'properties.body', children: Array.isArray(props.body) ? props.body : [] }];
+    case 'page:card': {
+      // Seeded cards nest under `properties.children`; older specs used
+      // `properties.body`. Prefer children, fall back to body so neither
+      // shape leaves the card's content unreachable on the canvas.
+      if (Array.isArray(props.body) && !Array.isArray(props.children)) {
+        return [{ label: 'Body', pathSuffix: 'properties.body', children: props.body }];
+      }
+      return [{ label: 'Body', pathSuffix: 'properties.children', children: Array.isArray(props.children) ? props.children : [] }];
+    }
     case 'page:section':
+    case 'grid':
       return [{ label: 'Content', pathSuffix: 'properties.children', children: Array.isArray(props.children) ? props.children : [] }];
     default:
+      // Future-proof: any block carrying a `properties.children` array (e.g.
+      // `container`) exposes those children for selection/editing.
+      if (Array.isArray(props.children)) {
+        return [{ label: 'Content', pathSuffix: 'properties.children', children: props.children }];
+      }
       return [];
   }
 }

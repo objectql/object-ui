@@ -162,6 +162,16 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
 
+  // Live values for the *current* step. The inner form keeps its own RHF
+  // state and (with `showSubmit: false`) never fires its own submit, so the
+  // wizard's Next/Create buttons must harvest the entered values here —
+  // otherwise we'd POST the wizard's stale `formData` (empty on create) and
+  // the server would reject every required field. Populated from the form's
+  // `form_change` broadcast (RHF `watch`, which covers selects/lookups/dates
+  // too) and reset on each step change so a prior step's values can't leak.
+  const stepValuesRef = React.useRef<Record<string, any>>({});
+  React.useEffect(() => { stepValuesRef.current = {}; }, [currentStep]);
+
   const totalSteps = schema.sections.length;
   const isFirstStep = currentStep === 0;
   const isLastStep = currentStep === totalSteps - 1;
@@ -407,6 +417,13 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           >
             {currentSectionFields.length > 0 ? (
               <SchemaRenderer
+                onAction={(action: any) => {
+                  // Lift the inner form's live values so the wizard footer
+                  // buttons can submit what the user actually entered.
+                  if (action?.type === 'form_change' && action.formData) {
+                    stepValuesRef.current = action.formData;
+                  }
+                }}
                 schema={{
                   type: 'form' as const,
                   fields: currentSectionFields,
@@ -457,7 +474,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           
           {isLastStep ? (
             <Button
-              onClick={() => handleStepSubmit(formData)}
+              onClick={() => handleStepSubmit(stepValuesRef.current)}
               disabled={submitting || schema.mode === 'view'}
             >
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />}
@@ -465,7 +482,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
             </Button>
           ) : (
             <Button
-              onClick={() => handleStepSubmit(formData)}
+              onClick={() => handleStepSubmit(stepValuesRef.current)}
             >
               {schema.nextText || 'Next'}
               <ChevronRight className="h-4 w-4 ml-1" />

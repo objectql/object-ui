@@ -38,6 +38,98 @@ const ALIGN_OPTS = [
 ];
 
 export const BLOCK_CONFIG: Record<string, BlockPropField[]> = {
+  // ── Data-bound blocks (the high-traffic ones on app pages) ────────────────
+  // These were previously absent, so selecting a table/form/metric on the
+  // canvas opened an inspector with only type/id/className — every binding
+  // (object, columns, filters) lived in source with no UI. Curated fields
+  // cover the common props; anything else surfaces in the generic "Advanced"
+  // section of PageBlockInspector so the panel is never out of sync with source.
+  'object-grid': [
+    { name: 'objectName', label: 'Object', kind: 'object-picker' },
+    { name: 'columns', label: 'Columns', kind: 'field-list', objectFrom: 'self', objectProp: 'objectName' },
+    { name: 'pageSize', label: 'Page size', kind: 'number', placeholder: '20' },
+    { name: 'striped', label: 'Striped rows', kind: 'boolean' },
+    { name: 'bordered', label: 'Bordered', kind: 'boolean' },
+  ],
+  'object-form': [
+    { name: 'objectName', label: 'Object', kind: 'object-picker' },
+    {
+      name: 'mode', label: 'Mode', kind: 'select',
+      options: [
+        { value: 'create', label: 'Create' },
+        { value: 'edit', label: 'Edit' },
+        { value: 'view', label: 'View' },
+      ],
+    },
+    {
+      name: 'formType', label: 'Form type', kind: 'select',
+      options: [
+        { value: 'simple', label: 'Simple' },
+        { value: 'tabbed', label: 'Tabbed' },
+        { value: 'wizard', label: 'Wizard' },
+        { value: 'split', label: 'Split' },
+        { value: 'drawer', label: 'Drawer' },
+        { value: 'modal', label: 'Modal' },
+      ],
+    },
+    {
+      name: 'layout', label: 'Layout', kind: 'select',
+      options: [
+        { value: 'vertical', label: 'Vertical' },
+        { value: 'horizontal', label: 'Horizontal' },
+        { value: 'inline', label: 'Inline' },
+        { value: 'grid', label: 'Grid' },
+      ],
+    },
+    { name: 'columns', label: 'Columns (grid layout)', kind: 'number', placeholder: '2' },
+    { name: 'fields', label: 'Fields', kind: 'field-list', objectFrom: 'self', objectProp: 'objectName' },
+    { name: 'title', label: 'Title', kind: 'text' },
+    { name: 'description', label: 'Description', kind: 'text' },
+  ],
+  'object-metric': [
+    { name: 'objectName', label: 'Object', kind: 'object-picker' },
+    { name: 'label', label: 'Label', kind: 'text' },
+    { name: 'description', label: 'Description', kind: 'text' },
+    { name: 'icon', label: 'Icon', kind: 'text', placeholder: 'lucide icon name' },
+    {
+      name: 'colorVariant', label: 'Color', kind: 'select',
+      options: [
+        { value: 'default', label: 'Default' },
+        { value: 'blue', label: 'Blue' },
+        { value: 'teal', label: 'Teal' },
+        { value: 'orange', label: 'Orange' },
+        { value: 'purple', label: 'Purple' },
+        { value: 'success', label: 'Success' },
+        { value: 'warning', label: 'Warning' },
+        { value: 'danger', label: 'Danger' },
+      ],
+    },
+    {
+      name: 'format', label: 'Format', kind: 'select',
+      options: [
+        { value: 'number', label: 'Number' },
+        { value: 'currency', label: 'Currency' },
+        { value: 'percent', label: 'Percent' },
+      ],
+    },
+    { name: 'prefix', label: 'Prefix', kind: 'text' },
+    { name: 'suffix', label: 'Suffix', kind: 'text' },
+    // `aggregate` ({ field, function }) and `filter` are nested/complex — they
+    // render in the generic Advanced section as editable JSON.
+  ],
+  'object-kanban': [
+    { name: 'objectName', label: 'Object', kind: 'object-picker' },
+    { name: 'groupField', label: 'Group by field', kind: 'field-picker', objectFrom: 'self', objectProp: 'objectName' },
+    { name: 'titleField', label: 'Title field', kind: 'field-picker', objectFrom: 'self', objectProp: 'objectName' },
+    { name: 'cardFields', label: 'Card fields', kind: 'field-list', objectFrom: 'self', objectProp: 'objectName' },
+  ],
+
+  // ── Layout grid ───────────────────────────────────────────────────────────
+  grid: [
+    { name: 'columns', label: 'Columns', kind: 'number', placeholder: '3' },
+    { name: 'gap', label: 'Gap', kind: 'number', placeholder: '4' },
+  ],
+
   // ── Content elements ──────────────────────────────────────────────────────
   'element:text': [
     { name: 'content', label: 'Content', kind: 'text', placeholder: 'Text…' },
