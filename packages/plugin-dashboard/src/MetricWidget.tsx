@@ -257,7 +257,7 @@ export const MetricWidget = ({
           </div>
         ) : (
           <>
-            <div className="text-2xl font-bold truncate">{displayValue}</div>
+            <div className="text-2xl font-bold tabular-nums tracking-tight truncate">{displayValue}</div>
             {(trend || description) && (
               <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0">
                 {trend && (
