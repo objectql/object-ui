@@ -72,6 +72,19 @@ ComponentRegistry.register('grid',
     if (schema.lgColumns) lgCols = schema.lgColumns;
     if (schema.xlColumns) xlCols = schema.xlColumns;
 
+    // Mobile-first ramp: a bare numeric `columns` (no explicit responsive
+    // overrides) collapses on small screens so an N-across row doesn't render
+    // as unreadable slivers on a phone. Authors who pass a responsive object
+    // or sm/md/lg/xlColumns keep full control.
+    if (
+      typeof schema.columns === 'number' && baseCols > 1 &&
+      smCols === undefined && mdCols === undefined && lgCols === undefined && xlCols === undefined
+    ) {
+      mdCols = baseCols;
+      smCols = Math.min(2, baseCols);
+      baseCols = 1;
+    }
+
     const gap = schema.gap ?? 4;
     
     // Generate Tailwind grid classes

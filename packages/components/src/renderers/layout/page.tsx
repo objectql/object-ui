@@ -38,6 +38,22 @@ function getRegionWidthClass(width?: string): string {
   }
 }
 
+/** Sidebar/aside width — full-width on mobile, fixed at md+ so the rail stacks
+ *  above/below the main column on phones instead of squeezing it. LITERAL
+ *  responsive strings so Tailwind's JIT scanner emits them. */
+function getSidebarWidthClass(width?: string): string {
+  switch (width) {
+    case 'small':
+      return 'w-full md:w-64';
+    case 'medium':
+      return 'w-full md:w-80';
+    case 'large':
+      return 'w-full md:w-96';
+    default:
+      return 'w-full';
+  }
+}
+
 /** Max-width constraint by page type */
 function getPageMaxWidth(pageType?: string): string {
   switch (pageType) {
@@ -129,9 +145,9 @@ const RegionLayout: React.FC<{
       )}
 
       {/* Body: sidebar + main + aside */}
-      <div className="flex flex-1 gap-6">
+      <div className="flex flex-col md:flex-row flex-1 gap-6">
         {sidebar && (
-          <aside className={cn('shrink-0', getRegionWidthClass(sidebar.width as string || 'small'))}>
+          <aside className={cn('md:shrink-0', getSidebarWidthClass(sidebar.width as string || 'small'))}>
             <RegionContent region={sidebar} />
           </aside>
         )}
@@ -144,7 +160,7 @@ const RegionLayout: React.FC<{
         </div>
 
         {aside && (
-          <aside className={cn('shrink-0', getRegionWidthClass(aside.width as string || 'small'), aside.className)}>
+          <aside className={cn('md:shrink-0', getSidebarWidthClass(aside.width as string || 'small'), aside.className)}>
             <RegionContent region={aside} />
           </aside>
         )}
@@ -209,9 +225,9 @@ const HeaderSidebarMainTemplate: React.FC<{ schema: PageSchema }> = ({ schema })
   return (
     <div className="flex flex-col gap-6" data-template="header-sidebar-main">
       {header && <RegionContent region={header} />}
-      <div className="flex flex-1 gap-6">
+      <div className="flex flex-col md:flex-row flex-1 gap-6">
         {sidebar && (
-          <aside className={cn('shrink-0', getRegionWidthClass(sidebar.width as string || 'medium'))}>
+          <aside className={cn('md:shrink-0', getSidebarWidthClass(sidebar.width as string || 'medium'))}>
             <RegionContent region={sidebar} />
           </aside>
         )}
@@ -241,9 +257,9 @@ const ThreeColumnTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
   return (
     <div className="flex flex-col gap-6" data-template="three-column">
       {header && <RegionContent region={header} />}
-      <div className="flex flex-1 gap-6">
+      <div className="flex flex-col md:flex-row flex-1 gap-6">
         {sidebar && (
-          <aside className={cn('shrink-0', getRegionWidthClass(sidebar.width as string || 'small'))}>
+          <aside className={cn('md:shrink-0', getSidebarWidthClass(sidebar.width as string || 'small'))}>
             <RegionContent region={sidebar} />
           </aside>
         )}
@@ -254,7 +270,7 @@ const ThreeColumnTemplate: React.FC<{ schema: PageSchema }> = ({ schema }) => {
           ))}
         </div>
         {aside && (
-          <aside className={cn('shrink-0', getRegionWidthClass(aside.width as string || 'small'), aside.className)}>
+          <aside className={cn('md:shrink-0', getSidebarWidthClass(aside.width as string || 'small'), aside.className)}>
             <RegionContent region={aside} />
           </aside>
         )}
