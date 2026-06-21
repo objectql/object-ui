@@ -1,0 +1,74 @@
+import { describe, it, expect } from 'vitest';
+import { deriveLookupColumns } from './deriveLookupColumns';
+
+const accountSchema = {
+  name: 'showcase_account',
+  fields: {
+    created_at: { type: 'datetime', label: 'Created At' },
+    updated_at: { type: 'datetime', label: 'Last Modified At' },
+    name: { type: 'text', label: 'Account Name' },
+    industry: { type: 'select', label: 'Industry' },
+    annual_revenue: { type: 'currency', label: 'Annual Revenue' },
+    website: { type: 'url', label: 'Website' },
+    hq: { type: 'location', label: 'Headquarters' },
+    status: { type: 'select', label: 'Lifecycle' },
+    support_config: { type: 'json', label: 'Support Config' },
+    owner_id: { type: 'lookup', label: 'Owner' },
+    organization_id: { type: 'lookup', label: 'Organization' },
+  },
+};
+
+describe('deriveLookupColumns', () => {
+  it('returns [] when no schema/fields are available', () => {
+    expect(deriveLookupColumns(undefined, { displayField: 'name' })).toEqual([]);
+    expect(deriveLookupColumns({ fields: {} }, { displayField: 'name' })).toEqual([]);
+  });
+
+  it('leads with the display field and adds business fields in declaration order', () => {
+    const cols = deriveLookupColumns(accountSchema, { displayField: 'name', max: 4 });
+    expect(cols.map((c) => c.field)).toEqual(['name', 'industry', 'annual_revenue', 'website']);
+  });
+
+  it('carries field label and type onto each column for type-aware rendering', () => {
+    const cols = deriveLookupColumns(accountSchema, { displayField: 'name', max: 3 });
+    expect(cols[0]).toEqual({ field: 'name', label: 'Account Name', type: 'text' });
+    expect(cols[2]).toEqual({ field: 'annual_revenue', label: 'Annual Revenue', type: 'currency' });
+  });
+
+  it('skips system/audit fields and heavy non-tabular types', () => {
+    const cols = deriveLookupColumns(accountSchema, { displayField: 'name', max: 10 });
+    const names = cols.map((c) => c.field);
+    expect(names).not.toContain('created_at');
+    expect(names).not.toContain('updated_at');
+    expect(names).not.toContain('owner_id');
+    expect(names).not.toContain('organization_id');
+    expect(names).not.toContain('support_config'); // json
+    expect(names).not.toContain('hq'); // location
+  });
+
+  it('respects the max column cap', () => {
+    expect(deriveLookupColumns(accountSchema, { displayField: 'name', max: 2 })).toHaveLength(2);
+  });
+
+  it('honours an object-level displayFields list, with the display field first', () => {
+    const schema = {
+      fields: {
+        name: { type: 'text', label: 'Name' },
+        code: { type: 'text', label: 'Code' },
+        region: { type: 'select', label: 'Region' },
+      },
+      displayFields: ['code', 'region'],
+    };
+    const cols = deriveLookupColumns(schema, { displayField: 'name', max: 4 });
+    expect(cols.map((c) => c.field)).toEqual(['name', 'code', 'region']);
+  });
+
+  it('does not duplicate the display field when it also appears in displayFields', () => {
+    const schema = {
+      fields: { name: { type: 'text' }, region: { type: 'select' } },
+      displayFields: ['name', 'region'],
+    };
+    const cols = deriveLookupColumns(schema, { displayField: 'name' });
+    expect(cols.map((c) => c.field)).toEqual(['name', 'region']);
+  });
+});

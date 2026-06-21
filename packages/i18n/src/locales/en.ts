@@ -2,6 +2,28 @@
  * English (en) - Default language pack for Object UI
  */
 const en = {
+  lookup: {
+    createNew: 'Create new',
+    createNamed: 'Create new "{{name}}"',
+    showingResults: 'Showing {{shown}} of {{total}} results',
+    showAllResults: 'Show all results ({{count}})',
+    selectedBadge: 'Selected',
+    browseAll: 'Browse all records',
+    remove: 'Remove {{label}}',
+    selectFirst: 'Select {{fields}} first',
+    selectRecord: 'Select record',
+    recordCount: '{{count}} records',
+    recordCountOne: '1 record',
+    pageOf: 'Page {{current}} of {{total}}',
+    filters: 'Filters',
+    clear: 'Clear',
+    yes: 'Yes',
+    filterPlaceholder: 'Filter {{label}}',
+    prevPage: 'Previous page',
+    nextPage: 'Next page',
+    jumpToPage: 'Jump to page',
+    retry: 'Retry',
+  },
   common: {
     loading: 'Loading...',
     save: 'Save',

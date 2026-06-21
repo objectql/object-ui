@@ -11,6 +11,7 @@ import { FieldWidgetProps } from './types';
 import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
 import { RecordPickerDialog } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
+import { deriveLookupColumns } from './deriveLookupColumns';
 import { getCellRendererResolver } from './_cell-renderer-bridge';
 import { SchemaRendererContext as ImportedSchemaRendererContext } from '@object-ui/react';
 import { useFieldTranslation } from './useFieldTranslation';
@@ -195,24 +196,6 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
   // Resolve dependent field values from explicit prop or SchemaRendererContext.data
   const dependentValuesProp = (props as any).dependentValues as Record<string, any> | undefined;
-  // Derive filter columns from lookup_columns that have type info
-  const filterColumns = useMemo<RecordPickerFilterColumn[] | undefined>(() => {
-    if (!lookupColumns) return undefined;
-    const cols: RecordPickerFilterColumn[] = [];
-    for (const c of lookupColumns) {
-      if (typeof c === 'object' && c.type) {
-        const filterType = mapFieldTypeToFilterType(c.type);
-        if (filterType) {
-          cols.push({
-            field: c.field,
-            label: c.label,
-            type: filterType,
-          });
-        }
-      }
-    }
-    return cols.length > 0 ? cols : undefined;
-  }, [lookupColumns]);
 
   // Resolve DataSource: explicit prop > field-level > wrapper field > SchemaRendererContext > none
   const ctx = useContext(SchemaRendererContext);
@@ -262,6 +245,42 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     if (raw && typeof raw === 'object' && typeof raw.source === 'string') return raw.source;
     return null;
   }, [refObjectSchema]);
+
+  /**
+   * Picker columns. Honour explicit `lookup_columns` when authored; otherwise
+   * derive a multi-column, disambiguating set from the referenced object's
+   * schema so every lookup gets a useful picker with zero field-level config.
+   */
+  const pickerColumns = useMemo<Array<string | LookupColumnDef> | undefined>(() => {
+    if (lookupColumns && lookupColumns.length > 0) return lookupColumns;
+    const derived = deriveLookupColumns(refObjectSchema, { displayField });
+    return derived.length > 0 ? derived : undefined;
+  }, [lookupColumns, refObjectSchema, displayField]);
+
+  /**
+   * Secondary line under each quick-select option. Honour explicit
+   * `description_field`; otherwise reuse the first derived non-display column so
+   * the inline popover also benefits from the richer schema.
+   */
+  const effectiveDescriptionField = useMemo<string | undefined>(() => {
+    if (descriptionField) return descriptionField;
+    const extra = pickerColumns?.find((c) => (typeof c === 'string' ? c : c.field) !== displayField);
+    if (!extra) return undefined;
+    return typeof extra === 'string' ? extra : extra.field;
+  }, [descriptionField, pickerColumns, displayField]);
+
+  // Derive filter-bar columns from any typed picker columns.
+  const filterColumns = useMemo<RecordPickerFilterColumn[] | undefined>(() => {
+    if (!pickerColumns) return undefined;
+    const cols: RecordPickerFilterColumn[] = [];
+    for (const c of pickerColumns) {
+      if (typeof c === 'object' && c.type) {
+        const filterType = mapFieldTypeToFilterType(c.type);
+        if (filterType) cols.push({ field: c.field, label: c.label, type: filterType });
+      }
+    }
+    return cols.length > 0 ? cols : undefined;
+  }, [pickerColumns]);
 
   // Optional create-new callback
   const onCreateNew: ((searchQuery: string) => void) | undefined =
@@ -328,7 +347,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
         const result = await dataSource.find(referenceTo, params);
         const records: any[] = result?.data ?? result ?? [];
-        const mapped = records.map(r => recordToOption(r, displayField, idField, descriptionField, refTitleFormat));
+        const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat));
 
         setFetchedOptions(mapped);
         setTotalCount(result?.total ?? records.length);
@@ -340,7 +359,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         setLoading(false);
       }
     },
-    [dataSource, referenceTo, displayField, idField, descriptionField, refTitleFormat, dependenciesMissing, dependsOn, resolvedDependentValues],
+    [dataSource, referenceTo, displayField, idField, effectiveDescriptionField, refTitleFormat, dependenciesMissing, dependsOn, resolvedDependentValues],
   );
 
   // Re-fetch when dependent values change while the picker is open. This keeps
@@ -425,14 +444,14 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         for (const id of unresolved) {
           if (typeof (dataSource as any).findOne === 'function') {
             const rec = await (dataSource as any).findOne(referenceTo, id);
-            if (rec) fetched.push(recordToOption(rec, displayField, idField, descriptionField, refTitleFormat));
+            if (rec) fetched.push(recordToOption(rec, displayField, idField, effectiveDescriptionField, refTitleFormat));
           } else {
             const res = await dataSource.find(referenceTo, {
               $filter: { [idField]: id },
               $top: 1,
             } as QueryParams);
             const rows = res?.data ?? res ?? [];
-            if (rows[0]) fetched.push(recordToOption(rows[0], displayField, idField, descriptionField, refTitleFormat));
+            if (rows[0]) fetched.push(recordToOption(rows[0], displayField, idField, effectiveDescriptionField, refTitleFormat));
           }
         }
         if (!cancelled && fetched.length) {
@@ -450,7 +469,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, hasDataSource, referenceTo, displayField, idField, descriptionField, multiple]);
+  }, [value, hasDataSource, referenceTo, displayField, idField, effectiveDescriptionField, multiple]);
 
   // Get selected option(s) — check static, fetched, and picker-resolved options
   const findOption = useCallback(
@@ -507,10 +526,10 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // findOption can resolve display labels after the dialog closes.
   const handlePickerSelectRecords = useCallback(
     (records: any[]) => {
-      const mapped = records.map(r => recordToOption(r, displayField, idField, descriptionField, refTitleFormat));
+      const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat));
       setPickerResolvedRecords(mapped);
     },
-    [displayField, idField, descriptionField, refTitleFormat],
+    [displayField, idField, effectiveDescriptionField, refTitleFormat],
   );
 
   // Keyboard handler for the search input — arrow keys + Enter
@@ -588,7 +607,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                 onClick={() => handleRemove(opt?.value)}
                 className="ml-1 hover:text-destructive"
                 type="button"
-                aria-label={`Remove ${opt?.label || opt?.[displayField]}`}
+                aria-label={t('lookup.remove', { label: opt?.label || opt?.[displayField] })}
               >
                 <X className="size-3" />
               </button>
@@ -611,13 +630,13 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
             disabled={dependenciesMissing || (props as any).disabled}
             data-testid={dependenciesMissing ? 'lookup-trigger-gated' : (((props as any).name || lookupField?.name) ? `lookup-trigger-${(props as any).name || lookupField.name}` : 'lookup-trigger')}
             title={dependenciesMissing
-              ? `Select ${dependsOn.map(d => d.field).join(', ')} first`
+              ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
               : undefined}
           >
             <Search className={cn('size-4 shrink-0 text-muted-foreground', compact ? 'mr-1.5' : 'mr-2')} />
             <span className={cn('truncate', compact && selectedOptions.length === 0 && 'text-muted-foreground')}>
             {dependenciesMissing
-              ? `Select ${dependsOn.map(d => d.field).join(', ')} first`
+              ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
               : compact && !multiple && selectedOptions.length > 0
                 ? singleSelectedLabel
                 : selectedOptions.length === 0
@@ -659,7 +678,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                 onClick={() => fetchLookupData(searchQuery || undefined)}
                 type="button"
               >
-                Retry
+                {t('lookup.retry')}
               </Button>
             </div>
           )}
@@ -668,7 +687,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           {loading && filteredOptions.length === 0 && !error && (
             <div className="flex flex-col items-center gap-2 py-6" role="status" aria-live="polite">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Loading…</p>
+              <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
             </div>
           )}
 
@@ -678,7 +697,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
               {filteredOptions.length === 0 ? (
                 <div className="py-4 text-center">
                   <p className="text-sm text-muted-foreground">
-                    No options found
+                    {t('common.noResults')}
                   </p>
                   {/* Quick-create entry */}
                   {onCreateNew && (
@@ -693,7 +712,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                       }}
                     >
                       <Plus className="size-4" />
-                      Create new
+                      {t('lookup.createNew')}
                     </Button>
                   )}
                 </div>
@@ -730,7 +749,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                           )}
                         </div>
                         {isSelected && (
-                          <Badge variant="default" className="ml-2 shrink-0">Selected</Badge>
+                          <Badge variant="default" className="ml-2 shrink-0">{t('lookup.selectedBadge')}</Badge>
                         )}
                       </button>
                     );
@@ -738,7 +757,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                   {/* Show total count when fetched from DataSource */}
                   {hasDataSource && totalCount > filteredOptions.length && (
                     <p className="text-xs text-muted-foreground text-center py-2">
-                      Showing {filteredOptions.length} of {totalCount} results.
+                      {t('lookup.showingResults', { shown: filteredOptions.length, total: totalCount })}
                     </p>
                   )}
                   {/* "Show All Results" button — opens the full Record Picker (Level 2) */}
@@ -753,7 +772,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                       data-testid="show-all-results"
                     >
                       <TableProperties className="size-3.5" />
-                      Show All Results ({totalCount})
+                      {t('lookup.showAllResults', { count: totalCount })}
                     </button>
                   )}
                   {/* Quick-create entry (below results) */}
@@ -767,7 +786,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                       }}
                     >
                       <Plus className="size-3.5" />
-                      Create new{searchQuery ? ` "${searchQuery}"` : ''}
+                      {searchQuery ? t('lookup.createNamed', { name: searchQuery }) : t('lookup.createNew')}
                     </button>
                   )}
                 </>
@@ -785,8 +804,8 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           className="shrink-0"
           type="button"
           onClick={() => setIsPickerOpen(true)}
-          aria-label="Browse all records"
-          title="Browse all records"
+          aria-label={t('lookup.browseAll')}
+          title={t('lookup.browseAll')}
           data-testid="browse-all-records"
         >
           <TableProperties className="size-4" />
@@ -799,11 +818,11 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         <RecordPickerDialog
           open={isPickerOpen}
           onOpenChange={setIsPickerOpen}
-          title={lookupField?.label || 'Select'}
+          title={lookupField?.label || t('common.select')}
           multiple={multiple}
           dataSource={dataSource}
           objectName={referenceTo}
-          columns={lookupColumns}
+          columns={pickerColumns}
           displayField={displayField}
           titleFormat={refTitleFormat}
           idField={idField}

@@ -2,6 +2,28 @@
  * 中文 (zh) - Chinese language pack for Object UI
  */
 const zh = {
+  lookup: {
+    createNew: '新建',
+    createNamed: '新建“{{name}}”',
+    showingResults: '显示 {{total}} 条结果中的 {{shown}} 条',
+    showAllResults: '查看全部结果（{{count}}）',
+    selectedBadge: '已选',
+    browseAll: '浏览全部记录',
+    remove: '移除 {{label}}',
+    selectFirst: '请先选择{{fields}}',
+    selectRecord: '选择记录',
+    recordCount: '{{count}} 条记录',
+    recordCountOne: '1 条记录',
+    pageOf: '第 {{current}}/{{total}} 页',
+    filters: '筛选',
+    clear: '清除',
+    yes: '是',
+    filterPlaceholder: '筛选{{label}}',
+    prevPage: '上一页',
+    nextPage: '下一页',
+    jumpToPage: '跳转到指定页',
+    retry: '重试',
+  },
   common: {
     loading: '加载中...',
     save: '保存',

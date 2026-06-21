@@ -38,6 +38,7 @@ import {
   X,
 } from 'lucide-react';
 import type { DataSource, QueryParams, LookupColumnDef, LookupFilterDef } from '@object-ui/types';
+import { useFieldTranslation } from './useFieldTranslation';
 
 /** Default page size for the Record Picker dialog */
 const DEFAULT_PAGE_SIZE = 10;
@@ -336,6 +337,7 @@ export function RecordPickerDialog({
   renderFilterBar,
   renderGrid,
 }: RecordPickerDialogProps) {
+  const { t } = useFieldTranslation();
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -801,7 +803,7 @@ export function RecordPickerDialog({
                 onValueChange={v => handleFilterChange(col.field, v)}
               >
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder={`Filter ${label}`} />
+                  <SelectValue placeholder={t('lookup.filterPlaceholder', { label })} />
                 </SelectTrigger>
                 <SelectContent>
                   {col.options?.map(opt => (
@@ -821,7 +823,7 @@ export function RecordPickerDialog({
                 type="number"
                 className="h-8 text-xs"
                 value={val ?? ''}
-                placeholder={`Filter ${label}`}
+                placeholder={t('lookup.filterPlaceholder', { label })}
                 onChange={e => {
                   const raw = e.target.value;
                   handleFilterChange(col.field, raw === '' ? '' : Number(raw));
@@ -850,7 +852,7 @@ export function RecordPickerDialog({
                   checked={Boolean(val)}
                   onCheckedChange={checked => handleFilterChange(col.field, Boolean(checked))}
                 />
-                <span className="text-xs text-muted-foreground">Yes</span>
+                <span className="text-xs text-muted-foreground">{t('lookup.yes')}</span>
               </div>
             </div>
           );
@@ -862,7 +864,7 @@ export function RecordPickerDialog({
               <Input
                 className="h-8 text-xs"
                 value={val ?? ''}
-                placeholder={`Filter ${label}`}
+                placeholder={t('lookup.filterPlaceholder', { label })}
                 onChange={e => handleFilterChange(col.field, e.target.value)}
               />
             </div>
@@ -896,7 +898,7 @@ export function RecordPickerDialog({
         <div className="relative rounded-md border bg-muted/30 mb-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
-            placeholder="Search..."
+            placeholder={t('table.search')}
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-9 border-0 bg-transparent shadow-none focus-visible:ring-0"
@@ -936,7 +938,7 @@ export function RecordPickerDialog({
                     onClick={() => setFilterBarOpen(prev => !prev)}
                   >
                     <SlidersHorizontal className="size-3.5" />
-                    Filters
+                    {t('lookup.filters')}
                     {activeFilterCount > 0 && (
                       <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary/10 px-1 text-xs font-medium text-primary">
                         {activeFilterCount}
@@ -952,7 +954,7 @@ export function RecordPickerDialog({
                       onClick={handleFilterClear}
                     >
                       <X className="size-3" />
-                      Clear
+                      {t('lookup.clear')}
                     </Button>
                   )}
                 </div>
@@ -979,7 +981,7 @@ export function RecordPickerDialog({
               onClick={() => fetchRecords(searchQuery || undefined, currentPage, currentSort)}
               type="button"
             >
-              Retry
+              {t('lookup.retry')}
             </Button>
           </div>
         )}
@@ -1046,7 +1048,7 @@ export function RecordPickerDialog({
             {/* Empty state */}
             {!loading && !error && records.length === 0 && (
               <div className="py-8 text-center">
-                <p className="text-sm text-muted-foreground">No records found</p>
+                <p className="text-sm text-muted-foreground">{t('common.noResults')}</p>
               </div>
             )}
 
@@ -1151,8 +1153,8 @@ export function RecordPickerDialog({
                 data-testid="record-picker-pagination"
               >
                 <span>
-                  {totalCount} {totalCount === 1 ? 'record' : 'records'}
-                  {totalPages > 1 && ` · Page ${currentPage} of ${totalPages}`}
+                  {totalCount === 1 ? t('lookup.recordCountOne') : t('lookup.recordCount', { count: totalCount })}
+                  {totalPages > 1 && ` · ${t('lookup.pageOf', { current: currentPage, total: totalPages })}`}
                 </span>
                 {totalPages > 1 && (
                   <div className="flex items-center gap-1.5">
@@ -1163,7 +1165,7 @@ export function RecordPickerDialog({
                       onClick={handlePrevPage}
                       disabled={currentPage <= 1}
                       type="button"
-                      aria-label="Previous page"
+                      aria-label={t('lookup.prevPage')}
                     >
                       <ChevronLeft className="size-4" />
                     </Button>
@@ -1173,7 +1175,7 @@ export function RecordPickerDialog({
                       value={pageJumpValue}
                       onChange={e => setPageJumpValue(e.target.value)}
                       onKeyDown={handlePageJump}
-                      aria-label="Jump to page"
+                      aria-label={t('lookup.jumpToPage')}
                       data-testid="record-picker-page-jump"
                     />
                     <Button
@@ -1183,7 +1185,7 @@ export function RecordPickerDialog({
                       onClick={handleNextPage}
                       disabled={currentPage >= totalPages}
                       type="button"
-                      aria-label="Next page"
+                      aria-label={t('lookup.nextPage')}
                     >
                       <ChevronRight className="size-4" />
                     </Button>
@@ -1199,14 +1201,14 @@ export function RecordPickerDialog({
           <DialogFooter>
             <div className="flex items-center gap-2 w-full justify-between">
               <span className="text-sm text-muted-foreground">
-                {pendingSelection.size} selected
+                {t('table.selected', { count: pendingSelection.size })}
               </span>
               <div className="flex gap-2">
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button type="button" onClick={handleConfirm}>
-                  Confirm
+                  {t('common.confirm')}
                 </Button>
               </div>
             </div>
