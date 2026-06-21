@@ -18,7 +18,7 @@
  */
 
 import * as React from 'react';
-import { ArrowDown, ArrowUp, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Trash2, X } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import { Badge, Button, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@object-ui/components';
 
@@ -261,8 +261,18 @@ export function InspectorCheckboxField({
 }
 
 export function InspectorRemoveButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
+  // Calm by default (muted outline), escalating to destructive-red only on
+  // hover — a full-width solid-red bar reads as alarming for what is a routine
+  // "remove this element" footer action. The trash icon keeps intent clear.
   return (
-    <Button variant="destructive" size="sm" onClick={onClick} disabled={disabled} className="w-full">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full gap-1.5 text-muted-foreground hover:border-destructive/40 hover:bg-destructive/5 hover:text-destructive"
+    >
+      <Trash2 className="h-3.5 w-3.5" />
       {label}
     </Button>
   );
