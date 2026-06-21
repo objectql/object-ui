@@ -41,7 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@object-ui/components';
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Search, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
 // @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { detectLocale, t, tFormat } from './i18n';
@@ -78,6 +78,13 @@ export interface WidgetContext {
   objectActions?: Array<{ name: string; label?: string; locations?: string[] }>;
   /** Loading flag for the action catalog. */
   objectActionsLoading?: boolean;
+  /**
+   * Per-value sub-schemas for the `dynamic-config` widget: a map from a parent
+   * field's value (e.g. the chosen driver id) to the JSON-Schema describing the
+   * config object for that value. Lets a single `config` field render different
+   * fields depending on a sibling selection (driver → connection settings).
+   */
+  dynamicSchemas?: Record<string, { properties?: Record<string, any>; required?: string[] }>;
 }
 
 export interface WidgetProps {
@@ -1662,6 +1669,136 @@ function ConditionWidget({ value, onChange, readOnly, context }: WidgetProps) {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* secret — write-only / masked credential input (encrypt-on-write fields)     */
+/* -------------------------------------------------------------------------- */
+
+/** Mirrors objectql\'s SECRET_MASK: a stored secret reads back as this, never plaintext. */
+export const SECRET_MASK = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+
+/**
+ * `secret` widget — a write-only credential input for `secret` field types (and
+ * `format: 'password'` / `writeOnly` props). A stored secret reads back masked,
+ * so the box starts empty with a "leave blank to keep" hint; typing replaces it,
+ * a reveal toggle shows what you type, and Clear removes it. Emits the typed
+ * value (new secret), `SECRET_MASK` (blank + existing = keep, a no-op on write),
+ * `null` (Clear), or `undefined` (blank + none).
+ */
+function SecretWidget({ value, onChange, readOnly, schema, id }: WidgetProps) {
+  const stored = value === SECRET_MASK;
+  const [reveal, setReveal] = React.useState(false);
+  const [draft, setDraft] = React.useState<string>(stored || value == null ? '' : String(value));
+  const update = (v: string) => {
+    setDraft(v);
+    if (v === '') onChange(stored ? SECRET_MASK : undefined); // blank: keep if stored, else unset
+    else onChange(v);
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        id={id}
+        type={reveal ? 'text' : 'password'}
+        value={draft}
+        disabled={readOnly}
+        autoComplete="off"
+        placeholder={stored ? (schema?.description ? '•••••••• set — type to replace' : '•••••••• set — leave blank to keep') : (typeof schema?.description === 'string' ? '' : 'Enter a value')}
+        onChange={(e) => update(e.target.value)}
+        className="h-8 text-sm font-mono"
+        aria-label="Secret value"
+      />
+      <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" disabled={readOnly} aria-label={reveal ? 'Hide value' : 'Reveal value'} onClick={() => setReveal((r) => !r)}>
+        {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </Button>
+      {stored && (
+        <Button type="button" variant="ghost" size="sm" className="h-8 shrink-0 text-destructive hover:text-destructive" disabled={readOnly} onClick={() => { setDraft(''); onChange(null); }}>
+          Clear
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* dynamic-config — sub-form whose schema is chosen by a sibling field value   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * `dynamic-config` widget — renders an object field whose shape depends on a
+ * SIBLING field\'s value. `fieldSpec.dependsOn` names the parent field (e.g.
+ * `driver`); `context.dynamicSchemas[<parentValue>]` supplies the JSON-Schema
+ * for the config object. The canonical case is a datasource\'s `config` field
+ * that changes fields per driver, but it is generic: any "pick X → these
+ * settings" pattern can reuse it by populating `dynamicSchemas`.
+ */
+function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, context }: WidgetProps) {
+  const dep = Array.isArray(fieldSpec?.dependsOn) ? fieldSpec!.dependsOn![0] : fieldSpec?.dependsOn;
+  const depVal = dep ? (formData?.[dep] as string | undefined) : undefined;
+  const sub = depVal != null ? context?.dynamicSchemas?.[String(depVal)] : undefined;
+  const props = (sub?.properties ?? {}) as Record<string, any>;
+  const required = new Set<string>(sub?.required ?? []);
+  const cfg = (value && typeof value === 'object' ? (value as Record<string, unknown>) : {}) as Record<string, unknown>;
+  const setKey = (k: string, v: unknown) => {
+    const next = { ...cfg };
+    if (v === undefined || v === '') delete next[k]; else next[k] = v;
+    onChange(next);
+  };
+
+  if (!depVal) {
+    return <p className="text-xs text-muted-foreground">Select {dep ?? 'an option'} to configure.</p>;
+  }
+  if (!sub || Object.keys(props).length === 0) {
+    return <p className="text-xs text-muted-foreground">No configuration needed for "{String(depVal)}".</p>;
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-border/60 p-3">
+      {Object.entries(props).map(([key, p]) => {
+        const label = (p as any)?.title || key;
+        const cur = cfg[key];
+        const isReq = required.has(key);
+        if ((p as any)?.type === 'boolean') {
+          return (
+            <div key={key} className="flex items-center justify-between gap-2">
+              <Label className="text-xs">{label}</Label>
+              <Switch checked={Boolean(cur)} disabled={readOnly} onCheckedChange={(c) => setKey(key, c)} />
+            </div>
+          );
+        }
+        if (Array.isArray((p as any)?.enum)) {
+          return (
+            <div key={key} className="space-y-1">
+              <Label className="text-xs">{label}{isReq ? ' *' : ''}</Label>
+              <Select value={cur != null ? String(cur) : ''} onValueChange={(v) => setKey(key, v)} disabled={readOnly}>
+                <SelectTrigger className="h-8" aria-label={label}><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  {((p as any).enum as unknown[]).map((o) => <SelectItem key={String(o)} value={String(o)}>{String(o)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        }
+        const isSecret = (p as any)?.format === 'password' || (p as any)?.writeOnly === true;
+        const isNum = (p as any)?.type === 'number' || (p as any)?.type === 'integer';
+        return (
+          <div key={key} className="space-y-1">
+            <Label className="text-xs">{label}{isReq ? ' *' : ''}</Label>
+            <Input
+              type={isSecret ? 'password' : isNum ? 'number' : 'text'}
+              value={cur != null ? String(cur) : ''}
+              disabled={readOnly}
+              autoComplete={isSecret ? 'off' : undefined}
+              aria-label={label}
+              onChange={(e) => setKey(key, isNum ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)}
+              className="h-8 text-sm"
+            />
+            {(p as any)?.description && <p className="text-[11px] text-muted-foreground">{(p as any).description}</p>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export const WIDGETS: Record<string, WidgetRenderer> = {
   'ref:object': RefObjectWidget,
   'filter-mode': FilterModeWidget,
@@ -1679,6 +1816,8 @@ export const WIDGETS: Record<string, WidgetRenderer> = {
   'string-tags': StringTagsWidget,
   'multiselect': MultiSelectWidget,
   'code': CodeWidget,
+  'secret': SecretWidget,
+  'dynamic-config': DynamicConfigWidget,
 };
 
 /* -------------------------------------------------------------------------- */

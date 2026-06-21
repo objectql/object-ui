@@ -327,6 +327,27 @@ function detectConditionWidget(name: string, schema: JsonSchema | undefined): st
   return undefined;
 }
 
+const SECRET_FIELD_NAME_RE = /(^|_)(secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|credential|private[_-]?key|passphrase)$/i;
+/**
+ * Detect a write-only credential field → the masked `secret` widget. The
+ * reliable signals are `format: 'password'` (driver configSchemas use this) and
+ * JSON-Schema `writeOnly: true`; a conservative NAME CONVENTION (secret / token
+ * / apiKey / accessKey / clientSecret / credential / privateKey / passphrase)
+ * is the secondary cue. So credential fields render masked + write-only on every
+ * metadata type, without each spec pinning `widget: 'secret'`. Bare `password`
+ * is intentionally NOT matched here (auth owns that field, one-way hashed).
+ */
+function detectSecretWidget(name: string, schema: JsonSchema | undefined): string | undefined {
+  if (schema?.format === 'password' || (schema as { writeOnly?: boolean } | undefined)?.writeOnly === true) return 'secret';
+  if (Array.isArray(schema?.enum)) return undefined;
+  const isString =
+    schema?.type === 'string' ||
+    (Array.isArray(schema?.anyOf) && (schema!.anyOf as JsonSchema[]).some((b) => b?.type === 'string'));
+  if (!isString) return undefined;
+  if (SECRET_FIELD_NAME_RE.test(name)) return 'secret';
+  return undefined;
+}
+
 /* -------------------------------------------------------------------------- */
 /* FormView spec (subset)                                                     */
 /* -------------------------------------------------------------------------- */
@@ -788,14 +809,18 @@ function FieldRow({
     const refWidget = detectFieldRefWidget(name, schema, widgetContext);
     if (refWidget) widget = refWidget;
     else {
-      const iconWidget = detectIconWidget(name, schema);
-      if (iconWidget) widget = iconWidget;
+      const secretWidget = detectSecretWidget(name, schema);
+      if (secretWidget) widget = secretWidget;
       else {
-        const colorWidget = detectColorWidget(name, schema);
-        if (colorWidget) widget = colorWidget;
+        const iconWidget = detectIconWidget(name, schema);
+        if (iconWidget) widget = iconWidget;
         else {
-          const condWidget = detectConditionWidget(name, schema);
-          if (condWidget) widget = condWidget;
+          const colorWidget = detectColorWidget(name, schema);
+          if (colorWidget) widget = colorWidget;
+          else {
+            const condWidget = detectConditionWidget(name, schema);
+            if (condWidget) widget = condWidget;
+          }
         }
       }
     }
