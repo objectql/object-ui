@@ -21,6 +21,13 @@ import { Loader2, BarChart3, AlertTriangle } from 'lucide-react';
 import { useAdapter } from '../../../providers/AdapterProvider';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewEmptyState, PreviewErrorBoundary } from './PreviewShell';
+import {
+  formatMeasure,
+  formatDimensionValue,
+  buildDatasetFieldHelpers,
+  type DatasetResultField,
+} from '@object-ui/core';
+import { useSafeFieldLabel } from '@object-ui/i18n';
 
 // Lazy-loaded so the (recharts-backed) chart bundle only loads when a dataset
 // preview actually renders a chart — keeps the metadata-admin bundle small.
@@ -31,20 +38,12 @@ const ChartRenderer = React.lazy(() =>
 type Row = Record<string, unknown>;
 type PreviewState =
   | { status: 'idle' | 'loading'; rows: Row[]; error?: undefined }
-  | { status: 'ok'; rows: Row[]; error?: undefined }
+  | { status: 'ok'; rows: Row[]; fields?: DatasetResultField[]; object?: string; error?: undefined }
   | { status: 'error'; rows: Row[]; error: string };
-
-function formatCell(v: unknown): string {
-  if (v == null) return '—';
-  if (typeof v === 'number') {
-    return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  }
-  if (typeof v === 'boolean') return v ? 'true' : 'false';
-  return String(v);
-}
 
 export function DatasetPreview({ draft }: MetadataPreviewProps) {
   const adapter = useAdapter();
+  const { fieldLabel } = useSafeFieldLabel();
 
   const objectName = (draft as Record<string, unknown>).object as string | undefined;
 
@@ -67,9 +66,14 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
     setState({ status: 'loading', rows: [] });
     try {
       const result = await (adapter as unknown as {
-        queryDataset: (d: unknown, s: unknown) => Promise<{ rows: Row[] }>;
+        queryDataset: (d: unknown, s: unknown) => Promise<{ rows: Row[]; fields?: DatasetResultField[]; object?: string }>;
       }).queryDataset(draft, { dimensions: dimensionNames, measures: measureNames });
-      setState({ status: 'ok', rows: Array.isArray(result?.rows) ? result.rows : [] });
+      setState({
+        status: 'ok',
+        rows: Array.isArray(result?.rows) ? result.rows : [],
+        fields: Array.isArray(result?.fields) ? result.fields : [],
+        object: result?.object,
+      });
     } catch (e) {
       setState({ status: 'error', rows: [], error: String((e as Error)?.message ?? e) });
     }
@@ -108,6 +112,12 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
     );
   }
 
+  // Display labels + currency-aware formatting, shared with the dashboard widget
+  // and the report renderer (@object-ui/core). Falls back to the raw name / plain
+  // number when the server result carries no field metadata.
+  const resultFields = state.status === 'ok' ? state.fields : undefined;
+  const resultObject = state.status === 'ok' ? state.object : undefined;
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(resultFields, resultObject, fieldLabel);
   const columns = [...dimensionNames, ...measureNames];
 
   return (
@@ -153,7 +163,7 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
                   schema={{
                     data: state.rows as Array<Record<string, unknown>>,
                     xAxisKey: dimensionNames[0],
-                    series: measureNames.map((m) => ({ dataKey: m, label: m, chartType: 'bar' as const })),
+                    series: measureNames.map((m) => ({ dataKey: m, label: headerLabel(m), chartType: 'bar' as const })),
                   } as any}
                 />
               </div>
@@ -167,7 +177,7 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
               <thead className="bg-muted/40">
                 <tr>
                   {columns.map((c) => (
-                    <th key={c} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">{c}</th>
+                    <th key={c} className="px-2 py-1.5 text-left font-medium whitespace-nowrap">{headerLabel(c)}</th>
                   ))}
                 </tr>
               </thead>
@@ -175,7 +185,11 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
                 {state.rows.map((row, i) => (
                   <tr key={i} className="border-t">
                     {columns.map((c) => (
-                      <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">{formatCell(row[c])}</td>
+                      <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">
+                        {measureNames.includes(c)
+                          ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency)
+                          : formatDimensionValue(row[c])}
+                      </td>
                     ))}
                   </tr>
                 ))}

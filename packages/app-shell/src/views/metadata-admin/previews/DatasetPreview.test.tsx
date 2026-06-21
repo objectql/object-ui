@@ -39,6 +39,38 @@ describe('DatasetPreview', () => {
     expect(screen.getByText('EU')).toBeInTheDocument();
   });
 
+  it('renders display labels for headers and currency-formatted measures', async () => {
+    queryDataset.mockResolvedValue({
+      rows: [{ region: 'NA', revenue: 1000 }],
+      object: 'opportunity',
+      fields: [
+        { name: 'region', type: 'string', label: 'Region' },
+        { name: 'revenue', type: 'number', label: 'Revenue', format: '0,0', currency: 'USD' },
+      ],
+    });
+    render(<DatasetPreview {...baseProps} draft={draft} />);
+    // Headers use the server field label, not the raw dimension/measure name.
+    expect(await screen.findByRole('columnheader', { name: 'Region' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Revenue' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'revenue' })).not.toBeInTheDocument();
+    // Amount carries the declared currency symbol (never a bare number).
+    expect(screen.getByText('$1,000')).toBeInTheDocument();
+  });
+
+  it('formats an amount with no declared currency as a plain number (no $)', async () => {
+    queryDataset.mockResolvedValue({
+      rows: [{ region: 'NA', revenue: 1234 }],
+      object: 'opportunity',
+      fields: [
+        { name: 'region', type: 'string', label: 'Region' },
+        { name: 'revenue', type: 'number', label: 'Revenue', format: '0,0' },
+      ],
+    });
+    render(<DatasetPreview {...baseProps} draft={draft} />);
+    expect(await screen.findByText('1,234')).toBeInTheDocument();
+    expect(screen.queryByText('$1,234')).not.toBeInTheDocument();
+  });
+
   it('surfaces a server/compile error as an alert (no silent fallback)', async () => {
     queryDataset.mockRejectedValue(new Error('relationship "account" is not declared in the dataset\'s `include`'));
     render(<DatasetPreview {...baseProps} draft={draft} />);
