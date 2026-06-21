@@ -70,9 +70,7 @@ describe('DatasetDefaultInspector', () => {
   it('removes the measure row', () => {
     const onPatch = vi.fn();
     render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={onPatch} readOnly={false} />);
-    // The measure block's remove button is the last "Remove" (dimension is first).
-    const removes = screen.getAllByText('Remove');
-    fireEvent.click(removes[removes.length - 1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove measure' }));
     expect(onPatch).toHaveBeenCalledWith({ measures: [] });
   });
 
@@ -88,6 +86,6 @@ describe('DatasetDefaultInspector', () => {
   it('hides add/remove affordances when readOnly', () => {
     render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={true} />);
     expect(screen.queryByText('Add measure')).not.toBeInTheDocument();
-    expect(screen.queryByText('Remove')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
   });
 });

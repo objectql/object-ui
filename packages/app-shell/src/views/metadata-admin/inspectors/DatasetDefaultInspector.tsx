@@ -20,14 +20,13 @@
  */
 
 import * as React from 'react';
-import { ArrowRight, Plus, X } from 'lucide-react';
+import { ArrowRight, Plus, Trash2, X } from 'lucide-react';
 import { Badge, Button, Label } from '@object-ui/components';
 import {
   InspectorShell,
   InspectorTextField,
   InspectorSelectField,
   InspectorCheckboxField,
-  InspectorRemoveButton,
   appendArray,
   spliceArray,
 } from './_shared';
@@ -250,7 +249,19 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
           <div key={i} className="rounded-md border p-2 space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium text-muted-foreground">Dimension {i + 1}</span>
-              {!readOnly && <InspectorRemoveButton label="Remove" onClick={() => onPatch({ dimensions: spliceArray(dimensions, i, null) })} />}
+              {!readOnly && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Remove dimension"
+                  title="Remove dimension"
+                  className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => onPatch({ dimensions: spliceArray(dimensions, i, null) })}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
             <InspectorTextField label="Name" value={d.name ?? ''} onCommit={(v) => patchDimension(i, { name: v })} placeholder="e.g. region" disabled={readOnly} mono />
             <InspectorComboField
@@ -290,7 +301,19 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
             <div key={i} className="rounded-md border p-2 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium text-muted-foreground">Measure {i + 1}</span>
-                {!readOnly && <InspectorRemoveButton label="Remove" onClick={() => onPatch({ measures: spliceArray(measures, i, null) })} />}
+                {!readOnly && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Remove measure"
+                    title="Remove measure"
+                    className="h-6 w-6 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => onPatch({ measures: spliceArray(measures, i, null) })}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
               <InspectorTextField label="Name" value={m.name ?? ''} onCommit={(v) => patchMeasure(i, { name: v })} placeholder="e.g. revenue" disabled={readOnly} mono />
               <InspectorSelectField label="Aggregate" value={m.aggregate} options={AGGREGATE_OPTIONS} onCommit={(v) => patchMeasure(i, { aggregate: v })} disabled={readOnly} />
