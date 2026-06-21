@@ -13,6 +13,7 @@ import { isDrillEnabled, resolveDrillTitle } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import { MetricWidget } from './MetricWidget';
+import { OpenInListButton } from './OpenInListButton';
 import {
   resolveDateMacros,
   shiftFilterByCompareTo,
@@ -349,6 +350,13 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
     const hasReport = reportConfig && typeof reportConfig === 'object'
       && (Array.isArray((reportConfig as any).columns) || 'objectName' in reportConfig);
 
+    // Escape hatch — escalate the KPI peek to the object's full list page
+    // (scoped by the same filter the metric aggregates). Hidden for report
+    // drills and when no host navigation handler is present.
+    const escapeHatch = !hasReport
+      ? <OpenInListButton objectName={objectName} filter={resolvedFilter} onNavigate={() => setDrillOpen(false)} />
+      : null;
+
     let body: React.ReactNode;
     if (hasReport) {
       const existingFilter = (reportConfig as any).filter;
@@ -386,7 +394,10 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
       return (
         <Dialog open onOpenChange={(v) => !v && setDrillOpen(false)}>
           <DialogContent className="max-w-5xl">
-            <DialogHeader><DialogTitle>{drawerTitle}</DialogTitle></DialogHeader>
+            <DialogHeader className="flex-row items-center justify-between gap-4 pr-8">
+              <DialogTitle>{drawerTitle}</DialogTitle>
+              {escapeHatch}
+            </DialogHeader>
             {body}
           </DialogContent>
         </Dialog>
@@ -395,7 +406,10 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
     return (
       <Sheet open onOpenChange={(v) => !v && setDrillOpen(false)}>
         <SheetContent side="right" className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-5xl flex flex-col">
-          <SheetHeader><SheetTitle>{drawerTitle}</SheetTitle></SheetHeader>
+          <SheetHeader className="flex-row items-center justify-between gap-4 pr-8">
+            <SheetTitle>{drawerTitle}</SheetTitle>
+            {escapeHatch}
+          </SheetHeader>
           <div className="flex-1 overflow-hidden mt-2">{body}</div>
         </SheetContent>
       </Sheet>

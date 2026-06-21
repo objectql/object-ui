@@ -22,16 +22,22 @@ import {
   DialogTitle,
   cn,
 } from '@object-ui/components';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useDrillNavigation } from '@object-ui/react';
 import { ObjectDataTable } from './ObjectDataTable';
+import { OpenInListButton } from './OpenInListButton';
 
 export interface DrillDownDrawerProps {
   open: boolean;
   onClose: () => void;
   /** Drawer/dialog header. */
   title: string;
-  /** "drawer" (right-side Sheet) or "dialog" (centered Dialog). */
-  target?: 'drawer' | 'dialog';
+  /**
+   * Where the drill lands: `'drawer'` (right-side Sheet), `'dialog'` (centered
+   * Dialog), or `'navigate'` (skip the in-place view and open the object's full
+   * list page via the host's drill navigation). `'navigate'` falls back to
+   * `'drawer'` when no host navigation handler is available.
+   */
+  target?: 'drawer' | 'dialog' | 'navigate';
   /** Object name to query. */
   objectName: string;
   /** Filter applied to the drilled list. */
@@ -67,8 +73,29 @@ export const DrillDownDrawer: React.FC<DrillDownDrawerProps> = ({
   className,
   report,
 }) => {
+  const { openRecordList } = useDrillNavigation();
   const isReportDrill = report && typeof report === 'object'
     && (Array.isArray((report as any).columns) || 'objectName' in (report as any));
+
+  // `target: 'navigate'` skips the in-place view and opens the object's full
+  // list page directly — but only when a host navigation handler exists and
+  // this is a raw-record drill (a report drill has no single list page).
+  // Otherwise it degrades gracefully to the drawer below.
+  const navigateOnly = target === 'navigate' && !!openRecordList && !isReportDrill && !!objectName;
+  React.useEffect(() => {
+    if (open && navigateOnly) {
+      openRecordList!(objectName, filter);
+      onClose();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, navigateOnly]);
+  if (navigateOnly) return null;
+
+  // Escape hatch — escalate the peek to the full list page (shown in the header
+  // when the host wired navigation and this is a raw-record drill).
+  const escapeHatch = !isReportDrill ? (
+    <OpenInListButton objectName={objectName} filter={filter} onNavigate={onClose} />
+  ) : null;
 
   const body = (
     <div className={cn('overflow-auto', className)} data-testid="drill-down-body">
@@ -112,8 +139,9 @@ export const DrillDownDrawer: React.FC<DrillDownDrawerProps> = ({
     return (
       <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
         <DialogContent className="max-w-5xl">
-          <DialogHeader>
+          <DialogHeader className="flex-row items-center justify-between gap-4 pr-8">
             <DialogTitle>{title}</DialogTitle>
+            {escapeHatch}
           </DialogHeader>
           {body}
         </DialogContent>
@@ -124,8 +152,9 @@ export const DrillDownDrawer: React.FC<DrillDownDrawerProps> = ({
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent side="right" className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl flex flex-col">
-        <SheetHeader>
+        <SheetHeader className="flex-row items-center justify-between gap-4 pr-8">
           <SheetTitle>{title}</SheetTitle>
+          {escapeHatch}
         </SheetHeader>
         <div className="flex-1 overflow-hidden mt-2">{body}</div>
       </SheetContent>

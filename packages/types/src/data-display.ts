@@ -703,8 +703,23 @@ export interface DrillDownConfig {
    * When omitted the consuming widget picks the natural default for its type.
    */
   mode?: 'filter' | 'record';
-  /** Where the drill-down view opens. Defaults to "drawer". */
-  target?: 'drawer' | 'dialog';
+  /**
+   * Where the drill-down lands. Defaults to `'drawer'`.
+   *
+   * - `'drawer'` — in-place side sheet listing the records (peek without
+   *   leaving the dashboard). The mainstream default.
+   * - `'dialog'` — same content in a centered modal (used when stacking over
+   *   another drawer).
+   * - `'navigate'` — skip the in-place view and go straight to the object's
+   *   full list page (sort / bulk-select / export / shareable URL). Requires a
+   *   host that provides drill navigation (see `DrillNavigationContext`); falls
+   *   back to `'drawer'` when none is available.
+   *
+   * Independent of `target`, the in-place drawer also offers an "Open in list →"
+   * affordance when a host navigation handler is present, so users can escalate
+   * from a peek to the full list at any time.
+   */
+  target?: 'drawer' | 'dialog' | 'navigate';
   /**
    * Filter applied to the drilled list view. Each value supports
    * `${event.x}` interpolation (e.g. `"${event.rowKey}"`).

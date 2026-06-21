@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
-import { useDataScope, SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
+import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
 import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, type CompareToConfig, type DrillEvent } from '@object-ui/core';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator } from '@object-ui/components';
-import { AlertCircle } from 'lucide-react';
-import { useSafeFieldLabel } from '@object-ui/i18n';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button } from '@object-ui/components';
+import { AlertCircle, ArrowUpRight } from 'lucide-react';
+import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 
 /**
  * Humanize a snake_case or kebab-case string into Title Case.
@@ -250,6 +250,9 @@ export const ObjectChart = (props: any) => {
   // Drill-down click event — must be declared with the other hooks (above
   // any conditional early return) to keep hook order stable between renders.
   const [drillEvent, setDrillEvent] = useState<DrillEvent | null>(null);
+  // Host-provided "open in list" navigation for the drill escape hatch.
+  const { openRecordList } = useDrillNavigation();
+  const tt = useSafeTranslate();
 
   // Stable JSON keys for aggregate/filter so that callers passing a fresh
   // object literal on each render (e.g. DashboardRenderer.getComponentSchema)
@@ -615,11 +618,28 @@ export const ObjectChart = (props: any) => {
         <SchemaRenderer schema={tableSchema} dataSource={dataSource} />
       </div>
     );
+    // Escape hatch — escalate this segment peek to the object's full list page,
+    // scoped by the same filter. Shown only when the host wired navigation.
+    const escapeHatch = openRecordList && schema.objectName ? (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        data-testid="drill-open-in-list"
+        onClick={() => { openRecordList(schema.objectName!, merged); setDrillEvent(null); }}
+      >
+        {tt('dashboard.openInList', 'Open in list')}
+        <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+      </Button>
+    ) : null;
     if (target === 'dialog') {
       return (
         <Dialog open onOpenChange={(v) => !v && setDrillEvent(null)}>
           <DialogContent className="max-w-4xl">
-            <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+            <DialogHeader className="flex-row items-center justify-between gap-4 pr-8">
+              <DialogTitle>{title}</DialogTitle>
+              {escapeHatch}
+            </DialogHeader>
             {body}
           </DialogContent>
         </Dialog>
@@ -628,7 +648,10 @@ export const ObjectChart = (props: any) => {
     return (
       <Sheet open onOpenChange={(v) => !v && setDrillEvent(null)}>
         <SheetContent side="right" className="w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl flex flex-col">
-          <SheetHeader><SheetTitle>{title}</SheetTitle></SheetHeader>
+          <SheetHeader className="flex-row items-center justify-between gap-4 pr-8">
+            <SheetTitle>{title}</SheetTitle>
+            {escapeHatch}
+          </SheetHeader>
           <div className="flex-1 overflow-hidden mt-2">{body}</div>
         </SheetContent>
       </Sheet>
