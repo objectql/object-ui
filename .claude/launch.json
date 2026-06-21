@@ -4,13 +4,25 @@
     {
       "name": "console",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@object-ui/console", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@object-ui/console",
+        "dev"
+      ],
       "port": 5180
     },
     {
       "name": "gantt-demo",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "packages/plugin-gantt", "exec", "vite", "demo", "--port", "5199"],
+      "runtimeArgs": [
+        "--dir",
+        "packages/plugin-gantt",
+        "exec",
+        "vite",
+        "demo",
+        "--port",
+        "5199"
+      ],
       "port": 5199
     }
   ]

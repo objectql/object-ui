@@ -90,3 +90,4 @@ export {
 } from './utils/index';
 
 export { pickLocalized } from './pickLocalized';
+export { LocalizationProvider, useLocalization, type LocalizationValue } from './LocalizationContext';

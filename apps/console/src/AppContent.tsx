@@ -12,6 +12,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import { Route, useParams, useLocation, Navigate } from 'react-router-dom';
 import { DefaultAppContent, LoadingScreen } from '@object-ui/app-shell';
 import { MePermissionsProvider } from '@object-ui/permissions';
+import { LocalizationFetchProvider } from './LocalizationFetchProvider';
 import {
   UploadProvider,
   createObjectStackUploadAdapter,
@@ -116,6 +117,7 @@ const systemRoutes = (
 export function AppContent() {
   const serverUrl = import.meta.env.VITE_SERVER_URL || '';
   const endpoint = `${serverUrl}/api/v1/auth/me/permissions`;
+  const localizationEndpoint = `${serverUrl}/api/v1/auth/me/localization`;
   // Wire ImageField / FileField / CommentAttachment to the ObjectStack
   // storage service. Memoised so the adapter (and any in-flight uploads)
   // survive re-renders of AppContent's parents.
@@ -125,9 +127,11 @@ export function AppContent() {
   );
   return (
     <MePermissionsProvider endpoint={endpoint} loadingFallback={<LoadingScreen />}>
-      <UploadProvider adapter={uploadAdapter}>
-        <DefaultAppContent extraRoutes={systemRoutes} extraRoutesNoApp={systemRoutes} />
-      </UploadProvider>
+      <LocalizationFetchProvider endpoint={localizationEndpoint}>
+        <UploadProvider adapter={uploadAdapter}>
+          <DefaultAppContent extraRoutes={systemRoutes} extraRoutesNoApp={systemRoutes} />
+        </UploadProvider>
+      </LocalizationFetchProvider>
     </MePermissionsProvider>
   );
 }

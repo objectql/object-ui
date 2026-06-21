@@ -9,6 +9,7 @@
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
 import { ComponentRegistry } from '@object-ui/core';
+import { useLocalization } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
@@ -266,6 +267,30 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
  * Trailing `.00` is dropped when the value is a whole number — Salesforce
  * convention: `$1,234.50` keeps cents; `$1,234` does not.
  */
+/**
+ * Resolve the display currency code for a currency field, in precedence order:
+ * the field's explicit `currency` → its `currencyConfig.defaultCurrency` (fixed
+ * mode) → a legacy top-level `defaultCurrency` → the tenant default
+ * (`localization.currency`, ADR-0053). Returns `undefined` when none is known,
+ * so the renderer shows a plain number rather than guessing a symbol.
+ *
+ * This is the single resolution the field renderers share — ending the
+ * per-renderer inconsistency where some read only `currency`, others only
+ * `defaultCurrency`, and others `currencyConfig`.
+ */
+export function resolveFieldCurrency(
+  field: { currency?: string; defaultCurrency?: string; currencyConfig?: { defaultCurrency?: string } } | null | undefined,
+  tenantDefault?: string,
+): string | undefined {
+  return (
+    field?.currency ||
+    field?.currencyConfig?.defaultCurrency ||
+    field?.defaultCurrency ||
+    tenantDefault ||
+    undefined
+  );
+}
+
 export function formatCurrency(value: number, currency?: string): string {
   const isWhole = Number.isFinite(value) && value === Math.trunc(value);
   const maxFrac = isWhole ? 0 : 2;
@@ -464,18 +489,12 @@ export function CurrencyCellRenderer({ value, field }: CellRendererProps): React
   if (value == null) return <EmptyValue />;
   
   const safe = coerceToSafeValue(value);
-  const currencyField = field as any;
-  // Honor `currency` (legacy/grid configs), `defaultCurrency` (canonical
-  // top-level), and `currencyConfig.defaultCurrency` (the nested shape
-  // emitted by `@objectstack/spec` Field.currency() with currencyConfig).
-  // When none is supplied, render as a plain formatted number —
-  // silently assuming USD for unconfigured currency fields was
-  // misleading for non-USD orgs (e.g. RMB amounts displayed as $).
-  const currency: string | undefined =
-    currencyField.currency ||
-    currencyField.defaultCurrency ||
-    currencyField.currencyConfig?.defaultCurrency ||
-    undefined;
+  // Resolve the display currency via the shared precedence: field `currency` →
+  // `currencyConfig.defaultCurrency` → the tenant default (ADR-0053). When none
+  // is known, render a plain number — never a guessed symbol (silently assuming
+  // USD mis-displays non-USD orgs, e.g. RMB amounts shown as $).
+  const { currency: tenantCurrency } = useLocalization();
+  const currency = resolveFieldCurrency(field as any, tenantCurrency);
   const num = Number(safe);
   const formatted = !isNaN(num)
     ? formatCurrency(num, currency)
