@@ -12,6 +12,7 @@ import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types'
 import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
 import { deriveLookupColumns } from './deriveLookupColumns';
+import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
 import { getCellRendererResolver } from './_cell-renderer-bridge';
 import { SchemaRendererContext as ImportedSchemaRendererContext } from '@object-ui/react';
 import { useFieldTranslation } from './useFieldTranslation';
@@ -129,6 +130,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { t } = useFieldTranslation();
+  const listboxId = React.useId();
 
   // Dynamic data loading state
   const [fetchedOptions, setFetchedOptions] = useState<LookupOption[]>([]);
@@ -165,6 +167,9 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const idField = fieldMeta?.id_field || 'id';
   // ObjectStack convention uses `reference`; types define `reference_to` — support both
   const referenceTo: string | undefined = fieldMeta?.reference_to || fieldMeta?.reference;
+  // Opt-in inline quick-create: when set, an empty/zero-result picker offers to
+  // create a record from the typed text via dataSource.create.
+  const allowCreate: boolean = !!(fieldMeta?.allow_create ?? fieldMeta?.allowCreate);
 
   // Enterprise Record Picker configuration
   const lookupColumns: Array<string | LookupColumnDef> | undefined = fieldMeta?.lookup_columns ?? fieldMeta?.lookupColumns;
@@ -508,15 +513,17 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         if (isSelected) {
           onChange(currentValues.filter((v: any) => v !== option.value));
         } else {
+          if (referenceTo) pushRecentLookupId(referenceTo, option.value);
           onChange([...currentValues, option.value]);
         }
       } else {
+        if (referenceTo) pushRecentLookupId(referenceTo, option.value);
         if (onSelectRecord) onSelectRecord(option);
         else onChange(option.value);
         setIsOpen(false);
       }
     },
-    [multiple, value, onChange, onSelectRecord],
+    [multiple, value, onChange, onSelectRecord, referenceTo],
   );
 
   const handleRemove = (optionValue: any) => {
@@ -533,9 +540,88 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const handlePickerSelectRecords = useCallback(
     (records: any[]) => {
       const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat));
+      if (referenceTo) mapped.forEach((o) => pushRecentLookupId(referenceTo, o.value));
       setPickerResolvedRecords(mapped);
     },
-    [displayField, idField, effectiveDescriptionField, refTitleFormat],
+    [displayField, idField, effectiveDescriptionField, refTitleFormat, referenceTo],
+  );
+
+  // ── Recently-used, quick-create, combined option list ────────────────────
+  const [recentOptions, setRecentOptions] = useState<LookupOption[]>([]);
+  useEffect(() => {
+    if (!isOpen || !hasDataSource || !dataSource || !referenceTo || searchQuery) return;
+    const ids = getRecentLookupIds(referenceTo);
+    if (!ids.length) { setRecentOptions([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const recs: LookupOption[] = [];
+        for (const id of ids) {
+          const cached = findOption(id);
+          if (cached) { recs.push(cached); continue; }
+          if (typeof (dataSource as any).findOne === 'function') {
+            const r = await (dataSource as any).findOne(referenceTo, id);
+            if (r) recs.push(recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat));
+          }
+        }
+        if (!cancelled) setRecentOptions(recs);
+      } catch { if (!cancelled) setRecentOptions([]); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, hasDataSource, referenceTo, searchQuery]);
+
+  // Recently-used first (only before the user types), then live results — one
+  // de-duped list that drives BOTH rendering and arrow-key navigation.
+  const recentCount = (!searchQuery && hasDataSource) ? recentOptions.length : 0;
+  const visibleOptions = useMemo(() => {
+    if (searchQuery || !hasDataSource || recentOptions.length === 0) return filteredOptions;
+    const recentIds = new Set(recentOptions.map((o) => o.value));
+    return [...recentOptions, ...filteredOptions.filter((o) => !recentIds.has(o.value))];
+  }, [searchQuery, hasDataSource, recentOptions, filteredOptions]);
+  useEffect(() => { setActiveIndex(-1); }, [visibleOptions.length]);
+
+  const [creating, setCreating] = useState(false);
+  const canCreate = !!onCreateNew || (allowCreate && hasDataSource);
+  const handleCreateNew = useCallback(
+    async (q: string) => {
+      const label = (q || '').trim();
+      if (onCreateNew) { onCreateNew(label); setIsOpen(false); return; }
+      if (!allowCreate || !dataSource || !referenceTo || !label) return;
+      setCreating(true);
+      setError(null);
+      try {
+        const created = await (dataSource as any).create(referenceTo, { [displayField]: label });
+        const opt = recordToOption(created, displayField, idField, effectiveDescriptionField, refTitleFormat);
+        setPickerResolvedRecords((prev) => [opt, ...prev.filter((o) => o.value !== opt.value)]);
+        handleSelect(opt);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setCreating(false);
+      }
+    },
+    [onCreateNew, allowCreate, dataSource, referenceTo, displayField, idField, effectiveDescriptionField, refTitleFormat, handleSelect],
+  );
+
+  // Compact one-line preview of an option's extra (non-display) columns —
+  // shown as a native tooltip so users can disambiguate without opening it.
+  const previewOf = useCallback(
+    (option: LookupOption): string | undefined => {
+      if (!pickerColumns || pickerColumns.length === 0) return undefined;
+      const parts: string[] = [];
+      for (const c of pickerColumns) {
+        const f = typeof c === 'string' ? c : c.field;
+        if (f === displayField) continue;
+        const v = (option as any)[f];
+        if (v === null || v === undefined || v === '') continue;
+        const lbl = typeof c === 'string' ? f : (c.label || f);
+        const text = typeof v === 'object' ? (v.name ?? v.label ?? JSON.stringify(v)) : v;
+        parts.push(`${lbl}: ${text}`);
+      }
+      return parts.length ? parts.join(' · ') : undefined;
+    },
+    [pickerColumns, displayField],
   );
 
   // Keyboard handler for the search input — arrow keys + Enter
@@ -544,19 +630,19 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setActiveIndex(prev =>
-          prev < filteredOptions.length - 1 ? prev + 1 : prev,
+          prev < visibleOptions.length - 1 ? prev + 1 : prev,
         );
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setActiveIndex(prev => (prev > 0 ? prev - 1 : 0));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (activeIndex >= 0 && activeIndex < filteredOptions.length) {
-          handleSelect(filteredOptions[activeIndex]);
+        if (activeIndex >= 0 && activeIndex < visibleOptions.length) {
+          handleSelect(visibleOptions[activeIndex]);
         }
       }
     },
-    [filteredOptions, activeIndex, handleSelect],
+    [visibleOptions, activeIndex, handleSelect],
   );
 
   // Scroll active item into view
@@ -633,6 +719,9 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
               compact && 'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
             )}
             type="button"
+            aria-haspopup="listbox"
+            aria-expanded={isOpen}
+            aria-controls={listboxId}
             disabled={dependenciesMissing || (props as any).disabled}
             data-testid={dependenciesMissing ? 'lookup-trigger-gated' : (((props as any).name || lookupField?.name) ? `lookup-trigger-${(props as any).name || lookupField.name}` : 'lookup-trigger')}
             title={dependenciesMissing
@@ -663,6 +752,11 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 className="w-full pl-9 h-8 text-sm"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls={listboxId}
+                aria-expanded={isOpen}
+                aria-activedescendant={activeIndex >= 0 ? `${listboxId}-opt-${activeIndex}` : undefined}
               />
               {loading && (
                 <Loader2
@@ -699,65 +793,78 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
           {/* Options list */}
           {!error && !(loading && filteredOptions.length === 0) && (
-            <div ref={listRef} className="max-h-64 overflow-y-auto px-1 pb-1" role="listbox">
-              {filteredOptions.length === 0 ? (
+            <div ref={listRef} className="max-h-64 overflow-y-auto px-1 pb-1" role="listbox" id={listboxId}>
+              {visibleOptions.length === 0 ? (
                 <div className="py-4 text-center">
                   <p className="text-sm text-muted-foreground">
                     {t('lookup.noOptions')}
                   </p>
                   {/* Quick-create entry */}
-                  {onCreateNew && (
+                  {canCreate && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="mt-2 gap-1"
                       type="button"
-                      onClick={() => {
-                        onCreateNew(searchQuery);
-                        setIsOpen(false);
-                      }}
+                      disabled={creating}
+                      onClick={() => handleCreateNew(searchQuery)}
                     >
-                      <Plus className="size-4" />
-                      {t('lookup.createNew')}
+                      {creating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                      {searchQuery ? t('lookup.createNamed', { name: searchQuery }) : t('lookup.createNew')}
                     </Button>
                   )}
                 </div>
               ) : (
                 <>
-                  {filteredOptions.map((option, idx) => {
+                  {visibleOptions.map((option, idx) => {
                     const isSelected = multiple
                       ? (Array.isArray(value) ? value : []).includes(option.value)
                       : value === option.value;
                     const isActive = idx === activeIndex;
+                    const showRecentHeader = recentCount > 0 && idx === 0;
+                    const showResultsHeader = recentCount > 0 && idx === recentCount;
 
                     return (
-                      <button
-                        key={option.value}
-                        data-lookup-index={idx}
-                        role="option"
-                        aria-selected={isSelected}
-                        onClick={() => handleSelect(option)}
-                        className={`w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent flex items-center justify-between ${
-                          isActive
-                            ? 'bg-accent text-accent-foreground'
-                            : isSelected
-                              ? 'bg-accent/50 text-accent-foreground'
-                              : ''
-                        }`}
-                        type="button"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <span className="block truncate">{option.label}</span>
-                          {option.description && (
-                            <span className="block truncate text-xs text-muted-foreground">
-                              {option.description}
-                            </span>
-                          )}
-                        </div>
-                        {isSelected && (
-                          <Badge variant="default" className="ml-2 shrink-0">{t('lookup.selectedBadge')}</Badge>
+                      <React.Fragment key={option.value}>
+                        {showRecentHeader && (
+                          <div className="px-3 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {t('lookup.recentlyUsed')}
+                          </div>
                         )}
-                      </button>
+                        {showResultsHeader && (
+                          <div className="mt-1 border-t px-3 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {t('lookup.allResults')}
+                          </div>
+                        )}
+                        <button
+                          id={`${listboxId}-opt-${idx}`}
+                          data-lookup-index={idx}
+                          role="option"
+                          aria-selected={isSelected}
+                          title={previewOf(option)}
+                          onClick={() => handleSelect(option)}
+                          className={`w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent flex items-center justify-between ${
+                            isActive
+                              ? 'bg-accent text-accent-foreground'
+                              : isSelected
+                                ? 'bg-accent/50 text-accent-foreground'
+                                : ''
+                          }`}
+                          type="button"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate">{option.label}</span>
+                            {option.description && (
+                              <span className="block truncate text-xs text-muted-foreground">
+                                {option.description}
+                              </span>
+                            )}
+                          </div>
+                          {isSelected && (
+                            <Badge variant="default" className="ml-2 shrink-0">{t('lookup.selectedBadge')}</Badge>
+                          )}
+                        </button>
+                      </React.Fragment>
                     );
                   })}
                   {/* Show total count when fetched from DataSource */}
@@ -782,16 +889,14 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                     </button>
                   )}
                   {/* Quick-create entry (below results) */}
-                  {onCreateNew && (
+                  {canCreate && (
                     <button
                       type="button"
                       className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-accent flex items-center gap-1.5 text-muted-foreground"
-                      onClick={() => {
-                        onCreateNew(searchQuery);
-                        setIsOpen(false);
-                      }}
+                      disabled={creating}
+                      onClick={() => handleCreateNew(searchQuery)}
                     >
-                      <Plus className="size-3.5" />
+                      {creating ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
                       {searchQuery ? t('lookup.createNamed', { name: searchQuery }) : t('lookup.createNew')}
                     </button>
                   )}

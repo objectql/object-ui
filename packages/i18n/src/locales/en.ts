@@ -3,6 +3,8 @@
  */
 const en = {
   lookup: {
+    recentlyUsed: 'Recently used',
+    allResults: 'All results',
     loading: 'Loading…',
     noOptions: 'No options found',
     noRecords: 'No records found',

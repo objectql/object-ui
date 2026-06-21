@@ -1,5 +1,7 @@
 const ru = {
   lookup: {
+    recentlyUsed: 'Недавние',
+    allResults: 'Все результаты',
     createNew: 'Создать',
     createNamed: 'Создать «{{name}}»',
     showingResults: 'Показано {{shown}} из {{total}} результатов',

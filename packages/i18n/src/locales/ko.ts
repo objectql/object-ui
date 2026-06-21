@@ -1,5 +1,7 @@
 const ko = {
   lookup: {
+    recentlyUsed: '최근 사용',
+    allResults: '모든 결과',
     createNew: '새로 만들기',
     createNamed: '“{{name}}” 새로 만들기',
     showingResults: '{{total}}개 중 {{shown}}개 표시',

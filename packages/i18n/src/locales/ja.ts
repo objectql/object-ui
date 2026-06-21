@@ -1,5 +1,7 @@
 const ja = {
   lookup: {
+    recentlyUsed: '最近使用したもの',
+    allResults: 'すべての結果',
     createNew: '新規作成',
     createNamed: '「{{name}}」を新規作成',
     showingResults: '{{total}} 件中 {{shown}} 件を表示',

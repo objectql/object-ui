@@ -17,6 +17,8 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'lookup.loading': 'Loading…',
   'lookup.noOptions': 'No options found',
   'lookup.noRecords': 'No records found',
+  'lookup.recentlyUsed': 'Recently used',
+  'lookup.allResults': 'All results',
   'lookup.createNew': 'Create new',
   'lookup.createNamed': 'Create new "{{name}}"',
   'lookup.showingResults': 'Showing {{shown}} of {{total}} results',

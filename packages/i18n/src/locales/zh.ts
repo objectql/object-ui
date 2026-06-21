@@ -3,6 +3,8 @@
  */
 const zh = {
   lookup: {
+    recentlyUsed: '最近使用',
+    allResults: '全部结果',
     loading: '加载中…',
     noOptions: '未找到选项',
     noRecords: '未找到记录',

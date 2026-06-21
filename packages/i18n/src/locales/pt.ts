@@ -1,5 +1,7 @@
 const pt = {
   lookup: {
+    recentlyUsed: 'Usados recentemente',
+    allResults: 'Todos os resultados',
     createNew: 'Criar novo',
     createNamed: 'Criar “{{name}}”',
     showingResults: 'Mostrando {{shown}} de {{total}} resultados',

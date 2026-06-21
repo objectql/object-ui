@@ -1,5 +1,7 @@
 const ar = {
   lookup: {
+    recentlyUsed: 'المستخدمة مؤخرًا',
+    allResults: 'كل النتائج',
     createNew: 'إنشاء جديد',
     createNamed: 'إنشاء «{{name}}»',
     showingResults: 'عرض {{shown}} من {{total}} نتيجة',
