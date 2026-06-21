@@ -1432,6 +1432,7 @@ const ko = {
     language: "언어",
   },
   report: {
+    total: "합계",
     rowTotal: "행 합계",
     columnTotal: "열 합계",
     grandTotal: "총합계",

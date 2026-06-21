@@ -1432,6 +1432,7 @@ const es = {
     language: "Idioma",
   },
   report: {
+    total: "Total",
     rowTotal: "Total fila",
     columnTotal: "Total columna",
     grandTotal: "Gran total",

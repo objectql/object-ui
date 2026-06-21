@@ -10,26 +10,14 @@ import React, { useMemo } from 'react';
 import type { PivotTableSchema, PivotAggregation } from '@object-ui/types';
 import { cn, DataEmptyState } from '@object-ui/components';
 import { isDrillEnabled, type DrillEvent } from '@object-ui/core';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { useSafeTranslate } from '@object-ui/i18n';
 
 function useTotalLabel(): string {
-  try {
-    const { t } = useObjectTranslation();
-    const v = t('dashboard.total');
-    return !v || v === 'dashboard.total' ? 'Total' : v;
-  } catch {
-    return 'Total';
-  }
+  return useSafeTranslate()('dashboard.total', 'Total');
 }
 
 function useNoDataLabel(): string {
-  try {
-    const { t } = useObjectTranslation();
-    const v = t('dashboard.noDataAvailable');
-    return !v || v === 'dashboard.noDataAvailable' ? 'No data available' : v;
-  } catch {
-    return 'No data available';
-  }
+  return useSafeTranslate()('dashboard.noDataAvailable', 'No data available');
 }
 
 export interface PivotTableProps {

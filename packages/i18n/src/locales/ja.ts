@@ -1432,6 +1432,7 @@ const ja = {
     language: "言語",
   },
   report: {
+    total: "合計",
     rowTotal: "行合計",
     columnTotal: "列合計",
     grandTotal: "総合計",

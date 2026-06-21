@@ -38,7 +38,7 @@ export { createI18n, getDirection, getAvailableLanguages, type I18nConfig, type 
 export { I18nProvider, useObjectTranslation, useI18nContext, type I18nProviderProps } from './provider';
 
 // Safe translation hook factory
-export { createSafeTranslation } from './useSafeTranslation';
+export { createSafeTranslation, useSafeTranslate } from './useSafeTranslation';
 
 // Convention-based object/field label i18n
 export { useObjectLabel, useSafeFieldLabel } from './useObjectLabel';

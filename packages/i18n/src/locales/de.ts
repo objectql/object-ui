@@ -1432,6 +1432,7 @@ const de = {
     language: "Sprache",
   },
   report: {
+    total: "Gesamt",
     rowTotal: "Zeilensumme",
     columnTotal: "Spaltensumme",
     grandTotal: "Gesamtsumme",

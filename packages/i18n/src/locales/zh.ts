@@ -553,6 +553,7 @@ const zh = {
     loading: '图表加载中...',
   },
   report: {
+    total: '总计',
     rowTotal: '行合计',
     columnTotal: '列合计',
     grandTotal: '总计',

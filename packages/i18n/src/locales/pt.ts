@@ -1432,6 +1432,7 @@ const pt = {
     language: "Idioma",
   },
   report: {
+    total: "Total",
     rowTotal: "Total da linha",
     columnTotal: "Total da coluna",
     grandTotal: "Total geral",

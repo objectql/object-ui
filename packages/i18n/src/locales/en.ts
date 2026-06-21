@@ -549,6 +549,7 @@ const en = {
     loading: 'Loading chart...',
   },
   report: {
+    total: 'Total',
     rowTotal: 'Row Total',
     columnTotal: 'Column Total',
     grandTotal: 'Grand Total',

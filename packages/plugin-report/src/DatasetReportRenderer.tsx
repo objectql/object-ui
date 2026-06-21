@@ -42,25 +42,16 @@
 
 import * as React from 'react';
 import { Loader2, AlertTriangle, Table2 } from 'lucide-react';
-import { useObjectTranslation, useSafeFieldLabel } from '@object-ui/i18n';
+import {
+  formatMeasure,
+  formatDimensionValue,
+  buildDatasetFieldHelpers,
+  type DatasetResultField,
+} from '@object-ui/core';
+import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import { mergeFilters } from './mergeFilters';
 
 type Row = Record<string, unknown>;
-
-/**
- * Column metadata the analytics server returns alongside the rows (ADR-0021):
- * a display `label` for both dimensions and measures, plus the measure's
- * numeral `format` and declared `currency`. The renderer uses these to show
- * human labels in headers and currency-correct values in cells — never the
- * raw field name or a misleading "$".
- */
-interface ResultField {
-  name: string;
-  type?: string;
-  label?: string;
-  format?: string;
-  currency?: string;
-}
 
 /** One server-computed totals grouping: `dimensions: []` is the grand total. */
 interface DatasetTotals {
@@ -72,47 +63,7 @@ interface DatasetCapableSource {
   queryDataset?: (
     dataset: string,
     selection: unknown,
-  ) => Promise<{ rows: Row[]; fields?: ResultField[]; object?: string; totals?: DatasetTotals[] }>;
-}
-
-/**
- * Translate with a graceful fallback. Mirrors the DatasetWidget pattern: when
- * no i18n provider is mounted (or the key is missing), return the English
- * default so the report never renders a raw translation key.
- */
-function useTranslate(): (key: string, fallback: string) => string {
-  let t: ((k: string) => string) | undefined;
-  try {
-    t = useObjectTranslation().t;
-  } catch {
-    t = undefined;
-  }
-  return (key, fallback) => {
-    if (!t) return fallback;
-    const v = t(key);
-    return !v || v === key ? fallback : v;
-  };
-}
-
-/**
- * Resolve column helpers for a result set: `headerLabel` maps a dimension/
- * measure NAME to its display label — the server-enriched field `label`, then
- * through the i18n field-label convention so a translated label wins, then the
- * raw name as a last resort. `measureField` exposes a field's `format`/
- * `currency` for currency-aware value formatting.
- */
-function buildFieldHelpers(
-  fields: ResultField[] | undefined,
-  object: string | undefined,
-  fieldLabel: (objectName: string, fieldName: string, fallback: string) => string,
-) {
-  const fieldByName = new Map((fields ?? []).map((f) => [f.name, f] as const));
-  const measureField = (name: string) => fieldByName.get(name);
-  const headerLabel = (name: string) => {
-    const fallback = measureField(name)?.label ?? name;
-    return object ? fieldLabel(object, name, fallback) : fallback;
-  };
-  return { measureField, headerLabel };
+  ) => Promise<{ rows: Row[]; fields?: DatasetResultField[]; object?: string; totals?: DatasetTotals[] }>;
 }
 
 /** What a drill click means — the host resolves names to a navigation target. */
@@ -175,55 +126,6 @@ function resolveText(label: unknown, fallback: string): string {
   return fallback;
 }
 
-/** Format a non-measure (dimension / label) value — the server already
- *  resolves dimension display labels, so this only tidies numbers and nulls. */
-function formatCell(v: unknown): string {
-  if (v == null) return '—';
-  if (typeof v === 'number') {
-    return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  }
-  return String(v);
-}
-
-/**
- * Format a MEASURE value. Currency comes from the field's declared `currency`
- * (locale-correct symbol via `Intl`), NOT from a "$" baked into the format
- * string — an amount with no declared currency must render as a plain number,
- * never a misleading "$". The numeral `format` hint (e.g. "0,0", "0.0%")
- * controls grouping / decimals / percent; it can't be baked into the row value
- * server-side (the same number feeds charts), so it is applied here. Mirrors
- * the dashboard DatasetWidget so reports and dashboards format identically.
- */
-function formatMeasure(v: unknown, format?: string, currency?: string): string {
-  if (v == null) return '—';
-  if (typeof v !== 'number') return String(v);
-
-  const decimals = format ? (format.split('.')[1]?.match(/0/g)?.length ?? 0) : undefined;
-
-  if (currency) {
-    try {
-      return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency,
-        minimumFractionDigits: decimals ?? 0,
-        maximumFractionDigits: decimals ?? 2,
-      }).format(v);
-    } catch {
-      // Unknown currency code → fall through to plain number formatting.
-    }
-  }
-
-  if (!format) {
-    return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  }
-  const isPercent = format.includes('%');
-  // A legacy "$" literal in the format string is still honored (explicit author
-  // choice) — but it is NOT how a real currency field gets its symbol.
-  const legacyDollar = format.includes('$') ? '$' : '';
-  const body = v.toLocaleString(undefined, { minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 0 });
-  return `${legacyDollar}${body}${isPercent ? '%' : ''}`;
-}
-
 function readNames(value: unknown): string[] {
   return Array.isArray(value) ? (value as unknown[]).filter((v): v is string => typeof v === 'string' && !!v) : [];
 }
@@ -240,7 +142,7 @@ function useDatasetRows(
   const [state, setState] = React.useState<{
     status: 'idle' | 'loading' | 'ok' | 'error';
     rows: Row[];
-    fields?: ResultField[];
+    fields?: DatasetResultField[];
     object?: string;
     totals?: DatasetTotals[];
     error?: string;
@@ -360,7 +262,7 @@ function DatasetReportTable({
     onDrill!({ dataset, groupKey, runtimeFilter });
   };
 
-  const { measureField, headerLabel } = buildFieldHelpers(state.fields, state.object, fieldLabel);
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
   const columns = [...rows, ...values];
   return (
     <div className="overflow-auto max-h-[70vh] rounded-md border">
@@ -386,7 +288,7 @@ function DatasetReportTable({
                 <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">
                   {values.includes(c)
                     ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency)
-                    : formatCell(row[c])}
+                    : formatDimensionValue(row[c])}
                 </td>
               ))}
             </tr>
@@ -403,7 +305,7 @@ function bucketId(dims: string[], row: Row): string {
 }
 
 function bucketLabel(dims: string[], row: Row): string {
-  return dims.map((d) => formatCell(row[d])).join(' / ');
+  return dims.map((d) => formatDimensionValue(row[d])).join(' / ');
 }
 
 /**
@@ -437,7 +339,7 @@ function DatasetMatrixTable({
     columnsAcross,
     [],
   ]);
-  const tt = useTranslate();
+  const tt = useSafeTranslate();
   const { fieldLabel } = useSafeFieldLabel();
 
   const pivot = React.useMemo(() => {
@@ -462,7 +364,7 @@ function DatasetMatrixTable({
         for (const d of columnsAcross) key[d] = r[d];
         colHeaders.push({ id: cid, label: bucketLabel(columnsAcross, r), key });
       }
-      cells.set(`${rid} ${cid}`, r);
+      cells.set(`${rid} ${cid}`, r);
     }
     return { rowHeaders, colHeaders, cells };
   }, [state, rows, columnsAcross]);
@@ -472,7 +374,7 @@ function DatasetMatrixTable({
   if (state.status === 'error') return <FetchStates status="error" error={state.error} />;
   if (!pivot || pivot.rowHeaders.length === 0) return <NoRows />;
 
-  const { measureField, headerLabel } = buildFieldHelpers(state.fields, state.object, fieldLabel);
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
   const totalText = tt('report.total', 'Total');
   const canDrill = !!onDrill;
   const drillCell = (rowKey: Row, colKey: Row) => {
@@ -533,11 +435,11 @@ function DatasetMatrixTable({
             <tr key={rh.id} className="border-t">
               {rows.map((d) => (
                 <td key={d} className="px-2 py-1 whitespace-nowrap font-medium">
-                  {formatCell(rh.key[d])}
+                  {formatDimensionValue(rh.key[d])}
                 </td>
               ))}
               {cellCols.map((cc) => {
-                const cell = pivot.cells.get(`${rh.id} ${cc.col.id}`);
+                const cell = pivot.cells.get(`${rh.id} ${cc.col.id}`);
                 const value = cell?.[cc.measure];
                 const clickable = canDrill && cell != null;
                 return (

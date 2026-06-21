@@ -1836,7 +1836,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     },
   ): Promise<{
     rows: Array<Record<string, unknown>>;
-    fields: Array<{ name: string; type: string }>;
+    /** Column metadata: a display `label` (dimensions and measures), and a
+     *  measure's numeral `format` + declared `currency` for value formatting. */
+    fields: Array<{ name: string; type: string; label?: string; format?: string; currency?: string }>;
     /** ADR-0021 D2 drill-through: the dataset's base object (records to drill into). */
     object?: string;
     /** Drillable dimension NAME → underlying object FIELD name. */

@@ -28,18 +28,22 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
-import { buildChartSeries } from '@object-ui/core';
+import {
+  buildChartSeries,
+  formatMeasure,
+  formatDimensionValue,
+  buildDatasetFieldHelpers,
+  type DatasetResultField,
+} from '@object-ui/core';
 import { cn } from '@object-ui/components';
-import { useObjectTranslation, useSafeFieldLabel } from '@object-ui/i18n';
+import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import { Loader2, BarChart3, AlertTriangle, Download } from 'lucide-react';
 import { resolveDateMacros } from './utils';
 import { DrillDownDrawer } from './DrillDownDrawer';
 
 type Row = Record<string, unknown>;
-/** Measure column metadata from the analytics result (ADR-0021). */
-interface ResultField { name: string; type?: string; label?: string; format?: string; currency?: string }
 interface DatasetTotals { dimensions: string[]; rows: Row[] }
-interface DatasetResult { rows: Row[]; fields?: ResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Row[]; totals?: DatasetTotals[] }
+interface DatasetResult { rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Row[]; totals?: DatasetTotals[] }
 interface DatasetCapableSource {
   queryDataset?: (dataset: string, selection: unknown) => Promise<DatasetResult>;
 }
@@ -91,75 +95,11 @@ export function buildPivot(
   rows.forEach((row, index) => {
     const rid = rowDims.map((d) => String(row[d] ?? '∅')).join('');
     const cid = String(row[colDim] ?? '∅');
-    if (!rowSeen.has(rid)) { rowSeen.add(rid); rowHeaders.push({ id: rid, labels: rowDims.map((d) => formatValue(row[d])) }); }
-    if (!colSeen.has(cid)) { colSeen.add(cid); colHeaders.push({ id: cid, label: formatValue(row[colDim]) }); }
+    if (!rowSeen.has(rid)) { rowSeen.add(rid); rowHeaders.push({ id: rid, labels: rowDims.map((d) => formatDimensionValue(row[d])) }); }
+    if (!colSeen.has(cid)) { colSeen.add(cid); colHeaders.push({ id: cid, label: formatDimensionValue(row[colDim]) }); }
     cellIndex.set(`${rid} ${cid}`, index);
   });
   return { rowHeaders, colHeaders, cellIndex };
-}
-
-/**
- * Translate with a graceful fallback. Mirrors the PivotTable pattern: when no
- * i18n provider is mounted (or the key is missing), return the English default
- * so the widget never renders a raw translation key.
- */
-function useTranslate(): (key: string, fallback: string) => string {
-  let t: ((k: string) => string) | undefined;
-  try {
-    t = useObjectTranslation().t;
-  } catch {
-    t = undefined;
-  }
-  return (key, fallback) => {
-    if (!t) return fallback;
-    const v = t(key);
-    return !v || v === key ? fallback : v;
-  };
-}
-
-/**
- * Format a measure value. Currency comes from the field's declared `currency`
- * (locale-correct symbol via `Intl`), NOT from a "$" baked into the format
- * string — an amount with no declared currency must render as a plain number,
- * never a misleading "$". The numeral-style `format` hint (e.g. "0,0", "0.0%")
- * controls grouping / decimals / percent; it can't be baked into the row value
- * server-side (charts need the raw number), so it is applied here.
- */
-function formatMeasure(v: unknown, format?: string, currency?: string): string {
-  if (v == null) return '—';
-  if (typeof v !== 'number') return String(v);
-
-  const decimals = format ? (format.split('.')[1]?.match(/0/g)?.length ?? 0) : undefined;
-
-  if (currency) {
-    try {
-      return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency,
-        minimumFractionDigits: decimals ?? 0,
-        maximumFractionDigits: decimals ?? 2,
-      }).format(v);
-    } catch {
-      // Unknown currency code → fall through to plain number formatting.
-    }
-  }
-
-  if (!format) {
-    // No format hint → preserve the plain rendering (integers verbatim).
-    return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  }
-  const isPercent = format.includes('%');
-  // A legacy "$" literal in the format string is still honored (explicit author
-  // choice) — but it is NOT how a real currency field gets its symbol.
-  const legacyDollar = format.includes('$') ? '$' : '';
-  const body = v.toLocaleString(undefined, { minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 0 });
-  return `${legacyDollar}${body}${isPercent ? '%' : ''}`;
-}
-
-function formatValue(v: unknown): string {
-  if (v == null) return '—';
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  return String(v);
 }
 
 /** RFC4180-ish CSV cell: quote when it contains a comma, quote, or newline. */
@@ -246,7 +186,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // computes each with the measure's TRUE aggregate (never re-derived here).
   const totalsGroupings = isMatrix ? [rowDims, [colDim], []] : undefined;
 
-  const tt = useTranslate();
+  const tt = useSafeTranslate();
   const { fieldLabel } = useSafeFieldLabel();
 
   // ADR-0021 dual-form: the widget's presentation-scope `filter` must flow into
@@ -263,7 +203,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     [rawFilter],
   );
 
-  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: ResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
+  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
   // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
   const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
 
@@ -312,16 +252,9 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground"><BarChart3 className="mr-2 h-4 w-4" />{tt('dashboard.noRows', 'No rows')}</div>;
   }
 
-  // Measure metadata (label + format + currency) carried on the result fields, keyed by name.
-  const fieldByName = new Map((state.fields ?? []).map((f) => [f.name, f]));
-  const measureField = (name: string) => fieldByName.get(name);
-  // Resolve a column header: the dataset's display label (server-enriched onto
-  // the field, for dimensions and measures alike), then through the i18n
-  // field-label convention so a translated label wins, then the raw name.
-  const headerLabel = (name: string) => {
-    const fallback = measureField(name)?.label ?? name;
-    return state.object ? fieldLabel(state.object, name, fallback) : fallback;
-  };
+  // Measure metadata (label + format + currency) + header-label resolution,
+  // shared with the report renderer via @object-ui/core.
+  const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
 
   // Metric / KPI — show the single measure value of the first row, using the
   // measure's display label (not the raw name) and its format (e.g. "$616,000").
@@ -503,11 +436,11 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
                 key={i}
                 className={cn('border-t', canDrill && 'cursor-pointer hover:bg-accent/40')}
                 data-testid={canDrill ? 'dataset-drill-row' : undefined}
-                onClick={canDrill ? () => openDrill(i, drillDims.map((d) => formatValue(row[d])).filter(Boolean).join(' / ')) : undefined}
+                onClick={canDrill ? () => openDrill(i, drillDims.map((d) => formatDimensionValue(row[d])).filter(Boolean).join(' / ')) : undefined}
               >
                 {columns.map((c) => (
                   <td key={c} className="px-2 py-1 whitespace-nowrap tabular-nums">
-                    {values.includes(c) ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency) : formatValue(row[c])}
+                    {values.includes(c) ? formatMeasure(row[c], measureField(c)?.format, measureField(c)?.currency) : formatDimensionValue(row[c])}
                   </td>
                 ))}
               </tr>

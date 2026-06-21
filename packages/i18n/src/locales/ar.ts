@@ -1432,6 +1432,7 @@ const ar = {
     language: "اللغة",
   },
   report: {
+    total: "الإجمالي",
     rowTotal: "إجمالي الصف",
     columnTotal: "إجمالي العمود",
     grandTotal: "الإجمالي الكلي",

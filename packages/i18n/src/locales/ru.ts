@@ -1432,6 +1432,7 @@ const ru = {
     language: "Язык",
   },
   report: {
+    total: "Итого",
     rowTotal: "Итог строки",
     columnTotal: "Итог столбца",
     grandTotal: "Общий итог",

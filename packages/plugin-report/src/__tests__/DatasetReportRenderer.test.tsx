@@ -16,6 +16,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { I18nProvider } from '@object-ui/i18n';
 import { DatasetReportRenderer, isDatasetReport } from '../DatasetReportRenderer';
 
 type MockRows = Array<Record<string, unknown>>;
@@ -436,6 +437,33 @@ describe('DatasetReportRenderer', () => {
     // graceful fallback → the English default, never a raw "report.total" key.
     expect(screen.getByTestId('matrix-total-col-header')).toHaveTextContent('Total');
     expect(screen.getByTestId('matrix-total-row')).toHaveTextContent('Total');
+    expect(screen.queryByText('report.total')).not.toBeInTheDocument();
+  });
+
+  it('uses the mounted i18n translation for the totals label (zh → 总计)', async () => {
+    const src = makeSource({
+      task_metrics: {
+        rows: [{ status: 'Backlog', priority: 'High', est_hours: 10 }],
+        totals: [
+          { dimensions: ['status'], rows: [{ status: 'Backlog', est_hours: 10 }] },
+          { dimensions: ['priority'], rows: [{ priority: 'High', est_hours: 10 }] },
+          { dimensions: [], rows: [{ est_hours: 10 }] },
+        ],
+      },
+    });
+    render(
+      <I18nProvider config={{ defaultLanguage: 'zh', detectBrowserLanguage: false }}>
+        <DatasetReportRenderer
+          report={{ name: 'm', type: 'matrix', dataset: 'task_metrics', rows: ['status'], columns: ['priority'], values: ['est_hours'] }}
+          dataSource={src}
+        />
+      </I18nProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    // report.total resolves to its zh bundle value — the provider wins over the
+    // English fallback, and never leaks the raw key.
+    expect(screen.getByTestId('matrix-total-col-header')).toHaveTextContent('总计');
+    expect(screen.getByTestId('matrix-total-row')).toHaveTextContent('总计');
     expect(screen.queryByText('report.total')).not.toBeInTheDocument();
   });
 
