@@ -899,6 +899,13 @@ export interface ObjectFormSchema extends BaseSchema {
    * Submit button text
    */
   submitText?: string;
+
+  /**
+   * Declarative success toast text shown after a successful create/update when
+   * no `onSuccess` function handler is supplied (metadata-only pages cannot
+   * pass a function). Falls back to 'Created' / 'Saved'.
+   */
+  successMessage?: string;
   
   /**
    * Show cancel button

@@ -172,6 +172,7 @@ export const ObjectFormSchema = BaseSchema.extend({
   columns: z.number().optional().describe('Grid columns'),
   showSubmit: z.boolean().optional().describe('Show submit button'),
   submitText: z.string().optional().describe('Submit button text'),
+  successMessage: z.string().optional().describe('Success toast text after create/update when no onSuccess handler is given'),
   showCancel: z.boolean().optional().describe('Show cancel button'),
   cancelText: z.string().optional().describe('Cancel button text'),
   showReset: z.boolean().optional().describe('Show reset button'),

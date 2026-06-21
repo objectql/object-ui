@@ -74,6 +74,12 @@ export interface WizardFormSchema {
    * Submit button text (shown on last step)
    */
   submitText?: string;
+
+  /**
+   * Declarative success toast text shown when no `onSuccess` handler is given
+   * (metadata pages cannot pass a function). Falls back to 'Created'/'Saved'.
+   */
+  successMessage?: string;
   
   /**
    * Show cancel button
@@ -280,7 +286,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         } else {
           // Default feedback so a metadata-only wizard (which cannot pass an
           // onSuccess function) still confirms the create/update succeeded.
-          toast.success(schema.mode === 'create' ? 'Created' : 'Saved');
+          toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
         }
         return result;
       } catch (err) {

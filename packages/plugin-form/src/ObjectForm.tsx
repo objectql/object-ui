@@ -618,7 +618,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       if (schema.onSuccess) {
         await schema.onSuccess(result);
       } else if (!schema.submitHandler) {
-        toast.success(schema.mode === 'create' ? 'Created' : 'Saved');
+        toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
       }
 
       return result;
