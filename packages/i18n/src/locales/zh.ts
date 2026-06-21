@@ -1356,6 +1356,8 @@ const zh = {
       submittingButton: '登录中...',
       noAccountText: '还没有账户？',
       signUpText: '注册',
+      signingIn: '正在登录…',
+      ssoHandoff: '继续前往 {{target}}',
       errors: {
         invalidCredentials: '邮箱或密码错误，请重试。',
         emailNotVerified: '请先验证您的邮箱后再登录。',

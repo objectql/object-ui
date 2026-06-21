@@ -1356,6 +1356,8 @@ const en = {
       submittingButton: 'Signing in...',
       noAccountText: "Don't have an account?",
       signUpText: 'Sign up',
+      signingIn: 'Signing you in…',
+      ssoHandoff: 'Continue to {{target}}',
       errors: {
         invalidCredentials: 'Invalid email or password. Please try again.',
         emailNotVerified: 'Please verify your email address before signing in.',
