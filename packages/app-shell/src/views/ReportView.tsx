@@ -87,22 +87,40 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
     [objects],
   );
 
-  // ADR-0021 D2 drill-down: a click on an aggregated row/cell emits dimension
-  // NAMES + bucket values; resolve them through the dataset definition
-  // (object + dimension→field) and open the object's list scoped by
+  // ADR-0021 D2 drill-down: open the dataset's object list scoped by
   // `?filter[<field>]=<value>` (the same equality-filter contract the
   // related-list "View All" buttons use).
   //
-  // The analytics service resolves dimension buckets to DISPLAY labels in
-  // place (select option label, lookup record name) — so the clicked value
-  // must be mapped back to the stored value before it can filter:
+  // Preferred: the renderer hands us the base `object` + an exact field→RAW
+  // `objectFilter` (built from the server's drillRawRows), so we navigate
+  // straight away — correct for select/lookup dims, no metadata round-trip.
+  //
+  // Fallback (older server with no drill metadata): only dimension NAMES +
+  // DISPLAY-label bucket values arrive, so resolve them through the dataset
+  // definition and reverse-map labels to stored values before filtering:
   //   - select fields  → reverse-map label → option value
   //   - lookup fields  → the label is a record name, not the FK id; skip the
   //     dim (the drill lands on a superset rather than filtering wrongly)
   //   - granularity-bucketed dates → need a range, not equality; skip too
   const handleDatasetDrill = useCallback(
-    async ({ dataset, groupKey }: DatasetDrillArgs) => {
+    async ({ dataset, groupKey, object, objectFilter }: DatasetDrillArgs) => {
       try {
+        // Fast path (ADR-0021 D2): the renderer already resolved the dataset's
+        // base object + an exact object FIELD → RAW value filter from the
+        // server's drillRawRows. Navigate straight to it — correct for
+        // select/lookup dims (a stored value, not a display label) with NO
+        // dataset-definition round-trip and no label reverse-mapping.
+        if (object && objectFilter) {
+          const params = new URLSearchParams();
+          for (const [field, value] of Object.entries(objectFilter)) {
+            if (value == null) continue;
+            params.set(`filter[${field}]`, String(value));
+          }
+          const qs = params.toString();
+          const base = appName ? `/apps/${appName}` : '';
+          navigate(`${base}/${object}${qs ? `?${qs}` : ''}`);
+          return;
+        }
         const def = await metadataClient.get<Record<string, any>>('dataset', dataset);
         const objectName = typeof def?.object === 'string' ? def.object : undefined;
         if (!objectName) return;

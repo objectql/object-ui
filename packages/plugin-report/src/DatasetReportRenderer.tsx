@@ -46,6 +46,7 @@ import {
   formatMeasure,
   formatDimensionValue,
   buildDatasetFieldHelpers,
+  buildDatasetDrillFilter,
   type DatasetResultField,
 } from '@object-ui/core';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -63,7 +64,14 @@ interface DatasetCapableSource {
   queryDataset?: (
     dataset: string,
     selection: unknown,
-  ) => Promise<{ rows: Row[]; fields?: DatasetResultField[]; object?: string; totals?: DatasetTotals[] }>;
+  ) => Promise<{
+    rows: Row[];
+    fields?: DatasetResultField[];
+    object?: string;
+    dimensionFields?: Record<string, string>;
+    drillRawRows?: Row[];
+    totals?: DatasetTotals[];
+  }>;
 }
 
 /** What a drill click means — the host resolves names to a navigation target. */
@@ -74,6 +82,16 @@ export interface DatasetDrillArgs {
   groupKey: Record<string, unknown>;
   /** The effective render-time scope filter, if any. */
   runtimeFilter?: Record<string, unknown>;
+  /** The dataset's base object (records to drill into), when the server supplied it. */
+  object?: string;
+  /**
+   * Exact record-list filter (object FIELD name → RAW stored value) for the
+   * clicked bucket, ANDed with `runtimeFilter`. Present only when the server
+   * returned the dimension→field mapping + raw grouped values, so the host can
+   * filter precisely — including select/lookup dims a display-label `groupKey`
+   * would mis-filter — without re-fetching the dataset definition.
+   */
+  objectFilter?: Record<string, unknown>;
 }
 
 /** A report (or joined block) bound to a dataset. Field access is permissive — */
@@ -144,6 +162,8 @@ function useDatasetRows(
     rows: Row[];
     fields?: DatasetResultField[];
     object?: string;
+    dimensionFields?: Record<string, string>;
+    drillRawRows?: Row[];
     totals?: DatasetTotals[];
     error?: string;
   }>({
@@ -180,6 +200,8 @@ function useDatasetRows(
             rows: Array.isArray(res?.rows) ? res.rows : [],
             fields: Array.isArray(res?.fields) ? res.fields : [],
             object: res?.object,
+            dimensionFields: res?.dimensionFields,
+            drillRawRows: Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined,
             totals: Array.isArray(res?.totals) ? res.totals : undefined,
           });
         }
@@ -256,10 +278,20 @@ function DatasetReportTable({
 
   // Drilling needs at least one dimension to scope by.
   const canDrill = !!onDrill && rows.length > 0;
-  const drill = (row: Row) => {
+  // Dims the server can map to object fields → raw-value (drill-correct) filter.
+  const drillDims = state.dimensionFields ? rows.filter((d) => d in state.dimensionFields!) : [];
+  const drill = (row: Row, index: number) => {
     const groupKey: Record<string, unknown> = {};
     for (const dim of rows) groupKey[dim] = row[dim];
-    onDrill!({ dataset, groupKey, runtimeFilter });
+    // ADR-0021 D2: when the server returned the object + raw grouped values,
+    // emit an exact field→raw filter (correct for select/lookup dims, which a
+    // display-label groupKey would mis-filter); the host then filters with no
+    // extra metadata round-trip. Older server → groupKey-only fallback.
+    const objectFilter =
+      state.object && state.dimensionFields && drillDims.length > 0
+        ? buildDatasetDrillFilter(state.drillRawRows?.[index], drillDims, state.dimensionFields, runtimeFilter)
+        : undefined;
+    onDrill!({ dataset, groupKey, runtimeFilter, object: state.object, objectFilter });
   };
 
   const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
@@ -282,7 +314,7 @@ function DatasetReportTable({
               key={i}
               className={`border-t${canDrill ? ` ${DRILL_CLASS}` : ''}`}
               data-testid={canDrill ? 'dataset-drill-row' : undefined}
-              onClick={canDrill ? () => drill(row) : undefined}
+              onClick={canDrill ? () => drill(row, i) : undefined}
             >
               {columns.map((c) => (
                 <td key={c} className="px-2 py-1 tabular-nums whitespace-nowrap">
@@ -348,8 +380,8 @@ function DatasetMatrixTable({
     const colHeaders: Array<{ id: string; label: string; key: Row }> = [];
     const seenRow = new Set<string>();
     const seenCol = new Set<string>();
-    const cells = new Map<string, Row>();
-    for (const r of state.rows) {
+    const cells = new Map<string, { row: Row; index: number }>();
+    state.rows.forEach((r, index) => {
       const rid = bucketId(rows, r);
       const cid = bucketId(columnsAcross, r);
       if (!seenRow.has(rid)) {
@@ -364,8 +396,8 @@ function DatasetMatrixTable({
         for (const d of columnsAcross) key[d] = r[d];
         colHeaders.push({ id: cid, label: bucketLabel(columnsAcross, r), key });
       }
-      cells.set(`${rid} ${cid}`, r);
-    }
+      cells.set(`${rid} ${cid}`, { row: r, index });
+    });
     return { rowHeaders, colHeaders, cells };
   }, [state, rows, columnsAcross]);
 
@@ -377,8 +409,16 @@ function DatasetMatrixTable({
   const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
   const totalText = tt('report.total', 'Total');
   const canDrill = !!onDrill;
-  const drillCell = (rowKey: Row, colKey: Row) => {
-    onDrill!({ dataset, groupKey: { ...rowKey, ...colKey }, runtimeFilter });
+  // Down + across dims the server can map to object fields → raw-value filter.
+  const drillDims = state.dimensionFields
+    ? [...rows, ...columnsAcross].filter((d) => d in state.dimensionFields!)
+    : [];
+  const drillCell = (rowKey: Row, colKey: Row, index: number) => {
+    const objectFilter =
+      state.object && state.dimensionFields && drillDims.length > 0
+        ? buildDatasetDrillFilter(state.drillRawRows?.[index], drillDims, state.dimensionFields, runtimeFilter)
+        : undefined;
+    onDrill!({ dataset, groupKey: { ...rowKey, ...colKey }, runtimeFilter, object: state.object, objectFilter });
   };
 
   // Single measure → one column per across-bucket; multiple → bucket × measure.
@@ -439,15 +479,15 @@ function DatasetMatrixTable({
                 </td>
               ))}
               {cellCols.map((cc) => {
-                const cell = pivot.cells.get(`${rh.id} ${cc.col.id}`);
-                const value = cell?.[cc.measure];
-                const clickable = canDrill && cell != null;
+                const entry = pivot.cells.get(`${rh.id} ${cc.col.id}`);
+                const value = entry?.row[cc.measure];
+                const clickable = canDrill && entry != null;
                 return (
                   <td
                     key={`${cc.col.id}-${cc.measure}`}
                     className={`px-2 py-1 text-right tabular-nums whitespace-nowrap${clickable ? ` ${DRILL_CLASS}` : ''}`}
                     data-testid={clickable ? 'dataset-drill-cell' : undefined}
-                    onClick={clickable ? () => drillCell(rh.key, cc.col.key) : undefined}
+                    onClick={clickable ? () => drillCell(rh.key, cc.col.key, entry!.index) : undefined}
                   >
                     {formatMeasure(value, measureField(cc.measure)?.format, measureField(cc.measure)?.currency)}
                   </td>

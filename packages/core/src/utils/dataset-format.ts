@@ -108,3 +108,30 @@ export function buildDatasetFieldHelpers(
   };
   return { measureField, headerLabel };
 }
+
+/**
+ * Build the record-list filter for a drilled dataset bucket (ADR-0021 D2).
+ *
+ * Each drillable dimension maps to its underlying object field, filtered by the
+ * dimension's RAW grouped value (from the server's parallel `drillRawRows`, NOT
+ * the visible row which carries the display LABEL — a select/lookup label would
+ * mis-filter). An empty/undefined raw value normalizes to `null` (an explicit
+ * "is empty" filter). The render-time `runtimeFilter` is ANDed in so the drilled
+ * list stays within the same slice the aggregate was computed over.
+ *
+ * Shared by the dashboard `DatasetWidget` and the report renderer so a drill
+ * filters identically (and correctly, including lookups) on both surfaces.
+ */
+export function buildDatasetDrillFilter(
+  rawRow: Record<string, unknown> | undefined,
+  drillDims: string[],
+  dimensionFields: Record<string, string>,
+  runtimeFilter?: Record<string, unknown>,
+): Record<string, unknown> {
+  const drillFilter: Record<string, unknown> = {};
+  for (const d of drillDims) {
+    const raw = rawRow?.[d];
+    drillFilter[dimensionFields[d]] = raw === '' || raw === undefined ? null : raw;
+  }
+  return runtimeFilter ? { ...runtimeFilter, ...drillFilter } : drillFilter;
+}

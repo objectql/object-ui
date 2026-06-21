@@ -33,6 +33,7 @@ import {
   formatMeasure,
   formatDimensionValue,
   buildDatasetFieldHelpers,
+  buildDatasetDrillFilter,
   type DatasetResultField,
 } from '@object-ui/core';
 import { cn } from '@object-ui/components';
@@ -49,26 +50,11 @@ interface DatasetCapableSource {
 }
 
 /**
- * Build the record-list filter for a drilled row. Each drillable dimension maps
- * to its underlying object field, filtered by the dimension's RAW grouped value
- * (taken from the server's parallel `drillRawRows` array — the visible `row`
- * carries the display label, which would mis-filter a select/lookup field). The
- * widget's render-time scope (`runtimeFilter`) is ANDed in so the drilled list
- * stays within the same slice the aggregate was computed over.
+ * Build the record-list filter for a drilled row. Re-exported for back-compat;
+ * the implementation now lives in `@object-ui/core` (`buildDatasetDrillFilter`)
+ * so the dashboard and the report renderer drill identically.
  */
-export function buildDrillFilter(
-  rawRow: Record<string, unknown> | undefined,
-  drillDims: string[],
-  dimensionFields: Record<string, string>,
-  runtimeFilter?: Record<string, unknown>,
-): Record<string, unknown> {
-  const drillFilter: Record<string, unknown> = {};
-  for (const d of drillDims) {
-    const raw = rawRow?.[d];
-    drillFilter[dimensionFields[d]] = raw === '' || raw === undefined ? null : raw;
-  }
-  return runtimeFilter ? { ...runtimeFilter, ...drillFilter } : drillFilter;
-}
+export const buildDrillFilter = buildDatasetDrillFilter;
 
 /**
  * Pivot flat dataset rows into a cross-tab: `rowDims` go DOWN, `colDim` spreads

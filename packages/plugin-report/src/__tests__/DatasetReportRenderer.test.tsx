@@ -25,6 +25,8 @@ type MockResult = {
   rows: MockRows;
   fields?: MockField[];
   object?: string;
+  dimensionFields?: Record<string, string>;
+  drillRawRows?: MockRows;
   totals?: Array<{ dimensions: string[]; rows: MockRows }>;
 };
 
@@ -40,6 +42,8 @@ function makeSource(byDataset: Record<string, MockRows | MockResult>) {
         rows: entry?.rows ?? [],
         ...(entry?.fields ? { fields: entry.fields } : {}),
         ...(entry?.object ? { object: entry.object } : {}),
+        ...(entry?.dimensionFields ? { dimensionFields: entry.dimensionFields } : {}),
+        ...(entry?.drillRawRows ? { drillRawRows: entry.drillRawRows } : {}),
         ...(entry?.totals ? { totals: entry.totals } : {}),
       };
     }),
@@ -465,6 +469,105 @@ describe('DatasetReportRenderer', () => {
     expect(screen.getByTestId('matrix-total-col-header')).toHaveTextContent('总计');
     expect(screen.getByTestId('matrix-total-row')).toHaveTextContent('总计');
     expect(screen.queryByText('report.total')).not.toBeInTheDocument();
+  });
+
+  // ── raw-value drill (ADR-0021 D2) ──────────────────────────────────────────
+  it('drill: emits object + raw objectFilter (stored value, not display label)', async () => {
+    const src = makeSource({
+      task_metrics: {
+        rows: [{ status: 'In Progress', est_hours: 30 }],
+        object: 'task',
+        dimensionFields: { status: 'status' },
+        // the visible row carries the DISPLAY label; the raw row carries the stored value
+        drillRawRows: [{ status: 'in_progress' }],
+      },
+    });
+    const onDrill = vi.fn();
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'task_metrics', rows: ['status'], values: ['est_hours'] }}
+        dataSource={src}
+        runtimeFilter={{ owner: 'me' }}
+        onDrill={onDrill}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-drill-row')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('dataset-drill-row'));
+    expect(onDrill).toHaveBeenCalledWith(expect.objectContaining({
+      dataset: 'task_metrics',
+      object: 'task',
+      groupKey: { status: 'In Progress' },
+      // raw stored value, mapped to the underlying object field, ANDed with scope
+      objectFilter: { owner: 'me', status: 'in_progress' },
+    }));
+  });
+
+  it('drill: raw objectFilter filters a lookup dim by its FK id, not the record name', async () => {
+    const src = makeSource({
+      deal_metrics: {
+        rows: [{ account: 'Acme Corp', amount: 1000 }],
+        object: 'deal',
+        dimensionFields: { account: 'account_id' },
+        drillRawRows: [{ account: 'acc_123' }],
+      },
+    });
+    const onDrill = vi.fn();
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'deal_metrics', rows: ['account'], values: ['amount'] }}
+        dataSource={src}
+        onDrill={onDrill}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-drill-row')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('dataset-drill-row'));
+    expect(onDrill).toHaveBeenCalledWith(expect.objectContaining({
+      object: 'deal',
+      objectFilter: { account_id: 'acc_123' },
+    }));
+  });
+
+  it('matrix drill: cell emits raw objectFilter over both row + across dims', async () => {
+    const src = makeSource({
+      task_metrics: {
+        rows: [{ status: 'In Progress', priority: 'High', est_hours: 10 }],
+        object: 'task',
+        dimensionFields: { status: 'status', priority: 'priority' },
+        drillRawRows: [{ status: 'in_progress', priority: 'p1' }],
+      },
+    });
+    const onDrill = vi.fn();
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'm', type: 'matrix', dataset: 'task_metrics', rows: ['status'], columns: ['priority'], values: ['est_hours'] }}
+        dataSource={src}
+        onDrill={onDrill}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-matrix')).toBeInTheDocument());
+    fireEvent.click(screen.getAllByTestId('dataset-drill-cell')[0]);
+    expect(onDrill).toHaveBeenCalledWith(expect.objectContaining({
+      object: 'task',
+      groupKey: { status: 'In Progress', priority: 'High' },
+      objectFilter: { status: 'in_progress', priority: 'p1' },
+    }));
+  });
+
+  it('drill: omits objectFilter when the server returns no drill metadata (older server)', async () => {
+    const src = makeSource({ task_metrics: [{ status: 'Backlog', est_hours: 30 }] });
+    const onDrill = vi.fn();
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'task_metrics', rows: ['status'], values: ['est_hours'] }}
+        dataSource={src}
+        onDrill={onDrill}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-drill-row')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('dataset-drill-row'));
+    const args = onDrill.mock.calls[0][0];
+    expect(args.groupKey).toEqual({ status: 'Backlog' });
+    expect(args.objectFilter).toBeUndefined();
   });
 
   it('shows an error when the data source cannot run dataset queries', async () => {
