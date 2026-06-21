@@ -32,9 +32,46 @@ import {
   InspectorTextField,
   InspectorSelectField,
 } from './_shared';
+import { InspectorComboField } from './InspectorComboField';
+import { useObjectOptions } from './useDatasetFields';
 import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
 import { SchemaForm } from '../SchemaForm';
 import { useObjectFields, type ObjectFieldInfo } from '../previews/useObjectFields';
+
+/**
+ * Object picker for the view's binding — a searchable dropdown over the live
+ * object catalog (custom value still allowed) instead of recalling the API
+ * name. The catalog hook lives in a child component so the parent inspector's
+ * hook order is unaffected.
+ */
+function ViewObjectPicker({
+  label,
+  value,
+  onCommit,
+  placeholder,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onCommit: (v: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const { options, loading } = useObjectOptions();
+  return (
+    <InspectorComboField
+      label={label}
+      value={value}
+      onCommit={onCommit}
+      options={options.map((o) => ({ value: o.name, label: o.label }))}
+      loading={loading}
+      placeholder={placeholder}
+      searchPlaceholder="Search objects…"
+      disabled={disabled}
+      mono
+    />
+  );
+}
 import { FieldsListEditor } from '../previews/FieldsListEditor';
 import {
   getViewForm,
@@ -278,13 +315,12 @@ export function ViewVariantInspector({
         onCommit={(v) => writeVariant({ type: v })}
         disabled={readOnly}
       />
-      <InspectorTextField
+      <ViewObjectPicker
         label={t('engine.inspector.view.object', locale)}
         value={binding.value}
         onCommit={setObject}
         placeholder={t('engine.inspector.view.objectPlaceholder', locale)}
         disabled={readOnly}
-        mono
       />
 
       {!isFormFamily && (
