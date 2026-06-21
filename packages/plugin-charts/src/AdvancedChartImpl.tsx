@@ -43,6 +43,7 @@ import {
   ChartLegendContent,
   ChartConfig
 } from './ChartContainerImpl';
+import { mapScatterClick, mapTreemapClick, mapSankeyClick } from './chartDrillEvents';
 
 // Default color fallback for chart series
 const DEFAULT_CHART_COLOR = 'hsl(var(--primary))';
@@ -148,50 +149,26 @@ export default function AdvancedChartImpl({
   const cartesianClickProps = onChartClick ? { onClick: handleCartesianClick, style: { cursor: 'pointer' as const } } : {};
   const pieClickProps = onChartClick ? { onClick: handlePieClick, style: { cursor: 'pointer' as const } } : {};
 
-  // Scatter: each <Scatter> point fires with the point node. The node's
-  // `payload` is the original data row, so we read the category (xAxisKey)
-  // and the y-value from it — same { category, series, value } contract the
-  // pie/cartesian handlers use, so ObjectChart's drill drawer works unchanged.
+  // Scatter / treemap / sankey element clicks map to the same
+  // { category, series, value } drill event via pure mappers (see
+  // chartDrillEvents). Each returns null for non-drillable targets (e.g. a
+  // sankey link or root node), in which case we don't fire.
   const handleScatterClick = React.useCallback((node: any) => {
-    if (!onChartClick || !node) return;
-    const row = node.payload ?? node;
-    const cat = row?.[xAxisKey];
-    const dk = series[0]?.dataKey || 'value';
-    onChartClick({
-      category: cat != null ? String(cat) : undefined,
-      series: dk,
-      value: typeof row?.[dk] === 'number' ? row[dk] : undefined,
-    });
+    if (!onChartClick) return;
+    const ev = mapScatterClick(node, xAxisKey, series);
+    if (ev) onChartClick(ev);
   }, [onChartClick, xAxisKey, series]);
 
-  // Treemap: clicking a tile drills into the category it represents. Recharts
-  // passes the clicked node; its `name` is the category label and `value`/
-  // `size` the aggregated measure.
   const handleTreemapClick = React.useCallback((node: any) => {
-    if (!onChartClick || !node) return;
-    const name = node.name ?? node.payload?.name ?? node.root?.name;
-    if (name == null) return;
-    const val = node.value ?? node.size ?? node.payload?.size;
-    onChartClick({
-      category: String(name),
-      series: series[0]?.dataKey || 'value',
-      value: typeof val === 'number' ? val : undefined,
-    });
+    if (!onChartClick) return;
+    const ev = mapTreemapClick(node, series);
+    if (ev) onChartClick(ev);
   }, [onChartClick, series]);
 
-  // Sankey: drill on a flow *node* (a category). Links carry source/target
-  // indices but no `name`, and the synthetic root node (depth 0) aggregates
-  // everything — both are ignored so only category nodes drill.
   const handleSankeyClick = React.useCallback((payload: any) => {
-    if (!onChartClick || !payload) return;
-    const node = payload.payload ?? payload;
-    const name = node?.name;
-    if (name == null || node?.depth === 0) return;
-    onChartClick({
-      category: String(name),
-      series: series[0]?.dataKey || 'value',
-      value: typeof node?.value === 'number' ? node.value : undefined,
-    });
+    if (!onChartClick) return;
+    const ev = mapSankeyClick(payload, series);
+    if (ev) onChartClick(ev);
   }, [onChartClick, series]);
 
   const scatterClickProps = onChartClick ? { onClick: handleScatterClick, cursor: 'pointer' } : {};
