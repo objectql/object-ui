@@ -18,7 +18,6 @@ import {
 } from '@object-ui/providers';
 
 const SystemHubPage = lazy(() => import('./pages/system/SystemHubPage').then(m => ({ default: m.SystemHubPage })));
-const DatasourceManagerPage = lazy(() => import('./pages/system/DatasourceManagerPage').then(m => ({ default: m.DatasourceManagerPage })));
 const AppManagementPage = lazy(() => import('./pages/system/AppManagementPage').then(m => ({ default: m.AppManagementPage })));
 const ProfilePage = lazy(() => import('./pages/system/ProfilePage').then(m => ({ default: m.ProfilePage })));
 const ApprovalsInboxPage = lazy(() => import('./pages/system/ApprovalsInboxPage').then(m => ({ default: m.ApprovalsInboxPage })));
@@ -51,7 +50,7 @@ const DocsLayout = lazy(() => import('./pages/DocsLayout'));
 function ObjectRedirect() {
   const { objectName } = useParams<{ objectName?: string }>();
   const location = useLocation();
-  const prefix = location.pathname.replace(/\/objects(\/.*)?$/, '');
+  const prefix = location.pathname.replace(/\/(system\/)?objects(\/.*)?$/, '');
   const target = objectName
     ? `${prefix}/component/metadata/resource/${objectName}?type=object`
     : `${prefix}/component/metadata/resource?type=object`;
@@ -67,7 +66,10 @@ function ObjectRedirect() {
 function MetadataRedirect() {
   const { metadataType, itemName } = useParams<{ metadataType?: string; itemName?: string }>();
   const location = useLocation();
-  const prefix = location.pathname.replace(/\/metadata(\/.*)?$/, '');
+  // Strip an optional leading `system/` too — legacy nav uses
+  // `…/system/metadata/:type`, and the engine route lives at the app root
+  // (`…/component/metadata/resource`), not under `system/`.
+  const prefix = location.pathname.replace(/\/(system\/)?metadata(\/.*)?$/, '');
   const base = `${prefix}/component/metadata/resource`;
   const target = !metadataType
     ? `${prefix}/component/metadata/directory`
@@ -87,7 +89,6 @@ const systemRoutes = (
     <Route path="system/audit-log" element={<Suspense fallback={<LoadingScreen />}><AuditLogPage /></Suspense>} />
     <Route path="system/settings" element={<Suspense fallback={<LoadingScreen />}><SettingsHub /></Suspense>} />
     <Route path="system/settings/:namespace" element={<Suspense fallback={<LoadingScreen />}><SettingsView /></Suspense>} />
-    <Route path="system/datasources" element={<Suspense fallback={<LoadingScreen />}><DatasourceManagerPage /></Suspense>} />
     <Route path="developer" element={<Suspense fallback={<LoadingScreen />}><DeveloperHubPage /></Suspense>} />
     <Route path="developer/api-console" element={<Suspense fallback={<LoadingScreen />}><ApiConsolePage /></Suspense>} />
     <Route path="developer/flow-runs" element={<Suspense fallback={<LoadingScreen />}><FlowRunsPage /></Suspense>} />

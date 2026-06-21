@@ -61,6 +61,8 @@ registerBuiltinAnchors();
 // until the framework wires Zod→JSONSchema generation into /meta/types.
 import { registerDefaultMetadataSchemas } from './default-schemas';
 registerDefaultMetadataSchemas();
+import { registerDatasourceResource } from './datasource/register';
+registerDatasourceResource();
 
 // Side-effect: register built-in Preview-tab renderers (page, view,
 // dashboard, report, app, object, email_template). Plugins can add or

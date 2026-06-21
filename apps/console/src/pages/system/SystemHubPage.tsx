@@ -123,7 +123,7 @@ export function SystemHubPage() {
       title: 'Datasources',
       description: 'Connect external databases and sync their tables in as objects',
       icon: Boxes,
-      href: `${basePath}/system/datasources`,
+      href: `${basePath}/component/metadata/resource?type=datasource`,
       countLabel: '',
       count: null,
     },
