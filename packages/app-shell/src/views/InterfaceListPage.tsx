@@ -33,6 +33,10 @@ interface InterfaceListPageProps {
    * page's interfaceConfig metadata (Airtable parity — the toolbar IS the
    * authoring surface). Receives a partial interfaceConfig patch. */
   onConfigChange?: (patch: Record<string, unknown>) => void;
+  /** When the host overlays an edit-in-studio affordance at the page's
+   * top-right (PageView's pencil), reserve right padding on the header so the
+   * toolbar buttons don't sit under it. */
+  reserveEditAffordance?: boolean;
 }
 
 /**
@@ -167,7 +171,7 @@ export function defaultMapFromObject(objectDef: any): { locationField: string } 
   return field ? { locationField: field } : undefined;
 }
 
-export function InterfaceListPage({ page, className, onConfigChange }: InterfaceListPageProps) {
+export function InterfaceListPage({ page, className, onConfigChange, reserveEditAffordance }: InterfaceListPageProps) {
   const { t } = useObjectTranslation();
   const { objects } = useMetadata();
   const dataSource = useAdapter();
@@ -418,7 +422,7 @@ export function InterfaceListPage({ page, className, onConfigChange }: Interface
 
   return (
     <div className={className ?? 'h-full flex flex-col'} data-testid="interface-list-page">
-      <div className="px-4 pt-4 pb-2 shrink-0 flex items-start justify-between gap-3">
+      <div className={`pl-4 pt-4 pb-2 shrink-0 flex items-start justify-between gap-3 ${reserveEditAffordance ? 'pr-12' : 'pr-4'}`}>
         <div className="min-w-0">
           <h1 className="text-lg font-semibold leading-tight">
             {typeof page.label === 'string' ? page.label : page.name}

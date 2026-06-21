@@ -101,7 +101,7 @@ export function PageView() {
           {(page as any).interfaceConfig?.source ? (
             // ADR-0047 interface mode: the page binds a source view into a
             // curated list surface — rendered directly, not via regions.
-            <InterfaceListPage key={refreshKey} page={page} />
+            <InterfaceListPage key={refreshKey} page={page} reserveEditAffordance={canEditInStudio} />
           ) : (
             <SchemaRenderer
               key={refreshKey}
