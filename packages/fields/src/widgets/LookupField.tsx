@@ -693,7 +693,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           {loading && filteredOptions.length === 0 && !error && (
             <div className="flex flex-col items-center gap-2 py-6" role="status" aria-live="polite">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+              <p className="text-sm text-muted-foreground">{t('lookup.loading')}</p>
             </div>
           )}
 
@@ -703,7 +703,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
               {filteredOptions.length === 0 ? (
                 <div className="py-4 text-center">
                   <p className="text-sm text-muted-foreground">
-                    {t('common.noResults')}
+                    {t('lookup.noOptions')}
                   </p>
                   {/* Quick-create entry */}
                   {onCreateNew && (

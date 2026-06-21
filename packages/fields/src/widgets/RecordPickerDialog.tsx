@@ -1048,7 +1048,7 @@ export function RecordPickerDialog({
             {/* Empty state */}
             {!loading && !error && records.length === 0 && (
               <div className="py-8 text-center">
-                <p className="text-sm text-muted-foreground">{t('common.noResults')}</p>
+                <p className="text-sm text-muted-foreground">{t('lookup.noRecords')}</p>
               </div>
             )}
 

@@ -3,6 +3,9 @@
  */
 const zh = {
   lookup: {
+    loading: '加载中…',
+    noOptions: '未找到选项',
+    noRecords: '未找到记录',
     createNew: '新建',
     createNamed: '新建“{{name}}”',
     showingResults: '显示 {{total}} 条结果中的 {{shown}} 条',

@@ -3,6 +3,9 @@
  */
 const en = {
   lookup: {
+    loading: 'Loading…',
+    noOptions: 'No options found',
+    noRecords: 'No records found',
     createNew: 'Create new',
     createNamed: 'Create new "{{name}}"',
     showingResults: 'Showing {{shown}} of {{total}} results',
