@@ -1782,15 +1782,20 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
         return (
           <div key={key} className="space-y-1">
             <Label className="text-xs">{label}{isReq ? ' *' : ''}</Label>
-            <Input
-              type={isSecret ? 'password' : isNum ? 'number' : 'text'}
-              value={cur != null ? String(cur) : ''}
-              disabled={readOnly}
-              autoComplete={isSecret ? 'off' : undefined}
-              aria-label={label}
-              onChange={(e) => setKey(key, isNum ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)}
-              className="h-8 text-sm"
-            />
+            {isSecret ? (
+              // Credential sub-field → reuse the masked/keep/reveal secret input
+              // so a config password (e.g. postgres) behaves like any secret field.
+              <SecretWidget value={cur} onChange={(v) => setKey(key, v)} readOnly={readOnly} schema={p as Record<string, any>} />
+            ) : (
+              <Input
+                type={isNum ? 'number' : 'text'}
+                value={cur != null ? String(cur) : ''}
+                disabled={readOnly}
+                aria-label={label}
+                onChange={(e) => setKey(key, isNum ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)}
+                className="h-8 text-sm"
+              />
+            )}
             {(p as any)?.description && <p className="text-[11px] text-muted-foreground">{(p as any).description}</p>}
           </div>
         );

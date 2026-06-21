@@ -43,6 +43,14 @@ describe('dynamic-config widget', () => {
     expect(screen.getByLabelText('Port')).toBeInTheDocument();
   });
 
+  it('renders a credential sub-field (format:password) via the masked secret input', () => {
+    const ctxPw = { dynamicSchemas: { mysql: { properties: { password: { type: 'string', title: 'Password', format: 'password' } } } } };
+    render(<Dyn value={{}} onChange={() => {}} schema={{ type: 'object' }} fieldSpec={{ field: 'config', dependsOn: 'driver' }} formData={{ driver: 'mysql' }} context={ctxPw} />);
+    // SecretWidget exposes a reveal toggle + the masked input.
+    expect(screen.getByLabelText('Secret value')).toHaveAttribute('type', 'password');
+    expect(screen.getByLabelText('Reveal value')).toBeInTheDocument();
+  });
+
   it('shows a no-config message for an unknown parent value', () => {
     render(<Dyn value={{}} onChange={() => {}} schema={{ type: 'object' }} fieldSpec={{ field: 'config', dependsOn: 'driver' }} formData={{ driver: 'memory' }} context={ctx} />);
     expect(screen.getByText(/No configuration needed/i)).toBeInTheDocument();
