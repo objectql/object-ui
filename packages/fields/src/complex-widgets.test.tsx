@@ -84,6 +84,7 @@ describe('Complex & Relationship Widgets', () => {
 
         beforeEach(() => {
             vi.clearAllMocks();
+            try { localStorage.clear(); } catch { /* jsdom */ }
         });
 
         it('fetches data from DataSource when dialog opens', async () => {
@@ -310,6 +311,53 @@ describe('Complex & Relationship Widgets', () => {
             });
 
             expect(onCreateNew).toHaveBeenCalledWith('');
+        });
+
+        it('quick-creates via dataSource.create when allow_create is set', async () => {
+            mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+            mockDataSource.create.mockResolvedValue({ id: 'new-1', name: 'Acme' });
+            const onChange = vi.fn();
+            const field = { ...dynamicField, allow_create: true } as any;
+
+            render(<LookupField {...dynamicProps} field={field} onChange={onChange} />);
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', { name: /Select/i }));
+            });
+
+            const input = await screen.findByRole('combobox');
+            await act(async () => {
+                fireEvent.change(input, { target: { value: 'Acme' } });
+            });
+
+            const createBtn = await screen.findByText('Create new "Acme"');
+            await act(async () => {
+                fireEvent.click(createBtn);
+            });
+
+            await waitFor(() => {
+                expect(mockDataSource.create).toHaveBeenCalledWith('customers', { name: 'Acme' });
+            });
+            await waitFor(() => {
+                expect(onChange).toHaveBeenCalledWith('new-1');
+            });
+        });
+
+        it('shows a recently-used section on empty focus', async () => {
+            localStorage.setItem('objectui:lookup:recent:customers', JSON.stringify(['r1']));
+            mockDataSource.find.mockResolvedValue({ data: [{ id: 'a', name: 'Acme Corp' }], total: 1 });
+            mockDataSource.findOne.mockResolvedValue({ id: 'r1', name: 'Recent Co' });
+
+            render(<LookupField {...dynamicProps} />);
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole('button', { name: /Select/i }));
+            });
+
+            await waitFor(() => {
+                expect(screen.getByText('Recently used')).toBeInTheDocument();
+                expect(screen.getByText('Recent Co')).toBeInTheDocument();
+            });
         });
 
         it('navigates options with arrow keys and selects with Enter', async () => {
