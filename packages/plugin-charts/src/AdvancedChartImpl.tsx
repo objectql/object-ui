@@ -148,6 +148,56 @@ export default function AdvancedChartImpl({
   const cartesianClickProps = onChartClick ? { onClick: handleCartesianClick, style: { cursor: 'pointer' as const } } : {};
   const pieClickProps = onChartClick ? { onClick: handlePieClick, style: { cursor: 'pointer' as const } } : {};
 
+  // Scatter: each <Scatter> point fires with the point node. The node's
+  // `payload` is the original data row, so we read the category (xAxisKey)
+  // and the y-value from it — same { category, series, value } contract the
+  // pie/cartesian handlers use, so ObjectChart's drill drawer works unchanged.
+  const handleScatterClick = React.useCallback((node: any) => {
+    if (!onChartClick || !node) return;
+    const row = node.payload ?? node;
+    const cat = row?.[xAxisKey];
+    const dk = series[0]?.dataKey || 'value';
+    onChartClick({
+      category: cat != null ? String(cat) : undefined,
+      series: dk,
+      value: typeof row?.[dk] === 'number' ? row[dk] : undefined,
+    });
+  }, [onChartClick, xAxisKey, series]);
+
+  // Treemap: clicking a tile drills into the category it represents. Recharts
+  // passes the clicked node; its `name` is the category label and `value`/
+  // `size` the aggregated measure.
+  const handleTreemapClick = React.useCallback((node: any) => {
+    if (!onChartClick || !node) return;
+    const name = node.name ?? node.payload?.name ?? node.root?.name;
+    if (name == null) return;
+    const val = node.value ?? node.size ?? node.payload?.size;
+    onChartClick({
+      category: String(name),
+      series: series[0]?.dataKey || 'value',
+      value: typeof val === 'number' ? val : undefined,
+    });
+  }, [onChartClick, series]);
+
+  // Sankey: drill on a flow *node* (a category). Links carry source/target
+  // indices but no `name`, and the synthetic root node (depth 0) aggregates
+  // everything — both are ignored so only category nodes drill.
+  const handleSankeyClick = React.useCallback((payload: any) => {
+    if (!onChartClick || !payload) return;
+    const node = payload.payload ?? payload;
+    const name = node?.name;
+    if (name == null || node?.depth === 0) return;
+    onChartClick({
+      category: String(name),
+      series: series[0]?.dataKey || 'value',
+      value: typeof node?.value === 'number' ? node.value : undefined,
+    });
+  }, [onChartClick, series]);
+
+  const scatterClickProps = onChartClick ? { onClick: handleScatterClick, cursor: 'pointer' } : {};
+  const treemapClickProps = onChartClick ? { onClick: handleTreemapClick, style: { cursor: 'pointer' as const } } : {};
+  const sankeyClickProps = onChartClick ? { onClick: handleSankeyClick, style: { cursor: 'pointer' as const } } : {};
+
   React.useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
@@ -371,7 +421,7 @@ export default function AdvancedChartImpl({
     };
     return (
       <ChartContainer config={config} className={className}>
-        <Treemap data={tmData} dataKey="size" nameKey="name" isAnimationActive content={<TreemapCell />}>
+        <Treemap data={tmData} dataKey="size" nameKey="name" isAnimationActive content={<TreemapCell />} {...treemapClickProps}>
           <Tooltip />
         </Treemap>
       </ChartContainer>
@@ -397,6 +447,7 @@ export default function AdvancedChartImpl({
           nodePadding={24}
           link={{ stroke: 'hsl(var(--muted-foreground))', strokeOpacity: 0.25 }}
           node={{ fill: 'hsl(var(--chart-1))' } as any}
+          {...sankeyClickProps}
         >
           <Tooltip />
         </Sankey>
@@ -474,6 +525,7 @@ export default function AdvancedChartImpl({
                 data={data}
                 fill={color}
                 fillOpacity={cmp?.fillOpacity}
+                {...scatterClickProps}
               />
             );
           })}

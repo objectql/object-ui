@@ -150,11 +150,13 @@ const UNSUPPORTED_CHART_TYPES = new Set([
 /**
  * Chart sub-types that have a meaningful drill-down interaction.
  * Mirrors WidgetConfigPanel.DRILL_DOWN_TYPES and the click-handler wiring
- * in plugin-charts/AdvancedChartImpl. Scatter and funnel are excluded
- * because no onChartClick is wired for them today.
+ * in plugin-charts/AdvancedChartImpl. Radar is excluded because a polar
+ * polygon has no single clickable category point (the interaction would be
+ * ambiguous); every cartesian / part-to-whole / flow family is covered.
  */
 const DRILLABLE_CHART_TYPES = new Set([
   'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'funnel',
+  'scatter', 'treemap', 'sankey',
 ]);
 
 /**

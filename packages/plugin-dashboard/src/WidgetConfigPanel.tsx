@@ -72,10 +72,15 @@ const AGGREGATING_TYPES = ['metric', ...CHART_TYPES];
 // re-runs the query grouped by that field, producing multiple results).
 const CATEGORY_GROUPED_TYPES = [...CHART_TYPES];
 
-// Widget types that support drill-down (clicking a cell/segment opens a
-// filtered list of underlying records). Pairs with the @object-ui/core
-// `drill-down` helpers.
-const DRILL_DOWN_TYPES = ['pivot', 'metric', 'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'funnel'];
+// Widget types that support drill-down. Aggregating widgets (chart / pivot /
+// metric) drill *through* — clicking a cell/segment opens a filtered list of
+// underlying records. Record widgets (table / list) drill *to record* —
+// clicking a row opens that record's detail. Pairs with the @object-ui/core
+// `drill-down` helpers and the `DrillDownConfig.mode` discriminator.
+const DRILL_DOWN_TYPES = [
+  'pivot', 'metric', 'bar', 'horizontal-bar', 'line', 'area', 'pie', 'donut', 'funnel',
+  'scatter', 'treemap', 'sankey', 'table', 'list',
+];
 
 function isChartType(t: string | undefined): boolean {
   return !!t && CHART_TYPES.includes(t);
@@ -509,7 +514,7 @@ function buildWidgetSchema(
             label: 'Enable drill-down',
             type: 'switch',
             defaultValue: false,
-            helpText: 'When enabled, clicking a cell / segment opens a filtered list of underlying records.',
+            helpText: 'When enabled, clicking a chart segment / pivot cell opens a filtered list of underlying records; clicking a table or list row opens that record.',
           },
           {
             key: 'drillDownTarget',

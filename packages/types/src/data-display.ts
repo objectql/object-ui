@@ -687,6 +687,22 @@ export type PivotAggregation = 'sum' | 'count' | 'avg' | 'min' | 'max';
 export interface DrillDownConfig {
   /** Master switch. Set to true (or supply any other field) to enable. */
   enabled?: boolean;
+  /**
+   * Which drill interaction the widget performs:
+   *
+   * - `'filter'` (default) — **drill-through**: the click point is an
+   *   aggregated bucket (pivot cell, chart segment, KPI). The drawer lists
+   *   the underlying records filtered by the click context. Used by charts,
+   *   pivot tables and metric cards.
+   * - `'record'` — **drill-to-record**: the click point already *is* a single
+   *   record (a row in a table / list widget). The drawer shows that record's
+   *   detail instead of a filtered list. This is the default for table / list
+   *   widgets, mirroring Salesforce list-view row → record and Power BI's
+   *   "see records" row interaction.
+   *
+   * When omitted the consuming widget picks the natural default for its type.
+   */
+  mode?: 'filter' | 'record';
   /** Where the drill-down view opens. Defaults to "drawer". */
   target?: 'drawer' | 'dialog';
   /**
