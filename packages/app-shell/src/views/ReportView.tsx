@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 const ReportViewer = lazy(() =>
   import('@object-ui/plugin-report').then((m) => ({ default: m.ReportViewer })),
 );
@@ -22,6 +22,9 @@ import { persistRuntimeMetadata } from './runtime-metadata-persistence';
 import { useAuth } from '@object-ui/auth';
 import type { DataSource, ReportViewerSchema } from '@object-ui/types';
 import type { DatasetDrillArgs } from '@object-ui/plugin-report';
+import { DrillDownDrawer } from '@object-ui/plugin-dashboard';
+import { DrillNavigationProvider } from '@object-ui/react';
+import { useOpenRecordList } from './useOpenRecordList';
 
 // Fallback fields when no schema is available
 const FALLBACK_FIELDS = [
@@ -37,8 +40,7 @@ const FALLBACK_FIELDS = [
 
 export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const { t } = useObjectTranslation();
-  const { appName, reportName } = useParams<{ appName?: string; reportName: string }>();
-  const navigate = useNavigate();
+  const { reportName } = useParams<{ reportName: string }>();
   const { showDebug } = useMetadataInspector();
   const adapter = useAdapter();
   // ADR-0034: report edits persist via the metadata draft/publish model.
@@ -64,6 +66,12 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   // State for report runtime data
   const [reportRuntimeData, setReportRuntimeData] = useState<any[]>([]);
   const [dataLoading, setDataLoading] = useState(false);
+
+  // Drill-through (ADR-0021 D2): clicking an aggregated row/cell opens the
+  // underlying records in an in-place drawer (peek without leaving the report),
+  // with an "Open in list →" escape hatch to the full object list page.
+  const openRecordList = useOpenRecordList();
+  const [drill, setDrill] = useState<{ object: string; filter: Record<string, unknown>; title: string } | null>(null);
 
   const getFieldsForObject = useCallback(
     (objName: string | undefined) => {
@@ -105,22 +113,22 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const handleDatasetDrill = useCallback(
     async ({ dataset, groupKey, object, objectFilter }: DatasetDrillArgs) => {
       try {
+        // Drawer header: the clicked group's display values (e.g. "West / Q3").
+        const titleParts = Object.values(groupKey).filter((v) => v != null).map((v) => String(v));
+        const title = titleParts.join(' / ')
+          || String(reportData?.label ?? reportData?.name ?? 'Details');
+
         // Fast path (ADR-0021 D2): the renderer already resolved the dataset's
         // base object + an exact object FIELD → RAW value filter from the
-        // server's drillRawRows. Navigate straight to it — correct for
-        // select/lookup dims (a stored value, not a display label) with NO
-        // dataset-definition round-trip and no label reverse-mapping.
+        // server's drillRawRows — correct for select/lookup dims (a stored
+        // value, not a display label) with NO dataset-definition round-trip.
         if (object && objectFilter) {
-          const params = new URLSearchParams();
-          for (const [field, value] of Object.entries(objectFilter)) {
-            if (value == null) continue;
-            params.set(`filter[${field}]`, String(value));
-          }
-          const qs = params.toString();
-          const base = appName ? `/apps/${appName}` : '';
-          navigate(`${base}/${object}${qs ? `?${qs}` : ''}`);
+          setDrill({ object, filter: objectFilter, title });
           return;
         }
+
+        // Fallback (older server with no drill metadata): resolve the dataset's
+        // object and reverse-map dimension labels → stored values ourselves.
         const def = await metadataClient.get<Record<string, any>>('dataset', dataset);
         const objectName = typeof def?.object === 'string' ? def.object : undefined;
         if (!objectName) return;
@@ -136,7 +144,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
           return undefined;
         };
 
-        const params = new URLSearchParams();
+        const filter: Record<string, unknown> = {};
         for (const [dim, value] of Object.entries(groupKey)) {
           if (value == null) continue;
           const dimDef = dimByName.get(dim);
@@ -151,16 +159,14 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
             );
             if (opt && opt.value != null) stored = opt.value;
           }
-          params.set(`filter[${field}]`, String(stored));
+          filter[field] = stored;
         }
-        const qs = params.toString();
-        const base = appName ? `/apps/${appName}` : '';
-        navigate(`${base}/${objectName}${qs ? `?${qs}` : ''}`);
+        setDrill({ object: objectName, filter, title });
       } catch (err) {
-        console.warn('ReportView: drill navigation failed', err);
+        console.warn('ReportView: drill failed', err);
       }
     },
-    [metadataClient, navigate, appName, objects],
+    [metadataClient, objects, reportData],
   );
 
   // Derive available fields from object schema for filter/sort editors
@@ -524,6 +530,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   };
 
   return (
+    <DrillNavigationProvider value={{ openRecordList }}>
     <div className="flex flex-col h-full overflow-hidden bg-background">
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 sm:gap-4 p-4 sm:p-6 border-b shrink-0">
         <div className="min-w-0 flex-1">
@@ -583,5 +590,17 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
          />
       </div>
     </div>
+    {/* Drill-through drawer: peek the records behind a clicked group, then
+        click a row to open a record, or use "Open in list →" to escalate to
+        the full object list page. */}
+    <DrillDownDrawer
+      open={!!drill}
+      onClose={() => setDrill(null)}
+      title={drill?.title ?? ''}
+      objectName={drill?.object ?? ''}
+      filter={drill?.filter}
+      dataSource={dataSource as any}
+    />
+    </DrillNavigationProvider>
   );
 }

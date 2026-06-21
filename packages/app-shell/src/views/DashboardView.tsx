@@ -9,6 +9,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { DashboardRenderer } from '@object-ui/plugin-dashboard';
+import { DrillNavigationProvider } from '@object-ui/react';
+import { useOpenRecordList } from './useOpenRecordList';
 import { ModalForm } from '@object-ui/plugin-form';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
 import { useAuth } from '@object-ui/auth';
@@ -93,6 +95,8 @@ function defaultWidgetTitle(type: string): string {
 // ---------------------------------------------------------------------------
 
 export function DashboardView({ dataSource }: { dataSource?: any }) {
+  // Drill "escape hatch": lets the drill drawers open an object's full list page.
+  const openRecordList = useOpenRecordList();
   const { dashboardName } = useParams<{ dashboardName: string }>();
   const { showDebug } = useMetadataInspector();
   const adapter = useAdapter();
@@ -412,17 +416,19 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
       {/* ── Main area + Config Panel ─────────────────────────────── */}
       <div className="flex-1 overflow-hidden flex flex-col sm:flex-row relative">
          <div className="flex-1 min-w-0 overflow-auto p-2 sm:p-4 md:p-6">
-            <DashboardRenderer
-              schema={previewSchema}
-              dataSource={dataSource}
-              designMode={configPanelOpen}
-              selectedWidgetId={selectedWidgetId}
-              onWidgetClick={setSelectedWidgetId}
-              onWidgetsReorder={handleWidgetsReorder}
-              modalHandler={modalHandler}
-              scriptHandlers={scriptHandlers}
-              hideHeaderText
-            />
+            <DrillNavigationProvider value={{ openRecordList }}>
+              <DashboardRenderer
+                schema={previewSchema}
+                dataSource={dataSource}
+                designMode={configPanelOpen}
+                selectedWidgetId={selectedWidgetId}
+                onWidgetClick={setSelectedWidgetId}
+                onWidgetsReorder={handleWidgetsReorder}
+                modalHandler={modalHandler}
+                scriptHandlers={scriptHandlers}
+                hideHeaderText
+              />
+            </DrillNavigationProvider>
          </div>
 
          {/* Right-side config panel — one controlled panel that switches

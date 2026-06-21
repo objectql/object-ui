@@ -763,6 +763,7 @@ const zh = {
     datasetUnsupported: '当前数据源不支持数据集查询。',
     details: '明细',
     exportCsv: '导出 CSV',
+    openInList: '在列表中打开',
     trend: {
       vsLastQuarter: '较上季度',
       vsLastMonth: '较上月',
