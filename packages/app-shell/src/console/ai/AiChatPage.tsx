@@ -1109,9 +1109,11 @@ function metadataAssistantSuggestions(t: TranslationFn): string[] {
   // natural-language description (the magic moment), so the empty-state nudges
   // toward "describe a system" rather than inspecting existing schema.
   return [
-    t('console.ai.suggestions.metadataAssistant.buildCrm', { defaultValue: 'Build a CRM: customers, contacts and opportunities, with relationships.' }),
-    t('console.ai.suggestions.metadataAssistant.buildApp', { defaultValue: 'Create a project management app: projects, tasks and members.' }),
-    t('console.ai.suggestions.metadataAssistant.buildFlow', { defaultValue: 'Design a ticketing system: tickets, priority and a status flow.' }),
+    t('console.ai.suggestions.metadataAssistant.buildCrm', { defaultValue: 'Build a sales CRM — customers, contacts, and a deal pipeline I can total by stage.' }),
+    t('console.ai.suggestions.metadataAssistant.buildApp', { defaultValue: 'Create a project tracker — projects, tasks with owners and due dates, and a board by status.' }),
+    t('console.ai.suggestions.metadataAssistant.buildFlow', { defaultValue: 'Design a support desk — tickets with priority, a status workflow, and customer links.' }),
+    t('console.ai.suggestions.metadataAssistant.buildInventory', { defaultValue: 'Build an inventory app — products, stock levels, suppliers, and low-stock visibility.' }),
+    t('console.ai.suggestions.metadataAssistant.buildRecruiting', { defaultValue: 'Make an applicant tracker — candidates, open roles, interview stages, and notes.' }),
   ];
 }
 

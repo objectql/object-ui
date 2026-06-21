@@ -1113,9 +1113,11 @@ const en = {
           recordCounts: 'Count records for each object.',
         },
         metadataAssistant: {
-          buildCrm: 'Build a CRM: customers, contacts and opportunities, with relationships.',
-          buildApp: 'Create a project management app: projects, tasks and members.',
-          buildFlow: 'Design a ticketing system: tickets, priority and a status flow.',
+          buildCrm: 'Build a sales CRM — customers, contacts, and a deal pipeline I can total by stage.',
+          buildApp: 'Create a project tracker — projects, tasks with owners and due dates, and a board by status.',
+          buildFlow: 'Design a support desk — tickets with priority, a status workflow, and customer links.',
+          buildInventory: 'Build an inventory app — products, stock levels, suppliers, and low-stock visibility.',
+          buildRecruiting: 'Make an applicant tracker — candidates, open roles, interview stages, and notes.',
         },
         generic: {
           help: 'What can you help me with?',
