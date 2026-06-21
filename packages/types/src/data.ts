@@ -63,6 +63,15 @@ export interface QueryParams {
   $search?: string;
 
   /**
+   * Optional override of which fields `$search` matches (ADR-0061).
+   * The server intersects this with the object's allowed searchable set and
+   * ignores anything outside it — it can only *narrow*, never widen, the
+   * server-resolved default (`object.searchableFields`). Omit to let the server
+   * resolve fields from metadata (the normal case).
+   */
+  $searchFields?: string[];
+
+  /**
    * Total count of records (for pagination)
    */
   $count?: boolean;
