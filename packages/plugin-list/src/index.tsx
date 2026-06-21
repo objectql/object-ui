@@ -54,9 +54,18 @@ ComponentRegistry.register('list-view', ListView, {
   }
 });
 
-// Alias for generic view
+// Alias for generic view, exposed only as `view:list`.
+//
+// `skipFallback` is required: the bare `list` key belongs to the bullet/numbered
+// list DISPLAY primitive (`ui:list` in @object-ui/components), used by page
+// schemas like `{ type: 'list', items: [...] }`. Without skipFallback this alias
+// clobbered the bare key, so a hand-authored bullet list resolved to the
+// data-bound ListView (which requires `objectName`) instead. Object list VIEWS
+// are rendered via `type: 'list-view'`, never the bare `list` lookup, so the
+// data view loses nothing by yielding the bare key.
 ComponentRegistry.register('list', ListView, {
   namespace: 'view',
+  skipFallback: true,
   category: 'view',
   label: 'List',
   icon: 'LayoutList',

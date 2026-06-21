@@ -1980,16 +1980,31 @@ const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentTyp
  * // Register only the text field
  * registerField('text');
  */
-// Field types whose short name collides with a display widget in
-// @object-ui/components. These remain accessible via the namespaced
-// `field:<type>` key, but should not overwrite the bare `<type>` fallback
-// (which the display widget owns and which most schemas expect).
+// Field types whose short name collides with a display/ui/view/plugin component
+// registered elsewhere (e.g. the display widgets and form-input primitives in
+// @object-ui/components, or the markdown display plugin). These remain
+// accessible via the namespaced `field:<type>` key — which is how forms resolve
+// them (see form.tsx renderFieldComponent + mapFieldTypeToFormType) — but must
+// not overwrite the bare `<type>` fallback, which the display/ui primitive owns
+// and which page schemas expect (e.g. `{ type: 'markdown', content }` → the
+// markdown renderer, not the RichText editor). Without skipFallback each of
+// these logged a "bare-name fallback is being overwritten" warning at boot.
 const FIELD_TYPES_SKIP_FALLBACK = new Set([
+  // Display widgets (text/html/image/avatar/grid live in @object-ui/components
+  // or @object-ui/layout as the bare-name owners).
   'text',
   'html',
   'image',
   'avatar',
   'grid',
+  // Form-input primitives owned by `ui:*` in @object-ui/components.
+  'textarea',
+  'select',
+  'email',
+  'password',
+  'slider',
+  // Display renderer owned by `plugin-markdown:markdown`.
+  'markdown',
 ]);
 
 export function registerField(fieldType: string): void {
@@ -2037,24 +2052,33 @@ export function registerFields() {
   // only via the namespaced `field:text` key and let the display widget win
   // the bare `text` lookup.
   ComponentRegistry.register('text', createFieldRenderer(TextField), { namespace: 'field', skipFallback: true });
-  ComponentRegistry.register('textarea', createFieldRenderer(TextAreaField), { namespace: 'field' });
+  // `textarea`/`select` collide with the `ui:*` form-input primitives that own
+  // the bare keys; namespaced-only (forms use `field:<type>`). See the shared
+  // FIELD_TYPES_SKIP_FALLBACK note above registerField().
+  ComponentRegistry.register('textarea', createFieldRenderer(TextAreaField), { namespace: 'field', skipFallback: true });
   ComponentRegistry.register('number', createFieldRenderer(NumberField), { namespace: 'field' });
   ComponentRegistry.register('boolean', createFieldRenderer(BooleanField), { namespace: 'field' });
-  ComponentRegistry.register('select', createFieldRenderer(SelectField), { namespace: 'field' });
+  ComponentRegistry.register('select', createFieldRenderer(SelectField), { namespace: 'field', skipFallback: true });
   ComponentRegistry.register('date', createFieldRenderer(DateField), { namespace: 'field' });
   ComponentRegistry.register('datetime', createFieldRenderer(DateTimeField), { namespace: 'field' });
   ComponentRegistry.register('time', createFieldRenderer(TimeField), { namespace: 'field' });
   
   // Contact fields - wrapped for documentation compatibility
-  ComponentRegistry.register('email', createFieldRenderer(EmailField), { namespace: 'field' });
+  // `email` collides with the `ui:email` input variant; namespaced-only so the
+  // display/input primitive keeps the bare key (forms use `field:email`).
+  ComponentRegistry.register('email', createFieldRenderer(EmailField), { namespace: 'field', skipFallback: true });
   ComponentRegistry.register('phone', createFieldRenderer(PhoneField), { namespace: 'field' });
   ComponentRegistry.register('url', createFieldRenderer(UrlField), { namespace: 'field' });
   
   // Specialized fields - wrapped for documentation compatibility
   ComponentRegistry.register('currency', createFieldRenderer(CurrencyField), { namespace: 'field' });
   ComponentRegistry.register('percent', createFieldRenderer(PercentField), { namespace: 'field' });
-  ComponentRegistry.register('password', createFieldRenderer(PasswordField), { namespace: 'field' });
-  ComponentRegistry.register('markdown', createFieldRenderer(RichTextField), { namespace: 'field' });
+  // `password` collides with the `ui:password` input variant; namespaced-only.
+  ComponentRegistry.register('password', createFieldRenderer(PasswordField), { namespace: 'field', skipFallback: true });
+  // `markdown` collides with the markdown DISPLAY renderer (plugin-markdown:markdown),
+  // which owns bare `{ type: 'markdown', content }`; the field renderer here is the
+  // RichText editor, reached by forms via `field:markdown`. Namespaced-only.
+  ComponentRegistry.register('markdown', createFieldRenderer(RichTextField), { namespace: 'field', skipFallback: true });
   // `html` collides with the HTML-rendering display widget. Keep the
   // markdown field, but expose the HTML field only via `field:html` so the
   // display widget remains the default for { type: 'html', content }.
@@ -2089,7 +2113,8 @@ export function registerFields() {
   
   // NEW: Additional field types from @objectstack/spec
   ComponentRegistry.register('color', createFieldRenderer(ColorField), { namespace: 'field' });
-  ComponentRegistry.register('slider', createFieldRenderer(SliderField), { namespace: 'field' });
+  // `slider` collides with the `ui:slider` display control; namespaced-only.
+  ComponentRegistry.register('slider', createFieldRenderer(SliderField), { namespace: 'field', skipFallback: true });
   ComponentRegistry.register('rating', createFieldRenderer(RatingField), { namespace: 'field' });
   ComponentRegistry.register('code', createFieldRenderer(CodeField), { namespace: 'field' });
   // `avatar` collides with the display avatar widget; namespaced-only.

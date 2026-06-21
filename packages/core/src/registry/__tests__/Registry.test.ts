@@ -320,4 +320,69 @@ describe('Registry', () => {
       expect(consoleWarnSpy).not.toHaveBeenCalled();
     });
   });
+
+  // Regression guard for the dev-console collision warnings. The real packages
+  // register a form-input/display/view/plugin component under a bare name AND a
+  // `field:`/`view:`/`plugin-markdown:` namespaced renderer that shares the same
+  // short name. The bare key must stay with the DISPLAY/UI/view owner (forms
+  // reach the field widget via the explicit `field:<type>` lookup), and no
+  // collision warning must fire. Each case below mirrors the registration order
+  // and skipFallback flags used by the shipping code.
+  describe('bare-name ownership for field vs display/view/plugin collisions', () => {
+    // [bareName, sequence in registration order]. The LAST entry whose
+    // skipFallback is falsy owns the bare key; `owner` asserts the intended one.
+    const CASES: Array<{
+      name: string;
+      owner: string; // namespace expected to own the bare key
+      seq: Array<{ ns: string; skipFallback?: boolean }>;
+    }> = [
+      // @object-ui/components registers `ui:*` first (owns bare), then
+      // @object-ui/fields registers `field:*` with skipFallback.
+      { name: 'textarea', owner: 'ui', seq: [{ ns: 'ui' }, { ns: 'field', skipFallback: true }] },
+      { name: 'select', owner: 'ui', seq: [{ ns: 'ui' }, { ns: 'field', skipFallback: true }] },
+      { name: 'email', owner: 'ui', seq: [{ ns: 'ui' }, { ns: 'field', skipFallback: true }] },
+      { name: 'password', owner: 'ui', seq: [{ ns: 'ui' }, { ns: 'field', skipFallback: true }] },
+      { name: 'slider', owner: 'ui', seq: [{ ns: 'ui' }, { ns: 'field', skipFallback: true }] },
+      // The bullet-list display primitive owns bare `list`; the data ListView is
+      // a namespaced-only `view:list` alias.
+      { name: 'list', owner: 'ui', seq: [{ ns: 'ui' }, { ns: 'view', skipFallback: true }] },
+      // The markdown editor field registers first (skipFallback), then the
+      // markdown DISPLAY plugin claims the bare key.
+      { name: 'markdown', owner: 'plugin-markdown', seq: [{ ns: 'field', skipFallback: true }, { ns: 'plugin-markdown' }] },
+    ];
+
+    for (const { name, owner, seq } of CASES) {
+      it(`bare "${name}" resolves to the "${owner}" owner with no collision warning`, () => {
+        const components: Record<string, () => string> = {};
+        for (const { ns, skipFallback } of seq) {
+          const component = () => `${ns}:${name}`;
+          components[ns] = component;
+          registry.register(name, component, { namespace: ns, skipFallback });
+        }
+
+        // Bare key resolves to the intended display/view/plugin owner.
+        expect(registry.get(name)).toBe(components[owner]);
+        // Every namespaced renderer remains reachable via its explicit key —
+        // this is the lookup forms use (`field:<type>`), so they are unaffected.
+        for (const { ns } of seq) {
+          expect(registry.get(name, ns)).toBe(components[ns]);
+        }
+        // No "bare-name fallback is being overwritten" warning.
+        const collisionWarned = consoleWarnSpy.mock.calls.some((args: unknown[]) =>
+          typeof args[0] === 'string' && args[0].includes('bare-name fallback is being overwritten'),
+        );
+        expect(collisionWarned).toBe(false);
+      });
+    }
+
+    it('still warns if a field renderer drops skipFallback and clobbers the bare display key', () => {
+      const display = () => 'ui:textarea';
+      const field = () => 'field:textarea';
+      registry.register('textarea', display, { namespace: 'ui' });
+      // Simulate the bug this fix prevents: field:* without skipFallback.
+      registry.register('textarea', field, { namespace: 'field' });
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      expect(registry.get('textarea')).toBe(field); // bare clobbered (the regression)
+    });
+  });
 });
