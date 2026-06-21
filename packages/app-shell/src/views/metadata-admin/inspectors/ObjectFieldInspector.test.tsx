@@ -8,6 +8,20 @@ vi.mock('../useMetadata', () => ({
   useMetadataClient: () => ({ list: vi.fn().mockResolvedValue([]) }),
 }));
 
+// Lookup picker config reads the referenced object's fields; stub the catalog.
+vi.mock('../previews/useObjectFields', () => ({
+  useObjectFields: (obj?: string) => ({
+    fields: obj
+      ? [
+          { name: 'name', label: 'Name', type: 'text', hidden: false },
+          { name: 'status', label: 'Status', type: 'select', hidden: false },
+        ]
+      : [],
+    loading: false,
+    error: null,
+  }),
+}));
+
 import { ObjectFieldInspector } from './ObjectFieldInspector';
 
 afterEach(cleanup);
@@ -137,5 +151,43 @@ describe('ObjectFieldInspector — read-only', () => {
     renderField({ note: { type: 'text' } }, 'note', { readOnly: true });
     expect(controlFor('Help text')).toBeDisabled();
     expect(controlFor('Required when (CEL)')).toBeDisabled();
+  });
+});
+
+describe('ObjectFieldInspector — lookup picker config', () => {
+  const lookupFields = {
+    account: { type: 'lookup', label: 'Account', reference: 'crm_account' },
+    name: { type: 'text' },
+  };
+
+  it('surfaces displayField / selectable-records / depends-on for a lookup field', () => {
+    renderField(lookupFields, 'account');
+    expect(screen.getByText('Picker config')).toBeInTheDocument();
+    expect(screen.getByText('Display field')).toBeInTheDocument();
+    expect(screen.getByText('Description field')).toBeInTheDocument();
+    expect(screen.getByText('Selectable records')).toBeInTheDocument();
+    expect(screen.getByText(/Depends on/)).toBeInTheDocument();
+    expect(screen.getByText('Allow quick-create')).toBeInTheDocument();
+  });
+
+  it('does NOT render picker config for a non-lookup field', () => {
+    renderField({ amount: { type: 'number' } }, 'amount');
+    expect(screen.queryByText('Picker config')).not.toBeInTheDocument();
+  });
+
+  it('adds a structured lookupFilters row via onPatch', () => {
+    const { onPatch } = renderField(lookupFields, 'account');
+    fireEvent.click(screen.getByText('Add filter'));
+    const patch = onPatch.mock.calls.at(-1)![0];
+    expect(patch.fields.account.lookupFilters).toEqual([{ field: '', operator: 'eq', value: '' }]);
+  });
+
+  it('reads an existing structured filter and renders its row', () => {
+    renderField(
+      { account: { type: 'lookup', reference: 'crm_account', lookupFilters: [{ field: 'status', operator: 'eq', value: 'active' }] } },
+      'account',
+    );
+    expect(screen.getByText('Filter 1')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('active')).toBeInTheDocument();
   });
 });

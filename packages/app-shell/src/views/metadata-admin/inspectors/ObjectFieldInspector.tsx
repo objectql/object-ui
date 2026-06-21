@@ -38,6 +38,8 @@ import {
 } from './_shared';
 import { Button, Input, Label, Badge } from '@object-ui/components';
 import { Plus, X, ArrowUp, ArrowDown, Copy } from 'lucide-react';
+import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
+import { useObjectFields } from '../previews/useObjectFields';
 import {
   readFields,
   writeFields,
@@ -372,6 +374,12 @@ export function ObjectFieldInspector({
                 onCommit={(v) => patchDef({ relationshipName: v || undefined })}
                 disabled={readOnly}
                 placeholder={tr('designer.field.relationshipNameHint')}
+              />
+              <LookupConfigFields
+                def={def}
+                patchDef={patchDef}
+                hostFieldNames={view.entries.map((e) => e.name).filter((n) => n !== entry.name)}
+                readOnly={readOnly}
               />
             </>
           )}
@@ -760,6 +768,218 @@ function OptionsEditor({
           {t('designer.field.addValue', locale)}
         </Button>
       )}
+    </div>
+  );
+}
+
+/* ─────────────── Lookup picker config (displayField / filters / dependent) ─────────────── */
+
+const LOOKUP_OPERATORS: Array<{ value: string; label: string }> = [
+  { value: 'eq', label: '= equals' },
+  { value: 'ne', label: '≠ not equals' },
+  { value: 'gt', label: '> greater than' },
+  { value: 'lt', label: '< less than' },
+  { value: 'gte', label: '≥ at least' },
+  { value: 'lte', label: '≤ at most' },
+  { value: 'contains', label: 'contains' },
+  { value: 'in', label: 'in (any of)' },
+  { value: 'notIn', label: 'not in' },
+];
+
+type LookupFilter = { field?: string; operator?: string; value?: unknown };
+
+function readLookupFilters(def: Record<string, unknown>): LookupFilter[] {
+  const raw = def.lookupFilters ?? (def as Record<string, unknown>).lookup_filters;
+  return Array.isArray(raw) ? (raw as LookupFilter[]) : [];
+}
+
+function readDependsOn(def: Record<string, unknown>): string[] {
+  const raw = def.dependsOn ?? (def as Record<string, unknown>).depends_on;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((d) => (typeof d === 'string' ? d : d && typeof d === 'object' ? (d as { field?: string }).field : undefined))
+    .filter((x): x is string => !!x);
+}
+
+/**
+ * Lookup/master_detail picker configuration. Surfaces the parts that
+ * previously required hand-editing the raw JSON: which field labels each
+ * candidate (`displayField`/`descriptionField`), which records are even
+ * selectable (structured `lookupFilters` — the form the runtime LookupField
+ * actually honours, not the legacy `referenceFilters` strings), and
+ * dependent-lookup links to other fields on the same record (`dependsOn`).
+ * Every field choice is picked from the referenced object's live schema.
+ */
+function LookupConfigFields({
+  def,
+  patchDef,
+  hostFieldNames,
+  readOnly,
+}: {
+  def: Record<string, unknown>;
+  patchDef: (patch: Record<string, unknown>) => void;
+  hostFieldNames: string[];
+  readOnly?: boolean;
+}) {
+  const reference = typeof def.reference === 'string' ? (def.reference as string) : undefined;
+  const { fields: targetFields, loading } = useObjectFields(reference);
+
+  const fieldOptions: InspectorComboOption[] = React.useMemo(
+    () => targetFields.filter((f) => !f.hidden).map((f) => ({ value: f.name, label: f.label, hint: f.type })),
+    [targetFields],
+  );
+  const hostOptions: InspectorComboOption[] = React.useMemo(
+    () => hostFieldNames.map((n) => ({ value: n, label: n })),
+    [hostFieldNames],
+  );
+
+  const filters = readLookupFilters(def);
+  const dependsOn = readDependsOn(def);
+
+  const patchFilter = (i: number, patch: Partial<LookupFilter>) =>
+    patchDef({ lookupFilters: filters.map((f, idx) => (idx === i ? { ...f, ...patch } : f)) });
+  const addFilter = () => patchDef({ lookupFilters: [...filters, { field: '', operator: 'eq', value: '' }] });
+  const removeFilter = (i: number) => {
+    const next = filters.filter((_, idx) => idx !== i);
+    patchDef({ lookupFilters: next.length ? next : undefined });
+  };
+
+  // `in` / `notIn` take a list; everything else a scalar. Keep the editor a
+  // single text input and (de)serialize the list form at the boundary.
+  const valueToText = (v: unknown): string => (Array.isArray(v) ? v.join(', ') : v == null ? '' : String(v));
+  const textToValue = (op: string | undefined, s: string): unknown =>
+    op === 'in' || op === 'notIn' ? s.split(',').map((x) => x.trim()).filter(Boolean) : s;
+
+  const addDependsOn = (name: string) => {
+    if (!name || dependsOn.includes(name)) return;
+    patchDef({ dependsOn: [...dependsOn, name] });
+  };
+  const removeDependsOn = (name: string) => {
+    const next = dependsOn.filter((n) => n !== name);
+    patchDef({ dependsOn: next.length ? next : undefined });
+  };
+
+  const displayField = typeof def.displayField === 'string' ? (def.displayField as string) : '';
+  const descriptionField = typeof def.descriptionField === 'string' ? (def.descriptionField as string) : '';
+  const pageSize = typeof def.lookupPageSize === 'number' ? (def.lookupPageSize as number) : undefined;
+  const allowCreate = def.allowCreate === true;
+  const fieldPlaceholder = reference ? 'Select a field…' : 'Set the target object first';
+
+  return (
+    <div className="space-y-2 border-t pt-2.5">
+      <div className="text-[11px] font-medium text-muted-foreground">Picker config</div>
+
+      <InspectorComboField
+        label="Display field"
+        value={displayField}
+        onCommit={(v) => patchDef({ displayField: v || undefined })}
+        options={fieldOptions}
+        loading={loading}
+        placeholder={fieldPlaceholder}
+        searchPlaceholder="Search fields…"
+        disabled={readOnly}
+        mono
+      />
+      <InspectorComboField
+        label="Description field"
+        value={descriptionField}
+        onCommit={(v) => patchDef({ descriptionField: v || undefined })}
+        options={fieldOptions}
+        loading={loading}
+        placeholder={fieldPlaceholder}
+        searchPlaceholder="Search fields…"
+        disabled={readOnly}
+        mono
+      />
+
+      {/* Structured selectable-records filter (lookupFilters) */}
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs text-muted-foreground">Selectable records</Label>
+            <Badge variant="outline" className="text-[10px]">{filters.length}</Badge>
+          </div>
+          {!readOnly && (
+            <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-[11px]" onClick={addFilter}>
+              <Plus className="h-3 w-3" /> Add filter
+            </Button>
+          )}
+        </div>
+        {filters.length === 0 ? (
+          <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-center text-[11px] text-muted-foreground">
+            No filter — every {reference || 'related'} record is selectable.
+          </p>
+        ) : (
+          filters.map((f, i) => (
+            <div key={i} className="rounded-md border p-2 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">Filter {i + 1}</span>
+                {!readOnly && (
+                  <Button type="button" variant="ghost" size="sm" aria-label="Remove filter" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => removeFilter(i)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+              <InspectorComboField
+                label="Field"
+                value={f.field ?? ''}
+                onCommit={(v) => patchFilter(i, { field: v })}
+                options={fieldOptions}
+                loading={loading}
+                placeholder={fieldPlaceholder}
+                searchPlaceholder="Search fields…"
+                disabled={readOnly}
+                mono
+              />
+              <InspectorSelectField label="Operator" value={f.operator ?? 'eq'} options={LOOKUP_OPERATORS} onCommit={(v) => patchFilter(i, { operator: v })} disabled={readOnly} />
+              <InspectorTextField
+                label="Value"
+                value={valueToText(f.value)}
+                onCommit={(v) => patchFilter(i, { value: textToValue(f.operator, v) })}
+                placeholder={f.operator === 'in' || f.operator === 'notIn' ? 'comma,separated,values' : 'value'}
+                disabled={readOnly}
+                mono
+              />
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Dependent lookup (dependsOn) — narrow candidates by other fields on this record */}
+      <div className="space-y-1.5 pt-1">
+        <Label className="text-xs text-muted-foreground">Depends on (same-record fields)</Label>
+        {dependsOn.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {dependsOn.map((n) => (
+              <span key={n} className="inline-flex items-center gap-1 rounded bg-secondary px-2 py-0.5 text-[11px] font-mono">
+                {n}
+                {!readOnly && (
+                  <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => removeDependsOn(n)} aria-label={`Remove ${n}`}>×</button>
+                )}
+              </span>
+            ))}
+          </div>
+        )}
+        {!readOnly && hostOptions.length > 0 && (
+          <InspectorComboField
+            value=""
+            onCommit={(v) => addDependsOn(v)}
+            options={hostOptions.filter((o) => !dependsOn.includes(o.value))}
+            placeholder="Add a field this lookup depends on…"
+            searchPlaceholder="Search this object's fields…"
+            disabled={readOnly}
+            allowCustom={false}
+            mono
+          />
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <InspectorNumberField label="Picker page size" value={pageSize} onCommit={(v) => patchDef({ lookupPageSize: v })} placeholder="10" disabled={readOnly} />
+        <div className="flex items-end pb-1.5">
+          <InspectorCheckboxField label="Allow quick-create" value={allowCreate} onCommit={(v) => patchDef({ allowCreate: v || undefined })} disabled={readOnly} />
+        </div>
+      </div>
     </div>
   );
 }
