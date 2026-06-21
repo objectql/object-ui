@@ -723,9 +723,11 @@ export default function ConsoleFloatingChatbot({
 
   // Server-backed conversation. Scoped by agent so each agent gets its own
   // persistent history. Hook is inert until `userId` is provided; without it
-  // the FAB continues to work in local-only mode (no persistence).
+  // the FAB continues to work in local-only mode (no persistence). Gate `userId`
+  // on the agent being resolved so the conversation binds to the right scope
+  // from the first resolve (not a scopeless one during the catalog load).
   const { conversationId, initialMessages } = useChatConversation({
-    userId,
+    userId: activeAgent ? userId : undefined,
     scope: activeAgent,
     apiBase,
   });

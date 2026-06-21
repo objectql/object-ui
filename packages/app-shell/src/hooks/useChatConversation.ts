@@ -58,6 +58,13 @@ export interface UseChatConversationOptions {
 
 export interface UseChatConversationReturn {
   conversationId: string | undefined;
+  /**
+   * The `scope` (agent) the current `conversationId` was resolved under. Lets a
+   * host distinguish "this id belongs to the active agent" from "this id is the
+   * PREVIOUS agent's, pending re-resolution after a switch" — so it doesn't
+   * mirror a stale id onto the new agent's URL.
+   */
+  conversationScope: string | undefined;
   initialMessages: HydratedUIMessage[];
   isLoading: boolean;
   /** Delete the current conversation + start a fresh one. */
@@ -325,10 +332,13 @@ export function useChatConversation(
   const [initialMessages, setInitialMessages] = useState<HydratedUIMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(userId));
   const mountedRef = useRef(true);
-  // Tracks "we have already resolved a no-activeId conversation for this user".
-  // Prevents creating duplicate conversations when sibling state (e.g. the
-  // page's selected agent / `scope`) transitions during the same /ai visit.
+  // Tracks the (user, scope) we have already resolved a no-activeId
+  // conversation for. Keyed by SCOPE as well as user so a deliberate agent
+  // switch (the `/ai/:agent` launcher changes `scope`) re-resolves under the
+  // new agent's cache instead of clinging to the previous agent's conversation,
+  // while a no-op re-render under the same scope still short-circuits.
   const resolvedForUserRef = useRef<string | undefined>(undefined);
+  const resolvedScopeRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -343,22 +353,30 @@ export function useChatConversation(
       setInitialMessages([]);
       setIsLoading(false);
       resolvedForUserRef.current = undefined;
+      resolvedScopeRef.current = undefined;
       return;
     }
-    // Already resolved a conversation for this user during the no-activeId
-    // window — don't re-create just because `scope` or another dep changed.
-    // An explicit new-conversation intent (`forceNew`) overrides the guard.
-    if (!activeId && !forceNew && resolvedForUserRef.current === userId && conversationId) {
+    // Already resolved a conversation for this (user, scope) during the
+    // no-activeId window — don't re-create just because an unrelated dep
+    // changed. A `forceNew` intent or a scope (agent) change overrides it.
+    const scopeChanged = resolvedScopeRef.current !== scope;
+    if (
+      !activeId &&
+      !forceNew &&
+      !scopeChanged &&
+      resolvedForUserRef.current === userId &&
+      conversationId
+    ) {
       return;
     }
     let cancelled = false;
     const key = cacheKey(userId, scope);
-    // Explicit new-conversation intent: drop the previous id NOW, before the
-    // async create. The host page mirrors `conversationId` into the URL the
-    // moment `activeId` is empty — with the stale id still in state it would
-    // bounce straight back to `/ai/:oldId` and strip the `?new=1` flag before
-    // the fresh conversation ever existed.
-    if (!activeId && forceNew) {
+    // Drop the previous id NOW, before the async resolve, for both an explicit
+    // new-conversation intent AND an agent switch: the host page mirrors
+    // `conversationId` into the URL the moment `activeId` is empty, so a stale
+    // id left in state would be written onto the new agent's URL (`/ai/:agent`)
+    // and then resumed as that agent's conversation.
+    if (!activeId && (forceNew || (scopeChanged && resolvedForUserRef.current === userId))) {
       setConversationId(undefined);
       setInitialMessages([]);
     }
@@ -375,6 +393,7 @@ export function useChatConversation(
             const messages = toUIMessages(existing.messages);
             setInitialMessages(messages.length > 0 ? messages : readMessageCache(existing.id));
             resolvedForUserRef.current = userId;
+            resolvedScopeRef.current = scope;
             return;
           }
           // Requested id is gone — fall through to create a fresh one.
@@ -390,6 +409,7 @@ export function useChatConversation(
               const messages = toUIMessages(existing.messages);
               setInitialMessages(messages.length > 0 ? messages : readMessageCache(existing.id));
               resolvedForUserRef.current = userId;
+              resolvedScopeRef.current = scope;
               return;
             }
             writeCache(key, undefined);
@@ -402,6 +422,7 @@ export function useChatConversation(
         setConversationId(fresh.id);
         setInitialMessages(toUIMessages(fresh.messages));
         resolvedForUserRef.current = userId;
+        resolvedScopeRef.current = scope;
       } catch {
         if (!cancelled) {
           setConversationId(undefined);
@@ -445,5 +466,8 @@ export function useChatConversation(
     }
   }, [conversationId, userId, scope, apiBase]);
 
-  return { conversationId, initialMessages, isLoading, reset };
+  // `resolvedScopeRef` is updated in lockstep with every `setConversationId`
+  // (same async tick), so at render time it always describes the scope the
+  // current `conversationId` was resolved under.
+  return { conversationId, conversationScope: resolvedScopeRef.current, initialMessages, isLoading, reset };
 }

@@ -470,7 +470,6 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     useParams<{ agent?: string; conversationId?: string }>();
   const [searchParams] = useSearchParams();
   const searchString = searchParams.toString();
-  const queryString = searchString ? `?${searchString}` : '';
   // Explicit new-conversation intent (`?new=1`, the sidebar's New button).
   // Read LIVE (not snapshotted): the button can be clicked again later from an
   // existing conversation, and the flag is stripped once the fresh id is
@@ -500,11 +499,17 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     return resolveAgentParam(agentSegment, catalogNames) !== undefined;
   }, [agentSegment, agents.length, catalogNames]);
 
-  // App/platform default — used for a bare `/ai`, and as the endpoint while a
-  // legacy bare-id link is being redirected to its real agent surface.
+  // Back-compat: the legacy deep-link `/ai?agent=metadata_assistant` (only
+  // meaningful on a bare `/ai`, before the agent moved into the path). Honored
+  // here, then stripped as the route is canonicalized to `/ai/:agent`.
+  const legacyAgentParam = !agentSegment ? searchParams.get('agent') ?? undefined : undefined;
+
+  // App/platform default — used for a bare `/ai` (respecting the legacy
+  // `?agent=`), and as the endpoint while a legacy bare-id link is being
+  // redirected to its real agent surface.
   const fallbackAgent = useMemo(
-    () => resolveDefaultAgentName(agents, defaultAgentProp ?? envDefaultAgent),
-    [agents, defaultAgentProp, envDefaultAgent],
+    () => resolveDefaultAgentName(agents, legacyAgentParam ?? defaultAgentProp ?? envDefaultAgent),
+    [agents, legacyAgentParam, defaultAgentProp, envDefaultAgent],
   );
 
   // Resolved backend agent name for this surface (route agent wins; else default).
@@ -525,8 +530,13 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`
     : undefined;
 
-  const { conversationId, initialMessages } = useChatConversation({
-    userId,
+  const { conversationId, conversationScope, initialMessages } = useChatConversation({
+    // Gate resolution on the agent being known: resolving while `activeAgent`
+    // is still undefined (catalog loading) would bind a SCOPELESS conversation
+    // that the per-(user,scope) guard then sticks with — so the agent surface
+    // would resume some other agent's last chat. Waiting one tick keys the
+    // conversation to the right agent from the first resolve.
+    userId: activeAgent ? userId : undefined,
     scope: activeAgent,
     apiBase,
     activeId: urlConversationId ?? legacyConversationId,
@@ -535,22 +545,26 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
 
   // ── Route canonicalization ──────────────────────────────────────────────
   // Back-compat redirects (the agent is now in the path): bare `/ai` → the
-  // default agent surface; a legacy built-in id in the agent slot
-  // (`/ai/metadata_assistant`) → its friendly form (`/ai/build`). Custom agents
-  // already route by their own name and no-op here. Query (e.g. `?new=1`) is
-  // preserved so the New-chat intent survives the redirect.
+  // default agent surface (or the `?agent=` deep-link target); a legacy built-in
+  // id in the agent slot (`/ai/metadata_assistant`) → its friendly form
+  // (`/ai/build`). Custom agents already route by their own name and no-op here.
+  // The `?new=1` intent is preserved; the consumed legacy `agent` param is
+  // stripped so it doesn't linger in the canonical URL.
   useEffect(() => {
     if (agents.length === 0 || !activeAgent) return;
     const friendly = agentRouteName(activeAgent);
+    const preserved = new URLSearchParams(searchString);
+    preserved.delete('agent');
+    const preservedQuery = preserved.toString() ? `?${preserved.toString()}` : '';
     if (!agentSegment) {
-      navigate(`/ai/${friendly}${queryString}`, { replace: true });
+      navigate(`/ai/${friendly}${preservedQuery}`, { replace: true });
       return;
     }
     if (segmentIsAgent && agentSegment !== friendly) {
       const tail = urlConversationId ? `/${encodeURIComponent(urlConversationId)}` : '';
-      navigate(`/ai/${friendly}${tail}${queryString}`, { replace: true });
+      navigate(`/ai/${friendly}${tail}${preservedQuery}`, { replace: true });
     }
-  }, [agents.length, activeAgent, agentSegment, segmentIsAgent, urlConversationId, queryString, navigate]);
+  }, [agents.length, activeAgent, agentSegment, segmentIsAgent, urlConversationId, searchString, navigate]);
 
   // ── Legacy `/ai/:conversationId` (bare id) ──────────────────────────────
   // Resolve the conversation's own agent and 301 to `/ai/:agent/:conversationId`
@@ -644,8 +658,13 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   useEffect(() => {
     if (!segmentIsAgent || urlConversationId || !conversationId || !activeAgentRoute) return;
     if (staleNewTargetRef.current && staleNewTargetRef.current.id === conversationId) return;
+    // Don't mirror a conversation that belongs to the PREVIOUS agent: right
+    // after a launcher switch, `conversationId` still holds the old agent's id
+    // until the hook re-resolves under the new scope. Mirroring it would write
+    // it onto the new agent's URL and resume the wrong chat.
+    if (conversationScope !== activeAgent) return;
     navigate(`/ai/${activeAgentRoute}/${conversationId}`, { replace: true });
-  }, [segmentIsAgent, urlConversationId, conversationId, activeAgentRoute, navigate]);
+  }, [segmentIsAgent, urlConversationId, conversationId, conversationScope, activeAgent, activeAgentRoute, navigate]);
 
   const titledRef = useRef<Set<string>>(new Set());
 
