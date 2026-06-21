@@ -267,29 +267,8 @@ export function coerceToSafeValue(value: unknown): string | number | boolean | n
  * Trailing `.00` is dropped when the value is a whole number — Salesforce
  * convention: `$1,234.50` keeps cents; `$1,234` does not.
  */
-/**
- * Resolve the display currency code for a currency field, in precedence order:
- * the field's explicit `currency` → its `currencyConfig.defaultCurrency` (fixed
- * mode) → a legacy top-level `defaultCurrency` → the tenant default
- * (`localization.currency`, ADR-0053). Returns `undefined` when none is known,
- * so the renderer shows a plain number rather than guessing a symbol.
- *
- * This is the single resolution the field renderers share — ending the
- * per-renderer inconsistency where some read only `currency`, others only
- * `defaultCurrency`, and others `currencyConfig`.
- */
-export function resolveFieldCurrency(
-  field: { currency?: string; defaultCurrency?: string; currencyConfig?: { defaultCurrency?: string } } | null | undefined,
-  tenantDefault?: string,
-): string | undefined {
-  return (
-    field?.currency ||
-    field?.currencyConfig?.defaultCurrency ||
-    field?.defaultCurrency ||
-    tenantDefault ||
-    undefined
-  );
-}
+import { resolveFieldCurrency } from './currency';
+export { resolveFieldCurrency };
 
 export function formatCurrency(value: number, currency?: string): string {
   const isWhole = Number.isFinite(value) && value === Math.trunc(value);

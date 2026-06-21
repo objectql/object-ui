@@ -1,6 +1,8 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
+import { useLocalization } from '@object-ui/i18n';
+import { resolveFieldCurrency } from '../currency';
 
 /**
  * Format currency value for display. When `currency` is undefined the value
@@ -36,7 +38,9 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 
 export function CurrencyField({ value, onChange, field, readonly, errorMessage, className, ...props }: FieldWidgetProps<number>) {
   const currencyField = (field || (props as any).schema) as any;
-  const currency: string | undefined = currencyField?.currency;
+  // Shared precedence: field currency → currencyConfig → tenant default (ADR-0053).
+  const { currency: tenantCurrency } = useLocalization();
+  const currency: string | undefined = resolveFieldCurrency(currencyField, tenantCurrency);
   const precision = currencyField?.precision ?? 2;
 
   if (readonly) {
