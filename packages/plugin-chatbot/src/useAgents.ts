@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { resolveAgentParam } from './agentAliases';
 
 export interface AgentDescriptor {
   /** Stable identifier used in the chat URL (e.g. "sales_assistant"). */
@@ -59,12 +60,15 @@ interface RawAgent {
  * Canonical name of the platform's data-query agent.
  *
  * Mirrors `DEFAULT_DATA_AGENT_NAME` in `@objectstack/service-ai`. This is
- * the implicit copilot bound to every application that does not pin its
- * own `app.defaultAgent` (Studio is the only built-in that overrides it,
- * → `metadata_assistant`). The UI prefers it so end users land on the
- * data assistant without having to choose from a list.
+ * the implicit copilot bound to every application that does not pin its own
+ * `app.defaultAgent` (Studio is the only built-in that overrides it, → the
+ * `build` authoring agent). The UI prefers it so end users land on the data
+ * assistant without having to choose from a list.
+ *
+ * Path A renamed `data_chat`→`ask`; resolution below is alias-aware, so a
+ * catalog still serving the legacy `data_chat` id resolves correctly too.
  */
-export const PLATFORM_DEFAULT_AGENT = 'data_chat';
+export const PLATFORM_DEFAULT_AGENT = 'ask';
 
 /**
  * Resolve which agent the chat surface should open with, mirroring the
@@ -72,10 +76,12 @@ export const PLATFORM_DEFAULT_AGENT = 'data_chat';
  * on the default even before the first request:
  *
  * 1. `preferred` — the app's `defaultAgent` (or a `VITE_AI_DEFAULT_AGENT`
- *    override), when it exists in the fetched catalog.
- * 2. The platform data-query agent (`data_chat`).
+ *    override), when it (or an alias of it) exists in the fetched catalog.
+ * 2. The platform data-query agent (`ask`, alias `data_chat`).
  * 3. The first agent in the catalog (last-resort fallback).
  *
+ * Resolution is alias-aware ({@link resolveAgentParam}) so the friendly name,
+ * the new id, and the legacy id all map to whichever the catalog serves.
  * Returns `undefined` only when the catalog is empty.
  */
 export function resolveDefaultAgentName(
@@ -83,12 +89,13 @@ export function resolveDefaultAgentName(
   preferred?: string,
 ): string | undefined {
   if (agents.length === 0) return undefined;
+  const catalog = agents.map((a) => a.name);
   if (preferred) {
-    const match = agents.find((a) => a.name === preferred);
-    if (match) return match.name;
+    const match = resolveAgentParam(preferred, catalog);
+    if (match) return match;
   }
-  const platform = agents.find((a) => a.name === PLATFORM_DEFAULT_AGENT);
-  if (platform) return platform.name;
+  const platform = resolveAgentParam(PLATFORM_DEFAULT_AGENT, catalog);
+  if (platform) return platform;
   return agents[0].name;
 }
 

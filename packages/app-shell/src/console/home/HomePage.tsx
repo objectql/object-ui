@@ -28,7 +28,7 @@ import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
 import { appRouteSegment } from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { Sparkles, Star, Clock, ArrowDown, ShieldAlert, X, UploadCloud } from 'lucide-react';
+import { Sparkles, Star, Clock, ArrowDown, ShieldAlert, X, UploadCloud, MessageSquareText } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
 
@@ -245,9 +245,13 @@ export function HomePage() {
               })}
             </EmptyDescription>
             <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
-              <Button onClick={() => navigate('/ai?agent=metadata_assistant')} data-testid="build-with-ai-btn">
+              <Button onClick={() => navigate('/ai/build')} data-testid="build-with-ai-btn">
                 <Sparkles className="mr-2 h-4 w-4" />
                 {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/ai/ask')} data-testid="ask-ai-btn">
+                <MessageSquareText className="mr-2 h-4 w-4" />
+                {t('home.askAI', { defaultValue: 'Ask AI' })}
               </Button>
             </div>
           </Empty>
@@ -289,10 +293,16 @@ export function HomePage() {
                 {t('home.heroTagline', { defaultValue: 'Pick up where you left off, or explore something new.' })}
               </p>
             </div>
-            <Button onClick={() => navigate('/ai?agent=metadata_assistant')} data-testid="home-build-with-ai" className="shrink-0">
-              <Sparkles className="mr-2 h-4 w-4" />
-              {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
-            </Button>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button variant="outline" onClick={() => navigate('/ai/ask')} data-testid="home-ask-ai">
+                <MessageSquareText className="mr-2 h-4 w-4" />
+                {t('home.askAI', { defaultValue: 'Ask AI' })}
+              </Button>
+              <Button onClick={() => navigate('/ai/build')} data-testid="home-build-with-ai">
+                <Sparkles className="mr-2 h-4 w-4" />
+                {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
+              </Button>
+            </div>
           </div>
 
           {starredApps.length === 0 && recentApps.length === 0 && (

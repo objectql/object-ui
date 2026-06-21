@@ -40,6 +40,11 @@ import {
   useObjectChat,
   useHitlInChat,
   resolveDefaultAgentName,
+  PLATFORM_DEFAULT_AGENT,
+  agentRouteName,
+  resolveAgentParam,
+  isBuildAgent,
+  isAskAgent,
   publishHealthFromResponse,
   detectDraftResult,
   buildProgressFromDraftReview,
@@ -55,6 +60,7 @@ import { getRuntimeConfig } from '../../runtime-config';
 import { cloudPricingDeepLink } from '../marketplace/marketplaceApi';
 import { useNavigationContext } from '../../context/NavigationContext';
 import {
+  fetchConversation,
   sanitizeChatMessagesForCache,
   useChatConversation,
   writeConversationMessagesCache,
@@ -159,9 +165,11 @@ function firstUserMessageText(messages: HydratedUIMessage[]): string | undefined
   return text || undefined;
 }
 
+// Keyed by the FRIENDLY agent name (alias-group head) so the new id, the legacy
+// id, and the route segment all localize to the same label.
 const PLATFORM_AGENT_LABEL_KEYS: Record<string, { key: string; defaultValue: string }> = {
-  data_chat: { key: 'console.ai.agentLabels.dataChat', defaultValue: 'Assistant' },
-  metadata_assistant: { key: 'console.ai.agentLabels.metadataAssistant', defaultValue: 'Metadata Assistant' },
+  ask: { key: 'console.ai.agentLabels.ask', defaultValue: 'Ask' },
+  build: { key: 'console.ai.agentLabels.build', defaultValue: 'Build' },
 };
 
 function localizeAgentLabel(
@@ -169,9 +177,45 @@ function localizeAgentLabel(
   agentName: string | undefined,
   fallback: string,
 ): string {
-  const known = agentName ? PLATFORM_AGENT_LABEL_KEYS[agentName] : undefined;
+  const known = agentName ? PLATFORM_AGENT_LABEL_KEYS[agentRouteName(agentName)] : undefined;
   if (!known) return fallback;
   return t(known.key, { defaultValue: known.defaultValue });
+}
+
+/**
+ * Per-surface empty-state branding. The split gives each assistant its own
+ * identity: the Build surface reads as authoring ("describe an app"), the Ask
+ * surface as data Q&A ("ask about your records"). Keyed by friendly name; falls
+ * back to the generic empty state for custom agents.
+ */
+function agentEmptyState(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  agentName: string | undefined,
+): { title: string; description: string } {
+  if (isBuildAgent(agentName)) {
+    return {
+      title: t('console.ai.empty.build.title', { defaultValue: 'Build with AI' }),
+      description: t('console.ai.empty.build.description', {
+        defaultValue:
+          'Describe an app or workflow in plain language — I draft the objects, screens and automations, then you review and publish.',
+      }),
+    };
+  }
+  if (isAskAgent(agentName)) {
+    return {
+      title: t('console.ai.empty.ask.title', { defaultValue: 'Ask your data' }),
+      description: t('console.ai.empty.ask.description', {
+        defaultValue:
+          'Ask questions about your records — counts, lists, and summaries across the data you can access.',
+      }),
+    };
+  }
+  return {
+    title: t('console.ai.emptyTitle', { defaultValue: 'Start a conversation' }),
+    description: t('console.ai.emptyDescription', {
+      defaultValue: 'Ask anything — the assistant has access to your current app context.',
+    }),
+  };
 }
 
 function resolveApiBase(explicit?: string): string {
@@ -417,19 +461,17 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   const { user } = useAuth();
   const { t } = useObjectTranslation();
   const userId = user?.id;
-  const { conversationId: urlConversationId } = useParams<{ conversationId?: string }>();
+  // The agent is BAKED INTO THE ROUTE now: `/ai/:agent[/:conversationId]`.
+  // Deriving it from the path param (resolved against the live catalog) removes
+  // the old `?agent=` query snapshot, which StrictMode's double-mount + the
+  // `/ai`→`/ai/:id` URL rewrite used to drop (the metadata_assistant deep-link
+  // bug). The dropdown is now a launcher that navigates between these routes.
+  const { agent: agentSegment, conversationId: urlConversationId } =
+    useParams<{ agent?: string; conversationId?: string }>();
   const [searchParams] = useSearchParams();
-  // Deep-link entry point: `/ai?agent=metadata_assistant` opens the workspace
-  // directly on a specific agent. Used by the AI-first home hero to land a new
-  // user straight on the authoring assistant (the magic moment) instead of the
-  // data-query default. Falls back gracefully when the agent isn't available.
-  //
-  // Captured ONCE at mount: this page immediately replaces `/ai` with
-  // `/ai/:conversationId` (see the redirect effect below), which strips the
-  // query string — so reading it lazily would lose the agent before the
-  // selection effect runs. The initializer snapshots it before that race.
-  const [agentParam] = useState<string | undefined>(() => searchParams.get('agent') ?? undefined);
-  // Explicit new-conversation intent (`/ai?new=1`, the sidebar's New button).
+  const searchString = searchParams.toString();
+  const queryString = searchString ? `?${searchString}` : '';
+  // Explicit new-conversation intent (`?new=1`, the sidebar's New button).
   // Read LIVE (not snapshotted): the button can be clicked again later from an
   // existing conversation, and the flag is stripped once the fresh id is
   // mirrored into the URL.
@@ -446,18 +488,38 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   const envDefaultAgent = env.VITE_AI_DEFAULT_AGENT as string | undefined;
 
   const { agents, isLoading: agentsLoading, error: agentsError } = useAgents({ apiBase });
+  const catalogNames = useMemo(() => agents.map((a) => a.name), [agents]);
 
-  const [activeAgent, setActiveAgent] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    if (!activeAgent && agents.length > 0) {
-      // Prefer the data-query agent over "first in catalog" so the
-      // dedicated AI workspace opens on the same default the rest of the
-      // platform binds to.
-      const preferred = agentParam ?? defaultAgentProp ?? envDefaultAgent;
-      const resolved = resolveDefaultAgentName(agents, preferred);
-      if (resolved) setActiveAgent(resolved);
+  // Is the first path segment an agent? It is when it resolves to one (friendly
+  // alias / new id / legacy id). When it doesn't, it's a legacy bare
+  // `/ai/:conversationId` link (redirected below). `undefined` = catalog still
+  // loading, so we can't tell yet and redirects must wait.
+  const segmentIsAgent = useMemo<boolean | undefined>(() => {
+    if (!agentSegment) return false;
+    if (agents.length === 0) return undefined;
+    return resolveAgentParam(agentSegment, catalogNames) !== undefined;
+  }, [agentSegment, agents.length, catalogNames]);
+
+  // App/platform default — used for a bare `/ai`, and as the endpoint while a
+  // legacy bare-id link is being redirected to its real agent surface.
+  const fallbackAgent = useMemo(
+    () => resolveDefaultAgentName(agents, defaultAgentProp ?? envDefaultAgent),
+    [agents, defaultAgentProp, envDefaultAgent],
+  );
+
+  // Resolved backend agent name for this surface (route agent wins; else default).
+  const activeAgent = useMemo(() => {
+    if (agents.length === 0) return undefined;
+    if (agentSegment && segmentIsAgent) {
+      return resolveAgentParam(agentSegment, catalogNames);
     }
-  }, [agents, activeAgent, agentParam, defaultAgentProp, envDefaultAgent]);
+    return fallbackAgent;
+  }, [agents.length, agentSegment, segmentIsAgent, catalogNames, fallbackAgent]);
+  const activeAgentRoute = activeAgent ? agentRouteName(activeAgent) : undefined;
+
+  // A first segment that ISN'T an agent is a legacy bare conversation id.
+  const legacyConversationId =
+    agentSegment && segmentIsAgent === false ? agentSegment : undefined;
 
   const chatApi = activeAgent
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`
@@ -467,9 +529,52 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     userId,
     scope: activeAgent,
     apiBase,
-    activeId: urlConversationId,
+    activeId: urlConversationId ?? legacyConversationId,
     forceNew: forceNewConversation,
   });
+
+  // ── Route canonicalization ──────────────────────────────────────────────
+  // Back-compat redirects (the agent is now in the path): bare `/ai` → the
+  // default agent surface; a legacy built-in id in the agent slot
+  // (`/ai/metadata_assistant`) → its friendly form (`/ai/build`). Custom agents
+  // already route by their own name and no-op here. Query (e.g. `?new=1`) is
+  // preserved so the New-chat intent survives the redirect.
+  useEffect(() => {
+    if (agents.length === 0 || !activeAgent) return;
+    const friendly = agentRouteName(activeAgent);
+    if (!agentSegment) {
+      navigate(`/ai/${friendly}${queryString}`, { replace: true });
+      return;
+    }
+    if (segmentIsAgent && agentSegment !== friendly) {
+      const tail = urlConversationId ? `/${encodeURIComponent(urlConversationId)}` : '';
+      navigate(`/ai/${friendly}${tail}${queryString}`, { replace: true });
+    }
+  }, [agents.length, activeAgent, agentSegment, segmentIsAgent, urlConversationId, queryString, navigate]);
+
+  // ── Legacy `/ai/:conversationId` (bare id) ──────────────────────────────
+  // Resolve the conversation's own agent and 301 to `/ai/:agent/:conversationId`
+  // so old bookmarks keep working under the agent-scoped routes.
+  useEffect(() => {
+    if (legacyConversationId === undefined) return;
+    let cancelled = false;
+    (async () => {
+      let convAgent: string | undefined;
+      try {
+        const conv = await fetchConversation(apiBase, legacyConversationId);
+        convAgent = (conv as { agentId?: string } | null)?.agentId ?? undefined;
+      } catch {
+        /* gone / inaccessible — fall back to the default surface below */
+      }
+      if (cancelled) return;
+      const resolved = resolveAgentParam(convAgent ?? '', catalogNames);
+      const friendly = agentRouteName(resolved ?? activeAgent ?? PLATFORM_DEFAULT_AGENT);
+      navigate(`/ai/${friendly}/${encodeURIComponent(legacyConversationId)}`, { replace: true });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [legacyConversationId, apiBase, catalogNames, activeAgent, navigate]);
 
   const [refreshKey, setRefreshKey] = useState(0);
   const [titleHints, setTitleHints] = useState<Record<string, string>>({});
@@ -487,11 +592,11 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
       if (!action) return;
       e.preventDefault();
       if (action === 'toggle-list') toggleChatsCollapsed();
-      else navigate('/ai?new=1');
+      else navigate(activeAgentRoute ? `/ai/${activeAgentRoute}?new=1` : '/ai?new=1');
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [toggleChatsCollapsed, navigate]);
+  }, [toggleChatsCollapsed, navigate, activeAgentRoute]);
   const restApiBase = useMemo(
     () => apiBase.replace(/\/v1\/ai$/, '').replace(/\/ai$/, '') || '/api',
     [apiBase],
@@ -532,14 +637,15 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     staleNewTargetRef.current = null;
   }
 
-  // After the hook resolves a real id for a fresh `/ai` visit, mirror it into
-  // the URL so the sidebar's active-row + share/refresh both work.
+  // After the hook resolves a real id for a fresh agent-surface visit, mirror
+  // it into the URL (`/ai/:agent/:id`) so the sidebar's active-row + share +
+  // refresh all work. Only fires on a real agent surface that has no id yet —
+  // not while a bare `/ai` or a legacy bare id is still being redirected.
   useEffect(() => {
-    if (!urlConversationId && conversationId) {
-      if (staleNewTargetRef.current && staleNewTargetRef.current.id === conversationId) return;
-      navigate(`/ai/${conversationId}`, { replace: true });
-    }
-  }, [urlConversationId, conversationId, navigate]);
+    if (!segmentIsAgent || urlConversationId || !conversationId || !activeAgentRoute) return;
+    if (staleNewTargetRef.current && staleNewTargetRef.current.id === conversationId) return;
+    navigate(`/ai/${activeAgentRoute}/${conversationId}`, { replace: true });
+  }, [segmentIsAgent, urlConversationId, conversationId, activeAgentRoute, navigate]);
 
   const titledRef = useRef<Set<string>>(new Set());
 
@@ -634,6 +740,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
           <ConversationsSidebar
             userId={userId}
             apiBase={apiBase}
+            activeAgent={activeAgent}
             refreshKey={refreshKey}
             titleHints={titleHints}
             className="h-full border-r-0"
@@ -657,6 +764,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
           <ConversationsSidebar
             userId={userId}
             apiBase={apiBase}
+            activeAgent={activeAgent}
             refreshKey={refreshKey}
             titleHints={titleHints}
             className="hidden w-72 shrink-0 border-r md:flex"
@@ -669,10 +777,6 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             agentsLoading={agentsLoading}
             agentsError={agentsError}
             activeAgent={activeAgent}
-            onAgentChange={setActiveAgent}
-            // ADR-0040: end users never pick an agent — the roster shows only
-            // on explicit ?agent= pins (developer surfaces like Studio).
-            showAgentPicker={Boolean(agentParam)}
             chatApi={chatApi}
             apiBase={apiBase}
             conversationId={conversationId}
@@ -692,13 +796,6 @@ interface ChatPaneProps {
   agentsLoading: boolean;
   agentsError: Error | undefined;
   activeAgent: string | undefined;
-  onAgentChange: (name: string) => void;
-  /**
-   * ADR-0040: the agent roster is NOT consumer UX. The picker renders only
-   * when an explicit `?agent=` pin is present (builder/developer deep links,
-   * e.g. Studio); end users see the resolved assistant's label.
-   */
-  showAgentPicker: boolean;
   chatApi: string | undefined;
   apiBase: string;
   conversationId: string | undefined;
@@ -712,10 +809,8 @@ interface ChatPaneProps {
 function ChatPane({
   agents,
   agentsLoading,
-  showAgentPicker,
   agentsError,
   activeAgent,
-  onAgentChange,
   chatApi,
   apiBase,
   conversationId,
@@ -726,6 +821,10 @@ function ChatPane({
 }: ChatPaneProps) {
   const { t } = useObjectTranslation();
   const navigate = useNavigate();
+  // The agent dropdown is a LAUNCHER now (not an in-surface mode toggle): it
+  // navigates to `/ai/:agent`, so it naturally lists custom agents and can stay
+  // always-available. Shown only when there's more than one agent to switch to.
+  const showAgentLauncher = agents.length > 1;
 
   // ── ADR-0037 Live Canvas ────────────────────────────────────────────────
   // When a build session drafts an `app`, open the split-view canvas: the
@@ -780,6 +879,9 @@ function ChatPane({
     if (hydrated.length > 0) return undefined;
     return buildAgentSuggestions(activeAgent, activeAgentLabel, t);
   }, [hydrated.length, activeAgent, activeAgentLabel, t]);
+
+  // Per-surface empty-state branding (Build = authoring, Ask = data Q&A).
+  const emptyState = useMemo(() => agentEmptyState(t, activeAgent), [t, activeAgent]);
 
   // ADR-0013 D2: reconcile a stream-transport failure instead of blindly
   // retrying. Shared across chat surfaces — see useReconcileOnError.
@@ -859,13 +961,18 @@ function ChatPane({
   const headerSlot = (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-4 pb-2 pt-3 sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {showAgentPicker && agents.length > 0 ? (
-          <Select value={activeAgent} onValueChange={onAgentChange} disabled={agentsLoading}>
+        {showAgentLauncher ? (
+          <Select
+            value={activeAgent}
+            onValueChange={(name) => navigate(`/ai/${agentRouteName(name)}`)}
+            disabled={agentsLoading}
+          >
             <SelectTrigger
               className="h-7 w-auto min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none hover:bg-accent focus:ring-0 focus:ring-offset-0 focus-visible:ring-1 focus-visible:ring-border/80 focus-visible:ring-offset-0 sm:min-w-[160px]"
               data-testid="ai-chat-agent-picker"
+              aria-label={t('console.ai.switchAssistant', { defaultValue: 'Switch assistant' })}
             >
-              <SelectValue placeholder="Choose agent..." />
+              <SelectValue placeholder={t('console.ai.chooseAgent', { defaultValue: 'Choose assistant…' })} />
             </SelectTrigger>
             <SelectContent align="start">
               {agents.map((agent) => (
@@ -939,8 +1046,8 @@ function ChatPane({
               : t('console.ai.askAnything')
         }
         labels={{
-          emptyTitle: t('console.ai.emptyTitle'),
-          emptyDescription: t('console.ai.emptyDescription'),
+          emptyTitle: emptyState.title,
+          emptyDescription: emptyState.description,
           clear: t('console.ai.clearConversation'),
           sendHint: t('console.ai.sendHint'),
           agentActivity: t('console.ai.agentActivity'),
@@ -1130,12 +1237,10 @@ function buildAgentSuggestions(
   agentLabel: string,
   t: TranslationFn,
 ): string[] {
-  if (agentName === 'data_chat') {
-    return dataChatSuggestions(t);
-  }
-  if (agentName === 'metadata_assistant') {
-    return metadataAssistantSuggestions(t);
-  }
+  // Alias-aware: `ask`/`data_chat` → data starters, `build`/`metadata_assistant`
+  // → authoring starters. Custom agents fall back to a name/label heuristic.
+  if (isAskAgent(agentName)) return dataChatSuggestions(t);
+  if (isBuildAgent(agentName)) return metadataAssistantSuggestions(t);
   const lower = (agentName ?? agentLabel).toLowerCase();
   if (lower.includes('data')) return dataChatSuggestions(t);
   if (lower.includes('metadata')) return metadataAssistantSuggestions(t);

@@ -11,6 +11,7 @@
 import React, { useEffect } from 'react';
 import { AppShell } from '@object-ui/layout';
 import { useDiscovery } from '@object-ui/react';
+import { isBuildAgent } from '@object-ui/plugin-chatbot';
 
 // Lightweight FAB stub — the heavy chat chunk graph (plugin-chatbot,
 // shiki, streamdown, mermaid, @ai-sdk, ~20MB) only downloads on first
@@ -76,8 +77,11 @@ export function ConsoleLayout({
   // assistant so the chatbot falls back to the generic data assistant — the
   // generic data-chat experience stays available.
   const aiStudioEnabled = getRuntimeConfig().features.aiStudio !== false;
+  // Alias-aware: the build/authoring agent is `build` (new) or
+  // `metadata_assistant` (legacy). When AI Studio is off, drop it so the FAB
+  // falls back to the generic data assistant.
   const effectiveDefaultAgent =
-    !aiStudioEnabled && activeApp?.defaultAgent === 'metadata_assistant'
+    !aiStudioEnabled && isBuildAgent(activeApp?.defaultAgent)
       ? undefined
       : activeApp?.defaultAgent;
   const { setContext, setCurrentAppName } = useNavigationContext();

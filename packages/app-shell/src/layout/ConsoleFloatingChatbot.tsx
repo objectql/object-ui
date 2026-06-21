@@ -20,6 +20,7 @@ import {
   resolveDefaultAgentName,
   uiMessagesToChatMessages,
   publishHealthFromResponse,
+  agentRouteName,
   type ChatMessage,
   type AgentDescriptor,
 } from '@object-ui/plugin-chatbot';
@@ -52,10 +53,13 @@ import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi';
  * labels ("Data Assistant" / "Metadata Assistant"); we localize the known
  * ones here so the whole surface reads natively. Custom app agents fall back
  * to whatever label the backend provides.
+ *
+ * Keyed by the FRIENDLY name (alias-group head) so the new id (`build`/`ask`)
+ * and the legacy id (`metadata_assistant`/`data_chat`) both resolve.
  */
 const PLATFORM_AGENT_LABELS: Record<string, { zh: string; en: string }> = {
-  data_chat: { zh: '智能助手', en: 'Assistant' },
-  metadata_assistant: { zh: '元数据开发助手', en: 'Metadata Assistant' },
+  ask: { zh: '智能助手', en: 'Assistant' },
+  build: { zh: '构建助手', en: 'Build assistant' },
 };
 
 function localizeAgentLabel(
@@ -63,7 +67,7 @@ function localizeAgentLabel(
   agentName: string | undefined,
   fallbackLabel: string,
 ): string {
-  const known = agentName ? PLATFORM_AGENT_LABELS[agentName] : undefined;
+  const known = agentName ? PLATFORM_AGENT_LABELS[agentRouteName(agentName)] : undefined;
   if (known) return isZh ? known.zh : known.en;
   return fallbackLabel;
 }

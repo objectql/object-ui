@@ -19,11 +19,19 @@ import {
   EmptyDescription,
   cn,
 } from '@object-ui/components';
+import { agentAliasGroup, agentRouteName } from '@object-ui/plugin-chatbot';
 import { useConversationList, type ConversationSummary } from '../../hooks/useConversationList';
 
 export interface ConversationsSidebarProps {
   userId: string | undefined;
   apiBase: string;
+  /**
+   * Backend name of the surface's active agent. When set, the list is scoped to
+   * this agent's conversations (each `/ai/:agent` surface shows its own history)
+   * and New/delete navigation stays on the surface. Alias-aware, so legacy and
+   * new ids match. Omit for an unscoped, all-agents list.
+   */
+  activeAgent?: string;
   className?: string;
   refreshKey?: number | string;
   titleHints?: Record<string, string>;
@@ -119,6 +127,7 @@ export function groupConversationsByDate(
 export function ConversationsSidebar({
   userId,
   apiBase,
+  activeAgent,
   className,
   refreshKey,
   titleHints,
@@ -136,6 +145,14 @@ export function ConversationsSidebar({
   const [filter, setFilter] = useState('');
   const [renamingId, setRenamingId] = useState<string | undefined>(undefined);
 
+  // Friendly route segment for New/delete navigation (stays on this surface).
+  const agentRoute = activeAgent ? agentRouteName(activeAgent) : undefined;
+  // Names equivalent to the active agent, for scoping the list (alias-aware).
+  const agentGroup = useMemo(
+    () => (activeAgent ? new Set(agentAliasGroup(activeAgent)) : undefined),
+    [activeAgent],
+  );
+
   const decoratedConversations = useMemo(() => {
     return conversations.map((conversation) => {
       const hint = titleHints?.[conversation.id]?.trim();
@@ -146,33 +163,54 @@ export function ConversationsSidebar({
     });
   }, [conversations, titleHints]);
 
+  // Scope to this surface's agent. Lenient: a conversation with no agent yet
+  // (freshly created, pre-first-message) and the currently-open one are always
+  // kept so nothing the user is looking at can vanish from the list.
+  const scoped = useMemo(() => {
+    if (!agentGroup) return decoratedConversations;
+    return decoratedConversations.filter(
+      (c) => !c.agentId || agentGroup.has(c.agentId) || c.id === activeId,
+    );
+  }, [decoratedConversations, agentGroup, activeId]);
+
   const visible = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return decoratedConversations;
-    return decoratedConversations.filter((c) => {
+    if (!q) return scoped;
+    return scoped.filter((c) => {
       const hay = `${c.title ?? ''} ${c.preview ?? ''}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [decoratedConversations, filter]);
+  }, [scoped, filter]);
+
+  // Navigate to a conversation on its OWN agent surface (so a lenient
+  // cross-agent row still opens correctly); fall back to this surface.
+  const conversationHref = useCallback(
+    (c: ConversationSummary) => {
+      const seg = c.agentId ? agentRouteName(c.agentId) : agentRoute;
+      return seg ? `/ai/${seg}/${c.id}` : `/ai/${c.id}`;
+    },
+    [agentRoute],
+  );
 
   const handleNew = useCallback(() => {
-    // `?new=1` is the explicit new-conversation intent. A bare `/ai` resumes
-    // the last cached conversation (by design), so without the flag this
-    // button silently landed back on the current chat.
-    navigate('/ai?new=1');
+    // `?new=1` is the explicit new-conversation intent — a bare surface visit
+    // resumes the last cached conversation (by design), so without the flag
+    // this button silently landed back on the current chat. Stays on the
+    // active agent's surface.
+    navigate(agentRoute ? `/ai/${agentRoute}?new=1` : '/ai?new=1');
     onNavigate?.();
-  }, [navigate, onNavigate]);
+  }, [navigate, agentRoute, onNavigate]);
 
   const handleDelete = useCallback(
     async (e: React.MouseEvent, id: string) => {
       e.stopPropagation();
       await remove(id);
       if (id === activeId) {
-        navigate('/ai', { replace: true });
+        navigate(agentRoute ? `/ai/${agentRoute}` : '/ai', { replace: true });
         onNavigate?.();
       }
     },
-    [remove, activeId, navigate, onNavigate],
+    [remove, activeId, navigate, agentRoute, onNavigate],
   );
 
   const handleRenameSubmit = useCallback(
@@ -223,7 +261,7 @@ export function ConversationsSidebar({
           <div className="px-3 py-4 text-xs text-destructive">
             {error.message}
           </div>
-        ) : conversations.length === 0 ? (
+        ) : scoped.length === 0 ? (
           <Empty className="px-3 py-8">
             <MessageSquare className="h-8 w-8 text-muted-foreground" />
             <EmptyTitle>{t('console.ai.noChatsYet')}</EmptyTitle>
@@ -247,7 +285,7 @@ export function ConversationsSidebar({
                       active={c.id === activeId}
                       renaming={c.id === renamingId}
                       onSelect={() => {
-                        navigate(`/ai/${c.id}`);
+                        navigate(conversationHref(c));
                         onNavigate?.();
                       }}
                       onDelete={(e) => handleDelete(e, c.id)}

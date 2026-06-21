@@ -256,6 +256,17 @@ export type {
   AgentDescriptor,
 } from './useAgents';
 
+// Agent alias resolution — friendly console routes (`/ai/build`, `/ai/ask`) ↔
+// built-in agent ids, robust across the Path A rename.
+export {
+  AGENT_ALIAS_GROUPS,
+  agentAliasGroup,
+  agentRouteName,
+  resolveAgentParam,
+  isBuildAgent,
+  isAskAgent,
+} from './agentAliases';
+
 // Export floating chatbot components
 export { FloatingChatbot } from './FloatingChatbot';
 export type { FloatingChatbotProps } from './FloatingChatbot';

@@ -1108,6 +1108,18 @@ const zh = {
       askAnything: '输入你的问题...',
       emptyTitle: '开始对话',
       emptyDescription: '可以直接提问，助手会结合当前应用上下文提供帮助。',
+      switchAssistant: '切换助手',
+      chooseAgent: '选择助手…',
+      empty: {
+        build: {
+          title: '用 AI 搭建',
+          description: '用自然语言描述一个应用或流程 —— 我会起草对象、界面和自动化，随后你审阅并发布。',
+        },
+        ask: {
+          title: '向你的数据提问',
+          description: '针对你的记录提问 —— 在你有权访问的数据范围内进行计数、列举和汇总。',
+        },
+      },
       clearConversation: '清空',
       sendHint: '发送',
       agentActivity: '执行过程',
@@ -1130,6 +1142,9 @@ const zh = {
       hoursAgo: '{{count}} 小时前',
       daysAgo: '{{count}} 天前',
       agentLabels: {
+        ask: '提问',
+        build: '构建',
+        // 旧键保留，兼容外部覆盖。
         dataChat: '智能助手',
         metadataAssistant: '元数据开发助手',
       },
@@ -1614,6 +1629,7 @@ const zh = {
     noAppsTitle: '还没有应用',
     noAppsDescription: '当前还没有可用的应用。请联系你的工作区管理员。',
     buildWithAI: '用 AI 搭建',
+    askAI: '问 AI',
     recoveryReminder: {
       message: '建议设置一个备用密码，这样即使单点登录不可用，你仍能直接登录此环境。',
       cta: '设置密码',

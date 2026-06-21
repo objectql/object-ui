@@ -1108,6 +1108,20 @@ const en = {
       askAnything: 'Ask anything...',
       emptyTitle: 'Start a conversation',
       emptyDescription: 'Ask anything — the assistant has access to your current app context.',
+      switchAssistant: 'Switch assistant',
+      chooseAgent: 'Choose assistant…',
+      empty: {
+        build: {
+          title: 'Build with AI',
+          description:
+            'Describe an app or workflow in plain language — I draft the objects, screens and automations, then you review and publish.',
+        },
+        ask: {
+          title: 'Ask your data',
+          description:
+            'Ask questions about your records — counts, lists, and summaries across the data you can access.',
+        },
+      },
       clearConversation: 'Clear',
       sendHint: 'to send',
       agentActivity: 'Agent activity',
@@ -1130,6 +1144,9 @@ const en = {
       hoursAgo: '{{count}}h ago',
       daysAgo: '{{count}}d ago',
       agentLabels: {
+        ask: 'Ask',
+        build: 'Build',
+        // Legacy keys kept for back-compat with any external overrides.
         dataChat: 'Assistant',
         metadataAssistant: 'Metadata Assistant',
       },
@@ -1603,6 +1620,7 @@ const en = {
     noAppsTitle: 'No applications yet',
     noAppsDescription: 'There are no applications available to you yet. Please contact your workspace administrator.',
     buildWithAI: 'Build with AI',
+    askAI: 'Ask AI',
     recoveryReminder: {
       message: 'Set a recovery password so you can still sign in if single sign-on is ever unavailable.',
       cta: 'Set password',

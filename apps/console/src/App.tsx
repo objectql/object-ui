@@ -255,12 +255,26 @@ export function App() {
               <Route path="settings" element={<DefaultSettingsPage />} />
             </Route>
             <Route path="/system/*" element={<SystemRedirect />} />
+            {/*
+              AI surfaces are agent-scoped: the active assistant is baked into
+              the route (`/ai/:agent`) rather than a `?agent=` query snapshot,
+              so each assistant ("build" authoring vs "ask" data Q&A, plus any
+              custom `*.agent.ts`) is its own page. AiChatPage handles the
+              back-compat redirects: bare `/ai` → the default agent surface, and
+              a single-segment `/ai/:agent` that is actually a legacy bare
+              conversation id → `/ai/:agent/:conversationId`.
+            */}
             <Route path="/ai" element={
               <ProtectedRoute>
                 <DefaultAiChatPage />
               </ProtectedRoute>
             } />
-            <Route path="/ai/:conversationId" element={
+            <Route path="/ai/:agent" element={
+              <ProtectedRoute>
+                <DefaultAiChatPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/ai/:agent/:conversationId" element={
               <ProtectedRoute>
                 <DefaultAiChatPage />
               </ProtectedRoute>
