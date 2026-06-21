@@ -24,7 +24,7 @@ import {
   cn,
 } from '@object-ui/components';
 
-import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel, usePreviewMode } from '@object-ui/react';
 import { MasterDetailForm } from './MasterDetailForm';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
@@ -130,6 +130,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   className,
 }) => {
   const { fieldLabel } = useSafeFieldLabel();
+  const previewMode = usePreviewMode();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -425,6 +426,24 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   ) : (
     renderContent()
   );
+
+  // Design/preview surfaces render this live on a canvas; a portalled modal Sheet
+  // would lock the whole editor (Radix sets body pointer-events:none + a focus trap
+  // while open). Render the body inline instead — a hard backstop complementing the
+  // schema-level coercion the preview surfaces apply.
+  if (previewMode) {
+    return (
+      <div className="@container rounded-md border bg-card p-4">
+        {(schema.title || schema.description) && (
+          <div className="mb-3 space-y-0.5">
+            {schema.title && <div className="text-sm font-semibold">{schema.title}</div>}
+            {schema.description && <p className="text-xs text-muted-foreground">{schema.description}</p>}
+          </div>
+        )}
+        {drawerBody}
+      </div>
+    );
+  }
 
   return (
     <Sheet open={isOpen} onOpenChange={schema.onOpenChange}>

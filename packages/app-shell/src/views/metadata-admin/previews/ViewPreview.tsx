@@ -23,7 +23,8 @@
  */
 
 import * as React from 'react';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, PreviewModeProvider } from '@object-ui/react';
+import { toInlineFormType } from './form-preview';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
 import { primaryVariantBinding } from '../view-variant-model';
@@ -46,10 +47,6 @@ function resolveObjectName(
   return undefined;
 }
 
-// Form layouts that render inline. `drawer` / `modal` render as overlays that
-// need a trigger to open, so the preview coerces them to `simple` — the point
-// of the preview pane is to show the section/field layout, not the chrome.
-const INLINE_FORM_TYPES = new Set(['simple', 'tabbed', 'wizard', 'split']);
 
 // A ViewItem form section uses the spec's `{ field, readonly, … }` shape, but
 // `object-form` selects fields by `name` and reads `readOnly`. Normalize so the
@@ -70,7 +67,7 @@ function buildFormPreviewSchema(
   body: Record<string, unknown>,
 ): Record<string, unknown> {
   const rawType = typeof body.type === 'string' ? body.type : 'simple';
-  const formType = INLINE_FORM_TYPES.has(rawType) ? rawType : 'simple';
+  const formType = toInlineFormType(rawType);
   const sections = Array.isArray(body.sections)
     ? (body.sections as any[]).map((s) => ({
         ...s,
@@ -132,7 +129,7 @@ export function ViewPreview({ name, draft, editing }: MetadataPreviewProps) {
       <PreviewShell hint={`view · ${(schema as any).type}${designMode ? ' · design' : ''}`}>
         <PreviewErrorBoundary fallbackHint="The view's `type` may not be registered, or required fields are missing.">
           <div className="min-h-[300px] max-h-[75vh] overflow-auto">
-            <SchemaRenderer schema={schema as any} />
+            <PreviewModeProvider><SchemaRenderer schema={schema as any} /></PreviewModeProvider>
           </div>
         </PreviewErrorBoundary>
       </PreviewShell>
@@ -162,7 +159,7 @@ export function ViewPreview({ name, draft, editing }: MetadataPreviewProps) {
       <PreviewShell hint={`view · ${rawType} · form${designMode ? ' · design' : ''}`}>
         <PreviewErrorBoundary fallbackHint="The form view references an object or field that doesn't resolve.">
           <div className="min-h-[300px] max-h-[75vh] overflow-auto">
-            <SchemaRenderer schema={formSchema as any} />
+            <PreviewModeProvider><SchemaRenderer schema={formSchema as any} /></PreviewModeProvider>
           </div>
         </PreviewErrorBoundary>
       </PreviewShell>
@@ -193,7 +190,7 @@ export function ViewPreview({ name, draft, editing }: MetadataPreviewProps) {
     <PreviewShell hint={`view · ${defaultViewType}${designMode ? ' · design' : ''}`}>
       <PreviewErrorBoundary fallbackHint="The view references an object or field that doesn't resolve.">
         <div className="min-h-[300px] max-h-[75vh] overflow-auto">
-          <SchemaRenderer schema={schema as any} />
+          <PreviewModeProvider><SchemaRenderer schema={schema as any} /></PreviewModeProvider>
         </div>
       </PreviewErrorBoundary>
     </PreviewShell>

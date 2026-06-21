@@ -35,17 +35,9 @@ import {
   type BlockTypeId,
 } from './block-types';
 import { parsePath, hopsToPath, getByPath, setByPath } from '../inspectors/PageBlockInspector';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, PreviewModeProvider } from '@object-ui/react';
 import { PreviewErrorBoundary } from './PreviewShell';
-
-/** Overlay form types (`drawer` / `modal`) render their body through a portal
- *  as a modal Sheet/Dialog. On the canvas that portal escapes the
- *  `pointer-events-none` click-trap below and — because Radix sets
- *  `pointer-events:none` on <body> and traps focus while open — locks the whole
- *  designer, which reads as "frozen". We coerce them to an inline `simple` form
- *  so the field layout shows in place, mirroring ViewPreview. The saved metadata
- *  keeps its real formType. */
-const OVERLAY_FORM_TYPES = new Set(['drawer', 'modal']);
+import { isOverlayFormType } from './form-preview';
 
 /** Build the schema handed to SchemaRenderer, neutralising overlay form types so
  *  a live form block never mounts a modal over the design canvas. SchemaRenderer
@@ -61,7 +53,7 @@ export function toCanvasSchema(block: Block): Record<string, unknown> {
     ? (schema.properties as Record<string, unknown>)
     : undefined;
   const formType = (props?.formType ?? schema.formType) as unknown;
-  if (typeof formType === 'string' && OVERLAY_FORM_TYPES.has(formType)) {
+  if (isOverlayFormType(formType)) {
     if (props) schema.properties = { ...props, formType: 'simple' };
     if ('formType' in schema) schema.formType = 'simple';
   }
@@ -76,7 +68,9 @@ function BlockLivePreview({ block, maxHeightClass = 'max-h-72' }: { block: Block
   return (
     <div className={cn('pointer-events-none select-none overflow-hidden p-3', maxHeightClass)}>
       <PreviewErrorBoundary fallbackHint={`"${typeStr}" can't render with its current configuration — check its Properties.`}>
-        <SchemaRenderer schema={toCanvasSchema(block) as never} />
+        <PreviewModeProvider>
+          <SchemaRenderer schema={toCanvasSchema(block) as never} />
+        </PreviewModeProvider>
       </PreviewErrorBoundary>
     </div>
   );

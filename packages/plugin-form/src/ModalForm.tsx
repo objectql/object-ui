@@ -32,7 +32,7 @@ import {
 import { Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
 import { MasterDetailForm } from './MasterDetailForm';
-import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel, usePreviewMode } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoLayout, inferModalSize } from './autoLayout';
@@ -154,6 +154,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   className,
 }) => {
   const { fieldLabel } = useSafeFieldLabel();
+  const previewMode = usePreviewMode();
   const perms = usePermissions();
   // FLS gate: drop non-readable fields, disable non-editable ones.
   // Fail-open when no PermissionProvider mounted (perms.isLoaded false).
@@ -501,6 +502,25 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   // render the master-detail form inside the dialog (it owns its own Save/Cancel
   // action bar, so the modal footer is suppressed). Persisted atomically.
   const subforms = (schema as any).subforms as any[] | undefined;
+  // Design/preview surfaces render this live on a canvas; a portalled modal Dialog
+  // would lock the whole editor (Radix sets body pointer-events:none + a focus trap
+  // while open). Render the form body inline instead — a hard backstop complementing
+  // the schema-level coercion the preview surfaces apply. (The master-detail line
+  // items are omitted in preview; the base field layout is what the canvas shows.)
+  if (previewMode) {
+    return (
+      <div className="@container rounded-md border bg-card p-4">
+        {(schema.title || schema.description) && (
+          <div className="mb-3 space-y-0.5">
+            {schema.title && <div className="text-sm font-semibold">{schema.title}</div>}
+            {schema.description && <p className="text-xs text-muted-foreground">{schema.description}</p>}
+          </div>
+        )}
+        {renderContent()}
+      </div>
+    );
+  }
+
   if (subforms?.length && schema.mode !== 'view') {
     return (
       <Dialog open={isOpen} onOpenChange={schema.onOpenChange}>

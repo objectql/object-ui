@@ -1,4 +1,5 @@
 export * from './SchemaRendererContext';
+export * from './PreviewModeContext';
 export * from './ActionContext';
 export * from './ThemeContext';
 export * from './NotificationContext';
