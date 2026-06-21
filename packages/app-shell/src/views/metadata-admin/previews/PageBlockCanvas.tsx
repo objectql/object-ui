@@ -38,16 +38,45 @@ import { parsePath, hopsToPath, getByPath, setByPath } from '../inspectors/PageB
 import { SchemaRenderer } from '@object-ui/react';
 import { PreviewErrorBoundary } from './PreviewShell';
 
+/** Overlay form types (`drawer` / `modal`) render their body through a portal
+ *  as a modal Sheet/Dialog. On the canvas that portal escapes the
+ *  `pointer-events-none` click-trap below and — because Radix sets
+ *  `pointer-events:none` on <body> and traps focus while open — locks the whole
+ *  designer, which reads as "frozen". We coerce them to an inline `simple` form
+ *  so the field layout shows in place, mirroring ViewPreview. The saved metadata
+ *  keeps its real formType. */
+const OVERLAY_FORM_TYPES = new Set(['drawer', 'modal']);
+
+/** Build the schema handed to SchemaRenderer, neutralising overlay form types so
+ *  a live form block never mounts a modal over the design canvas. SchemaRenderer
+ *  needs a `type` discriminator; the block always carries one. */
+export function toCanvasSchema(block: Block): Record<string, unknown> {
+  const schema: Record<string, unknown> = {
+    ...(block as Record<string, unknown>),
+    type: String(block?.type ?? ''),
+  };
+  // formType lives under `properties` (canonical) but may also be hoisted to the
+  // top level; neutralise whichever carries an overlay type.
+  const props = schema.properties && typeof schema.properties === 'object'
+    ? (schema.properties as Record<string, unknown>)
+    : undefined;
+  const formType = (props?.formType ?? schema.formType) as unknown;
+  if (typeof formType === 'string' && OVERLAY_FORM_TYPES.has(formType)) {
+    if (props) schema.properties = { ...props, formType: 'simple' };
+    if ('formType' in schema) schema.formType = 'simple';
+  }
+  return schema;
+}
+
 /** Render a single block via the real runtime renderer, behind a click-trap,
- *  so the design canvas mirrors the live preview. SchemaRenderer needs a
- *  `type` discriminator; the block always carries one. Capped height keeps a
+ *  so the design canvas mirrors the live preview. Capped height keeps a
  *  tall widget (e.g. a data table) from dominating the canvas. */
 function BlockLivePreview({ block, maxHeightClass = 'max-h-72' }: { block: Block; maxHeightClass?: string }) {
   const typeStr = String(block?.type ?? '');
   return (
     <div className={cn('pointer-events-none select-none overflow-hidden p-3', maxHeightClass)}>
       <PreviewErrorBoundary fallbackHint={`"${typeStr}" can't render with its current configuration — check its Properties.`}>
-        <SchemaRenderer schema={{ ...(block as Record<string, unknown>), type: typeStr } as never} />
+        <SchemaRenderer schema={toCanvasSchema(block) as never} />
       </PreviewErrorBoundary>
     </div>
   );
