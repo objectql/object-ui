@@ -10,6 +10,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { LocalizationProvider } from '@object-ui/i18n';
 
 let lastTableSchema: any = null;
 
@@ -123,6 +124,30 @@ describe('ObjectDataTable type-aware cells', () => {
     await waitFor(() => expect(screen.getByText(/150,000/)).toBeInTheDocument(), { timeout: 2000 });
     expect(screen.getByText(/\$150,000/)).toBeInTheDocument();
     expect(screen.getByText(/60%/)).toBeInTheDocument();
+  });
+
+  it('renders a currency-type column with the tenant default currency (ADR-0053)', async () => {
+    const ds = makeDataSource(
+      [{ amount: 1000 }],
+      { fields: { amount: { type: 'currency', label: 'Amount' } } },
+    );
+    const schema: any = {
+      type: 'object-data-table',
+      objectName: 'opportunity',
+      columns: [{ header: 'Amount', accessorKey: 'amount' }],
+    };
+
+    // The field declares no currency of its own; the tenant default (CNY)
+    // flows through CurrencyCellRenderer via useLocalization.
+    render(
+      <LocalizationProvider value={{ currency: 'CNY' }}>
+        <ObjectDataTable schema={schema} dataSource={ds} />
+      </LocalizationProvider>,
+    );
+    await waitFor(() => expect(screen.getByText(/1,000/)).toBeInTheDocument(), { timeout: 2000 });
+    // A yuan/yen glyph appears — never a bare number or a wrong-currency $.
+    expect(screen.getByText(/[¥]/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\$1,000/);
   });
 });
 

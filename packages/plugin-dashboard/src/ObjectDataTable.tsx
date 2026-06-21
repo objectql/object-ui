@@ -10,7 +10,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
 import { extractRecords } from '@object-ui/core';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
-import { useSafeFieldLabel, useObjectTranslation } from '@object-ui/i18n';
+import { useSafeFieldLabel, useObjectTranslation, useLocalization } from '@object-ui/i18n';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatPercent, formatDate } from '@object-ui/fields';
 import { resolveDateMacros } from './utils';
 
@@ -126,6 +126,8 @@ export function computeLookupExpand(
 }
 
 export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSource: propDataSource, className }) => {
+  // Tenant default currency backstops columns that omit an explicit code.
+  const { currency: tenantCurrency } = useLocalization();
   const context = useContext(SchemaRendererContext);
   const dataSource = propDataSource || context?.dataSource;
   const boundData = useDataScope(schema.bind);
@@ -318,7 +320,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
           // we never silently fall back to USD when the author wrote `¥`/`€`.
           const symbolMap: Record<string, string> = { '$': 'USD', '¥': 'JPY', '€': 'EUR', '£': 'GBP' };
           const inferred = symbolMap[fmt[0]];
-          return formatCurrency(value, fieldMeta.currency || inferred);
+          return formatCurrency(value, fieldMeta.currency || inferred || tenantCurrency);
         }
         if (typeof fmt === 'string' && /%/.test(fmt) && typeof value === 'number') {
           const decimals = (fmt.match(/0\.(0+)%/) || [, ''])[1].length;

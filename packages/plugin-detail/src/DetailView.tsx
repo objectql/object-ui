@@ -45,6 +45,7 @@ import { RecordMetaFooter } from './RecordMetaFooter';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
+import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
 import { useDetailTranslation } from './useDetailTranslation';
 
@@ -215,6 +216,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const [reloadTick, setReloadTick] = React.useState(0);
   const [isCancellingApproval, setIsCancellingApproval] = React.useState(false);
   const { t } = useDetailTranslation();
+  // Tenant default currency (ADR-0053) for summary metrics whose field omits one.
+  const { currency: tenantCurrency } = useLocalization();
   const { fieldOptionLabel } = useSafeFieldLabel();
   const isMobile = useIsMobile();
 
@@ -848,7 +851,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                     if (ftype === 'currency') {
                       const num = Number(val);
                       if (!Number.isNaN(num)) {
-                        const cur = (sectionField as any)?.currency || objField?.currency;
+                        const cur = resolveFieldCurrency({ ...(objField as any), ...(sectionField as any) }, tenantCurrency);
                         display = cur
                           ? new Intl.NumberFormat(undefined, {
                               style: 'currency',

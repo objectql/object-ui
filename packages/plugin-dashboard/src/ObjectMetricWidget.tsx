@@ -11,6 +11,7 @@ import { SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle } from '@object-ui/components';
 import { isDrillEnabled, resolveDrillTitle } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
+import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import { MetricWidget } from './MetricWidget';
 import {
   resolveDateMacros,
@@ -169,11 +170,14 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
     return undefined;
   }, [format, valueFieldDef]);
 
+  // Tenant default currency (localization.currency, ADR-0053) backstops a
+  // currency field that declares no explicit code of its own.
+  const { currency: tenantCurrency } = useLocalization();
   const inferredCurrency = useMemo(() => {
     if (currency) return currency;
     if (valueFieldDef?.type !== 'currency') return undefined;
-    return valueFieldDef.defaultCurrency || valueFieldDef.currency || undefined;
-  }, [currency, valueFieldDef]);
+    return resolveFieldCurrency(valueFieldDef, tenantCurrency);
+  }, [currency, valueFieldDef, tenantCurrency]);
 
   // Stable JSON keys to prevent infinite refetch loops when callers
   // pass fresh `aggregate` / `filter` object references each render

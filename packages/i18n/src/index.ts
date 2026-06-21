@@ -91,3 +91,4 @@ export {
 
 export { pickLocalized } from './pickLocalized';
 export { LocalizationProvider, useLocalization, type LocalizationValue } from './LocalizationContext';
+export { resolveFieldCurrency } from './currency';

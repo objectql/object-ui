@@ -8,6 +8,7 @@
 
 import { useMemo } from 'react';
 import type { ListColumn } from '@object-ui/types';
+import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 
 /**
  * Summary configuration for a column.
@@ -67,7 +68,8 @@ function computeAggregation(type: string, values: number[]): number | null {
 function formatSummaryLabel(
   type: string,
   value: number | null,
-  column?: { type?: string; currency?: string; defaultCurrency?: string; precision?: number | null; scale?: number | null }
+  column?: { type?: string; currency?: string; defaultCurrency?: string; currencyConfig?: { defaultCurrency?: string }; precision?: number | null; scale?: number | null },
+  tenantDefault?: string,
 ): string {
   if (value === null) return '';
   const typeLabels: Record<string, string> = {
@@ -82,7 +84,7 @@ function formatSummaryLabel(
   const colType = column?.type;
   let formatted: string;
   if (type !== 'count' && colType === 'currency') {
-    const currency = column?.currency || column?.defaultCurrency;
+    const currency = resolveFieldCurrency(column, tenantDefault);
     const decimals = column?.precision ?? column?.scale ?? 0;
     try {
       formatted = currency
@@ -126,6 +128,9 @@ export function useColumnSummary(
   data: any[],
   fieldMetadata?: Record<string, { type?: string; currency?: string; defaultCurrency?: string; precision?: number | null; scale?: number | null }>
 ): { summaries: Map<string, ColumnSummaryResult>; hasSummary: boolean } {
+  // Tenant default currency (ADR-0053) backstops a currency column that
+  // declares no explicit code, so the footer agrees with the cells above it.
+  const { currency: tenantCurrency } = useLocalization();
   return useMemo(() => {
     const summaries = new Map<string, ColumnSummaryResult>();
 
@@ -175,10 +180,10 @@ export function useColumnSummary(
       summaries.set(col.field, {
         field: col.field,
         value: result,
-        label: formatSummaryLabel(config.type, result, columnHints),
+        label: formatSummaryLabel(config.type, result, columnHints, tenantCurrency),
       });
     }
 
     return { summaries, hasSummary: summaries.size > 0 };
-  }, [columns, data, fieldMetadata]);
+  }, [columns, data, fieldMetadata, tenantCurrency]);
 }

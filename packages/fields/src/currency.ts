@@ -6,25 +6,9 @@
  */
 
 /**
- * Resolve the display currency code for a currency field, in precedence order:
- * the field's explicit `currency` → its `currencyConfig.defaultCurrency` (fixed
- * mode) → a legacy top-level `defaultCurrency` → the tenant default
- * (`localization.currency`, ADR-0053). Returns `undefined` when none is known,
- * so the renderer shows a plain number rather than guessing a symbol.
- *
- * This is the single resolution the field renderers share — ending the
- * per-renderer inconsistency where some read only `currency`, others only
- * `defaultCurrency`, and others `currencyConfig`.
+ * `resolveFieldCurrency` now lives in `@object-ui/i18n` (co-located with
+ * `useLocalization`, which supplies the tenant default). This module re-exports
+ * it so the long-standing `@object-ui/fields` import path keeps working for
+ * every field/cell renderer that already depends on it.
  */
-export function resolveFieldCurrency(
-  field: { currency?: string; defaultCurrency?: string; currencyConfig?: { defaultCurrency?: string } } | null | undefined,
-  tenantDefault?: string,
-): string | undefined {
-  return (
-    field?.currency ||
-    field?.currencyConfig?.defaultCurrency ||
-    field?.defaultCurrency ||
-    tenantDefault ||
-    undefined
-  );
-}
+export { resolveFieldCurrency } from '@object-ui/i18n';

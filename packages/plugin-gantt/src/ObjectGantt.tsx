@@ -26,6 +26,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { useNavigationOverlay } from '@object-ui/react';
+import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
   AlertDialog,
@@ -294,6 +295,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [objectSchema, setObjectSchema] = useState<any>(null);
+  // Tenant default currency (ADR-0053) for currency tooltips lacking a code.
+  const { currency: tenantCurrency } = useLocalization();
 
   const rawDataConfig = getDataConfig(schema);
   // Memoize dataConfig using deep comparison to prevent infinite loops
@@ -457,7 +460,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         case 'decimal':
           return formatNumber(Number(value));
         case 'currency':
-          return formatCurrency(Number(value));
+          return formatCurrency(Number(value), resolveFieldCurrency(def as any, tenantCurrency));
         case 'percent':
           return formatPercent(Number(value));
         case 'boolean':

@@ -31,6 +31,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@object-ui/i18n": "workspace:*",
     "lucide-react": "^1.18.0"
   },
   "peerDependencies": {

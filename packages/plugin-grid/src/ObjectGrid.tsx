@@ -26,6 +26,7 @@ import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses } from '@object-ui/fields';
+import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import {
   Badge, Button, NavigationOverlay, EmptyValue,
   Popover, PopoverContent, PopoverTrigger,
@@ -228,6 +229,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // Tenant default currency (ADR-0053) backstops amount cells that lack a code.
+  const { currency: tenantCurrency } = useLocalization();
   const { t } = useGridTranslation();
   const { fieldLabel: resolveFieldLabel, translateOptions } = useSafeFieldLabel();
   const [objectSchema, setObjectSchema] = useState<any>(null);
@@ -1758,7 +1761,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                     {amountCol && (
                       <span className="text-sm tabular-nums font-medium">
                         {typeof row[amountCol.accessorKey] === 'number'
-                          ? formatCompactCurrency(row[amountCol.accessorKey])
+                          ? formatCompactCurrency(row[amountCol.accessorKey], resolveFieldCurrency(amountCol as any, tenantCurrency))
                           : (row[amountCol.accessorKey] != null && typeof row[amountCol.accessorKey] === 'object' ? String(row[amountCol.accessorKey]) : (row[amountCol.accessorKey] ?? '—'))}
                       </span>
                     )}
@@ -1957,7 +1960,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       // Detect currency-like fields by name
       const currencyFields = ['amount', 'price', 'total', 'revenue', 'cost', 'value', 'budget', 'salary'];
       if (typeof value === 'number' && currencyFields.some(f => key.toLowerCase().includes(f))) {
-        return <span className="text-sm tabular-nums font-medium">{formatCurrency(value)}</span>;
+        return <span className="text-sm tabular-nums font-medium">{formatCurrency(value, tenantCurrency)}</span>;
       }
       return <span className="text-sm break-words">{String(value)}</span>;
     };

@@ -27,7 +27,7 @@
 import * as React from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useAdapter, useAction } from '@object-ui/react';
-import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
+import { useObjectTranslation, pickLocalized, useLocalization } from '@object-ui/i18n';
 import { cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { Button, Separator } from '../../ui';
@@ -276,10 +276,23 @@ const FORMAT_OPTS: Record<string, Intl.NumberFormatOptions> = {
   percent: { style: 'percent', maximumFractionDigits: 1 },
 };
 
-function formatValue(value: number | null | undefined, format?: string, prefix?: string, suffix?: string): string {
+function formatValue(
+  value: number | null | undefined,
+  format?: string,
+  prefix?: string,
+  suffix?: string,
+  currency?: string,
+  locale?: string,
+): string {
   if (value == null || Number.isNaN(value)) return '—';
-  const opts = FORMAT_OPTS[format ?? 'number'] ?? FORMAT_OPTS.number;
-  const body = new Intl.NumberFormat(undefined, opts).format(value);
+  let opts = FORMAT_OPTS[format ?? 'number'] ?? FORMAT_OPTS.number;
+  // A `currency`-format metric resolves its ISO code from the tenant default
+  // (localization.currency, ADR-0053) instead of a baked-in USD; falls back to
+  // USD only when no tenant currency is configured.
+  if (format === 'currency') {
+    opts = { ...FORMAT_OPTS.currency, currency: currency || 'USD' };
+  }
+  const body = new Intl.NumberFormat(locale, opts).format(value);
   return `${prefix ?? ''}${body}${suffix ?? ''}`;
 }
 
@@ -295,6 +308,8 @@ function ElementNumberRenderer({ schema }: { schema: any }) {
     aria?: Record<string, any>;
   }>(schema);
   const adapter = useAdapter() as any;
+  // Tenant default currency + locale (ADR-0053) for a `currency`-format metric.
+  const { currency: tenantCurrency, locale } = useLocalization();
   const [value, setValue] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -358,7 +373,7 @@ function ElementNumberRenderer({ schema }: { schema: any }) {
   return (
     <div className={cn('flex flex-col gap-1', schema?.className)} {...ariaAttrs(props.aria)}>
       <div className="text-3xl font-semibold tracking-tight tabular-nums">
-        {loading ? '…' : formatValue(value, props.format, props.prefix, props.suffix)}
+        {loading ? '…' : formatValue(value, props.format, props.prefix, props.suffix, tenantCurrency, locale)}
       </div>
       {error && <div className="text-xs text-destructive">{error}</div>}
     </div>
