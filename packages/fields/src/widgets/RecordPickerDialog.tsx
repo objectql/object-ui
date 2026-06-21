@@ -145,7 +145,7 @@ function fieldToLabel(field: string): string {
  * QueryParams.$filter.  Supports operator mapping for eq/ne/gt/lt/gte/lte/
  * contains/in/notIn.
  */
-function lookupFiltersToRecord(
+export function lookupFiltersToRecord(
   filters: LookupFilterDef[],
 ): Record<string, any> {
   const result: Record<string, any> = {};

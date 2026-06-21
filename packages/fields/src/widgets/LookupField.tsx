@@ -9,7 +9,7 @@ import { cn,
 import { Search, X, Loader2, AlertCircle, Plus, TableProperties } from 'lucide-react';
 import { FieldWidgetProps } from './types';
 import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
-import { RecordPickerDialog } from './RecordPickerDialog';
+import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
 import { deriveLookupColumns } from './deriveLookupColumns';
 import { getCellRendererResolver } from './_cell-renderer-bridge';
@@ -345,6 +345,12 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           }
         }
 
+        // Apply base scoping filters so the quick-select popover matches the
+        // full picker dialog (lookupFilters were previously dialog-only).
+        if (lookupFilters && lookupFilters.length > 0) {
+          params.$filter = { ...(params.$filter ?? {}), ...lookupFiltersToRecord(lookupFilters) };
+        }
+
         const result = await dataSource.find(referenceTo, params);
         const records: any[] = result?.data ?? result ?? [];
         const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat));
@@ -359,7 +365,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         setLoading(false);
       }
     },
-    [dataSource, referenceTo, displayField, idField, effectiveDescriptionField, refTitleFormat, dependenciesMissing, dependsOn, resolvedDependentValues],
+    [dataSource, referenceTo, displayField, idField, effectiveDescriptionField, refTitleFormat, dependenciesMissing, dependsOn, resolvedDependentValues, lookupFilters],
   );
 
   // Re-fetch when dependent values change while the picker is open. This keeps
