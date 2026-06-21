@@ -96,6 +96,11 @@ export const DrillDownDrawer: React.FC<DrillDownDrawerProps> = ({
               pagination: true,
               searchable: false,
               pageSize: maxRows,
+              // Complete the drill chain: a row in this filtered record list
+              // opens that record. Dialog target so it stacks over this drawer.
+              // Mirrors the chart / KPI drill tables — every drill-through list
+              // (pivot, dataset, chart, metric) lands on a clickable record.
+              drillDown: { enabled: true, mode: 'record', target: 'dialog' },
             }}
             dataSource={dataSource}
           />
