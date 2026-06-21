@@ -40,6 +40,7 @@ import {
   Terminal,
   Database,
   LayoutGrid,
+  Boxes,
 } from 'lucide-react';
 import { useAdapter } from '@object-ui/app-shell';
 import { useIsWorkspaceAdmin } from '@object-ui/auth';
@@ -115,6 +116,14 @@ export function SystemHubPage() {
       description: 'Browse and edit every metadata type the platform exposes',
       icon: Database,
       href: `${basePath}/component/metadata/directory`,
+      countLabel: '',
+      count: null,
+    },
+    {
+      title: 'Datasources',
+      description: 'Connect external databases and sync their tables in as objects',
+      icon: Boxes,
+      href: `${basePath}/system/datasources`,
       countLabel: '',
       count: null,
     },
