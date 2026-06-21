@@ -60,18 +60,59 @@ export function toCanvasSchema(block: Block): Record<string, unknown> {
   return schema;
 }
 
-/** Render a single block via the real runtime renderer, behind a click-trap,
- *  so the design canvas mirrors the live preview. Capped height keeps a
- *  tall widget (e.g. a data table) from dominating the canvas. */
+/** Defer mounting until an element scrolls near the viewport. Renders immediately
+ *  in non-browser / test environments (no real IntersectionObserver, or under
+ *  vitest) so server rendering and tests are unaffected; lazy only in the browser.
+ *  Once in view it stays mounted — re-mounting a data block would re-fetch. */
+function useLazyInView<T extends Element>(rootMargin = '300px') {
+  const ref = React.useRef<T | null>(null);
+  const [inView, setInView] = React.useState<boolean>(() => {
+    if (typeof IntersectionObserver === 'undefined') return true;
+    try {
+      if ((import.meta as { env?: { MODE?: string } }).env?.MODE === 'test') return true;
+    } catch {
+      /* import.meta unavailable — fall through to lazy */
+    }
+    return false;
+  });
+  React.useEffect(() => {
+    if (inView) return;
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setInView(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [inView, rootMargin]);
+  return { ref, inView };
+}
+
+/** Render a single block via the real runtime renderer, behind a click-trap, so
+ *  the design canvas mirrors the live preview. Mounting is deferred until the
+ *  block scrolls near the viewport: data-bound blocks (grids, related lists,
+ *  repeaters) each fetch on mount, so a tall page would otherwise fire every
+ *  query at once. Capped height keeps a tall widget from dominating the canvas. */
 function BlockLivePreview({ block, maxHeightClass = 'max-h-72' }: { block: Block; maxHeightClass?: string }) {
   const typeStr = String(block?.type ?? '');
+  const { ref, inView } = useLazyInView<HTMLDivElement>();
   return (
-    <div className={cn('pointer-events-none select-none overflow-hidden p-3', maxHeightClass)}>
-      <PreviewErrorBoundary fallbackHint={`"${typeStr}" can't render with its current configuration — check its Properties.`}>
-        <PreviewModeProvider>
-          <SchemaRenderer schema={toCanvasSchema(block) as never} />
-        </PreviewModeProvider>
-      </PreviewErrorBoundary>
+    <div ref={ref} className={cn('pointer-events-none select-none overflow-hidden p-3', maxHeightClass)}>
+      {inView ? (
+        <PreviewErrorBoundary fallbackHint={`"${typeStr}" can't render with its current configuration — check its Properties.`}>
+          <PreviewModeProvider>
+            <SchemaRenderer schema={toCanvasSchema(block) as never} />
+          </PreviewModeProvider>
+        </PreviewErrorBoundary>
+      ) : (
+        <div className="min-h-[64px] animate-pulse rounded bg-muted/40" aria-hidden="true" />
+      )}
     </div>
   );
 }
