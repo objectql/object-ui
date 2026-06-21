@@ -18,6 +18,11 @@ export default defineConfig({
       '**/e2e/**',
       '**/.{idea,git,cache,output,temp}/**',
       '**/.claude/**',
+      // In-repo git worktrees (`.wt-*`, per AGENTS.md / the worktree workflow)
+      // are full checkouts of other branches. Without this their *.test.tsx
+      // copies get globbed in and run against this tree's source — producing
+      // phantom failures from another branch's code.
+      '**/.wt-*/**',
       // Apps have their own '@/' alias pointing at their own src/, so they
       // can't share the root '@' alias (→ packages/components). They are
       // brought back in via the `projects` array below with their own

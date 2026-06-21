@@ -371,7 +371,9 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
         objectName,
         filter: resolvedFilter,
         pageSize: 25,
-        drillDown: { enabled: false },
+        // Complete the drill chain: a row in the KPI's record list opens that
+        // record. Dialog target so it stacks cleanly over this drill drawer.
+        drillDown: { enabled: true, mode: 'record', target: 'dialog' },
       } as any;
       body = (
         <div className="h-full overflow-auto">

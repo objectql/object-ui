@@ -6,13 +6,20 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState, useEffect, useContext, useMemo } from 'react';
+import React, { useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
-import { extractRecords } from '@object-ui/core';
+import { extractRecords, isDrillEnabled } from '@object-ui/core';
+import type { DrillDownConfig } from '@object-ui/types';
 import { Skeleton, RefreshIndicator, cn } from '@object-ui/components';
 import { useSafeFieldLabel, useObjectTranslation, useLocalization } from '@object-ui/i18n';
-import { getCellRenderer, resolveCellRendererType, formatCurrency, formatPercent, formatDate } from '@object-ui/fields';
 import { resolveDateMacros } from './utils';
+import {
+  buildFieldMeta,
+  renderFieldValue,
+  isNumericFieldMeta,
+  isSystemField,
+} from './recordFields';
+import { RecordDetailDrawer } from './RecordDetailDrawer';
 
 export interface ObjectDataTableProps {
   schema: {
@@ -153,6 +160,18 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   });
   const [error, setError] = useState<string | null>(null);
 
+  // --- Drill-to-record ---------------------------------------------------
+  // Table / list widgets drill *to record*: clicking a row opens that single
+  // record in a detail drawer (the row already IS a record, so there is no
+  // filter to derive). Opt-in via `schema.drillDown` — DashboardRenderer
+  // defaults object-backed table/list widgets to `{ enabled: true }`.
+  const drillDown = schema.drillDown as DrillDownConfig | undefined;
+  const recordDrillEnabled = isDrillEnabled(drillDown) && (drillDown?.mode ?? 'record') === 'record';
+  const [drillRecord, setDrillRecord] = useState<Record<string, any> | null>(null);
+  const handleRowClick = useCallback((row: Record<string, any>) => {
+    setDrillRecord(row ?? null);
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -255,84 +274,36 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     };
 
     const enrich = (col: NormalizedColumn): NormalizedColumn => {
-      const meta = fieldsByName[col.accessorKey];
-      const referenceTo =
-        col.referenceTo ??
-        meta?.referenceTo ??
-        (typeof meta?.reference === 'string' ? meta.reference : meta?.reference?.to) ??
-        meta?.target;
-
-      // For select fields, build options with translated labels so that
-      // the badge shows e.g. "提案" instead of the English/raw "proposal".
-      let options: Array<{ value: any; label: string; color?: string }> | undefined =
-        col.options ?? meta?.options;
-      if (
-        objectName &&
-        options &&
-        (meta?.type === 'select' || meta?.type === 'picklist' || meta?.type === 'dropdown' || meta?.type === 'status')
-      ) {
-        options = options.map((opt: any) => {
-          if (opt == null) return opt;
-          const value = typeof opt === 'object' ? opt.value : opt;
-          const fallback = typeof opt === 'object' ? (opt.label || String(value)) : String(value);
-          return {
-            value,
-            label: fieldOptionLabel(objectName, col.accessorKey, String(value), fallback),
-            color: typeof opt === 'object' ? opt.color : undefined,
-          };
-        });
-      }
-
-      // For lookup-like fields just pass through `referenceTo`. The server
-      // expands these via `$expand` in the fetch above so the cell value will
-      // be `{ id, name }`, which LookupCellRenderer/UserCellRenderer handle
-      // natively without needing an `options` map.
-
-      const fieldMeta: any = {
-        name: col.accessorKey,
+      // Build the shared FieldMeta (translated select options, resolved
+      // referenceTo / currency / decimals). Column-level props override the
+      // schema-derived values. Lookup fields just pass `referenceTo` through —
+      // the server expands them via `$expand` so the cell value is `{ id, name }`,
+      // which the lookup/user cell renderers handle natively.
+      const fieldMeta = buildFieldMeta({
+        accessorKey: col.accessorKey,
         label: col.header,
-        type: col.type ?? meta?.type,
-        options,
-        referenceTo,
-        format: col.format ?? meta?.format,
-        currency: (col as any).currency ?? meta?.currency ?? meta?.defaultCurrency,
-        decimals: (col as any).decimals ?? meta?.decimals ?? meta?.precision ?? meta?.scale,
-      };
+        def: fieldsByName[col.accessorKey],
+        objectName,
+        fieldOptionLabel,
+        overrides: {
+          type: col.type,
+          format: col.format,
+          options: col.options,
+          referenceTo: (col as any).referenceTo,
+          currency: (col as any).currency,
+          decimals: (col as any).decimals,
+        },
+      });
 
       // Numeric-flavoured columns look better right-aligned (tabular-nums
       // already on the cell). Honor an explicit `align` if the author set one.
-      const NUMERIC_TYPES = new Set([
-        'currency', 'money', 'number', 'integer', 'decimal', 'float', 'percent', 'percentage',
-      ]);
       const inferredAlign = (col as any).align
-        ?? ((NUMERIC_TYPES.has(fieldMeta.type as string) ||
-            (typeof fieldMeta.format === 'string' && /^[\$¥€£]|%$|0/.test(fieldMeta.format)))
-          ? 'right'
-          : undefined);
+        ?? (isNumericFieldMeta(fieldMeta) ? 'right' : undefined);
 
       if (typeof col.cell === 'function') return { ...col, ...fieldMeta, align: inferredAlign };
 
-      const cell = (value: any): React.ReactNode => {
-        if (value == null || value === '') return '';
-        const fmt = fieldMeta.format;
-        if (typeof fmt === 'string' && /^\$|¥|€|£/.test(fmt) && typeof value === 'number') {
-          // Honor explicit `currency`; else infer from the leading symbol so
-          // we never silently fall back to USD when the author wrote `¥`/`€`.
-          const symbolMap: Record<string, string> = { '$': 'USD', '¥': 'JPY', '€': 'EUR', '£': 'GBP' };
-          const inferred = symbolMap[fmt[0]];
-          return formatCurrency(value, fieldMeta.currency || inferred || tenantCurrency);
-        }
-        if (typeof fmt === 'string' && /%/.test(fmt) && typeof value === 'number') {
-          const decimals = (fmt.match(/0\.(0+)%/) || [, ''])[1].length;
-          const normalized = value > 1 ? value / 100 : value;
-          return formatPercent(normalized * 100, decimals);
-        }
-        if (typeof fmt === 'string' && /[YMDHms]/.test(fmt)) {
-          return formatDate(value, fmt);
-        }
-        const Renderer = getCellRenderer(resolveCellRendererType(fieldMeta as any));
-        return <Renderer value={value} field={fieldMeta as any} />;
-      };
+      // Tenant-default currency backstops a currency column with no explicit code.
+      const cell = (value: any): React.ReactNode => renderFieldValue(value, fieldMeta, tenantCurrency);
       return { ...col, ...fieldMeta, align: inferredAlign, cell };
     };
 
@@ -345,27 +316,9 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
     }
     if (finalData.length === 0) return [];
 
-    // Auto-derived columns should hide framework/system audit fields by
-    // default. Users wanting them can pass an explicit `columns` whitelist.
-    const SYSTEM_FIELDS = new Set([
-      'id',
-      'organization_id',
-      'tenant_id',
-      'created_at',
-      'updated_at',
-      'created_by',
-      'updated_by',
-      'deleted_at',
-      'deleted_by',
-      'version',
-      '_id',
-      '__typename',
-    ]);
-    const isSystemField = (name: string, def?: any): boolean => {
-      if (def && (def.isSystem === true || def.system === true)) return true;
-      return SYSTEM_FIELDS.has(name);
-    };
-
+    // Auto-derived columns hide framework/system audit fields by default
+    // (shared `isSystemField` denylist). Users wanting them can pass an
+    // explicit `columns` whitelist.
     // Prefer the objectSchema field order (declaration order = author intent)
     // and drop system fields. Fall back to the row's keys when no schema
     // is loaded, applying the same denylist.
@@ -374,7 +327,7 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
       : Object.keys(finalData[0]).filter((k) => !k.startsWith('_') && !isSystemField(k));
 
     return orderedKeys.map((k) => enrich({ header: buildHeader(k), accessorKey: k }));
-  }, [schema.columns, schema.objectName, finalData, objectSchema, fieldLabel, fieldOptionLabel]);
+  }, [schema.columns, schema.objectName, finalData, objectSchema, fieldLabel, fieldOptionLabel, tenantCurrency]);
 
   // Note: per-cell select-label translation that used to happen here is now
   // handled by SelectCellRenderer in the shared field registry, which also
@@ -451,17 +404,37 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   // Delegate to data-table via SchemaRenderer. Wrap in a positioned container
   // so the re-fetch indicator can anchor to the top of the table when a
   // refresh is in flight while existing rows remain visible.
+  // Honor an author-supplied onRowClick; otherwise wire the drill-to-record
+  // handler when drill-down is enabled. The base data-table guards against
+  // firing on interactive cells (buttons / menus / dialogs).
   const tableSchema = {
     ...schema,
     type: 'data-table',
     data: finalData,
     columns: derivedColumns,
+    onRowClick: (schema as any).onRowClick ?? (recordDrillEnabled ? handleRowClick : undefined),
   };
+
+  // A `${event.*}` template (filter-mode title) is meaningless for a single
+  // record — fall back to the record's display name in that case.
+  const recordTitle =
+    drillDown?.title && !drillDown.title.includes('${') ? drillDown.title : undefined;
 
   return (
     <div className={cn('relative', className)}>
       <RefreshIndicator active={loading && finalData.length > 0} />
       <SchemaRenderer schema={tableSchema} className={className} />
+      {recordDrillEnabled && (
+        <RecordDetailDrawer
+          record={drillRecord}
+          objectName={schema.objectName}
+          objectSchema={objectSchema}
+          fields={drillDown?.columns}
+          title={recordTitle}
+          target={drillDown?.target === 'dialog' ? 'dialog' : 'drawer'}
+          onClose={() => setDrillRecord(null)}
+        />
+      )}
     </div>
   );
 };

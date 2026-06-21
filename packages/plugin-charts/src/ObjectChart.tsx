@@ -606,6 +606,9 @@ export const ObjectChart = (props: any) => {
       pagination: true,
       pageSize: drillDown?.maxRows,
       columns: drillDown?.columns?.map((c: string) => ({ accessorKey: c, header: c })),
+      // Complete the drill chain: a row in the filtered list opens that record.
+      // Rendered as a dialog so it stacks cleanly over this drill drawer.
+      drillDown: { enabled: true, mode: 'record' as const, target: 'dialog' as const },
     };
     const body = (
       <div className="overflow-auto" data-testid="chart-drill-body">
