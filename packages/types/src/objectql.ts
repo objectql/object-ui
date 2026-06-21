@@ -906,6 +906,19 @@ export interface ObjectFormSchema extends BaseSchema {
    * pass a function). Falls back to 'Created' / 'Saved'.
    */
   successMessage?: string;
+
+  /**
+   * Navigate here after a successful create/update (declarative; falls back to
+   * a toast). Supports `{id}`/`{recordId}` interpolation from the saved record;
+   * same-origin-guarded. Takes precedence over `successMessage`.
+   */
+  navigateOnSuccess?: string;
+
+  /**
+   * Reset the form after a successful create so the user can enter another.
+   * Ignored when `navigateOnSuccess` is set.
+   */
+  resetOnSuccess?: boolean;
   
   /**
    * Show cancel button

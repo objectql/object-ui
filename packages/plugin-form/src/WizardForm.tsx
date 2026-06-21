@@ -20,6 +20,7 @@ import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
+import { resolveSuccessNavigate } from './successBehavior';
 import type { FormSectionConfig } from './TabbedForm';
 
 export interface WizardFormSchema {
@@ -80,6 +81,15 @@ export interface WizardFormSchema {
    * (metadata pages cannot pass a function). Falls back to 'Created'/'Saved'.
    */
   successMessage?: string;
+
+  /** Navigate here after a successful create/update (declarative; metadata
+   * pages can't pass onSuccess). Supports `{id}`/`{recordId}` interpolation
+   * from the saved record. Same-origin-guarded. Takes precedence over the toast. */
+  navigateOnSuccess?: string;
+
+  /** Reset the wizard (back to step 1, cleared) after a successful create so the
+   * user can enter another. Ignored when `navigateOnSuccess` is set. */
+  resetOnSuccess?: boolean;
   
   /**
    * Show cancel button
@@ -177,6 +187,9 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   // accumulated record actually reaches the server. Without this the create
   // POST body was `{}` and the server rejected all required fields.
   const stepFormId = React.useId();
+  // Bumped on resetOnSuccess to force the inner step form to remount fresh
+  // (it's otherwise reused across steps so back/forward retains values).
+  const [resetNonce, setResetNonce] = useState(0);
   // Seed `formData` only once. The data-loading effect below depends on
   // `dataSource`/`objectSchema`, whose identity can churn across renders;
   // re-running its create-mode branch would `setFormData({})` mid-wizard and
@@ -284,9 +297,21 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         if (schema.onSuccess) {
           await schema.onSuccess(result);
         } else {
-          // Default feedback so a metadata-only wizard (which cannot pass an
-          // onSuccess function) still confirms the create/update succeeded.
+          // Declarative success behaviors for metadata-only wizards.
+          const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
+          if (nav) {
+            // Landing on the saved record is the confirmation — no toast needed.
+            window.location.assign(nav);
+            return result;
+          }
           toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
+          if (schema.resetOnSuccess && schema.mode === 'create') {
+            // Back to a fresh step 1 for the next entry.
+            setFormData({});
+            setCompletedSteps(new Set());
+            setCurrentStep(0);
+            setResetNonce((n) => n + 1);
+          }
         }
         return result;
       } catch (err) {
@@ -436,6 +461,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           >
             {currentSectionFields.length > 0 ? (
               <SchemaRenderer
+                key={resetNonce}
                 schema={{
                   type: 'form' as const,
                   id: stepFormId,

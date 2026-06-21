@@ -173,6 +173,8 @@ export const ObjectFormSchema = BaseSchema.extend({
   showSubmit: z.boolean().optional().describe('Show submit button'),
   submitText: z.string().optional().describe('Submit button text'),
   successMessage: z.string().optional().describe('Success toast text after create/update when no onSuccess handler is given'),
+  navigateOnSuccess: z.string().optional().describe('Navigate here after success ({id}/{recordId} interpolated, same-origin-guarded); precedes the toast'),
+  resetOnSuccess: z.boolean().optional().describe('Reset the form after a successful create for another entry'),
   showCancel: z.boolean().optional().describe('Show cancel button'),
   cancelText: z.string().optional().describe('Cancel button text'),
   showReset: z.boolean().optional().describe('Show reset button'),

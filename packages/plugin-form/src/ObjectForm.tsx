@@ -18,6 +18,7 @@ import type { ObjectFormSchema, FormField, FormSchema, DataSource } from '@objec
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, evaluateCondition, formatFileSize } from '@object-ui/fields';
 import { useIsMobile, toast } from '@object-ui/components';
+import { resolveSuccessNavigate } from './successBehavior';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm } from './WizardForm';
@@ -618,6 +619,11 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       if (schema.onSuccess) {
         await schema.onSuccess(result);
       } else if (!schema.submitHandler) {
+        const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
+        if (nav) {
+          window.location.assign(nav);
+          return result;
+        }
         toast.success(schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'));
       }
 
@@ -844,7 +850,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     cancelLabel: schema.cancelText,
     showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
     showCancel: schema.showCancel !== false,
-    resetOnSubmit: schema.showReset,
+    resetOnSubmit: schema.showReset || (schema.resetOnSuccess && schema.mode === 'create'),
     defaultValues: finalDefaultValues,
     onSubmit: handleSubmit,
     onCancel: handleCancel,
