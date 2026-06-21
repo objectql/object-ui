@@ -33,6 +33,11 @@ import type { DashboardWidgetSchema } from '@object-ui/types';
 import type { MetadataInspectorProps } from '../inspector-registry';
 import { t } from '../i18n';
 import { InspectorReorderButtons, moveArray } from './_shared';
+import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
+import { DatasetNamesEditor } from './ReportDefaultInspector';
+import { useDatasetCatalog, useDatasetSemantics } from '../previews/useDatasetCatalog';
+import { useObjectFields, type ObjectFieldInfo } from '../previews/useObjectFields';
+import { useObjectOptions } from './useDatasetFields';
 
 const WIDGET_TYPES = [
   { value: 'metric', label: 'KPI Metric' },
@@ -77,6 +82,61 @@ export function DashboardWidgetInspector({
   readOnly,
   locale,
 }: MetadataInspectorProps) {
+  const widgetsAll = Array.isArray((draft as any).widgets)
+    ? ((draft as any).widgets as DashboardWidgetSchema[])
+    : [];
+  const selId = selection.kind === 'widget' ? selection.id : undefined;
+  const hit = selId ? findWidget(draft, selId) : null;
+
+  // ── Dataset binding (ADR-0021) ──────────────────────────────────────────
+  // Field access goes through `as any`: the bundled `@object-ui/types`
+  // `DashboardWidgetSchema` only gains `dataset`/`dimensions`/`values` once
+  // objectui bumps `@objectstack/spec`. Same accessor pattern as DatasetWidget.
+  const w = (hit?.widget ?? {}) as any;
+  const datasetName = typeof w.dataset === 'string' ? (w.dataset as string) : '';
+  const objectName = typeof w.object === 'string' ? (w.object as string) : '';
+  const dimensions: string[] = Array.isArray(w.dimensions)
+    ? (w.dimensions as unknown[]).filter((x): x is string => typeof x === 'string')
+    : [];
+  const values: string[] = Array.isArray(w.values)
+    ? (w.values as unknown[]).filter((x): x is string => typeof x === 'string')
+    : [];
+
+  // Catalogs — called unconditionally (stable hook order) BEFORE any early
+  // return, so the dataset/object/field pickers below bind to the live schema
+  // instead of free-text the author has to recall.
+  const catalog = useDatasetCatalog();
+  const semantics = useDatasetSemantics(datasetName || undefined, catalog);
+  const { options: objectOptions, loading: objectsLoading } = useObjectOptions();
+  const { fields: objectFields } = useObjectFields(objectName || undefined);
+
+  const datasetComboOptions: InspectorComboOption[] = React.useMemo(() => {
+    const opts = catalog.datasets.map((d) => ({
+      value: d.name,
+      label: d.label && d.label !== d.name ? `${d.label} (${d.name})` : d.name,
+    }));
+    if (datasetName && !opts.some((o) => o.value === datasetName)) {
+      opts.push({ value: datasetName, label: datasetName });
+    }
+    return opts;
+  }, [catalog.datasets, datasetName]);
+  const objectComboOptions: InspectorComboOption[] = React.useMemo(
+    () => objectOptions.map((o) => ({ value: o.name, label: o.label })),
+    [objectOptions],
+  );
+  const fieldComboOptions: InspectorComboOption[] = React.useMemo(
+    () => objectFields.map((f) => ({ value: f.name, label: f.label, hint: f.type })),
+    [objectFields],
+  );
+  const measureOptions: ObjectFieldInfo[] = React.useMemo(
+    () => semantics.measures.map((m) => ({ name: m.name, label: m.aggregate ? `${m.name} · ${m.aggregate}` : m.name, type: 'number', hidden: false })),
+    [semantics.measures],
+  );
+  const dimensionOptions: ObjectFieldInfo[] = React.useMemo(
+    () => semantics.dimensions.map((d) => ({ name: d.name, label: d.name, type: d.type ?? 'text', hidden: false })),
+    [semantics.dimensions],
+  );
+
   if (selection.kind !== 'widget') {
     return (
       <InspectorEmpty
@@ -86,8 +146,6 @@ export function DashboardWidgetInspector({
       />
     );
   }
-
-  const hit = findWidget(draft, selection.id);
   if (!hit) {
     return (
       <InspectorEmpty
@@ -99,26 +157,12 @@ export function DashboardWidgetInspector({
   }
 
   const { widget, index } = hit;
-  const widgetsAll = Array.isArray((draft as any).widgets)
-    ? ((draft as any).widgets as DashboardWidgetSchema[])
-    : [];
 
   function patchWidget(updates: Partial<DashboardWidgetSchema>) {
     const widgets = [...widgetsAll];
     widgets[index] = { ...widgets[index], ...updates };
     onPatch({ widgets });
   }
-
-  // ── Dataset binding (ADR-0021) ──────────────────────────────────────────
-  // Field access goes through `as any`: the bundled `@object-ui/types`
-  // `DashboardWidgetSchema` only gains `dataset`/`dimensions`/`values` once
-  // objectui bumps `@objectstack/spec`. Same accessor pattern as DatasetWidget.
-  const w = widget as any;
-  const datasetName = typeof w.dataset === 'string' ? (w.dataset as string) : '';
-  const dimensionsCsv = Array.isArray(w.dimensions) ? (w.dimensions as string[]).join(', ') : '';
-  const valuesCsv = Array.isArray(w.values) ? (w.values as string[]).join(', ') : '';
-  const parseList = (s: string): string[] =>
-    s.split(',').map((x) => x.trim()).filter(Boolean);
 
   function moveWidget(to: number) {
     onPatch({ widgets: moveArray(widgetsAll, index, to) });
@@ -200,14 +244,15 @@ export function DashboardWidgetInspector({
           {t('engine.inspector.widget.datasetSection', locale)}
         </div>
         <Field id="widget-dataset" label={t('engine.inspector.widget.dataset', locale)}>
-          <Input
-            id="widget-dataset"
+          <InspectorComboField
             value={datasetName}
+            onCommit={(v) => patchWidget({ dataset: v || undefined } as Partial<DashboardWidgetSchema>)}
+            options={datasetComboOptions}
+            loading={catalog.loading}
             placeholder={t('engine.inspector.widget.datasetPlaceholder', locale)}
-            onChange={(e) =>
-              patchWidget({ dataset: e.target.value || undefined } as Partial<DashboardWidgetSchema>)
-            }
+            searchPlaceholder={t('engine.inspector.widget.datasetPlaceholder', locale)}
             disabled={readOnly}
+            mono
           />
           <p className="text-[10px] leading-snug text-muted-foreground">
             {t('engine.inspector.widget.datasetHint', locale)}
@@ -215,65 +260,67 @@ export function DashboardWidgetInspector({
         </Field>
         {datasetName && (
           <>
-            <Field id="widget-dimensions" label={t('engine.inspector.widget.dimensions', locale)}>
-              <Input
-                id="widget-dimensions"
-                value={dimensionsCsv}
-                placeholder={t('engine.inspector.widget.dimensionsPlaceholder', locale)}
-                onChange={(e) =>
-                  patchWidget({ dimensions: parseList(e.target.value) } as Partial<DashboardWidgetSchema>)
-                }
-                disabled={readOnly}
-              />
-              <p className="text-[10px] leading-snug text-muted-foreground">
-                {t('engine.inspector.widget.dimensionsHint', locale)}
-              </p>
-            </Field>
-            <Field id="widget-values" label={t('engine.inspector.widget.values', locale)}>
-              <Input
-                id="widget-values"
-                value={valuesCsv}
-                placeholder={t('engine.inspector.widget.valuesPlaceholder', locale)}
-                onChange={(e) =>
-                  patchWidget({ values: parseList(e.target.value) } as Partial<DashboardWidgetSchema>)
-                }
-                disabled={readOnly}
-              />
-              <p className="text-[10px] leading-snug text-muted-foreground">
-                {t('engine.inspector.widget.valuesHint', locale)}
-              </p>
-            </Field>
+            {/* Dimensions / measures picked from the bound dataset's semantic
+                layer (reorderable, add-from-catalog) — same control the Report
+                inspector uses — instead of comma-separated free text. */}
+            <DatasetNamesEditor
+              label={t('engine.inspector.widget.dimensions', locale)}
+              emptyText={t('engine.inspector.widget.dimensionsHint', locale)}
+              names={dimensions}
+              options={dimensionOptions}
+              loading={semantics.loading}
+              error={semantics.error}
+              readOnly={readOnly}
+              onCommit={(next) => patchWidget({ dimensions: next } as Partial<DashboardWidgetSchema>)}
+            />
+            <DatasetNamesEditor
+              label={t('engine.inspector.widget.values', locale)}
+              emptyText={t('engine.inspector.widget.valuesHint', locale)}
+              names={values}
+              options={measureOptions}
+              loading={semantics.loading}
+              error={semantics.error}
+              readOnly={readOnly}
+              onCommit={(next) => patchWidget({ values: next } as Partial<DashboardWidgetSchema>)}
+            />
           </>
         )}
       </div>
 
       <Field id="widget-object" label={t('engine.inspector.widget.object', locale)}>
-        <Input
-          id="widget-object"
+        <InspectorComboField
           value={widget.object ?? ''}
-          placeholder="e.g. order"
-          onChange={(e) => patchWidget({ object: e.target.value })}
+          onCommit={(v) => patchWidget({ object: v || undefined })}
+          options={objectComboOptions}
+          loading={objectsLoading}
+          placeholder="Select an object…"
+          searchPlaceholder="Search objects…"
           disabled={readOnly}
+          mono
         />
       </Field>
 
       <Field id="widget-value-field" label={t('engine.inspector.widget.valueField', locale)}>
-        <Input
-          id="widget-value-field"
+        <InspectorComboField
           value={widget.valueField ?? ''}
-          placeholder="e.g. amount"
-          onChange={(e) => patchWidget({ valueField: e.target.value })}
+          onCommit={(v) => patchWidget({ valueField: v || undefined })}
+          options={fieldComboOptions}
+          placeholder={widget.object ? 'Select a field…' : 'e.g. amount'}
+          searchPlaceholder="Search fields…"
           disabled={readOnly}
+          mono
         />
       </Field>
 
       <Field id="widget-category-field" label={t('engine.inspector.widget.categoryField', locale)}>
-        <Input
-          id="widget-category-field"
+        <InspectorComboField
           value={widget.categoryField ?? ''}
-          placeholder="e.g. status"
-          onChange={(e) => patchWidget({ categoryField: e.target.value })}
+          onCommit={(v) => patchWidget({ categoryField: v || undefined })}
+          options={fieldComboOptions}
+          placeholder={widget.object ? 'Select a field…' : 'e.g. status'}
+          searchPlaceholder="Search fields…"
           disabled={readOnly}
+          mono
         />
       </Field>
 

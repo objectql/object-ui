@@ -114,9 +114,11 @@ function readNames(value: unknown): string[] {
 
 /**
  * A reorderable list of dataset member names (the report's `values` or
- * `rows`) with an add-popover fed by the bound dataset's catalog.
+ * `rows`) with an add-popover fed by the bound dataset's catalog. Exported so
+ * the Dashboard widget inspector can bind the same governed dimensions/measures
+ * the same way (single source of truth for dataset-member editing).
  */
-function DatasetNamesEditor({
+export function DatasetNamesEditor({
   label,
   emptyText,
   names,

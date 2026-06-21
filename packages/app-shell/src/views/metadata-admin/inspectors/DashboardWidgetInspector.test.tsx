@@ -1,52 +1,42 @@
 // Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
 
 /**
- * DashboardWidgetInspector — dataset binding (ADR-0021). The hand-built widget
- * inspector lets you bind a governed dataset + pick dimensions/values BY NAME,
- * symmetric to the report's dataset binding, so per-widget dataset binding is
- * editable in the form (not only via the raw source tab / API).
+ * DashboardWidgetInspector — dataset binding (ADR-0021). The widget inspector
+ * binds a governed dataset and picks its dimensions/measures from the bound
+ * dataset's semantic layer (the same control the Report inspector uses), and
+ * the inline object query picks object/fields from the live schema — instead
+ * of free-text the author has to recall. These tests stub the catalog hooks so
+ * the pickers render network-free.
  */
 
 import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, cleanup } from '@testing-library/react';
+
+// Network-free catalogs.
+vi.mock('../previews/useDatasetCatalog', () => ({
+  useDatasetCatalog: () => ({
+    datasets: [{ name: 'sales_pipeline', label: 'Sales Pipeline', dimensions: [], measures: [] }],
+    loading: false,
+    error: null,
+  }),
+  useDatasetSemantics: () => ({
+    dimensions: [{ name: 'stage', type: 'string' }],
+    measures: [{ name: 'revenue', aggregate: 'sum' }],
+    loading: false,
+    error: null,
+  }),
+}));
+vi.mock('./useDatasetFields', () => ({
+  useObjectOptions: () => ({ options: [{ name: 'crm_opportunity', label: 'Opportunity' }], loading: false }),
+}));
+vi.mock('../previews/useObjectFields', () => ({
+  useObjectFields: () => ({ fields: [{ name: 'amount', label: 'Amount', type: 'currency', hidden: false }], loading: false, error: null }),
+}));
+
 import { DashboardWidgetInspector } from './DashboardWidgetInspector';
 
 afterEach(cleanup);
-
-/**
- * Stateful host that actually applies `onPatch` back into the draft — needed
- * to exercise controlled-input transitions across multiple edits (a bare spy
- * leaves the input value frozen, so a second edit to the same value is a no-op).
- */
-function StatefulInspector({
-  initialWidgets,
-  onPatchSpy,
-  ...rest
-}: {
-  initialWidgets: Record<string, unknown>[];
-  onPatchSpy?: (patch: Record<string, unknown>) => void;
-  [k: string]: unknown;
-}) {
-  const [draft, setDraft] = React.useState<Record<string, unknown>>({ widgets: initialWidgets });
-  return (
-    <DashboardWidgetInspector
-      type="dashboard"
-      name="sales"
-      locale={'en-US'}
-      onClearSelection={vi.fn()}
-      onSelectionChange={vi.fn()}
-      readOnly={false}
-      selection={{ kind: 'widget', id: 'w1' }}
-      {...rest}
-      draft={draft}
-      onPatch={(patch: Record<string, unknown>) => {
-        onPatchSpy?.(patch);
-        setDraft((d) => ({ ...d, ...patch }));
-      }}
-    />
-  );
-}
 
 const baseProps = {
   type: 'dashboard',
@@ -57,32 +47,25 @@ const baseProps = {
   readOnly: false,
 };
 
-function labelledInput(label: string): HTMLInputElement {
-  const lab = screen.getByText(label);
-  const input = lab.parentElement!.querySelector('input, textarea');
-  return input as HTMLInputElement;
+const widget = (extra: Record<string, unknown> = {}) => ({ id: 'w1', type: 'bar', title: 'Revenue', ...extra });
+
+function renderWidget(extra: Record<string, unknown> = {}, props: Record<string, unknown> = {}) {
+  return render(
+    <DashboardWidgetInspector
+      {...baseProps}
+      {...props}
+      draft={{ widgets: [widget(extra)] }}
+      selection={{ kind: 'widget', id: 'w1' }}
+      onPatch={(props.onPatch as any) ?? vi.fn()}
+    />,
+  );
 }
 
-const widget = (extra: Record<string, unknown> = {}) => ({
-  id: 'w1',
-  type: 'bar',
-  title: 'Revenue',
-  ...extra,
-});
-
 describe('DashboardWidgetInspector — dataset binding', () => {
-  it('shows the Dataset field; dimensions/values appear only once a dataset is bound', () => {
-    const { rerender } = render(
-      <DashboardWidgetInspector
-        {...baseProps}
-        draft={{ widgets: [widget()] }}
-        selection={{ kind: 'widget', id: 'w1' }}
-        onPatch={vi.fn()}
-      />,
-    );
-    // Dataset input is always present…
-    expect(labelledInput('Dataset')).toBeInTheDocument();
-    // …but dimensions/values are gated behind a bound dataset.
+  it('shows the Dataset picker; dimensions/values appear only once a dataset is bound', () => {
+    const { rerender } = renderWidget();
+    expect(screen.getByText('Dataset')).toBeInTheDocument();
+    // Dimensions/Values sections are gated behind a bound dataset.
     expect(screen.queryByText('Dimensions')).not.toBeInTheDocument();
     expect(screen.queryByText('Values (measures)')).not.toBeInTheDocument();
 
@@ -94,92 +77,32 @@ describe('DashboardWidgetInspector — dataset binding', () => {
         onPatch={vi.fn()}
       />,
     );
-    expect(labelledInput('Dataset').value).toBe('sales_pipeline');
-    expect(labelledInput('Dimensions').value).toBe('stage');
-    expect(labelledInput('Values (measures)').value).toBe('revenue');
+    // Sections now present, and the bound members render in the lists.
+    expect(screen.getByText('Dimensions')).toBeInTheDocument();
+    expect(screen.getByText('Values (measures)')).toBeInTheDocument();
+    expect(screen.getByText('stage')).toBeInTheDocument();
+    expect(screen.getByText('revenue')).toBeInTheDocument();
   });
 
-  it('commits the dataset name via onPatch (and clears with empty → undefined)', () => {
-    const onPatchSpy = vi.fn();
-    render(<StatefulInspector initialWidgets={[widget()]} onPatchSpy={onPatchSpy} />);
-
-    fireEvent.change(labelledInput('Dataset'), { target: { value: 'sales_pipeline' } });
-    expect(onPatchSpy).toHaveBeenLastCalledWith({
-      widgets: [expect.objectContaining({ id: 'w1', dataset: 'sales_pipeline' })],
-    });
-
-    // The bound value is now reflected (stateful host applied the patch).
-    expect(labelledInput('Dataset').value).toBe('sales_pipeline');
-
-    onPatchSpy.mockClear();
-    fireEvent.change(labelledInput('Dataset'), { target: { value: '' } });
-    expect(onPatchSpy).toHaveBeenLastCalledWith({
-      widgets: [expect.objectContaining({ id: 'w1', dataset: undefined })],
-    });
-  });
-
-  it('parses comma-separated dimensions/values into string arrays', () => {
-    const onPatch = vi.fn();
-    render(
-      <DashboardWidgetInspector
-        {...baseProps}
-        draft={{ widgets: [widget({ dataset: 'sales_pipeline' })] }}
-        selection={{ kind: 'widget', id: 'w1' }}
-        onPatch={onPatch}
-      />,
-    );
-    fireEvent.change(labelledInput('Dimensions'), { target: { value: 'stage, region ,' } });
-    expect(onPatch).toHaveBeenCalledWith({
-      widgets: [expect.objectContaining({ dimensions: ['stage', 'region'] })],
-    });
-
-    onPatch.mockClear();
-    fireEvent.change(labelledInput('Values (measures)'), { target: { value: 'revenue,deal_count' } });
-    expect(onPatch).toHaveBeenCalledWith({
-      widgets: [expect.objectContaining({ values: ['revenue', 'deal_count'] })],
-    });
-  });
-
-  it('keeps the inline object query editable alongside dataset binding (additive dual-form)', () => {
-    render(
-      <DashboardWidgetInspector
-        {...baseProps}
-        draft={{ widgets: [widget({ object: 'crm_opportunity', valueField: 'amount' })] }}
-        selection={{ kind: 'widget', id: 'w1' }}
-        onPatch={vi.fn()}
-      />,
-    );
-    // Both the dataset binding and the legacy inline object field are present.
-    expect(labelledInput('Dataset')).toBeInTheDocument();
-    expect(labelledInput('Data Source (Object)').value).toBe('crm_opportunity');
-    expect(labelledInput('Value Field').value).toBe('amount');
+  it('renders object + field bindings as pickers (inline single-object query)', () => {
+    renderWidget({ object: 'crm_opportunity', valueField: 'amount' });
+    expect(screen.getByText('Data Source (Object)')).toBeInTheDocument();
+    expect(screen.getByText('Value Field')).toBeInTheDocument();
+    // The bound object/field resolve to their catalog labels on the combo triggers.
+    expect(screen.getAllByText('Opportunity').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Amount').length).toBeGreaterThan(0);
   });
 
   it('renders Chinese labels under zh-CN', () => {
-    render(
-      <DashboardWidgetInspector
-        {...baseProps}
-        locale={'zh-CN'}
-        draft={{ widgets: [widget({ dataset: 'sales_pipeline' })] }}
-        selection={{ kind: 'widget', id: 'w1' }}
-        onPatch={vi.fn()}
-      />,
-    );
+    renderWidget({ dataset: 'sales_pipeline' }, { locale: 'zh-CN' });
     expect(screen.getByText('数据集绑定')).toBeInTheDocument();
     expect(screen.getByText('维度')).toBeInTheDocument();
   });
 
-  it('disables the dataset inputs when readOnly', () => {
-    render(
-      <DashboardWidgetInspector
-        {...baseProps}
-        readOnly
-        draft={{ widgets: [widget({ dataset: 'sales_pipeline' })] }}
-        selection={{ kind: 'widget', id: 'w1' }}
-        onPatch={vi.fn()}
-      />,
-    );
-    expect(labelledInput('Dataset')).toBeDisabled();
-    expect(labelledInput('Dimensions')).toBeDisabled();
+  it('disables every picker when readOnly', () => {
+    renderWidget({ dataset: 'sales_pipeline', object: 'crm_opportunity' }, { readOnly: true });
+    const combos = screen.getAllByRole('combobox');
+    expect(combos.length).toBeGreaterThan(0);
+    combos.forEach((c) => expect(c).toBeDisabled());
   });
 });
