@@ -2,6 +2,17 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+
+// Stub the catalog hooks so the inspector renders without a MetadataClient /
+// network. The pickers fall back to showing the raw committed value, which is
+// all these structural assertions need.
+vi.mock('./useDatasetFields', () => ({
+  useObjectOptions: () => ({ options: [], loading: false }),
+  useDatasetFieldCatalog: () => ({ relationships: [], fieldOptions: [], loading: false }),
+  useDatasetUsage: () => ({ reports: 0, dashboards: 0, loading: false }),
+  fieldTypeToDimensionType: (t: string) => (t === 'date' ? 'date' : 'string'),
+}));
+
 import { DatasetDefaultInspector } from './DatasetDefaultInspector';
 
 afterEach(cleanup);
@@ -20,12 +31,16 @@ const draft = {
 describe('DatasetDefaultInspector', () => {
   it('renders the structured designer (object / dimension / measure rows)', () => {
     render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={false} />);
-    expect(screen.getByDisplayValue('opportunity')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('account')).toBeInTheDocument(); // include relationship row
+    // Base object + included relationship now render as combo triggers showing
+    // the committed value (catalog is empty in this test); the value also
+    // surfaces in the join-path hint, so assert presence rather than uniqueness.
+    expect(screen.getAllByText('opportunity').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('account').length).toBeGreaterThan(0);
+    expect(screen.getByText('Base object')).toBeInTheDocument();
     expect(screen.getByText('Dimension 1')).toBeInTheDocument();
     expect(screen.getByText('Measure 1')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('region')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('revenue')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('region')).toBeInTheDocument(); // dimension name input
+    expect(screen.getByDisplayValue('revenue')).toBeInTheDocument(); // measure name input
   });
 
   it('adds a measure via onPatch', () => {
@@ -55,10 +70,19 @@ describe('DatasetDefaultInspector', () => {
   it('removes the measure row', () => {
     const onPatch = vi.fn();
     render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={onPatch} readOnly={false} />);
-    // The measure block's remove button is the second "Remove" (dimension is first).
+    // The measure block's remove button is the last "Remove" (dimension is first).
     const removes = screen.getAllByText('Remove');
     fireEvent.click(removes[removes.length - 1]);
     expect(onPatch).toHaveBeenCalledWith({ measures: [] });
+  });
+
+  it('toggles a derived measure on via the advanced disclosure', () => {
+    const onPatch = vi.fn();
+    render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={onPatch} readOnly={false} />);
+    fireEvent.click(screen.getByText('Derived — computed from other measures'));
+    expect(onPatch).toHaveBeenCalledWith({
+      measures: [expect.objectContaining({ name: 'revenue', derived: { op: 'ratio', of: [] } })],
+    });
   });
 
   it('hides add/remove affordances when readOnly', () => {
