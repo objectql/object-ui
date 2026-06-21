@@ -22,6 +22,11 @@
  * on :5180 and the backend on :3000). `${ctx.recordId}` / `${param.X}` tokens
  * in `target` are resolved here, exactly as the spec mandates renderers do.
  *
+ * Dialogs: actions that declare an array of `params` collect them from the
+ * user in the shared {@link ActionParamDialog} before running (same UX as
+ * business-object actions); actions that declare a `resultDialog` render the
+ * API response in {@link ActionResultDialog}. `confirmText` still gates the run.
+ *
  * Only `type:'api'` is wired today; other types surface a toast so a
  * misconfigured action fails loud instead of silent.
  */
@@ -31,7 +36,10 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { createAuthenticatedFetch } from '@object-ui/auth';
+import type { ActionParamDef } from '@object-ui/core';
 import { getIcon } from '../../utils/getIcon';
+import { ActionParamDialog, type ParamDialogState } from '../ActionParamDialog';
+import { ActionResultDialog, type ResultDialogState } from '../ActionResultDialog';
 import type { MetadataTypeAction, RichMetadataTypeEntry } from './useMetadata';
 
 /** Map the spec's action variants onto the Shadcn Button variants. */
@@ -81,6 +89,8 @@ export interface MetadataTypeActionsProps {
  */
 export function MetadataTypeActions({ entry, location, recordId, onAfter }: MetadataTypeActionsProps): React.ReactElement | null {
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [paramState, setParamState] = React.useState<ParamDialogState>({ open: false, params: [] });
+  const [resultState, setResultState] = React.useState<ResultDialogState>({ open: false });
   const authFetch = React.useMemo(() => createAuthenticatedFetch(), []);
 
   const actions = React.useMemo(
@@ -92,6 +102,12 @@ export function MetadataTypeActions({ entry, location, recordId, onAfter }: Meta
   );
 
   if (actions.length === 0) return null;
+
+  /** Open the param dialog and resolve with the collected values (or null on cancel). */
+  const collectParams = (params: ActionParamDef[], title?: string) =>
+    new Promise<Record<string, unknown> | null>((resolve) => {
+      setParamState({ open: true, params, title, resolve });
+    });
 
   const run = async (action: MetadataTypeAction) => {
     const title = action.label ?? action.name;
@@ -105,7 +121,17 @@ export function MetadataTypeActions({ entry, location, recordId, onAfter }: Meta
 
     if (action.confirmText && !window.confirm(action.confirmText)) return;
 
-    const params = action.params ?? {};
+    // Inputs: an array of param descriptors → collect in a dialog; a static
+    // object → forward as-is.
+    let params: Record<string, unknown>;
+    if (Array.isArray(action.params) && action.params.length > 0) {
+      const collected = await collectParams(action.params as ActionParamDef[], title);
+      if (collected == null) return; // user cancelled
+      params = collected;
+    } else {
+      params = (action.params as Record<string, unknown> | undefined) ?? {};
+    }
+
     const ctx = { recordId, origin: window.location.origin };
     const resolved = interpolateTarget(action.target ?? '', ctx, params);
     if (!resolved) {
@@ -139,12 +165,17 @@ export function MetadataTypeActions({ entry, location, recordId, onAfter }: Meta
       if (!res.ok || (data && data.success === false)) {
         const detail =
           (data?.error as string) || (data?.message as string) || `HTTP ${res.status} ${res.statusText}`.trim();
-        toast.error(`${title}: ${detail}`);
+        toast.error(`${action.errorMessage ? `${action.errorMessage}: ` : ''}${title}: ${detail}`);
         return;
       }
 
-      const msg = typeof data?.message === 'string' ? (data.message as string) : `${title} ✓`;
-      toast.success(msg);
+      // Rich result reveal when declared, else a success toast.
+      if (action.resultDialog) {
+        setResultState({ open: true, spec: action.resultDialog as ResultDialogState['spec'], data: data ?? {} });
+      } else {
+        const msg = action.successMessage || (typeof data?.message === 'string' ? (data.message as string) : `${title} ✓`);
+        toast.success(msg);
+      }
       if (action.refreshAfter) onAfter?.();
     } catch (err) {
       toast.error(`${title}: ${(err as Error)?.message ?? String(err)}`);
@@ -176,6 +207,20 @@ export function MetadataTypeActions({ entry, location, recordId, onAfter }: Meta
           </Button>
         );
       })}
+
+      <ActionParamDialog
+        state={paramState}
+        onOpenChange={(open) => {
+          if (!open) {
+            paramState.resolve?.(null);
+            setParamState({ open: false, params: [] });
+          }
+        }}
+      />
+      <ActionResultDialog
+        state={resultState}
+        onAcknowledge={() => setResultState({ open: false })}
+      />
     </>
   );
 }

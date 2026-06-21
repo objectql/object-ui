@@ -50,8 +50,18 @@ export interface MetadataTypeAction {
   confirmText?: string;
   /** Reload the view after a successful run. */
   refreshAfter?: boolean;
-  /** Static request body / param bag forwarded to the endpoint. */
-  params?: Record<string, unknown>;
+  /**
+   * Inputs. Either an array of ActionParam descriptors (collected from the user
+   * in a dialog before running — same as business-object actions), or a static
+   * key→value bag forwarded as the request body.
+   */
+  params?: Record<string, unknown> | unknown[];
+  /** Success toast message (when no resultDialog). */
+  successMessage?: string;
+  /** Error toast prefix shown when the action fails. */
+  errorMessage?: string;
+  /** Render the API response in a result dialog (spec Action.resultDialog). */
+  resultDialog?: Record<string, unknown>;
 }
 
 export interface RichMetadataTypeEntry {
