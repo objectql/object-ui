@@ -160,16 +160,16 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
   const staticOptions: LookupOption[] = fieldMeta?.options || [];
   const multiple = fieldMeta?.multiple || false;
-  const displayField = fieldMeta?.display_field || fieldMeta?.reference_field || 'name';
-  const descriptionField: string | undefined = fieldMeta?.description_field;
+  const displayField = fieldMeta?.display_field || fieldMeta?.displayField || fieldMeta?.reference_field || 'name';
+  const descriptionField: string | undefined = fieldMeta?.description_field ?? fieldMeta?.descriptionField;
   const idField = fieldMeta?.id_field || 'id';
   // ObjectStack convention uses `reference`; types define `reference_to` — support both
   const referenceTo: string | undefined = fieldMeta?.reference_to || fieldMeta?.reference;
 
   // Enterprise Record Picker configuration
-  const lookupColumns: Array<string | LookupColumnDef> | undefined = fieldMeta?.lookup_columns;
-  const lookupPageSize: number | undefined = fieldMeta?.lookup_page_size;
-  const lookupFilters: import('@object-ui/types').LookupFilterDef[] | undefined = fieldMeta?.lookup_filters;
+  const lookupColumns: Array<string | LookupColumnDef> | undefined = fieldMeta?.lookup_columns ?? fieldMeta?.lookupColumns;
+  const lookupPageSize: number | undefined = fieldMeta?.lookup_page_size ?? fieldMeta?.lookupPageSize;
+  const lookupFilters: import('@object-ui/types').LookupFilterDef[] | undefined = fieldMeta?.lookup_filters ?? fieldMeta?.lookupFilters;
 
   /**
    * Dependent lookups — restrict candidates based on values of *other* fields
