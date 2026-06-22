@@ -1141,6 +1141,18 @@ const en = {
       stopResponse: 'Stop response',
       trace: 'trace',
       viewTrace: 'View trace',
+      // Build-flow draft + "Proposed plan" confirm-gate card (AiChatPage /ai/build).
+      // Mirror the ConsoleFloatingChatbot locale object so both AI surfaces match.
+      nextSteps: "What's next",
+      planTitle: 'Proposed plan',
+      planQuestions: 'Confirm before building',
+      planAssumptions: 'Assumptions',
+      planApproveHint: 'Reply to approve or adjust this plan.',
+      planApprove: 'Build it',
+      planAdjust: 'Adjust',
+      planApproveMessage: 'Looks good — build it as proposed.',
+      planApproveDefaultsMessage:
+        'Build it with your best assumptions; use sensible defaults for the open questions.',
       justNow: 'just now',
       minutesAgo: '{{count}}m ago',
       hoursAgo: '{{count}}h ago',

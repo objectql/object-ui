@@ -1138,6 +1138,17 @@ const zh = {
       stopResponse: '停止生成',
       trace: '调试 trace',
       viewTrace: '查看调试 trace',
+      // 搭建流程的草稿与「方案预览」确认卡片（AiChatPage /ai/build）。
+      // 与 ConsoleFloatingChatbot 的 locale 对象保持一致，两个 AI 界面文案统一。
+      nextSteps: '下一步',
+      planTitle: '方案预览',
+      planQuestions: '搭建前请确认',
+      planAssumptions: '假设',
+      planApproveHint: '回复以确认或调整该方案。',
+      planApprove: '开始搭建',
+      planAdjust: '调整方案',
+      planApproveMessage: '就按这个方案搭建吧。',
+      planApproveDefaultsMessage: '就按你的合理假设直接搭建，未决问题用默认即可。',
       justNow: '刚刚',
       minutesAgo: '{{count}} 分钟前',
       hoursAgo: '{{count}} 小时前',

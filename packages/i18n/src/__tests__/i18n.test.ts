@@ -85,6 +85,19 @@ describe('@object-ui/i18n', () => {
       expect(i18n.t('console.objectView.toolbarEnabledCount', { count: 3, total: 5 })).toBe('已启用 3/5 项');
     });
 
+    it('translates the AI "Proposed plan" card keys in Chinese (not English fallback)', () => {
+      const i18n = createI18n({ defaultLanguage: 'zh', detectBrowserLanguage: false });
+      expect(i18n.t('console.ai.planTitle')).toBe('方案预览');
+      expect(i18n.t('console.ai.planQuestions')).toBe('搭建前请确认');
+      expect(i18n.t('console.ai.planAssumptions')).toBe('假设');
+      expect(i18n.t('console.ai.planApproveHint')).toBe('回复以确认或调整该方案。');
+      expect(i18n.t('console.ai.planApprove')).toBe('开始搭建');
+      expect(i18n.t('console.ai.planAdjust')).toBe('调整方案');
+      expect(i18n.t('console.ai.planApproveMessage')).toBe('就按这个方案搭建吧。');
+      expect(i18n.t('console.ai.planApproveDefaultsMessage')).toBe('就按你的合理假设直接搭建，未决问题用默认即可。');
+      expect(i18n.t('console.ai.nextSteps')).toBe('下一步');
+    });
+
     it('translates common keys in Japanese', () => {
       const i18n = createI18n({ defaultLanguage: 'ja', detectBrowserLanguage: false });
       expect(i18n.t('common.save')).toBe('保存');
