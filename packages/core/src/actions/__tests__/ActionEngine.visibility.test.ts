@@ -146,4 +146,33 @@ describe('ActionEngine.getActionsForLocation — visibility filter', () => {
     engine.registerAction({ name: 'c', type: 'api', visible: false } as any, { locations: ['record_section'], priority: 5 });
     expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['b', 'a']);
   });
+  it('hides a throwing (bare-field) predicate AND warns once (diagnose #2183 silent hide)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const engine = makeEngine(ctx);
+      // bare `done` is undeclared in the eval scope → throws → fail-closed hide
+      engine.registerAction({ name: 'mark_done', type: 'script', visible: '!done' } as any, { locations: ['record_section'] });
+      expect(engine.getActionsForLocation('record_section')).toHaveLength(0);
+      // re-querying must NOT spam the warning (deduped per predicate)
+      engine.getActionsForLocation('record_section');
+      const hits = warn.mock.calls.filter(c => String(c[0]).includes('mark_done'));
+      expect(hits).toHaveLength(1);
+      expect(String(hits[0][0])).toMatch(/record\.<field>/);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('does not warn for a correct record-qualified predicate', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const engine = makeEngine(ctx);
+      engine.registerAction({ name: 'ok_action', type: 'script', visible: '!record.two_factor_enabled' } as any, { locations: ['record_section'] });
+      expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['ok_action']);
+      expect(warn.mock.calls.filter(c => String(c[0]).includes('ok_action'))).toHaveLength(0);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
 });

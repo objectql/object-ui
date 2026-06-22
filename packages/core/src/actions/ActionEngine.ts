@@ -65,6 +65,30 @@ function normalizeShortcut(keys: string): string {
   return keys.toLowerCase().split('+').map(k => k.trim()).sort().join('+');
 }
 
+/** De-dupe key set so a broken predicate warns once, not every re-render. */
+const _warnedPredicates = new Set<string>();
+
+/**
+ * Surface an action whose `visible` predicate threw (and was therefore
+ * fail-closed hidden). Almost always an authoring bug — typically a bare field
+ * reference that should be `record.<field>`. Warned once per predicate.
+ */
+function warnHiddenPredicate(name: unknown, raw: unknown, err: unknown): void {
+  const src = typeof raw === 'string'
+    ? raw
+    : (raw && typeof raw === 'object' && typeof (raw as any).source === 'string' ? (raw as any).source : String(raw));
+  const key = `${String(name)}::${src}`;
+  if (_warnedPredicates.has(key)) return;
+  _warnedPredicates.add(key);
+  const msg = err instanceof Error ? err.message : String(err);
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[ActionEngine] action "${String(name)}" hidden: its \`visible\` predicate threw — ${msg}. ` +
+    `Predicate: ${src}. Action predicates evaluate against { record, recordId, objectName, user, … }; ` +
+    `use \`record.<field>\` (not a bare field).`,
+  );
+}
+
 export class ActionEngine {
   private actions = new Map<string, RegisteredAction>();
   private mappings: ActionMapping[] = [];
@@ -193,7 +217,15 @@ export class ActionEngine {
           // failed (e.g. `ctx` undefined). Surface the error so our catch
           // below can hide the action.
           return evaluator.evaluateCondition(expr as any, { throwOnError: true } as any);
-        } catch {
+        } catch (err) {
+          // Fail-closed: hide the action. But a *thrown* predicate is almost
+          // always an authoring bug, not a real precondition — most often a
+          // BARE field reference (`done` instead of `record.done`), which is
+          // an undeclared variable in the `{ record, recordId, objectName,
+          // user }` eval scope. Silently hiding it makes that bug invisible
+          // (the #2183 hunt). Warn once per predicate so it is diagnosable
+          // without spamming re-renders.
+          warnHiddenPredicate((ra.action as any).name, raw, err);
           return false;
         }
       })
