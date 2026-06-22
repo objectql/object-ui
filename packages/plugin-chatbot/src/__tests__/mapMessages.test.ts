@@ -285,6 +285,21 @@ describe('draftReview detection (ADR-0033)', () => {
     expect(dr?.items).toEqual([{ type: 'view', name: 'grid_v' }]);
   });
 
+  it('lifts apply_blueprint nextSteps for the getting-started checklist (drops blanks)', () => {
+    const dr = draftReviewOf({
+      status: 'drafted',
+      drafted: [{ type: 'app', name: 'recruiting' }],
+      summary: 'built 13 artifact(s)',
+      nextSteps: ['Make the data yours', '', '   ', 'Publish from the status panel'],
+    });
+    expect(dr?.nextSteps).toEqual(['Make the data yours', 'Publish from the status panel']);
+  });
+
+  it('omits nextSteps when absent or not a string array', () => {
+    expect(draftReviewOf({ status: 'drafted', type: 'object', name: 'x' })?.nextSteps).toBeUndefined();
+    expect(draftReviewOf({ status: 'drafted', type: 'object', name: 'x', nextSteps: 'nope' })?.nextSteps).toBeUndefined();
+  });
+
   it('does NOT surface blueprint_proposed (no draft yet) or plain results', () => {
     expect(draftReviewOf({ status: 'blueprint_proposed', counts: { objects: 3 } })).toBeUndefined();
     expect(draftReviewOf({ users: [] })).toBeUndefined();

@@ -142,6 +142,15 @@ export interface DraftReview {
    * carries an agent-actionable `message`; `fix` is the mechanical hint.
    */
   issues?: Array<{ severity: 'error' | 'warning'; code: string; message: string; fix?: string }>;
+  /**
+   * Concrete post-build "what's next" steps the assistant returns on a whole-app
+   * build (apply_blueprint `nextSteps`), e.g. "replace the sample data",
+   * "publish from the status panel". Rendered as a short getting-started
+   * checklist under the build summary so the user has an obvious next action
+   * instead of a dead end. Lifecycle-neutral (publishing is described via the
+   * status panel, never asserted as done).
+   */
+  nextSteps?: string[];
 }
 
 export function detectDraftResult(result: unknown): DraftReview | undefined {
@@ -201,12 +210,19 @@ export function detectDraftResult(result: unknown): DraftReview | undefined {
         ];
       })
     : [];
+  // Post-build "what's next" steps (apply_blueprint `nextSteps: string[]`).
+  // Surfaced as a getting-started checklist; only well-formed non-empty strings.
+  const rawNextSteps = (obj as { nextSteps?: unknown }).nextSteps;
+  const nextSteps = Array.isArray(rawNextSteps)
+    ? rawNextSteps.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    : [];
   return {
     items,
     summary: typeof obj.summary === 'string' ? obj.summary : undefined,
     ...(typeof obj.packageId === 'string' && obj.packageId ? { packageId: obj.packageId } : {}),
     ...(obj.autoPublishable === true ? { autoPublishable: true } : {}),
     ...(failedCount > 0 ? { failedCount } : {}),
+    ...(nextSteps.length ? { nextSteps } : {}),
     // ADR-0045: the build was materialized in-turn (real tables + data, app
     // hidden). The canvas then previews the REAL app URL, not the draft overlay.
     ...(obj.materialized === true ? { materialized: true } : {}),

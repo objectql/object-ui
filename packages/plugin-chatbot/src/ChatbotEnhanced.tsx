@@ -228,6 +228,11 @@ export interface ChatToolInvocation {
      * of being a dead-end badge.
      */
     issues?: Array<{ severity: 'error' | 'warning'; code: string; message: string; fix?: string }>;
+    /**
+     * Post-build "what's next" steps (apply_blueprint `nextSteps`). Rendered as
+     * a short getting-started checklist under the build summary.
+     */
+    nextSteps?: string[];
   };
 }
 
@@ -463,6 +468,8 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   publishedLabel?: string;
   /** Label for the clean ADR-0038 verification chip (default "Verified"). */
   verifiedLabel?: string;
+  /** Heading for the post-build "what's next" checklist (default "What's next"). */
+  nextStepsLabel?: string;
   /**
    * Live draft-status resolver: how many drafts are still PENDING in a
    * package (e.g. `GET /metadata/_drafts?packageId=` count). When provided,
@@ -800,6 +807,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       publishDraftsLabel = 'Publish',
       publishedLabel = 'Published',
       verifiedLabel = 'Verified',
+      nextStepsLabel = "What's next",
       fetchPendingDraftCount,
       autoPublishDrafts = false,
       processVisibility = 'summary',
@@ -1329,6 +1337,27 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     data; "Published" alone never implies "verified". */}
                 {publishedToolCalls.has(tool.toolCallId) ? (
                   <PublishHealthLine health={publishHealthByToolCall.get(tool.toolCallId)} />
+                ) : null}
+                {/* Post-build getting-started checklist — concrete next actions
+                    (make the data yours, refine, automate, publish) so a finished
+                    build isn't a dead end. Backend supplies these as
+                    `nextSteps` on the apply_blueprint result; lifecycle-neutral. */}
+                {tool.draftReview.nextSteps && tool.draftReview.nextSteps.length > 0 ? (
+                  <div
+                    className="flex flex-col gap-1 border-t bg-muted/20 px-3 py-2"
+                    data-testid="draft-next-steps"
+                  >
+                    <span className="text-xs font-medium text-foreground/80">{nextStepsLabel}</span>
+                    {tool.draftReview.nextSteps.map((step, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-1.5 text-xs text-muted-foreground"
+                      >
+                        <span className="mt-px shrink-0 text-foreground/40">→</span>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
                 ) : null}
               </>
             ) : null}
