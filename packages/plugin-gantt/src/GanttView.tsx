@@ -327,6 +327,8 @@ export interface GanttLayout {
   /** Effective day-column width in px, or null when auto-fit. */
   columnWidth: number | null
   taskListCollapsed: boolean
+  /** User-dragged task-list (name column) width in px, or null when auto-sized. */
+  taskListWidth?: number | null
 }
 
 // --- Export helpers (导出 PNG / PDF) — module-level, no React deps. ---
@@ -427,7 +429,9 @@ function readSavedLayout(key: string | undefined): GanttLayout | null {
     if (!viewMode) return null;
     const columnWidth =
       typeof p.columnWidth === 'number' && isFinite(p.columnWidth) ? p.columnWidth : null;
-    return { viewMode, columnWidth, taskListCollapsed: !!p.taskListCollapsed };
+    const taskListWidth =
+      typeof p.taskListWidth === 'number' && isFinite(p.taskListWidth) ? p.taskListWidth : null;
+    return { viewMode, columnWidth, taskListCollapsed: !!p.taskListCollapsed, taskListWidth };
   } catch {
     return null;
   }
@@ -511,6 +515,10 @@ export function GanttView({
   const [columnWidthOverride, setColumnWidthOverride] = React.useState<number | null>(
     restoredLayout ? restoredLayout.columnWidth : null
   );
+  // User-dragged task-list (name column) width. null → auto-size from container.
+  const [taskListWidthOverride, setTaskListWidthOverride] = React.useState<number | null>(
+    restoredLayout ? restoredLayout.taskListWidth ?? null : null
+  );
   // Timeline granularity. The prop seeds (and can later override) the state;
   // the toolbar segmented control switches it interactively. A persisted layout
   // seeds it when no explicit prop is given.
@@ -558,7 +566,15 @@ export function GanttView({
       collapsedAutoSet.current = true;
     }
   }, [isNarrow]);
-  const taskListWidth = taskListCollapsed ? 0 : taskListWidthForContainer(effectiveWidth);
+  // Task-list pane width. A user drag (taskListWidthOverride) wins over the
+  // auto-size, clamped so it can't collapse to nothing or swallow the timeline.
+  const TASK_LIST_MIN_W = 160;
+  const taskListMaxW = Math.max(TASK_LIST_MIN_W, effectiveWidth - 200);
+  const taskListWidth = taskListCollapsed
+    ? 0
+    : taskListWidthOverride != null
+      ? Math.max(TASK_LIST_MIN_W, Math.min(taskListWidthOverride, taskListMaxW))
+      : taskListWidthForContainer(effectiveWidth);
   // Fit-to-width ("zoom to fit"): in coarse modes a short project's natural grid
   // (span × base px/day) is far narrower than the timeline area, leaving the
   // right side blank. Rather than pad the calendar with years of empty units, we
@@ -2340,11 +2356,12 @@ export function GanttView({
       viewMode,
       columnWidth: columnWidthOverride,
       taskListCollapsed,
+      taskListWidth: taskListWidthOverride,
     };
     if (persistLayoutKey) writeSavedLayout(persistLayoutKey, layout);
     onLayoutChange?.(layout);
     setLayoutSaved(true);
-  }, [viewMode, columnWidthOverride, taskListCollapsed, persistLayoutKey, onLayoutChange]);
+  }, [viewMode, columnWidthOverride, taskListCollapsed, taskListWidthOverride, persistLayoutKey, onLayoutChange]);
   // Briefly reflect a save in the button's aria-pressed for feedback/testability.
   React.useEffect(() => {
     if (!layoutSaved) return;
@@ -2673,11 +2690,48 @@ export function GanttView({
 
       {/* Gantt Body — focusable for keyboard row navigation */}
       <div
-        className="flex flex-col flex-1 overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="relative flex flex-col flex-1 overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-ring"
         tabIndex={0}
         onKeyDown={handleKeyDown}
         data-testid="gantt-body"
       >
+        {/* Task-list resize splitter — drag the divider between the name grid
+            and the timeline to widen/narrow the name column. Spans both the
+            header and content rows. Hidden while the list is collapsed. */}
+        {!taskListCollapsed && taskListWidth > 0 && (
+          <div
+            className="absolute top-0 bottom-0 z-30 group/splitter"
+            style={{ left: taskListWidth - 3, width: 7, cursor: 'col-resize' }}
+            data-testid="gantt-list-resize"
+            role="separator"
+            aria-orientation="vertical"
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
+              e.preventDefault();
+              const startX = e.clientX;
+              const startW = taskListWidth;
+              const maxW = Math.max(TASK_LIST_MIN_W, effectiveWidth - 200);
+              const onMove = (ev: PointerEvent) => {
+                const next = Math.max(TASK_LIST_MIN_W, Math.min(startW + (ev.clientX - startX), maxW));
+                setTaskListWidthOverride(next);
+              };
+              const onUp = () => {
+                window.removeEventListener('pointermove', onMove);
+                window.removeEventListener('pointerup', onUp);
+                window.removeEventListener('pointercancel', onUp);
+                document.body.style.cursor = '';
+              };
+              document.body.style.cursor = 'col-resize';
+              window.addEventListener('pointermove', onMove);
+              window.addEventListener('pointerup', onUp);
+              window.addEventListener('pointercancel', onUp);
+            }}
+            onDoubleClick={() => setTaskListWidthOverride(null)}
+          >
+            {/* Visible hairline that thickens on hover/drag for an easy grab. */}
+            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-px bg-border group-hover/splitter:w-[3px] group-hover/splitter:bg-primary transition-all" />
+          </div>
+        )}
         {/* Headers Row */}
         <div className="flex border-b bg-muted/30 shrink-0 h-10 gantt-sm-h50">
           {/* List Header */}
