@@ -1618,6 +1618,7 @@ const en = {
     welcome: 'Build your business system with AI',
     welcomeDescription: 'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or start from scratch.',
     welcomeAdminDescription: 'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or set things up yourself from the menu on the left.',
+    welcomeAdminDescriptionNoBuild: 'Set up your first application from the Administration menu on the left. Once you have data, the AI assistant can help you explore it.',
     noAppsTitle: 'No applications yet',
     noAppsDescription: 'There are no applications available to you yet. Please contact your workspace administrator.',
     buildWithAI: 'Build with AI',

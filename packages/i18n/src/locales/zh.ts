@@ -1627,6 +1627,7 @@ const zh = {
     welcome: '用 AI 搭建你的业务系统',
     welcomeDescription: '用一句话描述你的业务，AI 帮你生成对象、界面、API 和 agent 工具。也可以手动从零开始。',
     welcomeAdminDescription: '用一句话描述你的业务，AI 会为你生成对象、界面、API 和智能体工具；也可以从左侧菜单自行搭建。',
+    welcomeAdminDescriptionNoBuild: '从左侧的「管理」菜单创建你的第一个应用。有了数据后，AI 助手可以帮你查询和分析。',
     noAppsTitle: '还没有应用',
     noAppsDescription: '当前还没有可用的应用。请联系你的工作区管理员。',
     buildWithAI: '用 AI 搭建',

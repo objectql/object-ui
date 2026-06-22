@@ -23,6 +23,7 @@ import { useRecentItems } from '../../hooks/useRecentItems';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAgents, isBuildAgent } from '@object-ui/plugin-chatbot';
 import { HomeAppsStrip } from './HomeAppsStrip';
 import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
@@ -31,6 +32,78 @@ import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/componen
 import { Sparkles, Star, Clock, ArrowDown, ShieldAlert, X, UploadCloud, MessageSquareText } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
+
+/** Resolve the AI service base, mirroring AiChatPage/ConsoleFloatingChatbot. */
+function resolveAiApiBase(): string {
+  const env = (import.meta as any).env ?? {};
+  const fromEnv = env.VITE_AI_BASE_URL as string | undefined;
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  const serverUrl = (env.VITE_SERVER_URL as string | undefined) ?? '';
+  return `${serverUrl.replace(/\/$/, '')}/api/v1/ai`;
+}
+
+/**
+ * Which AI home CTAs to surface, driven by the live agent catalog (the single
+ * source of truth):
+ *  - `aiEnabled` — the backend served any agent (AI is on here).
+ *  - `buildAvailable` — a build/authoring agent is actually deployed. That's a
+ *    cloud / AI-Studio feature, ABSENT on open-source builds, so "Build with AI"
+ *    must not be shown (and silently fall back to Ask) where it can't build.
+ * Returns false/false while the catalog loads or when AI is off, so no AI CTA
+ * flashes before we know what's available.
+ */
+function useHomeAiAvailability(): { aiEnabled: boolean; buildAvailable: boolean } {
+  const apiBase = useMemo(() => resolveAiApiBase(), []);
+  const { agents } = useAgents({ apiBase });
+  return {
+    aiEnabled: agents.length > 0,
+    buildAvailable: agents.some((a) => isBuildAgent(a.name)),
+  };
+}
+
+/**
+ * Home AI call-to-action(s). "Build with AI" only when the build agent is
+ * actually available; "Ask AI" whenever AI is on. Renders nothing when AI is
+ * off. `layout="stack"` is used by the empty-state; the hero uses the default
+ * inline row. Availability is passed in so the host fetches the catalog once.
+ */
+function HomeAiActions({
+  aiEnabled,
+  buildAvailable,
+  navigate,
+  t,
+  layout = 'row',
+}: {
+  aiEnabled: boolean;
+  buildAvailable: boolean;
+  navigate: (to: string) => void;
+  t: (key: string, opts?: any) => string;
+  layout?: 'row' | 'stack';
+}) {
+  if (!aiEnabled) return null;
+  const container =
+    layout === 'stack'
+      ? 'mt-6 flex flex-col sm:flex-row items-center gap-3'
+      : 'flex shrink-0 items-center gap-2';
+  return (
+    <div className={container}>
+      {buildAvailable && (
+        <Button onClick={() => navigate('/ai/build')} data-testid="home-build-with-ai">
+          <Sparkles className="mr-2 h-4 w-4" />
+          {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
+        </Button>
+      )}
+      <Button
+        variant={buildAvailable ? 'outline' : 'default'}
+        onClick={() => navigate('/ai/ask')}
+        data-testid="home-ask-ai"
+      >
+        <MessageSquareText className="mr-2 h-4 w-4" />
+        {t('home.askAI', { defaultValue: 'Ask AI' })}
+      </Button>
+    </div>
+  );
+}
 
 function pickGreetingKey(hour: number): string {
   if (hour < 5) return 'home.greetingNight';
@@ -198,6 +271,9 @@ export function HomePage() {
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
   const { pendingApprovalsCount, notifications, activities } = useHomeInbox();
+  // AI CTA gating: "Build with AI" only when the build agent is actually
+  // deployed (cloud / AI Studio); open-source builds get "Ask AI" instead.
+  const { aiEnabled, buildAvailable } = useHomeAiAvailability();
 
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
 
@@ -239,21 +315,23 @@ export function HomePage() {
           <Empty>
             <EmptyTitle>{t('home.welcome', { defaultValue: 'Welcome to ObjectUI' })}</EmptyTitle>
             <EmptyDescription>
-              {t('home.welcomeAdminDescription', {
-                defaultValue:
-                  'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or set things up yourself from the Administration menu on the left.',
-              })}
+              {buildAvailable
+                ? t('home.welcomeAdminDescription', {
+                    defaultValue:
+                      'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or set things up yourself from the Administration menu on the left.',
+                  })
+                : t('home.welcomeAdminDescriptionNoBuild', {
+                    defaultValue:
+                      'Set up your first application from the Administration menu on the left. Once you have data, the AI assistant can help you explore it.',
+                  })}
             </EmptyDescription>
-            <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
-              <Button onClick={() => navigate('/ai/build')} data-testid="build-with-ai-btn">
-                <Sparkles className="mr-2 h-4 w-4" />
-                {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
-              </Button>
-              <Button variant="outline" onClick={() => navigate('/ai/ask')} data-testid="ask-ai-btn">
-                <MessageSquareText className="mr-2 h-4 w-4" />
-                {t('home.askAI', { defaultValue: 'Ask AI' })}
-              </Button>
-            </div>
+            <HomeAiActions
+              aiEnabled={aiEnabled}
+              buildAvailable={buildAvailable}
+              navigate={navigate}
+              t={t}
+              layout="stack"
+            />
           </Empty>
         ) : (
           <Empty>
@@ -293,16 +371,12 @@ export function HomePage() {
                 {t('home.heroTagline', { defaultValue: 'Pick up where you left off, or explore something new.' })}
               </p>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <Button variant="outline" onClick={() => navigate('/ai/ask')} data-testid="home-ask-ai">
-                <MessageSquareText className="mr-2 h-4 w-4" />
-                {t('home.askAI', { defaultValue: 'Ask AI' })}
-              </Button>
-              <Button onClick={() => navigate('/ai/build')} data-testid="home-build-with-ai">
-                <Sparkles className="mr-2 h-4 w-4" />
-                {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
-              </Button>
-            </div>
+            <HomeAiActions
+              aiEnabled={aiEnabled}
+              buildAvailable={buildAvailable}
+              navigate={navigate}
+              t={t}
+            />
           </div>
 
           {starredApps.length === 0 && recentApps.length === 0 && (
