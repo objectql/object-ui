@@ -165,6 +165,11 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     data: rawData = [],
     pagination = true,
     pageSize: initialPageSize = 10,
+    manualPagination = false,
+    rowCount,
+    page: controlledPage,
+    onPageChange,
+    onPageSizeChange,
     searchable = true,
     selectable = false,
     sortable = true,
@@ -307,11 +312,36 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     });
   }, [filteredData, sortColumn, sortDirection]);
 
-  // Pagination
-  const totalPages = Math.ceil(sortedData.length / pageSize);
-  const paginatedData = pagination
+  // Pagination. Under manual (server-side) pagination the parent controls the
+  // page and supplies the grand total via `rowCount`; `data` already IS the
+  // current page, so we never slice it locally. Otherwise we paginate the
+  // in-memory rows client-side (legacy behavior).
+  const effectivePage = manualPagination
+    ? Math.max(1, controlledPage ?? 1)
+    : currentPage;
+  const totalPages = manualPagination
+    ? Math.max(1, Math.ceil((rowCount ?? sortedData.length) / pageSize))
+    : Math.ceil(sortedData.length / pageSize);
+  const paginatedData = (pagination && !manualPagination)
     ? sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize)
     : sortedData;
+
+  // Route page / page-size changes to the parent under manual pagination,
+  // otherwise drive the internal state.
+  const goToPage = (p: number) => {
+    const clamped = Math.min(totalPages, Math.max(1, p));
+    if (manualPagination) onPageChange?.(clamped);
+    else setCurrentPage(clamped);
+  };
+  const changePageSize = (size: number) => {
+    setPageSize(size);
+    if (manualPagination) {
+      onPageSizeChange?.(size);
+      onPageChange?.(1);
+    } else {
+      setCurrentPage(1);
+    }
+  };
 
   /**
    * Generates a unique identifier for each row to maintain stable selection state
@@ -366,7 +396,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     const newSelected = new Set<any>();
     if (checked) {
       paginatedData.forEach((row, idx) => {
-        const globalIndex = (currentPage - 1) * pageSize + idx;
+        const globalIndex = (effectivePage - 1) * pageSize + idx;
         const rowId = getRowId(row, globalIndex);
         newSelected.add(rowId);
       });
@@ -531,8 +561,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     if (!force && editingCell === null) return;
     
     const { rowIndex, columnKey } = editingCell;
-    const globalIndex = (currentPage - 1) * pageSize + rowIndex;
-    const row = sortedData[globalIndex];
+    const globalIndex = (effectivePage - 1) * pageSize + rowIndex;
+    // Under manual pagination `sortedData` IS the current page, so address it
+    // page-locally; otherwise it's the full in-memory set indexed absolutely.
+    const row = sortedData[manualPagination ? rowIndex : globalIndex];
     
     // Update pending changes
     const newPendingChanges = new Map(pendingChanges);
@@ -556,8 +588,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   };
 
   const saveRow = async (rowIndex: number) => {
-    const globalIndex = (currentPage - 1) * pageSize + rowIndex;
-    const row = sortedData[globalIndex];
+    const globalIndex = (effectivePage - 1) * pageSize + rowIndex;
+    const row = sortedData[manualPagination ? rowIndex : globalIndex];
     const rowChanges = pendingChanges.get(rowIndex);
     
     if (!rowChanges || Object.keys(rowChanges).length === 0) return;
@@ -591,8 +623,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     setIsSaving(true);
     try {
       const changesToSave = Array.from(pendingChanges.entries()).map(([rowIndex, changes]) => {
-        const globalIndex = (currentPage - 1) * pageSize + rowIndex;
-        const row = sortedData[globalIndex];
+        const globalIndex = (effectivePage - 1) * pageSize + rowIndex;
+        const row = sortedData[manualPagination ? rowIndex : globalIndex];
         return { rowIndex: globalIndex, changes, row };
       });
       
@@ -617,8 +649,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     // Copy cell value with Ctrl+C / Cmd+C
     if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !editingCell) {
       e.preventDefault();
-      const globalIdx = (currentPage - 1) * pageSize + rowIndex;
-      const row = sortedData[globalIdx];
+      const globalIdx = (effectivePage - 1) * pageSize + rowIndex;
+      const row = sortedData[manualPagination ? rowIndex : globalIdx];
       if (row) {
         const value = row[columnKey];
         const text = value != null ? String(value) : '';
@@ -668,13 +700,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
 
   // Check if all rows on current page are selected
   const allPageRowsSelected = paginatedData.length > 0 && paginatedData.every((row, idx) => {
-    const globalIndex = (currentPage - 1) * pageSize + idx;
+    const globalIndex = (effectivePage - 1) * pageSize + idx;
     const rowId = getRowId(row, globalIndex);
     return selectedRowIds.has(rowId);
   });
   
   const somePageRowsSelected = paginatedData.some((row, idx) => {
-    const globalIndex = (currentPage - 1) * pageSize + idx;
+    const globalIndex = (effectivePage - 1) * pageSize + idx;
     const rowId = getRowId(row, globalIndex);
     return selectedRowIds.has(rowId);
   }) && !allPageRowsSelected;
@@ -885,7 +917,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
             ) : (
               <>
                 {paginatedData.map((row, rowIndex) => {
-                  const globalIndex = (currentPage - 1) * pageSize + rowIndex;
+                  const globalIndex = (effectivePage - 1) * pageSize + rowIndex;
                   const rowId = getRowId(row, globalIndex);
                   const isSelected = selectedRowIds.has(rowId);
                   const rowHasChanges = pendingChanges.has(rowIndex);
@@ -1139,10 +1171,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
             <span className="text-xs sm:text-sm text-muted-foreground">{t('table.rowsPerPage')}:</span>
             <Select
               value={pageSize.toString()}
-              onValueChange={(value) => {
-                setPageSize(Number(value));
-                setCurrentPage(1);
-              }}
+              onValueChange={(value) => changePageSize(Number(value))}
             >
               <SelectTrigger className="w-20">
                 <SelectValue />
@@ -1159,38 +1188,38 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
 
           <div className="flex items-center gap-2">
             <span className="text-xs sm:text-sm text-muted-foreground">
-              {t('table.pageInfo', { current: currentPage, total: totalPages })}
+              {t('table.pageInfo', { current: effectivePage, total: totalPages })}
             </span>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setCurrentPage(1)}
-                disabled={currentPage === 1}
+                onClick={() => goToPage(1)}
+                disabled={effectivePage === 1}
               >
                 <ChevronsLeft className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
+                onClick={() => goToPage(effectivePage - 1)}
+                disabled={effectivePage === 1}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
+                onClick={() => goToPage(effectivePage + 1)}
+                disabled={effectivePage === totalPages}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setCurrentPage(totalPages)}
-                disabled={currentPage === totalPages}
+                onClick={() => goToPage(totalPages)}
+                disabled={effectivePage === totalPages}
               >
                 <ChevronsRight className="h-4 w-4" />
               </Button>

@@ -345,6 +345,33 @@ export interface DataTableSchema extends BaseSchema {
    */
   pageSize?: number;
   /**
+   * Server-side ("manual") pagination. When true, `data` is treated as the
+   * already-fetched current page (not sliced locally), `rowCount` provides the
+   * total match count used to compute total pages, the current page is
+   * controlled via `page`, and page/size changes are reported through
+   * `onPageChange` / `onPageSizeChange` so the caller can re-fetch. Without it
+   * the table paginates the in-memory `data` client-side (legacy behavior).
+   * @default false
+   */
+  manualPagination?: boolean;
+  /**
+   * Total number of rows matching the query on the server. Only used when
+   * `manualPagination` is true — drives the total-page count.
+   */
+  rowCount?: number;
+  /**
+   * Controlled current page (1-based) for `manualPagination`.
+   */
+  page?: number;
+  /**
+   * Called when the user navigates to another page under `manualPagination`.
+   */
+  onPageChange?: (page: number) => void;
+  /**
+   * Called when the user changes the page size under `manualPagination`.
+   */
+  onPageSizeChange?: (pageSize: number) => void;
+  /**
    * Enable search
    * @default true
    */

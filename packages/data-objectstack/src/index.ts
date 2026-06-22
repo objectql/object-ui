@@ -1062,16 +1062,22 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       };
     }
 
-    const resultObj = result as { records?: T[]; total?: number; value?: T[]; count?: number };
+    const resultObj = result as { records?: T[]; total?: number; value?: T[]; count?: number; hasMore?: boolean };
     const records = resultObj.records || resultObj.value || [];
     const total = resultObj.total ?? resultObj.count ?? records.length;
+    // Prefer the server's `hasMore` (real server-side pagination, framework
+    // issue #2212). Fall back to the page-local estimate (a full page implies
+    // there may be more) only when the server doesn't report it.
+    const hasMore = typeof resultObj.hasMore === 'boolean'
+      ? resultObj.hasMore
+      : (params?.$top ? records.length === params.$top : false);
     return {
       data: records,
       total,
       // Calculate page number safely
       page: params?.$skip && params.$top ? Math.floor(params.$skip / params.$top) + 1 : 1,
       pageSize: params?.$top,
-      hasMore: params?.$top ? records.length === params.$top : false,
+      hasMore,
     };
   }
 

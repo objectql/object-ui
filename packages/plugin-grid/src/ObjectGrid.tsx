@@ -374,6 +374,16 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const schemaPagination = schema.pagination;
   const schemaPageSize = schema.pageSize;
 
+  // Server-side ("manual") pagination for the flat list view. The fetch window
+  // ($top/$skip) and the DataTable's display page size are the SAME number here
+  // — the records we hold ARE one page, so paging means refetching the next
+  // slice from the server instead of slicing an in-memory batch. This is what
+  // makes records beyond the first batch reachable at all (framework #2212).
+  const [serverPage, setServerPage] = useState(1);
+  const [serverPageSize, setServerPageSize] = useState<number>(
+    (schema.pagination as any)?.pageSize ?? schema.pageSize ?? 50,
+  );
+
   // --- Inline data effect (synchronous, no fetch needed) ---
   useEffect(() => {
     if (hasInlineData && dataConfig?.provider === 'value') {
@@ -478,7 +488,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
 
           const params: any = {
             $select: getSelectFields(),
-            $top: (schemaPagination as any)?.pageSize || schemaPageSize || 50,
+            $top: serverPageSize,
+            $skip: (serverPage - 1) * serverPageSize,
           };
 
           // Support new filter format
@@ -537,7 +548,15 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, schemaPagination, schemaPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
+  }, [objectName, schemaFields, schemaColumns, schemaFilter, schemaSort, schemaPagination, schemaPageSize, serverPage, serverPageSize, dataSource, hasInlineData, dataConfig, refreshKey]);
+
+  // Reset to page 1 whenever the query itself changes (object / filter / sort),
+  // so we never request a page index that no longer exists for the new result
+  // set (e.g. applying a filter while sitting on page 5 of the old query).
+  React.useEffect(() => {
+    setServerPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objectName, schemaFilter, schemaSort]);
 
   // --- NavigationConfig support ---
   // Must be called before any early returns to satisfy React hooks rules
@@ -1518,13 +1537,28 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     ? schema.searchableFields.length > 0
     : (schema.showSearch !== undefined ? schema.showSearch : true);
 
+  // Server-side pagination applies to the flat, server-fetched list only.
+  // Inline/static data and the grouped view paginate in-memory (grouped mode
+  // keeps whole groups together via its own groupedPage state), so they stay
+  // on DataTable's default client-side slicing.
+  const useServerPagination = !hasInlineData && !isGrouped;
+
   const dataTableSchema: any = {
     type: 'data-table',
     caption: schema.label || schema.title,
     columns: orderedColumns,
     data,
     pagination: paginationEnabled,
-    pageSize: pageSize,
+    pageSize: useServerPagination ? serverPageSize : pageSize,
+    // In server mode `data` IS the current page; tell DataTable to render it
+    // as-is and drive paging via the callbacks below using the real match total.
+    manualPagination: useServerPagination,
+    rowCount: useServerPagination ? totalMatching : undefined,
+    page: useServerPagination ? serverPage : undefined,
+    onPageChange: useServerPagination ? setServerPage : undefined,
+    onPageSizeChange: useServerPagination
+      ? (size: number) => { setServerPageSize(size); setServerPage(1); }
+      : undefined,
     searchable: searchEnabled,
     selectable: selectionMode,
     sortable: true,
