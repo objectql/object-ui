@@ -1,5 +1,50 @@
 # @object-ui/auth
 
+## 7.0.0
+
+### Minor Changes
+
+- 18d0339: Relabel metadata-driven UI on a language switch without a page refresh (#1319)
+
+  Switching the UI language left server-resolved metadata labels (object/field/
+  view labels, action-dialog text) in the old language until a hard refresh,
+  because renderers cache those labels by object name and never refetch on a
+  language change.
+
+  **`@object-ui/auth`** — `createAuthenticatedFetch` now folds the active
+  `<html lang>` into `Accept-Language` on API calls (never clobbering an explicit
+  header), so a switch carries the new locale on every subsequent request.
+
+  **`@object-ui/app-shell`** — `ConnectedShellInner` drops the adapter's
+  locale-blind metadata cache in the render phase and remounts the metadata
+  subtree via `key={language}`, so every renderer refetches in the new locale.
+  The adapter and its connection sit above the key and are preserved — an in-app
+  relabel, not a reconnect.
+
+  **`@object-ui/i18n`** — dev-mode missing-key warnings: `createI18n` gains
+  `warnMissingKeys` (default on outside production) wiring a deduped i18next
+  `missingKeyHandler`. `useObjectLabel`'s convention-key probes are flagged so
+  their intentional misses (which fall back to server metadata) stay silent.
+
+  Pairs with the framework-side locale-aware metadata changes in
+  `@objectstack/client` / `@objectstack/objectql` / `@objectstack/rest`.
+
+### Patch Changes
+
+- f011479: getSession self-heals a stale localStorage bearer: an invalid `auth-session-token` used to SHADOW a perfectly valid cookie session — SSO landings (e.g. the cloud console's sso-exchange into a tenant environment) only set the cookie and cannot touch the target origin's localStorage, so users with a leftover token bounced back to the login page forever. On a bearer get-session miss the client now retries once cookie-only: a live cookie session wins (its token replaces the stale one); an affirmative double-miss drops the dead token; transport errors keep it. getSession also no longer throws on network errors (better-fetch rethrows them).
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [9049bbe]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [3870c20]
+- Updated dependencies [b88c560]
+- Updated dependencies [d16566f]
+- Updated dependencies [300d755]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [858ad94]
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

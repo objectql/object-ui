@@ -1,5 +1,127 @@
 # @object-ui/i18n
 
+## 7.0.0
+
+### Minor Changes
+
+- 89e113c: ADR-0044 send-back-for-revision in the approvals inbox (framework #1744/#1769). Approvers get a "Send back" action (violet, with its own dialog) that ends the round as `returned` and unlocks the record; the submitter sees a revision panel on the returned request — edit-record link, optional comment, Resubmit (opens round N+1) and Recall (abandons the revision). New `returned` status badge/filter, Round-N chips (list + drawer), timeline rendering for `revise`/`resubmit` actions, `approvalsApi.sendBack/resubmit`, and ten-locale `approvalsInbox` strings.
+- 18d0339: Relabel metadata-driven UI on a language switch without a page refresh (#1319)
+
+  Switching the UI language left server-resolved metadata labels (object/field/
+  view labels, action-dialog text) in the old language until a hard refresh,
+  because renderers cache those labels by object name and never refetch on a
+  language change.
+
+  **`@object-ui/auth`** — `createAuthenticatedFetch` now folds the active
+  `<html lang>` into `Accept-Language` on API calls (never clobbering an explicit
+  header), so a switch carries the new locale on every subsequent request.
+
+  **`@object-ui/app-shell`** — `ConnectedShellInner` drops the adapter's
+  locale-blind metadata cache in the render phase and remounts the metadata
+  subtree via `key={language}`, so every renderer refetches in the new locale.
+  The adapter and its connection sit above the key and are preserved — an in-app
+  relabel, not a reconnect.
+
+  **`@object-ui/i18n`** — dev-mode missing-key warnings: `createI18n` gains
+  `warnMissingKeys` (default on outside production) wiring a deduped i18next
+  `missingKeyHandler`. `useObjectLabel`'s convention-key probes are flagged so
+  their intentional misses (which fall back to server metadata) stay silent.
+
+  Pairs with the framework-side locale-aware metadata changes in
+  `@objectstack/client` / `@objectstack/objectql` / `@objectstack/rest`.
+
+### Patch Changes
+
+- 77cc6bb: Cloud Connection bind v2 UX (cloud ADR runtime-identity-binding §2.3): the binding flow becomes one click. `CloudConnectionPanel` drops the environment-id input entirely (registration happens cloud-side at approval), auto-opens the approval page in a popup on Connect (user-code display stays as the popup-blocked fallback), and shows the registered runtime name + runtime id once bound. `DeviceAuthPage` displays the requesting device's context (`runtime_name` / `runtime_version` from the verification URL) plus an "only approve if you started this" warning — the informed-consent surface for the RFC 8628 flow. Two new `auth.device.*` keys across all locales.
+- 97c6831: Localize AI workspace, shell navigation, startup, connection, toast, and chatbot affordance text across core console screens.
+- c09f44e: Docs: mermaid diagrams + long-doc table of contents (ADR-0046).
+
+  - **plugin-markdown** renders ```mermaid fenced blocks as diagrams (`<Mermaid>`: lazy-loaded mermaid, `securityLevel: 'strict'`, rendered post-`rehype-sanitize`by a trusted component, degrades to the raw source on error). Mermaid is text → SVG, so it stays within the v1 image/binary ban. Adds`extractToc(markdown)`— a TOC builder whose slugs are generated with the same`github-slugger` `rehype-slug`uses, so`#id` links resolve to the rendered heading anchors.
+  - **console** `DocPage` shows a sticky right-rail table of contents (h2–h3) for docs with ≥3 headings, plus an app-independent `/apps/:packageId/docs` index already added earlier.
+  - **i18n** adds `help.onThisPage` (en/zh; other locales fall back).
+
+- 6cfa330: feat(dashboard): drill "Open in list" escape hatch + unify report drill
+
+  Adopts the mainstream BI peek-then-escalate drill model. Drill-through opens an
+  in-place drawer (keep context) and offers an "Open in list →" affordance to
+  escalate to the object's full list page (sort / bulk-select / export / shareable
+  URL) — the Looker / Power BI "see records → open in page" pattern.
+
+  - New `DrillNavigationContext` (`@object-ui/react`): the app shell provides
+    `openRecordList`; the renderer stays decoupled from console routing.
+  - The drill drawers (pivot / dataset / chart / KPI) render the escape hatch when
+    a host navigation handler is present, and hide it otherwise (self-contained
+    peek). `DashboardView` provides the handler via `useOpenRecordList`.
+  - `DrillDownConfig.target` gains `'navigate'` — skip the drawer and open the
+    list directly; degrades to `'drawer'` when no host handler is available.
+  - `ReportView` drill-through now opens the same in-place drawer (peek records →
+    click a row to open a record) instead of navigating away; the escape hatch
+    preserves the previous navigate-to-list behavior. Dashboard and report drill
+    are now unified.
+  - i18n: `dashboard.openInList` (en / zh).
+
+- 0ad72a6: fix: pass full gantt config to renderer, render multi-value lookups in gantt tooltips, persist `bodyExtra` on dataSource actions, and complete zh/en gantt labels
+
+  Four platform gaps that the EHR app previously worked around with `node_modules` patches:
+
+  - **app-shell / ObjectView** — the `config.gantt → renderer props` adapter was a hardcoded 6-field whitelist, so `parentField`/`typeField` (and `baseline*`, `groupByField`, `resourceView`, `tooltipFields`, `quickFilters`, …) never reached the renderer and the chart degraded to a flat list. It now spreads the full `viewDef.gantt` first, then applies the three required defaults last (mirroring the gallery branch).
+  - **plugin-gantt / ObjectGantt** — the tooltip value formatter only handled single-object lookups, so a multi-value lookup (a populated `[{name},{name}]` array) fell through to `'—'`. It now maps each array element to its display value and joins them.
+  - **app-shell / useConsoleActionRuntime** — `bodyExtra` was merged only on the absolute-HTTP path; the generic `dataSource.update` path ignored it, so a pure-confirmation action (no params array) left an empty payload and persisted nothing. `bodyExtra` is now merged last on that path too, matching the documented semantics.
+  - **i18n** — added the gantt labels the 9.x renderer references but the bundles lacked: `toolbar.thisWeek/thisMonth/exportPdf/saveLayout`, `viewMode.year`, `menu.add*/removeDependency/noCandidates`, the `linkType.*` and `conflict.*` blocks, and `readOnly*` — in both `en` (canonical key source) and `zh`.
+
+- 3fa23a7: feat(header): context-aware Help & Documentation menu + app-scoped docs index
+
+  The top-right "?" was a bare external link to `docs.objectstack.ai`, duplicating
+  the left sidebar's in-product `/docs` entry and ignoring the ADR-0046 docs hub.
+  It is now an aggregated, context-aware menu:
+
+  - **This app's docs** — shown only when the current app's package owns docs
+    (matched by `_packageId`). A single-doc app deep-links straight to the
+    viewer; a multi-doc app lands on the new app-scoped index.
+  - **All documentation** — the in-product `/docs` portal.
+  - **Online documentation** — `docs.objectstack.ai` (opens in a new tab).
+
+  Docs are lazily fetched once on first menu open (names/labels only), so the menu
+  adds no cost until used; a failed fetch soft-degrades to the static entries.
+
+  Also adds the app-scoped docs index route **`/apps/:packageId/docs`**
+  (`AppDocsIndex`) — the package-scoped sibling of `/docs`, listing just that
+  app's docs — which the "This app's docs" entry targets when an app ships more
+  than one. New `help.*` strings added to the `en` and `zh` bundles (other
+  locales fall back to `en`).
+
+- 59b6bbb: i18n the managed-by empty states for system / append-only / better-auth object lists.
+
+  `resolveManagedByEmptyState` previously hardcoded English titles and messages (e.g. "No identity records", "No events recorded"), so list views for managed objects (identity, audit logs, system-generated records) rendered English regardless of locale. It now takes the `t` translator and resolves `list.managedBy.{system,appendOnly,betterAuth}.{title,message}` (English kept as `defaultValue` fallbacks); `ObjectView` passes its `t` through. Added the keys to the `en` and `zh` locale packs.
+
+- bd8b054: fix(currency): resolve the tenant default currency across the long-tail renderers
+
+  Phase 2b of the currency-resolution work (ADR-0053). The cell/field renderers
+  already funnelled through `resolveFieldCurrency` + `useLocalization` (#1856),
+  but the rest of the renderers still hard-coded `USD` or read only one of
+  `currency`/`defaultCurrency`. They now share the same resolution chain — explicit
+  field currency -> `currencyConfig.defaultCurrency` -> legacy `defaultCurrency` ->
+  tenant `localization.currency` -> plain number:
+
+  - `plugin-dashboard` `ObjectMetricWidget` (inferred currency), `ObjectDataTable`
+    (symbol-format fallback).
+  - `plugin-grid` `useColumnSummary` (footer agrees with the cells) and
+    `ObjectGrid` (compact amount + name-inferred currency cells).
+  - `plugin-detail` `DetailView` summary metrics.
+  - `plugin-gantt` `ObjectGantt` currency tooltips.
+  - `components` `element:number` (`format: 'currency'`) — tenant default instead
+    of a baked-in `USD`, and renders with the tenant locale.
+
+  `resolveFieldCurrency` now lives in `@object-ui/i18n` (co-located with
+  `useLocalization`, which supplies the tenant default); `@object-ui/fields`
+  re-exports it, so the existing import path is unchanged. No behavior change when
+  no tenant currency is configured — a field that declares its own currency, or a
+  deployment with no `localization.currency`, renders exactly as before.
+
+- 2f31406: Refine Studio package-scoped navigation and home overview.
+
+  Studio now treats the selected package as the home overview scope, flattens the root Overview sidebar group, hides the duplicate all-metadata sidebar entry, redirects the invalid package metadata route to package management, preserves the selected package across package-management navigation, and adds a localized package-management sidebar label.
+
 ## 6.2.3
 
 ## 6.2.2
