@@ -1514,6 +1514,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       {...(schema.aria?.describedBy ? { 'aria-describedby': schema.aria.describedBy } : {})}
       {...(schema.aria?.live ? { 'aria-live': schema.aria.live } : {})}
       role="region"
+      aria-busy={loading || undefined}
+      data-state={loading ? 'loading' : 'idle'}
     >
       {pullDistance > 0 && (
         <div

@@ -16,6 +16,7 @@ export { useObjectActions } from './useObjectActions';
 export { useRecentItems, type RecentItem } from './useRecentItems';
 export { useRecordApprovals, type ApprovalRequestLite } from './useRecordApprovals';
 export { useResponsiveSidebar } from './useResponsiveSidebar';
+export { useSettleSignal, type SettleSignalState } from './useSettleSignal';
 export {
   useUrlOverlay,
   type UseUrlOverlayOptions,

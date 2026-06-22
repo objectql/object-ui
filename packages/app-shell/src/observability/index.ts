@@ -8,3 +8,14 @@
  */
 
 export { initSentry, captureError, setSentryUser, getSentry } from './sentry';
+export {
+  beginRequest,
+  endRequest,
+  getPendingRequests,
+  isIdle,
+  subscribeSettle,
+  whenIdle,
+  withSettleSignal,
+  installSettleSignalGlobal,
+  type ObjectUiGlobal,
+} from './settleSignal';

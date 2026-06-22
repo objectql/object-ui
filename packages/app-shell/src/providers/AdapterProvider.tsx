@@ -11,6 +11,7 @@ import { useState, useEffect, type ReactNode } from 'react';
 import { ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import { AdapterCtx } from '@object-ui/react';
+import { installSettleSignalGlobal, withSettleSignal } from '../observability/settleSignal';
 
 export { useAdapter } from '@object-ui/react';
 
@@ -35,11 +36,16 @@ export function AdapterProvider({ children, adapter: externalAdapter }: AdapterP
 
     let cancelled = false;
 
+    // Expose window.__objectui.{pendingRequests,idle,whenIdle} so an automated
+    // (AI) browser driver has one "is the app settled?" predicate (ADR-0054 C5).
+    installSettleSignalGlobal();
+
     async function init() {
       try {
         const a = new ObjectStackAdapter({
           baseUrl: import.meta.env.VITE_SERVER_URL || '',
-          fetch: createAuthenticatedFetch(),
+          // Count every outbound request in the global in-flight signal (C5).
+          fetch: withSettleSignal(createAuthenticatedFetch()),
           autoReconnect: true,
           maxReconnectAttempts: 5,
           reconnectDelay: 1000,

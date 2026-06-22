@@ -17,6 +17,17 @@ export { ExpressionProvider, useExpressionContext, evaluateVisibility } from './
 export { useObjectActions } from './hooks/useObjectActions';
 export { useUrlOverlay } from './hooks/useUrlOverlay';
 export type { UseUrlOverlayOptions, UrlOverlayControls } from './hooks/useUrlOverlay';
+export { useSettleSignal } from './hooks/useSettleSignal';
+export type { SettleSignalState } from './hooks/useSettleSignal';
+export {
+  getPendingRequests,
+  isIdle,
+  subscribeSettle,
+  whenIdle,
+  withSettleSignal,
+  installSettleSignalGlobal,
+  type ObjectUiGlobal,
+} from './observability/settleSignal';
 export { useRecentItems } from './hooks/useRecentItems';
 
 // Types

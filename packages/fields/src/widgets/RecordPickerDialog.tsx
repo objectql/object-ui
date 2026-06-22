@@ -1056,6 +1056,8 @@ export function RecordPickerDialog({
             {!error && records.length > 0 && (
               <div
                 className="relative flex-1 overflow-auto min-h-0 border rounded-md"
+                aria-busy={loading || undefined}
+                data-state={loading ? 'loading' : 'idle'}
                 tabIndex={0}
                 onKeyDown={handleTableKeyDown}
                 role="grid"

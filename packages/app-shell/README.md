@@ -493,6 +493,30 @@ a `data-testid` onto their content element and emit Radix `data-state="open|clos
 so overlays are locatable and their open/closed state is machine-readable by
 construction (C4).
 
+## Settle signal (is the app idle?)
+
+`<ConsoleShell>` exposes one global "no requests in flight" predicate so an
+automated (AI) browser driver can wait for the app to settle instead of
+hardcoding timeouts (ADR-0054 C5). The data layer increments a counter around
+every outbound request (it wraps the adapter's `fetch`), mirrored onto
+`window.__objectui`:
+
+```js
+// In an e2e / browser driver:
+await page.waitForFunction(() => window.__objectui?.idle === true);
+// or:  window.__objectui.pendingRequests === 0
+// or:  await window.__objectui.whenIdle();   // resolves when settled (10s cap)
+```
+
+In React, `useSettleSignal()` returns `{ pending, idle }` for a global busy
+indicator; the lower-level `getPendingRequests` / `subscribeSettle` / `whenIdle`
+/ `withSettleSignal` / `installSettleSignalGlobal` are also exported.
+
+Async data regions additionally expose region-level state for finer waits: the
+list view and record-picker results set `aria-busy` while fetching and
+`data-state="loading|idle"`, complementing the Radix `data-state` already on
+overlays.
+
 ## Compatibility
 
 - **React:** 18.x or 19.x
