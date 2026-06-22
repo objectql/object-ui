@@ -494,6 +494,40 @@ describe('ActionRunner', () => {
     });
   });
 
+  describe('form action type', () => {
+    it('opens the form route with the record id (regression: Log Time no-op)', async () => {
+      const result = await runner.execute({
+        type: 'form',
+        target: 'showcase_task.default',
+      });
+      expect(result.success).toBe(true);
+      expect(result.redirect).toBe('/forms/showcase_task.default?recordId=1');
+    });
+
+    it('uses the navigation handler when provided', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+      const result = await runner.execute({ type: 'form', target: 'showcase_task.default' });
+      expect(result.success).toBe(true);
+      expect(navHandler).toHaveBeenCalledWith(
+        '/forms/showcase_task.default?recordId=1',
+        expect.objectContaining({ external: false }),
+      );
+    });
+
+    it('falls back to a bare form route when there is no record id', async () => {
+      const bare = new ActionRunner({ user: { id: 'u1' } } as ActionContext);
+      const result = await bare.execute({ type: 'form', target: 'showcase_task.default' });
+      expect(result.redirect).toBe('/forms/showcase_task.default');
+    });
+
+    it('errors when no form target is given', async () => {
+      const result = await runner.execute({ type: 'form' } as never);
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/form target/i);
+    });
+  });
+
   // ==========================================================================
   // Post-execution: toast, refreshAfter
   // ==========================================================================

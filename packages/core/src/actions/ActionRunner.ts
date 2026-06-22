@@ -473,6 +473,9 @@ export class ActionRunner {
         case 'api':
           result = await this.executeAPI(action);
           break;
+        case 'form':
+          result = await this.executeForm(action);
+          break;
         case 'navigation':
           result = await this.executeNavigation(action);
           break;
@@ -805,6 +808,31 @@ export class ActionRunner {
   /**
    * Execute navigation action
    */
+  /**
+   * `form` action — open a FormView as a routed page (`/forms/:name`, per the
+   * spec). `target` is the FormView name. Without this case the action fell
+   * through to `executeActionSchema` and silently no-opped (the "Log Time does
+   * nothing" report). The current record id is forwarded as `?recordId=` for
+   * hosts that support it; the form route ignores unknown query params.
+   */
+  private async executeForm(action: ActionDef): Promise<ActionResult> {
+    const name = this.evaluator.evaluate(action.target) as string;
+    if (!name || typeof name !== 'string') {
+      return { success: false, error: 'No form target (FormView name) provided for form action' };
+    }
+    const recordId =
+      (this.context.record && (this.context.record as { id?: unknown }).id) ??
+      (this.context.data && (this.context.data as { id?: unknown }).id);
+    const base = `/forms/${name}`;
+    const to = recordId != null ? `${base}?recordId=${encodeURIComponent(String(recordId))}` : base;
+
+    if (this.navigationHandler) {
+      this.navigationHandler(to, { external: false });
+      return { success: true };
+    }
+    return { success: true, redirect: to };
+  }
+
   private async executeNavigation(action: ActionDef): Promise<ActionResult> {
     const nav = action.navigate || action;
     const to = this.evaluator.evaluate(nav.to || nav.target) as string;
