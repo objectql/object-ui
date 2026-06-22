@@ -132,11 +132,13 @@ export {
   useNavigationContext,
   FavoritesProvider,
   RecentItemsProvider,
+  CommandPaletteProvider,
+  useCommandPalette,
   UserStateAdaptersProvider,
   useUserStateAdapter,
   useAttachUserStateAdapters,
 } from './context';
-export type { UserDataAdapter, UserStateKind } from './context';
+export type { UserDataAdapter, UserStateKind, CommandPaletteContextValue } from './context';
 
 // Default page implementations (consumers can partial-override slots)
 export { AppContent as DefaultAppContent } from './console/AppContent';

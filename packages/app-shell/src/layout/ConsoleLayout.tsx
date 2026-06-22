@@ -24,6 +24,7 @@ import { AppHeader } from './AppHeader';
 import { MobileViewSwitcherProvider } from './MobileViewSwitcherContext';
 import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar';
 import { useNavigationContext } from '../context/NavigationContext';
+import { CommandPaletteProvider } from '../context/CommandPaletteProvider';
 import { resolveI18nLabel } from '../utils';
 import { getProductName, getRuntimeConfig } from '../runtime-config';
 import type { ConnectionState } from '@object-ui/data-objectstack';
@@ -93,6 +94,9 @@ export function ConsoleLayout({
   }, [setContext, setCurrentAppName, activeAppName]);
 
   return (
+    // One shared, URL-addressable command-palette open state for both the
+    // AppHeader trigger (navbar) and the CommandPalette (children) — ADR-0054.
+    <CommandPaletteProvider>
     <MobileViewSwitcherProvider>
     <AppShell
       sidebar={
@@ -151,5 +155,6 @@ export function ConsoleLayout({
       )}
     </AppShell>
     </MobileViewSwitcherProvider>
+    </CommandPaletteProvider>
   );
 }

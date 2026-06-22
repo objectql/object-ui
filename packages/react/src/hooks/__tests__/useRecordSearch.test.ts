@@ -239,4 +239,57 @@ describe('useRecordSearch', () => {
 
     expect(result.current.results[0].recordId).toBe('OPP-9999');
   });
+
+  it('sends the query as $search (server-side full-text), not $filter', async () => {
+    // ADR-0054 §6 / ADR-0061: the palette delegates matching to the backend via
+    // `$search`; it must NOT silently fall back to a client-side `$filter`. The
+    // hook also trims surrounding whitespace before it leaves the page.
+    const ds = makeDataSource({ account: [{ id: 'a1', name: 'Acme Corp' }] });
+
+    renderHook(() =>
+      useRecordSearch({
+        query: '  Acme  ',
+        objects,
+        dataSource: ds,
+        objectNames: ['account'],
+        topPerObject: 5,
+        debounceMs: 0,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(ds.find).toHaveBeenCalledTimes(1);
+    });
+
+    const [calledName, calledQuery] = ds.find.mock.calls[0];
+    expect(calledName).toBe('account');
+    // Exactly the trimmed $search + $top — no $filter, no $search_fields, etc.
+    expect(calledQuery).toEqual({ $search: 'Acme', $top: 5 });
+  });
+
+  it('re-fires $search as the (debounced) query changes', async () => {
+    const ds = makeDataSource({ account: [{ id: 'a1', name: 'Acme' }] });
+
+    const { rerender } = renderHook(
+      ({ q }: { q: string }) =>
+        useRecordSearch({
+          query: q,
+          objects,
+          dataSource: ds,
+          objectNames: ['account'],
+          debounceMs: 0,
+        }),
+      { initialProps: { q: 'ac' } },
+    );
+
+    await waitFor(() => {
+      expect(ds.find).toHaveBeenCalledWith('account', { $search: 'ac', $top: 3 });
+    });
+
+    rerender({ q: 'acme' });
+
+    await waitFor(() => {
+      expect(ds.find).toHaveBeenCalledWith('account', { $search: 'acme', $top: 3 });
+    });
+  });
 });

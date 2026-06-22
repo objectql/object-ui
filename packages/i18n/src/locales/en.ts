@@ -1061,6 +1061,7 @@ const en = {
       toggleDarkMode: 'Toggle dark mode',
     },
     commandPalette: {
+      title: 'Command palette',
       placeholder: 'Type a command or search...',
       noResults: 'No results found.',
       searching: 'Searching…',

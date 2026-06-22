@@ -424,6 +424,44 @@ for the adapter contract, backend schema, and how to plug in your own backend.
 
 <!-- release-metadata:v3.3.0 -->
 
+## Command palette (⌘K)
+
+`<ConsoleShell>` mounts a global ⌘K command palette for cross-app navigation and
+record search. Its open state and the command that opens it are provided by
+`CommandPaletteProvider` (wired in by `ConsoleLayout`) and exposed via
+`useCommandPalette()`.
+
+```tsx
+import { useCommandPalette } from '@object-ui/app-shell';
+
+function MyToolbarButton() {
+  const { openCommandPalette } = useCommandPalette();
+  // Idempotent: calling when already open is a no-op.
+  return <button onClick={openCommandPalette}>Search…</button>;
+}
+```
+
+Designed to be deterministic for automated (AI) browser testing — see
+[ADR-0054 "UI testability contract"](../../docs/adr/0054-ui-testability-contract.md):
+
+- **Idempotent, direct open (C1).** The top-bar search button, the ⌘K shortcut,
+  and the deep-link all call the *same* idempotent `openCommandPalette()`
+  (`setOpen(true)`), never a `toggle()`. The button calls the command directly —
+  it does **not** re-dispatch a synthetic `⌘K` `KeyboardEvent` (which silently
+  did nothing under automation and in ⌘K-reserving browsers). ⌘K stays a
+  keyboard *accelerator* and may still toggle (close-on-repeat).
+- **URL-addressable (C3).** Open state lives in the `?palette=1` search param, so
+  the palette is deep-linkable (`/apps/<app>?palette=1`), restores on reload, and
+  works with browser back/forward. `?cmdk=1` is accepted as an alias on read.
+- **Stable locators (C4).** The dialog carries `data-testid="overlay:command-palette"`
+  plus an ARIA role/name; the header trigger carries
+  `data-testid="action:command-palette:open"` (and `:open-mobile` for the compact
+  header). `CommandDialog` accepts `contentProps` to forward a `data-testid`/ARIA
+  name onto the underlying dialog element.
+- **Trusted-input note (C6).** The palette search is a controlled + debounced
+  input. Value-injection (`el.value = …`) does **not** fire React's `onChange`;
+  drive it with a real-input / CDP-keystroke driver so the debounced fetch fires.
+
 ## Compatibility
 
 - **React:** 18.x or 19.x

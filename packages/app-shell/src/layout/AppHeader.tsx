@@ -67,6 +67,7 @@ import { resolveI18nLabel, preferLocal, matchAppBySegment, appRouteSegment } fro
 import { getIcon } from '../utils/getIcon';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
+import { useCommandPalette } from '../context/CommandPaletteProvider';
 import { getProductName } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
 
@@ -118,6 +119,9 @@ export function AppHeader({
   const params = useParams();
   const navigate = useNavigate();
   const { isOnline } = useOffline();
+  // Idempotent, direct open of the ⌘K command palette (ADR-0054 C1). Replaces a
+  // synthetic `⌘K` KeyboardEvent re-dispatch that did nothing under automation.
+  const { openCommandPalette } = useCommandPalette();
   const {
     user,
     signOut,
@@ -764,7 +768,11 @@ export function AppHeader({
         <div data-topbar-group className="flex items-center gap-0.5 sm:gap-1 shrink-0">
           {/* Search — desktop */}
           <button
-            onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+            type="button"
+            data-testid="action:command-palette:open"
+            aria-label={t('console.search', { defaultValue: 'Search…' })}
+            aria-keyshortcuts="Meta+K Control+K"
+            onClick={openCommandPalette}
             className="hidden lg:flex relative items-center gap-2 w-48 xl:w-64 h-8 px-3 text-sm rounded-md border bg-muted/50 text-muted-foreground hover:bg-muted transition-colors"
           >
             <Search className="h-3.5 w-3.5 shrink-0" />
@@ -781,7 +789,8 @@ export function AppHeader({
             variant="ghost"
             size="icon"
             className="lg:hidden h-8 w-8 shrink-0"
-            onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
+            data-testid="action:command-palette:open-mobile"
+            onClick={openCommandPalette}
             aria-label={t('console.search', { defaultValue: 'Search…' })}
           >
             <Search className="h-4 w-4" />
