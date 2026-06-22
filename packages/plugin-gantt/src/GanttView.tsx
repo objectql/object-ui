@@ -3279,6 +3279,14 @@ export function GanttView({
                       className="relative border-b hover:bg-accent/50"
                       style={{ height: rowHeight }}
                       onPointerMove={clearLinkTarget}
+                      // Hover is tracked on the FULL-WIDTH row, not the narrow bar.
+                      // The connector dots float just outside the bar's ends, so a
+                      // bar-scoped hover would drop the moment the cursor crossed the
+                      // bar edge toward a dot — the dot would vanish before it could
+                      // be grabbed. The row spans the whole timeline, so moving from
+                      // bar → dot never leaves the hover zone (dhtmlx-style).
+                      onMouseEnter={() => setHoveredTaskId(task.id)}
+                      onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
                     >
                       {/* Ghost: original position rendered faded while dragging */}
                       {isDragging && (
@@ -3312,8 +3320,6 @@ export function GanttView({
                         }}
                         data-critical={isCrit ? 'true' : undefined}
                         data-testid={`gantt-task-bar-${task.id}`}
-                        onMouseEnter={() => setHoveredTaskId(task.id)}
-                        onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
                         onClick={() => {
                           if (suppressNextClickRef.current) return;
                           onTaskClick?.(task);
