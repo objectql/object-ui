@@ -19,6 +19,9 @@ import {
   debugTimeEnd,
   DebugCollector,
   validateSchema,
+  hasResponsiveStyles,
+  scopeClassFor,
+  compileScopedStyles,
 } from '@object-ui/core';
 import { SchemaRendererContext } from './context/SchemaRendererContext';
 import { usePredicateScope } from './hooks/useExpression';
@@ -207,6 +210,8 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     return unsubscribe;
   }, []);
   const [lazyError, setLazyError] = useState<Error | null>(null);
+  // Stable fallback id for scoping a styled node that didn't declare an `id`.
+  const autoStyleId = React.useId();
 
   // Evaluate schema expressions against the data source
   const evaluatedSchema = useMemo(() => {
@@ -368,8 +373,25 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     disabledOn: _disabledOn,
     _hidden: __hidden,    // stripped: internal visibility flag
     _disabled: __disabled, // stripped: internal disabled flag
+    responsiveStyles: _responsiveStyles, // stripped: compiled to scoped CSS, not a DOM prop
     ...componentProps
   } = evaluatedSchema;
+
+  // SDUI scoped styling (ADR-0065): a node's `responsiveStyles` compiles to
+  // id-scoped CSS injected as a <style> tag, and a scope class is appended to
+  // the node's className. Build-independent, collision-free, responsive-correct.
+  const hasScopedStyles = hasResponsiveStyles(_responsiveStyles);
+  const scopeClass = hasScopedStyles ? scopeClassFor(evaluatedSchema.id ?? autoStyleId) : '';
+  const scopedCss = hasScopedStyles ? compileScopedStyles(`.${scopeClass}`, _responsiveStyles) : '';
+  const mergedClassName = scopeClass
+    ? [evaluatedSchema.className, scopeClass].filter(Boolean).join(' ')
+    : evaluatedSchema.className;
+  // Some renderers read `schema.className` directly (e.g. element:text) while
+  // others read the `className` prop (e.g. flex/container). Set both so the
+  // scope class lands regardless of which channel a renderer honours.
+  const schemaForComponent = scopeClass
+    ? { ...evaluatedSchema, className: mergedClassName }
+    : evaluatedSchema;
 
   // Extract AriaPropsSchema properties for accessibility
   const ariaProps = resolveAriaProps(evaluatedSchema);
@@ -391,14 +413,17 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       componentType={evaluatedSchema.type}
       resetKey={evaluatedSchema.id ?? null}
     >
+      {scopedCss ? (
+        <style data-os-scope={scopeClass} dangerouslySetInnerHTML={{ __html: scopedCss }} />
+      ) : null}
       {React.createElement(Component, {
-        schema: evaluatedSchema,
+        schema: schemaForComponent,
         ...componentProps,  // Spread non-metadata schema properties as props
         ...(evaluatedSchema.props || {}),  // Override with explicit props if provided
         ...ariaProps,  // Inject ARIA attributes from AriaPropsSchema
         ...debugAttrs, // Debug-mode data attributes
         disabled: __disabled || undefined,
-        className: evaluatedSchema.className,
+        className: mergedClassName,
         'data-obj-id': evaluatedSchema.id,
         'data-obj-type': evaluatedSchema.type,
         ...(__DEV__ && !_validation.valid ? { 'data-obj-schema-invalid': 'true' } : {}),
