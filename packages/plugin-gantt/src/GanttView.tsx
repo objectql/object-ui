@@ -1762,7 +1762,7 @@ export function GanttView({
           flashTimerRef.current.push(
             window.setTimeout(
               () => setFlashTaskId((cur) => (cur === taskId ? null : cur)),
-              1400,
+              1500, // matches the gantt-flash animation duration
             ),
           );
         });
@@ -2226,18 +2226,25 @@ export function GanttView({
         .gantt-locate-btn { opacity: 0; transition: opacity 0.15s ease; }
         .group\\/task-row:hover .gantt-locate-btn { opacity: 0.6; }
         .gantt-locate-btn:hover, .gantt-locate-btn:focus-visible { opacity: 1; }
-        /* 定位闪烁: pulse the located bar with a ring. Outline (not box-shadow)
-           so it never clashes with the critical-path bar's inline box-shadow. */
+        /* 定位闪烁: blink the located bar 3× with a thick ring + colored glow so
+           it's hard to miss. The ring is an outline (not box-shadow) and the glow
+           is a drop-shadow *filter* — both stay clear of the critical-path bar's
+           inline box-shadow, which they'd otherwise clobber. */
         @keyframes gantt-flash {
-          0%, 100% { outline-color: rgba(59, 130, 246, 0); }
-          20% { outline-color: rgba(59, 130, 246, 0.95); }
-          45% { outline-color: rgba(59, 130, 246, 0.25); }
-          70% { outline-color: rgba(59, 130, 246, 0.95); }
+          0%, 25%, 50%, 100% {
+            outline-color: rgba(37, 99, 235, 0);
+            filter: drop-shadow(0 0 0 rgba(37, 99, 235, 0));
+          }
+          12%, 37%, 62% {
+            outline-color: rgba(37, 99, 235, 1);
+            filter: drop-shadow(0 0 9px rgba(37, 99, 235, 0.9));
+          }
         }
         .gantt-flash {
-          outline: 2px solid transparent;
-          outline-offset: 2px;
-          animation: gantt-flash 1.4s ease-in-out;
+          outline: 3px solid transparent;
+          outline-offset: 3px;
+          border-radius: 2px;
+          animation: gantt-flash 1.5s ease-in-out;
         }
         @media (min-width: 640px) {
           .gantt-sm-h50 { height: 50px; }
