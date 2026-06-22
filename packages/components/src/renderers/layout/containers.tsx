@@ -45,7 +45,7 @@ import {
   DropdownMenuItem,
 } from '../../ui';
 import { RecordTitleChip } from '../../custom/RecordTitleChip';
-import { useObjectLabel, useSafeFieldLabel } from '@object-ui/i18n';
+import { useObjectLabel, useSafeFieldLabel, useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { MoreHorizontal } from 'lucide-react';
 
 /**
@@ -297,6 +297,7 @@ const collectRelatedLists = (nodes: any, acc: any[] = []): any[] => {
 
 const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
+  const { language } = useObjectTranslation();
   const items: PageTabsItem[] = schema?.items || [];
   // Tab visual style lives at `properties.type` ('line'|'card'|'pill') — the
   // outer `schema.type` is always 'page:tabs' (the component dispatch key).
@@ -387,7 +388,9 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const itemsWithValue = items.map((it, idx) => ({
     ...it,
     value: `tab-${idx}`,
-    labelStr: translateLabel(labelText(it.label)),
+    // pickLocalized first (honours `{ en, zh }` / `{ default }`); translateLabel
+    // then maps any plain-English well-known token (Details/Related/…) to the locale.
+    labelStr: translateLabel(pickLocalized(it.label, language)),
     // Explicit spec count wins; otherwise fall back to the derived probe.
     count: it.count !== undefined && it.count !== null && it.count !== ''
       ? it.count
@@ -482,7 +485,12 @@ ComponentRegistry.register('page:tabs', PageTabsRenderer, {
 
 const PageCardRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
-  const title = labelText(schema?.title);
+  const { language } = useObjectTranslation();
+  // Resolve the title via pickLocalized so inline-i18n shapes (`{ en, zh }`)
+  // render in the active locale. `labelText` only understands `{ default, value }`
+  // and would silently blank an `{ en, zh }` title — e.g. the Cloud Pricing
+  // page's per-plan name + price headings vanished in both locales.
+  const title = pickLocalized(schema?.title, language);
   const bordered = schema?.bordered !== false;
   // Accept `children` as well as `body` — every other container (grid/flex/
   // section/tabs) renders `children`, so authors expect it to work here too.
@@ -526,6 +534,7 @@ interface PageAccordionItem {
 
 const PageAccordionRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
+  const { language } = useObjectTranslation();
   const items: PageAccordionItem[] = schema?.items || [];
   const allowMultiple = !!schema?.allowMultiple;
   // Variants:
@@ -541,7 +550,7 @@ const PageAccordionRenderer: React.FC<any> = ({ schema, className, ...props }) =
   const itemsWithValue = items.map((it, idx) => ({
     ...it,
     value: `panel-${idx}`,
-    labelStr: translateLabel(labelText(it.label)),
+    labelStr: translateLabel(pickLocalized(it.label, language)),
   }));
 
   const defaultOpen = itemsWithValue
@@ -658,6 +667,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { execute } = useAction();
   const { objectLabel: tObjectLabel, actionLabel: tActionLabel } = useObjectLabel();
   const { fieldOptionLabel } = useSafeFieldLabel();
+  const { language } = useObjectTranslation();
   // Spec bridge may either inline `properties.*` onto the node or preserve
   // the raw bag (see record:quick_actions for the same pattern). Read from
   // both so a `{ properties: { title } }` schema is rendered correctly.
@@ -666,14 +676,14 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const headerObjectSchema: any = (ctx as any)?.objectSchema;
   const headerObjectName: string | undefined = ctx?.objectName || headerObjectSchema?.name;
   const explicitTitle = interpolate(
-    labelText(titleSrc),
+    pickLocalized(titleSrc, language),
     ctx?.data,
     headerObjectSchema,
     fieldOptionLabel,
     headerObjectName,
   );
   const subtitle = interpolate(
-    labelText(subtitleSrc),
+    pickLocalized(subtitleSrc, language),
     ctx?.data,
     headerObjectSchema,
     fieldOptionLabel,
