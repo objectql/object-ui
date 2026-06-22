@@ -227,6 +227,10 @@ export { extractRecords } from '@object-ui/core';
 
 export const ObjectChart = (props: any) => {
   const { schema } = props;
+  // Optional host-owned segment click. When provided (e.g. a dataset widget
+  // that owns precise drill-through), it takes over the chart click and the
+  // widget's own object-drill drawer is suppressed.
+  const onSegmentClick: ((ev: { category?: string; series?: string; value?: number }) => void) | undefined = props.onSegmentClick;
   const context = useContext(SchemaRendererContext);
   const dataSource = props.dataSource || context?.dataSource;
   const boundData = useDataScope(schema.bind);
@@ -581,7 +585,7 @@ export const ObjectChart = (props: any) => {
       return <div className={"flex items-center justify-center text-muted-foreground text-sm p-4 " + (schema.className || '')} data-testid="chart-no-datasource">No data source available for &ldquo;{schema.objectName}&rdquo;</div>;
   }
 
-  const onChartClick = isDrillEnabled(drillDown)
+  const internalChartClick = isDrillEnabled(drillDown)
     ? (ev: { category?: string; series?: string; value?: number }) => {
         const labelCategory = ev.category;
         const rawCategory = labelCategory != null && labelToRaw.has(String(labelCategory))
@@ -596,8 +600,10 @@ export const ObjectChart = (props: any) => {
         });
       }
     : undefined;
+  // Host-owned click (dataset drill-through) wins over the widget's own object-drill.
+  const onChartClick = onSegmentClick ?? internalChartClick;
 
-  const drillDrawer = drillEvent && schema.objectName ? (() => {
+  const drillDrawer = !onSegmentClick && drillEvent && schema.objectName ? (() => {
     const baseFilter = computeDrillFilter(drillDown, drillEvent, { groupByField });
     const merged = { ...(schema.filter || {}), ...baseFilter };
     const title = resolveDrillTitle(drillDown, drillEvent, schema.title || 'Details');

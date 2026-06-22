@@ -85,3 +85,37 @@ export function buildChartSeries(
     series: vals.map((v) => ({ dataKey: v, label: labelOf(v) })),
   };
 }
+
+/**
+ * Inverse of {@link buildChartSeries}: map a clicked chart segment back to the
+ * index of its source dataset row, so a chart click can drill through to the
+ * same records a table/pivot row would.
+ *
+ * Mirrors `buildChartSeries`' pivot rule:
+ *  - **2+ dimensions, single measure** (second dim pivoted into series) → match
+ *    BOTH the x-axis dimension (`category`) and the series dimension (`seriesKey`).
+ *  - **otherwise** → match the x-axis (first) dimension only.
+ *
+ * Comparison is string-wise on the rows' display values (which is what the chart
+ * surfaces as `category` / series key). Returns `-1` when nothing matches.
+ */
+export function findChartSeriesRow(
+  rows: Array<Record<string, unknown>> | null | undefined,
+  dimensions: string[] | null | undefined,
+  values: string[] | null | undefined,
+  category: string | undefined,
+  seriesKey?: string,
+): number {
+  const dims = (dimensions ?? []).filter(Boolean);
+  const vals = (values ?? []).filter(Boolean);
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const xDim = dims[0];
+  if (!xDim) return -1;
+  const c = String(category ?? '');
+  if (dims.length >= 2 && vals.length === 1) {
+    const gDim = dims[1];
+    const s = String(seriesKey ?? '');
+    return safeRows.findIndex((r) => String(r[xDim] ?? '') === c && String(r[gDim] ?? '') === s);
+  }
+  return safeRows.findIndex((r) => String(r[xDim] ?? '') === c);
+}

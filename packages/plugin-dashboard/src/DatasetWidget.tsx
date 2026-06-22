@@ -30,6 +30,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import {
   buildChartSeries,
+  findChartSeriesRow,
   formatMeasure,
   formatDimensionValue,
   buildDatasetFieldHelpers,
@@ -242,6 +243,29 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // shared with the report renderer via @object-ui/core.
   const { measureField, headerLabel } = buildDatasetFieldHelpers(state.fields, state.object, fieldLabel);
 
+  // --- Drill-through (shared by table/pivot AND chart) -------------------
+  // Available when the server returned the dataset's base object + at least one
+  // drillable dimension this widget groups by. Tables/pivots drill by row index;
+  // charts map a clicked segment back to its dataset row (see handleChartDrill).
+  const { object: drillObject, dimensionFields, drillRawRows } = state;
+  const drillDims = dimensionFields ? dimensions.filter((d) => d in dimensionFields) : [];
+  const canDrill = !!drillObject && drillDims.length > 0;
+  const openDrill = (index: number, title: string) => {
+    if (!drillObject || !dimensionFields) return;
+    const merged = buildDrillFilter(drillRawRows?.[index], drillDims, dimensionFields, runtimeFilter);
+    setDrill({ filter: merged, title: title || String(widget?.title ?? '') });
+  };
+  const drillDrawer = drill && drillObject ? (
+    <DrillDownDrawer
+      open
+      onClose={() => setDrill(null)}
+      title={drill.title || String(widget?.title ?? tt('dashboard.details', 'Details'))}
+      objectName={drillObject}
+      filter={drill.filter}
+      dataSource={dataSource}
+    />
+  ) : null;
+
   // Metric / KPI — show the single measure value of the first row, using the
   // measure's display label (not the raw name) and its format (e.g. "$616,000").
   if (isMetric) {
@@ -258,31 +282,8 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // Table / pivot — a grouped table or, for a pivot with ≥2 dimensions, a true
   // cross-tab.
   if (isTable) {
-    // Drill-through is available when the server returned the dataset's object +
-    // at least one drillable dimension that this widget actually groups by.
-    const { object, dimensionFields, drillRawRows } = state;
-    const drillDims = dimensionFields ? dimensions.filter((d) => d in dimensionFields) : [];
-    const canDrill = !!object && drillDims.length > 0;
-
-    // Drill by FLAT row index — both the flat table and the matrix cells map a
-    // clicked element to a single dataset row (and its `drillRawRows` entry).
-    const openDrill = (index: number, title: string) => {
-      if (!object || !dimensionFields) return;
-      const merged = buildDrillFilter(drillRawRows?.[index], drillDims, dimensionFields, runtimeFilter);
-      setDrill({ filter: merged, title: title || String(widget?.title ?? '') });
-    };
-
-    const drawer = drill && object ? (
-      <DrillDownDrawer
-        open
-        onClose={() => setDrill(null)}
-        title={drill.title || String(widget?.title ?? tt('dashboard.details', 'Details'))}
-        objectName={object}
-        filter={drill.filter}
-        dataSource={dataSource}
-      />
-    ) : null;
-
+    // Drill-through (canDrill / openDrill / drillDrawer) is computed above and
+    // shared with the chart path — tables/pivots drill by flat row index.
     // CSV export — display-label headers + the underlying grouped rows (measures
     // kept numeric so the data round-trips into a spreadsheet). Shared by the flat
     // table and the cross-tab.
@@ -399,7 +400,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
               )}
             </tbody>
           </table>
-          {drawer}
+          {drillDrawer}
         </div>
       );
     }
@@ -433,7 +434,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
             ))}
           </tbody>
         </table>
-        {drawer}
+        {drillDrawer}
       </div>
     );
   }
@@ -445,11 +446,31 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // ADR-0021 (#1759): shared helper — pivots a second dimension into grouped
   // series so multi-dimension dataset widgets match the chart-view renderer.
   const { data: chartData, xAxisKey, series } = buildChartSeries(state.rows, dimensions, values, state.fields);
+
+  // Map a clicked chart segment back to its dataset row, then drill through to
+  // the underlying records — same governed path the table/pivot rows use.
+  const handleChartDrill = (ev: { category?: string; series?: string; value?: number }) => {
+    const idx = findChartSeriesRow(state.rows, dimensions, values, ev?.category, ev?.series);
+    if (idx < 0) return;
+    // `series` is a real (second) dimension value only when pivoted; otherwise
+    // it's the measure name — omit it from the drawer title.
+    const pivoted = dimensions.length >= 2 && values.length === 1;
+    const title = [ev?.category, pivoted ? ev?.series : undefined].filter(Boolean).map(String).join(' / ');
+    openDrill(idx, title);
+  };
+
+  // The `chart` schema renders through either ChartRenderer (reads `onChartClick`)
+  // or ObjectChart (reads `onSegmentClick` and suppresses its own object-drill) —
+  // pass both so the segment click drills regardless of which is registered.
+  const chartDrill = canDrill ? handleChartDrill : undefined;
   return (
-    <div className={cn('h-full w-full min-h-[220px]')}>
+    <div className={cn('relative h-full w-full min-h-[220px]')}>
       <SchemaRenderer
         schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series } as any}
+        onChartClick={chartDrill}
+        onSegmentClick={chartDrill}
       />
+      {drillDrawer}
     </div>
   );
 }
