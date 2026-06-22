@@ -127,6 +127,7 @@ function buildChatLocale(
       reviewDraft: (n: number) => `查看 ${n} 项变更`,
       publishDrafts: '发布',
       published: '已发布',
+      nextSteps: '下一步',
       publishOk: '已发布，对象已生效。',
       publishFailed: '发布失败',
       seedWarn: '已发布，但部分示例数据未能载入。',
@@ -173,6 +174,7 @@ function buildChatLocale(
     reviewDraft: (n: number) => `Review ${n} change${n === 1 ? '' : 's'}`,
     publishDrafts: 'Publish',
     published: 'Published',
+    nextSteps: "What's next",
     publishOk: 'Published — objects are now live.',
     publishFailed: 'Publish failed',
     seedWarn: 'Published, but some sample data failed to load.',
@@ -664,6 +666,7 @@ function ChatbotInner({
           }
         }}
         publishDraftsLabel={locale.publishDrafts}
+        nextStepsLabel={locale.nextSteps}
         publishedLabel={locale.published}
         // Self-use "magic moment": when the plan enables it, auto-publish the
         // drafted app the instant the agent finishes — the success path above
