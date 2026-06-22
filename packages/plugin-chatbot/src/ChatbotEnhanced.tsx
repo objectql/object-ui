@@ -247,6 +247,7 @@ export interface ChatToolInvocation {
     objects: Array<{ name: string; label?: string; fieldCount: number }>;
     counts: { objects: number; views: number; dashboards: number; seedData: number };
     questions: string[];
+    questionChoices?: Array<{ text: string; options: string[] }>;
     assumptions: string[];
     targetApp?: string;
   };
@@ -502,6 +503,14 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   planApproveMessage?: string;
   /** Message sent when the user approves a plan that still has open questions — tells the agent to proceed on sensible defaults (default "Build it with your best assumptions; use sensible defaults for the open questions."). */
   planApproveDefaultsMessage?: string;
+  /**
+   * Builds the message sent when the user clicks a one-click answer chip for a
+   * structure-deciding question (from `proposedPlan.questionChoices`). Receives
+   * the question text and the chosen option. Default:
+   * `For "<question>", go with: <option>.` — answers that question and lets the
+   * agent continue (ask the next question or build).
+   */
+  planAnswerMessage?: (question: string, option: string) => string;
   /**
    * Live draft-status resolver: how many drafts are still PENDING in a
    * package (e.g. `GET /metadata/_drafts?packageId=` count). When provided,
@@ -851,6 +860,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planAdjustLabel = 'Adjust',
       planApproveMessage = 'Looks good — build it as proposed.',
       planApproveDefaultsMessage = 'Build it with your best assumptions; use sensible defaults for the open questions.',
+      planAnswerMessage = (question: string, option: string) => `For "${question}", go with: ${option}.`,
       fetchPendingDraftCount,
       autoPublishDrafts = false,
       processVisibility = 'summary',
@@ -1499,15 +1509,36 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       <HelpCircle className="size-3.5" />
                       {planQuestionsLabel}
                     </span>
-                    {tool.proposedPlan.questions.map((q, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-start gap-1.5 text-[11px] text-amber-900/90 dark:text-amber-200/90"
-                      >
-                        <span className="mt-px shrink-0">?</span>
-                        <span>{q}</span>
-                      </div>
-                    ))}
+                    {tool.proposedPlan.questions.map((q, idx) => {
+                      // One-click answer chips when the backend derived options
+                      // for this exact question; otherwise the user types a reply.
+                      const choice = tool.proposedPlan!.questionChoices?.find((c) => c.text === q);
+                      return (
+                        <div key={idx} className="flex flex-col gap-1">
+                          <div className="flex items-start gap-1.5 text-[11px] text-amber-900/90 dark:text-amber-200/90">
+                            <span className="mt-px shrink-0">?</span>
+                            <span>{q}</span>
+                          </div>
+                          {onSendMessage && choice && choice.options.length > 0 ? (
+                            <div
+                              className="flex flex-wrap gap-1 pl-3.5"
+                              data-testid="proposed-plan-choice"
+                            >
+                              {choice.options.map((opt, oi) => (
+                                <button
+                                  key={oi}
+                                  type="button"
+                                  onClick={() => onSendMessage(planAnswerMessage(q, opt))}
+                                  className="inline-flex h-6 items-center rounded-full border border-amber-300 bg-background px-2 text-[11px] font-medium text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-900/40"
+                                >
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : null}
                 {/* One-click confirm gate: "Build it" sends an approval message

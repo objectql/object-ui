@@ -436,6 +436,32 @@ describe('proposedPlan detection (propose_blueprint)', () => {
     expect(detectProposedPlan({ status: 'blueprint_proposed' })).toBeUndefined();
     expect(detectProposedPlan({ foo: 1 })).toBeUndefined();
   });
+
+  it('lifts well-formed questionChoices and drops malformed / <2-option ones', () => {
+    const plan = detectProposedPlan({
+      status: 'blueprint_proposed',
+      blueprint: { objects: [{ name: 'book', fields: [] }] },
+      questions: ['Track loans separately?', 'Star ratings or 1-10?'],
+      questionChoices: [
+        { text: 'Track loans separately?', options: ['Separate object', 'Status field'] },
+        { text: 'Star ratings or 1-10?', options: ['only one'] }, // <2 → dropped
+        { text: '', options: ['a', 'b'] }, // no text → dropped
+        { options: ['a', 'b'] }, // no text → dropped
+      ],
+    });
+    expect(plan?.questionChoices).toEqual([
+      { text: 'Track loans separately?', options: ['Separate object', 'Status field'] },
+    ]);
+  });
+
+  it('omits questionChoices entirely when absent or not an array', () => {
+    const plan = detectProposedPlan({
+      status: 'blueprint_proposed',
+      blueprint: { objects: [{ name: 'book', fields: [] }] },
+      questions: ['Q?'],
+    });
+    expect(plan?.questionChoices).toBeUndefined();
+  });
 });
 
 describe('uiMessagesToChatMessages', () => {

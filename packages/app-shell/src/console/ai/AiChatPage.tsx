@@ -1198,6 +1198,13 @@ function ChatPane({
         planApproveDefaultsMessage={t('console.ai.planApproveDefaultsMessage', {
           defaultValue: 'Build it with your best assumptions; use sensible defaults for the open questions.',
         })}
+        planAnswerMessage={(question, option) =>
+          t('console.ai.planAnswerMessage', {
+            question,
+            option,
+            defaultValue: 'For "{{question}}", go with: {{option}}.',
+          })
+        }
         // Self-use "magic moment": when the plan enables it, publish the drafted
         // app automatically the moment the agent finishes — no manual click; the
         // user refreshes and sees it live WITH data. Same governed endpoint.

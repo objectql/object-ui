@@ -136,6 +136,7 @@ function buildChatLocale(
       planAdjust: '调整方案',
       planApproveMessage: '就按这个方案搭建吧。',
       planApproveDefaultsMessage: '就按你的合理假设直接搭建，未决问题用默认即可。',
+      planAnswer: (question: string, option: string) => `关于「${question}」，我选择「${option}」。`,
       publishOk: '已发布，对象已生效。',
       publishFailed: '发布失败',
       seedWarn: '已发布，但部分示例数据未能载入。',
@@ -191,6 +192,7 @@ function buildChatLocale(
     planAdjust: 'Adjust',
     planApproveMessage: 'Looks good — build it as proposed.',
     planApproveDefaultsMessage: 'Build it with your best assumptions; use sensible defaults for the open questions.',
+    planAnswer: (question: string, option: string) => `For "${question}", go with: ${option}.`,
     publishOk: 'Published — objects are now live.',
     publishFailed: 'Publish failed',
     seedWarn: 'Published, but some sample data failed to load.',
@@ -691,6 +693,7 @@ function ChatbotInner({
         planAdjustLabel={locale.planAdjust}
         planApproveMessage={locale.planApproveMessage}
         planApproveDefaultsMessage={locale.planApproveDefaultsMessage}
+        planAnswerMessage={locale.planAnswer}
         publishedLabel={locale.published}
         // Self-use "magic moment": when the plan enables it, auto-publish the
         // drafted app the instant the agent finishes — the success path above

@@ -170,6 +170,13 @@ export interface ProposedPlan {
   counts: { objects: number; views: number; dashboards: number; seedData: number };
   /** ≤2 structure-deciding questions to confirm before building (may be empty). */
   questions: string[];
+  /**
+   * One-click answer options for the structure-deciding questions, when the
+   * backend (propose_blueprint `questionChoices`) could derive them. Matched to
+   * a `questions` entry by `text`; a question with no entry here renders as
+   * plain text (type-to-answer). Each set has ≥2 options, recommended first.
+   */
+  questionChoices?: Array<{ text: string; options: string[] }>;
   /** Assumptions the agent made from an underspecified goal (may be empty). */
   assumptions: string[];
   /** Extend mode: the existing app the new objects would be added into. */
@@ -219,6 +226,19 @@ export function detectProposedPlan(result: unknown): ProposedPlan | undefined {
   // `questions` ride on the envelope; older shapes carried them on the
   // blueprint — accept either.
   const questions = nonEmptyStrings((obj as { questions?: unknown }).questions);
+  // One-click options for the questions (propose_blueprint `questionChoices`).
+  // Defensive: keep only entries with a text and ≥2 non-empty string options.
+  const rawChoices = (obj as { questionChoices?: unknown }).questionChoices;
+  const questionChoices = Array.isArray(rawChoices)
+    ? rawChoices.flatMap((c) => {
+        const r = c as { text?: unknown; options?: unknown };
+        if (typeof r?.text !== 'string' || !r.text) return [];
+        const options = Array.isArray(r.options)
+          ? r.options.filter((o): o is string => typeof o === 'string' && o.trim().length > 0)
+          : [];
+        return options.length >= 2 ? [{ text: r.text, options }] : [];
+      })
+    : [];
   const summary =
     typeof obj.summary === 'string' && obj.summary
       ? obj.summary
@@ -232,6 +252,7 @@ export function detectProposedPlan(result: unknown): ProposedPlan | undefined {
     objects,
     counts,
     questions: questions.length ? questions : nonEmptyStrings(bp.questions),
+    ...(questionChoices.length ? { questionChoices } : {}),
     assumptions: nonEmptyStrings(bp.assumptions),
     ...(typeof targetApp === 'string' && targetApp ? { targetApp } : {}),
   };

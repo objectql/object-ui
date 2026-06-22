@@ -1149,6 +1149,7 @@ const zh = {
       planAdjust: '调整方案',
       planApproveMessage: '就按这个方案搭建吧。',
       planApproveDefaultsMessage: '就按你的合理假设直接搭建，未决问题用默认即可。',
+      planAnswerMessage: '关于「{{question}}」，我选择「{{option}}」。',
       justNow: '刚刚',
       minutesAgo: '{{count}} 分钟前',
       hoursAgo: '{{count}} 小时前',

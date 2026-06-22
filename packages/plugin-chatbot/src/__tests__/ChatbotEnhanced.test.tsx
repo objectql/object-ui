@@ -134,6 +134,50 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText('HINT_TEXT')).toBeInTheDocument();
   });
 
+  const Q_INTERVIEW = 'Track interviews as a separate object or a stage field?';
+  const planWithChoices: ChatMessage[] = [
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      toolInvocations: [
+        {
+          toolCallId: 't1',
+          toolName: 'propose_blueprint',
+          state: 'output-available',
+          proposedPlan: {
+            summary: 'A recruiting app',
+            objects: [{ name: 'candidate', label: 'Candidate', fieldCount: 3 }],
+            counts: { objects: 1, views: 0, dashboards: 0, seedData: 0 },
+            questions: [Q_INTERVIEW],
+            questionChoices: [{ text: Q_INTERVIEW, options: ['Separate object', 'Stage field'] }],
+            assumptions: [],
+          },
+        },
+      ],
+    },
+  ];
+
+  it('renders one-click answer chips for a question that has choices, and sends the answer on click', () => {
+    const onSendMessage = vi.fn();
+    render(
+      <ChatbotEnhanced
+        messages={planWithChoices}
+        onSendMessage={onSendMessage}
+        planAnswerMessage={(q, o) => `ANSWER:${q}=${o}`}
+      />,
+    );
+    expect(screen.getByTestId('proposed-plan-choice')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Stage field'));
+    expect(onSendMessage).toHaveBeenCalledWith(`ANSWER:${Q_INTERVIEW}=Stage field`);
+  });
+
+  it('renders plain questions with NO chips when there are no matching choices', () => {
+    render(<ChatbotEnhanced messages={planMessage(['Some open-ended question?'])} onSendMessage={vi.fn()} />);
+    expect(screen.getByText(/Some open-ended question/)).toBeInTheDocument();
+    expect(screen.queryByTestId('proposed-plan-choice')).not.toBeInTheDocument();
+  });
+
   it('shows an error banner with a retry affordance', () => {
     const onReload = vi.fn();
     render(

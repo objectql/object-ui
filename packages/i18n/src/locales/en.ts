@@ -1153,6 +1153,7 @@ const en = {
       planApproveMessage: 'Looks good — build it as proposed.',
       planApproveDefaultsMessage:
         'Build it with your best assumptions; use sensible defaults for the open questions.',
+      planAnswerMessage: 'For "{{question}}", go with: {{option}}.',
       justNow: 'just now',
       minutesAgo: '{{count}}m ago',
       hoursAgo: '{{count}}h ago',
