@@ -31,8 +31,22 @@ describe('formatMeasure', () => {
   });
 
   it('applies percent and decimal hints', () => {
+    // Whole-percent storage (magnitude ≥ 1) passes through unchanged.
     expect(formatMeasure(50, '0%')).toBe('50%');
     expect(formatMeasure(12.5, '0.0')).toBe('12.5');
+  });
+
+  it('scales fraction-stored percents to display magnitude (×100), matching the list cell', () => {
+    // Percent fields store a FRACTION (0.75 ⇒ 75%); the list-view cell renderer
+    // multiplies by 100, so the dataset measure formatter must too — otherwise a
+    // metric card shows "0.6%" for an avg of 0.608 instead of "60.8%" (the bug).
+    expect(formatMeasure(0.75, '0%')).toBe('75%');
+    expect(formatMeasure(0.608_333_333, '0.0%')).toBe('60.8%');
+    // Boundary: exactly 0 and exactly 1 (100% stored as 1.0) — 1.0 passes
+    // through, mirroring the list renderer's strict `< 1` heuristic so the two
+    // surfaces stay in lockstep (a known shared limitation, not a new one).
+    expect(formatMeasure(0, '0%')).toBe('0%');
+    expect(formatMeasure(1, '0%')).toBe('1%');
   });
 
   it('falls back to plain formatting for an unknown currency code', () => {

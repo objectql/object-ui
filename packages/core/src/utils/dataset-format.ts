@@ -32,6 +32,22 @@ export interface DatasetResultField {
 }
 
 /**
+ * Scale a stored `percent`-field value to its DISPLAY magnitude.
+ *
+ * Percent fields store a FRACTION (0–1) by convention — a stored `0.75` means
+ * 75% (see the percent edit widget `PercentField`, which divides input by 100).
+ * A value already in whole-percent form (magnitude ≥ 1, e.g. a `progress` /
+ * `completion` field storing `57`) is passed through unchanged. This is the
+ * SINGLE source of truth for percent display scaling, shared by the list-view
+ * percent cell renderer (`formatPercent` in `@object-ui/fields`) and the dataset
+ * measure formatter ({@link formatMeasure}) so a percent renders identically as
+ * a row value and as an aggregated metric — the two surfaces can never drift.
+ */
+export function percentDisplayValue(value: number): number {
+  return value > -1 && value < 1 ? value * 100 : value;
+}
+
+/**
  * Format a MEASURE value. Currency comes from the field's declared `currency`
  * (locale-correct symbol via `Intl`), NOT from a "$" baked into the format
  * string — an amount with no declared currency must render as a plain number,
@@ -66,7 +82,12 @@ export function formatMeasure(v: unknown, format?: string, currency?: string): s
   // A legacy "$" literal in the format string is still honored (explicit author
   // choice) — but it is NOT how a real currency field gets its symbol.
   const legacyDollar = format.includes('$') ? '$' : '';
-  const body = v.toLocaleString(undefined, { minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 0 });
+  // numeral's "0.0%" multiplies by 100, and a percent field stores a FRACTION
+  // (0.75 ⇒ 75%). Scale to display magnitude the SAME way the list-view cell
+  // renderer does — otherwise an avg of 0.608 renders as "0.6%" instead of
+  // "60.8%", disagreeing with the per-row "75%" the list already shows.
+  const display = isPercent ? percentDisplayValue(v) : v;
+  const body = display.toLocaleString(undefined, { minimumFractionDigits: decimals ?? 0, maximumFractionDigits: decimals ?? 0 });
   return `${legacyDollar}${body}${isPercent ? '%' : ''}`;
 }
 

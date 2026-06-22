@@ -26,6 +26,22 @@ describe('DatasetWidget', () => {
     expect(screen.getByText('Total Spent')).toBeInTheDocument();
   });
 
+  it('scales a fraction-stored percent measure to display magnitude (avg 0.608 → "60.8%", not "0.6%")', async () => {
+    // Reproduces the AI-built sales CRM bug: win_probability is a `percent`
+    // field stored as a FRACTION (0.75 ⇒ 75%); its avg over the seeded rows is
+    // 0.6083. The list view already shows each row as "75%", so the metric card
+    // must show "60.8%" — not the "0.6%" produced when the '0.0%' format was
+    // applied without numeral's ×100. The measure renders identically on both
+    // surfaces via the shared percentDisplayValue scaling.
+    const src = { queryDataset: vi.fn(async () => ({
+      rows: [{ avg_win_probability: 0.6083333333333333 }],
+      fields: [{ name: 'avg_win_probability', type: 'number', label: 'Average 赢单概率', format: '0.0%' }],
+    })) };
+    render(<DatasetWidget widget={{ type: 'metric', dataset: 'opportunity_ds', values: ['avg_win_probability'] }} dataSource={src} />);
+    expect(await screen.findByText('60.8%')).toBeInTheDocument();
+    expect(screen.queryByText('0.6%')).not.toBeInTheDocument();
+  });
+
   it('runs the dataset query for a dimensioned (chart) widget — rows→dimensions, values→measures', async () => {
     const src = makeSource(async () => ({ rows: [{ stage: 'won', revenue: 100 }, { stage: 'lost', revenue: 20 }] }));
     render(<DatasetWidget widget={{ type: 'bar', dataset: 'sales', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);

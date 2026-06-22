@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue } from '@object-ui/core';
 import { useLocalization } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
@@ -341,8 +341,9 @@ export function formatNumber(value: number, decimals: number = 2): string {
  * Handles both decimal (0.8 = 80%) and whole number (80 = 80%) inputs.
  */
 export function formatPercent(value: number, precision: number = 0): string {
-  // If value is between -1 and 1 (exclusive), treat as decimal (e.g. 0.8 → 80%)
-  const displayValue = (value > -1 && value < 1) ? value * 100 : value;
+  // Scale a fraction-stored percent (0.8 → 80%) via the shared core helper, so
+  // the list cell and the dashboard measure formatter (`formatMeasure`) agree.
+  const displayValue = percentDisplayValue(value);
   return `${displayValue.toFixed(precision)}%`;
 }
 
