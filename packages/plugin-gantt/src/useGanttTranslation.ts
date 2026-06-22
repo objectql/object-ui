@@ -59,6 +59,8 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.linkType.ss': 'Start → Start',
   'gantt.linkType.ff': 'Finish → Finish',
   'gantt.linkType.sf': 'Start → Finish',
+  'gantt.linkEnd.start': 'start',
+  'gantt.linkEnd.end': 'end',
   'gantt.conflict.title': 'Schedule conflict',
   'gantt.conflict.body': 'This move conflicts with dependency constraints. Auto-reschedule {count} affected task(s)?',
   'gantt.conflict.confirm': 'Auto-reschedule',

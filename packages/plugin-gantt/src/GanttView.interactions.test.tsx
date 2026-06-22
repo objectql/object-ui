@@ -185,7 +185,7 @@ describe('GanttView drag-to-create dependency', () => {
     const onDependencyCreate = vi.fn();
     const { container } = renderView([A(), B()], { onDependencyCreate });
 
-    const dot = container.querySelector('[data-testid="gantt-link-dot-a"]') as HTMLElement;
+    const dot = container.querySelector('[data-testid="gantt-link-dot-end-a"]') as HTMLElement;
     expect(dot).toBeTruthy();
     fireEvent.pointerDown(dot, { button: 0, clientX: 600, clientY: 20 });
 
@@ -206,10 +206,31 @@ describe('GanttView drag-to-create dependency', () => {
     expect(container.querySelector('[data-testid="gantt-link-draft"]')).toBeFalsy();
   });
 
+  it('dragging from the start dot derives a Start-anchored link type', () => {
+    const onDependencyCreate = vi.fn();
+    const { container } = renderView([A(), B()], { onDependencyCreate });
+
+    const dot = container.querySelector('[data-testid="gantt-link-dot-start-a"]') as HTMLElement;
+    expect(dot).toBeTruthy();
+    fireEvent.pointerDown(dot, { button: 0, clientX: 600, clientY: 20 });
+    act(() => { window.dispatchEvent(pointer('pointermove', 700, 60)); });
+
+    const barB = container.querySelector('[data-testid="gantt-task-bar-b"]') as HTMLElement;
+    fireEvent.pointerMove(barB, { clientX: 980, clientY: 60 });
+    act(() => { window.dispatchEvent(pointer('pointerup', 980, 60)); });
+
+    expect(onDependencyCreate).toHaveBeenCalledTimes(1);
+    const [source, target, type] = onDependencyCreate.mock.calls[0];
+    expect(source.id).toBe('a');
+    expect(target.id).toBe('b');
+    // start source + start target (jsdom rects collapse to zero-width → left half) = ss
+    expect(type).toBe('ss');
+  });
+
   it('releasing over empty space creates nothing', () => {
     const onDependencyCreate = vi.fn();
     const { container } = renderView([A(), B()], { onDependencyCreate });
-    const dot = container.querySelector('[data-testid="gantt-link-dot-a"]') as HTMLElement;
+    const dot = container.querySelector('[data-testid="gantt-link-dot-end-a"]') as HTMLElement;
 
     fireEvent.pointerDown(dot, { button: 0, clientX: 600, clientY: 20 });
     act(() => { window.dispatchEvent(pointer('pointermove', 1100, 30)); });

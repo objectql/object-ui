@@ -986,9 +986,11 @@ export function GanttView({
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [linkDrag, setLinkDrag] = React.useState<{
     sourceId: string | number;
+    sourceEnd: 'start' | 'end';
     x: number;
     y: number;
     targetId: string | number | null;
+    targetEnd: 'start' | 'end' | null;
   } | null>(null);
   const linkDragRef = React.useRef<typeof linkDrag>(null);
   React.useEffect(() => { linkDragRef.current = linkDrag; }, [linkDrag]);
@@ -1007,7 +1009,13 @@ export function GanttView({
       if (cur && cur.targetId != null && String(cur.targetId) !== String(cur.sourceId) && onDependencyCreate) {
         const source = tasks.find((t) => String(t.id) === String(cur.sourceId));
         const target = tasks.find((t) => String(t.id) === String(cur.targetId));
-        if (source && target) onDependencyCreate(source, target, 'fs');
+        // Derive the link type from which endpoint we dragged FROM and which
+        // endpoint we dropped ONTO (dhtmlx-style): the source endpoint picks
+        // Finish (end) vs Start (start), the target endpoint picks the second
+        // letter. end→start = FS, end→end = FF, start→start = SS, start→end = SF.
+        const targetEnd = cur.targetEnd ?? 'start';
+        const type: GanttLinkType = `${cur.sourceEnd === 'end' ? 'f' : 's'}${targetEnd === 'end' ? 'f' : 's'}` as GanttLinkType;
+        if (source && target) onDependencyCreate(source, target, type);
       }
       suppressNextClickRef.current = true;
       window.setTimeout(() => { suppressNextClickRef.current = false; }, 0);
@@ -3021,16 +3029,23 @@ export function GanttView({
                    // While a connector drag is live, bars report themselves as
                    // the drop target on pointermove; the row clears it when the
                    // pointer is over empty row space (target === currentTarget).
-                   const captureLinkTarget = linkDrag ? () => {
+                   const captureLinkTarget = linkDrag ? (e: React.PointerEvent) => {
+                     // Which half of the target bar is the pointer over? The left
+                     // half snaps to the Start endpoint, the right half to Finish.
+                     // This is what makes the dropped-onto endpoint pick FS vs FF
+                     // (or SS vs SF) — the second letter of the link type.
+                     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                     const half: 'start' | 'end' =
+                       r.width > 0 && e.clientX - r.left > r.width / 2 ? 'end' : 'start';
                      setLinkDrag((prev) =>
                        prev && String(prev.sourceId) !== String(task.id)
-                         ? { ...prev, targetId: task.id }
+                         ? { ...prev, targetId: task.id, targetEnd: half }
                          : prev
                      );
                    } : undefined;
                    const clearLinkTarget = linkDrag ? (e: React.PointerEvent) => {
                      if (e.target === e.currentTarget) {
-                       setLinkDrag((prev) => (prev ? { ...prev, targetId: null } : prev));
+                       setLinkDrag((prev) => (prev ? { ...prev, targetId: null, targetEnd: null } : prev));
                      }
                    } : undefined;
                    const durationDays = Math.max(1, Math.round(
@@ -3328,17 +3343,21 @@ export function GanttView({
                           </div>
                         )}
 
-                        {/* Connector dot — drag onto another bar to create a dependency */}
-                        {onDependencyCreate && !isLocked && (
+                        {/* Connector dots — one at each end of the bar. Drag from
+                            the Start dot or the Finish dot onto another bar to
+                            create a dependency; the endpoint you drag FROM picks
+                            the first letter of the link type (Finish vs Start). */}
+                        {onDependencyCreate && !isLocked && (['start', 'end'] as const).map((end) => (
                           <div
+                            key={end}
                             className={cn(
                               "absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-background z-10",
-                              linkDrag && String(linkDrag.sourceId) === String(task.id)
+                              linkDrag && String(linkDrag.sourceId) === String(task.id) && linkDrag.sourceEnd === end
                                 ? "opacity-100"
                                 : "opacity-0 group-hover:opacity-100 transition-opacity"
                             )}
-                            style={{ right: -8, cursor: 'crosshair', border: '2px solid hsl(var(--primary))' }}
-                            data-testid={`gantt-link-dot-${task.id}`}
+                            style={{ [end === 'start' ? 'left' : 'right']: -8, cursor: 'crosshair', border: '2px solid hsl(var(--primary))' }}
+                            data-testid={`gantt-link-dot-${end}-${task.id}`}
                             onPointerDown={(e) => {
                               if (e.button !== 0) return;
                               e.stopPropagation();
@@ -3346,14 +3365,16 @@ export function GanttView({
                               const rect = contentRef.current?.getBoundingClientRect();
                               setLinkDrag({
                                 sourceId: task.id,
+                                sourceEnd: end,
                                 x: rect ? e.clientX - rect.left : 0,
                                 y: rect ? e.clientY - rect.top : 0,
                                 targetId: null,
+                                targetEnd: null,
                               });
                             }}
                             onClick={(e) => e.stopPropagation()}
                           />
-                        )}
+                        ))}
 
                         {/* Bar label — the task title, shown like summary bars so
                             leaf bars aren't blank. Fades out on hover to reveal the
@@ -3483,7 +3504,12 @@ export function GanttView({
                       const si = rows.findIndex((r) => String(r.task.id) === String(linkDrag.sourceId));
                       if (si < 0) return null;
                       const s = getLiveRowStyle(rows[si]);
-                      const sx = rows[si].isMilestone ? s.left + milestoneHalfTip : s.left + s.width;
+                      // Anchor the rubber band at the endpoint we dragged FROM:
+                      // the Start dot draws from the bar's left edge, the Finish
+                      // dot from its right edge (milestones collapse to the tip).
+                      const sx = rows[si].isMilestone
+                        ? s.left + (linkDrag.sourceEnd === 'start' ? -milestoneHalfTip : milestoneHalfTip)
+                        : linkDrag.sourceEnd === 'start' ? s.left : s.left + s.width;
                       const sy = si * rowHeight + rowHeight / 2;
                       return (
                         <path
@@ -3498,6 +3524,28 @@ export function GanttView({
                     })()}
                   </svg>
                 )}
+                {/* Drag hint — names the source/target endpoints so the user can
+                    see which link type (FS/FF/SS/SF) the drop will create. */}
+                {linkDrag && (() => {
+                  const source = tasks.find((tk) => String(tk.id) === String(linkDrag.sourceId));
+                  if (!source) return null;
+                  const target = linkDrag.targetId != null
+                    ? tasks.find((tk) => String(tk.id) === String(linkDrag.targetId))
+                    : null;
+                  const endLabel = (e: 'start' | 'end') => t(`gantt.linkEnd.${e}`);
+                  const label = target
+                    ? `${source.title} (${endLabel(linkDrag.sourceEnd)}) → ${target.title} (${endLabel(linkDrag.targetEnd ?? 'start')})`
+                    : `${source.title} (${endLabel(linkDrag.sourceEnd)})`;
+                  return (
+                    <div
+                      className="absolute z-30 pointer-events-none rounded-md border bg-popover text-popover-foreground px-2 py-1 text-[11px] font-medium shadow-md whitespace-nowrap"
+                      style={{ left: linkDrag.x + 12, top: linkDrag.y + 12 }}
+                      data-testid="gantt-link-draft-hint"
+                    >
+                      {label}
+                    </div>
+                  );
+                })()}
 
               </div>
             </div>
