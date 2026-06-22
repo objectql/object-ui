@@ -118,11 +118,14 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
     <CommandDialog
       open={open}
       onOpenChange={setOpen}
+      // Accessible name/description (rendered visually-hidden as the required
+      // Radix DialogTitle/Description) — gives the dialog a stable ARIA name (C4).
+      title={t('console.commandPalette.title', { defaultValue: 'Command palette' })}
+      description={t('console.commandPalette.placeholder')}
       contentProps={{
-        // Stable locator + ARIA name so the overlay is addressable by an
-        // automated driver without relying on i18n-fragile visible text (C4).
+        // Stable locator so the overlay is addressable by an automated driver
+        // without relying on i18n-fragile visible text (C4).
         'data-testid': 'overlay:command-palette',
-        'aria-label': t('console.commandPalette.title', { defaultValue: 'Command palette' }),
       }}
     >
       <CommandInput
