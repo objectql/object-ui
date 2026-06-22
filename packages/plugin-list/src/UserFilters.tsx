@@ -566,21 +566,26 @@ function TabFilters({ tabs, showAllRecords, allowAddTab, onFilterChange, classNa
 
   return (
     <div className={cn('flex items-center gap-0.5 overflow-x-auto', className)} data-testid="user-filters-tabs">
-      {allTabs.map(tab => (
-        <button
-          key={tab.id}
-          data-testid={`filter-tab-${tab.id}`}
-          onClick={() => handleTabChange(tab.id)}
-          className={cn(
-            'inline-flex items-center h-7 px-3 text-xs font-medium rounded-md transition-colors shrink-0',
-            activeTab === tab.id
-              ? 'bg-primary text-primary-foreground'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-          )}
-        >
-          {tab.label}
-        </button>
-      ))}
+      {allTabs.map(tab => {
+        // Tab identity: canonical `name`, falling back to the deprecated `id`
+        // (mirrors `normalizeTabPresets`). The synthetic "__all__" tab sets `id`.
+        const tabId = tab.id ?? tab.name ?? '';
+        return (
+          <button
+            key={tabId}
+            data-testid={`filter-tab-${tabId}`}
+            onClick={() => handleTabChange(tabId)}
+            className={cn(
+              'inline-flex items-center h-7 px-3 text-xs font-medium rounded-md transition-colors shrink-0',
+              activeTab === tabId
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+            )}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
       {allowAddTab && (
         <button
           className="inline-flex items-center justify-center h-7 w-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
