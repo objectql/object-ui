@@ -522,10 +522,10 @@ export function GanttView({
   React.useEffect(() => {
     if (viewModeProp && VIEW_MODES.includes(viewModeProp)) setViewMode(viewModeProp);
   }, [viewModeProp]);
-  const changeViewMode = React.useCallback((mode: GanttViewMode) => {
-    setViewMode(mode);
-    onViewChange?.(mode);
-  }, [onViewChange]);
+  // Date the user was looking at when they switched granularity, captured so the
+  // post-switch layout effect can re-centre on it (see `changeViewMode` below,
+  // defined after the date↔px mappings it needs).
+  const pendingViewAnchorRef = React.useRef<Date | null>(null);
   const [taskListCollapsed, setTaskListCollapsed] = React.useState<boolean>(
     restoredLayout ? restoredLayout.taskListCollapsed : false
   );
@@ -1483,6 +1483,39 @@ export function GanttView({
     },
     [timeColumns, colStartMs, colRealMs, colOffsets, timelineRange],
   );
+
+  // Switch granularity *without* the date window jumping. The scroll container
+  // keeps a raw pixel scrollLeft across a re-render, but a Day→Month switch
+  // shrinks the timeline ~5×, so that same pixel offset lands on a wildly
+  // different (usually clamped-to-edge) date — which is what users read as
+  // "乱". Instead we record the date sitting at the viewport centre *now* (via
+  // the current xToDate) and re-centre on it once the new layout is measured.
+  const changeViewMode = React.useCallback(
+    (mode: GanttViewMode) => {
+      const el = scrollAreaRef.current;
+      if (el && el.clientWidth > 0) {
+        pendingViewAnchorRef.current = xToDate(el.scrollLeft + el.clientWidth / 2);
+      }
+      setViewMode(mode);
+      onViewChange?.(mode);
+    },
+    [onViewChange, xToDate],
+  );
+  // Re-centre on the captured anchor after the granularity change has produced
+  // a new dateToX mapping and total width. useLayoutEffect runs post-DOM /
+  // pre-paint, so the scroll lands before the user sees the new view — no flash
+  // of the wrong window. The ref is null for any other dateToX change (zoom,
+  // fold toggle, task edits), so those are untouched.
+  React.useLayoutEffect(() => {
+    const anchor = pendingViewAnchorRef.current;
+    if (anchor == null) return;
+    pendingViewAnchorRef.current = null;
+    const el = scrollAreaRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+    const target = Math.round(dateToX(anchor)) - el.clientWidth / 2;
+    el.scrollLeft = Math.max(0, Math.min(target, maxLeft));
+  }, [viewMode, dateToX]);
 
   // Shift a date by N visible columns honouring the fold: +1 column from a
   // Friday lands on Monday, skipping the dropped weekend. Used by drag/resize
