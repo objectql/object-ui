@@ -15,6 +15,8 @@ export { ExpressionProvider, useExpressionContext, evaluateVisibility } from './
 
 // Hooks
 export { useObjectActions } from './hooks/useObjectActions';
+export { useUrlOverlay } from './hooks/useUrlOverlay';
+export type { UseUrlOverlayOptions, UrlOverlayControls } from './hooks/useUrlOverlay';
 export { useRecentItems } from './hooks/useRecentItems';
 
 // Types

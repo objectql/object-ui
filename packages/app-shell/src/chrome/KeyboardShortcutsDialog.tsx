@@ -5,7 +5,7 @@
  * @module
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import {
   DialogDescription,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { useUrlOverlay } from '../hooks/useUrlOverlay';
 
 interface ShortcutEntry {
   keys: string[];
@@ -27,7 +28,10 @@ interface ShortcutGroup {
 
 export function KeyboardShortcutsDialog() {
   const { t } = useObjectTranslation();
-  const [open, setOpen] = useState(false);
+  // URL-addressable (?shortcuts=1) so the dialog is deep-linkable and openable
+  // from the header Help menu, not only via the `?` keyboard accelerator (ADR-0054
+  // C1/C2/C3).
+  const { open, setOpen, toggleOverlay } = useUrlOverlay('shortcuts');
 
   const shortcutGroups: ShortcutGroup[] = useMemo(() => [
     {
@@ -82,17 +86,20 @@ export function KeyboardShortcutsDialog() {
 
       if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
-        setOpen(prev => !prev);
+        toggleOverlay();
       }
     }
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [toggleOverlay]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+      <DialogContent
+        className="sm:max-w-lg max-h-[80vh] overflow-y-auto"
+        data-testid="overlay:keyboard-shortcuts"
+      >
         <DialogHeader>
           <DialogTitle>{t('console.shortcuts.title')}</DialogTitle>
           <DialogDescription>

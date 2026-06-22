@@ -46,6 +46,7 @@ import {
   User,
   BookOpen,
   ExternalLink,
+  Keyboard,
 } from 'lucide-react';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -68,6 +69,7 @@ import { getIcon } from '../utils/getIcon';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
 import { useCommandPalette } from '../context/CommandPaletteProvider';
+import { useUrlOverlay } from '../hooks/useUrlOverlay';
 import { getProductName } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
 
@@ -122,6 +124,9 @@ export function AppHeader({
   // Idempotent, direct open of the ⌘K command palette (ADR-0054 C1). Replaces a
   // synthetic `⌘K` KeyboardEvent re-dispatch that did nothing under automation.
   const { openCommandPalette } = useCommandPalette();
+  // Click-reachable entry for the keyboard-shortcuts dialog (was `?`-key only).
+  // Shares the `?shortcuts=1` URL param with KeyboardShortcutsDialog (C2/C3).
+  const { openOverlay: openShortcuts } = useUrlOverlay('shortcuts');
   const {
     user,
     signOut,
@@ -862,6 +867,16 @@ export function AppHeader({
                 <Layers className="mr-2 h-4 w-4" />
                 {t('help.allDocs', { defaultValue: 'All documentation' })}
               </DropdownMenuItem>
+              {isApp ? (
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  data-testid="action:keyboard-shortcuts:open"
+                  onClick={openShortcuts}
+                >
+                  <Keyboard className="mr-2 h-4 w-4" />
+                  {t('help.keyboardShortcuts', { defaultValue: 'Keyboard shortcuts' })}
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild className="cursor-pointer">
                 <a href="https://docs.objectstack.ai" target="_blank" rel="noopener noreferrer">

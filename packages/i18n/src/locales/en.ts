@@ -1563,6 +1563,7 @@ const en = {
     onThisPage: 'On this page',
     appDocs: "This app's docs",
     allDocs: 'All documentation',
+    keyboardShortcuts: 'Keyboard shortcuts',
     onlineDocs: 'Online documentation',
   },
   sidebar: {

@@ -462,6 +462,37 @@ Designed to be deterministic for automated (AI) browser testing — see
   input. Value-injection (`el.value = …`) does **not** fire React's `onChange`;
   drive it with a real-input / CDP-keystroke driver so the debounced fetch fires.
 
+## URL-addressable overlays (`useUrlOverlay`)
+
+`useUrlOverlay(key)` is the reusable building block behind the command palette's
+URL-addressable open state (ADR-0054 C3). It stores a navigable overlay's open
+state in a `?<key>=1` search param instead of component `useState`, so the
+overlay is deep-linkable, restores on reload, and works with back/forward — and
+its open path is idempotent (C1).
+
+```tsx
+import { useUrlOverlay } from '@object-ui/app-shell';
+
+function HelpMenu() {
+  const { open, setOpen, openOverlay } = useUrlOverlay('shortcuts');
+  // Header button (any component under the router):  onClick={openOverlay}
+  // Dialog (elsewhere, reads the same param):        <Dialog open={open} onOpenChange={setOpen}>
+  // Deep-link that opens on load:                    /apps/foo?shortcuts=1
+}
+```
+
+Because state lives in the URL, a trigger and the overlay it controls need no
+shared provider or prop-drilling — they just use the same `key`. The
+command palette (`?palette=1`, `?cmdk=1` alias) and the keyboard-shortcuts dialog
+(`?shortcuts=1`, openable from the Help menu — no longer `?`-key-only) both build
+on it. `replace`/`alias`/`value` are configurable.
+
+The shared overlay primitives in `@object-ui/components`
+(`Dialog`/`Sheet`/`Drawer`/`Popover`/`DropdownMenu`/`AlertDialog`) already forward
+a `data-testid` onto their content element and emit Radix `data-state="open|closed"`,
+so overlays are locatable and their open/closed state is machine-readable by
+construction (C4).
+
 ## Compatibility
 
 - **React:** 18.x or 19.x

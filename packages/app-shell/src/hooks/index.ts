@@ -16,6 +16,11 @@ export { useObjectActions } from './useObjectActions';
 export { useRecentItems, type RecentItem } from './useRecentItems';
 export { useRecordApprovals, type ApprovalRequestLite } from './useRecordApprovals';
 export { useResponsiveSidebar } from './useResponsiveSidebar';
+export {
+  useUrlOverlay,
+  type UseUrlOverlayOptions,
+  type UrlOverlayControls,
+} from './useUrlOverlay';
 export { useTrackRouteAsRecent, type UseTrackRouteAsRecentOptions } from './useTrackRouteAsRecent';
 export {
   sanitizeChatMessagesForCache,
