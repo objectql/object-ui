@@ -43,6 +43,7 @@ import {
   PLATFORM_DEFAULT_AGENT,
   agentRouteName,
   resolveAgentParam,
+  isBuiltinAgentName,
   isBuildAgent,
   isAskAgent,
   publishHealthFromResponse,
@@ -522,9 +523,18 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   }, [agents.length, agentSegment, segmentIsAgent, catalogNames, fallbackAgent]);
   const activeAgentRoute = activeAgent ? agentRouteName(activeAgent) : undefined;
 
-  // A first segment that ISN'T an agent is a legacy bare conversation id.
+  // A KNOWN built-in agent (build/ask/…) that the live catalog doesn't serve —
+  // e.g. `/ai/build` on a deployment without the cloud AI Studio plugin. It's
+  // an unavailable AGENT, not a conversation id, so we fall back to the default
+  // surface instead of treating "build" as a chat to load.
+  const unavailableKnownAgent = Boolean(
+    agentSegment && segmentIsAgent === false && isBuiltinAgentName(agentSegment),
+  );
+
+  // A first segment that ISN'T an agent and ISN'T a known (unavailable) agent
+  // name is a legacy bare conversation id.
   const legacyConversationId =
-    agentSegment && segmentIsAgent === false ? agentSegment : undefined;
+    agentSegment && segmentIsAgent === false && !unavailableKnownAgent ? agentSegment : undefined;
 
   const chatApi = activeAgent
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`
@@ -560,11 +570,18 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
       navigate(`/ai/${friendly}${preservedQuery}`, { replace: true });
       return;
     }
+    // A known agent that isn't deployed here (e.g. `/ai/build` with no cloud AI
+    // Studio): land cleanly on the default surface rather than treating the
+    // segment as a conversation id (which produced the junk `/ai/ask/build`).
+    if (unavailableKnownAgent) {
+      navigate(`/ai/${friendly}${preservedQuery}`, { replace: true });
+      return;
+    }
     if (segmentIsAgent && agentSegment !== friendly) {
       const tail = urlConversationId ? `/${encodeURIComponent(urlConversationId)}` : '';
       navigate(`/ai/${friendly}${tail}${preservedQuery}`, { replace: true });
     }
-  }, [agents.length, activeAgent, agentSegment, segmentIsAgent, urlConversationId, searchString, navigate]);
+  }, [agents.length, activeAgent, agentSegment, segmentIsAgent, unavailableKnownAgent, urlConversationId, searchString, navigate]);
 
   // ── Legacy `/ai/:conversationId` (bare id) ──────────────────────────────
   // Resolve the conversation's own agent and 301 to `/ai/:agent/:conversationId`

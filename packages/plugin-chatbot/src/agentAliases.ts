@@ -65,6 +65,17 @@ export function resolveAgentParam(
   return undefined;
 }
 
+/**
+ * True when `name` is a KNOWN built-in agent identifier (a friendly name or a
+ * legacy id in an alias group: build/metadata_assistant, ask/data_chat) —
+ * regardless of whether the live catalog currently serves it. Lets a router
+ * tell "an agent that's simply not deployed here" (fall back to the default
+ * surface) apart from "a bare conversation id" (resolve its own agent).
+ */
+export function isBuiltinAgentName(name: string | undefined): boolean {
+  return name != null && AGENT_ALIAS_GROUPS.some((g) => g.includes(name));
+}
+
 /** True when `name` is the authoring/build agent (either `build` or `metadata_assistant`). */
 export function isBuildAgent(name: string | undefined): boolean {
   return name != null && agentRouteName(name) === 'build';

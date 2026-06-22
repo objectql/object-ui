@@ -263,6 +263,7 @@ export {
   agentAliasGroup,
   agentRouteName,
   resolveAgentParam,
+  isBuiltinAgentName,
   isBuildAgent,
   isAskAgent,
 } from './agentAliases';

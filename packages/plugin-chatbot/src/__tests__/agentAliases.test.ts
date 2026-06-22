@@ -12,6 +12,7 @@ import {
   agentAliasGroup,
   agentRouteName,
   resolveAgentParam,
+  isBuiltinAgentName,
   isBuildAgent,
   isAskAgent,
 } from '../agentAliases';
@@ -68,6 +69,31 @@ describe('resolveAgentParam', () => {
     expect(resolveAgentParam(undefined, LEGACY)).toBeUndefined();
     // A friendly name whose target isn't served (empty catalog) is unresolvable.
     expect(resolveAgentParam('build', [])).toBeUndefined();
+  });
+});
+
+describe('isBuiltinAgentName', () => {
+  it('recognizes built-in agents by friendly name or legacy id, catalog-independent', () => {
+    expect(isBuiltinAgentName('build')).toBe(true);
+    expect(isBuiltinAgentName('metadata_assistant')).toBe(true);
+    expect(isBuiltinAgentName('ask')).toBe(true);
+    expect(isBuiltinAgentName('data_chat')).toBe(true);
+  });
+  it('returns false for custom agents and non-agent segments (conversation ids)', () => {
+    expect(isBuiltinAgentName('showcase_assistant')).toBe(false);
+    expect(isBuiltinAgentName('conv_abc-123')).toBe(false);
+    expect(isBuiltinAgentName(undefined)).toBe(false);
+  });
+  it('distinguishes "known agent, just not in this catalog" from "not an agent"', () => {
+    // `/ai/build` on a deployment without the cloud build agent: not in the
+    // catalog (resolveAgentParam → undefined) BUT a known agent (→ fall back to
+    // the default surface, not treat "build" as a conversation id).
+    const catalogWithoutBuild = ['ask', 'showcase_assistant'];
+    expect(resolveAgentParam('build', catalogWithoutBuild)).toBeUndefined();
+    expect(isBuiltinAgentName('build')).toBe(true);
+    // A real conversation id: not resolvable AND not a known agent.
+    expect(resolveAgentParam('conv_x', catalogWithoutBuild)).toBeUndefined();
+    expect(isBuiltinAgentName('conv_x')).toBe(false);
   });
 });
 
