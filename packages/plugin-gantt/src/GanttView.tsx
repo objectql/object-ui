@@ -522,10 +522,31 @@ export function GanttView({
   React.useEffect(() => {
     if (viewModeProp && VIEW_MODES.includes(viewModeProp)) setViewMode(viewModeProp);
   }, [viewModeProp]);
-  // Date the user was looking at when they switched granularity, captured so the
-  // post-switch layout effect can re-centre on it (see `changeViewMode` below,
-  // defined after the date↔px mappings it needs).
+  // Date sitting at the viewport's left edge when the user switched granularity,
+  // captured so the post-switch layout effect can re-pin it to the left edge
+  // (see `changeViewMode` below, defined after the date↔px mappings it needs).
   const pendingViewAnchorRef = React.useRef<Date | null>(null);
+  // The date the user actually wants pinned to the left edge, kept at full
+  // precision and updated ONLY by genuine user scrolling — never re-derived from
+  // a programmatic (and possibly clamped) scrollLeft. This is what survives a
+  // multi-step granularity change: switching to a coarser scale whose *entire*
+  // timeline fits the viewport clamps scrollLeft to 0, which would otherwise
+  // poison the next switch by capturing "0 → timeline start" as the new anchor.
+  // Holding the precise intent here means Day(Apr 9)→Week→Month→Day returns to
+  // Apr 9, not the timeline's left edge.
+  const viewAnchorDateRef = React.useRef<Date | null>(null);
+  // Gate that blocks scroll events from updating viewAnchorDateRef until the
+  // next *genuine* user-input scroll (wheel / touch / keyboard / scrollbar drag).
+  // A granularity change arms this. It's needed because switching into a
+  // narrower view makes the browser auto-clamp scrollLeft (e.g. 720 → 53) and
+  // fire a scroll event we never initiated — a one-shot "suppress the next
+  // event" flag can't catch that (the clamp may fire zero, one, or several
+  // events), and it would overwrite the precise anchor with the clamped
+  // position (→ Dec 17 → Day clamps to the timeline start). User-input
+  // listeners on the scroll container clear this gate, so only real scrolling
+  // re-captures the anchor. Starts armed so the mount scroll-to-today doesn't
+  // seed a bogus anchor before the user has touched anything.
+  const blockAnchorUntilUserScrollRef = React.useRef(true);
   const [taskListCollapsed, setTaskListCollapsed] = React.useState<boolean>(
     restoredLayout ? restoredLayout.taskListCollapsed : false
   );
@@ -1488,24 +1509,35 @@ export function GanttView({
   // keeps a raw pixel scrollLeft across a re-render, but a Day→Month switch
   // shrinks the timeline ~5×, so that same pixel offset lands on a wildly
   // different (usually clamped-to-edge) date — which is what users read as
-  // "乱". Instead we record the date sitting at the viewport centre *now* (via
-  // the current xToDate) and re-centre on it once the new layout is measured.
+  // "乱". Instead we record the date sitting at the *left edge* of the viewport
+  // now (via the current xToDate) and pin that same date back to the left edge
+  // once the new layout is measured — so the leftmost visible date never moves.
   const changeViewMode = React.useCallback(
     (mode: GanttViewMode) => {
       const el = scrollAreaRef.current;
-      if (el && el.clientWidth > 0) {
-        pendingViewAnchorRef.current = xToDate(el.scrollLeft + el.clientWidth / 2);
+      // Seed the persistent anchor from the current left edge the first time (or
+      // if a programmatic scroll left it unset); afterwards user scrolls keep it
+      // fresh. Crucially we re-pin THIS precise date, not a freshly-read (and
+      // possibly clamped) scrollLeft — so a coarser intermediate view that can't
+      // scroll to it doesn't corrupt the anchor for the next switch.
+      if (viewAnchorDateRef.current == null && el && el.clientWidth > 0) {
+        viewAnchorDateRef.current = xToDate(el.scrollLeft);
       }
+      pendingViewAnchorRef.current = viewAnchorDateRef.current;
+      // Freeze the anchor across the switch: ignore the programmatic re-pin AND
+      // any browser auto-clamp scroll the narrower layout triggers, until the
+      // user genuinely scrolls again.
+      blockAnchorUntilUserScrollRef.current = true;
       setViewMode(mode);
       onViewChange?.(mode);
     },
     [onViewChange, xToDate],
   );
-  // Re-centre on the captured anchor after the granularity change has produced
-  // a new dateToX mapping and total width. useLayoutEffect runs post-DOM /
-  // pre-paint, so the scroll lands before the user sees the new view — no flash
-  // of the wrong window. The ref is null for any other dateToX change (zoom,
-  // fold toggle, task edits), so those are untouched.
+  // Re-pin the captured anchor to the left edge after the granularity change has
+  // produced a new dateToX mapping and total width. useLayoutEffect runs
+  // post-DOM / pre-paint, so the scroll lands before the user sees the new view
+  // — no flash of the wrong window. The ref is null for any other dateToX change
+  // (zoom, fold toggle, task edits), so those are untouched.
   React.useLayoutEffect(() => {
     const anchor = pendingViewAnchorRef.current;
     if (anchor == null) return;
@@ -1513,8 +1545,19 @@ export function GanttView({
     const el = scrollAreaRef.current;
     if (!el || el.clientWidth === 0) return;
     const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
-    const target = Math.round(dateToX(anchor)) - el.clientWidth / 2;
-    el.scrollLeft = Math.max(0, Math.min(target, maxLeft));
+    // Snap the left edge to the start of the period the anchor falls in (the
+    // week/month/quarter/year that contains it), so the leftmost column is a
+    // full, aligned cell instead of a partial slice with a mismatched header
+    // (e.g. Apr 9 in Week view would otherwise leave a stub of the Apr 6 week
+    // showing, labelled by the *next* full week). The precise anchor is still
+    // held in viewAnchorDateRef, so a later switch back to a finer scale lands
+    // on the exact day — snapping only affects what coarser views display.
+    const target = Math.max(0, Math.min(Math.round(dateToX(startOfUnit(anchor, viewMode))), maxLeft));
+    // The gate (armed in changeViewMode) already keeps this programmatic move —
+    // and any browser auto-clamp it triggers — from re-capturing the anchor.
+    if (el.scrollLeft !== target) {
+      el.scrollLeft = target;
+    }
   }, [viewMode, dateToX]);
 
   // Shift a date by N visible columns honouring the fold: +1 column from a
@@ -1609,6 +1652,37 @@ export function GanttView({
   // Wrapper around the scroll-syncing timeline body, so the pinch handler
   // and the "Today" button can target a stable node.
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
+
+  // Clear the anchor gate on genuine user-input scrolling. A scroll *event*
+  // alone can't tell a user wheel from a browser auto-clamp, so we key off the
+  // input events that precede a real scroll: wheel, touch, scrollbar drag
+  // (pointerdown), and keyboard (arrows/page/space/home/end). Once cleared,
+  // handleScroll resumes tracking the left-edge date as the anchor — until the
+  // next granularity switch re-arms the gate.
+  React.useEffect(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+    const unblock = () => {
+      blockAnchorUntilUserScrollRef.current = false;
+    };
+    const SCROLL_KEYS = new Set([
+      'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+      'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar',
+    ]);
+    const onKey = (ev: KeyboardEvent) => {
+      if (SCROLL_KEYS.has(ev.key)) unblock();
+    };
+    el.addEventListener('wheel', unblock, { passive: true });
+    el.addEventListener('touchstart', unblock, { passive: true });
+    el.addEventListener('pointerdown', unblock, { passive: true });
+    el.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('wheel', unblock);
+      el.removeEventListener('touchstart', unblock);
+      el.removeEventListener('pointerdown', unblock);
+      el.removeEventListener('keydown', onKey);
+    };
+  }, []);
 
   // 定位闪烁: id of the bar currently pulsing after a "locate" click, plus the
   // pending timers that toggle it on/off (cleared on re-trigger and unmount).
@@ -1845,6 +1919,14 @@ export function GanttView({
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
+    // Track the left-edge date as the user's anchor intent — but only for
+    // genuine user scrolling. The gate stays armed through a granularity switch
+    // (programmatic re-pin + browser auto-clamp of the narrower layout) and is
+    // cleared only by real user input, so those synthetic scrolls can't
+    // overwrite the precise date we're preserving.
+    if (!blockAnchorUntilUserScrollRef.current && el.clientWidth > 0) {
+      viewAnchorDateRef.current = xToDate(el.scrollLeft);
+    }
     // Sync horizontal scroll to header
     if (headerRef.current) {
         headerRef.current.scrollLeft = el.scrollLeft;
@@ -2303,6 +2385,53 @@ export function GanttView({
           .gantt-sm-w20 { width: 80px; }
           .gantt-sm-hidden { display: none; }
         }
+        /* Persistent, grabbable timeline scrollbars. macOS (and iOS) default to
+           overlay scrollbars that collapse to 0px and auto-hide, so the
+           timeline's vertical scrollbar was nearly impossible to find. Defining
+           ::-webkit-scrollbar opts this pane into a classic, always-visible bar
+           regardless of the OS overlay preference. The thumb gets a min size so
+           that with thousands of virtualized rows (scrollHeight in the hundreds
+           of thousands of px) it never shrinks to an un-grabbable sliver. Scoped
+           to the gantt pane so the host app's own scrollbars are untouched, and
+           themed with neutral rgba (not theme utilities, which don't always
+           reach a consuming app) so it's visible on any background. */
+        /* Firefox (and any engine without ::-webkit-scrollbar) only: the
+           standard props. We must NOT set these unconditionally — modern Chrome
+           now honors scrollbar-width and, when it's present, IGNORES the
+           ::-webkit-scrollbar rule below, falling back to the 0px auto-hiding
+           overlay bar we're trying to replace. */
+        @supports not selector(::-webkit-scrollbar) {
+          [data-testid="gantt-timeline"] {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(130,130,130,0.55) transparent;
+          }
+        }
+        [data-testid="gantt-timeline"]::-webkit-scrollbar {
+          width: 14px;
+          height: 14px;
+        }
+        [data-testid="gantt-timeline"]::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        [data-testid="gantt-timeline"]::-webkit-scrollbar-thumb {
+          background-color: rgba(130,130,130,0.55);
+          border-radius: 8px;
+          border: 3px solid transparent;
+          background-clip: padding-box;
+          min-height: 40px;
+          min-width: 40px;
+        }
+        [data-testid="gantt-timeline"]::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(110,110,110,0.85);
+        }
+        [data-testid="gantt-timeline"]::-webkit-scrollbar-corner {
+          background: transparent;
+        }
+        /* The task-list pane scrolls in lockstep with the timeline, so its own
+           vertical scrollbar (butted against the divider) was a confusing second
+           bar. Hide it — the pane stays wheel/drag-scrollable and synced. */
+        .gantt-task-list::-webkit-scrollbar { width: 0; height: 0; }
+        .gantt-task-list { scrollbar-width: none; }
       `}</style>
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2 border-b bg-card">
@@ -2599,7 +2728,7 @@ export function GanttView({
         <div className="flex flex-1 overflow-hidden">
           {/* Left Side: Task List (Grid) */}
           <div
-            className="overflow-y-auto overflow-x-hidden border-r bg-card z-10 shadow-sm"
+            className="gantt-task-list overflow-y-auto overflow-x-hidden border-r bg-card z-10 shadow-sm"
             ref={listRef}
             onScroll={handleListScroll}
             style={{ width: taskListWidth, minWidth: taskListWidth }}
