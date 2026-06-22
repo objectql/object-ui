@@ -1,5 +1,64 @@
 # @object-ui/plugin-markdown
 
+## 7.0.0
+
+### Minor Changes
+
+- c09f44e: Docs: mermaid diagrams + long-doc table of contents (ADR-0046).
+
+  - **plugin-markdown** renders ```mermaid fenced blocks as diagrams (`<Mermaid>`: lazy-loaded mermaid, `securityLevel: 'strict'`, rendered post-`rehype-sanitize`by a trusted component, degrades to the raw source on error). Mermaid is text → SVG, so it stays within the v1 image/binary ban. Adds`extractToc(markdown)`— a TOC builder whose slugs are generated with the same`github-slugger` `rehype-slug`uses, so`#id` links resolve to the rendered heading anchors.
+  - **console** `DocPage` shows a sticky right-rail table of contents (h2–h3) for docs with ≥3 headings, plus an app-independent `/apps/:packageId/docs` index already added earlier.
+  - **i18n** adds `help.onThisPage` (en/zh; other locales fall back).
+
+- 1addfda: Markdown grammar v1.1 (ADR-0046): heading anchors, code highlighting, and GitHub-style alerts.
+
+  The shared markdown renderer now applies three enrichments, all behind the existing `rehype-sanitize` gate (which runs last and stays the final XSS boundary):
+
+  - **Heading anchors** (`rehype-slug` + `rehype-autolink-headings`) — headings get slug ids so intra-doc `#section` links resolve (fixes the ADR-0046 cross-reference anchors, which previously had no target). `clobberPrefix: ''` keeps ids verbatim.
+  - **Code highlighting** (`rehype-highlight`) — fenced code blocks get highlight.js token classes; colors are theme-aware (light/dark) via injected CSS using the console's shadcn variables.
+  - **GitHub-style alerts** (`remark-github-blockquote-alert`) — `> [!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` / `[!CAUTION]` render as styled callouts. The syntax is valid CommonMark, so it also renders natively in GitHub previews and degrades to a plain blockquote in any older renderer — no lint coordination needed.
+
+  Security posture is unchanged: class names and ids are inert; script/style/event-handler/`javascript:`/iframe vectors stay blocked, and the alert icon SVG is stripped (zero SVG surface in the sanitize schema — callout icons are CSS pseudo-elements). A `class → className` canonicalization step runs before sanitize so the alert plugin's raw `class` attribute survives the whitelist.
+
+### Patch Changes
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

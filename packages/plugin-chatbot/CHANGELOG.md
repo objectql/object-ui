@@ -1,5 +1,99 @@
 # @object-ui/plugin-chatbot
 
+## 7.0.0
+
+### Minor Changes
+
+- 81c0777: feat(studio): ADR-0033 Phase B — draft review surface (chat → designer → generic diff)
+
+  Closes the AI metadata-authoring loop in Studio. The framework (ADR-0033 Phases A + C) makes the assistant stage every change as a DRAFT; this lets a human see and review those drafts.
+
+  **`@object-ui/plugin-chatbot`**
+
+  - `mapMessages` now detects the framework's draft envelopes — `{ status:'drafted', type, name, … }` (single) and `{ status:'drafted', drafted:[{type,name}] }` (apply_blueprint batch) — and lifts the reviewable targets onto `ChatToolInvocation.draftReview` (mirrors the existing HITL `pendingActionId` path; the Vercel `{type:'text',value}` wrapper is peeled). `blueprint_proposed` is intentionally not surfaced (no draft yet).
+  - `ChatbotEnhanced` renders a **"Review N change(s)"** button on drafted tool results, driven by a new `onReviewDraft` callback prop.
+
+  **`@object-ui/app-shell`**
+
+  - `assistantBus` gains a review channel (`requestReview` / `requestAssistantReview`); `ConsoleFloatingChatbot` wires the chat button to it; a small navigator inside `AppContent` (which knows the app base) routes to `/apps/:appName/metadata/:type/:name?review=1`.
+  - `ResourceEditPage` honours `?review=1`: it force-reloads the pending draft (covers the case where the AI drafted the item after the page mounted) and opens the review/diff.
+  - New **`DraftReviewPanel`** — a generic, type-agnostic draft↔published structural diff (added / changed / removed by key), reusing `LayeredDiff`'s `computeDiffRows`. It gives **every** metadata type (view, dashboard, flow, …) a real "what will publishing change" review, surfaced as a toolbar affordance + sheet whenever a draft exists. The object designer keeps its richer per-field review.
+
+  Nothing is published by any of this — the human still clicks Publish.
+
+- 9049bbe: Add end-user friendly agent process summaries for chatbot tool calls, with a debug mode for raw reasoning and tool details. Console chat surfaces now keep a sanitized browser-side display cache so refreshes can restore user/assistant text plus grouped tool states when the backend returns no message rows.
+- 053c948: feat(plugin-chatbot): render AI data-query charts inline (`data-chart`)
+
+  Companion to the framework `visualize_data` tool: the data-query assistant can
+  now answer with a CHART rendered right in the assistant bubble.
+
+  - `mapMessages.ts` — `extractCharts()` lifts every `data-chart` custom stream
+    part onto `ChatMessage.charts` (defensive narrowing; preserves multiple charts
+    in order), mirroring the existing `data-build-progress` → `buildProgress` path.
+  - `ChatbotEnhanced.tsx` — renders each chart via `<SchemaRenderer schema={{
+type:'chart', … }}/>` (decoupled — no hard dep on `plugin-charts`), giving the
+    chart a definite `width: min(520px, 80vw)` so recharts' `ResponsiveContainer`
+    measures a stable non-zero width inside the `w-fit` bubble (otherwise the
+    circular width dependency leaves bars unpainted).
+
+- 053c948: feat(plugin-chatbot): honest liveness indicator on running AI turns
+
+  AI app builds run 1–3 min with long quiet gaps (LLM thinking, sample-data
+  generation) where a static spinner is indistinguishable from a dropped
+  connection. The chat now shows a Claude-Code-style liveness indicator driven by
+  REAL observed stream activity, not a free-running clock:
+
+  - `useTurnLiveness(active, activityKey)` stamps the moment real data arrives (a
+    streamed token / tool delta / `data-build-progress` update) and measures
+    seconds-since-last-byte.
+  - `LivenessIndicator` renders three honest states — _receiving_ (emerald pulse +
+    m:ss, bytes arrived recently), _waiting_ (request in flight, nothing back yet),
+    and _stalled_ (amber + "no response for Ns", genuinely silent past 6s).
+  - The build panel prefers the server's monotonic `seq` keep-alive heartbeat as
+    its activity key (falling back to the content signature on older runtimes), so
+    a long quiet seed-generation window reads as honestly _receiving_ rather than
+    flipping to amber.
+
+### Patch Changes
+
+- 40c79df: Improve the floating chatbot flow with responsive panel bounds, safer FAB placement, inline responding and stop states, and clearer retryable error feedback.
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

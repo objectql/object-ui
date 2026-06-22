@@ -1,5 +1,148 @@
 # @object-ui/types
 
+## 7.0.0
+
+### Major Changes
+
+- 858ad94: **Breaking:** remove `@object-ui/plugin-workflow` and its schema types.
+
+  The package's designers (`WorkflowDesigner`, `FlowDesigner`, `AutomationBuilder`,
+  `ApprovalProcess`, `AutomationRunHistory`) authored BPMN-style / standalone-workflow
+  shapes the ObjectStack automation engine does not execute (ADR-0020, ADR-0031), and
+  nothing in the console, runner, or examples consumed them.
+
+  Removed from `@object-ui/types`: `WorkflowSchema`, `WorkflowDesignerSchema`,
+  `ApprovalProcessSchema`, `WorkflowInstanceSchema`, `FlowDesignerSchema` and the
+  related `Workflow*` / `Flow*` helper types (formerly `./workflow`).
+
+  **Migration:** author flows in the Studio's metadata-admin flow designer
+  (`@object-ui/app-shell` → `FlowCanvas`), whose node palette is driven by the
+  engine's published action registry (`GET /api/v1/automation/actions`). Run
+  history is available in the same view via the Runs panel; approval UI ships
+  with the framework's `plugin-approvals`.
+
+### Minor Changes
+
+- ddbe4a2: B2 step 3: client-side field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`). The form renderer now evaluates these CEL predicates reactively against the live record and gates each field's visibility, read-only state, and required-ness accordingly. Evaluation delegates to the canonical `@objectstack/formula` `ExpressionEngine` — the _same_ dialect the server enforces (`requiredWhen` in the rule-validator, `readonlyWhen` in `stripReadonlyWhenFields`) — so the UX and the persisted verdict always agree. New core helpers `evalFieldPredicate` / `resolveFieldRuleState` (zero-React, fail-open). `FormField` gains `visibleWhen` / `readonlyWhen` / `requiredWhen` (+ deprecated `conditionalRequired` alias), and `ObjectForm` carries them through from object metadata.
+- 9049bbe: Add end-user friendly agent process summaries for chatbot tool calls, with a debug mode for raw reasoning and tool details. Console chat surfaces now keep a sanitized browser-side display cache so refreshes can restore user/assistant text plus grouped tool states when the backend returns no message rows.
+- d16566f: Atomic master-detail create via the cross-object transactional batch endpoint (ObjectStack #1604).
+
+  When the server exposes the transactional batch endpoint, a NEW parent record and its child line items are now persisted in ONE server transaction — commit all or roll back all — instead of the previous client-orchestrated "create parent → create children → best-effort cleanup on failure" sequence.
+
+  **`@object-ui/data-objectstack` — `ObjectStackAdapter.batchTransaction(operations)`**
+
+  - New method posting `{ operations }` to `POST /api/v1/batch`. Operations run in one server transaction. A field value of `{ $ref: <earlier op index> }` resolves to that op's generated id, so a child can reference its parent created earlier in the same batch (master-detail FK). Throws `ObjectStackError('BATCH_ERROR')` on a non-2xx response.
+
+  **`@object-ui/plugin-form`**
+
+  - `MasterDetailForm` now detects `dataSource.batchTransaction` and, on a NEW parent, builds one atomic batch (parent at index 0, each child FK set to `{ $ref: 0 }`) via the new pure helper `buildMasterDetailBatch`. Client-side total rollups are merged into the parent payload before the batch. Edit mode and adapters without `batchTransaction` keep the existing client-orchestrated path.
+  - `ObjectForm` gained a `submitHandler` hook: when supplied, the form validates and hands the collected values to the host instead of calling `dataSource.create` / `dataSource.update`. `MasterDetailForm` uses it to own the atomic parent+children write while the parent fields are still rendered by `ObjectForm`.
+
+  **`@object-ui/types`**
+
+  - `ObjectFormSchema.submitHandler?: (values) => any | Promise<any>` — typed override for host-owned persistence.
+
+  Pairs with the framework-side ambient-transaction fix (ObjectQL `AsyncLocalStorage` transaction propagation) and the `/api/v1/batch` endpoint added in `@objectstack/rest`.
+
+- 300d755: feat(form): inline master-detail in a plain ObjectForm via `subforms`
+
+  `ObjectFormSchema` gains a `subforms` array. When set, a regular `object-form`
+  renders as a master-detail form — the object's own fields on top, an editable
+  grid per child collection below, persisted together in one atomic transaction —
+  without a bespoke `object-master-detail-form` page.
+
+  ```ts
+  { type: 'object-form', objectName: 'expense_claim',
+    subforms: [{ childObject: 'expense_line' }] }   // FK + columns auto-derived
+  ```
+
+  Each subform needs only `childObject` (relationship FK and columns are derived
+  from the child object's metadata; override with `relationshipField`/`columns`).
+  This is the config-driven, page-less way to express master-detail entry — a form
+  view can declare its child collections directly.
+
+- 4eb9cb6: feat(plugin-tree): add a `tree` / tree-grid object view type
+
+  Renders a self-referencing object as an indented, expand/collapse tree-grid —
+  the right view for arbitrary-depth hierarchies (business unit / org chart,
+  category trees, BOMs, nested comments) that fixed-depth grouping can't express.
+  New `@object-ui/plugin-tree` package (`object-tree`/`tree`), `tree` added to the
+  `ViewType` union, and dispatch wired through plugin-list `ListView` +
+  app-shell `ObjectView` (the console path).
+
+### Patch Changes
+
+- cb2fdb1: feat(dashboard): expand drill-in — table/list row→record + scatter/treemap/sankey drill-through
+
+  Drill-in now covers the widgets that were missing it, and formalizes the two
+  interaction semantics mainstream BI/low-code platforms separate. `DrillDownConfig`
+  gains a `mode` discriminator: `'filter'` (drill-through: aggregate bucket → filtered
+  record list) and `'record'` (drill-to-record: a table/list row → that record's detail).
+
+  - Scatter, treemap and sankey charts now wire click → the existing filtered-record
+    drill drawer (radar excluded — no single clickable category point). The
+    Recharts-payload → drill-event mapping is extracted to pure, tested functions.
+  - Object-backed table/list widgets drill to the clicked record in a read-only detail
+    drawer (Sheet/Dialog), on by default (`drillDown:{enabled:false}` opts out). Field
+    labels and value formatting (incl. tenant-default currency) are shared with the
+    table cells so a value reads identically in both. An author-supplied `onRowClick`
+    still wins.
+  - The chart/KPI drill-through record lists now drill into a record too, completing the
+    segment → list → record chain.
+
+- 6cfa330: feat(dashboard): drill "Open in list" escape hatch + unify report drill
+
+  Adopts the mainstream BI peek-then-escalate drill model. Drill-through opens an
+  in-place drawer (keep context) and offers an "Open in list →" affordance to
+  escalate to the object's full list page (sort / bulk-select / export / shareable
+  URL) — the Looker / Power BI "see records → open in page" pattern.
+
+  - New `DrillNavigationContext` (`@object-ui/react`): the app shell provides
+    `openRecordList`; the renderer stays decoupled from console routing.
+  - The drill drawers (pivot / dataset / chart / KPI) render the escape hatch when
+    a host navigation handler is present, and hide it otherwise (self-contained
+    peek). `DashboardView` provides the handler via `useOpenRecordList`.
+  - `DrillDownConfig.target` gains `'navigate'` — skip the drawer and open the
+    list directly; degrades to `'drawer'` when no host handler is available.
+  - `ReportView` drill-through now opens the same in-place drawer (peek records →
+    click a row to open a record) instead of navigating away; the escape hatch
+    preserves the previous navigate-to-list behavior. Dashboard and report drill
+    are now unified.
+  - i18n: `dashboard.openInList` (en / zh).
+
+- ad8ade6: feat(components): metadata-derived field locators on generated forms (ADR-0054 Phase 4)
+
+  The form renderer now emits a stable `data-testid="field:{objectName}.{field}"`
+  (plus `data-field`) on every field wrapper, derived from the form's `objectName`
+  and each field's name — closing the locator gap at the source so every generated
+  form (`ObjectForm`/`ModalForm`/`DrawerForm`/`SplitForm`/`WizardForm`) inherits
+  testable fields with zero per-app work (ADR-0054 C4). `FormSchema` gains an
+  optional `objectName`; the object prefix is omitted (`field:{field}`) when a form
+  has none. `FormItem` now accepts `data-*` attributes.
+
+- 3870c20: feat(forms): declarative `navigateOnSuccess` + `resetOnSuccess` on object-form
+
+  Rounds out declarative success behavior for metadata-only forms (which can't
+  pass an `onSuccess` function), complementing `successMessage`:
+
+  - **`navigateOnSuccess`** — after a successful create/update, navigate here.
+    Supports `{id}`/`{recordId}` interpolation from the saved record and is
+    same-origin-guarded; takes precedence over the toast (landing on the record
+    is the confirmation).
+  - **`resetOnSuccess`** — after a successful create, reset the form for another
+    entry (the wizard returns to a cleared step 1). Ignored when navigating.
+
+  Wired in both ObjectForm and WizardForm via a small shared `successBehavior`
+  helper (kept dependency-free to avoid an EmbeddableForm import cycle).
+
+- b88c560: feat(forms): declarative `successMessage` on object-form
+
+  Metadata-only forms (a wizard/object-form authored as JSON) cannot pass an
+  `onSuccess` function, so the post-create/update feedback was a fixed
+  "Created"/"Saved" toast. `ObjectFormSchema` now accepts `successMessage`, which
+  ObjectForm and WizardForm use for the default success toast when no `onSuccess`
+  handler is supplied. Falls back to "Created"/"Saved".
+
 ## 6.2.3
 
 ## 6.2.2

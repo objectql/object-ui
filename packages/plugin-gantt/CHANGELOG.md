@@ -1,5 +1,144 @@
 # @object-ui/plugin-gantt
 
+## 7.0.0
+
+### Minor Changes
+
+- 995c85d: Gantt feature parity, Phases 1–5: dependency links, real time scales, hierarchy, interaction polish, and virtualization.
+
+  - **Dependency links** — `task.dependencies` renders as orthogonal arrows in an SVG overlay, with all four MS-Project link types (`fs`/`ss`/`ff`/`sf`) via the object form `{ id, type }`. Arrows follow bars live during drag/resize; hovering a bar highlights its links. `normalizeDependencies` (exported) accepts CSV strings, id arrays, and object arrays with id/type aliases. New dependencies can be created by dragging from a bar's link dot onto another bar (`onDependencyCreate`).
+  - **Real time scales** — day/week/month/quarter modes with a two-row header (group row + unit row), weekend tinting, zoom in/out, and a jump-to-today button.
+  - **Hierarchy** — `parent` builds a tree: collapsible summary rows with bracket-style summary bars aggregated from descendants, milestone diamonds, indent guides, and `aria-expanded`/`role="treeitem"` semantics. Dragging a summary bar moves its whole subtree by the same offset (live preview + one `onTaskUpdate` per task); the summary's displayed range rolls up from children, so moving a child past the parent's edge stretches the parent automatically.
+  - **Interaction polish** — progress drag handle, hover tooltip, context menu (including delete), keyboard navigation/editing, inline title editing, and row drag-reorder (`onTaskReorder`).
+  - **Scale** — virtualized rows _and_ columns (spacer-based windowing; only the visible window is in the DOM, verified: 5,000 tasks render in ~27 ms with 26 rows in the DOM), a fullscreen toggle, and custom timeline `markers` (`{ date, label?, color? }`).
+
+  Colors that the prebuilt components stylesheet doesn't emit utilities for use theme CSS variables inline, so everything renders correctly in consuming apps.
+
+- 053c948: feat(gantt): year scale, navigation, saved layout, and PDF export (follow-up to #1672)
+
+  - **Year scale** — new `year` granularity (one column per year, with a "20XXs"
+    decade group band above); ResourceWorkload follows the same column width/label.
+  - **Navigation** — toolbar gains _This week_ / _This month_ jump buttons (beside
+    the existing _Today_), scrolling the timeline to the current week/month start.
+  - **Saved layout** — `persistLayoutKey` / `onLayoutChange` plus a "Save layout"
+    button snapshot the current granularity + zoom + collapsed task columns to
+    `localStorage` (`gantt-layout:<object>:<view>`) and restore on next load (an
+    explicit `viewMode` prop still wins). `ObjectGantt` derives the key from the
+    data object by default; `persistLayout: false` opts out.
+  - **PDF export** — rasterizes the whole chart SVG to JPEG embedded in a
+    zero-dependency single-page PDF (DCTDecode), alongside PNG export
+    (`buildExportSvg` shared by both).
+
+- 053c948: feat(gantt): configurable hover tooltip + live parent-stretch (follow-up to #1672)
+
+  - **Configurable tooltip** — a view declares `tooltipFields` on its gantt config
+    (field names, or `{ field, label }` to override the label); `ObjectGantt`
+    resolves each against the record (select options → label, lookups → embedded
+    record name, dates/numbers/currency/percent through the shared `@object-ui/
+fields` formatters) and feeds `GanttView` a `task.fields` array that replaces
+    the default hover detail.
+  - **Live parent-stretch** — a summary bar's displayed range rolls up from its
+    children live, so dragging a child past the parent's edge stretches the parent.
+  - Also replaces six prebuilt-CSS utilities the components stylesheet never emits
+    (connector dot `-right-2` was occluding the progress label, resize-handle
+    width, progress-fill radius, grid z-index, `sm:` variants) with inline styles
+    / a scoped media query so the chart renders correctly in consuming apps.
+
+### Patch Changes
+
+- 0ad72a6: fix: pass full gantt config to renderer, render multi-value lookups in gantt tooltips, persist `bodyExtra` on dataSource actions, and complete zh/en gantt labels
+
+  Four platform gaps that the EHR app previously worked around with `node_modules` patches:
+
+  - **app-shell / ObjectView** — the `config.gantt → renderer props` adapter was a hardcoded 6-field whitelist, so `parentField`/`typeField` (and `baseline*`, `groupByField`, `resourceView`, `tooltipFields`, `quickFilters`, …) never reached the renderer and the chart degraded to a flat list. It now spreads the full `viewDef.gantt` first, then applies the three required defaults last (mirroring the gallery branch).
+  - **plugin-gantt / ObjectGantt** — the tooltip value formatter only handled single-object lookups, so a multi-value lookup (a populated `[{name},{name}]` array) fell through to `'—'`. It now maps each array element to its display value and joins them.
+  - **app-shell / useConsoleActionRuntime** — `bodyExtra` was merged only on the absolute-HTTP path; the generic `dataSource.update` path ignored it, so a pure-confirmation action (no params array) left an empty payload and persisted nothing. `bodyExtra` is now merged last on that path too, matching the documented semantics.
+  - **i18n** — added the gantt labels the 9.x renderer references but the bundles lacked: `toolbar.thisWeek/thisMonth/exportPdf/saveLayout`, `viewMode.year`, `menu.add*/removeDependency/noCandidates`, the `linkType.*` and `conflict.*` blocks, and `readOnly*` — in both `en` (canonical key source) and `zh`.
+
+- bd8b054: fix(currency): resolve the tenant default currency across the long-tail renderers
+
+  Phase 2b of the currency-resolution work (ADR-0053). The cell/field renderers
+  already funnelled through `resolveFieldCurrency` + `useLocalization` (#1856),
+  but the rest of the renderers still hard-coded `USD` or read only one of
+  `currency`/`defaultCurrency`. They now share the same resolution chain — explicit
+  field currency -> `currencyConfig.defaultCurrency` -> legacy `defaultCurrency` ->
+  tenant `localization.currency` -> plain number:
+
+  - `plugin-dashboard` `ObjectMetricWidget` (inferred currency), `ObjectDataTable`
+    (symbol-format fallback).
+  - `plugin-grid` `useColumnSummary` (footer agrees with the cells) and
+    `ObjectGrid` (compact amount + name-inferred currency cells).
+  - `plugin-detail` `DetailView` summary metrics.
+  - `plugin-gantt` `ObjectGantt` currency tooltips.
+  - `components` `element:number` (`format: 'currency'`) — tenant default instead
+    of a baked-in `USD`, and renders with the tenant locale.
+
+  `resolveFieldCurrency` now lives in `@object-ui/i18n` (co-located with
+  `useLocalization`, which supplies the tenant default); `@object-ui/fields`
+  re-exports it, so the existing import path is unchanged. No behavior change when
+  no tenant currency is configured — a field that declares its own currency, or a
+  deployment with no `localization.currency`, renders exactly as before.
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [c09f44e]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [5332639]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [bd398df]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [3cc38fe]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [db8cd00]
+- Updated dependencies [650bd1f]
+- Updated dependencies [2f31406]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/plugin-detail@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/fields@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

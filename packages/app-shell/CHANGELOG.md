@@ -1,5 +1,953 @@
 # @object-ui/app-shell — Changelog
 
+## 7.0.0
+
+### Minor Changes
+
+- a00e16d: feat: evaluate CEL `disabled` on action buttons + record-page Undo wiring
+
+  - **components (page header)**: the `record_header` action toolbar now evaluates
+    a CEL `disabled` predicate against the record (boolean was the only honoured
+    form before), mirroring its existing `visible` evaluation. An action can now
+    grey out conditionally (e.g. "Reassign" on a converted lead) instead of only
+    hiding via `visible`.
+  - **plugin-grid (row menu)**: `RowActionMenu` items likewise evaluate `disabled`
+    (boolean or CEL against the row), and skip the click when disabled.
+  - **components (action-button)**: forward `undoable` / `recordIdField` when
+    executing, so undoable update actions keep their Undo affordance through the
+    `action:button` path.
+  - **app-shell (RecordDetailView)**: mount `useGlobalUndo` and wire the record
+    action runtime's success toast to offer "Undo" for `undoable` actions
+    (capturing the changed fields' prior values from the loaded record).
+  - **plugin-detail (record:quick_actions)**: the widget's buttons now evaluate a
+    CEL `disabled` and show a spinner + disable while running.
+
+- 11ef5e3: Action modal transport with placement (SDUI opt #2).
+
+  `useActionModal` provides a reusable `onModal` handler that renders an action's modal envelope in the right container by `placement`: `center` (Dialog), `side` (Sheet), `bottom` (Drawer), `fullscreen`. `content` is an arbitrary SchemaNode rendered via `SchemaRenderer`, so a modal action can open any page/form/list; string targets / `{objectName, mode}` keep opening a `ModalForm`. Wired into `RecordDetailView` so `type:'modal'` actions open client-side (previously routed to a server POST).
+
+- f7f325d: feat: action progress state + Undo affordance
+
+  - **core**: `ActionResult.undo` (an `UndoableOperation`) and `ActionDef.undoable`.
+    On success the `ActionRunner` pushes the operation onto the global UndoManager
+    and the success toast carries an "Undo" affordance (`ToastHandler` gains an
+    `undo` option).
+  - **app-shell**: the console action runtime mounts `useGlobalUndo` (Ctrl+Z /
+    Ctrl+Shift+Z) and renders the toast's "Undo" button; its `apiHandler` resolves
+    the row id from the list row record and, for `undoable` actions, captures the
+    changed fields' prior values so the update can be reverted.
+  - **plugin-detail**: record-header quick-action buttons show a spinner + disable
+    while the action runs (a visible progress state for slow/flow actions).
+
+- c12986e: Add resultDialog + target interpolation for one-shot action reveals
+
+  Some platform actions return values the user MUST copy now because the
+  server will not surface them again — 2FA TOTP URI + backup codes, freshly
+  minted OAuth client_secret, regenerated recovery codes. Previously these
+  had to ship as bespoke pages in `apps/account` because actions only
+  emitted a fire-and-forget toast.
+
+  **`@object-ui/core` — ActionRunner**
+
+  - New `ActionDef.resultDialog: ResultDialogSpec` field. When set on a
+    successful action, the runner suppresses the `successMessage` toast and
+    awaits the registered `ResultDialogHandler` instead. Missing handler is
+    non-fatal (logs a warning); rejected handler is treated as acknowledged.
+  - New `setResultDialogHandler(handler)` setter.
+  - New types: `ResultDialogSpec`, `ResultDialogFieldSpec`,
+    `ResultDialogHandler`.
+  - `executeUrl` and `executeAPI` now run `${param.X}` and `${ctx.X}`
+    interpolation against `target` before fetching / navigating. Values are
+    `encodeURIComponent`'d, missing keys resolve to empty string. `ctx`
+    exposes `origin`, `user`, `org`, `recordId` by default; consumers can
+    inject more via `context.ctx`.
+
+  **`@object-ui/react`**
+
+  - `ActionProvider` and `useActionRunner` both gained an `onResultDialog`
+    option that wires straight through to the runner.
+
+  **`@object-ui/app-shell`**
+
+  - New `ActionResultDialog` component — promise-based, blocks click-outside
+    and Escape (the user MUST click acknowledge), renders five field
+    formats: `qrcode` (client-side via the `qrcode` package — never sent
+    off-device, so 2FA URIs stay secret), `code-list`, `secret`, `text`,
+    `json`. Falls back to `json` when a value's shape doesn't match its
+    declared format.
+  - `ObjectView` and `RecordDetailView` install the handler and mount the
+    dialog automatically, so any action with `resultDialog` declared in
+    metadata now works without code changes.
+  - New dependency: `qrcode@^1.5.x` for client-side QR rendering.
+
+  Pairs with the framework-side `Action.resultDialog` schema added in
+  `@objectstack/spec` and the `sys_two_factor` / `sys_oauth_application` /
+  `sys_account` updates in `@objectstack/platform-objects`.
+
+- 0c95963: ADR-0021 single-form: dataset-native report editing + legacy report surface retired.
+
+  - The Studio/runtime report inspector now edits the 9.0 dataset binding (dataset picker + values/rows selectors sourced from the dataset's semantic layer) instead of the removed objectName/columns query form.
+  - plugin-report: the pre-9.0 query-form renderers (SpecReportGrid, MatrixRenderer, JoinedReportRenderer), the drill helpers, and the legacy authoring components (ReportBuilder, ReportConfigPanel, ColumnsEditor, GroupingsBuilder, JoinedBlocksEditor, FieldPickerDialog, ChartConfig, ScheduleConfig) are removed. ReportRenderer dispatches dataset-bound reports to DatasetReportRenderer; stored pre-9.0 spec JSON renders through the lossy specReportToPresentation → ReportViewer bridge until migrated.
+
+- 1c25b56: ADR-0032: author-time condition validation in the flow inspectors.
+
+  Flow node and edge condition editors now flag a malformed predicate **as you
+  type** — most importantly the `{record.x}` template-brace-in-CEL mistake (#1491),
+  which `{…}` parses as a CEL map literal and silently fails — with the same
+  corrective message the build and the `validate_expression` agent tool emit.
+  Client-side check for now (no CEL parser in the browser); swaps to
+  `@objectstack/formula`'s shared `validateExpression` once it is published.
+
+- 30ee761: feat(studio): surface pending drafts on the package detail (ADR-0033)
+
+  After an AI builds an app, its objects/views land as drafts bound to the app package — but Studio's active-only browsers hid them, so the package looked empty and there was no obvious way to find what to review/publish.
+
+  - `MetadataClient.listDrafts({ packageId?, type? })` calls the new `GET /api/v1/meta/_drafts` endpoint, returning pending draft headers (with `packageId`).
+  - The package detail sheet (PackagesPage) now shows a **Pending changes** section listing each drafted item, each linking to the existing per-item review/diff (`?review=1`) so the user can publish it. A just-built app package is no longer shown as empty.
+
+- 81c0777: feat(studio): ADR-0033 Phase B — draft review surface (chat → designer → generic diff)
+
+  Closes the AI metadata-authoring loop in Studio. The framework (ADR-0033 Phases A + C) makes the assistant stage every change as a DRAFT; this lets a human see and review those drafts.
+
+  **`@object-ui/plugin-chatbot`**
+
+  - `mapMessages` now detects the framework's draft envelopes — `{ status:'drafted', type, name, … }` (single) and `{ status:'drafted', drafted:[{type,name}] }` (apply_blueprint batch) — and lifts the reviewable targets onto `ChatToolInvocation.draftReview` (mirrors the existing HITL `pendingActionId` path; the Vercel `{type:'text',value}` wrapper is peeled). `blueprint_proposed` is intentionally not surfaced (no draft yet).
+  - `ChatbotEnhanced` renders a **"Review N change(s)"** button on drafted tool results, driven by a new `onReviewDraft` callback prop.
+
+  **`@object-ui/app-shell`**
+
+  - `assistantBus` gains a review channel (`requestReview` / `requestAssistantReview`); `ConsoleFloatingChatbot` wires the chat button to it; a small navigator inside `AppContent` (which knows the app base) routes to `/apps/:appName/metadata/:type/:name?review=1`.
+  - `ResourceEditPage` honours `?review=1`: it force-reloads the pending draft (covers the case where the AI drafted the item after the page mounted) and opens the review/diff.
+  - New **`DraftReviewPanel`** — a generic, type-agnostic draft↔published structural diff (added / changed / removed by key), reusing `LayeredDiff`'s `computeDiffRows`. It gives **every** metadata type (view, dashboard, flow, …) a real "what will publishing change" review, surfaced as a toolbar affordance + sheet whenever a draft exists. The object designer keeps its richer per-field review.
+
+  Nothing is published by any of this — the human still clicks Publish.
+
+- 672f854: feat(studio): add "Publish app" button to publish all package drafts (ADR-0033)
+
+  The package detail's Pending changes section gains a primary **Publish app (N)** button that calls `POST /api/v1/packages/:id/publish-drafts` to promote every drafted item of the app in one shot, then refreshes the pending list. Complements the per-item review/publish links — so after an AI builds an app you can review item-by-item or publish the whole thing at once.
+
+- 893e530: Package documentation portal + nav entry (ADR-0046).
+
+  The `/docs/:name` viewer already existed but had no way in: no index and no
+  navigation entry, so a doc was reachable only by typing its exact URL. Adds a
+  platform-level docs portal at `/docs` (`DocsIndex`) that lists every installed
+  `doc` metadata item grouped by package namespace, each linking to the existing
+  viewer. A "Documentation" entry now appears in the home/system navigation
+  (`UnifiedSidebar`), visible to all users (not gated behind workspace-admin), so
+  docs are discoverable. The viewer route stays app-independent and
+  single-coordinate (`/docs/<name>`); per-app deep-links remain opt-in `url` nav
+  items pointing at that same global URL. Doc grouping is a pure, unit-tested
+  helper (`groupDocsByPackage`).
+
+- 053c948: feat: ADR-0047 — interface pages, visualization switcher, and Airtable-parity filters
+
+  End-user interface/list pages reach full rendering and authoring parity:
+
+  - **Spec tabs + visualization switcher** — `ObjectView` now forwards
+    `viewDef.tabs` (stored/served but never rendered) and `viewDef.appearance`
+    (`allowedVisualizations` whitelist), turning on the dormant `ViewSwitcher` when
+    more than one type is whitelisted; effective options = author whitelist ∩
+    capability-resolvable types (kanban needs `groupBy`, calendar a date field, …).
+    `ListView` accepts the canonical `ViewFilterRule[]` tab-filter shape.
+  - **User filters** — render only when `userFilters` is explicitly configured;
+    selections (dropdown values + active tab) mirror into `uf_*` URL params and
+    restore on load, so filtered lists survive reload and are shareable.
+  - **Toolbar polish** — the visualization switcher becomes a compact right-side
+    "Grid ▾" dropdown inside the tool cluster (no extra row); filter tabs and
+    dropdown filters are mutually exclusive.
+  - **Studio authoring** — a usable, schema-driven interface-page inspector
+    (collapsible sections honoured, array-of-enum → multi-select, a None/Tabs/
+    Dropdown `filter-mode` selector where None maps to ABSENCE of `userFilters`),
+    and the Design/Preview tabs render the live list via `InterfaceListPage`
+    (including a non-empty grid when the source view is hollow).
+
+- 053c948: feat(app-shell): ADR-0048 (option A) — package-id app routing + prefer-local resolution
+
+  Apps are now routed by their canonical package id rather than name:
+
+  - **Resolution layer** — new `appRoute` helpers: `appRouteSegment(app)`
+    (canonical link segment = package id, name fallback) and
+    `matchAppBySegment(apps, seg)` (prefers `_packageId`, falls back to `name`).
+    `AppContent` selects the active app via `matchAppBySegment`, so
+    `/apps/<packageId>` resolves while `/apps/<appName>` keeps working (a per-tenant
+    alias / legacy URL).
+  - **Emission layer** — nav generates `/apps/<packageId>` links across app
+    switching (AppSwitcher/AppSidebar/CommandPalette), sidebar base paths,
+    create/edit-app, and the hidden-app switch, all via `appRouteSegment(app)`.
+  - **Prefer-local resolution** — `preferLocal(list, name, ownerPackageId)` resolves
+    a bare metadata name to the item whose `_packageId` matches the active app's
+    package (falling back to first match), wired at PageView/DashboardView/
+    ReportView and AppHeader so two installed packages can ship the same bare name.
+
+- 053c948: feat(console/ai): AI workspace UX — date-grouped conversations, draggable split, keyboard shortcuts
+
+  ChatGPT/Claude-parity polish for the console AI workspace:
+
+  - **Date-grouped conversations** — the flat conversations list groups into
+    recency sections (Today / Yesterday / Previous 7 days / Previous 30 days /
+    Older) with calendar-day boundaries, via a pure exported
+    `groupConversationsByDate()`.
+  - **Draggable chat ↔ preview split** — a draggable, double-click-to-reset divider
+    between chat and the Live Canvas preview; width persists to `localStorage`,
+    clamped so neither pane collapses (chat ≥ 360px, preview ≥ 420px), keyboard-
+    accessible (`role="separator"`, ←/→ resize).
+  - **Collapsible conversations list** — auto-tucks when the preview opens, with a
+    manual toggle.
+  - **Keyboard shortcuts** — ⌘⇧O new chat, ⌘⇧S toggle the conversations list.
+
+- 5c23088: **Wire `App.hidden` shell hint — App Switcher + avatar dropdown**
+
+  Honour the new `App.hidden` field from `@objectstack/spec/ui`:
+
+  - **`AppSwitcher.tsx`** — filter `app.hidden === true` out of the top-bar app dropdown so personal-settings-style apps don't appear next to business apps.
+  - **`AppHeader.tsx`** — render hidden apps as entries in the avatar / user dropdown (immediately after the hardcoded Profile / Settings items). Uses the app's `icon` + `label` via the existing `getIcon` + `appLabel` utilities, and navigates to `/apps/${app.name}`.
+
+  This is the front-end side of the Account-app split: the `account` app shipped by `@objectstack/platform-objects` declares `hidden: true` and now surfaces through the avatar menu — same pattern as GitHub Settings, Google account chip, and Salesforce Personal Settings.
+
+  No new dependencies; pure metadata-driven wiring.
+
+- 053c948: feat(app-shell): zero-roundtrip `newTabUrl` fast path for `opensInNewTab` actions
+
+  Actions that declare `newTabUrl` (a path template with a `{recordId}` placeholder
+  whose target endpoint performs all auth/authz itself) now drive the pre-opened
+  popup straight to that URL on click, skipping the action POST entirely — applied
+  to both server-action paths (list rows via `useConsoleActionRuntime`, record
+  header via `RecordDetailView`). The popup paints the existing spinner page until
+  the (possibly slow) endpoint commits its redirect; the URL is resolved absolute
+  because `about:blank` gives a bare-relative href no reliable base. The
+  popup-blocked toast fallback is unchanged. Removes one full round trip of
+  white-screen latency from every such Open click.
+
+- 05ff1fb: Studio: the "New page" form can now create a record page bound to an object.
+
+  The page create form was identity-only (label/name/icon/description), so it couldn't make a `pageType: 'record'` page or bind it to an object — even though the page edit form and protocol schema fully support those fields. Mirror the `view` resource's create config: the page create form now exposes **Object**, **Page type** (default `record`), and **Kind** (`full`/`slotted`), so a record page can be created and bound in Studio (#1541). The block layout is then composed in the editor's PagePreview canvas.
+
+- 7c956d0: Runtime persistence seam: add `'page'` artifact type (record-page draft/publish).
+
+  `RuntimeArtifactType` now includes `'page'`, so a record `PageSchema` stages and publishes through the same ADR-0034 `/meta` draft model as views/reports/dashboards (#1541). New pure helpers `recordPageName(objectName, existing?)` (prefers an assigned page name, else mints `<object>_record`) and `recordPageEnvelope(objectName, schema, name?)` (sets the `name`/`object`/`pageType:'record'`/`kind:'full'` identity fields the resolver matches on) — foundation for the record-page edit loop.
+
+- b0d64c4: Studio: new record pages seed their layout from the object's default detail page.
+
+  Creating a `pageType: 'record'` page bound to an object previously started from a blank canvas. The `page` resource now has a `createSeed` hook that, on create, fetches the bound object and seeds the page's `regions` from `buildDefaultPageSchema(objectDef)` — the same auto-generated detail layout the runtime renders by default. Authors start by tweaking the default page, not rebuilding it. A generic async `createSeed` hook was added to `MetadataResourceConfig` (merged into the create body after `createBuildBody`/`createDefaults`; best-effort). Completes #1541's Studio authoring path.
+
+- 80f9796: Repoint the Console bell to `sys_inbox_message` + `sys_notification_receipt` (ADR-0030)
+
+  The notification bell read the legacy `sys_notification` object's
+  `recipient_id`/`is_read`/`title`/`body` columns. ADR-0030 re-modeled
+  `sys_notification` into the L2 _event_ (no recipient/read-state), so the bell
+  returned nothing — every notification the new pipeline produced was invisible.
+
+  The bell now reads the L5 in-app materialization instead:
+
+  - **List**: `sys_inbox_message` filtered by `user_id` (the `mine` scope), 20
+    most-recent, ordered by `created_at`.
+  - **Read-state**: joins `sys_notification_receipt` (filtered by `user_id` +
+    `channel:'inbox'`). A message is unread until its event has a
+    `read`/`clicked`/`dismissed` receipt; the unread count drives the badge.
+  - **Mark-read**: `UPDATE`s the existing `delivered` receipt to `read`
+    (keyed `(notification_id, user_id, channel)`), inserting only as a fallback
+    when no receipt exists. Replaces the old `sys_notification.is_read` write.
+  - **Navigation**: follows the materialization's `action_url` (absolute,
+    `/apps/...`, or app-relative `/{object}/{id}`), falling back to the legacy
+    `source_object`/`source_id` pointer.
+  - **"View all"**: routes to `/apps/setup/sys_inbox_message?view=mine`.
+
+  Pairs with the framework ADR-0030 pipeline (`@objectstack/service-messaging`).
+  Verified in-browser (showcase Console): a materialized inbox message + its
+  `delivered` receipt lit the bell badge; the popover rendered the row;
+  "mark all read" flipped the receipt to `read` in place (no duplicate) and
+  cleared the badge.
+
+- 5e8965c: Complete the page-editor block configuration and prune shell-only blocks. Adds configurable property panels for the remaining content blocks with authorable properties — `page:accordion`, `record:path`, `record:quick_actions`, `ai:chat_window`, `ai:input` — so every page-content block in the palette is configurable in the UI (pure containers like `page:section` / `element:divider` correctly have no panel). Removes shell-singleton blocks (`app:launcher`, `global:notifications`, `user:profile`) from the page block palette — those are provided by the app shell, not authored as page content.
+- 94c58ad: Align the page-editor element palette with reality. Adds the real lightweight-list primitives — `element:definition-list` (compact key/value `<dl>`) and `element:repeater` (data-bound, chrome-free list) — to the block palette with full config panels (object/field pickers for the repeater), and removes three palette entries that have no renderer (`element:form`, `element:filter`, `element:record_picker`) so the palette only offers blocks that actually render.
+- c681874: Expand page-editor block configuration. Adds configurable property panels for more blocks (`element:number`, `element:button`, `record:alert`) and introduces array-valued property editors — a `string-list` editor (e.g. `record:highlights` fields) and an add/remove `array` editor (e.g. `page:tabs` items, `record:details` sections) — so these blocks are configurable in the UI instead of only via raw JSON.
+- d988090: Schema-driven object/field pickers in the page-editor block inspector. Data-reference block properties are now dropdowns populated from the live metadata instead of free-text: an object picker (e.g. `record:related_list` object, `element:number` object) and cascading field pickers that list the chosen object's actual fields (e.g. `record:related_list` relationship field, `element:number` field, `record:path` status field, `record:highlights`/`record:details` field lists). Resolves the object from the record page's bound object or a sibling block property; degrades gracefully to a text input when the metadata can't be fetched.
+- 9049bbe: Add end-user friendly agent process summaries for chatbot tool calls, with a debug mode for raw reasoning and tool details. Console chat surfaces now keep a sanitized browser-side display cache so refreshes can restore user/assistant text plus grouped tool states when the backend returns no message rows.
+- 77cc6bb: Cloud Connection bind v2 UX (cloud ADR runtime-identity-binding §2.3): the binding flow becomes one click. `CloudConnectionPanel` drops the environment-id input entirely (registration happens cloud-side at approval), auto-opens the approval page in a popup on Connect (user-code display stays as the popup-blocked fallback), and shows the registered runtime name + runtime id once bound. `DeviceAuthPage` displays the requesting device's context (`runtime_name` / `runtime_version` from the verification URL) plus an "only approve if you started this" warning — the informed-consent surface for the RFC 8628 flow. Two new `auth.device.*` keys across all locales.
+- 0ca2040: `cloud-connection:panel` SDUI widget — the RFC 8628 device-code binding state machine for the metadata-driven Cloud Connection Setup page (shipped by `@objectstack/cloud-connection`). status → connect → user-code display + approval link → poll → bound/disconnect; the runtime credential never reaches the browser.
+- 04e6168: SDUI: give PageView a console action runtime (#1605). Extract ObjectView's schema-action wiring into a reusable `useConsoleActionRuntime` hook (+ a `ConsoleActionRuntimeProvider` wrapper): confirm / param / result dialogs, the authenticated api / flow / server-action handlers, SPA navigation, the paused screen-flow runner, and a refresh callback. ObjectView now consumes the hook (behaviour unchanged), and PageView wraps its page schema in the runtime — so a page-level `action:button` can collect params, call authenticated API endpoints, show confirm/result dialogs, run screen flows, navigate the SPA, and invalidate embedded data after success. Pages run global (object-less) actions; the hook binds `objectName` only when one is present. This unblocks metadata-driven app home pages (e.g. a "Create environment" primary action) instead of bespoke React components.
+- 39c89e7: ADR-0021 D2: true matrix cross-tab + dataset-path drill-down.
+
+  - DatasetReportRenderer pivots `type: 'matrix'` reports into a real rows × columns cross-tab (one dataset query over all dimensions, pivoted client-side; matrix without `columns` degrades to the flat grouped table). Joined blocks pivot too.
+  - Drill-down: aggregated rows / matrix cells are clickable when the host passes `onDrill` (and the report doesn't set `drilldown: false`), emitting `{dataset, groupKey, runtimeFilter}`. ReportView resolves the dataset's object + dimension→field mapping (reverse-mapping select option labels back to stored values) and navigates to the object list scoped by `?filter[field]=value`.
+  - Studio: the report inspector gains a Columns (across dimensions) list for matrix reports; ReportPreview renders through the same DatasetReportRenderer as the runtime, so the matrix preview is WYSIWYG.
+
+- 1c8f775: Add the External Datasource Federation Studio surface (ADR-0015 P5)
+
+  Federated datasources (`schemaMode !== 'managed'`) now get a dedicated
+  panel inside their Studio Preview tab, so connecting a mature external
+  database and registering its tables as ObjectStack objects is a
+  point-and-click flow instead of a CLI-only one. The panel pairs with the
+  framework backend shipped in objectstack-ai/framework#1390
+  (`registerExternalDatasourceRoutes` → `/api/v1/datasources/:name/external/*`).
+
+  ObjectStack is metadata-driven: `datasource` is a metadata type, so it is
+  browsed and edited through the standard metadata-admin engine
+  (`metadata:resource`) reached from the Studio app's left-side menu —
+  **not** a hand-written page. The Studio app (framework
+  `packages/platform-objects/src/apps/studio.app.ts`, Integration group)
+  gains a `Datasources` nav item pointing at
+  `metadata:resource?type=datasource`; the federation panel is contributed
+  to that standard surface via `registerMetadataPreview('datasource', …)`.
+
+  **`@object-ui/app-shell` — `views/metadata-admin/external/`**
+
+  - `api.ts` — a thin, typed REST client over the four federation routes
+    (`tables`, `tables/:remote/draft`, `refresh-catalog`, `validate`) plus an
+    `importObjectDraft` helper that PUTs a generated draft to `/meta/object`.
+    All calls go through `createAuthenticatedFetch()` (Bearer + `X-Tenant-ID`
+    - `Accept-Language`). A `503 external_service_unavailable` reply is mapped
+      to a typed `ExternalServiceUnavailableError` so the UI shows a friendly
+      "federation not enabled on this server" hint. Contract types are inlined
+      (they were added in framework 7.3; objectui pins `@objectstack/spec`
+      `^7.2.1`).
+  - `SchemaBrowser` — lists remote tables (allowedSchemas-filtered server-side)
+    with a text filter, on-demand Refresh (never a timer — warehouse
+    introspection is expensive), and a per-table Import action.
+  - `ImportObjectDialog` — generates an Object draft, surfaces the
+    type-compat matrix's `// REVIEW:` columns and the generated `*.object.ts`
+    source, then imports it as a real object. Never mutates the remote schema.
+  - `ValidationPanel` — runs validation on demand and renders per-object
+    structured schema diffs (missing column, type mismatch, …). Doubles as an
+    on-demand drift view.
+  - `ExternalDatasourcePanel` — Tables / Validation tabs plus a header strip
+    with "Refresh catalog" and the snapshot timestamp.
+  - `DatasourcePreview` — registered via `registerMetadataPreview('datasource', …)`,
+    it renders the panel automatically inside the standard resource edit
+    page's Preview tab when the saved datasource is federated
+    (`schemaMode !== 'managed'`), keyed off the item name. This is the only
+    wiring needed: no bespoke page, no extra route, no `@object-ui/app-shell`
+    surface to re-export — the metadata-admin engine + left-side nav own the
+    navigation. Federated datasources are read-only code artifacts (the
+    `datasource` type forbids runtime create), which the standard list view
+    already reflects (no "Create" button).
+
+  Out of scope (blocked on backend follow-ups): the connection wizard
+  (driver/credentials/secrets — belongs in System Settings) and a push-based
+  drift inbox (needs an event feed). The framework exposes no
+  test-connection, secrets, or drift-feed routes yet.
+
+- d54346c: feat: action/flow completion messaging
+
+  - **core**: `ActionResult.silent` — a handler sets it when the action only
+    HANDED OFF to a follow-up UI (rather than completing), so `ActionRunner`
+    skips the automatic success toast. Fixes the misleading "Action completed
+    successfully" toast that fired the moment a `flow` action opened its wizard.
+  - **app-shell**: both flow handlers now return `silent: true` when the flow
+    pauses at a screen (the wizard only opened — it hasn't completed). `FlowRunner`
+    renders the flow's declared `successMessage` / `errorMessage` (from the
+    terminal `AutomationResult`) instead of a generic "Done" / the raw error.
+
+- 12566ea: Flow designer ↔ automation engine alignment + run history panel.
+
+  - **Palette/type-picker:** replace the BPMN `parallel_gateway` / `join_gateway`
+    (and `boundary_event` in the picker) with the structured `parallel` and
+    `try_catch` constructs the engine actually executes (ADR-0031 keeps the BPMN
+    gateway types as import/export interop only — they have no executor, so
+    flows authored with them failed at runtime with `NO_EXECUTOR`). Legacy
+    gateway nodes still render for imported flows.
+  - **Runs panel:** new `FlowRunsPanel` fetches `GET /api/v1/automation/{name}/runs`
+    and surfaces run status / duration / per-node step logs in the FlowPreview
+    side panel (Variables / Debug / Runs), degrading quietly when the engine is
+    offline.
+  - **Simulator:** structured containers (`parallel`, `try_catch`) pass through
+    honestly as unsupported instead of faking their semantics.
+
+- 4e060b7: Polish the Studio flow-designer canvas visuals
+
+  A refinement pass over the metadata-admin flow designer (`FlowCanvas` +
+  `flow-canvas-parts`) — purely presentational, no behavioral or API changes,
+  theme-aware (light/dark), and still dependency-free.
+
+  - **Node cards**: the flat 3px left-accent stripe is replaced by a tinted,
+    color-coded **icon chip** (the card's primary category cue), with a bolder
+    label, refined uppercase type caption, layered hover elevation
+    (`-translate-y-0.5` + soft shadow), and clearer selected / run-state rings.
+    Per-category `chip` tone tokens (soft bg + inset ring) added alongside the
+    existing icon/accent/label tones. Added distinct tones for `loop` (sky),
+    `screen`/`user_task` (pink) and `assignment` (purple) — previously they fell
+    back to the generic slate "task" tone, so every node type now reads as a
+    distinct color in the canvas.
+  - **Readable labels**: node width 188→240 and the per-node summary moved from a
+    right-hand column onto a second line, so the label now gets the **full card
+    width** (it was badly truncated — "Manager Re…", "Budget Ab…"). A native title
+    tooltip surfaces the full text on the rare remaining truncation.
+  - **No overlap on add**: adding a connected node no longer pins it directly below
+    its parent (which stacked every sibling on the same spot) — it's left to the
+    layered auto-layout, which slots it beside its siblings.
+  - **Canvas surface**: the dot grid now tracks pan **and** zoom (it moves with
+    the diagram instead of floating behind a static texture), plus a subtle inset
+    vignette for depth.
+  - **Edges**: rounded line caps, slightly stronger default stroke, and
+    pill-shaped (rounded-full, frosted) branch/condition labels.
+  - **Toolbar + add-node palette**: frosted, rounded controls with a primary
+    hover affordance; the palette gains an "Add node" header and matching tinted
+    icon chips per row.
+
+  Verified in-browser (Studio → flow → designer) in both light and dark themes.
+
+- 5332639: feat(app-shell): render full object forms (incl. master-detail) in screen-flow wizard steps
+
+  `FlowRunner` now renders an `object-form` screen step: when the paused screen
+  carries `kind: 'object-form'`, it mounts the real `<ObjectForm>` for the named
+  object (auto-routing to `MasterDetailForm` for inline child collections),
+  prefilled from the step's `defaults`. The form persists itself (atomic
+  master-detail batch), then resumes the run with the saved record id bound to the
+  step's `idVariable`. `dataSource`/`objects` are threaded through all three
+  `FlowRunner` mount points.
+
+  Also fixes three pre-existing bugs this surfaced (each affects normal forms too):
+
+  - **plugin-form**: `ObjectForm` now forwards `initialValues`/`initialData` when
+    routing to `MasterDetailForm`, so prefilled header values are no longer
+    dropped on master-detail create forms.
+  - **fields**: `PercentField` treated values as `0–1` fractions (`value × 100`),
+    so a `0–100` field (e.g. `probability` default `50`) rendered as `5000%` —
+    exceeding `max=100`, which makes HTML5 constraint validation mark the field
+    `:invalid` and silently block the whole form's submit. It now treats a field
+    declaring `max > 1` as the `0–100` whole-number convention, matching the
+    read-side formatter.
+  - **data-objectstack**: `ObjectStackAdapter.batchTransaction` now sends
+    `credentials: 'include'`, so master-detail batch saves authenticate under the
+    console's cookie session (previously every batch save 401'd).
+
+- e02aedd: Group the flow add-node palette by category, and offer every node type
+
+  The quick-add palette listed 12 node types as a flat list; `assignment`,
+  `screen`, `delete_record` and the parallel gateways could only be reached by
+  adding a node and switching its type in the inspector. Building flows, that's a
+  real friction point.
+
+  - **Complete**: the palette now offers Delete record, Set variables
+    (assignment), Screen, Parallel split and Parallel join too — so every common
+    node type is one click away.
+  - **Grouped**: items are organised into **Data / Logic / Human / Integration /
+    Flow** sections with headers and dividers, so the (now longer) list stays
+    scannable. A new `nodeCategory(type)` helper drives the grouping and gives
+    engine-only / plugin-contributed node types a sensible section; `mergePalette`
+    preserves a base item's category and infers one for engine-only types.
+
+  Verified in-browser: the grouped palette renders all sections with tinted icon
+  chips, and the newly-offered types add to the canvas with the correct icon/tone
+  and no overlap.
+
+- 7130d4e: Add FlowRunner — render & resume interactive screen-flows
+
+  A `type: 'flow'` action whose run pauses at a `screen` node now opens a
+  `FlowRunner` modal that renders the screen's fields, submits the values to the
+  framework resume endpoint (`POST /api/v1/automation/{flow}/runs/{runId}/resume`),
+  and advances to the next screen or closes + refreshes on completion. Previously
+  such flows launched server-side but the screen was never rendered, so the input
+  was never collected.
+
+  - New `FlowRunner` component (fields → form → resume loop).
+  - `ObjectView` + `RecordDetailView` flow handlers detect a paused-screen launch
+    response (`{ status:'paused', runId, screen }`) and open the runner; for
+    list_item actions the row's id (`_rowRecord.id`) flows in as the flow's
+    `recordId`.
+
+  Pairs with the framework screen-flow runtime (`@objectstack/service-automation`
+  - `@objectstack/runtime`). Verified in-browser: showcase task row → "Reassign…"
+    → form → submit → the task is reassigned.
+
+- 3fa23a7: feat(header): context-aware Help & Documentation menu + app-scoped docs index
+
+  The top-right "?" was a bare external link to `docs.objectstack.ai`, duplicating
+  the left sidebar's in-product `/docs` entry and ignoring the ADR-0046 docs hub.
+  It is now an aggregated, context-aware menu:
+
+  - **This app's docs** — shown only when the current app's package owns docs
+    (matched by `_packageId`). A single-doc app deep-links straight to the
+    viewer; a multi-doc app lands on the new app-scoped index.
+  - **All documentation** — the in-product `/docs` portal.
+  - **Online documentation** — `docs.objectstack.ai` (opens in a new tab).
+
+  Docs are lazily fetched once on first menu open (names/labels only), so the menu
+  adds no cost until used; a failed fetch soft-degrades to the static entries.
+
+  Also adds the app-scoped docs index route **`/apps/:packageId/docs`**
+  (`AppDocsIndex`) — the package-scoped sibling of `/docs`, listing just that
+  app's docs — which the "This app's docs" entry targets when an app ships more
+  than one. New `help.*` strings added to the `en` and `zh` bundles (other
+  locales fall back to `en`).
+
+- 9f9d1db: Add an `icon` form widget — a searchable Lucide icon picker for metadata-admin.
+
+  Metadata `icon` fields (page/app/object) were a raw text input where authors had to know and type an exact Lucide name. The new `widget: 'icon'` renders a combobox: the trigger shows a live preview of the current icon, and opening it reveals a search box plus a grid of matching icons (preview + name). Selecting writes the kebab-case name string. Out-of-catalog values (e.g. icons from another library, or typos to fix later) survive — they render on the trigger and stay reachable as a "keep" option so re-opening never silently drops them. Registered as `'icon'` in the metadata-admin `WIDGETS` map; pair with `widget: 'icon'` in the spec `*.form.ts`.
+
+- 0d707b6: `marketplace:installed-list` SDUI widget — the Installed Apps body (control-plane/local dual-source list, refresh, uninstall) extracted from the React route page, which now renders the same component. The page shell ships as metadata with `@objectstack/cloud-connection`'s install-local plugin (cloud ADR-0009 P2a).
+- 67dbaa1: interface page: Add-Record config now takes effect; view picker mirrors runtime resolution
+
+  - **Fix: `interfaceConfig.addRecord` did nothing.** `InterfaceListPage` never forwarded `addRecord` into the schema it hands to `ListView`, so the panel's Add-Record toggle/position/mode were silently dropped — the button could never appear on an interface page. Now `addRecord` is passed through (ListView already gates the button on `addRecord.enabled` across all visualizations).
+  - **`view-ref` picker no longer mislabels resolvable values.** A stored `sourceView` like the bare `default` was tagged "(not in object)" even though the runtime resolves it. The widget now mirrors `InterfaceListPage.resolveSourceView` (exact name / `<object>.<name>` suffix / `default`-`list` special-case) via an extracted, unit-tested `resolveStoredViewRef`, showing the matched view's label (e.g. "All Tasks → showcase_task.default") instead of a false warning.
+
+- 586770c: metadata editor: `view-ref` widget for picking a source view
+
+  Adds a `view-ref` form widget so `interfaceConfig.sourceView` (and any field with `widget: 'view-ref'`) renders as a dropdown of the source object's views instead of a free-text name the author could mistype. Views come from a new `WidgetContext.objectViews`, which `ResourceEditPage` loads for the page's source object (`interfaceConfig.source` / `object`). A value not in the catalog is still shown so stale/custom names survive; clearing to "None" omits the field (the protocol treats absence as the object's default view). The widget mirrors the existing `field-ref` picker and degrades gracefully when no source object is bound.
+
+  Pairs with the `@objectstack/spec` change that sets `widget: 'view-ref'` + `dependsOn: 'source'` on the page form's `sourceView` field.
+
+- 652f9b2: feat(packages): "Discard changes" and "Delete app" buttons in the package detail sheet
+
+  Adds two one-click package-lifecycle actions next to the existing "Publish app", mirroring the new backend endpoints:
+
+  - **Discard changes (N)** — next to "Publish app" in the Pending changes block. Drops every pending draft via `POST /packages/:id/discard-drafts`, reverting the app to its last published baseline. Non-destructive (published metadata + data untouched), then refreshes the pending list.
+  - **Delete app** — in the Actions row. Removes the whole package via `DELETE /packages/:id` (active + draft metadata + drops each object's table). Confirms first ("this cannot be undone"); closes the sheet on success, keeps it open and shows the error on failure.
+
+  Together with "Publish app", this gives the full AI-build review loop a UI: publish to preview → keep, **discard all changes**, or **delete the app**.
+
+- 82195b5: Configurable property panels for page-editor blocks (SDUI). The Studio page editor's block inspector now renders typed, protocol-aligned property fields (editing the block's `properties`) for the minimal SDUI-essential content blocks — `element:text`, `element:image`, `page:header`, `page:card`, `record:related_list` — instead of only the generic `type`/`id`/`className`/`hidden` fields. Previously these properties were editable only via raw JSON.
+- f12225b: The Studio page editor can now edit nested sub-blocks inside container blocks. A `page:tabs`/`page:accordion` tab's children, and a `page:card`/`page:section`'s body, are surfaced as indented, selectable sub-blocks — each one can be selected, configured (via the inspector and its object/field pickers), edited, removed, and new ones added — in both full and slotted pages. Addressing is handled by extending the block-path scheme to support object-key hops (e.g. `…components[0].properties.items[0].children[0]`) and a nested sub-path under slot ids. Closes the last gap so a container's contents are fully point-and-click instead of raw JSON.
+- 14e3db5: The Studio page editor can now edit slotted record pages. A `kind:'slotted'` page surfaces its 7 canonical slots (header / actions / alerts / highlights / details / tabs / discussion) as editable regions — overridden slots show their blocks (selectable + configurable via the inspector and its object/field pickers), and unoverridden slots show an "inherited — add a block to override" placeholder. Edits write back to `slots`; empty slots are omitted so they keep inheriting the synthesized default. This closes the loop for the most common low-code task — customizing a business object's detail page (highlights/tabs/details) point-and-click instead of by hand-editing JSON.
+- 4eb9cb6: feat(plugin-tree): add a `tree` / tree-grid object view type
+
+  Renders a self-referencing object as an indented, expand/collapse tree-grid —
+  the right view for arbitrary-depth hierarchies (business unit / org chart,
+  category trees, BOMs, nested comments) that fixed-depth grouping can't express.
+  New `@object-ui/plugin-tree` package (`object-tree`/`tree`), `tree` added to the
+  `ViewType` union, and dispatch wired through plugin-list `ListView` +
+  app-shell `ObjectView` (the console path).
+
+- de3224e: feat(metadata): relationship-level `inlineEdit` auto-renders master-detail
+
+  A child object's `master_detail`/`lookup` field can declare `inlineEdit: true`
+  (in the data model) to mean "edit me inline within my parent's form". The
+  metadata layer now scans for these and merges the resulting child collections
+  into each parent object's form view as `subforms` — so the parent's **standard**
+  New/Edit form auto-renders an atomic master-detail form with **no view config
+  and no bespoke page**. The intent lives once in the data model (where e.g. an AI
+  modelling the schema naturally sets it); forms derive the UI.
+
+  `master_detail` children WITHOUT `inlineEdit` are not inlined (so associations
+  like comments/attachments stay out of the entry form). An explicit
+  `form.subforms` entry overrides the derived one. Optional
+  `inlineTitle`/`inlineColumns`/`inlineAmountField` tune the grid.
+
+- 010883d: Migrate the runtime DashboardView "dashboard editor" onto the studio's spec-driven inspectors. A single app-shell `DashboardConfigPanel` now replaces both legacy `plugin-dashboard` panels (the dashboard-level config panel and the per-widget config panel): with no widget selected it hosts a new spec-driven `DashboardDefaultInspector` (registered as the studio default inspector for the `dashboard` type), and with a widget selected it hosts the existing `DashboardWidgetInspector`. Both inspectors edit the full nested Dashboard document directly, so the runtime's widget flatten/unflatten adapters are removed. The panel lives in app-shell to avoid a circular dependency on plugin-dashboard; the `sys_dashboard` persistence path is unchanged.
+- 7da8a57: Migrate the runtime ReportView "report editor" onto the studio's spec-driven inspector. The right-rail editor now hosts the same report inspector the metadata studio uses (config fields sourced from `@objectstack/spec` `ReportSchema` / `reportForm`) instead of plugin-report's legacy `buildReportSchema` / `ConfigPanelRenderer` engine, so runtime and studio share one report-editing surface. A new spec-driven `ReportDefaultInspector` is registered as the studio default inspector for the `report` type, and a thin app-shell `ReportConfigPanel` hosts it for the runtime (kept in app-shell to avoid a circular dependency on plugin-report). Field pickers read from the in-memory object definition (no extra network fetch); the `sys_report` persistence path is unchanged.
+- 7b71cd8: Unify the runtime ObjectView "view editor" onto the studio's spec-driven inspector. The right-rail view editor now hosts the same `ViewVariantInspector` the metadata studio uses (config fields sourced straight from `@objectstack/spec`) instead of the legacy `buildViewConfigSchema` engine, so runtime and studio share one view-editing surface. A new `view-config-adapter` bridges the runtime's flat view shape and the studio's ViewItem draft, keeping the `sys_view` persistence path untouched; field pickers read from the in-memory object definition (no extra network fetch). The legacy `buildViewConfigSchema` engine and its exports are retired; `ConfigPanelRenderer` is retained for the dashboard/report config panels.
+- 8426db7: feat(form): standard New/Edit modal renders form-view subforms (Tier 0)
+
+  The console's standard create/edit record modal now renders inline child
+  collections when the object's form view declares `subforms` — master-detail
+  entry with **no bespoke page**, persisted as one atomic transaction.
+
+  - `ModalForm` (and the create/edit modal in app-shell `AppContent`) detects
+    `subforms` and renders `MasterDetailForm` inside the dialog (it owns its Save
+    bar; the modal footer is suppressed); on success the modal closes + refreshes.
+  - `AppContent` sources `subforms` from the object's default form view
+    (`form.subforms` / `formViews.default.subforms`).
+  - `ModalFormSchema` gains `subforms`.
+
+  With this, declaring `formViews.default.subforms: [{ childObject }]` is enough
+  to make an object's standard New/Edit screen a master-detail form — completing
+  the config-driven master-detail story (Tier 0 → derive everything from the
+  relationship + child metadata).
+
+### Patch Changes
+
+- 3b5e293: ADR-0034 step 2: route ObjectView's view-config save through the runtime persistence seam, completing the seam's coverage of all three runtime editors (view/report/dashboard). Corrects the seam's `view` branch to mirror ObjectView's real update path (`dataSource.updateViewConfig(...)`, the ADR-0005 overlay API) rather than a raw `sys_view` write. Behaviour is unchanged while the `VITE_RUNTIME_EDIT_VIA_META` flag is off; flag on routes the view update to the studio `/meta` draft. The view CREATE path (`createView` + default-column/kanban/gallery massaging) and the draft/publish UI remain deferred.
+- 02c3c65: ADR-0034 step 1: introduce a flag-gated runtime metadata persistence seam. `persistRuntimeMetadata` / `publishRuntimeMetadata` centralise where the runtime view/report/dashboard editors save. Behind the `VITE_RUNTIME_EDIT_VIA_META` flag (default **off**) they reproduce today's `sys_*` writes exactly (zero behaviour change); flag **on** routes to the studio `/meta` per-item draft/publish model (`MetadataClient.save(..., { mode: 'draft' })` + `publish`). ReportView and DashboardView now save through the seam; ObjectView (view) and the draft/publish UI are deliberately deferred. No `sys_*` table is removed and no data is migrated. Also adds the finalized ADR-0034.
+- b8a5d41: ADR-0048: finish sweeping app-entry links onto the canonical package-id route
+  segment (follow-up to the home-page fix).
+
+  - `AppManagementPage` (System → Apps) "Open app" button now opens
+    `/apps/<packageId>` (`app._packageId ?? app.name`) instead of `/apps/<name>`.
+  - `AppContent` current-app sub-routes/redirects (the `metadata/package` →
+    `component/developer/packages` redirect, and the record-form `baseUrl`) now
+    build against the URL's own `appName` segment instead of `activeApp.name`, so a
+    `/apps/<packageId>/…` URL keeps its package-id segment instead of flipping to
+    the name form. `requestedAppMissing` (preview-drafts) now resolves the segment
+    via `matchAppBySegment` so a package-id URL isn't treated as a missing app.
+
+- 4cd0a0d: ADR-0048 (#1824): the Studio metadata editor's post-save refresh now scopes its
+  layered + draft re-read to the same package as the initial load (`?package=`), so
+  when two installed packages ship the same `type`/`name` the editor re-reads
+  this package's own row after saving — not another package's. The save itself
+  already binds the package; this aligns the refresh with it.
+- a571911: ADR-0048: the console **home** page now links into apps by their canonical
+  package-id route segment, matching the nav. The app grid (`HomePage`) and the
+  "add to favorites" href (`AppCard`) were still building `/apps/<app.name>` while
+  the sidebar/switcher/command-palette emit `/apps/<packageId>` (via
+  `appRouteSegment`). So opening an app from the home page produced a name-form URL
+  (e.g. `/apps/studio`) instead of `/apps/com.objectstack.studio`. Both now use
+  `appRouteSegment(app)`.
+- b99d9bd: ADR-0048: package-scope the Studio metadata editor read. Two installed packages
+  may ship metadata with the same `type`/`name`; the editor now resolves the right
+  one instead of first-match.
+
+  - `MetadataClient`: `layered()` and `getDraft()` accept `{ packageId }`, and
+    `get()` emits the `package` query param (→ server prefer-local, `?package=`).
+  - `ResourceListPage`: each item's edit link carries its owning package
+    (`?package=<row._packageId>`), so even the unscoped "all" list disambiguates;
+    falls back to the workspace suffix for runtime/overlay-only rows.
+  - `ResourceEditPage`: reads `?package=` and scopes the layered + draft read to
+    that package. (The route's `:appName` is the Studio app, not the edited item's
+    owner, so the scope must come from the URL, not the active app.)
+
+- 5a95032: Polish the full-page AI workspace with a responsive conversation drawer, clearer page context, constrained chat width, and accessible conversation row actions.
+- 053c948: fix(app-shell): send the current-page object to the AI assistant context
+
+  The floating console assistant forwarded only `appName` + the full objects list,
+  never the object the user is actually viewing — so asking it to "analyse this
+  object" (especially in a non-English prompt) gave the agent nothing to anchor on
+  and it replied that it couldn't find the object. The current object/record are
+  now derived from the route (mirroring `useTrackRouteAsRecent`'s URL layout,
+  tolerant of a `_console` shell prefix) and passed as `context.objectName` /
+  `context.recordId`, so the backend injects that object's schema into the system
+  prompt and scopes data queries to it. Pairs with the framework current-object
+  resolution fix.
+
+- 40c79df: Improve the floating chatbot flow with responsive panel bounds, safer FAB placement, inline responding and stop states, and clearer retryable error feedback.
+- 6c0c92c: fix(app-shell): command palette idempotent open + stable locators (ADR-0054 Phase 1)
+
+  The top-bar "Search… ⌘K" button now opens the command palette directly via a
+  shared, idempotent `openCommandPalette()` instead of re-dispatching a synthetic
+  `⌘K` `KeyboardEvent` — so it works under automation and in ⌘K-reserving
+  browsers. Open state is URL-addressable (`?palette=1`, `?cmdk=1` alias), making
+  the palette deep-linkable and restore-on-reload. The dialog and header trigger
+  emit stable `data-testid` locators (`overlay:command-palette`,
+  `action:command-palette:open`) plus an ARIA name. New `useCommandPalette()` hook
+  and `CommandPaletteProvider`; `CommandDialog` gains a `contentProps` passthrough
+  for the dialog locator/ARIA. Implements invariants C1/C3/C4 of the UI
+  testability contract.
+
+- 97c6831: Localize AI workspace, shell navigation, startup, connection, toast, and chatbot affordance text across core console screens.
+- f6044fa: feat(form): subforms in DrawerForm + full-page record form (Tier 0 everywhere)
+
+  Completes config-driven master-detail across all standard create/edit entry
+  points (after the modal in the previous change):
+
+  - `DrawerForm` now hosts `MasterDetailForm` inside the drawer when the schema
+    declares `subforms` (its own Save bar; closes + refreshes on success).
+  - `RecordFormPage` (full-page New/Edit) sources `subforms` from the object's
+    form view, so the full-page form renders inline child collections too.
+  - `ObjectForm`'s subforms shortcut now defers to the drawer/modal variants for
+    those formTypes (so they keep their envelope), and only renders the
+    master-detail form directly for inline/simple forms.
+
+  Declaring `formViews.default.subforms: [{ childObject }]` now yields a
+  master-detail experience in the modal, drawer, AND full-page form — no bespoke
+  page anywhere.
+
+- 6cfa330: feat(dashboard): drill "Open in list" escape hatch + unify report drill
+
+  Adopts the mainstream BI peek-then-escalate drill model. Drill-through opens an
+  in-place drawer (keep context) and offers an "Open in list →" affordance to
+  escalate to the object's full list page (sort / bulk-select / export / shareable
+  URL) — the Looker / Power BI "see records → open in page" pattern.
+
+  - New `DrillNavigationContext` (`@object-ui/react`): the app shell provides
+    `openRecordList`; the renderer stays decoupled from console routing.
+  - The drill drawers (pivot / dataset / chart / KPI) render the escape hatch when
+    a host navigation handler is present, and hide it otherwise (self-contained
+    peek). `DashboardView` provides the handler via `useOpenRecordList`.
+  - `DrillDownConfig.target` gains `'navigate'` — skip the drawer and open the
+    list directly; degrades to `'drawer'` when no host handler is available.
+  - `ReportView` drill-through now opens the same in-place drawer (peek records →
+    click a row to open a record) instead of navigating away; the escape hatch
+    preserves the previous navigate-to-list behavior. Dashboard and report drill
+    are now unified.
+  - i18n: `dashboard.openInList` (en / zh).
+
+- 23bf869: fix(app-shell): edit-in-studio pencil no longer overlaps interface-page toolbar buttons
+
+  The PageView "Edit in studio" pencil is an absolute overlay at the page's
+  top-right. On an interface (list) page whose header surfaces toolbar buttons
+  (e.g. an Approvals page's "Mark Done"), the pencil sat on top of the rightmost
+  button, clipping its label. PageView now tells InterfaceListPage to reserve
+  right padding on its header (`reserveEditAffordance`, only when the pencil is
+  shown) so the toolbar clears the affordance. Non-admin / non-editable pages are
+  unchanged.
+
+- 70b7780: Metadata editor: a failed LOAD no longer masquerades as field validation errors.
+
+  When the layered/draft fetch fails (network/500/timeout), `ResourceEditPage` previously still rendered the form on empty defaults, so the client Zod validator fired spurious "name/label/regions required" diagnostics — making a transport failure look like a structurally broken item.
+
+  - New `loadFailed` state, set in the load catch block and reset at the start of each load.
+  - The validation-diagnostics banner is now gated by `shouldRenderDiagnostics()`, which suppresses the diagnostics block entirely on load failure, so the empty-default form's required-field issues never surface.
+  - The top error banner is now explicit: "Failed to load &lt;type&gt;/&lt;name&gt;: &lt;message&gt;" (new `engine.edit.loadFailed` i18n key, en + zh-CN).
+
+  The happy path is unaffected: a genuinely-invalid item that loaded successfully still shows its validation diagnostics.
+
+- fe69471: Flow designer: start a new flow with a trigger, and stop the edge "+" overlapping branch labels
+
+  Two more dogfooding fixes for the Studio flow designer:
+
+  - **Empty flow → Start node.** An empty editable flow's "Add node" inserted a
+    generic `task` node; it now seeds a `start` (trigger) node — the canonical
+    entry point every flow needs — so the canvas opens on the trigger and the
+    author builds forward from there.
+  - **Edge insert handle no longer collides with the branch label.** The "insert
+    node" `+` button and the branch/condition label pill were both centered on the
+    edge midpoint, so on a labeled edge (`approve`, `if …`) the `+` sat on top of
+    the label. The `+` now slides to the right of the label when one is present
+    (unlabeled edges keep the centered `+`).
+
+  Verified in-browser: labeled edges show the label and a clear, separate insert
+  handle; `tsc --noEmit` clean.
+
+- 0032b23: FlowRunner: close the runner when a resume ends in a terminal flow failure.
+
+  The engine consumes a run's suspension before executing downstream nodes
+  (resume-once semantics), so a resume whose `AutomationResult` is
+  `success: false` can never be retried — the old behavior left the dialog open
+  and a second Submit hit "No suspended run". Transport-level failures (network
+  / 5xx) still keep the dialog open for retry.
+
+- e8d56ec: fix(form): honour the form view layout in the full-page record form
+
+  `RecordFormPage` hard-coded `formType: 'simple'`, so a record's declared form
+  view layout (`tabbed` / `wizard` / `split`) was ignored on the full-page
+  create/edit route — `ObjectForm` already renders every variant, the entry point
+  just never passed it through. It now reads the object's `form` / `formViews.default`
+  `type` + `sections` and forwards them (plus variant props: defaultTab, tabPosition,
+  allowSkip, showStepIndicator, split\*). Page-level layouts only — `drawer`/`modal`
+  are presentation/open-modes, not record-page layouts, so they fall back to `simple`.
+
+  Refs objectstack-ai/framework#1890
+
+- 0ad72a6: fix: pass full gantt config to renderer, render multi-value lookups in gantt tooltips, persist `bodyExtra` on dataSource actions, and complete zh/en gantt labels
+
+  Four platform gaps that the EHR app previously worked around with `node_modules` patches:
+
+  - **app-shell / ObjectView** — the `config.gantt → renderer props` adapter was a hardcoded 6-field whitelist, so `parentField`/`typeField` (and `baseline*`, `groupByField`, `resourceView`, `tooltipFields`, `quickFilters`, …) never reached the renderer and the chart degraded to a flat list. It now spreads the full `viewDef.gantt` first, then applies the three required defaults last (mirroring the gallery branch).
+  - **plugin-gantt / ObjectGantt** — the tooltip value formatter only handled single-object lookups, so a multi-value lookup (a populated `[{name},{name}]` array) fell through to `'—'`. It now maps each array element to its display value and joins them.
+  - **app-shell / useConsoleActionRuntime** — `bodyExtra` was merged only on the absolute-HTTP path; the generic `dataSource.update` path ignored it, so a pure-confirmation action (no params array) left an empty payload and persisted nothing. `bodyExtra` is now merged last on that path too, matching the documented semantics.
+  - **i18n** — added the gantt labels the 9.x renderer references but the bundles lacked: `toolbar.thisWeek/thisMonth/exportPdf/saveLayout`, `viewMode.year`, `menu.add*/removeDependency/noCandidates`, the `linkType.*` and `conflict.*` blocks, and `readOnly*` — in both `en` (canonical key source) and `zh`.
+
+- e133fae: Gate the runtime report and dashboard editors behind an admin check. Editing a report or dashboard mutates the **shared** definition (it writes the single `sys_report` / `sys_dashboard` record, not a per-user copy), but the edit buttons were shown to every user — so any viewer could change a report/dashboard for everyone. The "Edit" affordance (and its config panel) is now admin-only, matching ObjectView's existing view-config gate. This is the first step of ADR-0034 (runtime edits are an admin quick-edit of the shared definition).
+- 18d0339: Relabel metadata-driven UI on a language switch without a page refresh (#1319)
+
+  Switching the UI language left server-resolved metadata labels (object/field/
+  view labels, action-dialog text) in the old language until a hard refresh,
+  because renderers cache those labels by object name and never refetch on a
+  language change.
+
+  **`@object-ui/auth`** — `createAuthenticatedFetch` now folds the active
+  `<html lang>` into `Accept-Language` on API calls (never clobbering an explicit
+  header), so a switch carries the new locale on every subsequent request.
+
+  **`@object-ui/app-shell`** — `ConnectedShellInner` drops the adapter's
+  locale-blind metadata cache in the render phase and remounts the metadata
+  subtree via `key={language}`, so every renderer refetches in the new locale.
+  The adapter and its connection sit above the key and are preserved — an in-app
+  relabel, not a reconnect.
+
+  **`@object-ui/i18n`** — dev-mode missing-key warnings: `createI18n` gains
+  `warnMissingKeys` (default on outside production) wiring a deduped i18next
+  `missingKeyHandler`. `useObjectLabel`'s convention-key probes are flagged so
+  their intentional misses (which fall back to server metadata) stay silent.
+
+  Pairs with the framework-side locale-aware metadata changes in
+  `@objectstack/client` / `@objectstack/objectql` / `@objectstack/rest`.
+
+- 59b6bbb: i18n the managed-by empty states for system / append-only / better-auth object lists.
+
+  `resolveManagedByEmptyState` previously hardcoded English titles and messages (e.g. "No identity records", "No events recorded"), so list views for managed objects (identity, audit logs, system-generated records) rendered English regardless of locale. It now takes the `t` translator and resolves `list.managedBy.{system,appendOnly,betterAuth}.{title,message}` (English kept as `defaultValue` fallbacks); `ObjectView` passes its `t` through. Added the keys to the `en` and `zh` locale packs.
+
+- e95cc25: Fix the NavigationSyncEffect baseline race: lazily-loaded `page`/`dashboard` metadata (and the empty cache during `invalidate()` refetch) could seed a partial diff baseline, making platform `sys_` pages look "user added" — the effect then wrote them into every app's navigation, 403ing on ADR-0010 locked apps (red "Failed to update navigation" toasts) and polluting writable apps. The effect now diffs only while both types are `status === 'ready'` (new optional `MetadataContextValue.getTypeStatus`), never treats `sys_`-prefixed artifacts as user creations, and skips apps whose `_lock`/`protection.lock` is `full`/`no-overlay`.
+- e265a40: fix(app-shell): resolve 51 react-hooks/rules-of-hooks errors in ObjectView
+
+  ObjectView had a mid-component early return (`if (!objectDef) return …`) sitting before ~50 hooks, which violated the Rules of Hooks and risked a `Rendered fewer hooks than expected` crash if `objectDef` flipped present→absent→present on a live instance (object switch, metadata refresh, reload failure). Split the component so the missing-object empty state lives in a thin `ObjectView` wrapper, while `ObjectViewInner` (mounted only when the definition exists) calls all hooks unconditionally. Behavior is unchanged.
+
+- 42e557a: "Your organization" Install routes by deployment shape: install-local runtimes (runtime-config `features.installLocal`) install via `/marketplace/install-local` into their OWN kernel (the bound oscc\_ credential fetches the org manifest — ADR-0008); cloud-managed environments keep the control-plane `/cloud-connection/install` path. Previously the org Install button always called the control-plane path, which 401s on self-hosted runtimes.
+- af74a5d: Add an admin-only "Edit in studio" affordance to the runtime PageView. Custom pages are authored in the metadata studio (canvas + inspector), not at runtime — so instead of embedding the heavyweight page canvas, PageView now shows a lightweight top-right button (admins only) that deep-links to the page's studio editor (`/apps/:app/metadata/page/:name`). This gives view/report/dashboard/page a consistent runtime admin edit entry point.
+- 3cc38fe: perf(detail/header): lazy + dedupe related-list fan-out, coalesce header polls
+
+  Opening a record detail fired ~50 concurrent `/api/v1` requests that
+  head-of-line-blocked one another on a single control-plane container.
+
+  - `RecordDetailView` no longer eager-preloads reverse-reference children
+    when the reference rail renders them (that data was discarded while the
+    rail re-fetched the same collections).
+  - `record:reference_rail` now gates fetching on visibility
+    (`IntersectionObserver`; the rail is `hidden xl:flex`), caps concurrency
+    at 3, and fetches once per `(parentId + entries)` via a signature guard,
+    applying results through a mounted ref.
+  - `AppHeader` inbox/notification, approvals, and activity pollers gained
+    in-flight guards so bootstrap effect re-runs coalesce to one request; the
+    approvals poll now sends one request with all identities comma-joined
+    instead of one per identity.
+
+  Measured locally: opening an environment detail dropped from ~52 to ~17
+  requests, related collections from ×3–5 each to ×1, approvals from ×9 to ≤3.
+
+- 053a164: fix(metadata): keep form-family views out of the runtime list-view switcher
+
+  The backend now exposes each view as an independent **ViewItem** (ADR-0017,
+  "Object has-many View"): `{ name: '<object>.<key>', object, viewKind:
+'list' | 'form', config }`. The Studio preview was already taught this shape,
+  but the runtime console path was not — `MetadataProvider.mergeViewsIntoObjects`
+  only understood the legacy aggregated container (`{ list, form, listViews,
+formViews }`) and ignored `viewKind` entirely. As a result a form-family view
+  (e.g. `crm_activity.default`, expanded from `formViews.default`) was neither
+  recognized nor excluded: navigating to its `/view/<name>` URL silently fell
+  back to the default grid list instead of being treated as a record form.
+
+  `mergeViewsIntoObjects` now recognizes the ViewItem shape and routes by
+  `viewKind` — `'list'` → `objectDef.listViews`, `'form'` → `objectDef.formViews`
+  — so FORM-family views never enter the list-view switcher (which reads only
+  `listViews`). Each item's `config` body is flattened to the renderer shape so
+  `type`/`columns`/`calendar`/… survive, the canonical `<object>.<key>` name is
+  used as the view id (so `/view/<name>` resolves), and the legacy container is
+  skipped for any object that already has expanded ViewItems (no double-listing).
+  Objects served only as a legacy container are unaffected.
+
+- db8cd00: feat(app-shell): global settle signal (window.\_\_objectui) + region aria-busy (ADR-0054 Phase 3)
+
+  Adds a single machine-readable "is the app idle?" predicate (ADR-0054 C5). The
+  data layer wraps the adapter's `fetch` to count in-flight requests, mirrored onto
+  `window.__objectui` with live `idle` / `pendingRequests` getters plus `whenIdle()`
+  and `subscribe()`. New `useSettleSignal()` React hook and lower-level exports
+  (`getPendingRequests`, `subscribeSettle`, `whenIdle`, `withSettleSignal`,
+  `installSettleSignalGlobal`). The list view and record-picker results regions now
+  set `aria-busy` while fetching and `data-state="loading|idle"` for region-level
+  waiting. Lets an automated (AI) driver wait for settle instead of hardcoding
+  timeouts.
+
+- 2f31406: Refine Studio package-scoped navigation and home overview.
+
+  Studio now treats the selected package as the home overview scope, flattens the root Overview sidebar group, hides the duplicate all-metadata sidebar entry, redirects the invalid package metadata route to package management, preserves the selected package across package-management navigation, and adds a localized package-management sidebar label.
+
+- d901f65: feat(app-shell): testability ratchet — ban synthetic-event triggers (ADR-0054 Phase 5)
+
+  Locks in the testability contract so it can't regress. A conformance test (in the
+  gating `pnpm test` job) fails the build if a new synthetic-event trigger
+  (`dispatchEvent(new KeyboardEvent/MouseEvent/PointerEvent)`) appears anywhere in
+  `packages/*/src` or `apps/*/src`; a matching local ESLint rule
+  (`object-ui/no-synthetic-event-trigger`) flags it in-editor. The last two
+  offenders — the sidebar swipe-to-open gestures (`UnifiedSidebar`, `AppSidebar`)
+  — are converted to a direct, idempotent `setOpenMobile(true)` (C1), so the tree
+  is clean at zero. Completes the ADR-0054 rollout.
+
+- 8d1195d: Fix `type: 'url'` actions so they actually reach the backend in split-origin dev setups, and so reveal-once result dialogs render.
+
+  - `ActionRunner.executeUrl`: when context provides `apiBase`, relative `/api/...`, `/_auth/...`, and `/_account/...` URLs are now promoted to absolute (`${apiBase}${path}`) before navigation. Same-origin API paths (with or without `apiBase`) trigger a full-page `window.location.href` rather than React-Router push — this is required for server-side OAuth redirect dances (e.g. better-auth `/sign-in/social`) that React Router would otherwise swallow into the SPA's fallback route.
+  - `ActionRunner.buildInterpolationContext`: surfaces `ctx.apiBase` for action targets that want to template it explicitly.
+  - `ObjectView`: passes `apiBase: import.meta.env.VITE_SERVER_URL` into the toolbar `ActionProvider` context so the above resolves.
+  - `action-button` and `action-menu` renderers now forward `resultDialog` when invoking the runner. Previously this field was silently dropped by an explicit whitelist, breaking every "show once, then hide" flow (2FA QR/backup codes, OAuth client_secret, regenerated tokens).
+
+- 5ab52c0: feat(app-shell): useUrlOverlay primitive + URL-addressable keyboard-shortcuts dialog (ADR-0054 Phase 2)
+
+  Adds `useUrlOverlay(key)` — a reusable, router-aware hook that stores a navigable
+  overlay's open state in a `?<key>=1` URL param (idempotent open, deep-linkable,
+  restore-on-reload, back/forward; `alias`/`value`/`replace` configurable). The
+  command palette is refactored onto it (behavior unchanged: `?palette=1`, `?cmdk=1`
+  alias). The keyboard-shortcuts dialog becomes URL-addressable (`?shortcuts=1`) and
+  gains a click entry in the header Help menu — previously it was only reachable via
+  the `?` key (which remains an accelerator). Generalizes ADR-0054 invariants C1/C3
+  beyond the Phase 1 reference fix; the shared overlay primitives already carry
+  `data-testid` + Radix `data-state`, documented in the README.
+
+- ef3c654: Localize the View variant inspector labels. The inspector (the View "home" panel, also hosted by the runtime ObjectView right-rail view editor after the spec-driven migration) previously rendered hardcoded English labels — "Label", "View type", "Object", the view-type dropdown options, and the "spec schema unavailable" hint. These now route through the metadata-admin i18n catalog (en + zh) so the runtime console and the studio both display localized text.
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [0c95963]
+- Updated dependencies [30ee761]
+- Updated dependencies [81c0777]
+- Updated dependencies [053c948]
+- Updated dependencies [b99d9bd]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [c5a7d6f]
+- Updated dependencies [40c79df]
+- Updated dependencies [9049bbe]
+- Updated dependencies [053c948]
+- Updated dependencies [053c948]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [a58c6b8]
+- Updated dependencies [c3749eb]
+- Updated dependencies [39c89e7]
+- Updated dependencies [78f9c16]
+- Updated dependencies [92449ef]
+- Updated dependencies [c09f44e]
+- Updated dependencies [f6044fa]
+- Updated dependencies [3d036a9]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [e270c7d]
+- Updated dependencies [ab168e4]
+- Updated dependencies [d54346c]
+- Updated dependencies [5332639]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [bd398df]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [69510df]
+- Updated dependencies [b148daf]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [586a027]
+- Updated dependencies [00f8d2d]
+- Updated dependencies [9aac2b8]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [3cc38fe]
+- Updated dependencies [bd8b054]
+- Updated dependencies [053c948]
+- Updated dependencies [053c948]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [c849d3b]
+- Updated dependencies [7b71cd8]
+- Updated dependencies [2270239]
+- Updated dependencies [db8cd00]
+- Updated dependencies [650bd1f]
+- Updated dependencies [f011479]
+- Updated dependencies [2f31406]
+- Updated dependencies [18728c1]
+- Updated dependencies [8426db7]
+- Updated dependencies [8d1195d]
+- Updated dependencies [9bef806]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/plugin-grid@7.0.0
+  - @object-ui/plugin-detail@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/plugin-report@7.0.0
+  - @object-ui/data-objectstack@7.0.0
+  - @object-ui/plugin-chatbot@7.0.0
+  - @object-ui/plugin-list@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/plugin-form@7.0.0
+  - @object-ui/fields@7.0.0
+  - @object-ui/plugin-charts@7.0.0
+  - @object-ui/plugin-dashboard@7.0.0
+  - @object-ui/auth@7.0.0
+  - @object-ui/plugin-view@7.0.0
+  - @object-ui/layout@7.0.0
+  - @object-ui/plugin-calendar@7.0.0
+  - @object-ui/plugin-designer@7.0.0
+  - @object-ui/plugin-editor@7.0.0
+  - @object-ui/plugin-kanban@7.0.0
+  - @object-ui/collaboration@7.0.0
+  - @object-ui/permissions@7.0.0
+  - @object-ui/providers@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

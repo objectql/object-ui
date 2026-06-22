@@ -1,5 +1,126 @@
 # @object-ui/plugin-list
 
+## 7.0.0
+
+### Minor Changes
+
+- 053c948: feat: ADR-0047 — interface pages, visualization switcher, and Airtable-parity filters
+
+  End-user interface/list pages reach full rendering and authoring parity:
+
+  - **Spec tabs + visualization switcher** — `ObjectView` now forwards
+    `viewDef.tabs` (stored/served but never rendered) and `viewDef.appearance`
+    (`allowedVisualizations` whitelist), turning on the dormant `ViewSwitcher` when
+    more than one type is whitelisted; effective options = author whitelist ∩
+    capability-resolvable types (kanban needs `groupBy`, calendar a date field, …).
+    `ListView` accepts the canonical `ViewFilterRule[]` tab-filter shape.
+  - **User filters** — render only when `userFilters` is explicitly configured;
+    selections (dropdown values + active tab) mirror into `uf_*` URL params and
+    restore on load, so filtered lists survive reload and are shareable.
+  - **Toolbar polish** — the visualization switcher becomes a compact right-side
+    "Grid ▾" dropdown inside the tool cluster (no extra row); filter tabs and
+    dropdown filters are mutually exclusive.
+  - **Studio authoring** — a usable, schema-driven interface-page inspector
+    (collapsible sections honoured, array-of-enum → multi-select, a None/Tabs/
+    Dropdown `filter-mode` selector where None maps to ABSENCE of `userFilters`),
+    and the Design/Preview tabs render the live list via `InterfaceListPage`
+    (including a non-empty grid when the source view is hollow).
+
+- 4eb9cb6: feat(plugin-tree): add a `tree` / tree-grid object view type
+
+  Renders a self-referencing object as an indented, expand/collapse tree-grid —
+  the right view for arbitrary-depth hierarchies (business unit / org chart,
+  category trees, BOMs, nested comments) that fixed-depth grouping can't express.
+  New `@object-ui/plugin-tree` package (`object-tree`/`tree`), `tree` added to the
+  `ViewType` union, and dispatch wired through plugin-list `ListView` +
+  app-shell `ObjectView` (the console path).
+
+### Patch Changes
+
+- 053c948: fix(plugin-list): gate speculative `$select` fields by the object's real schema
+
+  A list view auto-includes view-binding fields (kanban `groupBy`, calendar/gantt/
+  timeline dates, gallery image, timeline status/priority) in `$select` so
+  alternate view modes render populated. These were added unconditionally on the
+  assumption that "the projection ignores unknown names" — but some backends
+  (notably the cloud multi-tenant runtime) reject an unknown `$select` column with
+  an EMPTY result set, so a single phantom field zeroed the whole list (an AI-built
+  `product` view requesting `status`/`due_date`/`image` showed "no data" though
+  rows existed). The speculative additions now go through `addSpeculative()`, which
+  keeps only fields present in the object schema; user-declared columns and expand
+  roots are untouched.
+
+- db8cd00: feat(app-shell): global settle signal (window.\_\_objectui) + region aria-busy (ADR-0054 Phase 3)
+
+  Adds a single machine-readable "is the app idle?" predicate (ADR-0054 C5). The
+  data layer wraps the adapter's `fetch` to count in-flight requests, mirrored onto
+  `window.__objectui` with live `idle` / `pendingRequests` getters plus `whenIdle()`
+  and `subscribe()`. New `useSettleSignal()` React hook and lower-level exports
+  (`getPendingRequests`, `subscribeSettle`, `whenIdle`, `withSettleSignal`,
+  `installSettleSignalGlobal`). The list view and record-picker results regions now
+  set `aria-busy` while fetching and `data-state="loading|idle"` for region-level
+  waiting. Lets an automated (AI) driver wait for settle instead of hardcoding
+  timeouts.
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [c09f44e]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [5332639]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [bd398df]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [db8cd00]
+- Updated dependencies [2f31406]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/fields@7.0.0
+  - @object-ui/mobile@7.0.0
+  - @object-ui/permissions@7.0.0
+
 ## 6.2.3
 
 ## 6.2.2

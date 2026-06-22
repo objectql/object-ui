@@ -1,5 +1,180 @@
 # @object-ui/components
 
+## 7.0.0
+
+### Minor Changes
+
+- a00e16d: feat: evaluate CEL `disabled` on action buttons + record-page Undo wiring
+
+  - **components (page header)**: the `record_header` action toolbar now evaluates
+    a CEL `disabled` predicate against the record (boolean was the only honoured
+    form before), mirroring its existing `visible` evaluation. An action can now
+    grey out conditionally (e.g. "Reassign" on a converted lead) instead of only
+    hiding via `visible`.
+  - **plugin-grid (row menu)**: `RowActionMenu` items likewise evaluate `disabled`
+    (boolean or CEL against the row), and skip the click when disabled.
+  - **components (action-button)**: forward `undoable` / `recordIdField` when
+    executing, so undoable update actions keep their Undo affordance through the
+    `action:button` path.
+  - **app-shell (RecordDetailView)**: mount `useGlobalUndo` and wire the record
+    action runtime's success toast to offer "Undo" for `undoable` actions
+    (capturing the changed fields' prior values from the loaded record).
+  - **plugin-detail (record:quick_actions)**: the widget's buttons now evaluate a
+    CEL `disabled` and show a spinner + disable while running.
+
+- 90acb7f: Master-detail subform + lightweight list primitives (SDUI).
+
+  - `MasterDetailForm` (`object-master-detail-form`): enter a parent record and its child line items together; client-orchestrated transactional create (parent → FK → bulk children → rollup → cleanup). Enterprise-convention layout (header on top, line grid, single Save bar at the bottom).
+  - `LineItemsField` editable child grid (line numbers, right-aligned numerics, running total) and `LineItemsPanel` (`record:line_items`) for detail-page inline edit.
+  - `element:definition-list` and `element:repeater` — lightweight, low-chrome list primitives for simple data.
+
+### Patch Changes
+
+- ddbe4a2: B2 step 3: client-side field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`). The form renderer now evaluates these CEL predicates reactively against the live record and gates each field's visibility, read-only state, and required-ness accordingly. Evaluation delegates to the canonical `@objectstack/formula` `ExpressionEngine` — the _same_ dialect the server enforces (`requiredWhen` in the rule-validator, `readonlyWhen` in `stripReadonlyWhenFields`) — so the UX and the persisted verdict always agree. New core helpers `evalFieldPredicate` / `resolveFieldRuleState` (zero-React, fail-open). `FormField` gains `visibleWhen` / `readonlyWhen` / `requiredWhen` (+ deprecated `conditionalRequired` alias), and `ObjectForm` carries them through from object metadata.
+- 2d47e94: B2 follow-ups (A): field conditional rules in inline grids + submit-time enforcement.
+
+  - **Grids**: a line-item column's `readonlyWhen` / `requiredWhen` CEL rule is now honored per row — `deriveMasterDetail` carries the props onto the `GridColumn` and `GridField` evaluates them against each row via `resolveFieldRuleState` (a `readonlyWhen`-TRUE cell locks; a `requiredWhen`-TRUE empty cell flags inline-invalid). Rules are row-scoped (`record.*`); the core helpers gained an optional `scope` (and `GridField` a `contextRecord` prop) so a future header-driven lock can bind `parent.*` — that wiring is deferred (it needs the master-detail header's re-renders isolated).
+  - **Submit enforcement**: `requiredWhen` already drove react-hook-form's `required` rule, so submit is blocked with a field error when the predicate is TRUE and the value is empty. Added a reactive cleanup so a stale _required_ error clears when the predicate flips FALSE (and all errors clear when a field is hidden by `visibleWhen`).
+
+- 6c0c92c: fix(app-shell): command palette idempotent open + stable locators (ADR-0054 Phase 1)
+
+  The top-bar "Search… ⌘K" button now opens the command palette directly via a
+  shared, idempotent `openCommandPalette()` instead of re-dispatching a synthetic
+  `⌘K` `KeyboardEvent` — so it works under automation and in ⌘K-reserving
+  browsers. Open state is URL-addressable (`?palette=1`, `?cmdk=1` alias), making
+  the palette deep-linkable and restore-on-reload. The dialog and header trigger
+  emit stable `data-testid` locators (`overlay:command-palette`,
+  `action:command-palette:open`) plus an ARIA name. New `useCommandPalette()` hook
+  and `CommandPaletteProvider`; `CommandDialog` gains a `contentProps` passthrough
+  for the dialog locator/ARIA. Implements invariants C1/C3/C4 of the UI
+  testability contract.
+
+- ad8ade6: feat(components): metadata-derived field locators on generated forms (ADR-0054 Phase 4)
+
+  The form renderer now emits a stable `data-testid="field:{objectName}.{field}"`
+  (plus `data-field`) on every field wrapper, derived from the form's `objectName`
+  and each field's name — closing the locator gap at the source so every generated
+  form (`ObjectForm`/`ModalForm`/`DrawerForm`/`SplitForm`/`WizardForm`) inherits
+  testable fields with zero per-app work (ADR-0054 C4). `FormSchema` gains an
+  optional `objectName`; the object prefix is omitted (`field:{field}`) when a form
+  has none. `FormItem` now accepts `data-*` attributes.
+
+- 2eb3096: fix(form): stop `form.reset()` from wiping user input on re-render
+
+  The form renderer reset react-hook-form whenever the `defaultValues` **object
+  identity** changed:
+
+  ```ts
+  useEffect(() => {
+    form.reset(defaultValues);
+  }, [defaultValues]);
+  ```
+
+  Callers commonly pass a freshly-built `defaultValues` object every render, so an
+  unrelated parent re-render reset the form and discarded whatever the user had
+  typed. This broke master-detail "Create": a re-render between the submit click
+  and the (deferred) `requestSubmit` blanked the form, so RHF then failed
+  required-field validation on the now-empty fields and nothing was submitted —
+  the "click Create, nothing happens" report.
+
+  The effect now resets only when `defaultValues` actually **changes by value**
+  (JSON-compared), so a genuine change (e.g. an edit-mode record finishing
+  loading) still resets while identity churn is ignored.
+
+- 7913390: fix(master-detail): never silent on save — feedback, reset, and a duplicate-submit guard
+
+  `MasterDetailForm`'s "Create" submitted successfully but gave **no feedback**: no toast, no form reset, no navigation. A successful create looked broken, and re-clicking created duplicate records.
+
+  - On success: a `toast.success`, and on create the form clears (line items reset + parent `<ObjectForm>` remounts) ready for the next entry. A page-supplied `onSuccess` still runs afterwards (e.g. to navigate).
+  - On failure (validation / network / atomic rollback): a `toast.error` surfaces the message instead of failing silently.
+  - In-flight guard: the Create button shows "Saving…" and is disabled while a submit is running, preventing duplicate submissions, with a safety release if client-side validation blocks the submit.
+  - `@object-ui/components` now re-exports `toast` (alongside `Toaster`) from its sonner wrapper.
+
+  Tests: two new `MasterDetailForm` tests assert success → toast + form clear, and failure → error toast.
+
+- bd8b054: fix(currency): resolve the tenant default currency across the long-tail renderers
+
+  Phase 2b of the currency-resolution work (ADR-0053). The cell/field renderers
+  already funnelled through `resolveFieldCurrency` + `useLocalization` (#1856),
+  but the rest of the renderers still hard-coded `USD` or read only one of
+  `currency`/`defaultCurrency`. They now share the same resolution chain — explicit
+  field currency -> `currencyConfig.defaultCurrency` -> legacy `defaultCurrency` ->
+  tenant `localization.currency` -> plain number:
+
+  - `plugin-dashboard` `ObjectMetricWidget` (inferred currency), `ObjectDataTable`
+    (symbol-format fallback).
+  - `plugin-grid` `useColumnSummary` (footer agrees with the cells) and
+    `ObjectGrid` (compact amount + name-inferred currency cells).
+  - `plugin-detail` `DetailView` summary metrics.
+  - `plugin-gantt` `ObjectGantt` currency tooltips.
+  - `components` `element:number` (`format: 'currency'`) — tenant default instead
+    of a baked-in `USD`, and renders with the tenant locale.
+
+  `resolveFieldCurrency` now lives in `@object-ui/i18n` (co-located with
+  `useLocalization`, which supplies the tenant default); `@object-ui/fields`
+  re-exports it, so the existing import path is unchanged. No behavior change when
+  no tenant currency is configured — a field that declares its own currency, or a
+  deployment with no `localization.currency`, renders exactly as before.
+
+- 2270239: feat: scoped style-object rendering (ADR-0065)
+
+  A metadata node may carry `responsiveStyles` (per-breakpoint CSS-property maps);
+  `SchemaRenderer` compiles it to **id-scoped CSS** injected as a `<style>` tag and
+  appends a scope class to the node. Build-independent (arbitrary values + design
+  tokens pass through verbatim — no Tailwind JIT), collision-free (per-node scope,
+  unlayered so it beats base utilities), responsive-correct (model breakpoint maps
+  → generated `@media`, never `md:` variant classes). Adds `compileScopedStyles`/
+  `scopeClassFor`/`hasResponsiveStyles` to `@object-ui/core` and an SDUI design-token
+  palette (`--space-*`, `--surface`, `--brand`, …) to the theme. Mirrors Builder.io.
+
+- 8d1195d: Fix `type: 'url'` actions so they actually reach the backend in split-origin dev setups, and so reveal-once result dialogs render.
+
+  - `ActionRunner.executeUrl`: when context provides `apiBase`, relative `/api/...`, `/_auth/...`, and `/_account/...` URLs are now promoted to absolute (`${apiBase}${path}`) before navigation. Same-origin API paths (with or without `apiBase`) trigger a full-page `window.location.href` rather than React-Router push — this is required for server-side OAuth redirect dances (e.g. better-auth `/sign-in/social`) that React Router would otherwise swallow into the SPA's fallback route.
+  - `ActionRunner.buildInterpolationContext`: surfaces `ctx.apiBase` for action targets that want to template it explicitly.
+  - `ObjectView`: passes `apiBase: import.meta.env.VITE_SERVER_URL` into the toolbar `ActionProvider` context so the above resolves.
+  - `action-button` and `action-menu` renderers now forward `resultDialog` when invoking the runner. Previously this field was silently dropped by an explicit whitelist, breaking every "show once, then hide" flow (2FA QR/backup codes, OAuth client_secret, regenerated tokens).
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [c09f44e]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [3870c20]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [2f31406]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

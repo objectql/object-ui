@@ -1,5 +1,167 @@
 # @object-ui/react
 
+## 7.0.0
+
+### Minor Changes
+
+- c12986e: Add resultDialog + target interpolation for one-shot action reveals
+
+  Some platform actions return values the user MUST copy now because the
+  server will not surface them again — 2FA TOTP URI + backup codes, freshly
+  minted OAuth client_secret, regenerated recovery codes. Previously these
+  had to ship as bespoke pages in `apps/account` because actions only
+  emitted a fire-and-forget toast.
+
+  **`@object-ui/core` — ActionRunner**
+
+  - New `ActionDef.resultDialog: ResultDialogSpec` field. When set on a
+    successful action, the runner suppresses the `successMessage` toast and
+    awaits the registered `ResultDialogHandler` instead. Missing handler is
+    non-fatal (logs a warning); rejected handler is treated as acknowledged.
+  - New `setResultDialogHandler(handler)` setter.
+  - New types: `ResultDialogSpec`, `ResultDialogFieldSpec`,
+    `ResultDialogHandler`.
+  - `executeUrl` and `executeAPI` now run `${param.X}` and `${ctx.X}`
+    interpolation against `target` before fetching / navigating. Values are
+    `encodeURIComponent`'d, missing keys resolve to empty string. `ctx`
+    exposes `origin`, `user`, `org`, `recordId` by default; consumers can
+    inject more via `context.ctx`.
+
+  **`@object-ui/react`**
+
+  - `ActionProvider` and `useActionRunner` both gained an `onResultDialog`
+    option that wires straight through to the runner.
+
+  **`@object-ui/app-shell`**
+
+  - New `ActionResultDialog` component — promise-based, blocks click-outside
+    and Escape (the user MUST click acknowledge), renders five field
+    formats: `qrcode` (client-side via the `qrcode` package — never sent
+    off-device, so 2FA URIs stay secret), `code-list`, `secret`, `text`,
+    `json`. Falls back to `json` when a value's shape doesn't match its
+    declared format.
+  - `ObjectView` and `RecordDetailView` install the handler and mount the
+    dialog automatically, so any action with `resultDialog` declared in
+    metadata now works without code changes.
+  - New dependency: `qrcode@^1.5.x` for client-side QR rendering.
+
+  Pairs with the framework-side `Action.resultDialog` schema added in
+  `@objectstack/spec` and the `sys_two_factor` / `sys_oauth_application` /
+  `sys_account` updates in `@objectstack/platform-objects`.
+
+### Patch Changes
+
+- 6cfa330: feat(dashboard): drill "Open in list" escape hatch + unify report drill
+
+  Adopts the mainstream BI peek-then-escalate drill model. Drill-through opens an
+  in-place drawer (keep context) and offers an "Open in list →" affordance to
+  escalate to the object's full list page (sort / bulk-select / export / shareable
+  URL) — the Looker / Power BI "see records → open in page" pattern.
+
+  - New `DrillNavigationContext` (`@object-ui/react`): the app shell provides
+    `openRecordList`; the renderer stays decoupled from console routing.
+  - The drill drawers (pivot / dataset / chart / KPI) render the escape hatch when
+    a host navigation handler is present, and hide it otherwise (self-contained
+    peek). `DashboardView` provides the handler via `useOpenRecordList`.
+  - `DrillDownConfig.target` gains `'navigate'` — skip the drawer and open the
+    list directly; degrades to `'drawer'` when no host handler is available.
+  - `ReportView` drill-through now opens the same in-place drawer (peek records →
+    click a row to open a record) instead of navigating away; the escape hatch
+    preserves the previous navigate-to-list behavior. Dashboard and report drill
+    are now unified.
+  - i18n: `dashboard.openInList` (en / zh).
+
+- e95cc25: Fix the NavigationSyncEffect baseline race: lazily-loaded `page`/`dashboard` metadata (and the empty cache during `invalidate()` refetch) could seed a partial diff baseline, making platform `sys_` pages look "user added" — the effect then wrote them into every app's navigation, 403ing on ADR-0010 locked apps (red "Failed to update navigation" toasts) and polluting writable apps. The effect now diffs only while both types are `status === 'ready'` (new optional `MetadataContextValue.getTypeStatus`), never treats `sys_`-prefixed artifacts as user creations, and skips apps whose `_lock`/`protection.lock` is `full`/`no-overlay`.
+- abe8ebc: Repoint `useClientNotifications` to the ADR-0030 `@objectstack/client` surface
+
+  The `useClientNotifications` bridge hook called `client.notifications.*` with
+  signatures that no longer exist on `@objectstack/client@7.x`:
+
+  - `registerDevice(token, platform)` → the SDK takes a single
+    `RegisterDeviceRequest` object (`{ token, platform }`).
+  - `markAsRead(id)` → there is no single-id method; the SDK exposes
+    `markRead(ids: string[])`. The hook keeps its friendly single-id API and
+    adapts to the batch call.
+
+  These helpers are the stable transport contract for ADR-0030 (Notification
+  Convergence): server-side they route to the L5 `sys_inbox_message`
+  materialization and the `sys_notification_receipt` read-state spine — the
+  re-modeled `sys_notification` L2 event no longer carries recipient/read
+  columns. (The Console bell itself reads the inbox + receipts directly via the
+  generic data API; see the `@object-ui/app-shell` bell cut-over.)
+
+  ## Cut-over sequence (operational — run in this order)
+
+  The Console UI repoint must land together with the framework pipeline **and**
+  the data migration so the bell is never blank and read-state is never lost:
+
+  1. Deploy the framework ADR-0030 change (objects + `emit()` + producers). New
+     notifications now land in `sys_inbox_message` + `sys_notification_receipt`.
+  2. Run the data migration **once** to carry existing notifications across —
+     `migrateSysNotificationToEvent({ driver, data })` from
+     `@objectstack/metadata/migrations`. It splits each legacy `sys_notification`
+     inbox row into a `sys_inbox_message` + receipt, rewrites the row to the event
+     shape, and clears the legacy columns. It is **idempotent** and reports
+     `not_applicable` on fresh installs. This runs against the ObjectStack
+     **server/data engine** — it is not a Console (frontend) step.
+  3. Deploy the objectui repoint (this change + the `@object-ui/app-shell` bell
+     cut-over).
+
+- 2270239: feat: scoped style-object rendering (ADR-0065)
+
+  A metadata node may carry `responsiveStyles` (per-breakpoint CSS-property maps);
+  `SchemaRenderer` compiles it to **id-scoped CSS** injected as a `<style>` tag and
+  appends a scope class to the node. Build-independent (arbitrary values + design
+  tokens pass through verbatim — no Tailwind JIT), collision-free (per-node scope,
+  unlayered so it beats base utilities), responsive-correct (model breakpoint maps
+  → generated `@media`, never `md:` variant classes). Adds `compileScopedStyles`/
+  `scopeClassFor`/`hasResponsiveStyles` to `@object-ui/core` and an SDUI design-token
+  palette (`--space-*`, `--surface`, `--brand`, …) to the theme. Mirrors Builder.io.
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [30ee761]
+- Updated dependencies [053c948]
+- Updated dependencies [b99d9bd]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [a58c6b8]
+- Updated dependencies [c3749eb]
+- Updated dependencies [c09f44e]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [5332639]
+- Updated dependencies [3870c20]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [1394e34]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [2f31406]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/data-objectstack@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

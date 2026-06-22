@@ -1,5 +1,186 @@
 # @object-ui/plugin-dashboard
 
+## 7.0.0
+
+### Minor Changes
+
+- 78f9c16: Dataset-bound dashboard widgets now use the measure's display label + format and
+  render metric widgets with a consistent card.
+
+  - KPI value and chart legend use the measure `label` (carried on the analytics
+    result `fields`) instead of the raw measure name — "Tasks" not "task_count".
+  - The KPI value is formatted via the measure `format` hint ("$0,0" → "$616,000").
+  - A dataset-bound `metric` widget takes the shared Card wrapper (title + border)
+    like kpi/gauge, instead of rendering as bare untitled text.
+
+  Requires `AnalyticsResult.fields[].label`/`format` (objectstack-ai/framework#1683).
+
+- 92449ef: Dataset-bound dashboard widgets now render their TRUE chart family instead of
+  always a bar chart.
+
+  `DatasetWidget` routes by `widget.type` to the shared advanced chart renderer:
+  pie/donut/line/area/scatter/radar/funnel/treemap/sankey/column/horizontal-bar
+  each draw distinctly (one series per measure, carrying the measure label).
+  `table`/`pivot` render a grouped table of dimensions + measures (formatted via
+  the measure `format`). `metric`/`kpi`/`gauge`/`solid-gauge`/`bullet` keep the
+  single-value KPI rendering. Families without a distinct renderer map to their
+  closest relative (e.g. `spline`→line, `stacked-area`→area, `pyramid`→funnel) so
+  a widget never renders as a silently-wrong bar.
+
+### Patch Changes
+
+- cb2fdb1: feat(dashboard): expand drill-in — table/list row→record + scatter/treemap/sankey drill-through
+
+  Drill-in now covers the widgets that were missing it, and formalizes the two
+  interaction semantics mainstream BI/low-code platforms separate. `DrillDownConfig`
+  gains a `mode` discriminator: `'filter'` (drill-through: aggregate bucket → filtered
+  record list) and `'record'` (drill-to-record: a table/list row → that record's detail).
+
+  - Scatter, treemap and sankey charts now wire click → the existing filtered-record
+    drill drawer (radar excluded — no single clickable category point). The
+    Recharts-payload → drill-event mapping is extracted to pure, tested functions.
+  - Object-backed table/list widgets drill to the clicked record in a read-only detail
+    drawer (Sheet/Dialog), on by default (`drillDown:{enabled:false}` opts out). Field
+    labels and value formatting (incl. tenant-default currency) are shared with the
+    table cells so a value reads identically in both. An author-supplied `onRowClick`
+    still wins.
+  - The chart/KPI drill-through record lists now drill into a record too, completing the
+    segment → list → record chain.
+
+- c3749eb: feat(dashboard): dataset chart widgets drill through to records
+
+  Dataset-bound **chart** widgets (bar/line/pie/area/donut/funnel/…) are now
+  click-drillable, matching table/pivot. Clicking a segment maps it back to its
+  dataset row and opens the same governed drill drawer (raw group keys preserved),
+  so a chart-only dashboard is no longer an exploration dead-end. This closes the
+  "object-backed chart drills but dataset chart doesn't" inconsistency and aligns
+  with mainstream BI (click a chart → see records).
+
+  - `@object-ui/core`: `findChartSeriesRow` — inverse of `buildChartSeries`,
+    maps a clicked `{category, series}` back to the source dataset row index
+    (matches both dims when a 2nd dimension is pivoted into series).
+  - `ObjectChart`: optional `onSegmentClick` lets a host own the chart click
+    (and suppress the widget's own object-drill).
+  - `DatasetWidget`: lifts the drill machinery to cover both table/pivot and
+    chart, and wires the chart's segment click to the precise dataset drill.
+
+- 3d036a9: fix(dashboard): complete the drill chain in the shared DrillDownDrawer
+
+  The chart and KPI drill-through record lists already let you click a row to open
+  that record, but the shared `DrillDownDrawer` (used by **pivot** and **dataset**
+  widget drill-through) did not — so the segment → list → record chain was
+  inconsistent across widget types. `DrillDownDrawer` now enables record drill on
+  its filtered list (dialog target, stacking over the drawer), so every
+  drill-through list lands on a clickable record.
+
+- 6cfa330: feat(dashboard): drill "Open in list" escape hatch + unify report drill
+
+  Adopts the mainstream BI peek-then-escalate drill model. Drill-through opens an
+  in-place drawer (keep context) and offers an "Open in list →" affordance to
+  escalate to the object's full list page (sort / bulk-select / export / shareable
+  URL) — the Looker / Power BI "see records → open in page" pattern.
+
+  - New `DrillNavigationContext` (`@object-ui/react`): the app shell provides
+    `openRecordList`; the renderer stays decoupled from console routing.
+  - The drill drawers (pivot / dataset / chart / KPI) render the escape hatch when
+    a host navigation handler is present, and hide it otherwise (self-contained
+    peek). `DashboardView` provides the handler via `useOpenRecordList`.
+  - `DrillDownConfig.target` gains `'navigate'` — skip the drawer and open the
+    list directly; degrades to `'drawer'` when no host handler is available.
+  - `ReportView` drill-through now opens the same in-place drawer (peek records →
+    click a row to open a record) instead of navigating away; the escape hatch
+    preserves the previous navigate-to-list behavior. Dashboard and report drill
+    are now unified.
+  - i18n: `dashboard.openInList` (en / zh).
+
+- bd8b054: fix(currency): resolve the tenant default currency across the long-tail renderers
+
+  Phase 2b of the currency-resolution work (ADR-0053). The cell/field renderers
+  already funnelled through `resolveFieldCurrency` + `useLocalization` (#1856),
+  but the rest of the renderers still hard-coded `USD` or read only one of
+  `currency`/`defaultCurrency`. They now share the same resolution chain — explicit
+  field currency -> `currencyConfig.defaultCurrency` -> legacy `defaultCurrency` ->
+  tenant `localization.currency` -> plain number:
+
+  - `plugin-dashboard` `ObjectMetricWidget` (inferred currency), `ObjectDataTable`
+    (symbol-format fallback).
+  - `plugin-grid` `useColumnSummary` (footer agrees with the cells) and
+    `ObjectGrid` (compact amount + name-inferred currency cells).
+  - `plugin-detail` `DetailView` summary metrics.
+  - `plugin-gantt` `ObjectGantt` currency tooltips.
+  - `components` `element:number` (`format: 'currency'`) — tenant default instead
+    of a baked-in `USD`, and renders with the tenant locale.
+
+  `resolveFieldCurrency` now lives in `@object-ui/i18n` (co-located with
+  `useLocalization`, which supplies the tenant default); `@object-ui/fields`
+  re-exports it, so the existing import path is unchanged. No behavior change when
+  no tenant currency is configured — a field that declares its own currency, or a
+  deployment with no `localization.currency`, renders exactly as before.
+
+- 650bd1f: fix(forms/dashboard/related-list): four business-facing rendering fixes found while QA-ing a showcase workspace
+
+  - **plugin-form / WizardForm**: a multi-step `object-form` with `formType: 'wizard'` posted an empty/partial body on submit, so the server rejected every required field. Two causes: (1) the footer Next/Create buttons bypassed the inner form and submitted the wizard's own (never-collected) `formData`; (2) the create-mode data-seeding effect re-ran on `dataSource`/`objectSchema` identity churn and reset `formData` to `{}` mid-wizard. Now the buttons submit the inner form natively (`<form id>` + `type="submit"`, which validates each step and collects values via `getValues()`), and the create seed is made idempotent.
+  - **plugin-dashboard / DashboardRenderer**: chart widgets rendered as empty cards (recharts logged `width(-1) height(-1)`) because the positioned grid used `auto-rows-min`, collapsing any widget with no intrinsic height. The explicit-columns grid now uses `gridAutoRows: minmax(5rem, auto)` so spanned chart rows get a real height while tables can still grow.
+  - **plugin-detail / RelatedList**: auto-derived related-list columns led with system audit fields (`created_at`, `updated_at`, …) for child objects without a name/title field, pushing business columns past the column cap. System audit fields are now sorted last.
+  - **plugin-form / ObjectForm + WizardForm**: a successful create/update gave no feedback for metadata-only pages (which can't pass an `onSuccess` function). They now show a default `toast.success('Created'/'Saved')` when no `onSuccess` handler is supplied (guarded so a `submitHandler` host like MasterDetailForm never double-toasts).
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [c09f44e]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [5332639]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [bd398df]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [db8cd00]
+- Updated dependencies [2f31406]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/fields@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

@@ -1,5 +1,82 @@
 # @object-ui/plugin-view
 
+## 7.0.0
+
+### Minor Changes
+
+- 4eb9cb6: feat(plugin-tree): add a `tree` / tree-grid object view type
+
+  Renders a self-referencing object as an indented, expand/collapse tree-grid —
+  the right view for arbitrary-depth hierarchies (business unit / org chart,
+  category trees, BOMs, nested comments) that fixed-depth grouping can't express.
+  New `@object-ui/plugin-tree` package (`object-tree`/`tree`), `tree` added to the
+  `ViewType` union, and dispatch wired through plugin-list `ListView` +
+  app-shell `ObjectView` (the console path).
+
+- 7b71cd8: Unify the runtime ObjectView "view editor" onto the studio's spec-driven inspector. The right-rail view editor now hosts the same `ViewVariantInspector` the metadata studio uses (config fields sourced straight from `@objectstack/spec`) instead of the legacy `buildViewConfigSchema` engine, so runtime and studio share one view-editing surface. A new `view-config-adapter` bridges the runtime's flat view shape and the studio's ViewItem draft, keeping the `sys_view` persistence path untouched; field pickers read from the in-memory object definition (no extra network fetch). The legacy `buildViewConfigSchema` engine and its exports are retired; `ConfigPanelRenderer` is retained for the dashboard/report config panels.
+
+### Patch Changes
+
+- 9bef806: feat(view): pass form-view `subforms` through to ObjectForm
+
+  `ObjectView`'s form schema now forwards `form.subforms` to `ObjectForm`, so a
+  form view that declares inline child collections renders as a master-detail
+  form (parent fields + child grids, atomic save) in ObjectView's own
+  create/edit form — no bespoke page. Pairs with `@objectstack/spec`
+  `FormViewSchema.subforms` and ObjectForm's existing `subforms` rendering.
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [053c948]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [f6044fa]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [5332639]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [80c133c]
+- Updated dependencies [d16566f]
+- Updated dependencies [69510df]
+- Updated dependencies [b148daf]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [586a027]
+- Updated dependencies [00f8d2d]
+- Updated dependencies [9aac2b8]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [650bd1f]
+- Updated dependencies [18728c1]
+- Updated dependencies [8426db7]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/plugin-grid@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/plugin-form@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

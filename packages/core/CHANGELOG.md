@@ -1,5 +1,204 @@
 # @object-ui/core
 
+## 7.0.0
+
+### Minor Changes
+
+- f7f325d: feat: action progress state + Undo affordance
+
+  - **core**: `ActionResult.undo` (an `UndoableOperation`) and `ActionDef.undoable`.
+    On success the `ActionRunner` pushes the operation onto the global UndoManager
+    and the success toast carries an "Undo" affordance (`ToastHandler` gains an
+    `undo` option).
+  - **app-shell**: the console action runtime mounts `useGlobalUndo` (Ctrl+Z /
+    Ctrl+Shift+Z) and renders the toast's "Undo" button; its `apiHandler` resolves
+    the row id from the list row record and, for `undoable` actions, captures the
+    changed fields' prior values so the update can be reverted.
+  - **plugin-detail**: record-header quick-action buttons show a spinner + disable
+    while the action runs (a visible progress state for slow/flow actions).
+
+- c12986e: Add resultDialog + target interpolation for one-shot action reveals
+
+  Some platform actions return values the user MUST copy now because the
+  server will not surface them again — 2FA TOTP URI + backup codes, freshly
+  minted OAuth client_secret, regenerated recovery codes. Previously these
+  had to ship as bespoke pages in `apps/account` because actions only
+  emitted a fire-and-forget toast.
+
+  **`@object-ui/core` — ActionRunner**
+
+  - New `ActionDef.resultDialog: ResultDialogSpec` field. When set on a
+    successful action, the runner suppresses the `successMessage` toast and
+    awaits the registered `ResultDialogHandler` instead. Missing handler is
+    non-fatal (logs a warning); rejected handler is treated as acknowledged.
+  - New `setResultDialogHandler(handler)` setter.
+  - New types: `ResultDialogSpec`, `ResultDialogFieldSpec`,
+    `ResultDialogHandler`.
+  - `executeUrl` and `executeAPI` now run `${param.X}` and `${ctx.X}`
+    interpolation against `target` before fetching / navigating. Values are
+    `encodeURIComponent`'d, missing keys resolve to empty string. `ctx`
+    exposes `origin`, `user`, `org`, `recordId` by default; consumers can
+    inject more via `context.ctx`.
+
+  **`@object-ui/react`**
+
+  - `ActionProvider` and `useActionRunner` both gained an `onResultDialog`
+    option that wires straight through to the runner.
+
+  **`@object-ui/app-shell`**
+
+  - New `ActionResultDialog` component — promise-based, blocks click-outside
+    and Escape (the user MUST click acknowledge), renders five field
+    formats: `qrcode` (client-side via the `qrcode` package — never sent
+    off-device, so 2FA URIs stay secret), `code-list`, `secret`, `text`,
+    `json`. Falls back to `json` when a value's shape doesn't match its
+    declared format.
+  - `ObjectView` and `RecordDetailView` install the handler and mount the
+    dialog automatically, so any action with `resultDialog` declared in
+    metadata now works without code changes.
+  - New dependency: `qrcode@^1.5.x` for client-side QR rendering.
+
+  Pairs with the framework-side `Action.resultDialog` schema added in
+  `@objectstack/spec` and the `sys_two_factor` / `sys_oauth_application` /
+  `sys_account` updates in `@objectstack/platform-objects`.
+
+- 053c948: feat(app-shell): zero-roundtrip `newTabUrl` fast path for `opensInNewTab` actions
+
+  Actions that declare `newTabUrl` (a path template with a `{recordId}` placeholder
+  whose target endpoint performs all auth/authz itself) now drive the pre-opened
+  popup straight to that URL on click, skipping the action POST entirely — applied
+  to both server-action paths (list rows via `useConsoleActionRuntime`, record
+  header via `RecordDetailView`). The popup paints the existing spinner page until
+  the (possibly slow) endpoint commits its redirect; the URL is resolved absolute
+  because `about:blank` gives a bare-relative href no reliable base. The
+  popup-blocked toast fallback is unchanged. Removes one full round trip of
+  white-screen latency from every such Open click.
+
+- ddbe4a2: B2 step 3: client-side field-level conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`). The form renderer now evaluates these CEL predicates reactively against the live record and gates each field's visibility, read-only state, and required-ness accordingly. Evaluation delegates to the canonical `@objectstack/formula` `ExpressionEngine` — the _same_ dialect the server enforces (`requiredWhen` in the rule-validator, `readonlyWhen` in `stripReadonlyWhenFields`) — so the UX and the persisted verdict always agree. New core helpers `evalFieldPredicate` / `resolveFieldRuleState` (zero-React, fail-open). `FormField` gains `visibleWhen` / `readonlyWhen` / `requiredWhen` (+ deprecated `conditionalRequired` alias), and `ObjectForm` carries them through from object metadata.
+- d54346c: feat: action/flow completion messaging
+
+  - **core**: `ActionResult.silent` — a handler sets it when the action only
+    HANDED OFF to a follow-up UI (rather than completing), so `ActionRunner`
+    skips the automatic success toast. Fixes the misleading "Action completed
+    successfully" toast that fired the moment a `flow` action opened its wizard.
+  - **app-shell**: both flow handlers now return `silent: true` when the flow
+    pauses at a screen (the wizard only opened — it hasn't completed). `FlowRunner`
+    renders the flow's declared `successMessage` / `errorMessage` (from the
+    terminal `AutomationResult`) instead of a generic "Done" / the raw error.
+
+- 2270239: feat: scoped style-object rendering (ADR-0065)
+
+  A metadata node may carry `responsiveStyles` (per-breakpoint CSS-property maps);
+  `SchemaRenderer` compiles it to **id-scoped CSS** injected as a `<style>` tag and
+  appends a scope class to the node. Build-independent (arbitrary values + design
+  tokens pass through verbatim — no Tailwind JIT), collision-free (per-node scope,
+  unlayered so it beats base utilities), responsive-correct (model breakpoint maps
+  → generated `@media`, never `md:` variant classes). Adds `compileScopedStyles`/
+  `scopeClassFor`/`hasResponsiveStyles` to `@object-ui/core` and an SDUI design-token
+  palette (`--space-*`, `--surface`, `--brand`, …) to the theme. Mirrors Builder.io.
+
+### Patch Changes
+
+- 5976ba3: fix(core): evaluate bare CEL predicates in `evaluateCondition`
+
+  `ExpressionEvaluator.evaluateCondition` delegated to `evaluate`, which only
+  processes `${...}` templates and returns any other string verbatim. A bare
+  predicate such as `record.status == "converted"` (the shape `objectstack build`
+  emits for `disabled`/`visible`/`condition`) was therefore returned as a
+  non-empty string and coerced to `true` — so every bare-expression predicate was
+  silently always-truthy.
+
+  The most visible symptom: a param-collecting `api` action invoked from the
+  record header (e.g. CRM "Reassign Lead") was treated as permanently `disabled`,
+  so `ActionRunner.execute` bailed before opening the param dialog. The renderer
+  (`page:header`) was unaffected because it evaluates via `evaluateExpression`
+  directly.
+
+  `evaluateCondition` now treats a non-`${}` condition as a single expression
+  (via `evaluateExpression`), keeps the `${...}` template path, and preserves the
+  "empty/undefined ⇒ visible/enabled" and "unparseable ⇒ default visible/enabled"
+  fallbacks. Also hardens `ActionRunner`'s `disabled` gate to evaluate the
+  boolean/string/envelope form rather than treating any object as truthy, and
+  unifies the grid row-action predicate scope so `record.*` and bare-field
+  predicates resolve identically on every surface.
+
+- eaccefd: fix(actions): warn when an action is hidden by a throwing `visible` predicate
+
+  `ActionEngine.getActionsForLocation` is fail-closed: a `visible` predicate that
+  throws hides the action. The most common cause is an authoring bug — a BARE
+  field reference (`done` instead of `record.done`), which is undeclared in the
+  `{ record, recordId, objectName, user }` eval scope. Hiding it silently made
+  that bug invisible (a long debugging hunt). The catch now emits a one-time
+  `console.warn` naming the action + predicate + error, with the `record.<field>`
+  tip. Deduped per predicate so re-renders don't spam.
+
+- 71d7ce0: fix(actions): handle `type: 'form'` in ActionRunner
+
+  A `form` action had no `case` in `ActionRunner`'s execution switch, so it fell
+  through to `executeActionSchema` and silently no-opped — clicking a Log-Time /
+  "open form" action did nothing. Add `executeForm`, which opens the FormView as a
+  routed page (`/forms/:name`, per the action spec) via the navigation handler,
+  forwarding the current record id as `?recordId=` for hosts that support it.
+  Covered by ActionRunner unit tests.
+
+- 2d47e94: B2 follow-ups (A): field conditional rules in inline grids + submit-time enforcement.
+
+  - **Grids**: a line-item column's `readonlyWhen` / `requiredWhen` CEL rule is now honored per row — `deriveMasterDetail` carries the props onto the `GridColumn` and `GridField` evaluates them against each row via `resolveFieldRuleState` (a `readonlyWhen`-TRUE cell locks; a `requiredWhen`-TRUE empty cell flags inline-invalid). Rules are row-scoped (`record.*`); the core helpers gained an optional `scope` (and `GridField` a `contextRecord` prop) so a future header-driven lock can bind `parent.*` — that wiring is deferred (it needs the master-detail header's re-renders isolated).
+  - **Submit enforcement**: `requiredWhen` already drove react-hook-form's `required` rule, so submit is blocked with a field error when the predicate is TRUE and the value is empty. Added a reactive cleanup so a stale _required_ error clears when the predicate flips FALSE (and all errors clear when a field is hidden by `visibleWhen`).
+
+- c3749eb: feat(dashboard): dataset chart widgets drill through to records
+
+  Dataset-bound **chart** widgets (bar/line/pie/area/donut/funnel/…) are now
+  click-drillable, matching table/pivot. Clicking a segment maps it back to its
+  dataset row and opens the same governed drill drawer (raw group keys preserved),
+  so a chart-only dashboard is no longer an exploration dead-end. This closes the
+  "object-backed chart drills but dataset chart doesn't" inconsistency and aligns
+  with mainstream BI (click a chart → see records).
+
+  - `@object-ui/core`: `findChartSeriesRow` — inverse of `buildChartSeries`,
+    maps a clicked `{category, series}` back to the source dataset row index
+    (matches both dims when a 2nd dimension is pivoted into series).
+  - `ObjectChart`: optional `onSegmentClick` lets a host own the chart click
+    (and suppress the widget's own object-drill).
+  - `DatasetWidget`: lifts the drill machinery to cover both table/pivot and
+    chart, and wires the chart's segment click to the precise dataset drill.
+
+- 1394e34: feat(chart): visualise the second dataset dimension as grouped series
+
+  A dataset chart with two dimensions (e.g. `['status','priority']`) previously
+  only rendered the first dimension — the second was invisible (repeated x-axis
+  labels, no grouping). New shared `buildChartSeries` helper (`@object-ui/core`)
+  pivots the second dimension into one series per value; `ObjectChart`
+  (plugin-charts) and `DatasetWidget` (plugin-dashboard) both use it, so
+  multi-dimension charts render consistently as grouped/coloured bars.
+
+  Refs objectstack-ai/objectui#1759, objectstack-ai/framework#1890
+
+- 7c239fd: Add `ComponentRegistry.unregister(type, namespace?)` — the inverse of
+  `register()`. Clears the namespaced key and the bare-name fallback (when it
+  still resolves to that registration) plus any matching lazy stub, and notifies
+  subscribers only when something was removed. Lets callers (and tests) restore
+  prior registry state cleanly.
+- 8d1195d: Fix `type: 'url'` actions so they actually reach the backend in split-origin dev setups, and so reveal-once result dialogs render.
+
+  - `ActionRunner.executeUrl`: when context provides `apiBase`, relative `/api/...`, `/_auth/...`, and `/_account/...` URLs are now promoted to absolute (`${apiBase}${path}`) before navigation. Same-origin API paths (with or without `apiBase`) trigger a full-page `window.location.href` rather than React-Router push — this is required for server-side OAuth redirect dances (e.g. better-auth `/sign-in/social`) that React Router would otherwise swallow into the SPA's fallback route.
+  - `ActionRunner.buildInterpolationContext`: surfaces `ctx.apiBase` for action targets that want to template it explicitly.
+  - `ObjectView`: passes `apiBase: import.meta.env.VITE_SERVER_URL` into the toolbar `ActionProvider` context so the above resolves.
+  - `action-button` and `action-menu` renderers now forward `resultDialog` when invoking the runner. Previously this field was silently dropped by an explicit whitelist, breaking every "show once, then hide" flow (2FA QR/backup codes, OAuth client_secret, regenerated tokens).
+
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [9049bbe]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [3870c20]
+- Updated dependencies [b88c560]
+- Updated dependencies [d16566f]
+- Updated dependencies [300d755]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [858ad94]
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

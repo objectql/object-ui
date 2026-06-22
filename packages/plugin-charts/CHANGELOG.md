@@ -1,5 +1,134 @@
 # @object-ui/plugin-charts
 
+## 7.0.0
+
+### Patch Changes
+
+- c5a7d6f: Bar-chart X-axis labels no longer overlap on narrow widgets. When a chart has
+  many categories (>4) or any long label (>8 chars), the tick labels are angled
+  (-32°) and truncated with a hover `title`; few short labels stay horizontal.
+- cb2fdb1: feat(dashboard): expand drill-in — table/list row→record + scatter/treemap/sankey drill-through
+
+  Drill-in now covers the widgets that were missing it, and formalizes the two
+  interaction semantics mainstream BI/low-code platforms separate. `DrillDownConfig`
+  gains a `mode` discriminator: `'filter'` (drill-through: aggregate bucket → filtered
+  record list) and `'record'` (drill-to-record: a table/list row → that record's detail).
+
+  - Scatter, treemap and sankey charts now wire click → the existing filtered-record
+    drill drawer (radar excluded — no single clickable category point). The
+    Recharts-payload → drill-event mapping is extracted to pure, tested functions.
+  - Object-backed table/list widgets drill to the clicked record in a read-only detail
+    drawer (Sheet/Dialog), on by default (`drillDown:{enabled:false}` opts out). Field
+    labels and value formatting (incl. tenant-default currency) are shared with the
+    table cells so a value reads identically in both. An author-supplied `onRowClick`
+    still wins.
+  - The chart/KPI drill-through record lists now drill into a record too, completing the
+    segment → list → record chain.
+
+- c3749eb: feat(dashboard): dataset chart widgets drill through to records
+
+  Dataset-bound **chart** widgets (bar/line/pie/area/donut/funnel/…) are now
+  click-drillable, matching table/pivot. Clicking a segment maps it back to its
+  dataset row and opens the same governed drill drawer (raw group keys preserved),
+  so a chart-only dashboard is no longer an exploration dead-end. This closes the
+  "object-backed chart drills but dataset chart doesn't" inconsistency and aligns
+  with mainstream BI (click a chart → see records).
+
+  - `@object-ui/core`: `findChartSeriesRow` — inverse of `buildChartSeries`,
+    maps a clicked `{category, series}` back to the source dataset row index
+    (matches both dims when a 2nd dimension is pivoted into series).
+  - `ObjectChart`: optional `onSegmentClick` lets a host own the chart click
+    (and suppress the widget's own object-drill).
+  - `DatasetWidget`: lifts the drill machinery to cover both table/pivot and
+    chart, and wires the chart's segment click to the precise dataset drill.
+
+- 6cfa330: feat(dashboard): drill "Open in list" escape hatch + unify report drill
+
+  Adopts the mainstream BI peek-then-escalate drill model. Drill-through opens an
+  in-place drawer (keep context) and offers an "Open in list →" affordance to
+  escalate to the object's full list page (sort / bulk-select / export / shareable
+  URL) — the Looker / Power BI "see records → open in page" pattern.
+
+  - New `DrillNavigationContext` (`@object-ui/react`): the app shell provides
+    `openRecordList`; the renderer stays decoupled from console routing.
+  - The drill drawers (pivot / dataset / chart / KPI) render the escape hatch when
+    a host navigation handler is present, and hide it otherwise (self-contained
+    peek). `DashboardView` provides the handler via `useOpenRecordList`.
+  - `DrillDownConfig.target` gains `'navigate'` — skip the drawer and open the
+    list directly; degrades to `'drawer'` when no host handler is available.
+  - `ReportView` drill-through now opens the same in-place drawer (peek records →
+    click a row to open a record) instead of navigating away; the escape hatch
+    preserves the previous navigate-to-list behavior. Dashboard and report drill
+    are now unified.
+  - i18n: `dashboard.openInList` (en / zh).
+
+- e270c7d: fix(chart): consume ADR-0021 `dataset` binding in list/object chart views
+
+  Chart views authored to the current spec (ADR-0021: `dataset` + `dimensions` +
+  `values`) previously rendered nothing — the renderers only read the **removed**
+  legacy inline `xAxisField` / `yAxisFields` / `aggregation` shape, so a
+  spec-compliant chart view showed an empty canvas. `ObjectChart` now runs the
+  governed `queryDataset` path when a chart binds to a dataset (the same path the
+  dashboard `DatasetWidget` uses, so numbers stay consistent), and `ListView` /
+  `ObjectView` emit the dataset shape. The legacy inline aggregate is kept as a
+  deprecated fallback so pre-ADR-0021 metadata keeps rendering.
+
+  Refs objectstack-ai/framework#1890
+
+- ab168e4: Dashboard charts no longer render blank on first paint. Recharts'
+  `ResponsiveContainer` was a child of a `flex … justify-center` box, so it
+  collapsed to content width (0) on first paint inside react-grid-layout,
+  measured `width(-1)` and skipped drawing until a later resize fired its
+  ResizeObserver. The chart wrapper is now a definite-width block in both the
+  dashboard chart container (`plugin-charts/ChartContainerImpl`) and the shadcn
+  base (`components/ui/chart`). Follow-up changeset for #1634.
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [c09f44e]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [2f31406]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

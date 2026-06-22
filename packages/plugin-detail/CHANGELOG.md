@@ -1,5 +1,151 @@
 # @object-ui/plugin-detail
 
+## 7.0.0
+
+### Minor Changes
+
+- a00e16d: feat: evaluate CEL `disabled` on action buttons + record-page Undo wiring
+
+  - **components (page header)**: the `record_header` action toolbar now evaluates
+    a CEL `disabled` predicate against the record (boolean was the only honoured
+    form before), mirroring its existing `visible` evaluation. An action can now
+    grey out conditionally (e.g. "Reassign" on a converted lead) instead of only
+    hiding via `visible`.
+  - **plugin-grid (row menu)**: `RowActionMenu` items likewise evaluate `disabled`
+    (boolean or CEL against the row), and skip the click when disabled.
+  - **components (action-button)**: forward `undoable` / `recordIdField` when
+    executing, so undoable update actions keep their Undo affordance through the
+    `action:button` path.
+  - **app-shell (RecordDetailView)**: mount `useGlobalUndo` and wire the record
+    action runtime's success toast to offer "Undo" for `undoable` actions
+    (capturing the changed fields' prior values from the loaded record).
+  - **plugin-detail (record:quick_actions)**: the widget's buttons now evaluate a
+    CEL `disabled` and show a spinner + disable while running.
+
+- f7f325d: feat: action progress state + Undo affordance
+
+  - **core**: `ActionResult.undo` (an `UndoableOperation`) and `ActionDef.undoable`.
+    On success the `ActionRunner` pushes the operation onto the global UndoManager
+    and the success toast carries an "Undo" affordance (`ToastHandler` gains an
+    `undo` option).
+  - **app-shell**: the console action runtime mounts `useGlobalUndo` (Ctrl+Z /
+    Ctrl+Shift+Z) and renders the toast's "Undo" button; its `apiHandler` resolves
+    the row id from the list row record and, for `undoable` actions, captures the
+    changed fields' prior values so the update can be reverted.
+  - **plugin-detail**: record-header quick-action buttons show a spinner + disable
+    while the action runs (a visible progress state for slow/flow actions).
+
+### Patch Changes
+
+- 3cc38fe: perf(detail/header): lazy + dedupe related-list fan-out, coalesce header polls
+
+  Opening a record detail fired ~50 concurrent `/api/v1` requests that
+  head-of-line-blocked one another on a single control-plane container.
+
+  - `RecordDetailView` no longer eager-preloads reverse-reference children
+    when the reference rail renders them (that data was discarded while the
+    rail re-fetched the same collections).
+  - `record:reference_rail` now gates fetching on visibility
+    (`IntersectionObserver`; the rail is `hidden xl:flex`), caps concurrency
+    at 3, and fetches once per `(parentId + entries)` via a signature guard,
+    applying results through a mounted ref.
+  - `AppHeader` inbox/notification, approvals, and activity pollers gained
+    in-flight guards so bootstrap effect re-runs coalesce to one request; the
+    approvals poll now sends one request with all identities comma-joined
+    instead of one per identity.
+
+  Measured locally: opening an environment detail dropped from ~52 to ~17
+  requests, related collections from ×3–5 each to ×1, approvals from ×9 to ≤3.
+
+- bd8b054: fix(currency): resolve the tenant default currency across the long-tail renderers
+
+  Phase 2b of the currency-resolution work (ADR-0053). The cell/field renderers
+  already funnelled through `resolveFieldCurrency` + `useLocalization` (#1856),
+  but the rest of the renderers still hard-coded `USD` or read only one of
+  `currency`/`defaultCurrency`. They now share the same resolution chain — explicit
+  field currency -> `currencyConfig.defaultCurrency` -> legacy `defaultCurrency` ->
+  tenant `localization.currency` -> plain number:
+
+  - `plugin-dashboard` `ObjectMetricWidget` (inferred currency), `ObjectDataTable`
+    (symbol-format fallback).
+  - `plugin-grid` `useColumnSummary` (footer agrees with the cells) and
+    `ObjectGrid` (compact amount + name-inferred currency cells).
+  - `plugin-detail` `DetailView` summary metrics.
+  - `plugin-gantt` `ObjectGantt` currency tooltips.
+  - `components` `element:number` (`format: 'currency'`) — tenant default instead
+    of a baked-in `USD`, and renders with the tenant locale.
+
+  `resolveFieldCurrency` now lives in `@object-ui/i18n` (co-located with
+  `useLocalization`, which supplies the tenant default); `@object-ui/fields`
+  re-exports it, so the existing import path is unchanged. No behavior change when
+  no tenant currency is configured — a field that declares its own currency, or a
+  deployment with no `localization.currency`, renders exactly as before.
+
+- 650bd1f: fix(forms/dashboard/related-list): four business-facing rendering fixes found while QA-ing a showcase workspace
+
+  - **plugin-form / WizardForm**: a multi-step `object-form` with `formType: 'wizard'` posted an empty/partial body on submit, so the server rejected every required field. Two causes: (1) the footer Next/Create buttons bypassed the inner form and submitted the wizard's own (never-collected) `formData`; (2) the create-mode data-seeding effect re-ran on `dataSource`/`objectSchema` identity churn and reset `formData` to `{}` mid-wizard. Now the buttons submit the inner form natively (`<form id>` + `type="submit"`, which validates each step and collects values via `getValues()`), and the create seed is made idempotent.
+  - **plugin-dashboard / DashboardRenderer**: chart widgets rendered as empty cards (recharts logged `width(-1) height(-1)`) because the positioned grid used `auto-rows-min`, collapsing any widget with no intrinsic height. The explicit-columns grid now uses `gridAutoRows: minmax(5rem, auto)` so spanned chart rows get a real height while tables can still grow.
+  - **plugin-detail / RelatedList**: auto-derived related-list columns led with system audit fields (`created_at`, `updated_at`, …) for child objects without a name/title field, pushing business columns past the column cap. System audit fields are now sorted last.
+  - **plugin-form / ObjectForm + WizardForm**: a successful create/update gave no feedback for metadata-only pages (which can't pass an `onSuccess` function). They now show a default `toast.success('Created'/'Saved')` when no `onSuccess` handler is supplied (guarded so a `submitHandler` host like MasterDetailForm never double-toasts).
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [c09f44e]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [5332639]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [bd398df]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [66ed3ad]
+- Updated dependencies [c6445b6]
+- Updated dependencies [80c133c]
+- Updated dependencies [5e1b838]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [514f426]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [db8cd00]
+- Updated dependencies [2f31406]
+- Updated dependencies [18728c1]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/fields@7.0.0
+  - @object-ui/permissions@7.0.0
+
 ## 6.2.3
 
 ## 6.2.2

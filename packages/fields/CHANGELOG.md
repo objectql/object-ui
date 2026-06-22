@@ -1,5 +1,193 @@
 # @object-ui/fields
 
+## 7.0.0
+
+### Minor Changes
+
+- 5332639: feat(app-shell): render full object forms (incl. master-detail) in screen-flow wizard steps
+
+  `FlowRunner` now renders an `object-form` screen step: when the paused screen
+  carries `kind: 'object-form'`, it mounts the real `<ObjectForm>` for the named
+  object (auto-routing to `MasterDetailForm` for inline child collections),
+  prefilled from the step's `defaults`. The form persists itself (atomic
+  master-detail batch), then resumes the run with the saved record id bound to the
+  step's `idVariable`. `dataSource`/`objects` are threaded through all three
+  `FlowRunner` mount points.
+
+  Also fixes three pre-existing bugs this surfaced (each affects normal forms too):
+
+  - **plugin-form**: `ObjectForm` now forwards `initialValues`/`initialData` when
+    routing to `MasterDetailForm`, so prefilled header values are no longer
+    dropped on master-detail create forms.
+  - **fields**: `PercentField` treated values as `0–1` fractions (`value × 100`),
+    so a `0–100` field (e.g. `probability` default `50`) rendered as `5000%` —
+    exceeding `max=100`, which makes HTML5 constraint validation mark the field
+    `:invalid` and silently block the whole form's submit. It now treats a field
+    declaring `max > 1` as the `0–100` whole-number convention, matching the
+    read-side formatter.
+  - **data-objectstack**: `ObjectStackAdapter.batchTransaction` now sends
+    `credentials: 'include'`, so master-detail batch saves authenticate under the
+    console's cookie session (previously every batch save 401'd).
+
+- 66ed3ad: Line-item grid: item-typeahead auto-fill from a lookup column.
+
+  When a lookup cell's record is picked, `GridField` now copies any of the chosen record's fields whose names match a sibling column (e.g. a product's `unit_price` / `description` drop into the row), then recomputes computed columns — the catalog-typeahead behaviour of QuickBooks / Stripe / NetSuite. Opt out per column with `autofill: false`. `LookupField` gains an optional `onSelectRecord(record)` callback that surfaces the full selected record (not just its id). New pure export `lookupAutofillPatch(columns, col, record)`.
+
+- c6445b6: Line-item grid: inline validation, duplicate, and drag-to-reorder.
+
+  - **Inline per-cell validation** — a required, non-computed cell that's empty on a real (non-ghost) row flags red in place (`aria-invalid` + ring), so errors are visible without submitting.
+  - **Duplicate row** — a hover Copy action clones a line (id stripped) directly below it, for near-identical lines.
+  - **Drag-to-reorder** — a hover grip handle reorders rows via native drag-and-drop. Set `sort_field` on the grid config to persist order (`row[sortField] = index` stamped on every change); otherwise reorder is order-of-entry.
+
+- 80c133c: Spreadsheet-style line-item grid editor.
+
+  `GridField`'s editable grid mode is reworked into an enterprise line-item editor (the QuickBooks / Stripe / NetSuite pattern), generalised across every inline grid:
+
+  - **Computed read-only columns** — a child field with an arithmetic `expression` (e.g. `amount = quantity * unit_price`) renders read-only, recomputes live as its inputs change, and writes the result back into the row so it persists and the running total reflects it. A small safe arithmetic evaluator (`+ - * / %`, parens, `record.<field>` refs; no `eval`) powers it.
+  - **Trailing "ghost" row** — start-with-one + auto-append: typing in the ghost materialises a real row (index-stable, so focus/caret survive), so you keep entering lines without clicking "Add".
+  - **Borderless click-to-focus cells** + role-based column widths (description flexes; qty/price/amount stay narrow).
+  - **Keyboard navigation** — Enter / ArrowUp / ArrowDown move between rows in the same column.
+  - Per-row "expand to full form" is gated to grids that omit fields (no redundant expand on thin lines).
+  - `deriveColumns` surfaces a field `expression` as a computed column; the running-total column prefers the computed/last-currency column. Blank/ghost rows are filtered from the persisted batch (`isBlankRow`).
+
+- 5e1b838: Lookup cells in line-item grids. `LineItemsField` columns now support `type: 'lookup'` (with `reference` / `displayField` / `idField`), rendering a real lookup picker per cell that resolves display labels and stores the foreign-key id — so master-detail line grids can reference other objects (category, account, assignee, …) instead of only plain selects.
+- 90acb7f: Master-detail subform + lightweight list primitives (SDUI).
+
+  - `MasterDetailForm` (`object-master-detail-form`): enter a parent record and its child line items together; client-orchestrated transactional create (parent → FK → bulk children → rollup → cleanup). Enterprise-convention layout (header on top, line grid, single Save bar at the bottom).
+  - `LineItemsField` editable child grid (line numbers, right-aligned numerics, running total) and `LineItemsPanel` (`record:line_items`) for detail-page inline edit.
+  - `element:definition-list` and `element:repeater` — lightweight, low-chrome list primitives for simple data.
+
+- 18728c1: Master-detail entry: lighter layout, compact lookup cells, persisted line order.
+
+  - **De-framed line-item section** — the subform no longer double-frames the grid in a `Card` (border + `p-6`); it renders as a light label + the grid's own bordered table, reclaiming the width the line table needs.
+  - **Compact lookup cells** — `LookupField` gains a `compact` mode (used by grid cells): the selected value shows inline in a borderless single-line trigger instead of a chip stacked above a separate "Select…" button.
+  - **Persisted drag-reorder** — `deriveMasterDetail` detects a sort field (`position`/`sort_order`/…), excludes it from the editable columns/row-form, and threads it as the grid's `sort_field` so reordering stamps `row[position] = index` and survives a reload.
+
+### Patch Changes
+
+- 2d47e94: B2 follow-ups (A): field conditional rules in inline grids + submit-time enforcement.
+
+  - **Grids**: a line-item column's `readonlyWhen` / `requiredWhen` CEL rule is now honored per row — `deriveMasterDetail` carries the props onto the `GridColumn` and `GridField` evaluates them against each row via `resolveFieldRuleState` (a `readonlyWhen`-TRUE cell locks; a `requiredWhen`-TRUE empty cell flags inline-invalid). Rules are row-scoped (`record.*`); the core helpers gained an optional `scope` (and `GridField` a `contextRecord` prop) so a future header-driven lock can bind `parent.*` — that wiring is deferred (it needs the master-detail header's re-renders isolated).
+  - **Submit enforcement**: `requiredWhen` already drove react-hook-form's `required` rule, so submit is blocked with a field error when the predicate is TRUE and the value is empty. Added a reactive cleanup so a stale _required_ error clears when the predicate flips FALSE (and all errors clear when a field is hidden by `visibleWhen`).
+
+- bd398df: Render reference/lookup cells as labels, not raw JSON
+
+  A `lookup` / `master_detail` value can arrive as a JSON-encoded object string —
+  e.g. an unresolved external-id reference `{"externalId":"Website Relaunch"}`.
+  `LookupCellRenderer` treated the whole JSON string as an opaque id, failed to
+  resolve it, and fell through to `String(value)`, leaking raw JSON into the grid
+  cell (and detail/kanban surfaces).
+
+  - `LookupCellRenderer` now parses a JSON-object-looking string value and renders
+    a human label (`name` → `label` → `externalId` → `id`).
+  - `coerceToSafeValue` (the shared safe-render helper used by 8 cell renderers)
+    gains the same JSON-string parsing, and `externalId` is added to the
+    reference-label precedence for plain object values and arrays.
+
+  Verified in the browser (showcase task grid: Project column shows "Website
+  Relaunch" instead of `{"externalId":"Website Relaunch"}`) and by unit tests.
+
+- 514f426: fix(master-detail): reliable submit + stable e2e hooks
+
+  Fixes the "click Create, nothing happens" report, surfaced by a new live browser
+  e2e harness that drives the form with real input.
+
+  - **MasterDetailForm `handleSave`** now triggers the button-less parent form's
+    submit from a deferred macrotask and re-queries the live `<form>` inside it.
+    Calling `requestSubmit()` synchronously inside the click handler (right after
+    the `setSaving` state update) intermittently dropped the nested submit event,
+    so react-hook-form's `onSubmit` never ran and the click appeared to do nothing
+    — only the occasional click got through. Deferring makes it fire every time.
+  - **Stable `data-testid`s** so automation/e2e can drive the widgets
+    deterministically (Radix Select + react-hook-form cannot be driven by
+    synthetic DOM events): `select-trigger-{field}` / `select-option-{value}`
+    (SelectField), `lookup-trigger-{field}` (LookupField), `line-items-add`
+    (GridField), `md-form-submit` / `md-form-cancel` (MasterDetailForm).
+
+- bd8b054: fix(currency): resolve the tenant default currency across the long-tail renderers
+
+  Phase 2b of the currency-resolution work (ADR-0053). The cell/field renderers
+  already funnelled through `resolveFieldCurrency` + `useLocalization` (#1856),
+  but the rest of the renderers still hard-coded `USD` or read only one of
+  `currency`/`defaultCurrency`. They now share the same resolution chain — explicit
+  field currency -> `currencyConfig.defaultCurrency` -> legacy `defaultCurrency` ->
+  tenant `localization.currency` -> plain number:
+
+  - `plugin-dashboard` `ObjectMetricWidget` (inferred currency), `ObjectDataTable`
+    (symbol-format fallback).
+  - `plugin-grid` `useColumnSummary` (footer agrees with the cells) and
+    `ObjectGrid` (compact amount + name-inferred currency cells).
+  - `plugin-detail` `DetailView` summary metrics.
+  - `plugin-gantt` `ObjectGantt` currency tooltips.
+  - `components` `element:number` (`format: 'currency'`) — tenant default instead
+    of a baked-in `USD`, and renders with the tenant locale.
+
+  `resolveFieldCurrency` now lives in `@object-ui/i18n` (co-located with
+  `useLocalization`, which supplies the tenant default); `@object-ui/fields`
+  re-exports it, so the existing import path is unchanged. No behavior change when
+  no tenant currency is configured — a field that declares its own currency, or a
+  deployment with no `localization.currency`, renders exactly as before.
+
+- db8cd00: feat(app-shell): global settle signal (window.\_\_objectui) + region aria-busy (ADR-0054 Phase 3)
+
+  Adds a single machine-readable "is the app idle?" predicate (ADR-0054 C5). The
+  data layer wraps the adapter's `fetch` to count in-flight requests, mirrored onto
+  `window.__objectui` with live `idle` / `pendingRequests` getters plus `whenIdle()`
+  and `subscribe()`. New `useSettleSignal()` React hook and lower-level exports
+  (`getPendingRequests`, `subscribeSettle`, `whenIdle`, `withSettleSignal`,
+  `installSettleSignalGlobal`). The list view and record-picker results regions now
+  set `aria-busy` while fetching and `data-state="loading|idle"` for region-level
+  waiting. Lets an automated (AI) driver wait for settle instead of hardcoding
+  timeouts.
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [a00e16d]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [89e113c]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [77cc6bb]
+- Updated dependencies [6c0c92c]
+- Updated dependencies [97c6831]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [c09f44e]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [3870c20]
+- Updated dependencies [2eb3096]
+- Updated dependencies [b88c560]
+- Updated dependencies [0ad72a6]
+- Updated dependencies [3fa23a7]
+- Updated dependencies [18d0339]
+- Updated dependencies [59b6bbb]
+- Updated dependencies [d16566f]
+- Updated dependencies [90acb7f]
+- Updated dependencies [7913390]
+- Updated dependencies [1394e34]
+- Updated dependencies [e95cc25]
+- Updated dependencies [abe8ebc]
+- Updated dependencies [300d755]
+- Updated dependencies [bd8b054]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [2f31406]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/components@7.0.0
+  - @object-ui/react@7.0.0
+  - @object-ui/i18n@7.0.0
+  - @object-ui/types@7.0.0
+  - @object-ui/providers@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes

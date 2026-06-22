@@ -1,5 +1,138 @@
 # @object-ui/data-objectstack
 
+## 7.0.0
+
+### Minor Changes
+
+- 30ee761: feat(studio): surface pending drafts on the package detail (ADR-0033)
+
+  After an AI builds an app, its objects/views land as drafts bound to the app package — but Studio's active-only browsers hid them, so the package looked empty and there was no obvious way to find what to review/publish.
+
+  - `MetadataClient.listDrafts({ packageId?, type? })` calls the new `GET /api/v1/meta/_drafts` endpoint, returning pending draft headers (with `packageId`).
+  - The package detail sheet (PackagesPage) now shows a **Pending changes** section listing each drafted item, each linking to the existing per-item review/diff (`?review=1`) so the user can publish it. A just-built app package is no longer shown as empty.
+
+- 053c948: feat: ADR-0047 — interface pages, visualization switcher, and Airtable-parity filters
+
+  End-user interface/list pages reach full rendering and authoring parity:
+
+  - **Spec tabs + visualization switcher** — `ObjectView` now forwards
+    `viewDef.tabs` (stored/served but never rendered) and `viewDef.appearance`
+    (`allowedVisualizations` whitelist), turning on the dormant `ViewSwitcher` when
+    more than one type is whitelisted; effective options = author whitelist ∩
+    capability-resolvable types (kanban needs `groupBy`, calendar a date field, …).
+    `ListView` accepts the canonical `ViewFilterRule[]` tab-filter shape.
+  - **User filters** — render only when `userFilters` is explicitly configured;
+    selections (dropdown values + active tab) mirror into `uf_*` URL params and
+    restore on load, so filtered lists survive reload and are shareable.
+  - **Toolbar polish** — the visualization switcher becomes a compact right-side
+    "Grid ▾" dropdown inside the tool cluster (no extra row); filter tabs and
+    dropdown filters are mutually exclusive.
+  - **Studio authoring** — a usable, schema-driven interface-page inspector
+    (collapsible sections honoured, array-of-enum → multi-select, a None/Tabs/
+    Dropdown `filter-mode` selector where None maps to ABSENCE of `userFilters`),
+    and the Design/Preview tabs render the live list via `InterfaceListPage`
+    (including a non-empty grid when the source view is hollow).
+
+- 5332639: feat(app-shell): render full object forms (incl. master-detail) in screen-flow wizard steps
+
+  `FlowRunner` now renders an `object-form` screen step: when the paused screen
+  carries `kind: 'object-form'`, it mounts the real `<ObjectForm>` for the named
+  object (auto-routing to `MasterDetailForm` for inline child collections),
+  prefilled from the step's `defaults`. The form persists itself (atomic
+  master-detail batch), then resumes the run with the saved record id bound to the
+  step's `idVariable`. `dataSource`/`objects` are threaded through all three
+  `FlowRunner` mount points.
+
+  Also fixes three pre-existing bugs this surfaced (each affects normal forms too):
+
+  - **plugin-form**: `ObjectForm` now forwards `initialValues`/`initialData` when
+    routing to `MasterDetailForm`, so prefilled header values are no longer
+    dropped on master-detail create forms.
+  - **fields**: `PercentField` treated values as `0–1` fractions (`value × 100`),
+    so a `0–100` field (e.g. `probability` default `50`) rendered as `5000%` —
+    exceeding `max=100`, which makes HTML5 constraint validation mark the field
+    `:invalid` and silently block the whole form's submit. It now treats a field
+    declaring `max > 1` as the `0–100` whole-number convention, matching the
+    read-side formatter.
+  - **data-objectstack**: `ObjectStackAdapter.batchTransaction` now sends
+    `credentials: 'include'`, so master-detail batch saves authenticate under the
+    console's cookie session (previously every batch save 401'd).
+
+- d16566f: Atomic master-detail create via the cross-object transactional batch endpoint (ObjectStack #1604).
+
+  When the server exposes the transactional batch endpoint, a NEW parent record and its child line items are now persisted in ONE server transaction — commit all or roll back all — instead of the previous client-orchestrated "create parent → create children → best-effort cleanup on failure" sequence.
+
+  **`@object-ui/data-objectstack` — `ObjectStackAdapter.batchTransaction(operations)`**
+
+  - New method posting `{ operations }` to `POST /api/v1/batch`. Operations run in one server transaction. A field value of `{ $ref: <earlier op index> }` resolves to that op's generated id, so a child can reference its parent created earlier in the same batch (master-detail FK). Throws `ObjectStackError('BATCH_ERROR')` on a non-2xx response.
+
+  **`@object-ui/plugin-form`**
+
+  - `MasterDetailForm` now detects `dataSource.batchTransaction` and, on a NEW parent, builds one atomic batch (parent at index 0, each child FK set to `{ $ref: 0 }`) via the new pure helper `buildMasterDetailBatch`. Client-side total rollups are merged into the parent payload before the batch. Edit mode and adapters without `batchTransaction` keep the existing client-orchestrated path.
+  - `ObjectForm` gained a `submitHandler` hook: when supplied, the form validates and hands the collected values to the host instead of calling `dataSource.create` / `dataSource.update`. `MasterDetailForm` uses it to own the atomic parent+children write while the parent fields are still rendered by `ObjectForm`.
+
+  **`@object-ui/types`**
+
+  - `ObjectFormSchema.submitHandler?: (values) => any | Promise<any>` — typed override for host-owned persistence.
+
+  Pairs with the framework-side ambient-transaction fix (ObjectQL `AsyncLocalStorage` transaction propagation) and the `/api/v1/batch` endpoint added in `@objectstack/rest`.
+
+### Patch Changes
+
+- b99d9bd: ADR-0048: package-scope the Studio metadata editor read. Two installed packages
+  may ship metadata with the same `type`/`name`; the editor now resolves the right
+  one instead of first-match.
+
+  - `MetadataClient`: `layered()` and `getDraft()` accept `{ packageId }`, and
+    `get()` emits the `package` query param (→ server prefer-local, `?package=`).
+  - `ResourceListPage`: each item's edit link carries its owning package
+    (`?package=<row._packageId>`), so even the unscoped "all" list disambiguates;
+    falls back to the workspace suffix for runtime/overlay-only rows.
+  - `ResourceEditPage`: reads `?package=` and scopes the layered + draft read to
+    that package. (The route's `:appName` is the Studio app, not the edited item's
+    owner, so the scope must come from the URL, not the active app.)
+
+- a58c6b8: fix(datasource): exclude form-family views from `listViews()`
+
+  `OBJECTSTACKDataSource.listViews(objectName)` feeds the object list-view
+  switcher (`ObjectView` → `ViewTabBar`), but returned **every** view bound to
+  the object — including form-family ones. With the backend now exposing each
+  view as an independent **ViewItem** carrying a `viewKind` discriminant
+  (ADR-0017, "Object has-many View"), a form view such as `crm_activity.default`
+  (expanded from `formViews.default`) leaked in as a spurious switcher tab and,
+  when opened, fell back to the default grid.
+
+  `listViews()` now filters out `viewKind` `form`/`detail` items so only
+  list-family views reach the switcher. Bare view specs without a `viewKind`
+  (legacy artifacts and user-saved views) are still treated as list views.
+
+- Updated dependencies [5976ba3]
+- Updated dependencies [eaccefd]
+- Updated dependencies [f7f325d]
+- Updated dependencies [c12986e]
+- Updated dependencies [71d7ce0]
+- Updated dependencies [053c948]
+- Updated dependencies [ddbe4a2]
+- Updated dependencies [2d47e94]
+- Updated dependencies [9049bbe]
+- Updated dependencies [cb2fdb1]
+- Updated dependencies [c3749eb]
+- Updated dependencies [6cfa330]
+- Updated dependencies [ad8ade6]
+- Updated dependencies [d54346c]
+- Updated dependencies [3870c20]
+- Updated dependencies [b88c560]
+- Updated dependencies [d16566f]
+- Updated dependencies [1394e34]
+- Updated dependencies [300d755]
+- Updated dependencies [4eb9cb6]
+- Updated dependencies [7c239fd]
+- Updated dependencies [858ad94]
+- Updated dependencies [2270239]
+- Updated dependencies [8d1195d]
+  - @object-ui/core@7.0.0
+  - @object-ui/types@7.0.0
+
 ## 6.2.3
 
 ### Patch Changes
