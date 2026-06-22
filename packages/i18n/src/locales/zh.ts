@@ -1141,6 +1141,14 @@ const zh = {
       // 搭建流程的草稿与「方案预览」确认卡片（AiChatPage /ai/build）。
       // 与 ConsoleFloatingChatbot 的 locale 对象保持一致，两个 AI 界面文案统一。
       nextSteps: '下一步',
+      publishDrafts: '发布',
+      publishOk: '已发布，对象已生效。',
+      seedWarn: '已发布，但部分示例数据未能载入。',
+      openBuiltApp: '打开应用',
+      previewDraft: '预览',
+      resizeSplit: '调整对话与预览的宽度',
+      hideChats: '隐藏对话列表',
+      showChats: '显示对话列表',
       planTitle: '方案预览',
       planQuestions: '搭建前请确认',
       planAssumptions: '假设',

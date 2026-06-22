@@ -1144,6 +1144,14 @@ const en = {
       // Build-flow draft + "Proposed plan" confirm-gate card (AiChatPage /ai/build).
       // Mirror the ConsoleFloatingChatbot locale object so both AI surfaces match.
       nextSteps: "What's next",
+      publishDrafts: 'Publish',
+      publishOk: 'Published — objects are now live.',
+      seedWarn: 'Published, but some sample data failed to load.',
+      openBuiltApp: 'Open app',
+      previewDraft: 'Preview',
+      resizeSplit: 'Resize chat and preview',
+      hideChats: 'Hide chats',
+      showChats: 'Show chats',
       planTitle: 'Proposed plan',
       planQuestions: 'Confirm before building',
       planAssumptions: 'Assumptions',
