@@ -153,6 +153,90 @@ export interface DraftReview {
   nextSteps?: string[];
 }
 
+/**
+ * The lifecycle stage BEFORE a draft. `propose_blueprint` returns
+ * `{ status:'blueprint_proposed', blueprint, counts, questions, assumptions }`
+ * — a PLAN the user reviews (and can adjust) before `apply_blueprint` stages
+ * it. Nothing is created yet; this is the confirm gate. We lift the reviewable
+ * shape so the chat can render a "Proposed plan" card — the objects it will
+ * create, the agent's assumptions, and any structure-deciding questions —
+ * instead of burying the proposal in a "Propose blueprint — Completed" step.
+ */
+export interface ProposedPlan {
+  summary?: string;
+  /** Objects (tables) the build will create — machine name, label, field count. */
+  objects: Array<{ name: string; label?: string; fieldCount: number }>;
+  /** Totals for a compact "N objects · N views · …" line. */
+  counts: { objects: number; views: number; dashboards: number; seedData: number };
+  /** ≤2 structure-deciding questions to confirm before building (may be empty). */
+  questions: string[];
+  /** Assumptions the agent made from an underspecified goal (may be empty). */
+  assumptions: string[];
+  /** Extend mode: the existing app the new objects would be added into. */
+  targetApp?: string;
+}
+
+/** Defensive: keep only non-empty strings from an unknown array. */
+function nonEmptyStrings(v: unknown): string[] {
+  return Array.isArray(v)
+    ? v.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    : [];
+}
+
+export function detectProposedPlan(result: unknown): ProposedPlan | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj || obj.status !== 'blueprint_proposed') return undefined;
+  const rawBlueprint = (obj as { blueprint?: unknown }).blueprint;
+  const bp =
+    rawBlueprint && typeof rawBlueprint === 'object'
+      ? (rawBlueprint as Record<string, unknown>)
+      : {};
+
+  const objects = (Array.isArray(bp.objects) ? bp.objects : []).flatMap((o) => {
+    const r = o as { name?: unknown; label?: unknown; fields?: unknown };
+    if (typeof r?.name !== 'string' || !r.name) return [];
+    return [
+      {
+        name: r.name,
+        ...(typeof r.label === 'string' && r.label ? { label: r.label } : {}),
+        fieldCount: Array.isArray(r.fields) ? r.fields.length : 0,
+      },
+    ];
+  });
+  // No nameable objects → nothing reviewable; don't render an empty card.
+  if (objects.length === 0) return undefined;
+
+  const num = (v: unknown, fallback: number): number =>
+    typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+  const rawCounts = ((obj as { counts?: unknown }).counts ?? {}) as Record<string, unknown>;
+  const counts = {
+    objects: num(rawCounts.objects, objects.length),
+    views: num(rawCounts.views, Array.isArray(bp.views) ? bp.views.length : 0),
+    dashboards: num(rawCounts.dashboards, Array.isArray(bp.dashboards) ? bp.dashboards.length : 0),
+    seedData: num(rawCounts.seedData, Array.isArray(bp.seedData) ? bp.seedData.length : 0),
+  };
+
+  // `questions` ride on the envelope; older shapes carried them on the
+  // blueprint — accept either.
+  const questions = nonEmptyStrings((obj as { questions?: unknown }).questions);
+  const summary =
+    typeof obj.summary === 'string' && obj.summary
+      ? obj.summary
+      : typeof bp.summary === 'string' && bp.summary
+        ? bp.summary
+        : undefined;
+  const targetApp = (obj as { targetApp?: unknown }).targetApp;
+
+  return {
+    ...(summary ? { summary } : {}),
+    objects,
+    counts,
+    questions: questions.length ? questions : nonEmptyStrings(bp.questions),
+    assumptions: nonEmptyStrings(bp.assumptions),
+    ...(typeof targetApp === 'string' && targetApp ? { targetApp } : {}),
+  };
+}
+
 export function detectDraftResult(result: unknown): DraftReview | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;
@@ -284,6 +368,7 @@ function extractToolInvocations(
       const result = p.output ?? p.result;
       const pending = detectPendingApproval(result);
       const draftReview = detectDraftResult(result);
+      const proposedPlan = detectProposedPlan(result);
       // Promote a dangling `input-*` state to a terminal one so a reloaded
       // conversation never shows "Running" forever (the server doesn't always
       // snapshot the terminal tool state). Two cases:
@@ -315,6 +400,7 @@ function extractToolInvocations(
         state,
         pendingActionId: pending?.pendingActionId,
         draftReview,
+        proposedPlan,
       } satisfies ChatToolInvocation;
     });
 }

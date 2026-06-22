@@ -20,7 +20,7 @@
 import * as React from 'react';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
-import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert, ClipboardList, HelpCircle, Table2 } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -233,6 +233,22 @@ export interface ChatToolInvocation {
      * a short getting-started checklist under the build summary.
      */
     nextSteps?: string[];
+  };
+  /**
+   * ObjectStack extension. `propose_blueprint` returns a PLAN before anything
+   * is staged (`status: 'blueprint_proposed'`). `mapMessages.ts` lifts the
+   * reviewable shape here so chat UIs can render a "Proposed plan" card — the
+   * objects the build will create, the agent's assumptions, and any
+   * structure-deciding questions — and the user can approve or adjust before
+   * `apply_blueprint` runs. Nothing is created yet; this is the confirm gate.
+   */
+  proposedPlan?: {
+    summary?: string;
+    objects: Array<{ name: string; label?: string; fieldCount: number }>;
+    counts: { objects: number; views: number; dashboards: number; seedData: number };
+    questions: string[];
+    assumptions: string[];
+    targetApp?: string;
   };
 }
 
@@ -470,6 +486,14 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   verifiedLabel?: string;
   /** Heading for the post-build "what's next" checklist (default "What's next"). */
   nextStepsLabel?: string;
+  /** Heading for the pre-build proposed-plan card (default "Proposed plan"). */
+  planTitleLabel?: string;
+  /** Heading above the structure-deciding questions in the plan card (default "Confirm before building"). */
+  planQuestionsLabel?: string;
+  /** Heading above the agent's assumptions in the plan card (default "Assumptions"). */
+  planAssumptionsLabel?: string;
+  /** Footer hint inviting the user to approve or adjust the plan (default "Reply to approve or adjust this plan."). */
+  planApproveHintLabel?: string;
   /**
    * Live draft-status resolver: how many drafts are still PENDING in a
    * package (e.g. `GET /metadata/_drafts?packageId=` count). When provided,
@@ -808,6 +832,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       publishedLabel = 'Published',
       verifiedLabel = 'Verified',
       nextStepsLabel = "What's next",
+      planTitleLabel = 'Proposed plan',
+      planQuestionsLabel = 'Confirm before building',
+      planAssumptionsLabel = 'Assumptions',
+      planApproveHintLabel = 'Reply to approve or adjust this plan.',
       fetchPendingDraftCount,
       autoPublishDrafts = false,
       processVisibility = 'summary',
@@ -1137,7 +1165,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           defaultOpen={
             state === 'output-error' ||
             state === 'approval-requested' ||
-            Boolean(tool.draftReview && tool.draftReview.items.length > 0)
+            Boolean(tool.draftReview && tool.draftReview.items.length > 0) ||
+            Boolean(tool.proposedPlan)
           }
         >
           <ToolHeader type={partType} state={state} title={titleNode} />
@@ -1360,6 +1389,94 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                   </div>
                 ) : null}
               </>
+            ) : null}
+            {/* Pre-build "Proposed plan" card — propose_blueprint returns a plan
+                (objects, assumptions, structure-deciding questions) before
+                anything is staged. Surfacing it as a reviewable card (not a bare
+                "Completed" step) gives the user the Airtable-style confirm gate:
+                see what will be built, then approve or adjust. Nothing is live
+                yet. */}
+            {tool.proposedPlan ? (
+              <div
+                className="flex flex-col gap-2 border-t bg-muted/20 px-3 py-2.5"
+                data-testid="proposed-plan"
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                  <ClipboardList className="size-3.5" />
+                  {planTitleLabel}
+                </span>
+                {tool.proposedPlan.summary ? (
+                  <p className="text-xs text-muted-foreground">{tool.proposedPlan.summary}</p>
+                ) : null}
+                {tool.proposedPlan.objects.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {tool.proposedPlan.objects.map((o) => (
+                      <span
+                        key={o.name}
+                        className="inline-flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-[11px] text-foreground/80"
+                        title={o.name}
+                      >
+                        <Table2 className="size-3 text-foreground/40" />
+                        {o.label || o.name}
+                        {o.fieldCount > 0 ? (
+                          <span className="text-foreground/40">· {o.fieldCount}</span>
+                        ) : null}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                {(() => {
+                  const c = tool.proposedPlan!.counts;
+                  const bits: string[] = [];
+                  if (c.objects) bits.push(`${c.objects} object${c.objects === 1 ? '' : 's'}`);
+                  if (c.views) bits.push(`${c.views} view${c.views === 1 ? '' : 's'}`);
+                  if (c.dashboards)
+                    bits.push(`${c.dashboards} dashboard${c.dashboards === 1 ? '' : 's'}`);
+                  if (c.seedData) bits.push('sample data');
+                  return bits.length ? (
+                    <span className="text-[11px] text-muted-foreground">{bits.join(' · ')}</span>
+                  ) : null;
+                })()}
+                {tool.proposedPlan.assumptions.length > 0 ? (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[11px] font-medium text-foreground/70">
+                      {planAssumptionsLabel}
+                    </span>
+                    {tool.proposedPlan.assumptions.map((a, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-1.5 text-[11px] text-muted-foreground"
+                      >
+                        <span className="mt-px shrink-0 text-foreground/40">·</span>
+                        <span>{a}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {tool.proposedPlan.questions.length > 0 ? (
+                  <div
+                    className="flex flex-col gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-900/50 dark:bg-amber-950/30"
+                    data-testid="proposed-plan-questions"
+                  >
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                      <HelpCircle className="size-3.5" />
+                      {planQuestionsLabel}
+                    </span>
+                    {tool.proposedPlan.questions.map((q, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-1.5 text-[11px] text-amber-900/90 dark:text-amber-200/90"
+                      >
+                        <span className="mt-px shrink-0">?</span>
+                        <span>{q}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <span className="text-[11px] italic text-muted-foreground/80">
+                  {planApproveHintLabel}
+                </span>
+              </div>
             ) : null}
           </ToolContent>
         </Tool>

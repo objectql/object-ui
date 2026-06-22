@@ -11,6 +11,7 @@ import {
   uiMessageToChatMessage,
   uiMessagesToChatMessages,
   detectDraftResult,
+  detectProposedPlan,
   buildProgressFromDraftReview,
 } from '../mapMessages';
 
@@ -341,6 +342,99 @@ describe('draftReview detection (ADR-0033)', () => {
   it('omits the issues key entirely when there are none (no envelope churn)', () => {
     const dr = draftReviewOf({ status: 'drafted', type: 'view', name: 'grid_v' });
     expect(dr).toEqual({ items: [{ type: 'view', name: 'grid_v' }] });
+  });
+});
+
+// propose_blueprint returns a PLAN before anything is staged. The chat surfaces
+// it as a reviewable "Proposed plan" card (the confirm gate), so detection must
+// lift the objects, counts, assumptions, and structure-deciding questions.
+describe('proposedPlan detection (propose_blueprint)', () => {
+  const fullEnvelope = {
+    status: 'blueprint_proposed',
+    summary: 'A lightweight applicant tracker',
+    counts: { objects: 2, views: 3, dashboards: 1, seedData: 2 },
+    questions: ['Track interviews as a separate object, or as a stage field?'],
+    blueprint: {
+      summary: 'A lightweight applicant tracker',
+      assumptions: ['One pipeline for all roles', 'No external job-board sync'],
+      objects: [
+        { name: 'candidate', label: 'Candidate', fields: [{ name: 'full_name' }, { name: 'stage' }] },
+        { name: 'job', label: 'Job', fields: [{ name: 'title' }] },
+      ],
+      views: [{ name: 'pipeline' }, { name: 'all' }, { name: 'archived' }],
+      questions: ['ignored — envelope questions win'],
+    },
+  };
+
+  it('lifts the plan shape (objects, counts, assumptions, questions) from the envelope', () => {
+    const plan = detectProposedPlan(fullEnvelope);
+    expect(plan).toEqual({
+      summary: 'A lightweight applicant tracker',
+      objects: [
+        { name: 'candidate', label: 'Candidate', fieldCount: 2 },
+        { name: 'job', label: 'Job', fieldCount: 1 },
+      ],
+      counts: { objects: 2, views: 3, dashboards: 1, seedData: 2 },
+      questions: ['Track interviews as a separate object, or as a stage field?'],
+      assumptions: ['One pipeline for all roles', 'No external job-board sync'],
+    });
+  });
+
+  it('parses a JSON-string result (what the tool actually returns) and wires onto the tool invocation', () => {
+    const msg = uiMessageToChatMessage({
+      id: 'm',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-propose_blueprint',
+          toolCallId: 'p1',
+          state: 'output-available' as const,
+          input: {},
+          output: JSON.stringify(fullEnvelope),
+        },
+      ],
+    });
+    expect(msg.toolInvocations?.[0]?.proposedPlan?.objects).toEqual([
+      { name: 'candidate', label: 'Candidate', fieldCount: 2 },
+      { name: 'job', label: 'Job', fieldCount: 1 },
+    ]);
+  });
+
+  it('derives counts from the blueprint when the envelope omits them, and drops malformed objects', () => {
+    const plan = detectProposedPlan({
+      status: 'blueprint_proposed',
+      blueprint: {
+        objects: [
+          { name: 'task', fields: [{ name: 'title' }] },
+          { label: 'no name → dropped' },
+          { name: 'note' }, // no fields → fieldCount 0
+        ],
+        views: [{ name: 'board' }],
+      },
+    });
+    expect(plan?.objects).toEqual([
+      { name: 'task', fieldCount: 1 },
+      { name: 'note', fieldCount: 0 },
+    ]);
+    expect(plan?.counts).toEqual({ objects: 2, views: 1, dashboards: 0, seedData: 0 });
+    expect(plan?.questions).toEqual([]);
+    expect(plan?.assumptions).toEqual([]);
+  });
+
+  it('surfaces the extend-mode targetApp', () => {
+    const plan = detectProposedPlan({
+      status: 'blueprint_proposed',
+      targetApp: 'recruiting',
+      blueprint: { objects: [{ name: 'offer', fields: [] }] },
+    });
+    expect(plan?.targetApp).toBe('recruiting');
+  });
+
+  it('returns undefined for non-proposal statuses and proposals with no nameable objects', () => {
+    expect(detectProposedPlan({ status: 'drafted', type: 'object', name: 'x' })).toBeUndefined();
+    expect(detectProposedPlan({ status: 'blueprint_proposed', blueprint: { objects: [] } })).toBeUndefined();
+    expect(detectProposedPlan({ status: 'blueprint_proposed' })).toBeUndefined();
+    expect(detectProposedPlan({ foo: 1 })).toBeUndefined();
   });
 });
 

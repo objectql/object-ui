@@ -128,6 +128,10 @@ function buildChatLocale(
       publishDrafts: '发布',
       published: '已发布',
       nextSteps: '下一步',
+      planTitle: '方案预览',
+      planQuestions: '搭建前请确认',
+      planAssumptions: '假设',
+      planApproveHint: '回复以确认或调整该方案。',
       publishOk: '已发布，对象已生效。',
       publishFailed: '发布失败',
       seedWarn: '已发布，但部分示例数据未能载入。',
@@ -175,6 +179,10 @@ function buildChatLocale(
     publishDrafts: 'Publish',
     published: 'Published',
     nextSteps: "What's next",
+    planTitle: 'Proposed plan',
+    planQuestions: 'Confirm before building',
+    planAssumptions: 'Assumptions',
+    planApproveHint: 'Reply to approve or adjust this plan.',
     publishOk: 'Published — objects are now live.',
     publishFailed: 'Publish failed',
     seedWarn: 'Published, but some sample data failed to load.',
@@ -667,6 +675,10 @@ function ChatbotInner({
         }}
         publishDraftsLabel={locale.publishDrafts}
         nextStepsLabel={locale.nextSteps}
+        planTitleLabel={locale.planTitle}
+        planQuestionsLabel={locale.planQuestions}
+        planAssumptionsLabel={locale.planAssumptions}
+        planApproveHintLabel={locale.planApproveHint}
         publishedLabel={locale.published}
         // Self-use "magic moment": when the plan enables it, auto-publish the
         // drafted app the instant the agent finishes — the success path above

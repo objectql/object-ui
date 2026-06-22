@@ -1161,6 +1161,12 @@ function ChatPane({
         publishDraftsLabel={t('console.ai.publishDrafts', { defaultValue: 'Publish' })}
         publishedLabel={t('console.ai.published', { defaultValue: 'Published' })}
         nextStepsLabel={t('console.ai.nextSteps', { defaultValue: "What's next" })}
+        planTitleLabel={t('console.ai.planTitle', { defaultValue: 'Proposed plan' })}
+        planQuestionsLabel={t('console.ai.planQuestions', { defaultValue: 'Confirm before building' })}
+        planAssumptionsLabel={t('console.ai.planAssumptions', { defaultValue: 'Assumptions' })}
+        planApproveHintLabel={t('console.ai.planApproveHint', {
+          defaultValue: 'Reply to approve or adjust this plan.',
+        })}
         // Self-use "magic moment": when the plan enables it, publish the drafted
         // app automatically the moment the agent finishes — no manual click; the
         // user refreshes and sees it live WITH data. Same governed endpoint.
