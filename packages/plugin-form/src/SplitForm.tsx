@@ -221,6 +221,7 @@ export const SplitForm: React.FC<SplitFormProps> = ({
   // Build base form schema for SchemaRenderer
   const baseFormSchema = {
     type: 'form' as const,
+    objectName: schema.objectName,
     layout: 'vertical' as const,
     defaultValues: formData,
     onSubmit: handleSubmit,

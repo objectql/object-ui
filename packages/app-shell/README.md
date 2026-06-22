@@ -517,6 +517,27 @@ list view and record-picker results set `aria-busy` while fetching and
 `data-state="loading|idle"`, complementing the Radix `data-state` already on
 overlays.
 
+## Field locators (`field:{object}.{field}`)
+
+Generated forms emit a metadata-derived stable locator on every field wrapper, so
+an automated (AI) driver can target a field without relying on i18n-fragile labels
+or positional selectors (ADR-0054 C4). The form renderer derives it from the
+form's `objectName` and each field's name — every form (`ObjectForm`, `ModalForm`,
+`DrawerForm`, `SplitForm`, `WizardForm`) inherits it with zero per-app work:
+
+```html
+<div data-testid="field:account.industry" data-field="industry"> … input … </div>
+```
+
+```js
+// e2e / AI driver:
+await page.getByTestId('field:account.industry').locator('input').fill('SaaS');
+```
+
+The object prefix is omitted (`field:{field}`) when a form has no owning object.
+This complements the action/overlay locators already emitted by the renderer
+(`overlay:command-palette`, `action:command-palette:open`, …).
+
 ## Compatibility
 
 - **React:** 18.x or 19.x

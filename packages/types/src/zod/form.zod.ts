@@ -392,6 +392,7 @@ export const FormFieldSchema = z.object({
  */
 export const FormSchema = BaseSchema.extend({
   type: z.literal('form'),
+  objectName: z.string().optional().describe('Owning object name (drives field locators)'),
   fields: z.array(FormFieldSchema).describe('Form fields'),
   defaultValues: z.record(z.string(), z.any()).optional().describe('Default form values'),
   submitLabel: z.string().optional().describe('Submit button label'),

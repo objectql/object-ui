@@ -361,4 +361,31 @@ describe('Form Renderers - Display Issue Detection', () => {
       expect(label?.textContent).toContain('Form Label');
     });
   });
+
+  describe('Field locators (ADR-0054 C4)', () => {
+    it('emits a metadata-derived field:{object}.{field} locator on each field', () => {
+      renderComponent({
+        type: 'form',
+        objectName: 'account',
+        fields: [
+          { name: 'industry', label: 'Industry', type: 'input' },
+          { name: 'annual_revenue', label: 'Annual Revenue', type: 'input' },
+        ],
+      } as any);
+
+      const industry = screen.getByTestId('field:account.industry');
+      expect(industry).toBeInTheDocument();
+      expect(industry.getAttribute('data-field')).toBe('industry');
+      expect(screen.getByTestId('field:account.annual_revenue')).toBeInTheDocument();
+    });
+
+    it('omits the object prefix when the form has no objectName', () => {
+      renderComponent({
+        type: 'form',
+        fields: [{ name: 'email', label: 'Email', type: 'input' }],
+      } as any);
+
+      expect(screen.getByTestId('field:email')).toBeInTheDocument();
+    });
+  });
 });

@@ -314,6 +314,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   // Build base form schema
   const baseFormSchema = {
     type: 'form' as const,
+    objectName: schema.objectName,
     layout: formLayout,
     defaultValues: formData,
     submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),

@@ -623,6 +623,12 @@ ComponentRegistry.register('form',
                   : ''
                   : '';
 
+                // Metadata-derived stable locator (ADR-0054 C4): the renderer
+                // emits it from the object + field name so every generated form
+                // inherits it with zero per-app work. Object prefix omitted when
+                // the form schema has no owning object.
+                const fieldTestId = `field:${schema.objectName ? `${schema.objectName}.` : ''}${name}`;
+
                 return (
                   <FormField
                     key={fieldKey}
@@ -630,7 +636,11 @@ ComponentRegistry.register('form',
                     name={name}
                     rules={rules}
                     render={({ field: formField }) => (
-                      <FormItem className={colSpanClass || undefined}>
+                      <FormItem
+                        className={colSpanClass || undefined}
+                        data-testid={fieldTestId}
+                        data-field={name}
+                      >
                         {label && (
                           <FormLabel className="text-xs sm:text-sm">
                             {label}

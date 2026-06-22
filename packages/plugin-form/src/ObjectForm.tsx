@@ -765,6 +765,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
         <SchemaRenderer
           schema={{
             type: 'form',
+            objectName: schema.objectName,
             fields: groupedFields,
             layout: formLayout,
             defaultValues: finalDefaultValues,
@@ -843,6 +844,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   // Default flat form (no sections)
   const formSchema: FormSchema = {
     type: 'form',
+    objectName: schema.objectName,
     fields: fieldsWithMobile,
     layout: formLayout,
     columns: autoLayoutResult.columns,

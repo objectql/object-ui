@@ -464,6 +464,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                 key={resetNonce}
                 schema={{
                   type: 'form' as const,
+                  objectName: schema.objectName,
                   id: stepFormId,
                   fields: currentSectionFields,
                   layout: 'vertical' as const,

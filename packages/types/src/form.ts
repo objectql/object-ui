@@ -897,6 +897,11 @@ export interface FormField {
 export interface FormSchema extends BaseSchema {
   type: 'form';
   /**
+   * Owning object name. When set, the renderer derives metadata-based field
+   * locators `data-testid="field:{objectName}.{field}"` (ADR-0054 C4).
+   */
+  objectName?: string;
+  /**
    * Form fields configuration
    */
   fields?: FormField[];

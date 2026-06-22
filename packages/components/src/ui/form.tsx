@@ -82,7 +82,7 @@ const FormItemContext = React.createContext<FormItemContextValue | null>(null)
 
 const FormItem = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
+  React.HTMLAttributes<HTMLDivElement> & Record<`data-${string}`, string | undefined>
 >(({ className, ...props }, ref) => {
   const id = React.useId()
 

@@ -385,6 +385,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
 
   const baseFormSchema = {
     type: 'form' as const,
+    objectName: schema.objectName,
     layout: formLayout,
     defaultValues: formData,
     submitLabel,
