@@ -1582,6 +1582,9 @@ export function GanttView({
   // pending timers that toggle it on/off (cleared on re-trigger and unmount).
   const [flashTaskId, setFlashTaskId] = React.useState<string | number | null>(null);
   const flashTimerRef = React.useRef<number[]>([]);
+  // Tears down an in-flight "scroll then flash" wait (scrollend listener + rAF)
+  // when a new locate fires or the view unmounts.
+  const flashCleanupRef = React.useRef<(() => void) | null>(null);
 
   // --- Virtualization ------------------------------------------------------
   // Rows and timeline columns render only what's in (or near) the viewport,
@@ -1728,29 +1731,64 @@ export function GanttView({
       const startX = dateToX(start);
       const endX = dateToX(end);
       const mid = (startX + endX) / 2;
-      el.scrollTo({ left: Math.max(0, mid - el.clientWidth / 2), behavior: 'smooth' });
-      // 闪烁高亮: pulse the located bar so the eye can catch it after the scroll.
-      // Toggle off → on (rAF) restarts the CSS animation when the same row is
-      // clicked repeatedly; auto-clear once the animation has run its course.
-      if (taskId != null) {
-        flashTimerRef.current.forEach((id) => window.clearTimeout(id));
-        flashTimerRef.current = [];
-        setFlashTaskId(null);
-        flashTimerRef.current.push(
-          window.setTimeout(() => setFlashTaskId(taskId), 40),
-        );
-        flashTimerRef.current.push(
-          window.setTimeout(
-            () => setFlashTaskId((cur) => (cur === taskId ? null : cur)),
-            40 + 1400,
-          ),
-        );
+      const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+      const target = Math.max(0, Math.min(mid - el.clientWidth / 2, maxLeft));
+
+      // Tear down any pending flash from a previous click before starting over.
+      flashTimerRef.current.forEach((id) => window.clearTimeout(id));
+      flashTimerRef.current = [];
+      flashCleanupRef.current?.();
+      flashCleanupRef.current = null;
+      setFlashTaskId(null);
+
+      // 闪烁高亮: pulse the bar *after* the scroll lands so the eye catches it
+      // where it settles, not mid-flight. rAF restarts the CSS animation cleanly
+      // even when the same row is located twice; auto-clears when it finishes.
+      const startFlash = () => {
+        if (taskId == null) return;
+        const raf = window.requestAnimationFrame(() => {
+          setFlashTaskId(taskId);
+          flashTimerRef.current.push(
+            window.setTimeout(
+              () => setFlashTaskId((cur) => (cur === taskId ? null : cur)),
+              1400,
+            ),
+          );
+        });
+        flashCleanupRef.current = () => window.cancelAnimationFrame(raf);
+      };
+
+      const needsScroll = Math.abs(el.scrollLeft - target) > 2;
+      el.scrollTo({ left: target, behavior: 'smooth' });
+      if (!needsScroll) {
+        startFlash();
+        return;
       }
+
+      // `scrollend` is the precise "smooth scroll finished" signal and drives
+      // the flash where supported; the timeout only backstops it. When the
+      // browser fires `scrollend` we give it a long leash (a wide chart can
+      // take ~1s to traverse) so the event — not the clock — wins; without it
+      // (older Safari) we fall back to a short, fixed delay.
+      const hasScrollEnd = 'onscrollend' in el;
+      let fired = false;
+      const onEnd = () => {
+        if (fired) return;
+        fired = true;
+        el.removeEventListener('scrollend', onEnd);
+        startFlash();
+      };
+      el.addEventListener('scrollend', onEnd);
+      flashTimerRef.current.push(window.setTimeout(onEnd, hasScrollEnd ? 1500 : 500));
+      flashCleanupRef.current = () => el.removeEventListener('scrollend', onEnd);
     },
     [dateToX],
   );
   React.useEffect(
-    () => () => flashTimerRef.current.forEach((id) => window.clearTimeout(id)),
+    () => () => {
+      flashTimerRef.current.forEach((id) => window.clearTimeout(id));
+      flashCleanupRef.current?.();
+    },
     [],
   );
   const jumpToWeek = React.useCallback(
@@ -2509,7 +2547,7 @@ export function GanttView({
               <div
                 key={task.id}
                 className={cn(
-                  "group/task-row flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors",
+                  "group/task-row relative flex items-center border-b px-2 sm:px-4 hover:bg-accent/50 cursor-pointer transition-colors",
                   isSelected && "bg-accent/50"
                 )}
                 style={{ height: rowHeight, touchAction: 'manipulation' }}
@@ -2637,24 +2675,27 @@ export function GanttView({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    <span className="inline-flex items-center justify-end gap-1">
-                      {row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}
-                      {/* 定位到甘特图: scroll the timeline to center this row's bar. */}
-                      <button
-                        type="button"
-                        title={t('gantt.row.locate')}
-                        aria-label={t('gantt.row.locate')}
-                        className="gantt-locate-btn shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          scrollToTask(row.start, row.end, row.task.id);
-                        }}
-                      >
-                        <Crosshair className="w-3 h-3" />
-                      </button>
-                    </span>
+                    row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
+                {/* 定位到甘特图: scroll the timeline to center this row's bar.
+                    Pinned to the row's right edge (flush with the chart divider)
+                    so it sits in a stable slot and never shifts the date column
+                    on hover. */}
+                {!isEditing && (
+                  <button
+                    type="button"
+                    title={t('gantt.row.locate')}
+                    aria-label={t('gantt.row.locate')}
+                    className="gantt-locate-btn hidden sm:block absolute right-1 top-1/2 -translate-y-1/2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scrollToTask(row.start, row.end, row.task.id);
+                    }}
+                  >
+                    <Crosshair className="w-3 h-3" />
+                  </button>
+                )}
                 {/* Row actions removed: View / Edit / Delete are reachable
                     from the side drawer that opens on row click (DetailView
                     has inline-edit + a delete in its more-actions menu).
