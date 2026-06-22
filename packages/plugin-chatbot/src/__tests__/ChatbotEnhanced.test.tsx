@@ -76,6 +76,64 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText(/Track loans separately/)).toBeInTheDocument();
   });
 
+  const planMessage = (questions: string[]): ChatMessage[] => [
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      toolInvocations: [
+        {
+          toolCallId: 't1',
+          toolName: 'propose_blueprint',
+          state: 'output-available',
+          proposedPlan: {
+            summary: 'A reading list',
+            objects: [{ name: 'book', label: 'Book', fieldCount: 2 }],
+            counts: { objects: 1, views: 0, dashboards: 0, seedData: 0 },
+            questions,
+            assumptions: ['One shelf for now'],
+          },
+        },
+      ],
+    },
+  ];
+
+  it('"Build it" on a plan with open questions approves with the accept-defaults message', () => {
+    const onSendMessage = vi.fn();
+    render(
+      <ChatbotEnhanced
+        messages={planMessage(['Track loans separately?'])}
+        onSendMessage={onSendMessage}
+        planApproveMessage="APPROVE_PLAIN"
+        planApproveDefaultsMessage="APPROVE_DEFAULTS"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('proposed-plan-approve'));
+    // Open questions → the click must authorize defaults, not silently drop them.
+    expect(onSendMessage).toHaveBeenCalledWith('APPROVE_DEFAULTS');
+  });
+
+  it('"Build it" on a plan with no open questions approves with the plain message', () => {
+    const onSendMessage = vi.fn();
+    render(
+      <ChatbotEnhanced
+        messages={planMessage([])}
+        onSendMessage={onSendMessage}
+        planApproveMessage="APPROVE_PLAIN"
+        planApproveDefaultsMessage="APPROVE_DEFAULTS"
+      />,
+    );
+    expect(screen.queryByTestId('proposed-plan-questions')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('proposed-plan-approve'));
+    expect(onSendMessage).toHaveBeenCalledWith('APPROVE_PLAIN');
+  });
+
+  it('falls back to the static hint (no action buttons) when message sending is not wired', () => {
+    render(<ChatbotEnhanced messages={planMessage([])} planApproveHintLabel="HINT_TEXT" />);
+    expect(screen.queryByTestId('proposed-plan-actions')).not.toBeInTheDocument();
+    expect(screen.getByText('HINT_TEXT')).toBeInTheDocument();
+  });
+
   it('shows an error banner with a retry affordance', () => {
     const onReload = vi.fn();
     render(

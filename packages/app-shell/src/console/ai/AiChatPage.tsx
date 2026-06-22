@@ -1190,6 +1190,14 @@ function ChatPane({
         planApproveHintLabel={t('console.ai.planApproveHint', {
           defaultValue: 'Reply to approve or adjust this plan.',
         })}
+        planApproveLabel={t('console.ai.planApprove', { defaultValue: 'Build it' })}
+        planAdjustLabel={t('console.ai.planAdjust', { defaultValue: 'Adjust' })}
+        planApproveMessage={t('console.ai.planApproveMessage', {
+          defaultValue: 'Looks good — build it as proposed.',
+        })}
+        planApproveDefaultsMessage={t('console.ai.planApproveDefaultsMessage', {
+          defaultValue: 'Build it with your best assumptions; use sensible defaults for the open questions.',
+        })}
         // Self-use "magic moment": when the plan enables it, publish the drafted
         // app automatically the moment the agent finishes — no manual click; the
         // user refreshes and sees it live WITH data. Same governed endpoint.

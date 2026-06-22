@@ -132,6 +132,10 @@ function buildChatLocale(
       planQuestions: '搭建前请确认',
       planAssumptions: '假设',
       planApproveHint: '回复以确认或调整该方案。',
+      planApprove: '开始搭建',
+      planAdjust: '调整方案',
+      planApproveMessage: '就按这个方案搭建吧。',
+      planApproveDefaultsMessage: '就按你的合理假设直接搭建，未决问题用默认即可。',
       publishOk: '已发布，对象已生效。',
       publishFailed: '发布失败',
       seedWarn: '已发布，但部分示例数据未能载入。',
@@ -183,6 +187,10 @@ function buildChatLocale(
     planQuestions: 'Confirm before building',
     planAssumptions: 'Assumptions',
     planApproveHint: 'Reply to approve or adjust this plan.',
+    planApprove: 'Build it',
+    planAdjust: 'Adjust',
+    planApproveMessage: 'Looks good — build it as proposed.',
+    planApproveDefaultsMessage: 'Build it with your best assumptions; use sensible defaults for the open questions.',
     publishOk: 'Published — objects are now live.',
     publishFailed: 'Publish failed',
     seedWarn: 'Published, but some sample data failed to load.',
@@ -679,6 +687,10 @@ function ChatbotInner({
         planQuestionsLabel={locale.planQuestions}
         planAssumptionsLabel={locale.planAssumptions}
         planApproveHintLabel={locale.planApproveHint}
+        planApproveLabel={locale.planApprove}
+        planAdjustLabel={locale.planAdjust}
+        planApproveMessage={locale.planApproveMessage}
+        planApproveDefaultsMessage={locale.planApproveDefaultsMessage}
         publishedLabel={locale.published}
         // Self-use "magic moment": when the plan enables it, auto-publish the
         // drafted app the instant the agent finishes — the success path above

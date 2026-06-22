@@ -492,8 +492,16 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   planQuestionsLabel?: string;
   /** Heading above the agent's assumptions in the plan card (default "Assumptions"). */
   planAssumptionsLabel?: string;
-  /** Footer hint inviting the user to approve or adjust the plan (default "Reply to approve or adjust this plan."). */
+  /** Footer hint inviting the user to approve or adjust the plan (default "Reply to approve or adjust this plan."). Shown only when `onSendMessage` is absent (no one-click gate). */
   planApproveHintLabel?: string;
+  /** Label for the plan card's primary one-click "build it" button (default "Build it"). */
+  planApproveLabel?: string;
+  /** Label for the plan card's secondary "adjust" button, which focuses the chat input (default "Adjust"). */
+  planAdjustLabel?: string;
+  /** Message sent when the user approves a plan with no open questions (default "Looks good — build it as proposed."). */
+  planApproveMessage?: string;
+  /** Message sent when the user approves a plan that still has open questions — tells the agent to proceed on sensible defaults (default "Build it with your best assumptions; use sensible defaults for the open questions."). */
+  planApproveDefaultsMessage?: string;
   /**
    * Live draft-status resolver: how many drafts are still PENDING in a
    * package (e.g. `GET /metadata/_drafts?packageId=` count). When provided,
@@ -839,6 +847,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planQuestionsLabel = 'Confirm before building',
       planAssumptionsLabel = 'Assumptions',
       planApproveHintLabel = 'Reply to approve or adjust this plan.',
+      planApproveLabel = 'Build it',
+      planAdjustLabel = 'Adjust',
+      planApproveMessage = 'Looks good — build it as proposed.',
+      planApproveDefaultsMessage = 'Build it with your best assumptions; use sensible defaults for the open questions.',
       fetchPendingDraftCount,
       autoPublishDrafts = false,
       processVisibility = 'summary',
@@ -1103,6 +1115,28 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       },
       [onSendMessage]
     );
+
+    // The "Proposed plan" card's one-click confirm gate. Approving sends a plain
+    // chat message — the same channel the user would type into — so the agent
+    // proceeds to apply_blueprint. When the plan still carries open questions,
+    // approval explicitly authorizes sensible defaults so a click never silently
+    // drops them.
+    const promptInputWrapRef = React.useRef<HTMLDivElement>(null);
+    const handlePlanApprove = React.useCallback(
+      (hasOpenQuestions: boolean) => {
+        onSendMessage?.(hasOpenQuestions ? planApproveDefaultsMessage : planApproveMessage);
+      },
+      [onSendMessage, planApproveMessage, planApproveDefaultsMessage]
+    );
+    // "Adjust" doesn't send anything — it just drops the cursor into the input so
+    // the user can describe the change in their own words.
+    const handlePlanAdjust = React.useCallback(() => {
+      const textarea = promptInputWrapRef.current?.querySelector('textarea');
+      if (textarea) {
+        textarea.focus();
+        textarea.scrollIntoView({ block: 'nearest' });
+      }
+    }, []);
 
     const handleCopy = React.useCallback((message: ChatMessage) => {
       void navigator.clipboard?.writeText(message.content);
@@ -1476,9 +1510,40 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     ))}
                   </div>
                 ) : null}
-                <span className="text-[11px] italic text-muted-foreground/80">
-                  {planApproveHintLabel}
-                </span>
+                {/* One-click confirm gate: "Build it" sends an approval message
+                    (accepting defaults when questions remain), "Adjust" focuses
+                    the input so the user types changes. Falls back to a text hint
+                    when the host hasn't wired message sending. */}
+                {onSendMessage ? (
+                  <div
+                    className="flex flex-wrap items-center gap-1.5 pt-0.5"
+                    data-testid="proposed-plan-actions"
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handlePlanApprove(tool.proposedPlan!.questions.length > 0)
+                      }
+                      className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                      data-testid="proposed-plan-approve"
+                    >
+                      <Rocket className="size-3.5" />
+                      {planApproveLabel}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePlanAdjust}
+                      className="inline-flex h-7 items-center rounded-md border bg-background px-3 text-xs font-medium hover:bg-accent"
+                      data-testid="proposed-plan-adjust"
+                    >
+                      {planAdjustLabel}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] italic text-muted-foreground/80">
+                    {planApproveHintLabel}
+                  </span>
+                )}
               </div>
             ) : null}
           </ToolContent>
@@ -1766,6 +1831,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         ) : null}
 
         <div
+          ref={promptInputWrapRef}
           className={cn(
             'relative',
             isPlainSurface && 'mx-auto w-full max-w-2xl px-4 pb-4 sm:px-0',
