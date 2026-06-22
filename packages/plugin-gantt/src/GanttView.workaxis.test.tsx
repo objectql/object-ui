@@ -23,7 +23,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
 });
 
-const COLUMN_WIDTH = 60;
+const COLUMN_WIDTH = 80;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // June 2024 (local): 1=Sat, 2=Sun, 3=Mon … 7=Fri, 8=Sat, 9=Sun, 10=Mon.

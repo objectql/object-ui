@@ -47,9 +47,9 @@ const COLUMN_WIDTH = 100; // Time column width
  * checks so the Gantt adapts to whatever slot it sits in (cards, sidebars, popups…).
  */
 function columnWidthForContainer(width: number) {
-  if (width < 640) return 35;
-  if (width < 1024) return 50;
-  return 60;
+  if (width < 640) return 44;
+  if (width < 1024) return 64;
+  return 80;
 }
 
 function taskListWidthForContainer(width: number) {
@@ -3434,17 +3434,26 @@ export function GanttView({
                           return (
                             <div
                               key={end}
-                              // Enlarged transparent hit area; the circle is centred
-                              // inside it. Touches the bar edge (no gap) so the row
-                              // hover stays unbroken when the pointer moves onto it.
-                              className="absolute top-1/2 -translate-y-1/2 z-20 flex items-center justify-center transition-opacity"
+                              // The visible circle sits OUT from the bar end with a
+                              // comfortable gap (dhtmlx-style) so it reads as its own
+                              // affordance, not crammed against the bar. But the
+                              // transparent hit area is wider and BRIDGES back to the
+                              // bar edge: it overlays z-20 above the dependency line's
+                              // hit-stroke (z-10) that can occupy that gap, and it
+                              // keeps the pointer inside the row's subtree the whole
+                              // way out — so crossing the gap never drops the hover and
+                              // the dot can be grabbed anywhere along the bridge.
+                              className="absolute top-1/2 -translate-y-1/2 z-20 flex items-center transition-opacity"
                               style={{
-                                [end === 'start' ? 'left' : 'right']: -18,
-                                height: 20,
-                                width: 20,
+                                [end === 'start' ? 'left' : 'right']: -28,
+                                height: 24,
+                                width: 30,
                                 cursor: 'crosshair',
                                 opacity: visible ? 1 : 0,
                                 pointerEvents: grabbable ? 'auto' : 'none',
+                                justifyContent: end === 'start' ? 'flex-start' : 'flex-end',
+                                paddingLeft: end === 'start' ? 4 : 0,
+                                paddingRight: end === 'end' ? 4 : 0,
                               }}
                               data-testid={`gantt-link-dot-${end}-${task.id}`}
                               onPointerDown={(e) => {

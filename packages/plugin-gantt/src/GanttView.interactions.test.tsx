@@ -2,7 +2,7 @@
  * Phase 4 interaction tests: progress drag handle, hover tooltip, context
  * menu, keyboard navigation, drag-to-create dependency, row reorder.
  *
- * Conventions match the links/tree tests: innerWidth=1280 → columnWidth 60,
+ * Conventions match the links/tree tests: innerWidth=1280 → columnWidth 80,
  * rowHeight 40; geometry asserted via inline styles (timezone-safe); window
  * pointer events dispatched inside act().
  */
@@ -61,10 +61,10 @@ describe('GanttView progress drag handle', () => {
     const handle = container.querySelector('[data-testid="gantt-progress-handle-a"]') as HTMLElement;
     expect(handle).toBeTruthy();
 
-    // Bar is 10 days * 60px = 600px wide; +120px = +20% → 70.
+    // Bar is 10 days * 80px = 800px wide; +160px = +20% → 70.
     fireEvent.pointerDown(handle, { button: 0, clientX: 300, clientY: 100 });
-    act(() => { window.dispatchEvent(pointer('pointermove', 420)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 420)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 460)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 460)); });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
     const [task, changes] = onTaskUpdate.mock.calls[0];
@@ -399,14 +399,14 @@ describe('GanttView drag conflict reschedule (拖拽冲突校验 + 顺延确认)
     }),
   ];
 
-  // Drag a task bar horizontally by whole day-columns (columnWidth=60 at
+  // Drag a task bar horizontally by whole day-columns (columnWidth=80 at
   // innerWidth=1280). Positive = later, negative = earlier.
   function dragBar(container: HTMLElement, id: string, deltaCols: number) {
     const bar = container.querySelector(`[data-testid="gantt-task-bar-${id}"]`) as HTMLElement;
     const originX = 800;
     fireEvent.pointerDown(bar, { button: 0, clientX: originX, clientY: 100 });
-    act(() => { window.dispatchEvent(pointer('pointermove', originX + deltaCols * 60, 100)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', originX + deltaCols * 60, 100)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', originX + deltaCols * 80, 100)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', originX + deltaCols * 80, 100)); });
   }
 
   it('dragging a successor before its predecessor finishes prompts 顺延 confirmation', () => {

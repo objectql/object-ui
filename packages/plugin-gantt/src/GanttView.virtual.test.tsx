@@ -1,7 +1,7 @@
 /**
  * Phase 5 tests: row/column virtualization, fullscreen toggle, custom markers.
  *
- * Conventions match the other suites: innerWidth=1280 → columnWidth 60,
+ * Conventions match the other suites: innerWidth=1280 → columnWidth 80,
  * rowHeight 40. jsdom reports clientWidth/Height of 0, so GanttView falls
  * back to a 4000×600 virtual viewport — large enough that the small fixtures
  * in the other suites render fully, small enough that big fixtures window.

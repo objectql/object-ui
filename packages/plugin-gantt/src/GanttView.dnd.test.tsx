@@ -13,7 +13,7 @@ import { render, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GanttView, type GanttTask } from './GanttView';
 
-// Force the container width to >=1024 so columnWidth=60 (deterministic).
+// Force the container width to >=1024 so columnWidth=80 (deterministic).
 beforeEach(() => {
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
 });
@@ -68,15 +68,15 @@ describe('GanttView drag-and-drop', () => {
     const bar = container.querySelector('[data-testid="gantt-task-bar-t1"]') as HTMLElement;
     expect(bar).toBeTruthy();
 
-    // columnWidth at width>=1024 = 60. Drag +180px → +3 days.
+    // columnWidth at width>=1024 = 80. Drag +240px → +3 days.
     act(() => {
       bar.dispatchEvent(pointer('pointerdown', 500));
     });
     act(() => {
-      window.dispatchEvent(pointer('pointermove', 680));
+      window.dispatchEvent(pointer('pointermove', 740));
     });
     act(() => {
-      window.dispatchEvent(pointer('pointerup', 680));
+      window.dispatchEvent(pointer('pointerup', 740));
     });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
@@ -111,12 +111,12 @@ describe('GanttView drag-and-drop', () => {
     expect(handle).toBeTruthy();
 
     act(() => { handle.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 380)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 380)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 340)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 340)); });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
     const [, changes] = onTaskUpdate.mock.calls[0];
-    // start shifted -120px / 60 = -2 days
+    // start shifted -160px / 80 = -2 days
     expect(changes.start.toISOString()).toBe('2024-06-08T00:00:00.000Z');
     // end unchanged
     expect(changes.end.toISOString()).toBe('2024-06-15T00:00:00.000Z');
@@ -143,7 +143,7 @@ describe('GanttView drag-and-drop', () => {
     const { container } = renderView(onTaskUpdate);
     const bar = container.querySelector('[data-testid="gantt-task-bar-t1"]') as HTMLElement;
     act(() => { bar.dispatchEvent(pointer('pointerdown', 500)); });
-    // Move <30px — rounds to 0 days at columnWidth=60.
+    // Move <30px — rounds to 0 days at columnWidth=80.
     act(() => { window.dispatchEvent(pointer('pointermove', 510)); });
     act(() => { window.dispatchEvent(pointer('pointerup', 510)); });
     expect(onTaskUpdate).not.toHaveBeenCalled();
@@ -249,10 +249,10 @@ describe('GanttView summary group drag', () => {
     const bracket = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
     expect(bracket).toBeTruthy();
 
-    // +120px → +2 days at columnWidth 60.
+    // +160px → +2 days at columnWidth 80.
     act(() => { bracket.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 620)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 620)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 660)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 660)); });
 
     // Summary + c1 + c2 + grandchild — one update each, all shifted +2 days
     // with durations preserved.
@@ -307,11 +307,11 @@ describe('GanttView summary group drag', () => {
       width: parseFloat(bracket().style.width),
     };
 
-    // Drag c2 (the latest child) +180px → +3 days past the parent's end.
+    // Drag c2 (the latest child) +240px → +3 days past the parent's end.
     const bar = container.querySelector('[data-testid="gantt-task-bar-c2"]') as HTMLElement;
     act(() => { bar.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 680)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 680)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 740)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 740)); });
 
     const after = {
       left: parseFloat(bracket().style.left),
@@ -319,6 +319,6 @@ describe('GanttView summary group drag', () => {
     };
     // Parent start is still c1's start; parent end follows c2 → +3 days wider.
     expect(after.left).toBeCloseTo(before.left, 0);
-    expect(after.width).toBeCloseTo(before.width + 3 * 60, 0);
+    expect(after.width).toBeCloseTo(before.width + 3 * 80, 0);
   });
 });
