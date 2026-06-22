@@ -329,6 +329,8 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
       "parentField": "parent_id",
       "dependenciesField": "depends_on",
       "typeField": "item_type",
+      "lockField": "is_locked",
+      "defaultCollapsedDepth": 2,
       "colorField": "status",
       "baselineStartField": "planned_start",
       "baselineEndField": "planned_end",
@@ -355,7 +357,8 @@ When pages need heavy widgets (grids, forms, kanbans, charts), import the plugin
 `titleField` / `startDateField` / `endDateField` are required; the rest are
 optional. `parentField` builds the summary tree (parents roll up their
 children's span + weighted progress), `typeField` distinguishes
-`task` / `summary` / `milestone`, `dependenciesField` draws the dependency
+`task` / `summary` (alias `project` / `phase`) / `milestone` / `group`
+(alias `folder`), `dependenciesField` draws the dependency
 arrows (accepts CSV, an id array, or `[{ id, type: 'fs'|'ss'|'ff'|'sf' }]`).
 Setting `dependenciesField` also makes links **editable** (unless `readOnly`):
 drag a bar's connector dot to create a FS link, right-click a link to switch its
@@ -375,6 +378,15 @@ baseline strip under each bar. `groupByField` swimlanes the rows by any field
 bucket). `assigneeField` / `effortField` configure the **resource / workload
 view** (see below). The gantt field config may also be hoisted to top-level
 `props` instead of nesting under `gantt`.
+
+**Multi-level trees (无条分组层 / 默认折叠 / 仅查看)** — for deep hierarchies like
+项目 → 产品 → 排产计划 → 派工单, drive the shape from data, not hardcoded logic:
+
+| Field mapping (under `gantt`) | Effect |
+|--------|--------|
+| `typeField: "…"` with a `group` (or `folder`) value | Renders that record as a **pure tree header with NO timeline bar** (无条) — expandable/collapsible like a summary but never scheduled. Use for grouping-only levels (项目/产品) that organize rows without their own dates. `summary` (and aliases `project`/`phase`) still render a bar-carrying rollup bracket. |
+| `lockField: "is_locked"` | Marks a row **view-only / 仅查看** when the field is truthy: its bar can't be dragged/resized, progress can't be dragged, no dependency connector dot, and inline-edit + context-menu edit/delete are hidden. **Clicking still works** (open drawer / jump). Independent of `readOnly`, so you can freeze just one level (e.g. 派工单) while siblings stay editable. |
+| `defaultCollapsedDepth: 2` | **Auto-collapse 默认折叠** every tree node at or below this 0-indexed depth that has children, on first render. Roots are depth 0. The user can still expand any of them — this only seeds the initial state. Example: in a 项目(0)→产品(1)→排产计划(2)→派工单(3) tree, `2` starts with every 排产计划 (and its 派工单) folded. Omit to start fully expanded. |
 
 **Top-level display / behavior options** (siblings of `gantt` on `props`, not
 field mappings):
@@ -398,7 +410,10 @@ field mappings):
 The toolbar also carries **navigation** (今天 / 本周 / 本月 jump-to buttons that
 scroll the timeline to the start of today/this-week/this-month) and **export**
 (导出 PNG and a dependency-free single-page 导出 PDF of the whole chart) controls,
-always available regardless of `readOnly`.
+always available regardless of `readOnly`. Each task-list row also has a **定位
+(locate)** icon by its End cell that smooth-scrolls the timeline to center that
+row's bar and pulses it (闪烁) so it's easy to spot after the jump — handy in
+deep/long trees.
 
 Import plugins in your app entry point to trigger registration:
 ```typescript
