@@ -137,7 +137,7 @@ function useNavOrder(appName: string) {
 const getIcon = resolveIcon;
 
 export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: string, onAppChange: (name: string) => void }) {
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const { user, signOut, isAuthEnabled } = useAuth();
   const isWorkspaceAdmin = useIsWorkspaceAdmin();
   const navigate = useNavigate();
@@ -155,7 +155,8 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
     const handleTouchEnd = (e: TouchEvent) => {
       const deltaX = e.changedTouches[0].clientX - touchStartX;
       if (touchStartX < EDGE_THRESHOLD && deltaX > SWIPE_DISTANCE && isMobile) {
-        document.querySelector('[data-sidebar="trigger"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        // Idempotent direct open (ADR-0054 C1) — no synthetic click dispatch.
+        setOpenMobile(true);
       }
     };
     document.addEventListener('touchstart', handleTouchStart, { passive: true });
@@ -164,7 +165,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isMobile]);
+  }, [isMobile, setOpenMobile]);
 
   const { recentItems } = useRecentItems();
   const { favorites, removeFavorite } = useFavorites();

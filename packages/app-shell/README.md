@@ -538,6 +538,21 @@ The object prefix is omitted (`field:{field}`) when a form has no owning object.
 This complements the action/overlay locators already emitted by the renderer
 (`overlay:command-palette`, `action:command-palette:open`, …).
 
+## Testability ratchet
+
+The invariants above are kept from regressing (ADR-0054 Phase 5, "counts can only
+go down"):
+
+- A conformance test (runs in the gating `pnpm test` job) fails the build if a new
+  **synthetic-event trigger** (`el.dispatchEvent(new KeyboardEvent/MouseEvent/
+  PointerEvent …)`) is introduced anywhere in `packages/*/src` or `apps/*/src`.
+  Legitimate `CustomEvent` / `PopStateEvent` dispatch (event bus / history nudge)
+  is allowed. Replace a synthetic trigger with a direct, idempotent command
+  (`useCommandPalette` / `useUrlOverlay`).
+- A matching ESLint rule `object-ui/no-synthetic-event-trigger` flags the same
+  pattern in-editor (the repo `Lint` workflow is manual, so the test is the CI
+  gate).
+
 ## Compatibility
 
 - **React:** 18.x or 19.x

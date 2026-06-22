@@ -117,6 +117,8 @@ invariants and a rollout.
 
 ## Phasing (each an independent, browser-verified PR)
 
+> **Rollout status (2026-06):** all five phases shipped — Phase 1 (#1879), Phase 2 (#1882), Phase 3 (#1883), Phase 4 (#1887), Phase 5 (ratchet).
+
 This ADR + the audit land first as docs. Implementation is then incremental — each phase
 is shippable and browser-verified on its own:
 

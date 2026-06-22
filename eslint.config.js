@@ -11,6 +11,7 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
+import objectUi from './eslint-rules/index.js'
 
 export default tseslint.config({ ignores: ['**/dist', '**/.next', '**/node_modules', '**/public'] }, {
   extends: [js.configs.recommended, ...tseslint.configs.recommended],
@@ -22,6 +23,7 @@ export default tseslint.config({ ignores: ['**/dist', '**/.next', '**/node_modul
   plugins: {
     'react-hooks': reactHooks,
     'react-refresh': reactRefresh,
+    'object-ui': objectUi,
   },
   rules: {
     ...reactHooks.configs.recommended.rules,
@@ -37,5 +39,9 @@ export default tseslint.config({ ignores: ['**/dist', '**/.next', '**/node_modul
     'react-hooks/set-state-in-effect': 'warn',
     'react-hooks/preserve-manual-memoization': 'warn',
     'react-hooks/use-memo': 'warn',
+    // ADR-0054 Phase 5 ratchet — ban synthetic-event triggers (C1). Error so a
+    // new violation fails CI; the existing surfaces were converted to direct
+    // idempotent commands first, so this lints clean today.
+    'object-ui/no-synthetic-event-trigger': 'error',
   },
 });
