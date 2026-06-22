@@ -236,6 +236,9 @@ importers:
       '@object-ui/plugin-timeline':
         specifier: workspace:*
         version: link:../../packages/plugin-timeline
+      '@object-ui/plugin-tree':
+        specifier: workspace:*
+        version: link:../../packages/plugin-tree
       '@object-ui/plugin-view':
         specifier: workspace:*
         version: link:../../packages/plugin-view
@@ -2283,6 +2286,52 @@ importers:
       '@object-ui/data-objectstack':
         specifier: workspace:*
         version: link:../data-objectstack
+      '@types/react':
+        specifier: 19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.2
+        version: 6.0.2(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite-plugin-dts:
+        specifier: ^5.0.2
+        version: 5.0.2(@microsoft/api-extractor@7.58.2(@types/node@25.9.3))(esbuild@0.28.1)(rolldown@1.0.3)(rollup@4.61.1)(typescript@6.0.3)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/plugin-tree:
+    dependencies:
+      '@object-ui/components':
+        specifier: workspace:*
+        version: link:../components
+      '@object-ui/core':
+        specifier: workspace:*
+        version: link:../core
+      '@object-ui/react':
+        specifier: workspace:*
+        version: link:../react
+      '@object-ui/types':
+        specifier: workspace:*
+        version: link:../types
+      '@objectstack/spec':
+        specifier: ^9.5.1
+        version: 9.5.1(ai@6.0.205(zod@4.4.3))
+      lucide-react:
+        specifier: ^1.18.0
+        version: 1.18.0(react@19.2.7)
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
       '@types/react':
         specifier: 19.2.17
         version: 19.2.17

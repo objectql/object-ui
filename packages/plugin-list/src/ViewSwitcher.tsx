@@ -17,6 +17,7 @@ import {
   GanttChartSquare, // gantt
   Map,        // map
   BarChart3,  // chart
+  ListTree,   // tree
   Check,
   ChevronDown,
 } from 'lucide-react';
@@ -29,7 +30,8 @@ export type ViewType =
   | 'timeline'
   | 'gantt'
   | 'map'
-  | 'chart';
+  | 'chart'
+  | 'tree';
 
 export interface ViewSwitcherProps {
   currentView: ViewType;
@@ -49,6 +51,7 @@ const VIEW_ICONS: Record<ViewType, React.ReactNode> = {
   gantt: <GanttChartSquare className="h-4 w-4" />,
   map: <Map className="h-4 w-4" />,
   chart: <BarChart3 className="h-4 w-4" />,
+  tree: <ListTree className="h-4 w-4" />,
 };
 
 const VIEW_LABELS: Record<ViewType, string> = {
@@ -60,6 +63,7 @@ const VIEW_LABELS: Record<ViewType, string> = {
   gantt: 'Gantt',
   map: 'Map',
   chart: 'Chart',
+  tree: 'Tree',
 };
 
 /**

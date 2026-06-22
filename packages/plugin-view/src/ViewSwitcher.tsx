@@ -32,6 +32,7 @@ import {
   LayoutGrid,
   List,
   Map,
+  ListTree,
   Plus,
   Share2,
   Settings,
@@ -63,6 +64,7 @@ const DEFAULT_VIEW_LABELS: Record<ViewType, string> = {
   map: 'Map',
   gallery: 'Gallery',
   gantt: 'Gantt',
+  tree: 'Tree',
 };
 
 const DEFAULT_VIEW_ICONS: Record<ViewType, LucideIcon> = {
@@ -75,6 +77,7 @@ const DEFAULT_VIEW_ICONS: Record<ViewType, LucideIcon> = {
   map: Map,
   gallery: Images,
   gantt: GanttChartSquare,
+  tree: ListTree,
 };
 
 const viewSwitcherLayout = cva('flex gap-4', {

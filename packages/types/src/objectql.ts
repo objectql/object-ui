@@ -1959,6 +1959,31 @@ export interface ObjectMapSchema extends BaseSchema {
 }
 
 /**
+ * Object Tree (tree-grid) Component Schema
+ *
+ * Renders a self-referencing object as an indented, expand/collapse tree-grid.
+ * Flat records are nested via a single-parent pointer field (`parentField`).
+ */
+export interface ObjectTreeSchema extends BaseSchema {
+  type: 'object-tree';
+  /** ObjectQL object name */
+  objectName: string;
+  /**
+   * Field holding the parent record reference (single-parent pointer).
+   * When omitted, the renderer auto-detects the object's `tree`/self-reference field.
+   */
+  parentField?: string;
+  /** Field rendered (indented) in the tree's first column. Defaults to `name`. */
+  labelField?: string;
+  /** Additional fields rendered as flat columns alongside the label. */
+  fields?: string[];
+  /**
+   * Default expansion depth (0 = roots only). When omitted, all nodes expand.
+   */
+  defaultExpandedDepth?: number;
+}
+
+/**
  * Object Gantt Component Schema
  */
 export interface ObjectGanttSchema extends BaseSchema {
@@ -2082,6 +2107,7 @@ export type ObjectQLComponentSchema =
   | ObjectFormSchema
   | ObjectViewSchema
   | ObjectMapSchema
+  | ObjectTreeSchema
   | ObjectGanttSchema
   | ObjectCalendarSchema
   | ObjectKanbanSchema

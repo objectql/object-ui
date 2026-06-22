@@ -22,7 +22,7 @@ import { BaseSchema, SchemaNodeSchema } from './base.zod.js';
 /**
  * View Type Schema
  */
-export const ViewTypeSchema = z.enum(['list', 'detail', 'grid', 'kanban', 'calendar', 'timeline', 'map', 'gallery', 'gantt']).describe('View type');
+export const ViewTypeSchema = z.enum(['list', 'detail', 'grid', 'kanban', 'calendar', 'timeline', 'map', 'gallery', 'gantt', 'tree']).describe('View type');
 
 /**
  * Detail View Field Schema

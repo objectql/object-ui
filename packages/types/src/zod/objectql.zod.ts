@@ -389,6 +389,18 @@ export const ObjectMapSchema = BaseSchema.extend({
 });
 
 /**
+ * ObjectTree (tree-grid) Schema
+ */
+export const ObjectTreeSchema = BaseSchema.extend({
+  type: z.literal('object-tree'),
+  objectName: z.string().describe('ObjectQL object name'),
+  parentField: z.string().optional().describe('Single-parent pointer field (auto-detected when omitted)'),
+  labelField: z.string().optional().describe('Field rendered indented in the first column'),
+  fields: z.array(z.string()).optional().describe('Additional flat columns'),
+  defaultExpandedDepth: z.number().optional().describe('Default expansion depth (0 = roots only)'),
+});
+
+/**
  * ObjectGantt Schema
  */
 export const ObjectGanttSchema = BaseSchema.extend({
@@ -463,6 +475,7 @@ export const ObjectQLComponentSchema = z.union([
   ObjectFormSchema,
   ObjectViewSchema,
   ObjectMapSchema,
+  ObjectTreeSchema,
   ObjectGanttSchema,
   ObjectCalendarSchema,
   ObjectKanbanSchema,

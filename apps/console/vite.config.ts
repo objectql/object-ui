@@ -94,6 +94,7 @@ const workspaceAliases: Record<string, string> = {
   '@object-ui/plugin-map': path.resolve(__dirname, '../../packages/plugin-map/src'),
   '@object-ui/plugin-markdown': path.resolve(__dirname, '../../packages/plugin-markdown/src'),
   '@object-ui/plugin-timeline': path.resolve(__dirname, '../../packages/plugin-timeline/src'),
+  '@object-ui/plugin-tree': path.resolve(__dirname, '../../packages/plugin-tree/src'),
   '@object-ui/plugin-view': path.resolve(__dirname, '../../packages/plugin-view/src'),
   '@object-ui/plugin-designer': path.resolve(__dirname, '../../packages/plugin-designer/src'),
 };
@@ -205,6 +206,7 @@ export default defineConfig({
             { name: 'plugin-gantt', test: /[\\/]packages[\\/]plugin-gantt[\\/]/, priority: 70 },
             { name: 'plugin-markdown', test: /[\\/]packages[\\/]plugin-markdown[\\/]/, priority: 70 },
             { name: 'plugin-timeline', test: /[\\/]packages[\\/]plugin-timeline[\\/]/, priority: 70 },
+            { name: 'plugin-tree', test: /[\\/]packages[\\/]plugin-tree[\\/]/, priority: 70 },
             { name: 'plugin-calendar', test: /[\\/]packages[\\/]plugin-calendar[\\/]/, priority: 70 },
             { name: 'plugin-kanban', test: /[\\/]packages[\\/]plugin-kanban[\\/]/, priority: 70 },
             { name: 'plugin-chatbot', test: /[\\/]packages[\\/]plugin-chatbot[\\/]/, priority: 70 },

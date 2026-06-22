@@ -756,6 +756,19 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           locationField: viewOptions.map?.locationField || 'location',
           ...(viewOptions.map || {}),
         };
+      case 'tree':
+        return {
+          type: 'object-tree',
+          ...baseProps,
+          // Single-parent pointer field; auto-detected from the object's
+          // `tree`/self-reference field when not specified.
+          parentField: viewOptions.tree?.parentField,
+          labelField: viewOptions.tree?.labelField || viewOptions.tree?.titleField || 'name',
+          // The view's columns double as the tree-grid's flat columns.
+          fields: viewOptions.tree?.fields || baseProps.fields,
+          defaultExpandedDepth: viewOptions.tree?.defaultExpandedDepth,
+          ...(viewOptions.tree || {}),
+        };
       case 'chart': {
         // Aggregated chart of the object's records, delegating to the same
         // object-chart component the dashboard uses.

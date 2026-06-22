@@ -48,6 +48,15 @@ ComponentRegistry.registerLazy('map', () => import('@object-ui/plugin-map'), {
   category: 'view',
 });
 
+ComponentRegistry.registerLazy('object-tree', () => import('@object-ui/plugin-tree'), {
+  namespace: 'plugin-tree',
+  category: 'view',
+});
+ComponentRegistry.registerLazy('tree', () => import('@object-ui/plugin-tree'), {
+  namespace: 'view',
+  category: 'view',
+});
+
 // Dashboard plugin — only used on dashboard / home pages. Lazy-load all 8
 // component types so the ~150 KB widget/pivot/metric tree stays out of the
 // initial bundle for users who never visit a dashboard.

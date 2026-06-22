@@ -25,7 +25,7 @@ import type { SelectOptionMetadata } from './field-types';
 /**
  * View Type
  */
-export type ViewType = 'list' | 'detail' | 'grid' | 'kanban' | 'calendar' | 'timeline' | 'map' | 'gallery' | 'gantt' | 'chart';
+export type ViewType = 'list' | 'detail' | 'grid' | 'kanban' | 'calendar' | 'timeline' | 'map' | 'gallery' | 'gantt' | 'chart' | 'tree';
 
 /**
  * Detail View Field Configuration
