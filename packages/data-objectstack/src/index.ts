@@ -603,7 +603,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       // which parses `populate` (comma-separated) into an array for lookup expansion.
       // We use a raw request because the client SDK's data.find() QueryOptions
       // interface does not include populate/expand fields.
-      if (params?.$expand && params.$expand.length > 0) {
+      if ((params?.$expand && params.$expand.length > 0)
+          || (params?.$search != null && String(params.$search).trim() !== '')) {
+        // The client SDK's data.find() QueryOptions drops `$search`; route through
+        // the raw GET so the term reaches protocol.findData → the metadata-driven
+        // search executor (ADR-0061).
         const result = await this.rawFindWithPopulate(resource, params);
         return this.normalizeQueryResult(result, params);
       }
@@ -1093,6 +1097,15 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       queryParams.set('skip', String(params.$skip));
     }
 
+    // Full-text search (ADR-0061). The server resolves which fields to match
+    // from object metadata; the client only sends the term (+ optional override).
+    if (params.$search != null && String(params.$search).trim() !== '') {
+      queryParams.set('search', String(params.$search).trim());
+    }
+    if (params.$searchFields && params.$searchFields.length > 0) {
+      queryParams.set('searchFields', params.$searchFields.join(','));
+    }
+
     // Selection — always include `id` to ensure records can be identified
     // for navigation/selection even when callers omit it from $select.
     if (params.$select && params.$select.length > 0) {
@@ -1248,6 +1261,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
 
     if (params.$top !== undefined) {
       options.top = params.$top;
+    }
+
+    if (params.$search != null && String(params.$search).trim() !== '') {
+      (options as Record<string, unknown>).search = String(params.$search).trim();
+    }
+    if (params.$searchFields && params.$searchFields.length > 0) {
+      (options as Record<string, unknown>).searchFields = params.$searchFields;
     }
 
     return options;
