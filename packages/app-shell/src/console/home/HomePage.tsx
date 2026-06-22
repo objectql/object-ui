@@ -23,7 +23,7 @@ import { useRecentItems } from '../../hooks/useRecentItems';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { useAgents, isBuildAgent } from '@object-ui/plugin-chatbot';
+import { useAgents, isBuildAgent, isAskAgent } from '@object-ui/plugin-chatbot';
 import { HomeAppsStrip } from './HomeAppsStrip';
 import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
@@ -44,43 +44,51 @@ function resolveAiApiBase(): string {
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single
- * source of truth):
- *  - `aiEnabled` — the backend served any agent (AI is on here).
- *  - `buildAvailable` — a build/authoring agent is actually deployed. That's a
- *    cloud / AI-Studio feature, ABSENT on open-source builds, so "Build with AI"
- *    must not be shown (and silently fall back to Ask) where it can't build.
- * Returns false/false while the catalog loads or when AI is off, so no AI CTA
- * flashes before we know what's available.
+ * source of truth) — gated PER agent, because the community edition can be in
+ * any of three states:
+ *  - `askAvailable` — a data/query agent (`ask`/`data_chat`) is deployed → "Ask AI".
+ *  - `buildAvailable` — a build/authoring agent is deployed → "Build with AI".
+ *    That's a cloud / AI-Studio feature, ABSENT on open-source builds.
+ *  - `aiEnabled` — any agent at all (AI is on here in some form).
+ * All false while the catalog loads or when AI isn't enabled, so nothing
+ * flashes and no AI CTA appears where there's no agent to back it.
  */
-function useHomeAiAvailability(): { aiEnabled: boolean; buildAvailable: boolean } {
+function useHomeAiAvailability(): {
+  aiEnabled: boolean;
+  askAvailable: boolean;
+  buildAvailable: boolean;
+} {
   const apiBase = useMemo(() => resolveAiApiBase(), []);
   const { agents } = useAgents({ apiBase });
   return {
     aiEnabled: agents.length > 0,
+    askAvailable: agents.some((a) => isAskAgent(a.name)),
     buildAvailable: agents.some((a) => isBuildAgent(a.name)),
   };
 }
 
 /**
- * Home AI call-to-action(s). "Build with AI" only when the build agent is
- * actually available; "Ask AI" whenever AI is on. Renders nothing when AI is
- * off. `layout="stack"` is used by the empty-state; the hero uses the default
- * inline row. Availability is passed in so the host fetches the catalog once.
+ * Home AI call-to-action(s). "Build with AI" only when a build agent is
+ * deployed; "Ask AI" only when a data/query agent is deployed. Renders nothing
+ * when neither exists (AI off, or only custom agents — those are reachable via
+ * the assistant launcher / FAB). `layout="stack"` is used by the empty-state;
+ * the hero uses the default inline row. Availability is passed in so the host
+ * fetches the catalog once.
  */
 function HomeAiActions({
-  aiEnabled,
+  askAvailable,
   buildAvailable,
   navigate,
   t,
   layout = 'row',
 }: {
-  aiEnabled: boolean;
+  askAvailable: boolean;
   buildAvailable: boolean;
   navigate: (to: string) => void;
   t: (key: string, opts?: any) => string;
   layout?: 'row' | 'stack';
 }) {
-  if (!aiEnabled) return null;
+  if (!askAvailable && !buildAvailable) return null;
   const container =
     layout === 'stack'
       ? 'mt-6 flex flex-col sm:flex-row items-center gap-3'
@@ -93,14 +101,16 @@ function HomeAiActions({
           {t('home.buildWithAI', { defaultValue: 'Build with AI' })}
         </Button>
       )}
-      <Button
-        variant={buildAvailable ? 'outline' : 'default'}
-        onClick={() => navigate('/ai/ask')}
-        data-testid="home-ask-ai"
-      >
-        <MessageSquareText className="mr-2 h-4 w-4" />
-        {t('home.askAI', { defaultValue: 'Ask AI' })}
-      </Button>
+      {askAvailable && (
+        <Button
+          variant={buildAvailable ? 'outline' : 'default'}
+          onClick={() => navigate('/ai/ask')}
+          data-testid="home-ask-ai"
+        >
+          <MessageSquareText className="mr-2 h-4 w-4" />
+          {t('home.askAI', { defaultValue: 'Ask AI' })}
+        </Button>
+      )}
     </div>
   );
 }
@@ -271,9 +281,10 @@ export function HomePage() {
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
   const { pendingApprovalsCount, notifications, activities } = useHomeInbox();
-  // AI CTA gating: "Build with AI" only when the build agent is actually
-  // deployed (cloud / AI Studio); open-source builds get "Ask AI" instead.
-  const { aiEnabled, buildAvailable } = useHomeAiAvailability();
+  // AI CTA gating, per agent: "Build with AI" only when a build agent is
+  // deployed (cloud / AI Studio); "Ask AI" only when a data agent is; neither
+  // when AI isn't enabled. Community builds typically land in the ask-only state.
+  const { askAvailable, buildAvailable } = useHomeAiAvailability();
 
   const activeApps = apps.filter((a: any) => a.active !== false && a.hidden !== true);
 
@@ -320,13 +331,18 @@ export function HomePage() {
                     defaultValue:
                       'Describe your business in one sentence — AI generates the objects, screens, APIs and agent tools. Or set things up yourself from the Administration menu on the left.',
                   })
-                : t('home.welcomeAdminDescriptionNoBuild', {
-                    defaultValue:
-                      'Set up your first application from the Administration menu on the left. Once you have data, the AI assistant can help you explore it.',
-                  })}
+                : askAvailable
+                  ? t('home.welcomeAdminDescriptionNoBuild', {
+                      defaultValue:
+                        'Set up your first application from the Administration menu on the left. Once you have data, the AI assistant can help you explore it.',
+                    })
+                  : t('home.welcomeAdminDescriptionNoAi', {
+                      defaultValue:
+                        'Set up your first application from the Administration menu on the left.',
+                    })}
             </EmptyDescription>
             <HomeAiActions
-              aiEnabled={aiEnabled}
+              askAvailable={askAvailable}
               buildAvailable={buildAvailable}
               navigate={navigate}
               t={t}
@@ -372,7 +388,7 @@ export function HomePage() {
               </p>
             </div>
             <HomeAiActions
-              aiEnabled={aiEnabled}
+              askAvailable={askAvailable}
               buildAvailable={buildAvailable}
               navigate={navigate}
               t={t}
