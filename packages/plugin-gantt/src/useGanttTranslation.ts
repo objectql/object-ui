@@ -71,8 +71,6 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.readOnlyHint': 'Editing is disabled for this view.',
 };
 
-const TEST_KEY = 'gantt.column.taskName';
-
 function fallback(key: string, options?: Record<string, unknown>): string {
   let v = GANTT_DEFAULT_TRANSLATIONS[key] || key;
   if (options) {
@@ -91,11 +89,20 @@ export function useGanttTranslation() {
     // language as the chrome, instead of silently following the browser
     // locale (which can diverge — English UI but Chinese dates).
     const language = result.language as string | undefined;
-    const testValue = result.t(TEST_KEY);
-    if (testValue === TEST_KEY) {
-      return { t: fallback, language };
-    }
-    return { t: result.t, language };
+    // Per-key fallback. A consuming app's i18n dictionary commonly translates
+    // the *common* gantt keys (column headers, toolbar) but lags behind on
+    // newer ones (link types, dependency context-menu). i18next returns the
+    // raw key string for a miss, which would surface untranslated keys like
+    // `gantt.linkType.fs` in the UI. So for every key we let the host resolve
+    // it first and fall back to our bundled English default ONLY when the host
+    // returns the key unchanged (a miss). An all-or-nothing probe on a single
+    // key can't catch a partially-translated host dictionary.
+    const t = (key: string, options?: Record<string, unknown>): string => {
+      const hostValue = result.t(key, options as never) as unknown;
+      if (typeof hostValue === 'string' && hostValue !== key) return hostValue;
+      return fallback(key, options);
+    };
+    return { t, language };
   } catch {
     // No I18nProvider on the tree (standalone embed / unit tests): keep the
     // English fallback and let dates follow the browser locale (language
