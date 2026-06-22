@@ -431,11 +431,15 @@ export function MarketplacePackagePage() {
       ));
       const inserted = r.inserted ?? 0;
       const updated = r.updated ?? 0;
-      setSampleDataMsg({
-        ok: true,
-        text: t('marketplace.detail.reseedLocalSuccess', { inserted, updated })
-          || `Sample data re-seeded (inserted=${inserted}, updated=${updated}).`,
-      });
+      const errored = r.errors ?? 0;
+      const base = t('marketplace.detail.reseedLocalSuccess', { inserted, updated })
+        || `Sample data re-seeded (inserted=${inserted}, updated=${updated}).`;
+      // A reseed can land some rows and fail others (the server only hard-fails
+      // when ZERO rows write). Don't hide the partial failures behind a green
+      // success toast — flag them so the user knows the data is incomplete.
+      setSampleDataMsg(errored > 0
+        ? { ok: false, text: `${base} ${t('marketplace.detail.reseedPartialErrors', { count: errored }) || `(${errored} record(s) failed to write)`}` }
+        : { ok: true, text: base });
     } catch (err: any) {
       setSampleDataMsg({ ok: false, text: err?.message || 'Re-seed failed' });
     } finally {
