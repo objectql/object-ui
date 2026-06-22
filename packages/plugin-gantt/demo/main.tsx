@@ -117,36 +117,116 @@ function edgeFixture(): GanttTask[] {
 }
 
 /**
- * 制造排班 4 层树 (?mfg=1) — mirrors 3.4.1 树状结构 (左侧任务列表区):
+ * 制造排班 4 层树 (?mfg=1) — mirrors 3.4 制造排班甘特图 as closely as the demo
+ * fixture can express it.
+ *
+ * 3.4.1 树状结构 (左侧任务列表区):
  *   一级 项目      → type:'group'  无条 (pure header, expand/collapse)
  *   二级 产品      → type:'group'  无条
- *   三级 排产计划   → summary (has children) 有时间条 · 全部甘特图操作
- *   四级 派工单     → task leaf     子任务条 (查看/跳转)
- * The two `group` levels render NO timeline bar; only 排产计划 + 派工单 carry bars.
+ *   三级 排产计划   → summary (has children) 有时间条 · 全部甘特图操作 · 默认折叠
+ *   四级 派工单     → task leaf     子任务条 (仅查看/跳转, locked) · 不可展开
+ *
+ * 3.4.3 任务展示 — 按状态着色:
+ *   排产计划: 00待开始=深灰 · 01已下推=蓝 · 02进行中=绿(带进度) · 03已完成=深绿
+ *   里程碑 (是否里程碑=是): 仍是普通排产计划条, 仅在条上文字前加 ◆ 前缀, 不画菱形
+ *   派工单:   00待开始=浅灰 · 01进行中=浅蓝 · 02已报工=浅橙 · 03已完成=浅绿
+ *
+ * 3.4.4 悬浮详情 — `fields` 驱动 tooltip:
+ *   排产计划: 编号/作业对象/计划起止/定额工时/管理责任人/执行责任人/状态/进度
+ *   派工单:   派工单编号/执行责任人/作业对象/计划起止/实际起止/状态
+ *
+ * 3.4.6 依赖校验 — FS 依赖连线仅在三级 (排产计划) 之间; 四级不参与。
+ * 计划 vs 实际 — 派工单用 baseline 条展示 计划起止 (实际 = 主条)。
  */
+// 三级 排产计划 状态色
+const PLAN_COLOR = {
+  todo: '#6b7280', // 00 待开始 深灰
+  pushed: '#3b82f6', // 01 已下推 蓝
+  doing: '#22c55e', // 02 进行中 绿
+  done: '#15803d', // 03 已完成 深绿
+} as const;
+// 四级 派工单 状态色 (浅色系, 紧贴所属排产计划下方)
+const WORK_COLOR = {
+  todo: '#d1d5db', // 00 待开始 浅灰
+  doing: '#93c5fd', // 01 进行中 浅蓝
+  reported: '#fdba74', // 02 已报工 浅橙
+  done: '#86efac', // 03 已完成 浅绿
+} as const;
+
 function manufacturingFixture(): GanttTask[] {
-  const PLAN = '#0d9488'; // 排产计划 bar color
-  const WORK = '#5eead4'; // 派工单 child color
+  // 三级 悬浮详情: 编号/作业对象/计划起止/定额工时/管理责任人/执行责任人/状态/进度
+  const plan3 = (
+    f: { code: string; obj: string; span: string; quota: string; mgr: string; doers: string; status: string; progress: string },
+  ) => [
+    { label: '编号', value: f.code },
+    { label: '作业对象', value: f.obj },
+    { label: '计划起止', value: f.span },
+    { label: '定额工时', value: f.quota },
+    { label: '管理责任人', value: f.mgr },
+    { label: '执行责任人', value: f.doers },
+    { label: '状态', value: f.status },
+    { label: '进度', value: f.progress },
+  ];
+  // 四级 悬浮详情: 派工单编号/执行责任人/作业对象/计划起止/实际起止/状态
+  const wo4 = (
+    f: { code: string; doer: string; obj: string; plan: string; actual: string; status: string },
+  ) => [
+    { label: '派工单编号', value: f.code },
+    { label: '执行责任人', value: f.doer },
+    { label: '作业对象', value: f.obj },
+    { label: '计划起止', value: f.plan },
+    { label: '实际起止', value: f.actual },
+    { label: '状态', value: f.status },
+  ];
   return [
-    // 一级: 项目 (无条)
+    // ── 一级: 项目 (无条) ───────────────────────────────────────────────
     { id: 'prj-A', title: '项目A（导管架制造）', start: d('2026-06-01'), end: d('2026-06-30'), progress: 0, parent: null, type: 'group' },
 
-    // 二级: 产品 (无条)
+    // ── 二级: 产品A-1 (无条) ────────────────────────────────────────────
     { id: 'prod-A1', title: '产品A-1（XX项目导管架）', start: d('2026-06-01'), end: d('2026-06-30'), progress: 0, parent: 'prj-A', type: 'group' },
 
-    // 三级: 排产计划 (有时间条) — children drive its rollup range
-    // 四级 派工单 are `locked` (仅查看/跳转): no drag/resize/progress/link/edit.
-    { id: 'plan-1', title: '将军柱组焊（排产计划）', start: d('2026-06-03'), end: d('2026-06-10'), progress: 0, parent: 'prod-A1', color: PLAN },
-    { id: 'wo-001', title: 'WO001 张三（派工单）', start: d('2026-06-03'), end: d('2026-06-06'), progress: 100, parent: 'plan-1', color: WORK, locked: true },
-    { id: 'wo-002', title: 'WO002 李四（派工单）', start: d('2026-06-06'), end: d('2026-06-10'), progress: 40, parent: 'plan-1', color: WORK, locked: true, dependencies: [{ id: 'wo-001', type: 'fs' }] },
+    // 三级 plan-1 — 03 已完成 (深绿, 100%)
+    { id: 'plan-1', title: '将军柱组焊（排产计划）', start: d('2026-06-03'), end: d('2026-06-10'), progress: 100, parent: 'prod-A1', color: PLAN_COLOR.done,
+      fields: plan3({ code: 'PP-2026-001', obj: '将军柱·KK节点', span: '06-03 ~ 06-10', quota: '120h', mgr: '李工', doers: '张三、李四', status: '已完成', progress: '100%' }) },
+    { id: 'wo-001', title: 'WO001 张三（派工单）', start: d('2026-06-03'), end: d('2026-06-06'), progress: 100, parent: 'plan-1', color: WORK_COLOR.done, locked: true,
+      baselineStart: d('2026-06-03'), baselineEnd: d('2026-06-07'),
+      fields: wo4({ code: 'WO-2026-001', doer: '张三', obj: '将军柱·KK节点', plan: '06-03 ~ 06-07', actual: '06-03 ~ 06-06', status: '已完成' }) },
+    { id: 'wo-002', title: 'WO002 李四（派工单）', start: d('2026-06-06'), end: d('2026-06-10'), progress: 60, parent: 'plan-1', color: WORK_COLOR.reported, locked: true,
+      baselineStart: d('2026-06-06'), baselineEnd: d('2026-06-09'),
+      fields: wo4({ code: 'WO-2026-002', doer: '李四', obj: '将军柱·KK节点', plan: '06-06 ~ 06-09', actual: '06-06 ~ 06-10', status: '已报工' }) },
 
-    { id: 'plan-2', title: '主腿管接长（排产计划）', start: d('2026-06-08'), end: d('2026-06-14'), progress: 0, parent: 'prod-A1', color: PLAN },
-    { id: 'wo-003', title: 'WO003 王五（派工单）', start: d('2026-06-08'), end: d('2026-06-14'), progress: 20, parent: 'plan-2', color: WORK, locked: true },
+    // 三级 plan-2 — 02 进行中 (绿, 45%) · 依赖 plan-1 (FS)
+    { id: 'plan-2', title: '主腿管接长（排产计划）', start: d('2026-06-10'), end: d('2026-06-16'), progress: 45, parent: 'prod-A1', color: PLAN_COLOR.doing,
+      dependencies: [{ id: 'plan-1', type: 'fs' }],
+      fields: plan3({ code: 'PP-2026-002', obj: '主腿管·D1800', span: '06-10 ~ 06-16', quota: '96h', mgr: '李工', doers: '王五、赵六', status: '进行中', progress: '45%' }) },
+    { id: 'wo-003', title: 'WO003 王五（派工单）', start: d('2026-06-10'), end: d('2026-06-13'), progress: 70, parent: 'plan-2', color: WORK_COLOR.doing, locked: true,
+      baselineStart: d('2026-06-10'), baselineEnd: d('2026-06-12'),
+      fields: wo4({ code: 'WO-2026-003', doer: '王五', obj: '主腿管·D1800', plan: '06-10 ~ 06-12', actual: '06-10 ~ —（超期中）', status: '进行中' }) },
+    { id: 'wo-004', title: 'WO004 赵六（派工单）', start: d('2026-06-13'), end: d('2026-06-16'), progress: 0, parent: 'plan-2', color: WORK_COLOR.todo, locked: true,
+      fields: wo4({ code: 'WO-2026-004', doer: '赵六', obj: '主腿管·D1800', plan: '06-13 ~ 06-16', actual: '— ~ —', status: '待开始' }) },
 
-    // 二级: 第二个产品 (无条)
+    // 三级 里程碑 — 仍是一条普通排产计划 (有计划起止/时间条), 只是 `是否里程碑=是`,
+    // 显示时在条上文字最前面加 ◆ 前缀标记 (不画菱形)。依赖 plan-2 (FS)。
+    { id: 'ms-A1', title: '◆ 段建完成（排产计划·里程碑）', start: d('2026-06-16'), end: d('2026-06-17'), progress: 0, parent: 'prod-A1', color: PLAN_COLOR.todo,
+      dependencies: [{ id: 'plan-2', type: 'fs' }],
+      fields: plan3({ code: 'PP-2026-005', obj: '段建·阶段验收', span: '06-16 ~ 06-17', quota: '8h', mgr: '李工', doers: '李工', status: '待开始', progress: '0%' }).concat({ label: '是否里程碑', value: '是' }) },
+
+    // ── 二级: 产品A-2 (无条) ────────────────────────────────────────────
     { id: 'prod-A2', title: '产品A-2（YY项目导管架）', start: d('2026-06-12'), end: d('2026-06-30'), progress: 0, parent: 'prj-A', type: 'group' },
-    { id: 'plan-3', title: '分段预制（排产计划）', start: d('2026-06-12'), end: d('2026-06-20'), progress: 0, parent: 'prod-A2', color: PLAN },
-    { id: 'wo-004', title: 'WO004 赵六（派工单）', start: d('2026-06-12'), end: d('2026-06-20'), progress: 10, parent: 'plan-3', color: WORK, locked: true },
+
+    // 三级 plan-3 — 01 已下推 (蓝, 0%) · 依赖 plan-2 (FS)
+    { id: 'plan-3', title: '分段预制（排产计划）', start: d('2026-06-17'), end: d('2026-06-23'), progress: 0, parent: 'prod-A2', color: PLAN_COLOR.pushed,
+      dependencies: [{ id: 'plan-2', type: 'fs' }],
+      fields: plan3({ code: 'PP-2026-003', obj: '分段·S2', span: '06-17 ~ 06-23', quota: '80h', mgr: '陈工', doers: '钱七', status: '已下推', progress: '0%' }) },
+    { id: 'wo-005', title: 'WO005 钱七（派工单）', start: d('2026-06-17'), end: d('2026-06-23'), progress: 0, parent: 'plan-3', color: WORK_COLOR.todo, locked: true,
+      fields: wo4({ code: 'WO-2026-005', doer: '钱七', obj: '分段·S2', plan: '06-17 ~ 06-23', actual: '— ~ —', status: '待开始' }) },
+
+    // 三级 plan-4 — 00 待开始 (深灰) · 依赖 plan-3 (FS)
+    { id: 'plan-4', title: '总装合拢（排产计划）', start: d('2026-06-24'), end: d('2026-06-30'), progress: 0, parent: 'prod-A2', color: PLAN_COLOR.todo,
+      dependencies: [{ id: 'plan-3', type: 'fs' }],
+      fields: plan3({ code: 'PP-2026-004', obj: '导管架·总装', span: '06-24 ~ 06-30', quota: '140h', mgr: '陈工', doers: '孙八', status: '待开始', progress: '0%' }) },
+    { id: 'wo-006', title: 'WO006 孙八（派工单）', start: d('2026-06-24'), end: d('2026-06-30'), progress: 0, parent: 'plan-4', color: WORK_COLOR.todo, locked: true,
+      fields: wo4({ code: 'WO-2026-006', doer: '孙八', obj: '导管架·总装', plan: '06-24 ~ 06-30', actual: '— ~ —', status: '待开始' }) },
   ];
 }
 
@@ -308,6 +388,44 @@ function QuickFilterDemo() {
   );
 }
 
+/** 状态色图例 (3.4.3) — decodes the 排产计划 / 派工单 bar colors for the mfg demo. */
+function ManufacturingLegend() {
+  const Swatch = ({ color, label, hollow }: { color: string; label: string; hollow?: boolean }) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ width: 12, height: 12, borderRadius: 3, background: hollow ? 'transparent' : color, border: hollow ? `1px solid ${color}` : 'none', display: 'inline-block' }} />
+      {label}
+    </span>
+  );
+  return (
+    <div
+      data-testid="mfg-legend"
+      style={{ padding: '4px 12px', fontSize: 11, borderBottom: '1px solid hsl(var(--border))', display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', color: 'hsl(var(--muted-foreground))' }}
+    >
+      <strong style={{ color: 'hsl(var(--foreground))' }}>排产计划</strong>
+      <Swatch color={PLAN_COLOR.todo} label="待开始" />
+      <Swatch color={PLAN_COLOR.pushed} label="已下推" />
+      <Swatch color={PLAN_COLOR.doing} label="进行中" />
+      <Swatch color={PLAN_COLOR.done} label="已完成" />
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontWeight: 700 }}>◆</span>前缀 = 里程碑标记
+      </span>
+      <span style={{ opacity: 0.4 }}>|</span>
+      <strong style={{ color: 'hsl(var(--foreground))' }}>派工单</strong>
+      <Swatch color={WORK_COLOR.todo} label="待开始" />
+      <Swatch color={WORK_COLOR.doing} label="进行中" />
+      <Swatch color={WORK_COLOR.reported} label="已报工" />
+      <Swatch color={WORK_COLOR.done} label="已完成" />
+      <span style={{ opacity: 0.4 }}>|</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ width: 14, height: 4, borderRadius: 1, background: 'rgba(100,116,139,0.35)', border: '1px solid rgba(100,116,139,0.6)', display: 'inline-block' }} />
+        细灰条 = 计划基线
+      </span>
+      <span style={{ opacity: 0.4 }}>|</span>
+      <span>依赖连线仅在三级之间 (FS) · 派工单 locked 仅查看 · 悬浮看详情</span>
+    </div>
+  );
+}
+
 function App() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('quickfilter') === '1') return <QuickFilterDemo />;
@@ -393,6 +511,7 @@ function App() {
           <a href={withParam('lang', 'zh')}>中文</a>
         </span>
       </div>
+      {mfg && <ManufacturingLegend />}
       <div style={{ flex: 1, minHeight: 0 }}>
         {resourceMode ? (
           <ResourceWorkload
