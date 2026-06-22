@@ -8,9 +8,14 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
+// The chat surface derives the draft/plan affordance cards from the tool result
+// via these mappers — round-tripping our cache through them is the real
+// production path (live render → cache → cache-fallback reload).
+import { uiMessageToChatMessage } from '@object-ui/plugin-chatbot';
 
 import {
   sanitizeChatMessagesForCache,
+  toUIMessages,
   useChatConversation,
   writeConversationMessagesCache,
 } from '../useChatConversation';
@@ -296,5 +301,187 @@ describe('useChatConversation — forceNew (the sidebar New button)', () => {
     expect(result.current.conversationId).toBe('conv-x');
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/conversations/conv-x`);
+  });
+});
+
+// Regression: a cache-fallback reload (server returns no/partial messages →
+// `readMessageCache`) must keep the draft/plan affordance cards, not just the
+// bare tool header. `sanitizeChatMessagesForCache` used to drop the tool
+// `output`, so `mapMessages.detect*` returned undefined for cache-restored
+// messages and the "Review N changes / Publish" card, the ADR-0038 verification
+// chip, and the "Proposed plan" card silently vanished.
+describe('sanitizeChatMessagesForCache — affordance cards survive a cache round-trip', () => {
+  // The raw tool outputs exactly as the build/propose tools return them.
+  const draftedOutput = {
+    status: 'drafted',
+    drafted: [
+      { type: 'app', name: 'tracker_app' },
+      { type: 'object', name: 'task' },
+    ],
+    summary: 'Built Tracker',
+    packageId: 'pkg_1',
+    autoPublishable: true,
+    failed: [{ type: 'view', name: 'broken' }],
+    materialized: true,
+    verification: { errors: 0, warnings: 1 },
+    issues: [{ severity: 'warning', code: 'lint_x', message: 'Consider X', fix: 'do Y' }],
+    nextSteps: ['Replace the sample data', 'Publish from the status panel'],
+  };
+  const proposedOutput = {
+    status: 'blueprint_proposed',
+    summary: 'A lightweight tracker',
+    counts: { objects: 2, views: 3, dashboards: 1, seedData: 2 },
+    questions: ['Track interviews separately?'],
+    targetApp: 'recruiting',
+    blueprint: {
+      assumptions: ['One pipeline for all roles'],
+      objects: [
+        { name: 'candidate', label: 'Candidate', fields: [{ name: 'full_name' }, { name: 'stage' }] },
+        { name: 'job', fields: [{ name: 'title' }] },
+      ],
+    },
+  };
+
+  // An assistant message carrying both an apply_blueprint (drafted) and a
+  // propose_blueprint (blueprint_proposed) tool output, as the live stream
+  // produces it.
+  const liveUiMessage = {
+    id: 'a1',
+    role: 'assistant' as const,
+    parts: [
+      { type: 'text', text: 'Done.' },
+      {
+        type: 'tool-apply_blueprint',
+        toolCallId: 'tc-draft',
+        state: 'output-available' as const,
+        input: {},
+        output: draftedOutput,
+      },
+      {
+        type: 'tool-propose_blueprint',
+        toolCallId: 'tc-plan',
+        state: 'output-available' as const,
+        input: {},
+        output: proposedOutput,
+      },
+    ],
+  };
+
+  it('preserves draftReview + proposedPlan through sanitize → localStorage → re-map', () => {
+    // 1. Live render derives the cards from the raw tool output (baseline).
+    const live = uiMessageToChatMessage(liveUiMessage);
+    expect(live.toolInvocations?.[0]?.draftReview?.items).toEqual(draftedOutput.drafted);
+    expect(live.toolInvocations?.[1]?.proposedPlan?.objects).toEqual([
+      { name: 'candidate', label: 'Candidate', fieldCount: 2 },
+      { name: 'job', fieldCount: 1 },
+    ]);
+
+    // 2. Cache it, then round-trip through JSON exactly like localStorage does.
+    const cached = sanitizeChatMessagesForCache([live]);
+    const persisted = JSON.parse(JSON.stringify(cached)) as typeof cached;
+
+    // The cached tool parts keep a compact `output` (no full blueprint).
+    const draftPart = persisted[0]?.parts.find((p) => p.type === 'tool-apply_blueprint');
+    const planPart = persisted[0]?.parts.find((p) => p.type === 'tool-propose_blueprint');
+    expect(draftPart?.output).toMatchObject({ status: 'drafted' });
+    expect(planPart?.output).toMatchObject({ status: 'blueprint_proposed' });
+    // Leanness: the field definitions are dropped, only the count is kept.
+    expect(JSON.stringify(planPart?.output)).not.toContain('full_name');
+
+    // 3. Cache-fallback reload re-derives the cards from the cached output.
+    const reloaded = uiMessageToChatMessage(persisted[0]);
+
+    const draftReview = reloaded.toolInvocations?.[0]?.draftReview;
+    expect(draftReview).toBeDefined();
+    expect(draftReview?.items).toEqual(draftedOutput.drafted);
+    expect(draftReview?.summary).toBe('Built Tracker');
+    expect(draftReview?.packageId).toBe('pkg_1');
+    expect(draftReview?.autoPublishable).toBe(true);
+    expect(draftReview?.materialized).toBe(true);
+    expect(draftReview?.failedCount).toBe(1);
+    expect(draftReview?.verification).toEqual({ errors: 0, warnings: 1 });
+    expect(draftReview?.issues).toEqual([
+      { severity: 'warning', code: 'lint_x', message: 'Consider X', fix: 'do Y' },
+    ]);
+    expect(draftReview?.nextSteps).toEqual([
+      'Replace the sample data',
+      'Publish from the status panel',
+    ]);
+
+    const proposedPlan = reloaded.toolInvocations?.[1]?.proposedPlan;
+    expect(proposedPlan).toBeDefined();
+    expect(proposedPlan?.objects).toEqual([
+      { name: 'candidate', label: 'Candidate', fieldCount: 2 },
+      { name: 'job', fieldCount: 1 },
+    ]);
+    expect(proposedPlan?.counts).toEqual({ objects: 2, views: 3, dashboards: 1, seedData: 2 });
+    expect(proposedPlan?.questions).toEqual(['Track interviews separately?']);
+    expect(proposedPlan?.assumptions).toEqual(['One pipeline for all roles']);
+    expect(proposedPlan?.summary).toBe('A lightweight tracker');
+    expect(proposedPlan?.targetApp).toBe('recruiting');
+  });
+
+  it('does not add an output to plain (non-draft/plan) tool invocations', () => {
+    const cached = sanitizeChatMessagesForCache([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'Counted.',
+        toolInvocations: [{ toolCallId: 'tc1', toolName: 'aggregate_data', state: 'output-available' }],
+      },
+    ]);
+    const toolPart = cached[0]?.parts.find((p) => p.type === 'tool-aggregate_data');
+    expect(toolPart).toBeDefined();
+    expect('output' in (toolPart as object)).toBe(false);
+  });
+});
+
+// The server persists conversations in ModelMessage format, where an assistant
+// tool CALL is the literal `type:'tool-call'` with the real tool in `toolName`.
+// Left as-is the chat step humanizes to "Call"; toUIMessages must remap it to
+// the AI SDK UI part type `tool-<toolName>` so the title (and the toolName the
+// mapper extracts) reflect the real tool after a clean server-backed reload.
+describe('toUIMessages — remaps the ModelMessage tool-call part type', () => {
+  it('rewrites assistant tool-call → tool-<toolName> and still merges the tool result', () => {
+    const ui = toUIMessages([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', toolCallId: 'tc1', toolName: 'apply_blueprint', input: { goal: 'tracker' } },
+        ],
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'tc1',
+            output: { status: 'drafted', drafted: [{ type: 'app', name: 'tracker_app' }], summary: 'Built' },
+          },
+        ],
+      },
+    ]);
+
+    const part = ui[0]?.parts[0];
+    expect(part?.type).toBe('tool-apply_blueprint');
+    expect(part?.output).toEqual({
+      status: 'drafted',
+      drafted: [{ type: 'app', name: 'tracker_app' }],
+      summary: 'Built',
+    });
+
+    // Through the mapper the tool reads as the real tool, not "call", and its
+    // draft card survives because the result merged onto the remapped part.
+    const cm = uiMessageToChatMessage(ui[0]);
+    expect(cm.toolInvocations?.[0]?.toolName).toBe('apply_blueprint');
+    expect(cm.toolInvocations?.[0]?.draftReview?.items).toEqual([{ type: 'app', name: 'tracker_app' }]);
+  });
+
+  it('leaves a tool-call without a toolName untouched (no false remap)', () => {
+    const ui = toUIMessages([
+      { id: 'a1', role: 'assistant', content: [{ type: 'tool-call', toolCallId: 'tc1' }] },
+    ]);
+    expect(ui[0]?.parts[0]?.type).toBe('tool-call');
   });
 });

@@ -71,11 +71,51 @@ export interface UseChatConversationReturn {
   reset: () => Promise<void>;
 }
 
+/**
+ * The subset of plugin-chatbot's `DraftReview` (mapMessages.ts) that the chat's
+ * draft/publish + ADR-0038 verification cards are derived from. Mirrored here —
+ * rather than imported — to keep this low-level hook free of a `@object-ui/
+ * plugin-chatbot` dependency; the round-trip test in
+ * `useChatConversation.test.tsx` runs these through the REAL detectors, so any
+ * incompatible drift fails CI.
+ */
+interface CachedDraftReview {
+  items: Array<{ type: string; name: string }>;
+  summary?: string;
+  packageId?: string;
+  autoPublishable?: boolean;
+  failedCount?: number;
+  materialized?: boolean;
+  verification?: { errors: number; warnings: number };
+  issues?: Array<{ severity: 'error' | 'warning'; code: string; message: string; fix?: string }>;
+  nextSteps?: string[];
+}
+
+/** Mirrors the subset of plugin-chatbot's `ProposedPlan` the "Proposed plan" card needs. */
+interface CachedProposedPlan {
+  summary?: string;
+  objects: Array<{ name: string; label?: string; fieldCount: number }>;
+  counts: { objects: number; views: number; dashboards: number; seedData: number };
+  questions: string[];
+  assumptions: string[];
+  targetApp?: string;
+}
+
 interface CacheableChatToolInvocation {
   toolCallId: string;
   toolName: string;
   state?: string;
   errorText?: string;
+  /**
+   * The detect-relevant shapes the live render already derived from the tool
+   * result (`uiMessageToChatMessage`). Present on assistant tool invocations
+   * that staged a draft (`apply_blueprint` …) or proposed a plan
+   * (`propose_blueprint`). We re-serialize these into a COMPACT tool `output`
+   * so the cards survive a cache-fallback reload — see
+   * `sanitizeChatMessagesForCache`.
+   */
+  draftReview?: CachedDraftReview;
+  proposedPlan?: CachedProposedPlan;
 }
 
 interface CacheableChatMessage {
@@ -83,6 +123,55 @@ interface CacheableChatMessage {
   role: 'user' | 'assistant' | 'system';
   content?: string;
   toolInvocations?: CacheableChatToolInvocation[];
+}
+
+/**
+ * Rebuild the MINIMAL `{ status:'drafted', … }` envelope that
+ * `mapMessages.detectDraftResult` re-parses, from the already-derived
+ * `DraftReview`. Inverse of the detector: we keep only the fields it reads, so
+ * the draft "Review N changes / Publish" card and the ADR-0038 verification
+ * chip survive without re-storing the (potentially large) blueprint JSON.
+ * `failed` is materialized to the right length because the detector counts
+ * `failed.length`.
+ */
+function draftReviewToCachedResult(dr: CachedDraftReview): Record<string, unknown> {
+  return {
+    status: 'drafted',
+    drafted: dr.items,
+    ...(dr.summary ? { summary: dr.summary } : {}),
+    ...(dr.packageId ? { packageId: dr.packageId } : {}),
+    ...(dr.autoPublishable ? { autoPublishable: true } : {}),
+    ...(dr.failedCount ? { failed: Array.from({ length: dr.failedCount }, () => null) } : {}),
+    ...(dr.materialized ? { materialized: true } : {}),
+    ...(dr.verification ? { verification: dr.verification } : {}),
+    ...(dr.issues && dr.issues.length ? { issues: dr.issues } : {}),
+    ...(dr.nextSteps && dr.nextSteps.length ? { nextSteps: dr.nextSteps } : {}),
+  };
+}
+
+/**
+ * Rebuild the MINIMAL `{ status:'blueprint_proposed', … }` envelope that
+ * `mapMessages.detectProposedPlan` re-parses, from the already-derived
+ * `ProposedPlan`. Object `fields` are materialized to the right length because
+ * the detector reads `fields.length` as the per-object field count — the field
+ * definitions themselves are dropped (the lean win).
+ */
+function proposedPlanToCachedResult(pp: CachedProposedPlan): Record<string, unknown> {
+  return {
+    status: 'blueprint_proposed',
+    ...(pp.summary ? { summary: pp.summary } : {}),
+    counts: pp.counts,
+    questions: pp.questions,
+    ...(pp.targetApp ? { targetApp: pp.targetApp } : {}),
+    blueprint: {
+      objects: pp.objects.map((o) => ({
+        name: o.name,
+        ...(o.label ? { label: o.label } : {}),
+        fields: Array.from({ length: o.fieldCount }, () => null),
+      })),
+      assumptions: pp.assumptions,
+    },
+  };
 }
 
 const CACHE_PREFIX = 'objectstack:ai-chat-conversation-id';
@@ -162,12 +251,26 @@ export function sanitizeChatMessagesForCache(
       }
       if (message.role === 'assistant') {
         for (const tool of message.toolInvocations ?? []) {
+          // Re-serialize the draft/plan affordance into a compact tool `output`.
+          // Without it, a cache-fallback reload (server returns no messages →
+          // `readMessageCache`) drops the draft "Review N changes / Publish"
+          // card, the ADR-0038 verification chip, and the "Proposed plan" card,
+          // because `mapMessages.detect*` read the result `output` that the
+          // earlier cache shape never kept. `output` (not a custom part field)
+          // is used because the AI SDK preserves it through `useChat` init,
+          // exactly as the server-backed tool-result merge relies on.
+          const cachedOutput = tool.draftReview
+            ? draftReviewToCachedResult(tool.draftReview)
+            : tool.proposedPlan
+              ? proposedPlanToCachedResult(tool.proposedPlan)
+              : undefined;
           parts.push({
             type: `tool-${tool.toolName}`,
             toolCallId: tool.toolCallId,
             toolName: tool.toolName,
             state: tool.state ?? (tool.errorText ? 'output-error' : 'output-available'),
             ...(tool.errorText ? { errorText: tool.errorText } : {}),
+            ...(cachedOutput !== undefined ? { output: cachedOutput } : {}),
           });
         }
       }
@@ -280,6 +383,16 @@ export function toUIMessages(rows: ServerMessage[] | undefined): HydratedUIMessa
     if (parts.length === 0) return;
     if (role === 'assistant') {
       for (const part of parts) {
+        // ModelMessage format persists an assistant tool CALL as the literal
+        // `type:'tool-call'` with the real tool in `toolName`. Left as-is, the
+        // chat humanizes the step title to "Call" (and downstream toolName
+        // extraction yields "call"). Remap to the AI SDK UI part type
+        // `tool-<toolName>` so the step reads "Apply blueprint" / "Propose
+        // blueprint" after a clean server-backed reload; the result-merge below
+        // and `detect*` are unaffected (they key off toolCallId / output).
+        if (part.type === 'tool-call' && typeof part.toolName === 'string' && part.toolName) {
+          part.type = `tool-${part.toolName}`;
+        }
         const callId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
         if (callId && (part.type === 'tool-call' || part.type.startsWith('tool-'))) {
           toolPartByCallId.set(callId, part);
