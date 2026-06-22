@@ -23,7 +23,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
 });
 
-const COLUMN_WIDTH = 80;
+const COLUMN_WIDTH = 110;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 // June 2024 (local): 1=Sat, 2=Sun, 3=Mon … 7=Fri, 8=Sat, 9=Sun, 10=Mon.
@@ -120,7 +120,7 @@ describe('GanttView non-linear working-time axis', () => {
     const linearWidth = barGeometry(linear.container, 'a').width;
     const foldedWidth = barGeometry(folded.container, 'a').width;
 
-    // Un-folded: 3 days × 60px. Folded: Sat/Sun removed → one column wide.
+    // Un-folded: 3 days × 110px. Folded: Sat/Sun removed → one column wide.
     expect(linearWidth).toBeCloseTo(3 * COLUMN_WIDTH, 0);
     expect(foldedWidth).toBeCloseTo(COLUMN_WIDTH, 0);
   });
@@ -137,9 +137,9 @@ describe('GanttView non-linear working-time axis', () => {
 
     const bar = container.querySelector('[data-testid="gantt-task-bar-a"]') as HTMLElement;
     act(() => { bar.dispatchEvent(pointer('pointerdown', 300)); });
-    // +60px = one visible column = one working day = Fri → Mon (+3 calendar days).
-    act(() => { window.dispatchEvent(pointer('pointermove', 360)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 360)); });
+    // +110px = one visible column = one working day = Fri → Mon (+3 calendar days).
+    act(() => { window.dispatchEvent(pointer('pointermove', 410)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 410)); });
 
     expect(captured).not.toBeNull();
     expect(captured!.start.getTime() - task.start.getTime()).toBe(3 * MS_PER_DAY);

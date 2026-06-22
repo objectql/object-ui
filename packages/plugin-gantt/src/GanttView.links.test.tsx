@@ -12,7 +12,7 @@ import { render, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GanttView, type GanttTask, type GanttDependency } from './GanttView';
 
-// Force the container width to >=1024 so columnWidth=80 (deterministic).
+// Force the container width to >=1024 so columnWidth=110 (deterministic).
 beforeEach(() => {
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
 });
@@ -180,19 +180,19 @@ describe('GanttView dependency links', () => {
     const path = container.querySelector('[data-testid="gantt-link-a-b"]') as SVGPathElement;
     const before = pathEndpoints(path);
 
-    // Drag bar b +160px = +2 days at columnWidth 80 (don't release yet).
+    // Drag bar b +220px = +2 days at columnWidth 110 (don't release yet).
     const barB = container.querySelector('[data-testid="gantt-task-bar-b"]') as HTMLElement;
     act(() => { barB.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 660)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 720)); });
 
     const during = pathEndpoints(
       container.querySelector('[data-testid="gantt-link-a-b"]') as SVGPathElement,
     );
     // Source bar untouched, target anchor follows the drag preview.
     expect(during.start.x).toBeCloseTo(before.start.x, 0);
-    expect(during.end.x).toBeCloseTo(before.end.x + 160, 0);
+    expect(during.end.x).toBeCloseTo(before.end.x + 220, 0);
 
-    act(() => { window.dispatchEvent(pointer('pointerup', 660)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 720)); });
   });
 
   it('renders a backward fs link (dependent starts before predecessor ends) without crashing', () => {

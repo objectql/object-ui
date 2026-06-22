@@ -12,12 +12,12 @@ import { render, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GanttView, type GanttTask, type GanttViewMode } from './GanttView';
 
-// Force the container width to >=1024 so columnWidth=80 (deterministic).
+// Force the container width to >=1024 so columnWidth=110 (deterministic).
 beforeEach(() => {
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
 });
 
-const COLUMN_WIDTH = 80;
+const COLUMN_WIDTH = 110;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const NOMINAL_DAYS: Record<GanttViewMode, number> = { day: 1, week: 7, month: 30.44, quarter: 91.31 };
 
@@ -116,7 +116,7 @@ describe('GanttView time scales', () => {
     const units = unitCells(container);
     expect(units.length).toBeGreaterThanOrEqual(3);
     expect(units.length).toBeLessThanOrEqual(4);
-    // June (30 days) column width = 30 * 80/30.44.
+    // June (30 days) column width = 30 * 110/30.44.
     const pxPerDay = COLUMN_WIDTH / NOMINAL_DAYS.month;
     const first = units[0];
     const days = Math.round(parseFloat(first.style.width) / pxPerDay);
@@ -180,9 +180,9 @@ describe('GanttView time scales', () => {
 
     const bar = container.querySelector('[data-testid="gantt-task-bar-a"]') as HTMLElement;
     act(() => { bar.dispatchEvent(pointer('pointerdown', 300)); });
-    // +80px = one column = one week.
-    act(() => { window.dispatchEvent(pointer('pointermove', 380)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 380)); });
+    // +110px = one column = one week.
+    act(() => { window.dispatchEvent(pointer('pointermove', 410)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 410)); });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
     const [, changes] = onTaskUpdate.mock.calls[0];
@@ -202,8 +202,8 @@ describe('GanttView time scales', () => {
 
     const bar = container.querySelector('[data-testid="gantt-task-bar-a"]') as HTMLElement;
     act(() => { bar.dispatchEvent(pointer('pointerdown', 300)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 380)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 380)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 410)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 410)); });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
     const [, changes] = onTaskUpdate.mock.calls[0];

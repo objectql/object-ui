@@ -47,9 +47,12 @@ const COLUMN_WIDTH = 100; // Time column width
  * checks so the Gantt adapts to whatever slot it sits in (cards, sidebars, popups…).
  */
 function columnWidthForContainer(width: number) {
-  if (width < 640) return 44;
-  if (width < 1024) return 64;
-  return 80;
+  // Day/week/month columns stay readable at a 110px floor — even in narrow
+  // embeds (user-specified minimum). A short project still fills a roomy
+  // timeline via the fit-stretch below; manual zoom can override either way.
+  if (width < 640) return 110;
+  if (width < 1024) return 110;
+  return 110;
 }
 
 function taskListWidthForContainer(width: number) {

@@ -3,7 +3,7 @@
  * (保存布局), and the PNG / PDF export toolbar buttons.
  *
  * Conventions match the other interaction tests: innerWidth=1280 →
- * columnWidth 80, rowHeight 40.
+ * columnWidth 110, rowHeight 40.
  */
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react';

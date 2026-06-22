@@ -13,7 +13,7 @@ import { render, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GanttView, type GanttTask } from './GanttView';
 
-// Force the container width to >=1024 so columnWidth=80 (deterministic).
+// Force the container width to >=1024 so columnWidth=110 (deterministic).
 beforeEach(() => {
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
 });
@@ -68,15 +68,15 @@ describe('GanttView drag-and-drop', () => {
     const bar = container.querySelector('[data-testid="gantt-task-bar-t1"]') as HTMLElement;
     expect(bar).toBeTruthy();
 
-    // columnWidth at width>=1024 = 80. Drag +240px → +3 days.
+    // columnWidth at width>=1024 = 110. Drag +330px → +3 days.
     act(() => {
       bar.dispatchEvent(pointer('pointerdown', 500));
     });
     act(() => {
-      window.dispatchEvent(pointer('pointermove', 740));
+      window.dispatchEvent(pointer('pointermove', 830));
     });
     act(() => {
-      window.dispatchEvent(pointer('pointerup', 740));
+      window.dispatchEvent(pointer('pointerup', 830));
     });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
@@ -93,14 +93,14 @@ describe('GanttView drag-and-drop', () => {
     expect(handle).toBeTruthy();
 
     act(() => { handle.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 620)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 620)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 720)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 720)); });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
     const [, changes] = onTaskUpdate.mock.calls[0];
     // start unchanged
     expect(changes.start.toISOString()).toBe('2024-06-10T00:00:00.000Z');
-    // end shifted +120px / 60 = +2 days
+    // end shifted +220px / 110 = +2 days
     expect(changes.end.toISOString()).toBe('2024-06-17T00:00:00.000Z');
   });
 
@@ -111,12 +111,12 @@ describe('GanttView drag-and-drop', () => {
     expect(handle).toBeTruthy();
 
     act(() => { handle.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 340)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 340)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 280)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 280)); });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
     const [, changes] = onTaskUpdate.mock.calls[0];
-    // start shifted -160px / 80 = -2 days
+    // start shifted -220px / 110 = -2 days
     expect(changes.start.toISOString()).toBe('2024-06-08T00:00:00.000Z');
     // end unchanged
     expect(changes.end.toISOString()).toBe('2024-06-15T00:00:00.000Z');
@@ -126,10 +126,10 @@ describe('GanttView drag-and-drop', () => {
     const onTaskUpdate = vi.fn();
     const { container } = renderView(onTaskUpdate);
     const handle = container.querySelector('[data-testid="gantt-task-resize-left-t1"]') as HTMLElement;
-    // Try to drag start +600px (10 days) — would put it 5 days past end.
+    // Try to drag start +1100px (10 days) — would put it 5 days past end.
     act(() => { handle.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 1100)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 1100)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 1600)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 1600)); });
 
     expect(onTaskUpdate).toHaveBeenCalledTimes(1);
     const [, changes] = onTaskUpdate.mock.calls[0];
@@ -143,7 +143,7 @@ describe('GanttView drag-and-drop', () => {
     const { container } = renderView(onTaskUpdate);
     const bar = container.querySelector('[data-testid="gantt-task-bar-t1"]') as HTMLElement;
     act(() => { bar.dispatchEvent(pointer('pointerdown', 500)); });
-    // Move <30px — rounds to 0 days at columnWidth=80.
+    // Move <30px — rounds to 0 days at columnWidth=110.
     act(() => { window.dispatchEvent(pointer('pointermove', 510)); });
     act(() => { window.dispatchEvent(pointer('pointerup', 510)); });
     expect(onTaskUpdate).not.toHaveBeenCalled();
@@ -249,10 +249,10 @@ describe('GanttView summary group drag', () => {
     const bracket = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
     expect(bracket).toBeTruthy();
 
-    // +160px → +2 days at columnWidth 80.
+    // +220px → +2 days at columnWidth 110.
     act(() => { bracket.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 660)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 660)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 720)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 720)); });
 
     // Summary + c1 + c2 + grandchild — one update each, all shifted +2 days
     // with durations preserved.
@@ -307,11 +307,11 @@ describe('GanttView summary group drag', () => {
       width: parseFloat(bracket().style.width),
     };
 
-    // Drag c2 (the latest child) +240px → +3 days past the parent's end.
+    // Drag c2 (the latest child) +330px → +3 days past the parent's end.
     const bar = container.querySelector('[data-testid="gantt-task-bar-c2"]') as HTMLElement;
     act(() => { bar.dispatchEvent(pointer('pointerdown', 500)); });
-    act(() => { window.dispatchEvent(pointer('pointermove', 740)); });
-    act(() => { window.dispatchEvent(pointer('pointerup', 740)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 830)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 830)); });
 
     const after = {
       left: parseFloat(bracket().style.left),
@@ -319,6 +319,6 @@ describe('GanttView summary group drag', () => {
     };
     // Parent start is still c1's start; parent end follows c2 → +3 days wider.
     expect(after.left).toBeCloseTo(before.left, 0);
-    expect(after.width).toBeCloseTo(before.width + 3 * 80, 0);
+    expect(after.width).toBeCloseTo(before.width + 3 * 110, 0);
   });
 });
