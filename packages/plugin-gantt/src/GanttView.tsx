@@ -18,7 +18,6 @@ import {
   Calendar as CalendarIcon,
   PanelLeftClose,
   PanelLeft,
-  CalendarDays,
   Maximize2,
   Minimize2,
   Download,
@@ -2375,14 +2374,14 @@ export function GanttView({
           </Button>
           <Button
             variant="ghost"
-            size="icon"
-            className="h-8 w-8"
+            size="sm"
+            className="h-8 px-2 text-xs"
             onClick={jumpToToday}
             disabled={todayLeftPx == null}
             aria-label={t('gantt.toolbar.jumpToToday')}
             data-testid="gantt-jump-today"
           >
-            <CalendarDays className="h-4 w-4" />
+            {t('gantt.toolbar.today')}
           </Button>
           <Button
             variant="ghost"
