@@ -254,6 +254,15 @@ describe('GanttView defaultCollapsedDepth (默认折叠)', () => {
   });
 });
 
+describe('GanttView leaf bar labels', () => {
+  it('renders the task title inside a leaf task bar (not just summary bars)', () => {
+    const { container } = renderViewWith(manufacturingTree());
+    const bar = container.querySelector('[data-testid="gantt-task-bar-wo"]') as HTMLElement;
+    expect(bar).toBeTruthy();
+    expect(bar.textContent).toContain('Task wo');
+  });
+});
+
 describe('GanttView locked nodes (仅查看)', () => {
   it('omits drag/resize/progress handles and the dependency dot on a locked bar', () => {
     const { container } = renderViewWith(manufacturingTree(), {

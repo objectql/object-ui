@@ -3173,8 +3173,15 @@ export function GanttView({
                           />
                         )}
 
-                        {/* Hover Details / drag tooltip */}
-                        <span className="text-[10px] text-white font-medium truncate opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                        {/* Bar label — the task title, shown like summary bars so
+                            leaf bars aren't blank. Fades out on hover to reveal the
+                            progress / drag overlay below. */}
+                        <span className="relative text-[10px] text-white font-medium truncate pointer-events-none group-hover:opacity-0 transition-opacity">
+                          {task.title}
+                        </span>
+                        {/* Hover Details / drag tooltip — overlays the title so the
+                            bar's text width never shifts on hover. */}
+                        <span className="absolute inset-0 flex items-center px-2 text-[10px] text-white font-medium truncate opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                           {isDragging
                             ? `${computeDragChanges(dragState!).start.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })} → ${computeDragChanges(dragState!).end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })}`
                             : `${Math.round(liveProgress)}%`}
