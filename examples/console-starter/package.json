@@ -28,7 +28,7 @@
     "@object-ui/plugin-view": "workspace:*",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "react-router-dom": "^7.17.0",
+    "react-router-dom": "^7.18.0",
     "sonner": "^2.0.7"
   },
   "devDependencies": {

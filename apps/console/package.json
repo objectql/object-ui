@@ -105,7 +105,7 @@
     "postcss": "^8.5.15",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "react-router-dom": "^7.17.0",
+    "react-router-dom": "^7.18.0",
     "sonner": "^2.0.7",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3",
