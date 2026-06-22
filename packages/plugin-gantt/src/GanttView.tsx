@@ -3363,11 +3363,15 @@ export function GanttView({
                           />
                         )}
 
-                        {/* Progress drag handle — grip at the progress boundary */}
+                        {/* Progress drag handle — a triangle hugging the bottom
+                            edge at the progress boundary (dhtmlx-style). It only
+                            shows on hover / while dragging, and its hit area lives
+                            in the bottom half so grabbing it never competes with a
+                            bar move (top) or a link drag (the centred end dots). */}
                         {canDrag && liveStyle.width >= 30 && (
                           <div
                             className={cn(
-                              "absolute top-0 bottom-0 w-3 -translate-x-1/2 cursor-col-resize flex items-center justify-center",
+                              "absolute bottom-0 h-1/2 w-4 -translate-x-1/2 cursor-col-resize flex items-end justify-center pb-px",
                               progressDrag?.taskId === task.id
                                 ? "opacity-100"
                                 : "opacity-0 group-hover:opacity-100 transition-opacity"
@@ -3388,47 +3392,84 @@ export function GanttView({
                             }}
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {/* Explicit colors: bg-white / ring-black-30 aren't
-                                emitted in the prebuilt components CSS. */}
+                            {/* Up-pointing triangle. Built from borders (no asset);
+                                white fill + drop-shadow so it reads on any bar color. */}
                             <div
-                              className="h-2.5 w-2.5 rounded-full"
-                              style={{ backgroundColor: '#fff', boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.25)' }}
+                              style={{
+                                width: 0,
+                                height: 0,
+                                borderLeft: '5px solid transparent',
+                                borderRight: '5px solid transparent',
+                                borderBottom: '7px solid #fff',
+                                filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35))',
+                              }}
                             />
                           </div>
                         )}
 
-                        {/* Connector dots — one at each end of the bar. Drag from
-                            the Start dot or the Finish dot onto another bar to
-                            create a dependency; the endpoint you drag FROM picks
-                            the first letter of the link type (Finish vs Start). */}
-                        {onDependencyCreate && !isLocked && (['start', 'end'] as const).map((end) => (
-                          <div
-                            key={end}
-                            className={cn(
-                              "absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-background z-10",
-                              linkDrag && String(linkDrag.sourceId) === String(task.id) && linkDrag.sourceEnd === end
-                                ? "opacity-100"
-                                : "opacity-0 group-hover:opacity-100 transition-opacity"
-                            )}
-                            style={{ [end === 'start' ? 'left' : 'right']: -8, cursor: 'crosshair', border: '2px solid hsl(var(--primary))' }}
-                            data-testid={`gantt-link-dot-${end}-${task.id}`}
-                            onPointerDown={(e) => {
-                              if (e.button !== 0) return;
-                              e.stopPropagation();
-                              e.preventDefault();
-                              const rect = contentRef.current?.getBoundingClientRect();
-                              setLinkDrag({
-                                sourceId: task.id,
-                                sourceEnd: end,
-                                x: rect ? e.clientX - rect.left : 0,
-                                y: rect ? e.clientY - rect.top : 0,
-                                targetId: null,
-                                targetEnd: null,
-                              });
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ))}
+                        {/* Connector dots — a circle floating just OUTSIDE each end
+                            of the bar (dhtmlx-style). Sitting fully outside the bar
+                            body means grabbing one can never start a bar move or an
+                            edge resize. They appear on row hover (or while this bar
+                            is the link source) and have their own enlarged hit area
+                            so they're easy to grab. Drag one onto another bar to
+                            create a dependency; the endpoint you drag FROM picks the
+                            first letter of the link type (Finish vs Start). */}
+                        {onDependencyCreate && !isLocked && (['start', 'end'] as const).map((end) => {
+                          const isSource =
+                            linkDrag != null &&
+                            String(linkDrag.sourceId) === String(task.id) &&
+                            linkDrag.sourceEnd === end;
+                          const visible = isSource || hoveredTaskId === task.id;
+                          // Only grabbable when no drag is live yet — during a drag
+                          // the dots are pure visual hints, so the bar underneath
+                          // keeps reporting the hovered drop target.
+                          const grabbable = visible && linkDrag == null;
+                          return (
+                            <div
+                              key={end}
+                              // Enlarged transparent hit area; the circle is centred
+                              // inside it. Touches the bar edge (no gap) so the row
+                              // hover stays unbroken when the pointer moves onto it.
+                              className="absolute top-1/2 -translate-y-1/2 z-20 flex items-center justify-center transition-opacity"
+                              style={{
+                                [end === 'start' ? 'left' : 'right']: -18,
+                                height: 20,
+                                width: 20,
+                                cursor: 'crosshair',
+                                opacity: visible ? 1 : 0,
+                                pointerEvents: grabbable ? 'auto' : 'none',
+                              }}
+                              data-testid={`gantt-link-dot-${end}-${task.id}`}
+                              onPointerDown={(e) => {
+                                if (e.button !== 0) return;
+                                e.stopPropagation();
+                                e.preventDefault();
+                                const rect = contentRef.current?.getBoundingClientRect();
+                                setLinkDrag({
+                                  sourceId: task.id,
+                                  sourceEnd: end,
+                                  x: rect ? e.clientX - rect.left : 0,
+                                  y: rect ? e.clientY - rect.top : 0,
+                                  targetId: null,
+                                  targetEnd: null,
+                                });
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div
+                                className="rounded-full"
+                                style={{
+                                  height: 12,
+                                  width: 12,
+                                  backgroundColor: 'hsl(var(--background))',
+                                  border: '2px solid hsl(var(--primary))',
+                                  boxShadow: isSource ? '0 0 0 3px hsl(var(--primary) / 0.25)' : '0 1px 2px rgba(0,0,0,0.25)',
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
 
                         {/* Bar label — the task title, shown like summary bars so
                             leaf bars aren't blank. Fades out on hover to reveal the
