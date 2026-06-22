@@ -1728,11 +1728,22 @@ export function GanttView({
     (start: Date, end: Date, taskId?: string | number) => {
       const el = scrollAreaRef.current;
       if (!el) return;
+      // Align to the bar's *start* (not its midpoint): a long bar centered on
+      // its middle pushes its beginning off the left edge, so the start — the
+      // part the user is looking for — is what we bring into view, with a small
+      // margin so it isn't jammed against the panel divider. When the whole bar
+      // fits this also shows it in full.
       const startX = dateToX(start);
       const endX = dateToX(end);
-      const mid = (startX + endX) / 2;
       const maxLeft = Math.max(0, el.scrollWidth - el.clientWidth);
-      const target = Math.max(0, Math.min(mid - el.clientWidth / 2, maxLeft));
+      const leftMargin = Math.min(96, el.clientWidth * 0.15);
+      // For a bar that already fits, prefer centering it; otherwise pin the
+      // start near the left so its beginning is always visible.
+      const fits = endX - startX <= el.clientWidth - leftMargin;
+      const desired = fits
+        ? (startX + endX) / 2 - el.clientWidth / 2
+        : startX - leftMargin;
+      const target = Math.max(0, Math.min(desired, maxLeft));
 
       // Tear down any pending flash from a previous click before starting over.
       flashTimerRef.current.forEach((id) => window.clearTimeout(id));
@@ -2678,16 +2689,18 @@ export function GanttView({
                     row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
-                {/* 定位到甘特图: scroll the timeline to center this row's bar.
-                    Pinned to the row's right edge (flush with the chart divider)
-                    so it sits in a stable slot and never shifts the date column
-                    on hover. */}
+                {/* 定位到甘特图: scroll the timeline to this row's bar. Pinned to
+                    the row's right edge (flush with the chart divider) so it sits
+                    in a stable slot and never shifts the date column on hover. The
+                    `right` offset is inline because Tailwind's fractional `right-*`
+                    utilities aren't in the prebuilt CSS shipped to consumers. */}
                 {!isEditing && (
                   <button
                     type="button"
                     title={t('gantt.row.locate')}
                     aria-label={t('gantt.row.locate')}
-                    className="gantt-locate-btn hidden sm:block absolute right-1 top-1/2 -translate-y-1/2"
+                    className="gantt-locate-btn hidden sm:block absolute top-1/2 -translate-y-1/2"
+                    style={{ right: 1 }}
                     onClick={(e) => {
                       e.stopPropagation();
                       scrollToTask(row.start, row.end, row.task.id);
