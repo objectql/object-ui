@@ -48,6 +48,7 @@ import {
   isAskAgent,
   publishHealthFromResponse,
   detectDraftResult,
+  detectProposedPlan,
   buildProgressFromDraftReview,
   type AgentDescriptor,
   type ChatbotEnhancedToolInvocation,
@@ -131,12 +132,17 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
         const result =
           (part as { output?: unknown }).output ?? (part as { result?: unknown }).result;
         const draftReview = detectDraftResult(result);
+        // The pre-build PLAN (propose_blueprint → blueprint_proposed) rides the
+        // same merged tool result; lift it so the "Proposed plan" review card
+        // survives a reload on this surface, not just in the floating chat.
+        const proposedPlan = detectProposedPlan(result);
         toolInvocations.push({
           toolCallId,
           toolName,
           ...(state ? { state } : {}),
           ...(result !== undefined ? { result } : {}),
           ...(draftReview ? { draftReview } : {}),
+          ...(proposedPlan ? { proposedPlan } : {}),
           ...(part.errorText ? { errorText: String(part.errorText) } : {}),
         });
         if (!buildProgress) {

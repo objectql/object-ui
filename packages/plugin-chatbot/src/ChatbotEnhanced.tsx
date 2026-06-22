@@ -679,7 +679,10 @@ function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
     state === 'awaiting' ||
     state === 'failed' ||
     Boolean(tool.pendingActionId) ||
-    Boolean(tool.draftReview?.items.length)
+    Boolean(tool.draftReview?.items.length) ||
+    // The pre-build "Proposed plan" card lives in the detailed tool body; route
+    // a propose_blueprint result there instead of collapsing it into a chip.
+    Boolean(tool.proposedPlan)
   );
 }
 

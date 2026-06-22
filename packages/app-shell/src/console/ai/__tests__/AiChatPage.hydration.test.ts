@@ -45,4 +45,36 @@ describe('AiChatPage hydration — tool invocation states', () => {
       { toolCallId: 't2', toolName: 'verify_build', state: 'output-denied' },
     ]);
   });
+
+  it('lifts the pre-build proposed plan so the review card survives a reload on this surface', () => {
+    // propose_blueprint's `blueprint_proposed` result rides the merged tool
+    // output (here the persisted `{type:text,value}` envelope). Without lifting
+    // it on THIS converter the "Proposed plan" card only shows in the floating
+    // chat, never on /ai/build after a refresh.
+    const envelope = JSON.stringify({
+      status: 'blueprint_proposed',
+      blueprint: {
+        summary: 'A reading list',
+        assumptions: ['One shelf for now'],
+        objects: [{ name: 'book', label: 'Book', fields: [{ name: 'title' }, { name: 'author' }] }],
+      },
+      counts: { objects: 1, views: 0, dashboards: 0, seedData: 0 },
+      questions: [],
+    });
+    const [msg] = hydratedMessagesToChatMessages(
+      assistantWith([
+        {
+          type: 'tool-call',
+          toolCallId: 't1',
+          toolName: 'propose_blueprint',
+          output: { type: 'text', value: envelope },
+        },
+      ]),
+    );
+    expect(msg.toolInvocations?.[0]?.proposedPlan).toMatchObject({
+      summary: 'A reading list',
+      objects: [{ name: 'book', label: 'Book', fieldCount: 2 }],
+      assumptions: ['One shelf for now'],
+    });
+  });
 });

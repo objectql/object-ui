@@ -43,6 +43,39 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText(/How can I help/i)).toBeInTheDocument();
   });
 
+  it('renders the pre-build "Proposed plan" card instead of collapsing the propose tool into a chip', () => {
+    // Regression: a propose_blueprint tool carries `proposedPlan` but no
+    // draftReview — it must route to the DETAILED tool body (where the card
+    // lives), not the summary chip strip, or the confirm-gate card never shows.
+    const messages: ChatMessage[] = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        toolInvocations: [
+          {
+            toolCallId: 't1',
+            toolName: 'propose_blueprint',
+            state: 'output-available',
+            proposedPlan: {
+              summary: 'A reading list',
+              objects: [{ name: 'book', label: 'Book', fieldCount: 2 }],
+              counts: { objects: 1, views: 0, dashboards: 0, seedData: 0 },
+              questions: ['Track loans separately?'],
+              assumptions: ['One shelf for now'],
+            },
+          },
+        ],
+      },
+    ];
+    render(<ChatbotEnhanced messages={messages} />);
+    expect(screen.getByTestId('proposed-plan')).toBeInTheDocument();
+    expect(screen.getByText('Proposed plan')).toBeInTheDocument();
+    expect(screen.getByText(/A reading list/)).toBeInTheDocument();
+    expect(screen.getByTestId('proposed-plan-questions')).toBeInTheDocument();
+    expect(screen.getByText(/Track loans separately/)).toBeInTheDocument();
+  });
+
   it('shows an error banner with a retry affordance', () => {
     const onReload = vi.fn();
     render(
