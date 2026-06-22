@@ -9,12 +9,12 @@ import { DataSource } from '@object-ui/types';
 // for "Create", "View", and "Delete" so CRUD wiring can be unit-tested
 // without rendering the full timeline.
 vi.mock('./GanttView', () => ({
-  GanttView: ({ tasks, onTaskClick, onTaskUpdate, onTaskDelete, onDependencyCreate, onDependencyDelete, rescheduleOnConflict, persistLayoutKey, mobileReadOnly }: any) => {
+  GanttView: ({ tasks, onTaskClick, onTaskUpdate, onTaskDelete, onDependencyCreate, onDependencyDelete, rescheduleOnConflict, persistLayoutKey, mobileReadOnly, defaultCollapsedDepth }: any) => {
     const byId = (id: any) => tasks.find((t: any) => String(t.id) === String(id));
     return (
-      <div data-testid="gantt-view" data-reschedule-on-conflict={String(!!rescheduleOnConflict)} data-persist-layout-key={persistLayoutKey || ''} data-mobile-readonly={String(!!mobileReadOnly)}>
+      <div data-testid="gantt-view" data-reschedule-on-conflict={String(!!rescheduleOnConflict)} data-persist-layout-key={persistLayoutKey || ''} data-mobile-readonly={String(!!mobileReadOnly)} data-default-collapsed-depth={defaultCollapsedDepth == null ? '' : String(defaultCollapsedDepth)}>
         {tasks.map((t: any) => (
-          <div key={t.id} data-testid="gantt-task">
+          <div key={t.id} data-testid="gantt-task" data-type={t.type ?? ''} data-locked={String(!!t.locked)}>
             <span>{t.title}</span>
             {t.fields ? (
               <div data-testid={`gv-fields-${t.id}`}>
@@ -404,6 +404,34 @@ describe('ObjectGantt', () => {
     render(<ObjectGantt schema={noMobile} dataSource={ds} />);
     await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
     expect(screen.getByTestId('gantt-view').getAttribute('data-mobile-readonly')).toBe('false');
+  });
+
+  it('maps lockField onto task.locked and forwards defaultCollapsedDepth (config-driven, not hardcoded)', async () => {
+    const treeData = [
+      { id: 'p', name: 'Project', start_date: '2024-01-01', end_date: '2024-01-31', kind: 'group' },
+      { id: 'plan', name: 'Plan', start_date: '2024-01-02', end_date: '2024-01-10', kind: 'task', parent: 'p', frozen: false },
+      { id: 'wo', name: 'Work order', start_date: '2024-01-02', end_date: '2024-01-05', kind: 'task', parent: 'plan', frozen: true },
+    ];
+    const schema: any = {
+      type: 'gantt',
+      gantt: {
+        titleField: 'name', startDateField: 'start_date', endDateField: 'end_date',
+        parentField: 'parent', typeField: 'kind', lockField: 'frozen', defaultCollapsedDepth: 2,
+      },
+      data: { provider: 'object', object: 'tasks' },
+    };
+    const ds: DataSource = { ...mockDataSource, find: vi.fn().mockResolvedValue({ data: treeData }) };
+    render(<ObjectGantt schema={schema} dataSource={ds} />);
+    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
+
+    // defaultCollapsedDepth is forwarded verbatim to GanttView.
+    expect(screen.getByTestId('gantt-view').getAttribute('data-default-collapsed-depth')).toBe('2');
+    // typeField 'group' → group node (无条); lockField truthiness → task.locked.
+    const byTitle = (title: string) =>
+      screen.getByText(title).closest('[data-testid="gantt-task"]') as HTMLElement;
+    expect(byTitle('Project').getAttribute('data-type')).toBe('group');
+    expect(byTitle('Plan').getAttribute('data-locked')).toBe('false');
+    expect(byTitle('Work order').getAttribute('data-locked')).toBe('true');
   });
 });
 

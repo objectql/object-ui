@@ -110,6 +110,15 @@ export interface GanttTask {
    */
   type?: GanttTaskType
   /**
+   * Per-node lock (仅查看/跳转). When true this row is view-only: its bar can't be
+   * dragged/resized, progress can't be dragged, no dependency can be drawn from
+   * it, and inline-edit / context-menu edit+delete are hidden. Clicking the bar
+   * (onTaskClick — open drawer / jump) still works. Independent of the global
+   * `readOnly`; use to lock individual levels (e.g. 派工单) while others stay
+   * editable. Maps from the view's `lockField` in ObjectGantt.
+   */
+  locked?: boolean
+  /**
    * Baseline (planned) start/end. When both are present a thin reference bar is
    * drawn beneath the live bar so planned-vs-actual drift is visible at a glance.
    */
@@ -288,6 +297,17 @@ export interface GanttViewProps {
   /** Label for the bucket collecting tasks whose `groupBy` returns null. */
   ungroupedLabel?: string
   /**
+   * Auto-collapse tree nodes at or below this depth on first render (默认折叠).
+   * Depth is 0-indexed: roots are 0, their children 1, etc. Every node whose
+   * depth is `>= defaultCollapsedDepth` AND which has children is seeded into the
+   * collapsed set once, so its subtree starts hidden. The user can still expand
+   * any of them — this only sets the initial state. Example: a 项目→产品→排产计划→派工单
+   * tree where 排产计划 sits at depth 2 uses `defaultCollapsedDepth={2}` to start
+   * with every 排产计划 (and its 派工单 children) folded. Omit (or pass a depth past
+   * the deepest node) to start fully expanded.
+   */
+  defaultCollapsedDepth?: number
+  /**
    * Persist the user's layout tweaks (granularity + column/task-list widths)
    * to `localStorage` under this key. On mount the saved layout is restored;
    * the "保存布局" toolbar button writes the current layout. Omit to disable
@@ -448,6 +468,7 @@ export function GanttView({
   mobileReadOnly = false,
   groupBy,
   ungroupedLabel = 'Ungrouped',
+  defaultCollapsedDepth,
   persistLayoutKey,
   onLayoutChange,
 }: GanttViewProps) {
@@ -1107,6 +1128,40 @@ export function GanttView({
       return next;
     });
   }, []);
+  // Seed the collapsed set once from `defaultCollapsedDepth` (默认折叠). We walk
+  // the parent chain to derive each node's 0-indexed depth and fold every node
+  // at/below the threshold that actually has children. Runs a single time so the
+  // user's later expand/collapse is never clobbered by a data refresh.
+  const defaultCollapseSeeded = React.useRef(false);
+  React.useEffect(() => {
+    if (defaultCollapseSeeded.current) return;
+    if (defaultCollapsedDepth == null || displayTasks.length === 0) return;
+    defaultCollapseSeeded.current = true;
+    const byId = new Map(displayTasks.map((t) => [String(t.id), t]));
+    const hasChildren = new Set<string>();
+    for (const t of displayTasks) {
+      const p = t.parent != null && t.parent !== '' ? String(t.parent) : null;
+      if (p && p !== String(t.id) && byId.has(p)) hasChildren.add(p);
+    }
+    // Depth via parent walk, cycle-guarded.
+    const depthOf = (t: GanttTask): number => {
+      let depth = 0;
+      const seen = new Set<string>([String(t.id)]);
+      let cur = t.parent != null && t.parent !== '' ? byId.get(String(t.parent)) : undefined;
+      while (cur && !seen.has(String(cur.id))) {
+        depth += 1;
+        seen.add(String(cur.id));
+        cur = cur.parent != null && cur.parent !== '' ? byId.get(String(cur.parent)) : undefined;
+      }
+      return depth;
+    };
+    const seed = new Set<string>();
+    for (const t of displayTasks) {
+      const key = String(t.id);
+      if (hasChildren.has(key) && depthOf(t) >= defaultCollapsedDepth) seed.add(key);
+    }
+    if (seed.size) setCollapsedIds((prev) => (prev.size ? prev : seed));
+  }, [defaultCollapsedDepth, displayTasks]);
 
   const rows = React.useMemo<GanttRow[]>(() => {
     const ids = new Set(displayTasks.map((t) => String(t.id)));
@@ -2462,7 +2517,7 @@ export function GanttView({
                 aria-level={row.depth + 1}
                 aria-selected={isSelected}
                 aria-expanded={row.hasChildren ? !isCollapsed : undefined}
-                draggable={!!onTaskReorder && !isEditing}
+                draggable={!!onTaskReorder && !isEditing && !task.locked}
                 onDragStart={onTaskReorder ? (e) => {
                   e.dataTransfer.setData('text/plain', String(task.id));
                   e.dataTransfer.effectAllowed = 'move';
@@ -2490,7 +2545,7 @@ export function GanttView({
                   if (!isEditing) onTaskClick?.(task);
                 }}
                 onDoubleClick={() => {
-                  if (inlineEdit && onTaskUpdate && !row.isSummary) {
+                  if (inlineEdit && onTaskUpdate && !row.isSummary && !task.locked) {
                     setEditingTask(task.id);
                     setEditValues({
                       title: task.title,
@@ -2711,7 +2766,10 @@ export function GanttView({
                    const inDragGroup = dragGroupIds?.has(String(task.id)) ?? false;
                    const inDragStretch = dragStretchAncestorIds?.has(String(task.id)) ?? false;
                    const liveStyle = isDragging || inDragGroup || inDragStretch ? getLiveRowStyle(row) : baseStyle;
-                   const canDrag = !!onTaskUpdate && !row.isSummary;
+                   // Per-node lock (仅查看): treat like read-only for this row —
+                   // no move/resize/progress/link, but onTaskClick still fires.
+                   const isLocked = !!task.locked;
+                   const canDrag = !!onTaskUpdate && !row.isSummary && !isLocked;
                    const isLinkTarget =
                      linkDrag != null &&
                      linkDrag.targetId != null &&
@@ -3028,7 +3086,7 @@ export function GanttView({
                         )}
 
                         {/* Connector dot — drag onto another bar to create a dependency */}
-                        {onDependencyCreate && (
+                        {onDependencyCreate && !isLocked && (
                           <div
                             className={cn(
                               "absolute top-1/2 -translate-y-1/2 h-3 w-3 rounded-full bg-background z-10",
@@ -3222,7 +3280,7 @@ export function GanttView({
                 {t('gantt.menu.view')}
               </button>
             )}
-            {inlineEdit && onTaskUpdate && row && !row.isSummary && (
+            {inlineEdit && onTaskUpdate && row && !row.isSummary && !task.locked && (
               <button
                 type="button"
                 role="menuitem"
@@ -3242,7 +3300,7 @@ export function GanttView({
                 {t('gantt.menu.edit')}
               </button>
             )}
-            {onDependencyCreate && row && !row.isMilestone && (
+            {onDependencyCreate && row && !row.isMilestone && !task.locked && (
               <>
                 <button
                   type="button"
@@ -3272,7 +3330,7 @@ export function GanttView({
                 </button>
               </>
             )}
-            {onTaskDelete && (
+            {onTaskDelete && !task.locked && (
               <button
                 type="button"
                 role="menuitem"

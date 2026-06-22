@@ -86,6 +86,23 @@ type GanttConfigEx = GanttConfig & {
    * that only group, never schedule.
    */
   typeField?: string;
+  /**
+   * Record field marking a node as view-only / 仅查看 (truthy → locked). A locked
+   * row's bar can't be dragged/resized, its progress can't be dragged, no
+   * dependency can be drawn from it, and its inline-edit / context-menu
+   * edit+delete are hidden — but clicking it (open drawer / jump) still works.
+   * Independent of the global `readOnly`; use to freeze individual levels (e.g.
+   * 派工单) while siblings stay editable. Maps to {@link GanttTask.locked}.
+   */
+  lockField?: string;
+  /**
+   * Auto-collapse tree nodes at/below this 0-indexed depth on first render
+   * (默认折叠). Roots are depth 0. Every node at depth `>= defaultCollapsedDepth`
+   * with children starts folded; the user can still expand them. Example: a
+   * 项目→产品→排产计划→派工单 tree uses `defaultCollapsedDepth: 2` so every 排产计划
+   * (and its 派工单) starts collapsed. Forwarded to {@link GanttView}.
+   */
+  defaultCollapsedDepth?: number;
   /** Baseline (planned) start/end fields → planned-vs-actual reference bars. */
   baselineStartField?: string;
   baselineEndField?: string;
@@ -253,6 +270,8 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           colorField: schema.colorField,
           parentField: schema.parentField,
           typeField: schema.typeField,
+          lockField: schema.lockField,
+          defaultCollapsedDepth: schema.defaultCollapsedDepth,
           tooltipFields: schema.tooltipFields,
           baselineStartField: schema.baselineStartField,
           baselineEndField: schema.baselineEndField,
@@ -386,7 +405,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return [];
     }
 
-    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField, tooltipFields, baselineStartField, baselineEndField } = ganttConfig;
+    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField } = ganttConfig;
     const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
 
     // Resolve a value through nested paths like "account.name". Returns the
@@ -542,6 +561,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         dependencies: normalizeDependencies(dependencies),
         parent: parentField ? record[parentField] ?? null : undefined,
         type: typeField ? normalizeTaskType(record[typeField]) : undefined,
+        locked: lockField ? !!record[lockField] : undefined,
         color,
         baselineStart: baselineStart && !isNaN(baselineStart.getTime()) ? baselineStart : undefined,
         baselineEnd: baselineEnd && !isNaN(baselineEnd.getTime()) ? baselineEnd : undefined,
@@ -1080,6 +1100,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
               : `${schema.objectName || (dataConfig?.provider === 'object' ? dataConfig.object : '') || 'gantt'}:${(schema as any).viewName || 'default'}`
           }
           groupBy={groupByAccessor}
+          defaultCollapsedDepth={ganttConfig?.defaultCollapsedDepth}
           inlineEdit
         />
         )}

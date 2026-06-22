@@ -196,3 +196,74 @@ describe('GanttView task hierarchy', () => {
     expect(fill.style.backgroundColor).toBe('rgba(0, 0, 0, 0.2)');
   });
 });
+
+// A 4-level tree: 项目(L0,group) → 产品(L1,group) → 排产计划(L2) → 派工单(L3).
+function manufacturingTree(): GanttTask[] {
+  return [
+    makeTask('prj', '2024-06-01T00:00:00.000Z', '2024-06-30T00:00:00.000Z', { type: 'group' }),
+    makeTask('prod', '2024-06-01T00:00:00.000Z', '2024-06-30T00:00:00.000Z', { parent: 'prj', type: 'group' }),
+    makeTask('plan', '2024-06-03T00:00:00.000Z', '2024-06-10T00:00:00.000Z', { parent: 'prod' }),
+    makeTask('wo', '2024-06-03T00:00:00.000Z', '2024-06-06T00:00:00.000Z', { parent: 'plan', locked: true }),
+  ];
+}
+
+function renderViewWith(tasks: GanttTask[], extra: Record<string, unknown> = {}) {
+  return render(
+    <div style={{ width: 1280, height: 600 }}>
+      <GanttView
+        tasks={tasks}
+        startDate={new Date('2024-06-01T00:00:00.000Z')}
+        endDate={new Date('2024-06-30T00:00:00.000Z')}
+        {...extra}
+      />
+    </div>
+  );
+}
+
+describe('GanttView group nodes (无条 tree headers)', () => {
+  it('renders type:group rows with no bar but keeps the expand toggle', () => {
+    const { container } = renderViewWith(manufacturingTree());
+    // Group rows have neither a summary bracket nor a task bar.
+    expect(container.querySelector('[data-testid="gantt-summary-bar-prj"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-task-bar-prj"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-summary-bar-prod"]')).toBeFalsy();
+    // But they remain collapsible tree nodes.
+    expect(container.querySelector('[data-testid="gantt-row-toggle-prj"]')).toBeTruthy();
+    // The schedulable level below still draws its bar.
+    expect(container.querySelector('[data-testid="gantt-summary-bar-plan"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="gantt-task-bar-wo"]')).toBeTruthy();
+  });
+});
+
+describe('GanttView defaultCollapsedDepth (默认折叠)', () => {
+  it('seeds the collapsed set at the given depth so deeper rows start hidden', () => {
+    // depth 2 = 排产计划; its 派工单 child should start folded away.
+    const { container } = renderViewWith(manufacturingTree(), { defaultCollapsedDepth: 2 });
+    expect(container.querySelector('[data-testid="gantt-summary-bar-plan"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="gantt-task-bar-wo"]')).toBeFalsy();
+    // The plan node is collapsed (aria-expanded=false) and expandable by the user.
+    const toggle = container.querySelector('[data-testid="gantt-row-toggle-plan"]') as HTMLElement;
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(toggle);
+    expect(container.querySelector('[data-testid="gantt-task-bar-wo"]')).toBeTruthy();
+  });
+
+  it('leaves the tree fully expanded when the prop is omitted', () => {
+    const { container } = renderViewWith(manufacturingTree());
+    expect(container.querySelector('[data-testid="gantt-task-bar-wo"]')).toBeTruthy();
+  });
+});
+
+describe('GanttView locked nodes (仅查看)', () => {
+  it('omits drag/resize/progress handles and the dependency dot on a locked bar', () => {
+    const { container } = renderViewWith(manufacturingTree(), {
+      onTaskUpdate: () => {},
+      onDependencyCreate: () => {},
+    });
+    // The locked 派工单 keeps its bar but loses every write affordance.
+    expect(container.querySelector('[data-testid="gantt-task-bar-wo"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="gantt-task-resize-left-wo"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-task-resize-right-wo"]')).toBeFalsy();
+    expect(container.querySelector('[data-testid="gantt-link-dot-wo"]')).toBeFalsy();
+  });
+});

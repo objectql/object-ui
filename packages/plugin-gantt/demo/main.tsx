@@ -135,17 +135,18 @@ function manufacturingFixture(): GanttTask[] {
     { id: 'prod-A1', title: '产品A-1（XX项目导管架）', start: d('2026-06-01'), end: d('2026-06-30'), progress: 0, parent: 'prj-A', type: 'group' },
 
     // 三级: 排产计划 (有时间条) — children drive its rollup range
+    // 四级 派工单 are `locked` (仅查看/跳转): no drag/resize/progress/link/edit.
     { id: 'plan-1', title: '将军柱组焊（排产计划）', start: d('2026-06-03'), end: d('2026-06-10'), progress: 0, parent: 'prod-A1', color: PLAN },
-    { id: 'wo-001', title: 'WO001 张三（派工单）', start: d('2026-06-03'), end: d('2026-06-06'), progress: 100, parent: 'plan-1', color: WORK },
-    { id: 'wo-002', title: 'WO002 李四（派工单）', start: d('2026-06-06'), end: d('2026-06-10'), progress: 40, parent: 'plan-1', color: WORK, dependencies: [{ id: 'wo-001', type: 'fs' }] },
+    { id: 'wo-001', title: 'WO001 张三（派工单）', start: d('2026-06-03'), end: d('2026-06-06'), progress: 100, parent: 'plan-1', color: WORK, locked: true },
+    { id: 'wo-002', title: 'WO002 李四（派工单）', start: d('2026-06-06'), end: d('2026-06-10'), progress: 40, parent: 'plan-1', color: WORK, locked: true, dependencies: [{ id: 'wo-001', type: 'fs' }] },
 
     { id: 'plan-2', title: '主腿管接长（排产计划）', start: d('2026-06-08'), end: d('2026-06-14'), progress: 0, parent: 'prod-A1', color: PLAN },
-    { id: 'wo-003', title: 'WO003 王五（派工单）', start: d('2026-06-08'), end: d('2026-06-14'), progress: 20, parent: 'plan-2', color: WORK },
+    { id: 'wo-003', title: 'WO003 王五（派工单）', start: d('2026-06-08'), end: d('2026-06-14'), progress: 20, parent: 'plan-2', color: WORK, locked: true },
 
     // 二级: 第二个产品 (无条)
     { id: 'prod-A2', title: '产品A-2（YY项目导管架）', start: d('2026-06-12'), end: d('2026-06-30'), progress: 0, parent: 'prj-A', type: 'group' },
     { id: 'plan-3', title: '分段预制（排产计划）', start: d('2026-06-12'), end: d('2026-06-20'), progress: 0, parent: 'prod-A2', color: PLAN },
-    { id: 'wo-004', title: 'WO004 赵六（派工单）', start: d('2026-06-12'), end: d('2026-06-20'), progress: 10, parent: 'plan-3', color: WORK },
+    { id: 'wo-004', title: 'WO004 赵六（派工单）', start: d('2026-06-12'), end: d('2026-06-20'), progress: 10, parent: 'plan-3', color: WORK, locked: true },
   ];
 }
 
@@ -416,7 +417,9 @@ function App() {
           mobileReadOnly={mobileReadOnly}
           groupBy={groupBy}
           ungroupedLabel="未分组"
-          persistLayoutKey="demo-project"
+          // 制造排班示例: 三级排产计划 (depth 2) 默认折叠。
+          defaultCollapsedDepth={mfg ? 2 : undefined}
+          persistLayoutKey={mfg ? undefined : "demo-project"}
           onLayoutChange={(l) => console.log('[gantt-demo] layout saved', l)}
           inlineEdit
           onTaskClick={(t) => console.log('[gantt-demo] click', t.id)}
