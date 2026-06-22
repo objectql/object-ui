@@ -239,6 +239,26 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         setLoading(true);
         setError(null);
 
+        // A live object dataSource takes precedence over any `data` the host
+        // passed down: the tree needs the FULL record (esp. the parent-pointer
+        // field), but a host like ListView pre-fetches only the view's display
+        // columns — which usually omit the parent field and would flatten the
+        // tree. Fetching our own records (no column projection) guarantees the
+        // parent field is present so the hierarchy resolves.
+        if (dataConfig?.provider === 'object' && dataSource && typeof dataSource.find === 'function') {
+          const expand = buildExpandFields(objectSchema?.fields);
+          const result = await dataSource.find(dataConfig.object, {
+            $filter: schema.filter,
+            ...(expand.length > 0 ? { $expand: expand } : {}),
+          });
+          if (!cancelled) {
+            setRecords(extractRecords(result));
+            setLoading(false);
+          }
+          return;
+        }
+
+        // Otherwise fall back to inline/static data (tests, value provider).
         const passed = (rest as any).data ?? (schema as any).data;
         if (Array.isArray(passed)) {
           if (!cancelled) {
@@ -251,22 +271,6 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
         if (dataConfig?.provider === 'value') {
           if (!cancelled) {
             setRecords((dataConfig.items as any[]) ?? []);
-            setLoading(false);
-          }
-          return;
-        }
-
-        if (dataConfig?.provider === 'object') {
-          if (!dataSource || typeof dataSource.find !== 'function') {
-            throw new Error('DataSource required for the object provider');
-          }
-          const expand = buildExpandFields(objectSchema?.fields);
-          const result = await dataSource.find(dataConfig.object, {
-            $filter: schema.filter,
-            ...(expand.length > 0 ? { $expand: expand } : {}),
-          });
-          if (!cancelled) {
-            setRecords(extractRecords(result));
             setLoading(false);
           }
           return;

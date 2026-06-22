@@ -1329,6 +1329,14 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     endDateField: viewDef.gantt?.endDateField || 'end_date',
                     titleField: viewDef.gantt?.titleField || 'name',
                 },
+                tree: {
+                    // Self-referencing tree-grid config (plugin-tree). Spread the
+                    // full view-defined tree first so parentField/fields/
+                    // defaultExpandedDepth survive; labelField falls back to the
+                    // object title. parentField auto-detects when omitted.
+                    ...((viewDef as any).tree || {}),
+                    labelField: (viewDef as any).tree?.labelField || (viewDef as any).tree?.titleField || objectDef.titleField || 'name',
+                },
                 chart: {
                     chartType: viewDef.chart?.chartType,
                     xAxisField: viewDef.chart?.xAxisField,

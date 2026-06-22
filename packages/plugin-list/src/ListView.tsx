@@ -1081,9 +1081,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       resolvable.push('map');
     }
 
+    // Check for Tree capabilities — a self-referencing parent pointer.
+    if ((schema as any).tree?.parentField || schema.options?.tree?.parentField || schema.viewType === 'tree') {
+      resolvable.push('tree');
+    }
+
     // Always allow switching back to the viewType defined in schema
     if (schema.viewType && !resolvable.includes(schema.viewType as ViewType) &&
-       ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery', 'chart'].includes(schema.viewType)) {
+       ['grid', 'kanban', 'calendar', 'timeline', 'gantt', 'map', 'gallery', 'chart', 'tree'].includes(schema.viewType)) {
       resolvable.push(schema.viewType as ViewType);
     }
 
@@ -1098,7 +1103,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     }
 
     return resolvable;
-  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, schema.appearance?.allowedVisualizations]);
+  }, [schema.options, schema.viewType, schema.kanban, schema.calendar, schema.gantt, schema.gallery, schema.timeline, (schema as any).tree, schema.appearance?.allowedVisualizations]);
 
   // Sync view from props
   React.useEffect(() => {
@@ -1333,6 +1338,21 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           locationField: schema.options?.map?.locationField || 'location',
           ...(schema.options?.map || {}),
         };
+      case 'tree': {
+        // Self-referencing tree-grid. Config lives under view.tree.* (direct)
+        // or options.tree.* (app-shell object pages). parentField auto-detects
+        // from the object's tree/self-reference field when omitted.
+        const treeCfg = (schema as any).tree || schema.options?.tree || {};
+        return {
+          type: 'object-tree',
+          ...baseProps,
+          parentField: treeCfg.parentField,
+          labelField: treeCfg.labelField || treeCfg.titleField || 'name',
+          fields: treeCfg.fields || effectiveFields,
+          defaultExpandedDepth: treeCfg.defaultExpandedDepth,
+          ...treeCfg,
+        };
+      }
       case 'chart': {
         // A `chart` list view renders an aggregated chart of the object's
         // records (e.g. sum of estimate_hours grouped by status), delegating
