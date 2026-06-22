@@ -1817,8 +1817,10 @@ export function GanttView({
     if (headerRef.current) {
         headerRef.current.scrollLeft = el.scrollLeft;
     }
-    // Sync vertical scroll to task list
-    if (listRef.current) {
+    // Sync vertical scroll to task list. Assign only when it differs so the
+    // browser fires no scroll event on the list (a no-op assignment is silent),
+    // which is what keeps the two-way sync below from looping.
+    if (listRef.current && listRef.current.scrollTop !== el.scrollTop) {
         listRef.current.scrollTop = el.scrollTop;
     }
     // Drive the virtualization windows.
@@ -1828,6 +1830,24 @@ export function GanttView({
         : { top: el.scrollTop, left: el.scrollLeft }
     );
     measureViewport();
+  };
+
+  // The task list is its own vertical scroller (so users can scroll the left
+  // pane directly with a wheel/trackpad/scrollbar, not only the timeline). Push
+  // its scrollTop onto the timeline — whose handleScroll then drives the shared
+  // virtualization window and mirrors back. The "assign only if different" guard
+  // on both sides makes this self-terminating: the mirror-back lands on an equal
+  // value, so the browser emits no further scroll event.
+  const handleListScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const listEl = e.currentTarget;
+    const timeline = scrollAreaRef.current;
+    if (timeline && timeline.scrollTop !== listEl.scrollTop) {
+      timeline.scrollTop = listEl.scrollTop;
+    }
+    // Drive virtualization directly too: the timeline's scroll event is queued
+    // (async), so updating here avoids a one-frame blank in the left pane during
+    // a fast drag of its scrollbar.
+    setScrollPos((prev) => (prev.top === listEl.scrollTop ? prev : { ...prev, top: listEl.scrollTop }));
   };
 
   const styleFor = (start: Date, end: Date) => {
@@ -2547,8 +2567,9 @@ export function GanttView({
         <div className="flex flex-1 overflow-hidden">
           {/* Left Side: Task List (Grid) */}
           <div
-            className="overflow-hidden border-r bg-card z-10 shadow-sm"
+            className="overflow-y-auto overflow-x-hidden border-r bg-card z-10 shadow-sm"
             ref={listRef}
+            onScroll={handleListScroll}
             style={{ width: taskListWidth, minWidth: taskListWidth }}
             role="tree"
             aria-label={t('gantt.aria.taskList')}
