@@ -471,7 +471,7 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * into what was just built. The host wires this to its router (e.g.
    * `navigate('/apps/<name>')`).
    */
-  onOpenBuiltApp?: (appName: string) => void;
+  onOpenBuiltApp?: (appName: string, appSegment?: string) => void;
   /** Label for the open-built-app action (default "Open app"). */
   openBuiltAppLabel?: string;
   /**
@@ -483,7 +483,10 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * true and the host should open the REAL app URL (no preview flag) — the
    * app is live-but-unlisted, with actual tables and seed data.
    */
-  onPreviewDraftApp?: (appName: string, opts?: { materialized?: boolean }) => void;
+  onPreviewDraftApp?: (
+    appName: string,
+    opts?: { materialized?: boolean; appSegment?: string },
+  ) => void;
   /** Label for the preview-draft action (default "Preview"). */
   previewDraftLabel?: string;
   /**
@@ -492,7 +495,10 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * envelopes), with the cumulative deduped set. Hosts use it to open and
    * refresh the live draft-preview pane while the agent builds.
    */
-  onDraftArtifacts?: (artifacts: Array<{ type: string; name: string }>) => void;
+  onDraftArtifacts?: (
+    artifacts: Array<{ type: string; name: string }>,
+    appSegment?: string,
+  ) => void;
   /**
    * ADR-0045: fires once per build whose tool result reports `materialized`
    * with an `app` in the draft set — the app is live (tables + seed data)
@@ -1092,14 +1098,19 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     React.useEffect(() => {
       if (!onDraftArtifacts) return;
       const artifacts = new Map<string, { type: string; name: string }>();
+      // The preview pane routes on the app's PACKAGE id (ADR-0048), not its
+      // name — take it from the draft set that includes the app.
+      let appSegment: string | undefined;
       for (const message of messages) {
         for (const item of message.buildProgress?.items ?? []) {
           if (item?.type && item?.name) artifacts.set(`${item.type}:${item.name}`, item);
         }
         for (const tool of message.toolInvocations ?? []) {
-          for (const item of tool.draftReview?.items ?? []) {
+          const dr = tool.draftReview;
+          for (const item of dr?.items ?? []) {
             if (item?.type && item?.name) artifacts.set(`${item.type}:${item.name}`, item);
           }
+          if (dr?.packageId && dr.items?.some((i) => i.type === 'app')) appSegment = dr.packageId;
         }
       }
       const seen = draftArtifactKeysRef.current;
@@ -1110,7 +1121,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           grew = true;
         }
       }
-      if (grew) onDraftArtifacts([...artifacts.values()]);
+      if (grew) onDraftArtifacts([...artifacts.values()], appSegment);
     }, [messages, onDraftArtifacts]);
 
     // ADR-0045: announce materialized builds (real app live, unlisted) so the
@@ -1390,7 +1401,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         return app ? (
                           <button
                             type="button"
-                            onClick={() => onPreviewDraftApp(app.name, { materialized: tool.draftReview!.materialized === true })}
+                            onClick={() => onPreviewDraftApp(app.name, { materialized: tool.draftReview!.materialized === true, appSegment: tool.draftReview!.packageId })}
                             className="inline-flex h-7 items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted"
                             data-testid="draft-preview-app"
                           >

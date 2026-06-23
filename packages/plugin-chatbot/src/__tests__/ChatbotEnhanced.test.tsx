@@ -701,6 +701,50 @@ describe('ChatbotEnhanced — streaming build preview (live build tree)', () => 
     rerender(<ChatbotEnhanced messages={[buildMsg('done')]} onOpenBuiltApp={onOpenBuiltApp} />);
     expect(screen.queryByTestId('build-progress-open-app')).not.toBeInTheDocument();
   });
+
+  // ADR-0048: AI-built apps route on their PACKAGE id (globally unique), not the
+  // LLM's display name (`library`, which can collide across apps).
+  it('the draft Preview button passes the app package id as the route segment', () => {
+    const onPreviewDraftApp = vi.fn();
+    const msg: ChatMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      toolInvocations: [
+        {
+          toolCallId: 't1',
+          toolName: 'apply_blueprint',
+          state: 'output-available',
+          draftReview: { items: [{ type: 'app', name: 'library' }], packageId: 'app.fh79', materialized: true },
+        },
+      ],
+    };
+    render(<ChatbotEnhanced messages={[msg]} onPreviewDraftApp={onPreviewDraftApp} onPublishDrafts={vi.fn()} />);
+    fireEvent.click(screen.getByTestId('draft-preview-app'));
+    expect(onPreviewDraftApp).toHaveBeenCalledWith('library', expect.objectContaining({ appSegment: 'app.fh79' }));
+  });
+
+  it('onDraftArtifacts carries the app package id for the auto-opened preview pane', () => {
+    const onDraftArtifacts = vi.fn();
+    const msg: ChatMessage = {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      toolInvocations: [
+        {
+          toolCallId: 't1',
+          toolName: 'apply_blueprint',
+          state: 'output-available',
+          draftReview: {
+            items: [{ type: 'app', name: 'library' }, { type: 'object', name: 'fh79_book' }],
+            packageId: 'app.fh79',
+          },
+        },
+      ],
+    };
+    render(<ChatbotEnhanced messages={[msg]} onDraftArtifacts={onDraftArtifacts} onPublishDrafts={vi.fn()} />);
+    expect(onDraftArtifacts).toHaveBeenCalledWith(expect.any(Array), 'app.fh79');
+  });
 });
 
 /**

@@ -873,7 +873,7 @@ function ChatPane({
   // drafted app rendered as-if-published (`?preview=draft`) beside the chat.
   // Per-artifact signals coalesce (800 ms) into one pane refresh so a
   // whole-app build doesn't trigger an invalidation storm.
-  const [canvasApp, setCanvasApp] = useState<{ name: string; materialized: boolean } | null>(null);
+  const [canvasApp, setCanvasApp] = useState<{ name: string; segment?: string; materialized: boolean } | null>(null);
   const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
   const canvasTimerRef = useRef<number | null>(null);
   useEffect(() => () => {
@@ -887,9 +887,10 @@ function ChatPane({
   }, [canvasOpen, onCanvasOpenChange]);
   // Draggable chat ↔ preview split (active only while the preview is open).
   const split = useResizableChatPane(canvasOpen);
-  const handleDraftArtifacts = useCallback((artifacts: Array<{ type: string; name: string }>) => {
+  const handleDraftArtifacts = useCallback((artifacts: Array<{ type: string; name: string }>, appSegment?: string) => {
     const app = artifacts.find((a) => a.type === 'app');
-    if (app) setCanvasApp((prev) => prev ?? { name: app.name, materialized: false });
+    // Route the preview on the app's package id (ADR-0048), not its name.
+    if (app) setCanvasApp((prev) => prev ?? { name: app.name, segment: appSegment, materialized: false });
     if (canvasTimerRef.current) window.clearTimeout(canvasTimerRef.current);
     canvasTimerRef.current = window.setTimeout(() => setCanvasRefreshKey((k) => k + 1), 800);
   }, []);
@@ -899,7 +900,7 @@ function ChatPane({
   const handleBuildMaterialized = useCallback((appName: string) => {
     setCanvasApp((prev) =>
       prev && prev.name === appName && !prev.materialized
-        ? { name: appName, materialized: true }
+        ? { ...prev, materialized: true } // keep the package-id segment
         : prev ?? { name: appName, materialized: true },
     );
   }, []);
@@ -1126,7 +1127,8 @@ function ChatPane({
         toolDenyLabel="Reject"
         toolDenyReason="Operator rejected from chat"
         // Build-tree "Open app": jump straight into the app the agent just built.
-        onOpenBuiltApp={(appName) => navigate(`/apps/${encodeURIComponent(appName)}`)}
+        onOpenBuiltApp={(appName, appSegment) =>
+          navigate(`/apps/${encodeURIComponent(appSegment ?? appName)}`)}
         openBuiltAppLabel={t('console.ai.openBuiltApp', { defaultValue: 'Open app' })}
         // Live lifecycle truth for draft cards: the server's pending count per
         // package, so reloaded conversations show Published/Publish honestly.
@@ -1217,7 +1219,7 @@ function ChatPane({
         // agent's artifacts land; Preview buttons deep-link the same route.
         onDraftArtifacts={handleDraftArtifacts}
         onPreviewDraftApp={(appName, opts) =>
-          setCanvasApp({ name: appName, materialized: opts?.materialized === true })}
+          setCanvasApp({ name: appName, segment: opts?.appSegment, materialized: opts?.materialized === true })}
         // ADR-0045: build materialized → canvas leaves the draft overlay for
         // the real (unlisted) app; the reload shows live seed rows.
         onBuildMaterialized={handleBuildMaterialized}
@@ -1255,6 +1257,7 @@ function ChatPane({
           </div>
           <LiveCanvas
             appName={canvasApp.name}
+            appSegment={canvasApp.segment}
             materialized={canvasApp.materialized}
             refreshKey={canvasRefreshKey}
             onClose={() => setCanvasApp(null)}

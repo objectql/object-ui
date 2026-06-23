@@ -25,8 +25,14 @@ import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 export interface LiveCanvasProps {
-  /** The drafted app to render (its `app` metadata name). */
+  /** The drafted app to render (its `app` metadata name) — used for display. */
   appName: string;
+  /**
+   * ADR-0048: the app's ROUTE SEGMENT — its package id (`app.<slug>`), which is
+   * globally unique, unlike the display name (two AI apps can both be `library`).
+   * The iframe URL keys on this; falls back to `appName` when absent.
+   */
+  appSegment?: string;
   /**
    * ADR-0045: the build was materialized — the app is live (real tables and
    * seed rows) but unlisted. The canvas then renders the REAL app URL: full
@@ -55,20 +61,22 @@ function canvasSrc(appName: string, materialized: boolean): string {
   return materialized ? base : `${base}?preview=draft`;
 }
 
-export function LiveCanvas({ appName, materialized = false, refreshKey, onClose }: LiveCanvasProps) {
+export function LiveCanvas({ appName, appSegment, materialized = false, refreshKey, onClose }: LiveCanvasProps) {
   const { t } = useObjectTranslation();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // Route on the package-id segment (unique), display by name (friendly).
+  const routeSeg = appSegment && appSegment.length ? appSegment : appName;
   // Materialized world swap: changing src on the SAME iframe element
   // navigates it in place (no white-flash remount).
   useEffect(() => {
     if (!iframeRef.current) return;
-    const next = canvasSrc(appName, materialized);
+    const next = canvasSrc(routeSeg, materialized);
     try {
       if (iframeRef.current.getAttribute('src') !== next) iframeRef.current.setAttribute('src', next);
     } catch {
       /* not ready — the mount src covers it */
     }
-  }, [appName, materialized]);
+  }, [routeSeg, materialized]);
 
   // Refresh in place (src reload) instead of remounting the iframe — keeps
   // the pane from flashing white on every invalidation.
@@ -104,7 +112,7 @@ export function LiveCanvas({ appName, materialized = false, refreshKey, onClose 
       <iframe
         ref={iframeRef}
         title={`Draft preview: ${appName}`}
-        src={canvasSrc(appName, materialized)}
+        src={canvasSrc(routeSeg, materialized)}
         className="h-full w-full flex-1 border-0 bg-background"
         data-testid="live-canvas-frame"
       />
