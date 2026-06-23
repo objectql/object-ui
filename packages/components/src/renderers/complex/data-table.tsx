@@ -817,7 +817,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
               {selectable && (
-                <TableHead className={cn("w-10 bg-background", frozenColumns > 0 && "sticky left-0 z-20")}>
+                <TableHead className={cn("w-10 bg-background text-center px-0", frozenColumns > 0 && "sticky left-0 z-20")}>
                   <Checkbox
                     checked={allPageRowsSelected ? true : somePageRowsSelected ? 'indeterminate' : false}
                     onCheckedChange={handleSelectAll}
@@ -987,7 +987,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       }}
                     >
                       {selectable && (
-                        <TableCell className={cn(cellClassName, frozenColumns > 0 && "sticky left-0 z-10 bg-background", selectionStyle === 'hover' && "relative")}>
+                        <TableCell className={cn(cellClassName, "text-center px-0", frozenColumns > 0 && "sticky left-0 z-10 bg-background", selectionStyle === 'hover' && "relative")}>
                           {selectionStyle === 'hover' ? (
                             <div className={cn("transition-opacity", isSelected ? "opacity-100" : "opacity-0 group-hover/row:opacity-100")}>
                               <Checkbox
@@ -1180,7 +1180,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
 
       {/* Pagination — hidden when only one page (no controls would be actionable) */}
       {pagination && sortedData.length > 0 && totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-3 sm:px-4 py-2">
           <div className="flex items-center gap-2">
             <span className="text-xs sm:text-sm text-muted-foreground">{t('table.rowsPerPage')}:</span>
             <Select
