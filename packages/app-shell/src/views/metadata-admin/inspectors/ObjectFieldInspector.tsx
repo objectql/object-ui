@@ -43,7 +43,7 @@ import { useObjectFields } from '../previews/useObjectFields';
 import {
   readFields,
   writeFields,
-  toFieldName,
+  toFieldNameLoose,
   indexOfField,
   type FieldsView,
   type FieldEntry,
@@ -184,7 +184,7 @@ export function ObjectFieldInspector({
   };
 
   const setKey = (rawNext: string) => {
-    const nextName = toFieldName(rawNext);
+    const nextName = toFieldNameLoose(rawNext);
     if (!nextName || nextName === entry.name) return;
     // Disallow collision
     if (view.entries.some((e, i) => i !== idx && e.name === nextName)) return;

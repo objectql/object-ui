@@ -23,7 +23,8 @@ import * as React from 'react';
 import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
 import { InspectorShell, InspectorTextField } from './_shared';
 import { Label } from '@object-ui/components';
-import { toFieldName } from '../previews/object-fields-io';
+import { toFieldNameLoose } from '../previews/object-fields-io';
+import { slugify } from '../createDerive';
 import { t } from '../i18n';
 
 export function ObjectDefaultInspector({
@@ -43,12 +44,12 @@ export function ObjectDefaultInspector({
 
   const setLabel = (v: string) => {
     const patch: Record<string, unknown> = { label: v || undefined };
-    if (createMode && !nameTouched.current) patch.name = toFieldName(v);
+    if (createMode && !nameTouched.current) patch.name = slugify(v);
     onPatch(patch);
   };
   const setName = (v: string) => {
     nameTouched.current = true;
-    onPatch({ name: toFieldName(v) });
+    onPatch({ name: toFieldNameLoose(v) });
   };
 
   const nameValue = createMode ? str('name') : name || str('name');

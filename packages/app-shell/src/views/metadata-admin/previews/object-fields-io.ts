@@ -103,6 +103,38 @@ export function toFieldName(raw: string): string {
 }
 
 /**
+ * Prefix-stable variant of {@link toFieldName} for *live keystroke* input.
+ *
+ * The strict `toFieldName` trims a trailing `_`, which makes it impossible
+ * to TYPE a multi-word identifier into a controlled input: the field's
+ * `onChange` re-normalizes on every keystroke, so the instant the user
+ * presses `_` the value is `"repair_"` -> trimmed to `"repair"` -> the
+ * underscore vanishes before the next letter arrives, yielding
+ * `"repairticket"` instead of `"repair_ticket"`. (Authors of non-Latin
+ * locales hit this hardest: their label cannot derive a Latin slug, so
+ * they MUST type the identifier by hand.)
+ *
+ * This variant keeps a single trailing `_` so typing can continue, and
+ * returns `''` (not the `'field'` placeholder) on empty input so clearing
+ * the box actually clears it. A trailing `_` is itself a valid identifier
+ * per the spec ("starts with a letter, may contain letters/digits/`_`"),
+ * so no separate commit-time trim is required for correctness; callers
+ * that need a canonical form for a *complete* string (label->name
+ * derivation, group keys) should keep using strict `toFieldName`.
+ */
+export function toFieldNameLoose(raw: string): string {
+  const sanitized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+/g, '') // trim leading only -- a trailing `_` must survive
+    .replace(/_{2,}/g, '_');
+  if (!sanitized) return '';
+  if (!/^[a-z_]/.test(sanitized)) return `f_${sanitized}`;
+  return sanitized;
+}
+
+/**
  * A declared field group (a.k.a. "section"). Lives at the object's
  * top level as `draft.fieldGroups`; individual fields opt into a group
  * via `Field.group === FieldGroup.key`.

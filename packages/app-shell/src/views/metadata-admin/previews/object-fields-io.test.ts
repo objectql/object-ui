@@ -4,6 +4,8 @@ import { describe, it, expect } from 'vitest';
 import {
   readFields,
   writeFields,
+  toFieldName,
+  toFieldNameLoose,
   readGroups,
   genGroupKey,
   addGroup,
@@ -258,5 +260,72 @@ describe('diffFields', () => {
       { a: { label: 'A', type: 'text' } },
     );
     expect(d.byName.a.status).toBe('unchanged');
+  });
+});
+
+
+/* ─────────────── toFieldName / toFieldNameLoose ─────────────── */
+
+/**
+ * Simulate typing `text` char-by-char into a *controlled* text input whose
+ * onChange re-normalizes via `fn` (exactly how InspectorTextField wires the
+ * object Name and field API-name fields). The controlled value after each
+ * keystroke is `fn(previousValue + char)`.
+ */
+function simulateTyping(fn: (s: string) => string, text: string): string {
+  let value = '';
+  for (const ch of text) value = fn(value + ch);
+  return value;
+}
+
+describe('toFieldName (strict — for complete strings)', () => {
+  it('normalizes complete labels and trims a trailing underscore', () => {
+    expect(toFieldName('Repair Ticket')).toBe('repair_ticket');
+    expect(toFieldName('order-item')).toBe('order_item');
+    expect(toFieldName('report_')).toBe('report'); // trailing trimmed (intended for complete input)
+    expect(toFieldName('a__b')).toBe('a_b');
+    expect(toFieldName('1abc')).toBe('f_1abc');
+    expect(toFieldName('')).toBe('field');
+    expect(toFieldName('报修工单')).toBe('field'); // non-Latin → placeholder
+  });
+
+  it('REGRESSION: typing a multi-word name char-by-char drops underscores', () => {
+    // This is the user-facing bug that motivates toFieldNameLoose: the strict
+    // normalizer eats the trailing "_" the instant it is typed.
+    expect(simulateTyping(toFieldName, 'repair_ticket')).toBe('repairticket');
+  });
+});
+
+describe('toFieldNameLoose (prefix-stable — for live keystroke input)', () => {
+  it('keeps a trailing underscore so mid-word "_" survives typing', () => {
+    expect(toFieldNameLoose('repair_')).toBe('repair_');
+    expect(toFieldNameLoose('a_b')).toBe('a_b');
+    expect(toFieldNameLoose('in_progress')).toBe('in_progress');
+  });
+
+  it('still trims leading underscores, collapses repeats, lowercases', () => {
+    expect(toFieldNameLoose('_x')).toBe('x');
+    expect(toFieldNameLoose('a__b')).toBe('a_b');
+    expect(toFieldNameLoose('Repair Ticket')).toBe('repair_ticket');
+    expect(toFieldNameLoose('order-item')).toBe('order_item');
+    expect(toFieldNameLoose('1abc')).toBe('f_1abc');
+  });
+
+  it('returns "" (not "field") on empty / non-Latin input so the box can clear', () => {
+    expect(toFieldNameLoose('')).toBe('');
+    expect(toFieldNameLoose('   ')).toBe('');
+    expect(toFieldNameLoose('报修工单')).toBe(''); // empty → UI prompts for manual entry
+  });
+
+  it('is idempotent (safe to re-apply every keystroke on a controlled input)', () => {
+    for (const v of ['repair_', 'repair_ticket', 'a_b', 'x']) {
+      expect(toFieldNameLoose(toFieldNameLoose(v))).toBe(toFieldNameLoose(v));
+    }
+  });
+
+  it('FIX: typing a multi-word identifier char-by-char preserves underscores', () => {
+    expect(simulateTyping(toFieldNameLoose, 'repair_ticket')).toBe('repair_ticket');
+    expect(simulateTyping(toFieldNameLoose, 'in_progress')).toBe('in_progress');
+    expect(simulateTyping(toFieldNameLoose, 'estimated_cost')).toBe('estimated_cost');
   });
 });
