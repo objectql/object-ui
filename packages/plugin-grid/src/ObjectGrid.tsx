@@ -1578,6 +1578,11 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     data,
     pagination: paginationEnabled,
     pageSize: manualPaginationOn ? manualPageSize : pageSize,
+    // Rows-per-page selector options sourced from view metadata
+    // (schema.pagination.pageSizeOptions). When absent the DataTable falls back
+    // to its built-in list. This is what makes the single, server-driven pager
+    // expose the configured 50/100/200/500 choices instead of a second control.
+    pageSizeOptions: schema.pagination?.pageSizeOptions,
     // In server mode `data` IS the current page; tell DataTable to render it
     // as-is and drive paging via the callbacks below using the real match total.
     manualPagination: manualPaginationOn,

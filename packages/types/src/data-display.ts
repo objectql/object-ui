@@ -345,6 +345,13 @@ export interface DataTableSchema extends BaseSchema {
    */
   pageSize?: number;
   /**
+   * Options offered in the "rows per page" selector. When omitted the table
+   * falls back to its built-in list (5/10/20/50/100). The current `pageSize`
+   * is always merged in so the selector can show the active value even if it
+   * is not one of the configured options.
+   */
+  pageSizeOptions?: number[];
+  /**
    * Server-side ("manual") pagination. When true, `data` is treated as the
    * already-fetched current page (not sliced locally), `rowCount` provides the
    * total match count used to compute total pages, the current page is

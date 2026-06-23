@@ -1574,8 +1574,16 @@ describe('ListView', () => {
   // ============================
   // pageSizeOptions UI
   // ============================
+  // NOTE: For the GRID view the rows-per-page selector now lives in the
+  // DataTable's own server-driven pager (ObjectGrid forwards
+  // pagination.pageSizeOptions straight through), so ListView no longer renders
+  // its native <select data-testid="page-size-selector"> for grids — that fixed
+  // a duplicate-control bug. The native fallback selector below is therefore
+  // exercised through a NON-grid view (gallery), which has no DataTable pager.
+  // The grid combobox option list is covered in
+  // components/data-table-manual-pagination.test.tsx.
   describe('pageSizeOptions', () => {
-    it('should render page size selector when pageSizeOptions is provided', async () => {
+    it('should render page size selector when pageSizeOptions is provided (non-grid view)', async () => {
       const mockItems = [
         { id: '1', name: 'Alice', email: 'alice@test.com' },
       ];
@@ -1584,7 +1592,7 @@ describe('ListView', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
-        viewType: 'grid',
+        viewType: 'gallery',
         fields: ['name', 'email'],
         pagination: { pageSize: 25, pageSizeOptions: [10, 25, 50, 100] },
       };
@@ -1973,7 +1981,7 @@ describe('ListView', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
-        viewType: 'grid',
+        viewType: 'gallery',
         fields: ['name', 'email'],
         pagination: { pageSize: 25, pageSizeOptions: [10, 25, 50] },
       };
@@ -1999,7 +2007,7 @@ describe('ListView', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
-        viewType: 'grid',
+        viewType: 'gallery',
         fields: ['name', 'email'],
         pagination: { pageSize: 25, pageSizeOptions: [10, 25, 50, 100] },
       };
@@ -2033,7 +2041,7 @@ describe('ListView', () => {
       const schema: ListViewSchema = {
         type: 'list-view',
         objectName: 'contacts',
-        viewType: 'grid',
+        viewType: 'gallery',
         fields: ['name', 'email'],
         pagination: { pageSize: 10, pageSizeOptions: [10, 25, 50, 100] },
       };

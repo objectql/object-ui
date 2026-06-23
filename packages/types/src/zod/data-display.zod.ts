@@ -137,6 +137,7 @@ export const DataTableSchema = BaseSchema.extend({
   data: z.array(z.any()).describe('Table data'),
   pagination: z.boolean().optional().describe('Enable pagination'),
   pageSize: z.number().optional().describe('Default page size'),
+  pageSizeOptions: z.array(z.number()).optional().describe('Options for the rows-per-page selector (defaults to 5/10/20/50/100).'),
   searchable: z.boolean().optional().describe('Enable search'),
   selectable: z.boolean().optional().describe('Enable row selection'),
   sortable: z.boolean().optional().describe('Enable sorting'),

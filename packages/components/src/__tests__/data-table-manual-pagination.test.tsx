@@ -58,6 +58,29 @@ describe('data-table — manual (server-side) pagination', () => {
     expect(bodyRows.length).toBe(5);
   });
 
+  it('renders the configured pageSizeOptions in the rows-per-page selector (no built-in 5/10/20)', () => {
+    // With pageSizeOptions provided, the selector must offer exactly those
+    // choices (plus the active pageSize merged in) — NOT the hardcoded
+    // 5/10/20/50/100 list. This is what lets a single server-driven pager show
+    // the view's 50/100/200/500 without a second native <select> being rendered.
+    const { getAllByRole } = renderComponent({
+      ...baseSchema,
+      pageSize: 100,
+      pageSizeOptions: [50, 100, 200, 500],
+    });
+    // Radix Select renders <SelectItem> options; the trigger combobox shows the
+    // active value. Open the listbox by clicking the combobox.
+    const combos = getAllByRole('combobox');
+    fireEvent.click(combos[0]);
+    const options = Array.from(document.querySelectorAll('[role="option"]')).map(
+      (o) => o.textContent?.trim(),
+    );
+    expect(options).toEqual(['50', '100', '200', '500']);
+    expect(options).not.toContain('5');
+    expect(options).not.toContain('10');
+    expect(options).not.toContain('20');
+  });
+
   it('reports navigation via onPageChange instead of mutating internal state', () => {
     const onPageChange = vi.fn();
     const { container } = renderComponent({ ...baseSchema, onPageChange });

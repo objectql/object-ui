@@ -2314,7 +2314,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               {t('list.dataLimitReached', { limit: effectivePageSize })}
             </span>
           )}
-          {schema.pagination?.pageSizeOptions && schema.pagination.pageSizeOptions.length > 0 && (
+          {/* Grid view delegates the rows-per-page selector to the DataTable's
+              own server-driven pager (ObjectGrid passes pagination.pageSizeOptions
+              straight through). Rendering a second native <select> here produced a
+              duplicate control, so for grid we suppress it and only keep this
+              fallback selector for pager-less views (gallery/kanban/calendar). */}
+          {currentView !== 'grid' && schema.pagination?.pageSizeOptions && schema.pagination.pageSizeOptions.length > 0 && (
             <div className="ml-auto flex items-center gap-2">
               <span>{t('table.rowsPerPage', { defaultValue: 'Rows per page' })}</span>
               <select
