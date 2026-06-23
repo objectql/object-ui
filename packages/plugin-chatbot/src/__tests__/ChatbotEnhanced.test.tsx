@@ -134,6 +134,37 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText('HINT_TEXT')).toBeInTheDocument();
   });
 
+  // issue #432: once the plan's build has run, re-clicking "Build it" rebuilt
+  // the whole app. The card must collapse to an inert "Built" badge.
+  const planThenBuild: ChatMessage[] = [
+    ...planMessage([]),
+    {
+      id: 'a2',
+      role: 'assistant',
+      content: '',
+      toolInvocations: [
+        { toolCallId: 't2', toolName: 'apply_blueprint', state: 'output-available' },
+      ],
+    },
+  ];
+
+  it('collapses the plan actions to an inert "Built" badge once apply_blueprint has run', () => {
+    const onSendMessage = vi.fn();
+    render(
+      <ChatbotEnhanced messages={planThenBuild} onSendMessage={onSendMessage} planBuiltLabel="BUILT_BADGE" />,
+    );
+    // No live "Build it" button to re-trigger the build.
+    expect(screen.queryByTestId('proposed-plan-approve')).not.toBeInTheDocument();
+    expect(screen.getByTestId('proposed-plan-built')).toBeInTheDocument();
+    expect(screen.getByText('BUILT_BADGE')).toBeInTheDocument();
+  });
+
+  it('keeps the "Build it" button active for a plan that has NOT been built yet', () => {
+    render(<ChatbotEnhanced messages={planMessage([])} onSendMessage={vi.fn()} />);
+    expect(screen.getByTestId('proposed-plan-approve')).toBeInTheDocument();
+    expect(screen.queryByTestId('proposed-plan-built')).not.toBeInTheDocument();
+  });
+
   const Q_INTERVIEW = 'Track interviews as a separate object or a stage field?';
   const planWithChoices: ChatMessage[] = [
     {

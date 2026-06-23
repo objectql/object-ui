@@ -499,6 +499,8 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   planApproveLabel?: string;
   /** Label for the plan card's secondary "adjust" button, which focuses the chat input (default "Adjust"). */
   planAdjustLabel?: string;
+  /** Static badge shown in place of the "Build it" button once this plan's build has run, so it can't be re-triggered (default "Built"). */
+  planBuiltLabel?: string;
   /** Message sent when the user approves a plan with no open questions (default "Looks good — build it as proposed."). */
   planApproveMessage?: string;
   /** Message sent when the user approves a plan that still has open questions — tells the agent to proceed on sensible defaults (default "Build it with your best assumptions; use sensible defaults for the open questions."). */
@@ -858,6 +860,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planApproveHintLabel = 'Reply to approve or adjust this plan.',
       planApproveLabel = 'Build it',
       planAdjustLabel = 'Adjust',
+      planBuiltLabel = 'Built',
       planApproveMessage = 'Looks good — build it as proposed.',
       planApproveDefaultsMessage = 'Build it with your best assumptions; use sensible defaults for the open questions.',
       planAnswerMessage = (question: string, option: string) => `For "${question}", go with: ${option}.`,
@@ -1153,6 +1156,29 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       setCopiedId(message.id);
       window.setTimeout(() => setCopiedId((prev) => (prev === message.id ? null : prev)), 1500);
     }, []);
+
+    // issue #432: a "Proposed plan" card whose build has already run must not
+    // keep offering an active "Build it" — clicking it re-sent the approval and
+    // re-triggered the entire build. A plan is "built" once an `apply_blueprint`
+    // tool invocation appears AFTER it in the conversation. Keyed on `toolName`
+    // (not the rich `draftReview`, which a reloaded conversation strips), so the
+    // done-state survives a refresh. Positional so a later, not-yet-built plan
+    // (e.g. after "make it simpler") keeps its live button.
+    const builtPlanIds = React.useMemo(() => {
+      const ids = new Set<string>();
+      const plans: Array<{ id: string; order: number }> = [];
+      let lastBuildOrder = -1;
+      let order = 0;
+      for (const message of messages) {
+        for (const tool of message.toolInvocations ?? []) {
+          if (tool.proposedPlan && tool.toolCallId) plans.push({ id: tool.toolCallId, order });
+          if (tool.toolName === 'apply_blueprint') lastBuildOrder = order;
+          order += 1;
+        }
+      }
+      for (const p of plans) if (p.order < lastBuildOrder) ids.add(p.id);
+      return ids;
+    }, [messages]);
 
     const renderToolDetail = (tool: ChatToolInvocation) => {
       const state =
@@ -1544,8 +1570,21 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                 {/* One-click confirm gate: "Build it" sends an approval message
                     (accepting defaults when questions remain), "Adjust" focuses
                     the input so the user types changes. Falls back to a text hint
-                    when the host hasn't wired message sending. */}
+                    when the host hasn't wired message sending. Once this plan's
+                    build has run (issue #432) the actions collapse to a static
+                    "Built" badge so it can't be re-triggered. */}
                 {onSendMessage ? (
+                  builtPlanIds.has(tool.toolCallId) ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-plan-actions">
+                      <span
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        data-testid="proposed-plan-built"
+                      >
+                        <CheckCircle2 className="size-3.5" />
+                        {planBuiltLabel}
+                      </span>
+                    </div>
+                  ) : (
                   <div
                     className="flex flex-wrap items-center gap-1.5 pt-0.5"
                     data-testid="proposed-plan-actions"
@@ -1570,6 +1609,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       {planAdjustLabel}
                     </button>
                   </div>
+                  )
                 ) : (
                   <span className="text-[11px] italic text-muted-foreground/80">
                     {planApproveHintLabel}

@@ -1192,6 +1192,7 @@ function ChatPane({
         })}
         planApproveLabel={t('console.ai.planApprove', { defaultValue: 'Build it' })}
         planAdjustLabel={t('console.ai.planAdjust', { defaultValue: 'Adjust' })}
+        planBuiltLabel={t('console.ai.planBuilt', { defaultValue: 'Built' })}
         planApproveMessage={t('console.ai.planApproveMessage', {
           defaultValue: 'Looks good — build it as proposed.',
         })}
