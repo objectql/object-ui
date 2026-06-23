@@ -227,6 +227,7 @@ export function nodeTone(type: string): NodeTone {
     case 'delete_record':
     case 'get_record':
       return TONES.record;
+    case 'http':
     case 'http_request':
     case 'connector_action':
     case 'script':
@@ -290,6 +291,7 @@ export function nodeCategory(type: string): NodeCategory {
     case 'screen':
     case 'user_task':
       return 'Human';
+    case 'http':
     case 'http_request':
     case 'connector_action':
     case 'script':
@@ -319,7 +321,7 @@ export const NODE_PALETTE: PaletteItem[] = [
   { type: 'try_catch', label: 'Try / Catch', hint: 'Protect steps with error handling and retry', category: 'Logic' },
   { type: 'approval', label: 'Approval', hint: 'Pause for a human decision', category: 'Human' },
   { type: 'screen', label: 'Screen', hint: 'Collect input from a user', category: 'Human' },
-  { type: 'http_request', label: 'HTTP request', hint: 'Call an external API', category: 'Integration' },
+  { type: 'http', label: 'HTTP request', hint: 'Call an external API', category: 'Integration' },
   { type: 'connector_action', label: 'Connector', hint: 'Run an integration action', category: 'Integration' },
   { type: 'script', label: 'Script', hint: 'Run custom code', category: 'Integration' },
   { type: 'subflow', label: 'Subflow', hint: 'Invoke another flow', category: 'Flow' },
@@ -356,6 +358,7 @@ export function defaultNodeExtras(type: string): Record<string, unknown> {
       // Seed a node-model approval: at least one approver + spec defaults. The
       // author wires the out-edges with labels `approve` / `reject`.
       return { config: { approvers: [{ type: 'manager' }], behavior: 'first_response', lockRecord: true } };
+    case 'http':
     case 'http_request':
       return { config: { method: 'GET' } };
     case 'script':

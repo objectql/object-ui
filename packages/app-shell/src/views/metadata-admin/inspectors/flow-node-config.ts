@@ -559,6 +559,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
  */
 const TYPE_ALIASES: Record<string, string> = {
   action: 'legacy_action',
+  http: 'http_request',
   branch: 'decision',
   gateway: 'decision',
   condition: 'decision',

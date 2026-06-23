@@ -23,3 +23,7 @@ Four fixes for the Studio Flow Builder, found dogfooding it as a business user:
 - **Simulator screen-pause parity.** The simulator paused on every screen; it now
   pauses only when the screen collects input (`fields`) or sets `waitForInput`,
   matching the engine's `shouldPause` — a field-less screen passes through.
+- **Palette HTTP de-duplicated.** The base palette hardcoded the deprecated
+  `http_request` alias while the engine publishes the canonical `http`, showing
+  two HTTP entries. The base now uses `http` (merging into one), aliased to the
+  `http_request` config form so the inspector is unchanged.
