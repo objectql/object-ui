@@ -73,9 +73,11 @@ export function indexOfField(view: FieldsView, name: string): number {
 /** Build a fresh field definition for the given type. */
 export function newField(name: string, type: FieldTypeId, label?: string): FieldEntry {
   const def: Record<string, unknown> = { type, label: label ?? toLabel(name) };
-  // Seed a single empty option so picklist editor renders a row to fill in.
+  // Picklist-style fields start with no options; the OptionsEditor shows a
+  // blank input row locally and only persists rows once they have a value, so
+  // an unfilled row never trips the spec's identifier validation.
   if (type === 'select' || type === 'multiselect' || type === 'radio' || type === 'checkboxes') {
-    def.options = [{ value: '', label: '' }];
+    def.options = [];
   }
   return { name, def };
 }

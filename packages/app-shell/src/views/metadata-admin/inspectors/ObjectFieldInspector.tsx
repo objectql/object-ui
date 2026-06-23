@@ -22,6 +22,7 @@
  */
 
 import * as React from 'react';
+import { slugify } from '../createDerive';
 import type { MetadataInspectorProps } from '../inspector-registry';
 import { MetadataClient } from '@object-ui/data-objectstack';
 import { useMetadataClient } from '../useMetadata';
@@ -194,6 +195,27 @@ export function ObjectFieldInspector({
     onSelectionChange?.({ kind: 'field', id: nextName, label: String(def.label ?? nextName) });
   };
 
+  // Derive the API name from the label (on blur, so we use the complete
+  // string — not per keystroke, which would churn the field key) while the
+  // name is still an auto-generated default and the user hasn't customised it.
+  // Mirrors the object Name behaviour; slugify() returns '' for non-Latin
+  // labels, in which case the unique default name is kept.
+  const maybeDeriveName = (label: string) => {
+    if (readOnly) return;
+    const base = type === 'select' ? 'status' : type;
+    const isAutoName =
+      entry.name === base ||
+      (entry.name.startsWith(`${base}_`) && /^\d+$/.test(entry.name.slice(base.length + 1)));
+    if (!isAutoName) return;
+    const derived = slugify(label);
+    if (!derived || derived === entry.name) return;
+    if (view.entries.some((e, i) => i !== idx && e.name === derived)) return;
+    const nextEntries = [...view.entries];
+    nextEntries[idx] = { ...entry, name: derived };
+    writeView({ shape: view.shape, entries: nextEntries });
+    onSelectionChange?.({ kind: 'field', id: derived, label: String(def.label ?? derived) });
+  };
+
   const removeField = () => {
     const nextEntries = view.entries.filter((_, i) => i !== idx);
     writeView({ shape: view.shape, entries: nextEntries });
@@ -297,6 +319,7 @@ export function ObjectFieldInspector({
           label={tr('designer.field.label')}
           value={typeof def.label === 'string' ? (def.label as string) : ''}
           onCommit={(v) => patchDef({ label: v })}
+          onBlur={maybeDeriveName}
           disabled={readOnly}
         />
         <InspectorSelectField
@@ -352,6 +375,7 @@ export function ObjectFieldInspector({
         <Section title={tFormat('designer.field.section.options', locale, { type: typeMetaLabel ?? type })}>
           {isPicklist(type) && (
             <OptionsEditor
+              key={entry.name}
               options={options}
               onChange={patchOptions}
               disabled={readOnly}
@@ -685,26 +709,38 @@ function OptionsEditor({
   disabled?: boolean;
   locale?: string;
 }) {
-  const update = (i: number, patch: Partial<Option>) => {
-    const next = [...options];
-    next[i] = { ...next[i], ...patch };
-    onChange(next);
+  // Local editing buffer. We keep a blank trailing row visible for input but
+  // only PERSIST rows whose `value` is non-empty — otherwise the blank row
+  // fails the spec identifier rule ("System identifier must be at least 2
+  // characters") and shows a confusing error mid-edit. The editor is remounted
+  // per field (key={entry.name}), so seeding from `options` once is correct.
+  const [rows, setRows] = React.useState<Option[]>(
+    () => (options.length > 0 ? options : [{ value: '', label: '' }]),
+  );
+  const commit = (next: Option[]) => {
+    setRows(next);
+    onChange(next.filter((o) => o.value.trim() !== ''));
   };
-  const remove = (i: number) => onChange(options.filter((_, j) => j !== i));
-  const move = (i: number, to: number) => onChange(moveArray(options, i, to));
-  const add = () => onChange([...options, { value: '', label: '' }]);
+  const update = (i: number, patch: Partial<Option>) => {
+    const next = [...rows];
+    next[i] = { ...next[i], ...patch };
+    commit(next);
+  };
+  const remove = (i: number) => commit(rows.filter((_, j) => j !== i));
+  const move = (i: number, to: number) => commit(moveArray(rows, i, to));
+  const add = () => commit([...rows, { value: '', label: '' }]);
 
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
         <Label className="text-xs text-muted-foreground">{t('designer.field.picklistValues', locale)}</Label>
-        <Badge variant="outline" className="text-[10px]">{options.length}</Badge>
+        <Badge variant="outline" className="text-[10px]">{rows.length}</Badge>
       </div>
-      {options.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="text-[11px] italic text-muted-foreground px-1">{t('designer.field.noValues', locale)}</div>
       ) : (
         <div className="space-y-1">
-          {options.map((o, i) => (
+          {rows.map((o, i) => (
             <div key={i} className="flex items-center gap-1">
               <Input
                 value={o.value}
@@ -743,7 +779,7 @@ function OptionsEditor({
                 size="sm"
                 className="h-7 w-7 p-0"
                 onClick={() => move(i, i + 1)}
-                disabled={disabled || i === options.length - 1}
+                disabled={disabled || i === rows.length - 1}
                 aria-label={t('designer.field.moveDown', locale)}
               >
                 <ArrowDown className="h-3 w-3" />

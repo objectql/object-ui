@@ -135,6 +135,7 @@ export function InspectorTextField({
   label,
   value,
   onCommit,
+  onBlur,
   placeholder,
   disabled,
   mono,
@@ -142,6 +143,8 @@ export function InspectorTextField({
   label: string;
   value: string;
   onCommit: (v: string) => void;
+  /** Fired on blur with the final value — e.g. to derive a dependent field. */
+  onBlur?: (v: string) => void;
   placeholder?: string;
   disabled?: boolean;
   mono?: boolean;
@@ -152,6 +155,7 @@ export function InspectorTextField({
       <Input
         value={value}
         onChange={(e) => onCommit(e.target.value)}
+        onBlur={(e) => onBlur?.(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
         className={cn('h-8 text-sm', mono && 'font-mono')}

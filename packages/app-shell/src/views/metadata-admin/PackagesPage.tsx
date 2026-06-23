@@ -193,6 +193,13 @@ function CreatePackageDialog({
         }),
       });
       onCreated(id.trim());
+      // Let context selectors (e.g. the sidebar package switcher) pick up the
+      // new package without a full page reload.
+      try {
+        window.dispatchEvent(new CustomEvent('objectui:packages-changed'));
+      } catch {
+        /* non-DOM env */
+      }
       onOpenChange(false);
     } catch (e: any) {
       setError(e?.message ?? t('engine.packages.create.failed', locale));

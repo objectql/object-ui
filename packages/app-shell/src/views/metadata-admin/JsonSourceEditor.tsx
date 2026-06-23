@@ -82,6 +82,23 @@ export function JsonSourceEditor({
   const editorRef = React.useRef<any>(null);
   const monacoRef = React.useRef<any>(null);
 
+  // Monaco's core is fetched lazily and, by default, from a public CDN, and it
+  // also spins up web workers. When any of that is blocked — offline /
+  // air-gapped / CSP-restricted installs — the editor mounts an empty shell
+  // with no error and the Source tab looks blank. Detect "nothing actually
+  // painted" via the rendered `.view-line` rows and fall back to a plain
+  // textarea so the source is always readable and editable.
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [monacoUnavailable, setMonacoUnavailable] = React.useState(false);
+  React.useEffect(() => {
+    if (monacoUnavailable) return;
+    const id = setTimeout(() => {
+      const el = containerRef.current;
+      if (!el || !el.querySelector('.view-line')) setMonacoUnavailable(true);
+    }, 4000);
+    return () => clearTimeout(id);
+  }, [monacoUnavailable]);
+
   // Match against the dark class our app-shell toggles on <html>; pick
   // a Monaco theme that doesn't fight the rest of the chrome.
   const [theme, setTheme] = React.useState<'vs-dark' | 'light'>(() => {
@@ -196,33 +213,43 @@ export function JsonSourceEditor({
   return (
     <div className="flex flex-col gap-2">
       <div
+        ref={containerRef}
         className="border rounded overflow-hidden bg-background"
         style={{ height: typeof height === 'number' ? `${height}px` : height }}
       >
-        <React.Suspense
-          fallback={<Skeleton className="w-full h-full" />}
-        >
-          <LazyMonaco
+        {monacoUnavailable ? (
+          <textarea
             value={text}
-            language="json"
-            theme={theme}
-            onChange={handleChange}
-            onMount={handleMount}
-            options={{
-              readOnly,
-              minimap: { enabled: false },
-              fontSize: 12,
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              folding: true,
-              wordWrap: 'on',
-              tabSize: 2,
-              renderLineHighlight: 'line',
-              scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
-            }}
+            onChange={(e) => handleChange(e.target.value)}
+            readOnly={readOnly}
+            spellCheck={false}
+            aria-label="JSON source"
+            className="w-full h-full resize-none bg-background p-3 font-mono text-xs leading-relaxed outline-none"
           />
-        </React.Suspense>
+        ) : (
+          <React.Suspense fallback={<Skeleton className="w-full h-full" />}>
+            <LazyMonaco
+              value={text}
+              language="json"
+              theme={theme}
+              onChange={handleChange}
+              onMount={handleMount}
+              options={{
+                readOnly,
+                minimap: { enabled: false },
+                fontSize: 12,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                folding: true,
+                wordWrap: 'on',
+                tabSize: 2,
+                renderLineHighlight: 'line',
+                scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+              }}
+            />
+          </React.Suspense>
+        )}
       </div>
       {parseError && (
         <div className="text-xs text-destructive flex items-start gap-1.5">

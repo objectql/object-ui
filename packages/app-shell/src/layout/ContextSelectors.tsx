@@ -85,7 +85,7 @@ function rowPasses(row: any, filters: ContextSelectorFilter[] | undefined): bool
   return true;
 }
 
-function useSelectorOptions(def: ContextSelectorDef): Option[] {
+function useSelectorOptions(def: ContextSelectorDef): { options: Option[]; refetch: () => void } {
   const [options, setOptions] = React.useState<Option[]>([]);
   const endpoint = def.optionsSource.endpoint;
   const valueKey = def.optionsSource.valueKey || 'id';
@@ -93,39 +93,45 @@ function useSelectorOptions(def: ContextSelectorDef): Option[] {
   const filters = def.optionsSource.filter;
   const filterKey = JSON.stringify(filters ?? []);
 
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(endpoint, {
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-        });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (cancelled) return;
-        const rows = extractRows(json);
-        const opts: Option[] = [];
-        const seen = new Set<string>();
-        for (const row of rows) {
-          if (!rowPasses(row, filters)) continue;
-          const value = getByPath(row, valueKey);
-          if (value == null || typeof value !== 'string' || seen.has(value)) continue;
-          seen.add(value);
-          const labelRaw = getByPath(row, labelKey);
-          opts.push({ value, label: typeof labelRaw === 'string' && labelRaw ? labelRaw : value });
-        }
-        opts.sort((a, b) => a.label.localeCompare(b.label));
-        setOptions(opts);
-      } catch {
-        /* offline / unauthorized — render with no options */
+  // Stable, re-runnable fetch. Without an explicit refetch the option list is
+  // read once on mount, so a package created elsewhere (PackagesPage) stays
+  // invisible in this dropdown until a full page reload. We refetch on
+  // dropdown-open and on a global `objectui:packages-changed` signal.
+  const load = React.useCallback(async () => {
+    try {
+      const res = await fetch(endpoint, {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      const rows = extractRows(json);
+      const opts: Option[] = [];
+      const seen = new Set<string>();
+      for (const row of rows) {
+        if (!rowPasses(row, filters)) continue;
+        const value = getByPath(row, valueKey);
+        if (value == null || typeof value !== 'string' || seen.has(value)) continue;
+        seen.add(value);
+        const labelRaw = getByPath(row, labelKey);
+        opts.push({ value, label: typeof labelRaw === 'string' && labelRaw ? labelRaw : value });
       }
-    })();
-    return () => { cancelled = true; };
+      opts.sort((a, b) => a.label.localeCompare(b.label));
+      setOptions(opts);
+    } catch {
+      /* offline / unauthorized — render with no options */
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endpoint, valueKey, labelKey, filterKey]);
 
-  return options;
+  React.useEffect(() => {
+    void load();
+    const onChanged = () => { void load(); };
+    window.addEventListener('objectui:packages-changed', onChanged);
+    return () => window.removeEventListener('objectui:packages-changed', onChanged);
+  }, [load]);
+
+  return { options, refetch: load };
 }
 
 /**
@@ -221,7 +227,7 @@ function SelectorControl({
   onChange: (raw: string) => void;
   t?: (key: string, options?: any) => string;
 }) {
-  const options = useSelectorOptions(def);
+  const { options, refetch } = useSelectorOptions(def);
   const Icon = getIcon(def.icon);
   const rawLabel = resolveI18nLabel(def.label as any, t) || def.id;
   const label = rawLabel === 'Package'
@@ -250,7 +256,11 @@ function SelectorControl({
   const current = hasConcrete ? value : '';
 
   return (
-    <Select value={current} onValueChange={onChange}>
+    <Select
+      value={current}
+      onValueChange={onChange}
+      onOpenChange={(open) => { if (open) refetch(); }}
+    >
       <SelectTrigger
         aria-label={label}
         className="h-9 w-full gap-2 rounded-md border-sidebar-border/70 bg-sidebar/80 px-2 text-xs font-medium text-sidebar-foreground shadow-none transition-colors hover:bg-sidebar-accent focus:ring-1 focus:ring-sidebar-ring data-[state=open]:bg-sidebar-accent [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:shrink-0"
