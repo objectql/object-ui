@@ -20,6 +20,10 @@ export interface PermissionContextValue {
   getRowFilter: (object: string) => string | undefined;
   /** Current user roles */
   roles: string[];
+  /** [ADR-0066] System capabilities held by the user (union of permission-set systemPermissions). */
+  systemPermissions: string[];
+  /** [ADR-0066] True when the user holds ALL of `required` capabilities (subset check). */
+  hasCapabilities: (required: string[]) => boolean;
   /** Whether permissions are loaded */
   isLoaded: boolean;
 }

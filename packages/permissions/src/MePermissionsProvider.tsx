@@ -24,6 +24,8 @@ export interface MePermissionsResponse {
   tenantId: string | null;
   roles: string[];
   permissionSets: string[];
+  /** [ADR-0066] System capabilities (union of permission-set systemPermissions): manage_users, setup.access, … */
+  systemPermissions?: string[];
   /** object-level perms: { "*": {...}, "account": {...} } */
   objects: Record<string, {
     allowCreate?: boolean;
@@ -168,6 +170,11 @@ export function MePermissionsProvider({
       getFieldPermissions,
       getRowFilter,
       roles: data?.roles ?? [],
+      systemPermissions: data?.systemPermissions ?? [],
+      hasCapabilities: (required: string[]) => {
+        const held = new Set(data?.systemPermissions ?? []);
+        return required.every((p) => held.has(p));
+      },
       isLoaded: !loading && !error && data !== null,
     }),
     [check, checkField, getFieldPermissions, getRowFilter, data, loading, error],

@@ -120,6 +120,12 @@ export function PermissionProvider({
       getFieldPermissions,
       getRowFilter,
       roles: userRoles,
+      // This role-based provider does not model ADR-0066 system capabilities;
+      // expose an empty set + a fail-open capability check to satisfy the
+      // contract. The console uses MePermissionsProvider, which wires the real
+      // systemPermissions from /me/permissions.
+      systemPermissions: [],
+      hasCapabilities: () => true,
       isLoaded: true,
     }),
     [check, checkField, getFieldPermissions, getRowFilter, userRoles],

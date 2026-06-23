@@ -196,6 +196,19 @@ export class ActionEngine {
     return Array.from(this.actions.values())
       .filter(ra => ra.locations.includes(location))
       .filter(ra => {
+        // [ADR-0066 D4] Capability gate (UI half — the server enforces the
+        // source of truth). Hide an action whose `requiredPermissions` are not
+        // ALL held by the caller's `systemPermissions`. Fail-OPEN when
+        // systemPermissions is unknown (undefined): the server still 403s, and
+        // hiding on missing data is a worse regression than showing a button
+        // that errors clearly. Mirrors the App/nav requiredPermissions gate.
+        const required = (ra.action as any).requiredPermissions as string[] | undefined;
+        if (!Array.isArray(required) || required.length === 0) return true;
+        const held = (this.runner.getContext() as any)?.user?.systemPermissions as string[] | undefined;
+        if (!Array.isArray(held)) return true;
+        return required.every((p) => held.includes(p));
+      })
+      .filter(ra => {
         const raw = (ra.action as any).visible;
         if (raw == null || raw === '' || raw === true) return true;
         if (raw === false) return false;

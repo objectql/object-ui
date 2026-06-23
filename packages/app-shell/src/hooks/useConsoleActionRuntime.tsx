@@ -24,6 +24,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
+import { usePermissions } from '@object-ui/permissions';
 import { useObjectLabel } from '@object-ui/i18n';
 import { ActionProvider, useGlobalUndo } from '@object-ui/react';
 import { toast } from 'sonner';
@@ -87,6 +88,9 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const { dataSource, objects, objectName, onRefresh } = opts;
   const navigate = useNavigate();
   const { user, activeOrganization } = useAuth();
+  // [ADR-0066 D4] System capabilities for the action capability gate (fail-open
+  // when no PermissionProvider is mounted — usePermissions returns []).
+  const { systemPermissions } = usePermissions();
   const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel, actionDescription } = useObjectLabel();
 
   const objectDef = useMemo(
@@ -167,8 +171,8 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   }, [objectName, objectDef, objects, fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel]);
 
   const currentUser = user
-    ? { id: user.id, name: user.name, avatar: user.image, isPlatformAdmin: (user as any)?.isPlatformAdmin ?? false }
-    : FALLBACK_USER;
+    ? { id: user.id, name: user.name, avatar: user.image, isPlatformAdmin: (user as any)?.isPlatformAdmin ?? false, systemPermissions: systemPermissions ?? [] }
+    : { ...FALLBACK_USER, systemPermissions: systemPermissions ?? [] };
 
   const toastHandler = useCallback<ToastHandler>((message, options) => {
     if (options?.type === 'error') { toast.error(message); return; }
