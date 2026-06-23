@@ -225,6 +225,10 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     })();
     const columns = inferredColumns;
     const gap = schema.gap || 4;
+    // Positioned (explicit-columns) grid vs responsive auto-flow grid.
+    // Defined here (not just above desktopBody) so renderWidget can give
+    // layout-less widgets a sensible default span in the positioned grid.
+    const hasExplicitColumns = schema.columns != null || inferredColumns !== 4;
     const [refreshing, setRefreshing] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -400,9 +404,22 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     );
 
     const renderWidget = (widget: DashboardWidgetSchema, index: number, forceMobileFullWidth?: boolean) => {
-        // Clamp widget span to grid columns to prevent overflow
-        const clampedLayout = widget.layout
-          ? { ...widget.layout, w: Math.min(widget.layout.w, columns) }
+        // Clamp widget span to grid columns to prevent overflow. A widget
+        // with NO layout (e.g. authored in the Studio designer, which omits
+        // it) would otherwise get a single column in the positioned grid and
+        // cram the whole dashboard into one row (charts squeezed to a few px).
+        // Give layout-less widgets a sensible default span so they auto-flow
+        // into a readable grid — KPIs quarter-width, charts/tables half-width —
+        // matching the editable DashboardGridLayout's auto-placement. Only the
+        // positioned grid needs this; the responsive flow layout sizes each
+        // widget as one cell.
+        const isMetricSpan = widget.type === 'metric' || METRIC_LIKE_TYPES.has(widget.type || '');
+        const fallbackSpan = hasExplicitColumns
+          ? { w: Math.min(isMetricSpan ? 3 : 6, columns), h: isMetricSpan ? 2 : 4 }
+          : undefined;
+        const effectiveLayout = widget.layout ?? fallbackSpan;
+        const clampedLayout = effectiveLayout
+          ? { ...effectiveLayout, w: Math.min(effectiveLayout.w, columns) }
           : undefined;
 
         // ADR-0021 — a widget bound to a semantic-layer dataset renders through
@@ -1002,8 +1019,6 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         </DndContext>
       ) : mobileBody;
     }
-
-    const hasExplicitColumns = schema.columns != null || inferredColumns !== 4;
 
     const desktopBody = (
       <div
