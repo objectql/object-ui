@@ -236,6 +236,67 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText(/Assistant is responding/i)).toBeInTheDocument();
   });
 
+  // issue #432: the count-up timer must be visible from the first second (not
+  // only once the server starts streaming), so a turn never looks frozen.
+  it('shows a live elapsed timer in the thinking row from the start', () => {
+    const { container } = render(
+      <ChatbotEnhanced messages={[{ id: 'u1', role: 'user', content: 'hi' }]} isLoading />,
+    );
+    const liveness = container.querySelector('[data-liveness-tier]');
+    expect(liveness).not.toBeNull();
+    expect(liveness).toHaveAttribute('data-liveness-tier', 'waiting');
+    expect(liveness?.textContent).toContain('0:00');
+  });
+
+  // issue #432: a real network drop surfaces immediately as an "offline" state,
+  // not a silent wait until the stream-quiet timeout.
+  it('surfaces an offline state when the browser reports no network', () => {
+    const orig = navigator.onLine;
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+    try {
+      const { container } = render(
+        <ChatbotEnhanced
+          messages={[{ id: 'u1', role: 'user', content: 'hi' }]}
+          isLoading
+          labels={{ connectionOfflineLabel: 'OFFLINE_BADGE' }}
+        />,
+      );
+      expect(container.querySelector('[data-liveness-tier]')).toHaveAttribute(
+        'data-liveness-tier',
+        'offline',
+      );
+      expect(screen.getByText(/OFFLINE_BADGE/)).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(navigator, 'onLine', { configurable: true, value: orig });
+    }
+  });
+
+  // issue #432: a running tool (e.g. "Propose blueprint · Running") shows a live
+  // elapsed timer instead of a static "Running", so a long blueprint call has a
+  // visible countdown.
+  it('shows a live elapsed timer for a running tool in the activity summary', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={[
+          { id: 'u1', role: 'user', content: 'build me a CRM' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: '',
+            streaming: true,
+            toolInvocations: [
+              { toolCallId: 't1', toolName: 'propose_blueprint', state: 'input-available' },
+            ],
+          },
+        ]}
+      />,
+    );
+    const timer = container.querySelector('[data-tool-running-timer]');
+    expect(timer).not.toBeNull();
+    expect(timer?.textContent).toContain('0:00');
+  });
+
   it('renders thinking dots inside an empty streaming assistant message', () => {
     render(
       <ChatbotEnhanced
@@ -797,23 +858,30 @@ describe('ChatbotEnhanced — activity-driven liveness (not a fake clock)', () =
     },
   ];
 
-  it('pre-first-token turn shows a neutral "waiting", never a fake "receiving"', () => {
-    render(<ChatbotEnhanced isLoading messages={[]} />);
-    // No server bytes yet → honest waiting cue, and crucially NOT an m:ss
-    // "receiving" timer that would imply data is flowing.
+  it('pre-first-token turn shows a neutral "waiting" WITH a live timer, not a fake "receiving"', () => {
+    const { container } = render(<ChatbotEnhanced isLoading messages={[]} />);
+    // Honest: the tier is the muted "waiting", never the emerald "receiving"
+    // that would imply data is already flowing…
+    expect(container.querySelector('[data-liveness-tier]')).toHaveAttribute(
+      'data-liveness-tier',
+      'waiting',
+    );
     expect(screen.getByText(/Waiting for server/i)).toBeInTheDocument();
-    expect(screen.queryByText('0:00')).not.toBeInTheDocument();
+    // …but the count-up timer is now visible from the first second (issue #432),
+    // so the turn never looks frozen.
+    expect(screen.getByText('0:00')).toBeInTheDocument();
   });
 
-  it('escalates to an amber "no response for Ns" once the stream is genuinely quiet', () => {
-    render(<ChatbotEnhanced isLoading messages={[]} />);
+  it('escalates to an amber "still working" + elapsed timer once the stream is genuinely quiet', () => {
+    const { container } = render(<ChatbotEnhanced isLoading messages={[]} />);
     act(() => {
       vi.advanceTimersByTime(7000);
     });
-    // Honest stall: the seconds-since-last-byte are surfaced.
-    expect(
-      screen.getByText((t) => /Waiting for server/i.test(t) && /7s/.test(t)),
-    ).toBeInTheDocument();
+    const liveness = container.querySelector('[data-liveness-tier]');
+    expect(liveness).toHaveAttribute('data-liveness-tier', 'stalled');
+    expect(screen.getByText(/Still working/i)).toBeInTheDocument();
+    // The seconds-since-last-byte stay available on the hover title.
+    expect(liveness?.getAttribute('title')).toMatch(/7s with no response/);
   });
 
   it('build panel reads as "receiving" (m:ss) while progress bytes keep arriving', () => {
@@ -840,13 +908,14 @@ describe('ChatbotEnhanced — activity-driven liveness (not a fake clock)', () =
     expect(screen.queryByText(/Waiting for server/i)).not.toBeInTheDocument();
   });
 
-  it('build panel flips to amber when progress genuinely stalls, then recovers on the next byte', () => {
-    const { rerender } = render(<ChatbotEnhanced messages={buildMsg(1, [{ type: 'object', name: 'product' }])} />);
+  it('build panel flips to amber "still working" when progress genuinely stalls, then recovers on the next byte', () => {
+    const { container, rerender } = render(<ChatbotEnhanced messages={buildMsg(1, [{ type: 'object', name: 'product' }])} />);
     // No new progress for >6s → honest stall, not a reassuring tick.
     act(() => {
       vi.advanceTimersByTime(7000);
     });
-    expect(screen.getByText((t) => /Waiting for server/i.test(t) && /7s/.test(t))).toBeInTheDocument();
+    expect(container.querySelector('[data-liveness-tier]')).toHaveAttribute('data-liveness-tier', 'stalled');
+    expect(screen.getByText(/Still working/i)).toBeInTheDocument();
 
     // The server sends the next artifact → back to "receiving".
     rerender(
@@ -860,7 +929,8 @@ describe('ChatbotEnhanced — activity-driven liveness (not a fake clock)', () =
     act(() => {
       vi.advanceTimersByTime(1000);
     });
-    expect(screen.queryByText(/Waiting for server/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Still working/i)).not.toBeInTheDocument();
+    expect(container.querySelector('[data-liveness-tier]')).toHaveAttribute('data-liveness-tier', 'receiving');
     // Back to "receiving" — the m:ss is the whole-turn duration (7s stall + 1s).
     expect(screen.getByText('0:08')).toBeInTheDocument();
   });

@@ -20,7 +20,7 @@
 import * as React from 'react';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
-import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert, ClipboardList, HelpCircle, Table2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert, ClipboardList, HelpCircle, Table2, WifiOff } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -308,6 +308,17 @@ export interface ChatbotLabels {
    * of progress.
    */
   connectionWaiting?: string;
+  /**
+   * Shown when a running turn's stream has gone quiet past the threshold —
+   * e.g. "Still working…". Pairs with the live elapsed timer so the user sees
+   * both that we are waiting and for how long.
+   */
+  connectionStalledLabel?: string;
+  /**
+   * Shown when the browser reports it is offline (navigator.onLine === false)
+   * mid-turn — e.g. "Connection lost — reconnecting…". The honest disconnect cue.
+   */
+  connectionOfflineLabel?: string;
 }
 
 export type ChatbotProcessVisibility = 'hidden' | 'summary' | 'debug';
@@ -903,6 +914,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         trace: labels?.trace ?? 'trace',
         viewTrace: labels?.viewTrace ?? 'View trace',
         connectionWaiting: labels?.connectionWaiting ?? 'Waiting for server…',
+        connectionStalledLabel: labels?.connectionStalledLabel ?? 'Still working…',
+        connectionOfflineLabel: labels?.connectionOfflineLabel ?? 'Connection lost — reconnecting…',
       }),
       [labels],
     );
@@ -1221,6 +1234,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       const draftIsPublished = livePendingCount !== undefined
         ? livePendingCount === 0
         : publishedToolCalls.has(tool.toolCallId);
+      // A tool with no output yet is RUNNING — show a live elapsed timer next to
+      // its title so a long blueprint/build call has a visible countdown, not a
+      // static "Running" (issue #432).
+      const isRunning = state === 'input-streaming' || state === 'input-available';
       const titleNode = (
         <span className="inline-flex items-center gap-2">
           <span>{friendlyTitle || tool.toolName}</span>
@@ -1229,6 +1246,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
               {tool.toolName}
             </code>
           ) : null}
+          {isRunning ? <ToolRunningTimer offlineLabel={L.connectionOfflineLabel} /> : null}
         </span>
       );
 
@@ -1756,6 +1774,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                           onPreviewDraftApp={onPreviewDraftApp}
                           previewDraftLabel={previewDraftLabel}
                           waitingLabel={L.connectionWaiting}
+                          stalledLabel={L.connectionStalledLabel}
+                          offlineLabel={L.connectionOfflineLabel}
                         />
                       ) : null}
                       {!isUser && processVisibility === 'debug' && reasoning ? (
@@ -1891,6 +1911,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                 assistantAvatarUrl={assistantAvatarUrl}
                 assistantAvatarFallback={assistantAvatarFallback}
                 waitingLabel={L.connectionWaiting}
+                stalledLabel={L.connectionStalledLabel}
+                offlineLabel={L.connectionOfflineLabel}
               />
             ) : null}
           </ConversationContent>
@@ -2030,11 +2052,15 @@ function AssistantThinkingMessage({
   assistantAvatarUrl,
   assistantAvatarFallback,
   waitingLabel,
+  stalledLabel,
+  offlineLabel,
 }: {
   showAvatar: boolean;
   assistantAvatarUrl?: string;
   assistantAvatarFallback?: string;
   waitingLabel: string;
+  stalledLabel: string;
+  offlineLabel: string;
 }) {
   return (
     <Message from="assistant" aria-live="polite">
@@ -2052,7 +2078,14 @@ function AssistantThinkingMessage({
             {/* No server bytes yet for this turn → `pending`: shows a neutral
                 "waiting" that escalates to amber if the first token never comes,
                 never a false "receiving". */}
-            <LivenessIndicator active pending activityKey={0} waitingLabel={waitingLabel} />
+            <LivenessIndicator
+              active
+              pending
+              activityKey={0}
+              waitingLabel={waitingLabel}
+              stalledLabel={stalledLabel}
+              offlineLabel={offlineLabel}
+            />
           </span>
         </MessageContent>
       </div>
@@ -2155,76 +2188,158 @@ function useTurnLiveness(active: boolean, activityKey: string | number): TurnLiv
 }
 
 /**
- * Honest connection cue beside a running spinner, with three states that each
- * reflect a real fact about the stream:
+ * True when the browser reports it is offline. Reads `navigator.onLine` and
+ * tracks the window `online`/`offline` events, so a real network drop surfaces
+ * IMMEDIATELY — before the stream-quiet timeout would otherwise infer it.
+ */
+function useIsOffline(): boolean {
+  const [offline, setOffline] = React.useState<boolean>(
+    () => typeof navigator !== 'undefined' && navigator.onLine === false,
+  );
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const goOnline = () => setOffline(false);
+    const goOffline = () => setOffline(true);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
+  return offline;
+}
+
+/**
+ * Honest connection cue beside a running spinner. A LIVE `m:ss` timer is ALWAYS
+ * shown (counting up from the first second, not only once bytes arrive) so the
+ * user can always see the turn is progressing and for how long. Four states,
+ * each a real fact about the stream:
  *
- *  - **receiving** (emerald pulse + `m:ss`) — bytes arrived from the server in
- *    the last few seconds. Only shown when real data has actually been seen.
- *  - **waiting** (muted) — the request is in flight but nothing has come back
- *    yet (`pending`, e.g. before the first token). Neutral, not alarming; never
- *    claims "receiving" when nothing has been received.
- *  - **stalled** (amber + "no response for Ns") — the stream has gone genuinely
- *    quiet past the threshold. The honest "we have not heard back" signal.
+ *  - **offline** (red WifiOff) — `navigator.onLine` is false: the browser has
+ *    no network. Surfaced instantly via the online/offline events.
+ *  - **receiving** (emerald pulse) — bytes arrived from the server recently.
+ *  - **waiting** (muted) — request in flight, nothing back yet (`pending`,
+ *    e.g. before the first token). Neutral, never claims "receiving".
+ *  - **stalled** (amber) — the stream has gone quiet past the threshold; the
+ *    honest "we have not heard back for Ns" signal.
  *
- * A hard disconnect surfaces separately via the chat error banner. `pending`
- * selects the waiting-vs-receiving wording for the live window: pass it when no
- * server bytes have been observed for this turn yet (the bare thinking state).
+ * A hard disconnect/error also surfaces via the chat error banner (with Retry).
+ * `pending` selects waiting-vs-receiving wording: pass it when no server bytes
+ * have been observed for this turn yet (the bare thinking state).
  */
 function LivenessIndicator({
   active,
   activityKey,
   pending = false,
   waitingLabel,
+  stalledLabel = 'Still working…',
+  offlineLabel = 'Connection lost — reconnecting…',
 }: {
   active: boolean;
   activityKey: string | number;
   pending?: boolean;
   waitingLabel: string;
+  stalledLabel?: string;
+  offlineLabel?: string;
 }) {
   const { elapsedSeconds, quietSeconds, live } = useTurnLiveness(active, activityKey);
-  const tier: 'receiving' | 'waiting' | 'stalled' = !live
-    ? 'stalled'
-    : pending
-      ? 'waiting'
-      : 'receiving';
+  const offline = useIsOffline();
+  const tier: 'offline' | 'stalled' | 'receiving' | 'waiting' = offline
+    ? 'offline'
+    : !live
+      ? 'stalled'
+      : pending
+        ? 'waiting'
+        : 'receiving';
+  const elapsed = formatElapsed(elapsedSeconds);
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 text-xs font-normal tabular-nums',
-        tier === 'stalled' ? 'text-amber-600' : 'text-muted-foreground',
+        'inline-flex items-center gap-1.5 text-xs tabular-nums',
+        tier === 'offline'
+          ? 'text-red-600 font-medium'
+          : tier === 'stalled'
+            ? 'text-amber-600 font-medium'
+            : 'font-normal text-muted-foreground',
       )}
       aria-live="polite"
+      data-liveness-tier={tier}
       title={
-        tier === 'receiving'
-          ? `Receiving from server · ${formatElapsed(elapsedSeconds)} elapsed`
-          : tier === 'waiting'
-            ? `${waitingLabel} · ${formatElapsed(elapsedSeconds)} elapsed`
-            : `${waitingLabel} (${quietSeconds}s with no response)`
+        tier === 'offline'
+          ? `${offlineLabel} · ${elapsed} elapsed`
+          : tier === 'receiving'
+            ? `Receiving from server · ${elapsed} elapsed`
+            : tier === 'stalled'
+              ? `${stalledLabel} (${quietSeconds}s with no response) · ${elapsed} elapsed`
+              : `${waitingLabel} · ${elapsed} elapsed`
       }
     >
-      <span
-        aria-hidden
-        className={cn(
-          'size-1.5 shrink-0 rounded-full',
-          tier === 'receiving'
-            ? 'bg-emerald-500 animate-pulse'
-            : tier === 'waiting'
-              ? 'bg-muted-foreground/50 animate-pulse'
-              : 'bg-amber-500',
-        )}
-      />
-      {tier === 'receiving' ? (
-        <>
-          <Clock3 className="size-3 shrink-0" aria-hidden />
-          {formatElapsed(elapsedSeconds)}
-        </>
-      ) : tier === 'waiting' ? (
-        <span>{waitingLabel}</span>
+      {tier === 'offline' ? (
+        <WifiOff className="size-3 shrink-0" aria-hidden />
       ) : (
+        <span
+          aria-hidden
+          className={cn(
+            'size-1.5 shrink-0 rounded-full',
+            tier === 'receiving'
+              ? 'bg-emerald-500 animate-pulse'
+              : tier === 'stalled'
+                ? 'bg-amber-500'
+                : 'bg-muted-foreground/50 animate-pulse',
+          )}
+        />
+      )}
+      {/* The live count-up timer is ALWAYS visible (the "倒计时"): a turn never
+          looks frozen, even before the first server byte. */}
+      <Clock3 className="size-3 shrink-0" aria-hidden />
+      <span>{elapsed}</span>
+      {/* A short status label accompanies the timer in every state except the
+          calm "receiving" one (where the green pulse already says data is
+          flowing) — so "waiting", "still working" and "connection lost" read
+          plainly instead of as a bare number. */}
+      {tier === 'receiving' ? null : (
         <span>
-          {waitingLabel} {quietSeconds}s
+          · {tier === 'offline' ? offlineLabel : tier === 'stalled' ? stalledLabel : waitingLabel}
         </span>
       )}
+    </span>
+  );
+}
+
+/**
+ * Compact elapsed-timer + offline cue for a tool that is currently RUNNING
+ * (issue #432) — e.g. the "Propose blueprint · Running" header. Counts up from
+ * when the running card mounts so a long tool call (a blueprint can take tens of
+ * seconds) shows a visible "倒计时" instead of a static "Running", and flips to a
+ * red offline cue the moment the browser loses the network. Unlike the
+ * stream-liveness indicator it never escalates to amber on quiet — a running
+ * tool legitimately produces no client bytes while the server works.
+ */
+function ToolRunningTimer({ offlineLabel }: { offlineLabel: string }) {
+  const [elapsed, setElapsed] = React.useState(0);
+  const offline = useIsOffline();
+  React.useEffect(() => {
+    const start = Date.now();
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 text-xs tabular-nums',
+        offline ? 'text-red-600 font-medium' : 'text-muted-foreground',
+      )}
+      aria-live="polite"
+      data-tool-running-timer
+    >
+      {offline ? (
+        <WifiOff className="size-3 shrink-0" aria-hidden />
+      ) : (
+        <Clock3 className="size-3 shrink-0" aria-hidden />
+      )}
+      <span>{formatElapsed(elapsed)}</span>
+      {offline ? <span>· {offlineLabel}</span> : null}
     </span>
   );
 }
@@ -2251,6 +2366,8 @@ function BuildProgressPanel({
   onPreviewDraftApp,
   previewDraftLabel = 'Preview',
   waitingLabel = 'Waiting for server…',
+  stalledLabel = 'Still working…',
+  offlineLabel = 'Connection lost — reconnecting…',
 }: {
   progress: ChatBuildProgress;
   onOpenBuiltApp?: (appName: string) => void;
@@ -2258,6 +2375,8 @@ function BuildProgressPanel({
   onPreviewDraftApp?: (appName: string) => void;
   previewDraftLabel?: string;
   waitingLabel?: string;
+  stalledLabel?: string;
+  offlineLabel?: string;
 }) {
   const { phase, appLabel, items, done, total, seq } = progress;
   const isDone = phase === 'done';
@@ -2295,7 +2414,13 @@ function BuildProgressPanel({
         ) : null}
         {!isDone ? (
           <span className="ml-auto">
-            <LivenessIndicator active activityKey={activityKey} waitingLabel={waitingLabel} />
+            <LivenessIndicator
+              active
+              activityKey={activityKey}
+              waitingLabel={waitingLabel}
+              stalledLabel={stalledLabel}
+              offlineLabel={offlineLabel}
+            />
           </span>
         ) : null}
       </div>
@@ -2356,6 +2481,7 @@ interface ToolActivitySummaryLabels {
   toolRunning: string;
   toolAwaitingApproval: string;
   toolFailed: string;
+  connectionOfflineLabel: string;
 }
 
 function ToolActivitySummary({
@@ -2386,18 +2512,25 @@ function ToolActivitySummary({
                 </span>
               ) : null}
             </div>
-            <span
-              className={cn(
-                'shrink-0 text-[10px] font-medium',
-                group.state === 'failed'
-                  ? 'text-destructive'
-                  : group.state === 'completed'
-                    ? 'text-emerald-700 dark:text-emerald-400'
-                    : 'text-muted-foreground',
-              )}
-            >
-              {getToolSummaryStatus(group.state, labels)}
-            </span>
+            {group.state === 'running' ? (
+              // A running tool (e.g. "Propose blueprint") shows a LIVE elapsed
+              // timer instead of a static "Running", and a red offline cue if
+              // the network drops (issue #432).
+              <ToolRunningTimer offlineLabel={labels.connectionOfflineLabel} />
+            ) : (
+              <span
+                className={cn(
+                  'shrink-0 text-[10px] font-medium',
+                  group.state === 'failed'
+                    ? 'text-destructive'
+                    : group.state === 'completed'
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-muted-foreground',
+                )}
+              >
+                {getToolSummaryStatus(group.state, labels)}
+              </span>
+            )}
           </div>
         ))}
       </div>
