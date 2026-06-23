@@ -825,7 +825,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 </TableHead>
               )}
               {showRowNumbers && (
-                <TableHead className={cn("w-10 bg-background text-center", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: selectable ? 40 : 0 } : undefined}>
+                <TableHead className={cn("w-10 bg-background text-center px-3", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: selectable ? 40 : 0 } : undefined}>
                   <span className="text-xs text-muted-foreground">#</span>
                 </TableHead>
               )}
