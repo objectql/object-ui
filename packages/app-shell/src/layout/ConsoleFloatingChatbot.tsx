@@ -47,6 +47,7 @@ import { useAssistant, requestAssistantReview, emitCanvasInvalidate, type Assist
 import { fetchPendingDraftCount } from '../preview/draftStatus';
 import { getRuntimeConfig } from '../runtime-config';
 import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi';
+import { shouldShowAgentPicker } from './agentPicker';
 
 /**
  * Display names for the two built-in platform agents (ADR-0063: `ask` / `build`,
@@ -236,10 +237,12 @@ export interface ConsoleFloatingChatbotProps {
    */
   defaultAgent?: string;
   /**
-   * Show the in-header agent switcher. Off by default: end users get the
-   * single agent bound to their app and never have to choose. Enable for
-   * power users / admins (or via `VITE_AI_SHOW_AGENT_PICKER`) when a
-   * surface genuinely exposes multiple agents.
+   * Force the in-header agent switcher on (`true`) or off (`false`),
+   * overriding the default. When left undefined the switcher auto-reveals
+   * only when AI development is unlocked for the viewer — the live catalog
+   * serves BOTH an `ask` and a `build` agent and `aiStudio` isn't disabled —
+   * so pure end-user apps (only `ask`) stay clean while builders can flip
+   * Ask↔Build inline. `VITE_AI_SHOW_AGENT_PICKER=true` also forces it on.
    */
   showAgentPicker?: boolean;
   /** Whether the floating panel should open immediately on mount. */
@@ -497,10 +500,10 @@ function ChatbotInner({
     },
   });
 
-  // Agent switcher — deliberately hidden by default. End users get the
-  // single agent bound to their app (Studio → metadata_assistant, others
-  // → data_chat) and are never asked to choose. Only surfaces when the
-  // host explicitly opts in AND there is more than one agent to pick.
+  // Agent switcher — Ask ↔ Build (plus any custom agents). Restrained by
+  // design: end users bound to a single agent never see it. `showAgentPicker`
+  // is true when AI development is unlocked (catalog serves both ask & build)
+  // or forced on; it still needs more than one agent to be a real choice.
   const headerExtra =
     showAgentPicker && agents.length > 1 ? (
       <Select
@@ -738,12 +741,20 @@ export default function ConsoleFloatingChatbot({
   const apiBase = React.useMemo(() => resolveApiBase(apiBaseProp), [apiBaseProp]);
   const env = (import.meta as any).env ?? {};
   const envDefaultAgent = env.VITE_AI_DEFAULT_AGENT as string | undefined;
-  // Power-user / admin escape hatch: force the picker on globally without
-  // touching app metadata.
-  const showAgentPicker =
-    showAgentPickerProp ?? env.VITE_AI_SHOW_AGENT_PICKER === 'true';
 
   const { agents, isLoading: agentsLoading, error: agentsError } = useAgents({ apiBase });
+
+  // Reveal the Build/Ask switcher only when AI development is unlocked for this
+  // viewer — the live catalog serves BOTH an `ask` and a `build` agent and
+  // authoring isn't deployment-disabled. Pure end-user apps (only `ask`) stay
+  // clean; builders can flip "ask about my data" ↔ "extend my app" inline. An
+  // explicit prop or `VITE_AI_SHOW_AGENT_PICKER` still forces it. See agentPicker.
+  const showAgentPicker = shouldShowAgentPicker({
+    agents,
+    showAgentPickerProp,
+    envOptIn: env.VITE_AI_SHOW_AGENT_PICKER === 'true',
+    aiStudioEnabled: getRuntimeConfig().features.aiStudio !== false,
+  });
 
   const [activeAgent, setActiveAgent] = React.useState<string | undefined>(undefined);
   React.useEffect(() => {
