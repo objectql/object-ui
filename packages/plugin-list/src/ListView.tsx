@@ -512,6 +512,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const [dynamicPageSize, setDynamicPageSize] = React.useState<number | undefined>(undefined);
   const effectivePageSize = dynamicPageSize ?? schema.pagination?.pageSize ?? 100;
 
+  // --- Server-side pagination (#2212) ---
+  // ListView owns the fetch, so it owns paging too: it requests one window at a
+  // time ($skip = (page-1)*size) and reads the real match `total` from the
+  // result. That total + page controls are handed DOWN to the flat grid view so
+  // its existing (single) DataTable pager becomes server-driven — records past
+  // the first window are reachable, and we never stack a second pager on top.
+  const [serverPage, setServerPage] = React.useState(1);
+  const [serverTotal, setServerTotal] = React.useState<number | null>(null);
+
   // Grouping state (initialized from schema, user can add/remove via popover).
   // Supports three input shapes from the schema:
   //   1. Spec-compliant `grouping: { fields: [...] }` (preferred — supports
@@ -991,10 +1000,17 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ? finalFilter.length > 0
           : !!finalFilter && Object.keys(finalFilter).length > 0;
 
+        // Window the request only for the flat grid view. Grouped grids and the
+        // visual views (kanban/calendar/gantt/gallery) consume the whole batch,
+        // so they keep their single-window fetch and in-memory handling.
+        const paginate = currentView === 'grid' && !(groupingConfig?.fields?.length);
+        const skip = paginate ? (serverPage - 1) * effectivePageSize : 0;
+
         const results = await dataSource.find(schema.objectName, {
            ...(hasFilter ? { $filter: finalFilter } : {}),
            $orderby: sort,
            $top: effectivePageSize,
+           ...(skip > 0 ? { $skip: skip } : {}),
            ...(selectFields ? { $select: selectFields } : {}),
            ...(expandFields.length > 0 ? { $expand: expandFields } : {}),
            ...(searchTerm ? {
@@ -1022,7 +1038,19 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         }
         
         setData(items);
-        setDataLimitReached(items.length >= effectivePageSize);
+
+        // Capture the real match total (framework #2212: findData now returns it).
+        // With a known total the grid pages server-side, so the "showing first N"
+        // cap warning no longer applies; without one we fall back to the old
+        // single-window behaviour and keep the warning.
+        const rawTotal = (results && typeof results === 'object')
+          ? ((results as any).total ?? (results as any).count)
+          : undefined;
+        const knownTotal = typeof rawTotal === 'number' ? rawTotal : null;
+        setServerTotal(paginate ? knownTotal : null);
+        setDataLimitReached(
+          !(paginate && knownTotal != null) && items.length >= effectivePageSize,
+        );
       } catch (err) {
         // Only log + surface errors from the latest request. A failed fetch is
         // NOT an empty result — record it so the render shows an error panel
@@ -1040,9 +1068,28 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     };
 
     fetchData();
-    
+
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms]); // Re-fetch on filter/sort/search/refreshTrigger/perms change
+  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
+
+  // Any change to the result-defining inputs (object, filters, sort, search,
+  // grouping, page size) invalidates the current page number — snap back to
+  // page 1 so the user never lands on a now-out-of-range window. We compare by
+  // VALUE via a JSON signature (not effect deps): ListView re-initializes sort/
+  // grouping references during mount, which would otherwise reset the page out
+  // from under a user who just turned it. serverPage is deliberately NOT part of
+  // the signature, so turning the page never triggers a reset.
+  const pageResetSignature = JSON.stringify([
+    schema.objectName, schema.filters, effectivePageSize, currentSort,
+    currentFilters, userFilterConditions, searchTerm, currentView, groupingConfig,
+  ]);
+  const prevPageResetSignature = React.useRef(pageResetSignature);
+  React.useEffect(() => {
+    if (prevPageResetSignature.current !== pageResetSignature) {
+      prevPageResetSignature.current = pageResetSignature;
+      setServerPage(1);
+    }
+  }, [pageResetSignature]);
 
   // Available view types based on schema configuration
   const availableViews = React.useMemo(() => {
@@ -2169,12 +2216,26 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             );
           })()
         ) : (
-          <SchemaRenderer 
-            schema={viewComponentSchema} 
-            {...props} 
+          <SchemaRenderer
+            schema={viewComponentSchema}
+            {...props}
             data={data}
             loading={loading}
             onRowSelect={setSelectedRows}
+            {...(currentView === 'grid' && !(groupingConfig?.fields?.length) && serverTotal != null
+              ? {
+                  // Drive the flat grid's single (DataTable) pager from the
+                  // server: it renders THIS window as the current page, the real
+                  // total sets the page count, and turning the page asks ListView
+                  // to refetch the next window. One pager, server-backed (#2212).
+                  manualPagination: true,
+                  rowCount: serverTotal,
+                  page: serverPage,
+                  pageSize: effectivePageSize,
+                  onPageChange: (p: number) => setServerPage(p),
+                  onPageSizeChange: (n: number) => { setDynamicPageSize(n); setServerPage(1); },
+                }
+              : {})}
           />
         )}
       </div>

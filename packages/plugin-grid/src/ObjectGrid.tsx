@@ -361,6 +361,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   
   const hasInlineData = dataConfig?.provider === 'value';
 
+  // External (parent-driven) server pagination. When a host like ListView fetches
+  // the data itself, it passes the current window down as `data` AND hands us the
+  // real match total + page controls. We must forward those straight to DataTable
+  // instead of client-slicing the window — otherwise the footer would report
+  // "pages = window / pageSize" and records beyond the window stay unreachable
+  // (framework #2212). `data` arrives via `rest` (a prop), so do these too.
+  const externalManualPagination =
+    (rest as any).manualPagination === true &&
+    typeof (rest as any).rowCount === 'number' &&
+    typeof (rest as any).onPageChange === 'function';
+
   // Extract stable primitive/reference-stable values from schema for dependency arrays.
   // This prevents infinite re-render loops when schema is a new object on each render
   // (e.g. when rendered through SchemaRenderer which creates a fresh evaluatedSchema).
@@ -1543,22 +1554,37 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // on DataTable's default client-side slicing.
   const useServerPagination = !hasInlineData && !isGrouped;
 
+  // Either we own the server fetch (useServerPagination) or a parent does
+  // (externalManualPagination). Grouped mode always keeps in-memory slicing so
+  // whole groups stay together. Both server modes feed DataTable a manual pager
+  // backed by the real match total.
+  const manualPaginationOn = (useServerPagination || externalManualPagination) && !isGrouped;
+  const manualRowCount = externalManualPagination ? (rest as any).rowCount : totalMatching;
+  const manualPage = externalManualPagination ? (rest as any).page : serverPage;
+  const manualPageSize = externalManualPagination
+    ? ((rest as any).pageSize ?? serverPageSize)
+    : serverPageSize;
+  const manualOnPageChange = externalManualPagination
+    ? (rest as any).onPageChange
+    : setServerPage;
+  const manualOnPageSizeChange = externalManualPagination
+    ? (rest as any).onPageSizeChange
+    : (size: number) => { setServerPageSize(size); setServerPage(1); };
+
   const dataTableSchema: any = {
     type: 'data-table',
     caption: schema.label || schema.title,
     columns: orderedColumns,
     data,
     pagination: paginationEnabled,
-    pageSize: useServerPagination ? serverPageSize : pageSize,
+    pageSize: manualPaginationOn ? manualPageSize : pageSize,
     // In server mode `data` IS the current page; tell DataTable to render it
     // as-is and drive paging via the callbacks below using the real match total.
-    manualPagination: useServerPagination,
-    rowCount: useServerPagination ? totalMatching : undefined,
-    page: useServerPagination ? serverPage : undefined,
-    onPageChange: useServerPagination ? setServerPage : undefined,
-    onPageSizeChange: useServerPagination
-      ? (size: number) => { setServerPageSize(size); setServerPage(1); }
-      : undefined,
+    manualPagination: manualPaginationOn,
+    rowCount: manualPaginationOn ? manualRowCount : undefined,
+    page: manualPaginationOn ? manualPage : undefined,
+    onPageChange: manualPaginationOn ? manualOnPageChange : undefined,
+    onPageSizeChange: manualPaginationOn ? manualOnPageSizeChange : undefined,
     searchable: searchEnabled,
     selectable: selectionMode,
     sortable: true,

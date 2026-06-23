@@ -154,3 +154,62 @@ describe('ObjectGrid — server-side pagination (#2212)', () => {
     });
   });
 });
+
+describe('ObjectGrid — external (host-driven) manual pagination (#2212)', () => {
+  // ListView fetches the data itself and passes the current window down as a
+  // `data` prop (which would make ObjectGrid treat it as inline/static data) PLUS
+  // manualPagination + the real match total + page controls. ObjectGrid must
+  // honour those external controls and forward them to its single DataTable
+  // pager instead of client-slicing the window — otherwise records past the
+  // first window stay unreachable and the footer shows "window / pageSize" pages.
+  function renderExternal(overrides?: Record<string, any>) {
+    const onPageChange = vi.fn();
+    const onPageSizeChange = vi.fn();
+    const window = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+      id: `id-${i}`,
+      name: `Row ${i}`,
+    }));
+    const schema: any = {
+      type: 'object-grid',
+      objectName: 'os_tianshun_ehr_production_plan',
+      columns: [{ field: 'name', label: 'Name' }],
+    };
+    const utils = render(
+      <ActionProvider>
+        <ObjectGrid
+          schema={schema}
+          dataSource={makeDataSource()}
+          data={window}
+          manualPagination
+          rowCount={TOTAL}
+          page={1}
+          pageSize={PAGE_SIZE}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          {...overrides}
+        />
+      </ActionProvider>,
+    );
+    return { ...utils, onPageChange, onPageSizeChange };
+  }
+
+  it('shows the page count from the external rowCount, not the inline window length', async () => {
+    const { container } = renderExternal();
+    // ceil(3125 / 50) = 63 — proves the footer uses the host total, not the
+    // 50-row window it was handed.
+    await waitFor(() => expect(container.textContent).toContain('63'));
+    await waitFor(() => expect(screen.getByText('Row 0')).toBeInTheDocument());
+  });
+
+  it('calls the external onPageChange when the footer turns the page (no client slice)', async () => {
+    const { container, onPageChange } = renderExternal();
+    await waitFor(() => expect(screen.getByText('Row 0')).toBeInTheDocument());
+    const navButtons = Array.from(container.querySelectorAll('button')).filter(
+      (b) => !(b as HTMLButtonElement).disabled,
+    );
+    // last-page button — a forward jump the host must service by refetching.
+    fireEvent.click(navButtons[navButtons.length - 1]);
+    await waitFor(() => expect(onPageChange).toHaveBeenCalled());
+    expect(onPageChange.mock.calls[onPageChange.mock.calls.length - 1][0]).toBeGreaterThan(1);
+  });
+});
