@@ -1,5 +1,20 @@
 # @object-ui/plugin-designer
 
+## 7.1.0
+
+### Patch Changes
+
+- Updated dependencies [677f7ed]
+  - @object-ui/types@7.1.0
+  - @object-ui/components@7.1.0
+  - @object-ui/core@7.1.0
+  - @object-ui/data-objectstack@7.1.0
+  - @object-ui/fields@7.1.0
+  - @object-ui/plugin-form@7.1.0
+  - @object-ui/plugin-grid@7.1.0
+  - @object-ui/react@7.1.0
+  - @object-ui/i18n@7.1.0
+
 ## 7.0.0
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @object-ui/app-shell — Changelog
 
+## 7.1.0
+
+### Patch Changes
+
+- Updated dependencies [677f7ed]
+  - @object-ui/types@7.1.0
+  - @object-ui/auth@7.1.0
+  - @object-ui/collaboration@7.1.0
+  - @object-ui/components@7.1.0
+  - @object-ui/core@7.1.0
+  - @object-ui/data-objectstack@7.1.0
+  - @object-ui/fields@7.1.0
+  - @object-ui/layout@7.1.0
+  - @object-ui/permissions@7.1.0
+  - @object-ui/plugin-editor@7.1.0
+  - @object-ui/providers@7.1.0
+  - @object-ui/react@7.1.0
+  - @object-ui/i18n@7.1.0
+
 ## 7.0.0
 
 ### Minor Changes

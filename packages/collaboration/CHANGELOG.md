@@ -1,5 +1,12 @@
 # @object-ui/collaboration
 
+## 7.1.0
+
+### Patch Changes
+
+- Updated dependencies [677f7ed]
+  - @object-ui/types@7.1.0
+
 ## 7.0.0
 
 ### Patch Changes

@@ -1,5 +1,28 @@
 # @object-ui/plugin-dashboard
 
+## 7.1.0
+
+### Minor Changes
+
+- 677f7ed: feat(charts,dashboard): data-screen customization primitives
+
+  - object-metric `variant:'bare'` — big tinted number + label, no card chrome
+    (data-screen KPIs that stay data-bound).
+  - object-chart `colors` prop overrides the theme `--chart-1..n` palette so a
+    page/dashboard can brand its charts; compact metric formatting (`'0.0a'` →
+    "1.1M").
+  - ObjectChartSchema.chartType widened to donut/horizontal-bar/column.
+
+### Patch Changes
+
+- Updated dependencies [677f7ed]
+  - @object-ui/types@7.1.0
+  - @object-ui/components@7.1.0
+  - @object-ui/core@7.1.0
+  - @object-ui/fields@7.1.0
+  - @object-ui/react@7.1.0
+  - @object-ui/i18n@7.1.0
+
 ## 7.0.0
 
 ### Minor Changes
