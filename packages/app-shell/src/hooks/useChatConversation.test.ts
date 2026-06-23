@@ -12,7 +12,7 @@
  * draft affordances after a refresh.
  */
 import { describe, it, expect } from 'vitest';
-import { toUIMessages } from './useChatConversation';
+import { aiMessageRowsToServerMessages, toUIMessages } from './useChatConversation';
 
 describe('toUIMessages — merging tool-results onto the call (refresh survival)', () => {
   const draftEnvelope = {
@@ -83,5 +83,87 @@ describe('toUIMessages — merging tool-results onto the call (refresh survival)
     const out = toUIMessages(plain as never);
     expect(out.map((m) => m.role)).toEqual(['user', 'assistant']);
     expect(out[1].parts).toEqual([{ type: 'text', text: 'hello' }]);
+  });
+});
+
+describe('aiMessageRowsToServerMessages — flat share rows → ModelMessage shape', () => {
+  // The public share endpoint (`/s/:token/messages`) returns the raw, FLAT
+  // `ai_messages` columns: an assistant turn's tool CALLS sit in a separate
+  // `tool_calls` column, and a `tool` row's RESULTS are a JSON-stringified
+  // array in `content`. Mirrors `ObjqlConversationService.toMessage`.
+  it('lifts assistant tool_calls into a content array alongside the text', () => {
+    const [msg] = aiMessageRowsToServerMessages([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: 'I will build it.',
+        tool_calls: JSON.stringify([
+          { type: 'tool-call', toolCallId: 'call_1', toolName: 'propose_blueprint', input: {} },
+        ]),
+      },
+    ]);
+    expect(msg.content).toEqual([
+      { type: 'text', text: 'I will build it.' },
+      { type: 'tool-call', toolCallId: 'call_1', toolName: 'propose_blueprint', input: {} },
+    ]);
+  });
+
+  it('parses a stringified tool-result array back into structured content', () => {
+    const result = {
+      type: 'tool-result',
+      toolCallId: 'call_1',
+      toolName: 'propose_blueprint',
+      output: { type: 'text', value: '{"status":"blueprint_proposed"}' },
+    };
+    const [msg] = aiMessageRowsToServerMessages([
+      { id: 't1', role: 'tool', tool_call_id: 'call_1', content: JSON.stringify([result]) },
+    ]);
+    expect(msg.content).toEqual([result]);
+  });
+
+  it('reconstructs the FULL flat transcript so toUIMessages recovers the tool output', () => {
+    // The end-to-end share path: flat rows → ModelMessage shape → hydrate. The
+    // tool RESULT must land back on the assistant CALL part, or the shared
+    // transcript loses its proposed-plan / draft card (the original bug).
+    const envelope = { type: 'text', value: '{"status":"blueprint_proposed"}' };
+    const rows = aiMessageRowsToServerMessages([
+      { id: 'u1', role: 'user', content: '帮我开发一个mes' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '我来帮您开发一个MES。',
+        tool_calls: JSON.stringify([
+          { type: 'tool-call', toolCallId: 'call_1', toolName: 'propose_blueprint', input: {} },
+        ]),
+      },
+      {
+        id: 't1',
+        role: 'tool',
+        tool_call_id: 'call_1',
+        content: JSON.stringify([
+          { type: 'tool-result', toolCallId: 'call_1', toolName: 'propose_blueprint', output: envelope },
+        ]),
+      },
+    ]);
+    const out = toUIMessages(rows);
+    // The `tool` row is merged away — user + assistant only.
+    expect(out.map((m) => m.role)).toEqual(['user', 'assistant']);
+    const callPart = out[1].parts.find((p) => p.toolCallId === 'call_1');
+    expect((callPart as { output?: unknown }).output).toEqual(envelope);
+    expect((callPart as { state?: string }).state).toBe('output-available');
+  });
+
+  it('falls back to a synthetic tool-result for legacy plain-string tool rows', () => {
+    const [msg] = aiMessageRowsToServerMessages([
+      { id: 't1', role: 'tool', tool_call_id: 'call_9', content: 'plain old string output' },
+    ]);
+    expect(msg.content).toEqual([
+      {
+        type: 'tool-result',
+        toolCallId: 'call_9',
+        toolName: 'unknown',
+        output: { type: 'text', value: 'plain old string output' },
+      },
+    ]);
   });
 });

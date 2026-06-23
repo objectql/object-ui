@@ -333,6 +333,15 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    */
   onUpgrade?: () => void;
   disabled?: boolean;
+  /**
+   * Render a static, non-interactive transcript: hides the prompt-input
+   * composer entirely so the conversation can be embedded in a public /
+   * read-only surface (e.g. a `/s/:token` share page). The detailed tool
+   * cards (proposed-plan, drafts) still render — but their action buttons
+   * stay hidden because the host passes no `onSendMessage`/`onPublishDrafts`
+   * callbacks, so the cards degrade to their read-only/summary form.
+   */
+  readOnly?: boolean;
   /** Whether the assistant is currently generating a response */
   isLoading?: boolean;
   /** Current streaming/API error */
@@ -812,6 +821,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       onReload,
       onUpgrade,
       disabled = false,
+      readOnly = false,
       isLoading = false,
       error,
       showTimestamp = false,
@@ -1861,6 +1871,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           <ErrorBanner error={error} onReload={onReload} onUpgrade={onUpgrade} />
         ) : null}
 
+        {readOnly ? null : (
         <div
           ref={promptInputWrapRef}
           className={cn(
@@ -1945,6 +1956,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             </PromptInputFooter>
           </PromptInput>
         </div>
+        )}
 
       </div>
     );

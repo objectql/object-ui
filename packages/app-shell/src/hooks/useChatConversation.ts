@@ -408,6 +408,84 @@ export function toUIMessages(rows: ServerMessage[] | undefined): HydratedUIMessa
   return out;
 }
 
+/**
+ * A FLAT `ai_messages` row as returned by the public share endpoint
+ * (`GET /api/v1/share-links/:token/messages`), which streams the raw object
+ * rows rather than the reconstructed ModelMessage history that the
+ * authenticated `GET /conversations/:id` returns.
+ */
+export interface RawAiMessageRow {
+  id?: string;
+  role: string;
+  /** Persisted text (assistant/user/system) OR a JSON-stringified tool-result array (tool role). */
+  content?: unknown;
+  /** Assistant tool CALLS, JSON-stringified (`tool-call` parts). */
+  tool_calls?: string | null;
+  /** Tool RESULT's owning call id (legacy plain-string tool rows). */
+  tool_call_id?: string | null;
+}
+
+function safeParseArray(value: unknown): Array<Record<string, unknown>> | undefined {
+  if (typeof value !== 'string' || !value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? (parsed as Array<Record<string, unknown>>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Reconstruct the ModelMessage-shaped `content` that {@link toUIMessages}
+ * expects from the FLAT columns the public share endpoint returns raw.
+ *
+ * The authenticated path gets this reconstruction server-side
+ * (`ObjqlConversationService.toMessage`): an assistant turn's tool CALLS live
+ * in the separate `tool_calls` column, and a `tool` row's RESULTS are a
+ * JSON-stringified array in `content`. The share endpoint skips that step and
+ * dumps the rows verbatim — so the shared transcript previously rendered the
+ * raw `{"type":"tool-result",…}` envelope as text instead of a card. Mirroring
+ * `toMessage` here lets the share page reuse the exact same hydrate → render
+ * pipeline as the live chat. Keep this in lockstep with `toMessage`.
+ */
+export function aiMessageRowsToServerMessages(rows: RawAiMessageRow[] | undefined): ServerMessage[] {
+  if (!rows) return [];
+  return rows.map((row) => {
+    const id = row.id;
+    const text = typeof row.content === 'string' ? row.content : '';
+    if (row.role === 'assistant') {
+      const toolCalls = safeParseArray(row.tool_calls);
+      if (toolCalls && toolCalls.length > 0) {
+        const content: Array<Record<string, unknown>> = [];
+        if (text) content.push({ type: 'text', text });
+        content.push(...toolCalls);
+        return { id, role: 'assistant', content };
+      }
+      return { id, role: 'assistant', content: text };
+    }
+    if (row.role === 'tool') {
+      const results = safeParseArray(row.content);
+      if (results && results.length > 0 && results[0]?.type === 'tool-result') {
+        return { id, role: 'tool', content: results };
+      }
+      // Back-compat: pre-array tool rows persisted a plain string.
+      return {
+        id,
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: row.tool_call_id ?? '',
+            toolName: 'unknown',
+            output: { type: 'text', value: text },
+          },
+        ],
+      };
+    }
+    return { id, role: row.role, content: text };
+  });
+}
+
 export async function fetchConversation(apiBase: string, id: string): Promise<ServerConversation | null> {
   const res = await fetch(`${apiBase}/conversations/${encodeURIComponent(id)}`, {
     credentials: 'include',

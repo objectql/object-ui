@@ -10,9 +10,10 @@
  *   • Returns the underlying record with redacted fields stripped
  *
  * For `ai_conversations`, we also fetch the linked messages and render
- * a read-only transcript using `streamdown` so markdown / code blocks
- * look the same as in the live chat. Other object kinds fall back to a
- * generic JSON preview.
+ * a read-only transcript with the SAME `ChatbotEnhanced` renderer the live
+ * chat uses (in `readOnly` mode — no composer), so assistant tool calls show
+ * as proper proposed-plan / draft cards instead of a raw tool-result JSON
+ * dump. Other object kinds fall back to a generic JSON preview.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -25,6 +26,13 @@ import {
   Label,
   Badge,
 } from '@object-ui/components';
+import {
+  aiMessageRowsToServerMessages,
+  hydratedMessagesToChatMessages,
+  toUIMessages,
+  type RawAiMessageRow,
+} from '@object-ui/app-shell';
+import { ChatbotEnhanced } from '@object-ui/plugin-chatbot';
 
 interface ResolvedShare {
   link: {
@@ -41,30 +49,11 @@ interface ResolvedShare {
   redactedFields?: string[];
 }
 
-interface AiMessage {
-  id: string;
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content?: string | null;
-  parts?: Array<{ type?: string; text?: string; content?: string }>;
-  created_at?: string;
-}
-
 function resolveServerUrl(): string {
   const env = (import.meta as any).env ?? {};
   const explicit = (env.VITE_SERVER_URL as string | undefined) ?? '';
   if (explicit) return explicit.replace(/\/$/, '');
   if (typeof window !== 'undefined') return window.location.origin;
-  return '';
-}
-
-function extractMessageText(m: AiMessage): string {
-  if (typeof m.content === 'string' && m.content.trim()) return m.content;
-  if (Array.isArray(m.parts)) {
-    return m.parts
-      .map((p) => p.text ?? p.content ?? '')
-      .filter(Boolean)
-      .join('\n\n');
-  }
   return '';
 }
 
@@ -78,7 +67,7 @@ export default function SharedRecordPage() {
   const [loading, setLoading] = useState(true);
   const [needsPassword, setNeedsPassword] = useState(false);
   const [password, setPassword] = useState('');
-  const [messages, setMessages] = useState<AiMessage[] | null>(null);
+  const [messages, setMessages] = useState<RawAiMessageRow[] | null>(null);
 
   const fetchResolve = useCallback(
     async (pw?: string) => {
@@ -150,6 +139,20 @@ export default function SharedRecordPage() {
       .then((body) => setMessages(body?.data ?? []))
       .catch(() => setMessages([]));
   }, [apiBase, data]);
+
+  // Reconstruct the same renderable chat messages the authenticated chat builds
+  // (tool CALLS merged with their RESULTS → proposed-plan / draft cards) instead
+  // of dumping the raw `{"type":"tool-result",…}` envelope as text. The share
+  // endpoint returns FLAT `ai_messages` rows, so we first re-assemble the
+  // ModelMessage shape (`aiMessageRowsToServerMessages`) that the live path gets
+  // server-side, then run the identical hydrate → map pipeline.
+  const chatMessages = useMemo(
+    () =>
+      messages
+        ? hydratedMessagesToChatMessages(toUIMessages(aiMessageRowsToServerMessages(messages)))
+        : [],
+    [messages],
+  );
 
   if (loading) {
     return (
@@ -225,47 +228,26 @@ export default function SharedRecordPage() {
             {data.link.permission}
           </Badge>
         </header>
-        <main className="flex-1 overflow-y-auto px-4 py-6">
-          {messages == null && (
-            <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+        <main className="flex min-h-0 flex-1 flex-col">
+          {messages == null ? (
+            <div className="flex flex-1 items-center justify-center py-12 text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Loading messages…
             </div>
-          )}
-          {messages && messages.length === 0 && (
+          ) : messages.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
               This conversation has no messages yet.
             </p>
+          ) : (
+            <ChatbotEnhanced
+              readOnly
+              surface="plain"
+              messages={chatMessages}
+              showAvatars
+              maxHeight="100%"
+              className="flex-1"
+            />
           )}
-          <ul className="space-y-4">
-            {messages?.map((m) => {
-              const text = extractMessageText(m);
-              if (!text) return null;
-              const isUser = m.role === 'user';
-              return (
-                <li
-                  key={m.id}
-                  className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
-                      isUser
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-foreground'
-                    }`}
-                  >
-                    {isUser ? (
-                      <p className="whitespace-pre-wrap">{text}</p>
-                    ) : (
-                      <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                        {text}
-                      </pre>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
         </main>
         <footer className="border-t bg-muted/30 px-4 py-2 text-center text-[11px] text-muted-foreground">
           Powered by ObjectStack

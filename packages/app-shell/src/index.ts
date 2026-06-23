@@ -171,8 +171,21 @@ export { MembersPage as DefaultMembersPage } from './console/organizations/manag
 export { InvitationsPage as DefaultInvitationsPage } from './console/organizations/manage/InvitationsPage';
 export { SettingsPage as DefaultSettingsPage } from './console/organizations/manage/SettingsPage';
 export { AcceptInvitationPage as DefaultAcceptInvitationPage } from './console/organizations/manage/AcceptInvitationPage';
-export { AiChatPage as DefaultAiChatPage, AiChatPage } from './console/ai/AiChatPage';
+export {
+  AiChatPage as DefaultAiChatPage,
+  AiChatPage,
+  hydratedMessagesToChatMessages,
+} from './console/ai/AiChatPage';
 export { ConversationsSidebar } from './console/ai/ConversationsSidebar';
+// Conversation-history hydration helpers — reused by the public read-only
+// share page (`/s/:token`) so a shared transcript renders identically to the
+// live chat (tool cards included) instead of dumping raw envelopes.
+export {
+  toUIMessages,
+  aiMessageRowsToServerMessages,
+  type HydratedUIMessage,
+  type RawAiMessageRow,
+} from './hooks/useChatConversation';
 
 // Phase 3b: Component nav registry — plugins use this to register
 // admin/setup UI surfaces that are addressable from App metadata via
