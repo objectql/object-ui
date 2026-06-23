@@ -325,9 +325,19 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     }),
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '30000' },
   ],
+  // Screen — collect input (a flat `fields` list) OR render an object's full
+  // create/edit form (`objectName`, master-detail). `title`/`description`
+  // head the screen (description interpolates {var}); `waitForInput` forces a
+  // pause on a field-less message/confirmation screen. All optional and shown
+  // together so neither a message screen nor an object-form step needs JSON.
   screen: [
+    cfg('title', 'Title', 'text', { placeholder: 'Request a discount', help: 'Heading shown above the screen.' }),
+    cfg('description', 'Description', 'textarea', {
+      placeholder: 'Enter the deal amount and the discount you want.',
+      help: 'Body text. Interpolates {var} references (e.g. {approval_path}).',
+    }),
     cfg('fields', 'Fields', 'objectList', {
-      help: 'Fields presented on this screen.',
+      help: 'Input fields collected on this screen. Leave empty for a message-only screen.',
       columns: [
         { key: 'name', label: 'Name', kind: 'text', placeholder: 'discount' },
         { key: 'label', label: 'Label', kind: 'text', placeholder: 'Discount %' },
@@ -335,6 +345,29 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
         { key: 'required', label: 'Required', kind: 'boolean' },
         { key: 'visibleWhen', label: 'Visible when', kind: 'expression', placeholder: 'stage == "review"' },
       ],
+    }),
+    cfg('waitForInput', 'Wait for input', 'boolean', {
+      help: 'Pause to show this screen even with no fields (a message / confirmation). A field-less screen with this off is a server pass-through.',
+    }),
+    cfg('objectName', 'Object form', 'reference', {
+      ref: { kind: 'object' },
+      placeholder: 'crm_account',
+      help: 'Render this object\u2019s full create/edit form (incl. master-detail) instead of a flat field list.',
+    }),
+    cfg('idVariable', 'Saved-record variable', 'text', {
+      placeholder: 'account_id',
+      help: 'Object form only: variable bound to the saved record\u2019s id, for later steps.',
+    }),
+    cfg('mode', 'Form mode', 'select', {
+      options: [
+        { value: 'create', label: 'Create' },
+        { value: 'edit', label: 'Edit' },
+      ],
+      defaultValue: 'create',
+      help: 'Object form only.',
+    }),
+    cfg('defaults', 'Form defaults', 'keyValue', {
+      help: 'Object form only: prefilled values (e.g. account \u2192 {account_id}).',
     }),
   ],
   // Approval node (ADR-0019). The node opens an approval request on entry,

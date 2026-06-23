@@ -164,6 +164,25 @@ export function FlowCanvas({
           source: opts.from,
           target: id,
         };
+        // When the source is a decision, carry its matching branch (by order:
+        // the k-th out-edge takes the k-th branch) onto the new edge so it
+        // actually routes. The decision's config.conditions are otherwise
+        // disconnected from the edges, leaving every branch unconditional.
+        const fromNode = nodes.find((n) => n.id === opts.from);
+        if (fromNode?.type === 'decision') {
+          const branches = Array.isArray(fromNode.config?.conditions)
+            ? (fromNode.config!.conditions as Array<Record<string, unknown>>)
+            : [];
+          const outCount = edges.filter((e) => e.source === opts.from).length;
+          const branch = branches[outCount];
+          if (branch && typeof branch === 'object') {
+            const expr = typeof branch.expression === 'string' ? branch.expression.trim() : '';
+            const label = typeof branch.label === 'string' ? branch.label.trim() : '';
+            if (label) newEdge.label = label;
+            if (expr === 'true') newEdge.isDefault = true;
+            else if (expr) newEdge.condition = expr;
+          }
+        }
         patch.edges = appendArray(edges, newEdge);
       }
       onPatch(patch);

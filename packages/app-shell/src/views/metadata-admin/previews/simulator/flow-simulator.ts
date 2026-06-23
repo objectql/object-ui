@@ -28,7 +28,7 @@ import { evalCondition, validateFlowDraft } from './flow-sim-validate';
 
 const MAX_STEPS = 500;
 
-const PASS_THROUGH = new Set(['start', 'assignment']);
+const PASS_THROUGH = new Set(['start']);
 const MOCKED_SIDE_EFFECT = new Set([
   'create_record',
   'update_record',
@@ -161,6 +161,8 @@ export class FlowSimulator {
 
     if (type === 'decision') return this.executeDecision(node);
 
+    if (type === 'assignment') return this.executeAssignment(node);
+
     if (UNSUPPORTED.has(type)) {
       this.enqueueSuccessors(node);
       return this.record(node.id, type, node.label, 'skipped', {
@@ -182,9 +184,19 @@ export class FlowSimulator {
     }
 
     if (type === 'screen') {
-      this.state.status = 'paused';
-      this.state.pausedReason = 'screen';
-      return this.record(node.id, type, node.label, 'paused', { note: 'Screen reached — provide inputs, then continue.' });
+      // Mirror the engine's `shouldPause`: a screen suspends only when it
+      // collects input (`fields`) or explicitly opts in (`waitForInput`).
+      // A field-less / `waitForInput:false` screen is a server pass-through.
+      const fields = Array.isArray(node.config?.fields) ? (node.config!.fields as unknown[]) : [];
+      const waitForInput = node.config?.waitForInput;
+      const shouldPause = waitForInput === true || (fields.length > 0 && waitForInput !== false);
+      if (shouldPause) {
+        this.state.status = 'paused';
+        this.state.pausedReason = 'screen';
+        return this.record(node.id, type, node.label, 'paused', { note: 'Screen reached — provide inputs, then continue.' });
+      }
+      this.enqueueSuccessors(node);
+      return this.record(node.id, type, node.label, 'ok', { note: 'Screen has no input — passed through (matches runtime).' });
     }
 
     if (type === 'loop') {
@@ -248,6 +260,57 @@ export class FlowSimulator {
       edges: evals,
       error: chosen ? undefined : firstError ?? 'No branch matched and there is no default branch.',
       note: multiMatch ? 'Multiple conditions matched; the first declared branch was taken.' : undefined,
+    });
+  }
+
+  /**
+   * assignment node — set flow variables. Normalizes the three authoring
+   * shapes the engine accepts (Studio's `{ assignments: { var: value } }`
+   * map, the example `{ assignments: [{ variable, value }] }` array, and the
+   * legacy flat `{ var: value }`) and interpolates `{var}` templates — so the
+   * Debug run mirrors runtime instead of silently no-oping.
+   */
+  private executeAssignment(node: SimNode): SimStep {
+    const cfg = node.config ?? {};
+    const raw = cfg.assignments;
+    const pairs: Array<[string, unknown]> = [];
+    if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (item && typeof item === 'object') {
+          const e = item as Record<string, unknown>;
+          const name = e.variable ?? e.name ?? e.key;
+          if (typeof name === 'string' && name) pairs.push([name, e.value]);
+        }
+      }
+    } else if (raw && typeof raw === 'object') {
+      for (const [k, v] of Object.entries(raw as Record<string, unknown>)) pairs.push([k, v]);
+    } else {
+      for (const [k, v] of Object.entries(cfg)) pairs.push([k, v]);
+    }
+    const wrote: Record<string, unknown> = {};
+    for (const [key, value] of pairs) {
+      const resolved = this.interpolateValue(value);
+      this.state.variables[key] = resolved;
+      wrote[key] = resolved;
+    }
+    this.enqueueSuccessors(node);
+    return this.record(node.id, 'assignment', node.label, 'ok', {
+      wrote: Object.keys(wrote).length ? wrote : undefined,
+      note: Object.keys(wrote).length ? undefined : 'No assignments defined.',
+    });
+  }
+
+  /** Resolve `{var}` templates in an assignment value against live variables. */
+  private interpolateValue(value: unknown): unknown {
+    if (typeof value !== 'string') return value;
+    const whole = value.match(/^\{([^}]+)\}$/);
+    if (whole) {
+      const v = this.state.variables[whole[1].trim()];
+      return v !== undefined ? v : value;
+    }
+    return value.replace(/\{([^}]+)\}/g, (_m, k) => {
+      const v = this.state.variables[String(k).trim()];
+      return v === undefined || v === null ? '' : String(v);
     });
   }
 

@@ -179,11 +179,11 @@ describe('FlowSimulator', () => {
     expect(sim.state.visitedNodeIds).toContain('e');
   });
 
-  it('pauses on a screen node and merges provided outputs on resume', () => {
+  it('pauses on an input-bearing screen and merges provided outputs on resume', () => {
     const sim = new FlowSimulator(
       [
         { id: 's', type: 'start' },
-        { id: 'scr', type: 'screen' },
+        { id: 'scr', type: 'screen', config: { fields: [{ name: 'discount', label: 'Discount' }] } },
         { id: 'e', type: 'end' },
       ],
       [
@@ -197,6 +197,44 @@ describe('FlowSimulator', () => {
     sim.resume({ discount: 10 });
     sim.runToEnd();
     expect(sim.state.variables.discount).toBe(10);
+    expect(sim.state.status).toBe('done');
+  });
+
+  it('passes a field-less screen through without pausing (engine parity)', () => {
+    const sim = new FlowSimulator(
+      [
+        { id: 's', type: 'start' },
+        { id: 'scr', type: 'screen' },
+        { id: 'e', type: 'end' },
+      ],
+      [
+        { source: 's', target: 'scr' },
+        { source: 'scr', target: 'e' },
+      ],
+    );
+    sim.reset();
+    sim.runToEnd();
+    expect(sim.state.status).toBe('done');
+    expect(sim.state.visitedNodeIds).toContain('e');
+    expect(sim.state.steps.find((st) => st.nodeId === 'scr')?.status).toBe('ok');
+  });
+
+  it('applies assignment config (assignments map + {var} interpolation) to variables', () => {
+    const sim = new FlowSimulator(
+      [
+        { id: 's', type: 'start' },
+        { id: 'a', type: 'assignment', config: { assignments: { who: 'Ada', greeting: 'hi {who}' } } },
+        { id: 'e', type: 'end' },
+      ],
+      [
+        { source: 's', target: 'a' },
+        { source: 'a', target: 'e' },
+      ],
+    );
+    sim.reset();
+    sim.runToEnd();
+    expect(sim.state.variables.who).toBe('Ada');
+    expect(sim.state.variables.greeting).toBe('hi Ada');
     expect(sim.state.status).toBe('done');
   });
 

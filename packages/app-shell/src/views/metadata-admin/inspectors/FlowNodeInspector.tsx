@@ -44,6 +44,54 @@ interface FlowNode {
   [k: string]: unknown;
 }
 
+interface FlowEdge {
+  id?: string;
+  source: string;
+  target: string;
+  condition?: unknown;
+  label?: string;
+  isDefault?: boolean;
+  type?: string;
+  [k: string]: unknown;
+}
+
+/**
+ * Mirror a decision node's `conditions` (branches) onto its outgoing sequence
+ * edges, in declared order: branch i -> the i-th out-edge. A branch whose
+ * expression is `true` marks its edge as the default/else path; an empty
+ * expression clears the guard. Fault / back edges are left untouched.
+ *
+ * This is what lets a decision authored entirely in Studio actually route at
+ * runtime: the engine and the simulator branch on `edge.condition`, NOT on
+ * `node.config.conditions` (which is only a node-local branch list). Without
+ * the mirror, every out-edge stays unconditional and all branches fire.
+ */
+function syncDecisionEdges(decisionId: string, conditions: unknown, edges: FlowEdge[]): FlowEdge[] {
+  const branches = Array.isArray(conditions) ? conditions : [];
+  let bi = 0;
+  return edges.map((e) => {
+    if (e.source !== decisionId || e.type === 'fault' || e.type === 'back') return e;
+    const branch = branches[bi++] as Record<string, unknown> | undefined;
+    if (!branch || typeof branch !== 'object') return e;
+    const expr = typeof branch.expression === 'string' ? branch.expression.trim() : '';
+    const label = typeof branch.label === 'string' ? branch.label.trim() : '';
+    const next: FlowEdge = { ...e };
+    if (label) next.label = label;
+    else delete next.label;
+    if (expr && expr !== 'true') {
+      next.condition = expr;
+      delete next.isDefault;
+    } else if (expr === 'true') {
+      next.isDefault = true;
+      delete next.condition;
+    } else {
+      delete next.condition;
+      delete next.isDefault;
+    }
+    return next;
+  });
+}
+
 function asConfig(node: FlowNode | null): Record<string, unknown> {
   const c = node?.config;
   return c && typeof c === 'object' && !Array.isArray(c) ? (c as Record<string, unknown>) : {};
@@ -134,7 +182,17 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
 
   const setField = (path: string[], value: unknown) => {
     const nextNode = setAtPath(node, path, value);
-    onPatch({ nodes: spliceArray(nodes, index, nextNode) });
+    const patch: Record<string, unknown> = { nodes: spliceArray(nodes, index, nextNode) };
+    // Decision branches drive routing — mirror them onto the node's outgoing
+    // edges so the engine/simulator can actually branch (they read
+    // edge.condition, not node.config.conditions).
+    if (node.type === 'decision' && path.length === 2 && path[0] === 'config' && path[1] === 'conditions') {
+      const draftEdges = Array.isArray((draft as { edges?: unknown }).edges)
+        ? ((draft as { edges: FlowEdge[] }).edges)
+        : [];
+      patch.edges = syncDecisionEdges(node.id, value, draftEdges);
+    }
+    onPatch(patch);
   };
 
   const commitAdvanced = () => {
