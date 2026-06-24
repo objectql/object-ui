@@ -13,6 +13,10 @@
  * in the inspector, or the live simulated values when paused in the Debug
  * simulator).
  *
+ * Object-form mode is fed the SAME enriched object list the runtime uses
+ * (`useMetadata().objects`, which derives inline master-detail `subforms` from
+ * `inlineEdit` relationships) so the preview renders those child grids too.
+ *
  * Homes: the flow node inspector (live-updates as the config is edited) and the
  * Debug simulator's paused-at-screen state.
  */
@@ -20,6 +24,7 @@
 import * as React from 'react';
 import { Button, cn } from '@object-ui/components';
 import { useAdapter } from '../../../providers/AdapterProvider';
+import { useMetadata } from '../../../providers/MetadataProvider';
 import { ScreenView, isObjectFormScreen, initialScreenValues, type ScreenSpec } from '../../ScreenView';
 import { buildScreenSpec, interpolate, hiddenFieldCount, type ScreenPreviewNode } from './screen-spec';
 
@@ -42,8 +47,13 @@ export interface ScreenPreviewProps {
 
 export function ScreenPreview({ node, variables, className }: ScreenPreviewProps) {
   const adapter = useAdapter();
+  const meta = useMetadata();
   const spec = React.useMemo(() => buildScreenSpec(node, variables), [node, variables]);
   const isObjectForm = isObjectFormScreen(spec);
+  // Enriched object defs (incl. derived master-detail `subforms`) — the exact
+  // list the runtime FlowRunner gets. Only read in object-form mode so a plain
+  // field screen never triggers the all-objects fetch.
+  const objects = isObjectForm ? meta.objects : undefined;
   const title = interpolate(spec.title, variables);
   const description = interpolate(spec.description, variables);
   const hidden = isObjectForm ? 0 : hiddenFieldCount(node, variables);
@@ -73,7 +83,7 @@ export function ScreenPreview({ node, variables, className }: ScreenPreviewProps
             {description && (
               <p className={cn('whitespace-pre-line text-sm text-muted-foreground', title && 'mt-1')}>{description}</p>
             )}
-            <ScreenFormPreview key={structKey} spec={spec} adapter={adapter} />
+            <ScreenFormPreview key={structKey} spec={spec} adapter={adapter} objects={objects} />
             {!isObjectForm && hidden > 0 && (
               <p className="mt-3 text-[11px] italic text-muted-foreground">
                 {hidden} field{hidden === 1 ? '' : 's'} hidden by {hidden === 1 ? 'its' : 'their'} “visible when”
@@ -97,7 +107,7 @@ export function ScreenPreview({ node, variables, className }: ScreenPreviewProps
  * Holds the transient field values so the preview is interactive (the author
  * can type into it) while never persisting anything.
  */
-function ScreenFormPreview({ spec, adapter }: { spec: ScreenSpec; adapter: unknown }) {
+function ScreenFormPreview({ spec, adapter, objects }: { spec: ScreenSpec; adapter: unknown; objects?: unknown[] }) {
   const [values, setValues] = React.useState<Record<string, unknown>>(() => initialScreenValues(spec));
   return (
     <ScreenView
@@ -105,6 +115,7 @@ function ScreenFormPreview({ spec, adapter }: { spec: ScreenSpec; adapter: unkno
       values={values}
       onValueChange={(name, v) => setValues((p) => ({ ...p, [name]: v }))}
       dataSource={adapter ?? undefined}
+      objects={objects}
       objectForm={{
         showSubmit: false,
         showCancel: false,

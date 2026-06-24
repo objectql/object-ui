@@ -125,6 +125,9 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           fields: schema.fields as any,
           title: schema.title,
           submitText: schema.submitText,
+          // Forward the host's submit-visibility so a non-persisting preview
+          // can hide the master-detail Save bar (it owns the only Save here).
+          showSubmit: (schema as any).showSubmit,
           details: (schema as any).subforms,
           onSuccess: schema.onSuccess,
           onError: schema.onError,
@@ -567,7 +570,8 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       // Proceed defensively - we can't do much if we don't have data, but let's try to not crash
       // If we are here, formData is actually the event
       if (e === undefined) {
-         e = formData;
+         // The event arrived as the first arg; discard it and submit empty data
+         // rather than the Event object. (`e` is unused beyond this guard.)
          formData = {}; // Reset to empty object or we try to submit the Event object
       }
     }

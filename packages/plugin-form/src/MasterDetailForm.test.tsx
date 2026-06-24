@@ -180,3 +180,31 @@ describe('MasterDetailForm — parent-scoped line rules ("paid invoice → lock 
     expect((container.querySelector('input[name="status"]') as HTMLInputElement).value).toBe('paid');
   });
 });
+
+describe('MasterDetailForm — showSubmit gate (Studio screen preview)', () => {
+  const base = {
+    objectName: 'po',
+    mode: 'create',
+    fields: ['ref'],
+    details: [
+      { childObject: 'po_line', relationshipField: 'po', columns: [{ key: 'qty', label: 'Qty', type: 'number' } as any] },
+    ],
+  } as any;
+
+  it('renders its own Save/Create action bar by default', async () => {
+    render(<MasterDetailForm schema={base} dataSource={makeDataSource()} />);
+    await waitFor(() => expect(screen.getByTestId('md-form-submit')).toBeInTheDocument());
+  });
+
+  it('hides the action bar when showSubmit is false (non-persisting preview)', async () => {
+    const { container } = render(
+      <MasterDetailForm schema={{ ...base, showSubmit: false }} dataSource={makeDataSource()} />,
+    );
+    // The form/grid still renders — it just can never be submitted.
+    await waitFor(() => {
+      if (!container.querySelector('input[name="ref"]')) throw new Error('header not ready');
+    });
+    expect(screen.queryByTestId('md-form-submit')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /create|save/i })).not.toBeInTheDocument();
+  });
+});

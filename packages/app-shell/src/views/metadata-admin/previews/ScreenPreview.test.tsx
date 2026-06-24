@@ -5,9 +5,10 @@ import { render, screen, cleanup } from '@testing-library/react';
 
 // Capture the schema ObjectForm receives so object-form mode can be asserted
 // without standing up the real plugin-form runtime.
-const { objectFormSpy, adapterRef } = vi.hoisted(() => ({
+const { objectFormSpy, adapterRef, objectsRef } = vi.hoisted(() => ({
   objectFormSpy: vi.fn(),
   adapterRef: { current: { fake: 'adapter' } as unknown },
+  objectsRef: { current: [] as unknown[] },
 }));
 
 vi.mock('@object-ui/plugin-form', () => ({
@@ -21,6 +22,12 @@ vi.mock('../../../providers/AdapterProvider', () => ({
   useAdapter: () => adapterRef.current,
 }));
 
+// Enriched object defs (with derived master-detail subforms) come from here at
+// runtime; the preview feeds them straight to ObjectForm.
+vi.mock('../../../providers/MetadataProvider', () => ({
+  useMetadata: () => ({ objects: objectsRef.current }),
+}));
+
 import { ScreenPreview } from './ScreenPreview';
 import { buildScreenSpec, isFieldVisibleWhen, hiddenFieldCount } from './screen-spec';
 
@@ -28,6 +35,7 @@ afterEach(() => {
   cleanup();
   objectFormSpy.mockClear();
   adapterRef.current = { fake: 'adapter' };
+  objectsRef.current = [];
 });
 
 describe('ScreenPreview — flat fields', () => {
@@ -101,6 +109,20 @@ describe('ScreenPreview — object-form mode', () => {
     expect(schema.initialValues).toEqual({ stage: 'new' });
     // Object-form owns no preview Submit (its own bar is hidden in preview).
     expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument();
+  });
+
+  it('passes derived master-detail subforms from the enriched object def to ObjectForm', () => {
+    // useMetadata().objects already carries `form.subforms` derived from inline-edit
+    // relationships (attachInlineSubforms) — the preview just forwards them.
+    objectsRef.current = [
+      { name: 'showcase_invoice', form: { subforms: [{ childObject: 'showcase_invoice_line', relationshipField: 'invoice', inlineMode: 'grid' }] } },
+    ];
+    render(<ScreenPreview node={{ id: 's1', config: { objectName: 'showcase_invoice', mode: 'create' } }} />);
+    const schema = objectFormSpy.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(schema.objectName).toBe('showcase_invoice');
+    expect(schema.subforms).toEqual([
+      { childObject: 'showcase_invoice_line', relationshipField: 'invoice', inlineMode: 'grid' },
+    ]);
   });
 
   it('falls back to a hint when no data source is available', () => {

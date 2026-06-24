@@ -79,6 +79,9 @@ export interface MasterDetailFormSchema {
   formType?: 'simple' | 'tabbed';
   title?: string;
   submitText?: string;
+  /** Hide the bottom Save/Cancel action bar — e.g. a non-persisting design
+   *  preview. Defaults to shown (the form owns the only Save in this layout). */
+  showSubmit?: boolean;
   /** One or more child collections. */
   details: MasterDetailDetailConfig[];
   /** Parent header field holding a tax rate (percent). When the parent form has
@@ -698,17 +701,20 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         </Card>
       )}
 
-      {/* Single action bar at the bottom */}
-      <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-        {schema.onCancel && (
-          <Button type="button" variant="outline" onClick={schema.onCancel} disabled={saving} data-testid="md-form-cancel">
-            Cancel
+      {/* Single action bar at the bottom — suppressed when the host opts out
+          (e.g. the Studio screen-preview, which must never persist). */}
+      {schema.showSubmit !== false && (
+        <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+          {schema.onCancel && (
+            <Button type="button" variant="outline" onClick={schema.onCancel} disabled={saving} data-testid="md-form-cancel">
+              Cancel
+            </Button>
+          )}
+          <Button type="button" onClick={handleSave} disabled={saving || (needsDerive && !resolvedDetails)} data-testid="md-form-submit">
+            {saving ? 'Saving…' : submitText}
           </Button>
-        )}
-        <Button type="button" onClick={handleSave} disabled={saving || (needsDerive && !resolvedDetails)} data-testid="md-form-submit">
-          {saving ? 'Saving…' : submitText}
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
