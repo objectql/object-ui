@@ -469,7 +469,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.edit.readOnlyTypeBanner':
     'This metadata type is read-only for safety: it ships executable code or sensitive configuration and cannot be overlaid at runtime. Edit the source in your package and redeploy. To override this lock (use with caution), set {flag} to include {type}, or flip {override} in the registry.',
   'engine.edit.artifactLockedBanner':
-    'This item is shipped by a code package and cannot be modified at runtime. You can still create your own {type} from scratch and freely edit or delete it.',
+    'This {type} is provided by an installed package, so it is read-only at runtime. To change it, edit it in its source package and republish — or create a new {type} from scratch.',
   'engine.badge.createOnly': 'create-only',
   'engine.repeater.empty': 'No items. Click + to add.',
   'engine.badge.writable': 'writable',
@@ -1152,7 +1152,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.readOnlyTypeBanner':
     '出于安全考虑，此元数据类型为只读：它包含可执行代码或敏感配置，不允许在运行时通过覆盖层修改。请编辑包内源代码后重新部署。如需临时解除限制（请谨慎使用），可将 {flag} 设置为包含 {type}，或在注册表中开启 {override}。',
   'engine.edit.artifactLockedBanner':
-    '此条目由代码包提供，无法在运行时修改。但您可以新建自己的 {type}，并自由地编辑或删除。',
+    '此 {type} 来自已安装的包，因此在运行时为只读。如需修改，请在其所属包的源中编辑并重新发布——或从零新建一个 {type}。',
   'engine.badge.createOnly': '仅可新建',
   'engine.repeater.empty': '暂无条目。点击 + 添加。',
   'engine.badge.writable': '可写',

@@ -46,6 +46,8 @@ export interface JsonSourceEditorProps {
   issues?: JsonIssue[];
   /** Pixel or CSS-length height. Defaults to `60vh`. */
   height?: string | number;
+  /** Grace period (ms) before the textarea fallback engages. Test-tunable. */
+  fallbackDelayMs?: number;
 }
 
 function stringify(v: unknown): string {
@@ -71,6 +73,7 @@ export function JsonSourceEditor({
   readOnly,
   issues,
   height = '60vh',
+  fallbackDelayMs = 4000,
 }: JsonSourceEditorProps) {
   const locale = React.useMemo(() => detectLocale(), []);
   const [text, setText] = React.useState<string>(() => stringify(value));
@@ -95,9 +98,9 @@ export function JsonSourceEditor({
     const id = setTimeout(() => {
       const el = containerRef.current;
       if (!el || !el.querySelector('.view-line')) setMonacoUnavailable(true);
-    }, 4000);
+    }, fallbackDelayMs);
     return () => clearTimeout(id);
-  }, [monacoUnavailable]);
+  }, [monacoUnavailable, fallbackDelayMs]);
 
   // Match against the dark class our app-shell toggles on <html>; pick
   // a Monaco theme that doesn't fight the rest of the chrome.
