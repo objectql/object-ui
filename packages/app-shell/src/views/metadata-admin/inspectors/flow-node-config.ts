@@ -139,6 +139,13 @@ export interface FlowConfigField {
   columns?: FlowConfigColumn[];
   /** Reference target for `reference` fields — drives the combobox data source. */
   ref?: FlowReferenceSpec;
+  /**
+   * Data-picker brace mode override (#1934). Defaults by kind (`expression` →
+   * bare CEL, `text` / `textarea` → `{var}` template). Set `'expression'` on a
+   * code field (e.g. a script body) so the picker inserts bare references, not
+   * `{var}` — `{x}` is a syntax error in a JS/TS script.
+   */
+  refMode?: 'expression' | 'template';
 }
 
 /** Convenience: a `['config', key]`-rooted field (the common case). */
@@ -319,6 +326,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     cfg('script', 'Code', 'textarea', {
       placeholder: 'return { ok: true };',
       help: 'Script body (JS/TS).',
+      refMode: 'expression',
       showWhen: { field: 'actionType', equals: ['code'] },
     }),
     cfg('outputVariables', 'Output variables', 'stringList', {

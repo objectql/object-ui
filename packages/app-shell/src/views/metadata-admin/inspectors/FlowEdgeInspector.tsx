@@ -31,6 +31,7 @@ import { edgeKey, conditionText } from '../previews/flow-canvas-layout';
 import { validateExpressionClient } from './expression-validate';
 import { useFlowScope } from './useFlowScope';
 import { VariableTextInput } from './VariableTextInput';
+import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check';
 
 interface FlowEdge {
   id?: string;
@@ -233,9 +234,21 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
         // ADR-0032 — flag a malformed edge guard (e.g. `{record.x}` brace-in-CEL)
         // inline, with the same corrective message as build/agent validation.
         const issue = isDefault ? null : validateExpressionClient('predicate', edge.condition);
-        return issue ? (
-          <p className="text-[11px] leading-snug text-destructive" role="alert">
-            {issue.message}
+        if (issue) {
+          return (
+            <p className="text-[11px] leading-snug text-destructive" role="alert">
+              {issue.message}
+            </p>
+          );
+        }
+        // #1934 — gentle scope-aware "unknown reference" warning (refs in scope
+        // at the edge's SOURCE node), once the guard is structurally valid.
+        const unknown = isDefault
+          ? []
+          : findUnknownRefs(conditionText(edge.condition), 'predicate', scopeRoots(scopeGroups.flatMap((g) => g.refs)));
+        return unknown.length > 0 ? (
+          <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400" role="note">
+            {describeUnknownRefs(unknown)}
           </p>
         ) : null;
       })()}

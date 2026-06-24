@@ -22,6 +22,7 @@ import { FlowReferenceField, type FlowReferenceContext } from './FlowReferenceFi
 import { validateExpressionClient } from './expression-validate';
 import { VariableTextInput } from './VariableTextInput';
 import type { ScopeGroup } from './useFlowScope';
+import { findUnknownRefs, scopeRoots, describeUnknownRefs } from './flow-ref-check';
 
 export interface FlowNodeConfigFieldProps {
   field: FlowConfigField;
@@ -36,6 +37,8 @@ export interface FlowNodeConfigFieldProps {
 }
 
 export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups }: FlowNodeConfigFieldProps) {
+  const refMode: 'expression' | 'template' =
+    field.refMode ?? (field.kind === 'expression' ? 'expression' : 'template');
   const control = (() => {
     switch (field.kind) {
       case 'reference':
@@ -127,7 +130,7 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
             <VariableTextInput
               multiline
               rows={4}
-              mode="template"
+              mode={refMode}
               value={value != null ? String(value) : ''}
               onValueChange={(v) => onCommit(v)}
               groups={scopeGroups ?? []}
@@ -143,7 +146,7 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{field.label}</Label>
             <VariableTextInput
-              mode={field.kind === 'expression' ? 'expression' : 'template'}
+              mode={refMode}
               mono={field.kind === 'expression'}
               value={value != null ? String(value) : ''}
               onValueChange={(v) => onCommit(v)}
@@ -157,10 +160,25 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
   })();
 
   // ADR-0032 — surface a malformed condition (e.g. the `{record.x}` brace-in-CEL
-  // mistake) inline, as the author types, with the same corrective message the
-  // build and the agent tool emit. Only checked for expression-bearing fields.
+  // mistake) inline, with the same corrective message the build/agent emit. Only
+  // for expression fields (a genuine template uses single-brace `{var}` legally).
   const exprIssue =
     field.kind === 'expression' ? validateExpressionClient('predicate', value) : null;
+
+  // #1934 — pair the picker with a gentle, scope-aware "unknown reference"
+  // warning: CEL for expression fields, `{…}` holes for template fields. Skipped
+  // for free-form code (refMode 'expression' on a textarea, e.g. a script body)
+  // and when scope is unknown. The brace error above takes precedence.
+  const scopeRole: 'predicate' | 'template' | null =
+    field.kind === 'expression'
+      ? 'predicate'
+      : refMode === 'template' && (field.kind === 'text' || field.kind === 'textarea')
+        ? 'template'
+        : null;
+  const unknownRefs =
+    !exprIssue && scopeRole && scopeGroups && scopeGroups.length > 0
+      ? findUnknownRefs(value, scopeRole, scopeRoots(scopeGroups.flatMap((g) => g.refs)))
+      : [];
 
   return (
     <div className="space-y-1">
@@ -170,7 +188,12 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
           {exprIssue.message}
         </p>
       )}
-      {field.help && !exprIssue && (
+      {!exprIssue && unknownRefs.length > 0 && (
+        <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400" role="note">
+          {describeUnknownRefs(unknownRefs)}
+        </p>
+      )}
+      {field.help && !exprIssue && unknownRefs.length === 0 && (
         <p className="text-[11px] leading-snug text-muted-foreground">{field.help}</p>
       )}
     </div>
