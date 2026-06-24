@@ -50,7 +50,8 @@ describe('DatasetDefaultInspector', () => {
     expect(onPatch).toHaveBeenCalledTimes(1);
     const patch = onPatch.mock.calls[0][0];
     expect(patch.measures).toHaveLength(2);
-    expect(patch.measures[1]).toMatchObject({ aggregate: 'sum', certified: false });
+    expect(patch.measures[1]).toMatchObject({ aggregate: 'sum' });
+    expect(patch.measures[1]).not.toHaveProperty('certified');
   });
 
   it('adds a dimension via onPatch', () => {
@@ -119,5 +120,10 @@ describe('DatasetDefaultInspector', () => {
   it('hides the create-mode Name field once the dataset has a name (edit mode)', () => {
     render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={false} />);
     expect(screen.queryByPlaceholderText('snake_case identifier')).not.toBeInTheDocument();
+  });
+
+  it('does not surface a Certified toggle (governance flag is unwired/dead — no fake stamp)', () => {
+    render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={false} />);
+    expect(screen.queryByText('Certified')).not.toBeInTheDocument();
   });
 });

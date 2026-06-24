@@ -8,7 +8,7 @@
  *   - base `object`,
  *   - `include` relationships (the join allowlist — D-C),
  *   - `dimensions` (name + field/`relationship.field` + type + granularity), and
- *   - `measures` (name + aggregate + field + certified + format/currency/derived).
+ *   - `measures` (name + aggregate + field + format/currency/derived).
  *
  * The base object, the included relationships, and every `field` are picked
  * from the live object graph (a searchable combo over {@link useDatasetFieldCatalog})
@@ -428,7 +428,7 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: Meta
           title="Measures"
           count={measures.length}
           addLabel="Add measure"
-          onAdd={readOnly ? undefined : () => onPatch({ measures: appendArray(measures, { name: '', aggregate: 'sum', field: '', certified: false }) })}
+          onAdd={readOnly ? undefined : () => onPatch({ measures: appendArray(measures, { name: '', aggregate: 'sum', field: '' }) })}
         />
         {measures.map((m, i) => {
           const otherMeasures = measures.filter((_, idx) => idx !== i).map((x) => x.name).filter((n): n is string => !!n);
@@ -465,7 +465,6 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: Meta
                 mono
               />
               {(() => { const rel = missingRelationship(m.field, include); return rel ? <RelWarning rel={rel} disabled={readOnly} onAdd={() => onPatch({ include: appendArray(include, rel) })} /> : null; })()}
-              <InspectorCheckboxField label="Certified" value={!!m.certified} onCommit={(v) => patchMeasure(i, { certified: v })} disabled={readOnly} />
               <Advanced>
                 <InspectorTextField label="Label (optional)" value={m.label ?? ''} onCommit={(v) => patchMeasure(i, { label: v || undefined })} placeholder={m.name || 'Display label'} disabled={readOnly} />
                 <MeasureFormatField measure={m} onPatch={(pp) => patchMeasure(i, pp)} disabled={readOnly} />
