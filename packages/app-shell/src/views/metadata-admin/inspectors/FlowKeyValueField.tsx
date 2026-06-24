@@ -23,6 +23,7 @@ import { Button, Input, Label } from '@object-ui/components';
 import { uniqueId } from './_shared';
 import { VariableTextInput } from './VariableTextInput';
 import type { ScopeGroup } from './useFlowScope';
+import { FlowExprIssue } from './FlowExprIssue';
 
 export interface Row {
   id: string;
@@ -209,7 +210,8 @@ export function FlowKeyValueField({
           <p className="text-[11px] italic text-muted-foreground">{emptyLabel}</p>
         )}
         {rows.map((row) => (
-          <div key={row.id} className="flex items-center gap-1.5">
+          <div key={row.id} className="space-y-1">
+            <div className="flex items-center gap-1.5">
             <Input
               value={row.key}
               onChange={(e) => setRowField(row.id, { key: e.target.value })}
@@ -246,6 +248,8 @@ export function FlowKeyValueField({
             >
               <X className="h-3.5 w-3.5" />
             </Button>
+            </div>
+            <FlowExprIssue value={row.raw} role="template" scopeGroups={scopeGroups} />
           </div>
         ))}
       </div>

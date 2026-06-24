@@ -19,6 +19,7 @@ import type { FlowConfigColumn } from './flow-node-config';
 import { ReferenceCombobox, resolveRefKind, type FlowReferenceContext } from './FlowReferenceField';
 import { VariableTextInput } from './VariableTextInput';
 import type { ScopeGroup } from './useFlowScope';
+import { FlowExprIssue } from './FlowExprIssue';
 
 type Cell = string | boolean;
 interface Row {
@@ -192,7 +193,7 @@ export function FlowObjectListField({
                       />
                     </div>
                   ) : col.kind === 'expression' ? (
-                    <div className="flex-1">
+                    <div className="flex-1 space-y-1">
                       <VariableTextInput
                         mode="expression"
                         mono
@@ -205,6 +206,11 @@ export function FlowObjectListField({
                         groups={scopeGroups ?? []}
                         placeholder={col.placeholder}
                         disabled={disabled}
+                      />
+                      <FlowExprIssue
+                        value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
+                        role="predicate"
+                        scopeGroups={scopeGroups}
                       />
                     </div>
                   ) : (

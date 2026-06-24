@@ -109,12 +109,12 @@ describe('resolveFlowScope — graph-aware in-scope references', () => {
     const scope = resolveFlowScope(draft, 'decide');
     expect(groupTokens(scope, 'trigger')).toContain('record');
     expect(groupTokens(scope, 'trigger')).toContain('previous');
-    expect(scope.trigger).toEqual({ objectName: 'crm_lead', fieldPrefix: 'record.' });
+    expect(scope.trigger).toEqual({ objectName: 'crm_lead', fieldPrefix: 'record.', includePrevious: true });
   });
 
   it('uses a BARE field prefix on the start node itself (entry condition)', () => {
     const scope = resolveFlowScope(draft, 'start');
-    expect(scope.trigger).toEqual({ objectName: 'crm_lead', fieldPrefix: '' });
+    expect(scope.trigger).toEqual({ objectName: 'crm_lead', fieldPrefix: '', includePrevious: true });
     // No whole-`record` token on the start node (fields are the bare context).
     expect(groupTokens(scope, 'trigger')).not.toContain('record');
     // `previous` is still available on an update trigger.
@@ -170,9 +170,17 @@ describe('triggerFieldRefs', () => {
     { name: 'status', type: 'text' },
   ];
   it('prefixes fields with record. downstream', () => {
-    expect(tokens(triggerFieldRefs({ objectName: 'o', fieldPrefix: 'record.' }, fields))).toEqual(['record.amount', 'record.status']);
+    expect(tokens(triggerFieldRefs({ objectName: 'o', fieldPrefix: 'record.', includePrevious: false }, fields))).toEqual(['record.amount', 'record.status']);
   });
   it('uses bare field names on the start node', () => {
-    expect(tokens(triggerFieldRefs({ objectName: 'o', fieldPrefix: '' }, fields))).toEqual(['amount', 'status']);
+    expect(tokens(triggerFieldRefs({ objectName: 'o', fieldPrefix: '', includePrevious: false }, fields))).toEqual(['amount', 'status']);
+  });
+  it('also emits previous.<field> when the trigger carries a previous snapshot', () => {
+    expect(tokens(triggerFieldRefs({ objectName: 'o', fieldPrefix: 'record.', includePrevious: true }, fields))).toEqual([
+      'record.amount',
+      'previous.amount',
+      'record.status',
+      'previous.status',
+    ]);
   });
 });

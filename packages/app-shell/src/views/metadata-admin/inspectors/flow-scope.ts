@@ -53,6 +53,8 @@ export interface TriggerScope {
   objectName: string;
   /** Per-field token prefix: '' on the start node (bare), 'record.' downstream. */
   fieldPrefix: string;
+  /** Also emit `previous.<field>` refs (update / change / before-update triggers). */
+  includePrevious: boolean;
 }
 
 export interface FlowScope {
@@ -234,16 +236,17 @@ export function resolveFlowScope(draft: Record<string, unknown>, nodeId: string 
     const startInScope = startId === nodeId || (!!startId && ancestors.has(startId));
     if (isRecordTrigger && objectName && startInScope) {
       const onStart = startId === nodeId;
+      const includePrevious = PREVIOUS_TRIGGER_TYPES.has(triggerType);
       // On the start node the record's fields ARE the bare evaluation context
       // (`status`), so the whole record is not a named ref there; `previous` is
       // (`previous.status`). Downstream the record is the named `record` object.
       if (!onStart) {
         refs.push({ token: 'record', label: 'record', detail: `trigger record · ${objectName}`, group: 'trigger' });
       }
-      if (PREVIOUS_TRIGGER_TYPES.has(triggerType)) {
+      if (includePrevious) {
         refs.push({ token: 'previous', label: 'previous', detail: 'record values before the change', group: 'trigger' });
       }
-      return { refs: dedupeByToken(refs), trigger: { objectName, fieldPrefix: onStart ? '' : 'record.' } };
+      return { refs: dedupeByToken(refs), trigger: { objectName, fieldPrefix: onStart ? '' : 'record.', includePrevious } };
     }
   }
 
@@ -266,6 +269,14 @@ export function triggerFieldRefs(
     const token = `${trigger.fieldPrefix}${f.name}`;
     const detail = f.label && f.label !== f.name ? f.label : f.type;
     out.push({ token, label: token, detail, group: 'trigger' });
+    if (trigger.includePrevious) {
+      out.push({
+        token: `previous.${f.name}`,
+        label: `previous.${f.name}`,
+        detail: detail ? `prior ${detail}` : 'prior value',
+        group: 'trigger',
+      });
+    }
   }
   return out;
 }
