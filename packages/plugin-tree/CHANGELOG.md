@@ -1,5 +1,14 @@
 # @object-ui/plugin-tree
 
+## 7.2.0
+
+### Patch Changes
+
+- @object-ui/components@7.2.0
+- @object-ui/react@7.2.0
+- @object-ui/types@7.2.0
+- @object-ui/core@7.2.0
+
 ## 7.1.0
 
 ### Patch Changes
