@@ -88,8 +88,12 @@ export interface FlowCanvasProps {
   invalidNodeIds?: string[];
   /** Structural-validation: edges (keyed `${source}->${target}`) to paint red. */
   invalidEdges?: ReadonlySet<string>;
-  /** Structural-validation error messages shown in an inline canvas banner. */
-  validationErrors?: string[];
+  /**
+   * Select + reveal a problem when its inline-banner row is clicked — wired to
+   * the same handler the Problems panel uses, so the always-visible banner is
+   * actionable without opening the panel.
+   */
+  onRevealProblem?: (problem: FlowProblem) => void;
   /**
    * Unified validation issues (structural + server) rendered as per-element
    * badges; the Problems panel shares the same list.
@@ -120,7 +124,7 @@ export function FlowCanvas({
   traversedEdgeIds,
   invalidNodeIds,
   invalidEdges,
-  validationErrors,
+  onRevealProblem,
   problems,
   revealSignal,
   onSelect,
@@ -159,6 +163,10 @@ export function FlowCanvas({
     () => indexProblemBadges(problems ?? []),
     [problems],
   );
+
+  // Error-level problems shown in the always-visible inline banner — driven by
+  // the same `problems` list as the panel/badges so the three stay in lock-step.
+  const bannerErrors = React.useMemo(() => (problems ?? []).filter((p) => p.level === 'error'), [problems]);
 
   const positionOf = React.useCallback(
     (id: string): Point => {
@@ -450,21 +458,34 @@ export function FlowCanvas({
   return (
     <div className="relative h-full min-h-[320px] w-full overflow-hidden">
       {/* Inline structural-validation banner (ADR-0044 cycle surfacing): shows
-          errors directly on the canvas so the author needn't open Debug. */}
-      {validationErrors && validationErrors.length > 0 && (
+          errors directly on the canvas so the author needn't open Debug. Each row
+          with a concrete target is clickable — it selects + pans to the offending
+          node/edge (the same reveal the Problems panel does). */}
+      {bannerErrors.length > 0 && (
         <div className="absolute left-2 top-2 z-30 max-w-[min(60%,420px)] space-y-1">
-          {validationErrors.slice(0, 3).map((msg, i) => (
-            <div
-              key={i}
-              role="alert"
-              className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-[11px] leading-snug text-destructive shadow-sm backdrop-blur-sm"
-            >
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{msg}</span>
-            </div>
-          ))}
-          {validationErrors.length > 3 && (
-            <div className="px-2.5 text-[10px] text-destructive/80">+{validationErrors.length - 3} more…</div>
+          {bannerErrors.slice(0, 3).map((p) => {
+            const clickable = !!onRevealProblem && p.target.kind !== 'flow';
+            return (
+              <button
+                key={p.id}
+                type="button"
+                role="alert"
+                disabled={!clickable}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={clickable ? (e) => { e.stopPropagation(); onRevealProblem!(p); } : undefined}
+                title={clickable ? 'Reveal on canvas' : undefined}
+                className={cn(
+                  'flex w-full items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-left text-[11px] leading-snug text-destructive shadow-sm backdrop-blur-sm transition-colors',
+                  clickable && 'cursor-pointer hover:border-destructive/60 hover:bg-destructive/20',
+                )}
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{p.message}</span>
+              </button>
+            );
+          })}
+          {bannerErrors.length > 3 && (
+            <div className="px-2.5 text-[10px] text-destructive/80">+{bannerErrors.length - 3} more…</div>
           )}
         </div>
       )}

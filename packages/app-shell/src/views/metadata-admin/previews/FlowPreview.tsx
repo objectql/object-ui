@@ -95,11 +95,11 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
     traversedEdgeIds: string[];
   } | null>(null);
 
-  // Continuous structural validation surfaced INLINE on the canvas (ADR-0044):
-  // an un-declared cycle (and other structural errors) paints the offending
-  // edges/nodes red and shows a banner — so the author sees it without opening
-  // the Debug panel. Same `validateFlowDraft` the simulator preflight uses.
-  const { invalidNodeIds, invalidEdges, validationErrors } = React.useMemo(() => {
+  // Continuous structural validation paints the offending edges/nodes red on the
+  // canvas (ADR-0044) — so an un-declared cycle is visible without opening Debug.
+  // Same `validateFlowDraft` the simulator preflight uses; the inline banner and
+  // per-element badges are driven by the unified `problems` list below.
+  const { invalidNodeIds, invalidEdges } = React.useMemo(() => {
     const v = validateFlowDraft(nodes as unknown as SimNode[], edges as unknown as SimEdge[]);
     const nodeSet = new Set<string>();
     const edgeSet = new Set<string>();
@@ -113,11 +113,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
         }
       }
     }
-    return {
-      invalidNodeIds: [...nodeSet],
-      invalidEdges: edgeSet,
-      validationErrors: v.errors.map((diag) => diag.message),
-    };
+    return { invalidNodeIds: [...nodeSet], invalidEdges: edgeSet };
   }, [nodes, edges]);
 
   // Unified problem list (structural + server `_diagnostics`) shared by the
@@ -298,7 +294,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 traversedEdgeIds={runHL?.traversedEdgeIds}
                 invalidNodeIds={invalidNodeIds}
                 invalidEdges={invalidEdges}
-                validationErrors={validationErrors}
+                onRevealProblem={handleSelectProblem}
                 problems={problems}
                 revealSignal={reveal}
                 onSelect={(n) =>
