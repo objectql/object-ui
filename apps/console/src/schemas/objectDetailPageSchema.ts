@@ -50,7 +50,7 @@ export function buildObjectDetailPageSchema(
     title: label,
     description,
     icon: 'database',
-    pageType: 'record_detail',
+    pageType: 'record', // object detail = a 'record' page (record_detail was dropped from PageType in framework#2265)
     object: objectName,
     body: widgets,
   };
