@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { validateFlowDraft } from './simulator/flow-sim-validate';
-import { buildFlowProblems, indexProblemBadges } from './flow-problems';
+import { buildFlowProblems, indexProblemBadges, deriveInvalidElements } from './flow-problems';
 
 describe('validateFlowDraft — per-element keying', () => {
   it('attaches the edge endpoints to a dangling-edge error', () => {
@@ -159,5 +159,37 @@ describe('indexProblemBadges', () => {
     const { byNode } = indexProblemBadges(problems);
     expect(byNode.get('d')?.level).toBe('error');
     expect(byNode.get('d')?.count).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('deriveInvalidElements', () => {
+  it('flags every cycle hop (node + edge) for the red error set', () => {
+    const problems = buildFlowProblems({
+      nodes: [
+        { id: 'a', type: 'decision' },
+        { id: 'b', type: 'create_record' },
+      ],
+      edges: [
+        { source: 'a', target: 'b' },
+        { source: 'b', target: 'a' },
+      ],
+    });
+    const { invalidNodeIds, invalidEdges } = deriveInvalidElements(problems);
+    expect(new Set(invalidNodeIds)).toEqual(new Set(['a', 'b']));
+    expect(invalidEdges.has('a->b')).toBe(true);
+    expect(invalidEdges.has('b->a')).toBe(true);
+  });
+
+  it('excludes warning-only elements from the red set', () => {
+    const problems = buildFlowProblems({
+      nodes: [
+        { id: 's', type: 'start' },
+        { id: 'd', type: 'decision' }, // no outgoing → warning only
+      ],
+      edges: [{ source: 's', target: 'd' }],
+    });
+    const { invalidNodeIds, invalidEdges } = deriveInvalidElements(problems);
+    expect(invalidNodeIds).not.toContain('d');
+    expect(invalidEdges.size).toBe(0);
   });
 });

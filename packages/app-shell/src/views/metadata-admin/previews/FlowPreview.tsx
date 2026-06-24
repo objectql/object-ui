@@ -39,10 +39,8 @@ import { FlowCanvas } from './FlowCanvas';
 import { edgeKey } from './flow-canvas-layout';
 import { FlowSimulatorPanel } from './FlowSimulatorPanel';
 import { FlowRunsPanel } from './FlowRunsPanel';
-import { validateFlowDraft } from './simulator/flow-sim-validate';
-import type { SimEdge, SimNode } from './simulator/flow-sim-types';
 import { ProblemsPanel } from './ProblemsPanel';
-import { buildFlowProblems, type FlowProblem } from './flow-problems';
+import { buildFlowProblems, deriveInvalidElements, type FlowProblem } from './flow-problems';
 
 interface FlowNode {
   id: string;
@@ -95,35 +93,21 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
     traversedEdgeIds: string[];
   } | null>(null);
 
-  // Continuous structural validation paints the offending edges/nodes red on the
-  // canvas (ADR-0044) — so an un-declared cycle is visible without opening Debug.
-  // Same `validateFlowDraft` the simulator preflight uses; the inline banner and
-  // per-element badges are driven by the unified `problems` list below.
-  const { invalidNodeIds, invalidEdges } = React.useMemo(() => {
-    const v = validateFlowDraft(nodes as unknown as SimNode[], edges as unknown as SimEdge[]);
-    const nodeSet = new Set<string>();
-    const edgeSet = new Set<string>();
-    for (const diag of v.errors) {
-      if (diag.nodeId) nodeSet.add(diag.nodeId);
-      // A cycle error carries its closing node path → mark each hop's edge red.
-      if (diag.cycle) {
-        for (let i = 0; i < diag.cycle.length - 1; i++) {
-          nodeSet.add(diag.cycle[i]);
-          edgeSet.add(`${diag.cycle[i]}->${diag.cycle[i + 1]}`);
-        }
-      }
-    }
-    return { invalidNodeIds: [...nodeSet], invalidEdges: edgeSet };
-  }, [nodes, edges]);
-
-  // Unified problem list (structural + server `_diagnostics`) shared by the
-  // on-canvas badges and the Problems panel. Recomputed from the live draft so
-  // badges + rows clear as the author fixes each issue.
+  // Unified problem list (structural + server `_diagnostics`) is the SINGLE
+  // source for every validation surface — the clickable inline banner, the
+  // per-element badges, the red error ring/stroke, and the Problems panel.
+  // Recomputed from the live draft so they all clear as the author fixes each issue.
   const problems = React.useMemo<FlowProblem[]>(
     () => buildFlowProblems({ nodes, edges, serverDiagnostics: diagnostics }),
     [nodes, edges, diagnostics],
   );
   const errorCount = problems.filter((p) => p.level === 'error').length;
+  // Red error ring/stroke derived from the same list (errors only; a cycle
+  // paints its whole loop) — no second validateFlowDraft pass.
+  const { invalidNodeIds, invalidEdges } = React.useMemo(
+    () => deriveInvalidElements(problems),
+    [problems],
+  );
 
   // "Reveal" handshake with the canvas: a changing nonce pans to the element.
   const [reveal, setReveal] = React.useState<{ target: FlowProblem['target']; nonce: number } | null>(null);

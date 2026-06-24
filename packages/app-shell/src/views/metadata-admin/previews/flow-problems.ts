@@ -39,6 +39,11 @@ export interface FlowProblem {
   message: string;
   target: FlowProblemTarget;
   source: FlowProblemSource;
+  /**
+   * Extra elements to flag with the red error ring/stroke beyond `target` —
+   * e.g. every hop of a cycle. The badge + click-reveal still use `target`.
+   */
+  highlight?: { nodeIds: string[]; edges: Array<{ source: string; target: string }> };
 }
 
 /** A server diagnostic entry (subset of the layered record's `_diagnostics`). */
@@ -71,23 +76,40 @@ function pathSegments(path: ServerDiagnostic['path']): Array<string | number> {
   });
 }
 
+/** A structural diagnostic mapped to its badge target + optional red-highlight set. */
+interface StructuralMapping {
+  target: FlowProblemTarget;
+  highlight?: { nodeIds: string[]; edges: Array<{ source: string; target: string }> };
+}
+
 /**
  * Map a structural diagnostic's optional anchors (`edge`, `cycle`, `nodeId`)
- * onto a single canvas target. A cycle points at the *closing* hop — the edge
- * the author marks as a back-edge to resolve it.
+ * onto a badge target. A cycle points its badge at the *closing* hop — the edge
+ * the author marks as a back-edge to resolve it — but flags EVERY hop (nodes +
+ * edges) for the red error highlight so the whole loop reads as the problem.
  */
-function structuralTarget(diag: Diagnostic, edges: FlowEdge[]): FlowProblemTarget {
+function structuralMapping(diag: Diagnostic, edges: FlowEdge[]): StructuralMapping {
   if (diag.edge) {
     const { source, target } = diag.edge;
-    return { kind: 'edge', source, target, edgeKey: resolveEdgeKey(edges, source, target) };
+    return { target: { kind: 'edge', source, target, edgeKey: resolveEdgeKey(edges, source, target) } };
   }
   if (diag.cycle && diag.cycle.length >= 2) {
-    const source = diag.cycle[diag.cycle.length - 2];
-    const target = diag.cycle[diag.cycle.length - 1];
-    return { kind: 'edge', source, target, edgeKey: resolveEdgeKey(edges, source, target) };
+    const c = diag.cycle;
+    const source = c[c.length - 2];
+    const target = c[c.length - 1];
+    const nodeIds: string[] = [];
+    const hops: Array<{ source: string; target: string }> = [];
+    for (let i = 0; i < c.length - 1; i++) {
+      nodeIds.push(c[i]);
+      hops.push({ source: c[i], target: c[i + 1] });
+    }
+    return {
+      target: { kind: 'edge', source, target, edgeKey: resolveEdgeKey(edges, source, target) },
+      highlight: { nodeIds, edges: hops },
+    };
   }
-  if (diag.nodeId) return { kind: 'node', nodeId: diag.nodeId };
-  return { kind: 'flow' };
+  if (diag.nodeId) return { target: { kind: 'node', nodeId: diag.nodeId } };
+  return { target: { kind: 'flow' } };
 }
 
 /** Map a server diagnostic's JSON path onto a node/edge/flow target. */
@@ -129,13 +151,14 @@ export function buildFlowProblems({ nodes, edges, serverDiagnostics }: BuildFlow
   const v = validateFlowDraft(nodes as unknown as SimNode[], edges as unknown as SimEdge[]);
   const pushStructural = (level: DiagnosticLevel, list: Diagnostic[]) => {
     list.forEach((diag, i) => {
-      const target = structuralTarget(diag, edges);
+      const { target, highlight } = structuralMapping(diag, edges);
       problems.push({
         id: `structural:${level}:${i}:${targetKey(target)}`,
         level,
         message: diag.message,
         target,
         source: 'structural',
+        ...(highlight ? { highlight } : {}),
       });
     });
   };
@@ -203,4 +226,27 @@ export function indexProblemBadges(problems: FlowProblem[]): ProblemIndex {
   const byEdge = new Map<string, ProblemBadge>();
   for (const [k, list] of edgeLists) byEdge.set(k, foldBadge(list));
   return { byNode, byEdge };
+}
+
+/**
+ * Error elements to paint with the red ring/stroke, derived from the unified
+ * problem list. ERRORS ONLY — warnings get an amber badge but no ring. Includes
+ * each error's `highlight` set, so a cycle paints its whole loop (every hop node
+ * + edge) red while its badge still sits on the closing edge. Lets the preview
+ * derive the red sets from `problems` instead of a second validateFlowDraft pass.
+ */
+export function deriveInvalidElements(problems: FlowProblem[]): {
+  invalidNodeIds: string[];
+  invalidEdges: Set<string>;
+} {
+  const nodeSet = new Set<string>();
+  const edgeSet = new Set<string>();
+  for (const p of problems) {
+    if (p.level !== 'error') continue;
+    if (p.target.kind === 'node') nodeSet.add(p.target.nodeId);
+    else if (p.target.kind === 'edge') edgeSet.add(edgeProblemKey(p.target.source, p.target.target));
+    for (const id of p.highlight?.nodeIds ?? []) nodeSet.add(id);
+    for (const e of p.highlight?.edges ?? []) edgeSet.add(edgeProblemKey(e.source, e.target));
+  }
+  return { invalidNodeIds: [...nodeSet], invalidEdges: edgeSet };
 }
