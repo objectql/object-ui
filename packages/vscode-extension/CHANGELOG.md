@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.2.0
+
+### Patch Changes
+
+- @object-ui/types@7.2.0
+- @object-ui/core@7.2.0
+
 ## 7.1.0
 
 ### Patch Changes

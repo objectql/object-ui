@@ -1,5 +1,7 @@
 # @object-ui/console
 
+## 7.2.0
+
 ## 7.1.0
 
 ### Patch Changes
