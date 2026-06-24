@@ -120,6 +120,18 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
   const { measureField, headerLabel } = buildDatasetFieldHelpers(resultFields, resultObject, fieldLabel);
   const columns = [...dimensionNames, ...measureNames];
 
+  // A ratio/percent measure (format like `0.0%`) on the same axis as a
+  // magnitude measure (currency in the hundred-thousands) renders as an
+  // invisible sliver. When the selection MIXES the two scales, plot the ratio
+  // measures as a line on a secondary (right) Y axis via the `combo` chart —
+  // bars (magnitude) keep the left axis. Same-scale selections stay a plain bar.
+  const isRatioMeasure = (m: string) => {
+    const f = measureField(m)?.format;
+    return typeof f === 'string' && f.includes('%');
+  };
+  const ratioMeasures = measureNames.filter(isRatioMeasure);
+  const mixedScale = ratioMeasures.length > 0 && ratioMeasures.length < measureNames.length;
+
   return (
     <PreviewShell hint={`dataset · ${objectName}${dimensionNames.length ? ' · by ' + dimensionNames.join(', ') : ''}`}>
       <div className="p-3 space-y-2">
@@ -163,9 +175,19 @@ export function DatasetPreview({ draft }: MetadataPreviewProps) {
                   schema={{
                     data: state.rows as Array<Record<string, unknown>>,
                     xAxisKey: dimensionNames[0],
-                    series: measureNames.map((m) => ({ dataKey: m, label: headerLabel(m), chartType: 'bar' as const })),
+                    chartType: mixedScale ? 'combo' : 'bar',
+                    series: measureNames.map((m) => ({
+                      dataKey: m,
+                      label: headerLabel(m),
+                      chartType: mixedScale ? (isRatioMeasure(m) ? 'line' : 'bar') : ('bar' as const),
+                    })),
                   } as any}
                 />
+                {mixedScale && (
+                  <p className="mt-1 px-1 text-[10px] text-muted-foreground">
+                    Ratio measures ({ratioMeasures.map(headerLabel).join(', ')}) use the right axis.
+                  </p>
+                )}
               </div>
             </React.Suspense>
           </PreviewErrorBoundary>

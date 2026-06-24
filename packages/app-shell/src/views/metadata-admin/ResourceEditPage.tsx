@@ -118,7 +118,7 @@ const PanelGroup = ResizablePanelGroup as React.FC<any>;
  * editable via the no-selection default inspector. Other types keep
  * the conventional "name it first, design after save" create flow.
  */
-const CREATE_MODE_CANVAS_TYPES = new Set<string>(['object', 'report']);
+const CREATE_MODE_CANVAS_TYPES = new Set<string>(['object', 'report', 'dataset']);
 
 /**
  * Top-level metadata keys that a type's canvas PreviewComponent owns and

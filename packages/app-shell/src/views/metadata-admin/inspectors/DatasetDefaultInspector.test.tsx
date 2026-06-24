@@ -106,4 +106,18 @@ describe('DatasetDefaultInspector', () => {
     // …and no longer the free-text "$0,0.00" numeral field.
     expect(screen.queryByPlaceholderText('$0,0.00')).not.toBeInTheDocument();
   });
+
+  it('shows an editable Name field in create mode (empty name) that slugs from the label', () => {
+    const onPatch = vi.fn();
+    render(<DatasetDefaultInspector {...baseProps} name="" draft={{ object: 'opportunity', dimensions: [], measures: [] }} onPatch={onPatch} readOnly={false} />);
+    expect(screen.getByPlaceholderText('snake_case identifier')).toBeInTheDocument();
+    // Typing the Name commits a snake_case identifier.
+    fireEvent.change(screen.getByPlaceholderText('snake_case identifier'), { target: { value: 'Win Rate' } });
+    expect(onPatch).toHaveBeenCalledWith({ name: 'win_rate' });
+  });
+
+  it('hides the create-mode Name field once the dataset has a name (edit mode)', () => {
+    render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={false} />);
+    expect(screen.queryByPlaceholderText('snake_case identifier')).not.toBeInTheDocument();
+  });
 });

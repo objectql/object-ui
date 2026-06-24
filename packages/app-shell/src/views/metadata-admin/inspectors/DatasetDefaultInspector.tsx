@@ -31,6 +31,7 @@ import {
   spliceArray,
 } from './_shared';
 import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
+import { toFieldName } from '../previews/object-fields-io';
 import { formatMeasure } from '@object-ui/core';
 import {
   useObjectOptions,
@@ -213,7 +214,7 @@ function RelWarning({ rel, onAdd, disabled }: { rel: string; onAdd?: () => void;
   );
 }
 
-export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDefaultInspectorProps) {
+export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: MetadataDefaultInspectorProps) {
   const label = typeof draft.label === 'string' ? draft.label : '';
   const description = typeof draft.description === 'string' ? draft.description : '';
   const object = typeof draft.object === 'string' ? draft.object : '';
@@ -221,6 +222,15 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
   const dimensions: Dimension[] = Array.isArray(draft.dimensions) ? (draft.dimensions as Dimension[]) : [];
   const measures: Measure[] = Array.isArray(draft.measures) ? (draft.measures as Measure[]) : [];
   const datasetName = typeof draft.name === 'string' ? draft.name : undefined;
+
+  // In create mode the host passes an empty `name` (the PK is assigned on first
+  // save). Mirror ReportDefaultInspector: expose an editable Name that auto-
+  // derives a snake_case slug from the label until the author edits it directly,
+  // so a dataset created through the canvas saves with a valid identifier instead
+  // of dead-ending on the empty-name identity rule.
+  const createMode = !name;
+  const nameTouched = React.useRef(false);
+  const nameValue = typeof draft.name === 'string' ? (draft.name as string) : '';
 
   const { options: objectOptions, loading: objectsLoading } = useObjectOptions();
   const { relationships, fieldOptions, loading: catalogLoading } = useDatasetFieldCatalog(object, include);
@@ -278,7 +288,28 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
         </p>
       )}
 
-      <InspectorTextField label="Label" value={label} onCommit={(v) => onPatch({ label: v })} disabled={readOnly} />
+      {createMode && (
+        <InspectorTextField
+          label="Name"
+          value={nameValue}
+          onCommit={(v) => { nameTouched.current = true; onPatch({ name: toFieldName(v) }); }}
+          placeholder="snake_case identifier"
+          disabled={readOnly}
+          mono
+        />
+      )}
+      <InspectorTextField
+        label="Label"
+        value={label}
+        onCommit={(v) => {
+          // Live-derive the snake_case name from the label until the author edits
+          // the Name field directly (create mode only).
+          const patch: Record<string, unknown> = { label: v };
+          if (createMode && !nameTouched.current) patch.name = toFieldName(v);
+          onPatch(patch);
+        }}
+        disabled={readOnly}
+      />
       <InspectorTextField label="Description" value={description} onCommit={(v) => onPatch({ description: v })} disabled={readOnly} />
       <InspectorComboField
         label="Base object"

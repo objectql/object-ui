@@ -89,4 +89,27 @@ describe('DatasetPreview', () => {
     expect(screen.getByText(/Pick a base object/i)).toBeInTheDocument();
     expect(queryDataset).not.toHaveBeenCalled();
   });
+  it('plots a ratio measure on a secondary (right) axis when scales are mixed', async () => {
+    queryDataset.mockResolvedValue({
+      rows: [{ region: 'NA', revenue: 600000, rate: 0.7 }],
+      object: 'opportunity',
+      fields: [
+        { name: 'region', type: 'string' },
+        { name: 'revenue', type: 'number', format: '0,0', currency: 'USD' },
+        { name: 'rate', type: 'number', format: '0.0%' },
+      ],
+    });
+    const mixedDraft = {
+      ...draft,
+      measures: [
+        { name: 'revenue', aggregate: 'sum', field: 'amount' },
+        { name: 'rate', derived: { op: 'ratio', of: ['revenue', 'revenue'] } },
+      ],
+    };
+    render(<DatasetPreview {...baseProps} draft={mixedDraft} />);
+    // The ratio measure (percent-formatted) is moved to the right axis — surfaced
+    // by the caption (combo chart). A same-scale selection shows no such note.
+    expect(await screen.findByText(/use the right axis/)).toBeInTheDocument();
+  });
+
 });
