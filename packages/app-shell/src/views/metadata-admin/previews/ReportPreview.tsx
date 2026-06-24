@@ -6,15 +6,16 @@
  *
  * A 9.0 report binds a semantic-layer `dataset` and selects its measures
  * (`values`) grouped by dimensions (`rows`, plus `columns` across for a
- * matrix); rendering through plugin-report's `ReportRenderer` keeps the
- * studio preview pixel-equal with the runtime — including the matrix
- * cross-tab — and the numbers consistent with every other surface on the
- * same dataset (`adapter.queryDataset`). Drill-down stays inert here: the
- * preview passes no `onDrill` sink.
+ * matrix); a `joined` report instead stacks dataset-bound `blocks`. Both
+ * render through plugin-report's `ReportRenderer` (→ DatasetReportRenderer),
+ * keeping the studio preview pixel-equal with the runtime — including the
+ * matrix cross-tab and the joined block stack — and the numbers consistent
+ * with every other surface on the same dataset (`adapter.queryDataset`).
+ * Drill-down stays inert here: the preview passes no `onDrill` sink.
  *
- * A draft without a dataset binding (e.g. stored pre-9.0 query-form JSON)
- * gets an actionable empty state pointing at the inspector's Dataset control
- * instead of the retired legacy renderer.
+ * A draft with neither a dataset nor any dataset-bound block gets an
+ * actionable empty state pointing at the right inspector control instead of
+ * the retired pre-9.0 inline-query renderer.
  */
 
 import * as React from 'react';
@@ -29,12 +30,27 @@ const ReportRenderer = React.lazy(() =>
 
 export function ReportPreview({ draft }: MetadataPreviewProps) {
   const adapter = useAdapter();
+  const d = draft as any;
 
-  // ADR-0021 single-form: a report binds a semantic-layer dataset.
-  if (typeof (draft as any).dataset === 'string' && (draft as any).dataset) {
-    const rows = Array.isArray((draft as any).rows) ? ((draft as any).rows as string[]).filter(Boolean) : [];
+  // ADR-0021 single-form: a report binds a semantic-layer dataset; a `joined`
+  // report instead carries its data on dataset-bound `blocks`. Both render
+  // through plugin-report's ReportRenderer (→ DatasetReportRenderer, which
+  // stacks each block). Previously only the single-dataset shape was
+  // previewed, so a joined report fell through to the "bind a dataset" empty
+  // state and the author designed blind.
+  const hasDataset = typeof d.dataset === 'string' && !!d.dataset;
+  const isJoinedWithBlocks =
+    d.type === 'joined' &&
+    Array.isArray(d.blocks) &&
+    d.blocks.some((b: any) => typeof b?.dataset === 'string' && !!b.dataset);
+
+  if (hasDataset || isJoinedWithBlocks) {
+    const rows = Array.isArray(d.rows) ? (d.rows as string[]).filter(Boolean) : [];
+    const hint = isJoinedWithBlocks
+      ? `report · joined · ${d.blocks.length} block${d.blocks.length === 1 ? '' : 's'}`
+      : `report · dataset "${d.dataset}"${rows.length ? ' · by ' + rows.join(', ') : ''}`;
     return (
-      <PreviewShell hint={`report · dataset "${(draft as any).dataset}"${rows.length ? ' · by ' + rows.join(', ') : ''}`}>
+      <PreviewShell hint={hint}>
         <PreviewErrorBoundary fallbackHint="The Report references a dataset/measure that doesn't resolve, or its config is incomplete.">
           <React.Suspense
             fallback={
@@ -52,15 +68,20 @@ export function ReportPreview({ draft }: MetadataPreviewProps) {
     );
   }
 
-  // No dataset bound — either a fresh draft or stored pre-9.0 query-form
-  // JSON (objectName/columns), whose inline-query renderer was retired with
-  // the 9.0 cutover. Point the author at the dataset binding.
+  // Nothing renderable yet. A joined report needs at least one dataset-bound
+  // block; every other type needs a top-level dataset. Point the author at the
+  // right control instead of the retired pre-9.0 inline-query renderer.
+  const joined = d.type === 'joined';
   return (
     <PreviewShell>
       <PreviewEmptyState
         icon={<Database className="h-8 w-8" />}
-        title="Bind a dataset to preview this report"
-        description="Since the 9.0 single-form cutover a report renders its dataset's measures (values) grouped by dimensions (rows). Choose a Dataset in the right panel to start designing."
+        title={joined ? 'Add a block to preview this joined report' : 'Bind a dataset to preview this report'}
+        description={
+          joined
+            ? 'A joined report stacks dataset-bound blocks. Add a block and bind its dataset + measures in the right panel to start designing.'
+            : "Since the 9.0 single-form cutover a report renders its dataset's measures (values) grouped by dimensions (rows). Choose a Dataset in the right panel to start designing."
+        }
       />
     </PreviewShell>
   );

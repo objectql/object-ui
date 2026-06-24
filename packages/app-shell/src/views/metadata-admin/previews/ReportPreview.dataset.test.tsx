@@ -77,3 +77,32 @@ describe('ReportPreview — dataset-bound report (ADR-0021 single-form)', () => 
     );
   });
 });
+
+describe('ReportPreview — joined report (stacked dataset-bound blocks)', () => {
+  const joinedReport = {
+    name: 'open_vs_done',
+    label: 'Open vs Done',
+    type: 'joined',
+    blocks: [
+      { name: 'open', type: 'summary', dataset: 'sales', rows: ['region'], values: ['revenue'] },
+    ],
+  };
+
+  it('renders joined blocks through the runtime renderer (not the "bind a dataset" empty state)', async () => {
+    queryDataset.mockResolvedValue({ rows: [{ region: 'finance', revenue: 450000 }], fields: [] });
+    render(<ReportPreview {...baseProps} draft={joinedReport} />);
+    // The block's dataset is queried (joined carries data on blocks, not a top-level dataset)...
+    await waitFor(() =>
+      expect(queryDataset).toHaveBeenCalledWith('sales', expect.objectContaining({ dimensions: ['region'], measures: ['revenue'] })),
+    );
+    // ...and its data renders, so the author no longer designs a joined report blind.
+    expect(await screen.findByText('finance')).toBeInTheDocument();
+    expect(screen.queryByText(/bind a dataset to preview/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a joined-aware empty state when no block is dataset-bound yet', async () => {
+    render(<ReportPreview {...baseProps} draft={{ name: 'j', label: 'J', type: 'joined', blocks: [] }} />);
+    expect(await screen.findByText(/add a block to preview/i)).toBeInTheDocument();
+    expect(queryDataset).not.toHaveBeenCalled();
+  });
+});
