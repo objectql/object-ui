@@ -404,6 +404,7 @@ export function ObjectFieldInspector({
                 patchDef={patchDef}
                 hostFieldNames={view.entries.map((e) => e.name).filter((n) => n !== entry.name)}
                 readOnly={readOnly}
+                locale={locale}
               />
             </>
           )}
@@ -851,12 +852,15 @@ function LookupConfigFields({
   patchDef,
   hostFieldNames,
   readOnly,
+  locale,
 }: {
   def: Record<string, unknown>;
   patchDef: (patch: Record<string, unknown>) => void;
   hostFieldNames: string[];
   readOnly?: boolean;
+  locale?: string;
 }) {
+  const tr = (key: string) => t(key, locale);
   const reference = typeof def.reference === 'string' ? (def.reference as string) : undefined;
   const { fields: targetFields, loading } = useObjectFields(reference);
 
@@ -899,31 +903,31 @@ function LookupConfigFields({
   const descriptionField = typeof def.descriptionField === 'string' ? (def.descriptionField as string) : '';
   const pageSize = typeof def.lookupPageSize === 'number' ? (def.lookupPageSize as number) : undefined;
   const allowCreate = def.allowCreate === true;
-  const fieldPlaceholder = reference ? 'Select a field…' : 'Set the target object first';
+  const fieldPlaceholder = reference ? tr('designer.field.lookup.selectField') : tr('designer.field.lookup.setTargetFirst');
 
   return (
     <div className="space-y-2 border-t pt-2.5">
-      <div className="text-[11px] font-medium text-muted-foreground">Picker config</div>
+      <div className="text-[11px] font-medium text-muted-foreground">{tr('designer.field.lookup.pickerConfig')}</div>
 
       <InspectorComboField
-        label="Display field"
+        label={tr('designer.field.lookup.displayField')}
         value={displayField}
         onCommit={(v) => patchDef({ displayField: v || undefined })}
         options={fieldOptions}
         loading={loading}
         placeholder={fieldPlaceholder}
-        searchPlaceholder="Search fields…"
+        searchPlaceholder={tr('designer.field.lookup.searchFields')}
         disabled={readOnly}
         mono
       />
       <InspectorComboField
-        label="Description field"
+        label={tr('designer.field.lookup.descriptionField')}
         value={descriptionField}
         onCommit={(v) => patchDef({ descriptionField: v || undefined })}
         options={fieldOptions}
         loading={loading}
         placeholder={fieldPlaceholder}
-        searchPlaceholder="Search fields…"
+        searchPlaceholder={tr('designer.field.lookup.searchFields')}
         disabled={readOnly}
         mono
       />
@@ -932,44 +936,44 @@ function LookupConfigFields({
       <div className="space-y-1.5 pt-1">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <Label className="text-xs text-muted-foreground">Selectable records</Label>
+            <Label className="text-xs text-muted-foreground">{tr('designer.field.lookup.selectableRecords')}</Label>
             <Badge variant="outline" className="text-[10px]">{filters.length}</Badge>
           </div>
           {!readOnly && (
             <Button type="button" variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-[11px]" onClick={addFilter}>
-              <Plus className="h-3 w-3" /> Add filter
+              <Plus className="h-3 w-3" /> {tr('designer.field.lookup.addFilter')}
             </Button>
           )}
         </div>
         {filters.length === 0 ? (
           <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-center text-[11px] text-muted-foreground">
-            No filter — every {reference || 'related'} record is selectable.
+            {tFormat('designer.field.lookup.noFilter', locale, { ref: reference || 'related' })}
           </p>
         ) : (
           filters.map((f, i) => (
             <div key={i} className="rounded-md border p-2 space-y-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">Filter {i + 1}</span>
+                <span className="text-[11px] text-muted-foreground">{tFormat('designer.field.lookup.filterN', locale, { n: i + 1 })}</span>
                 {!readOnly && (
-                  <Button type="button" variant="ghost" size="sm" aria-label="Remove filter" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => removeFilter(i)}>
+                  <Button type="button" variant="ghost" size="sm" aria-label={tr('designer.field.lookup.removeFilter')} className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => removeFilter(i)}>
                     <X className="h-3.5 w-3.5" />
                   </Button>
                 )}
               </div>
               <InspectorComboField
-                label="Field"
+                label={tr('designer.field.lookup.filterField')}
                 value={f.field ?? ''}
                 onCommit={(v) => patchFilter(i, { field: v })}
                 options={fieldOptions}
                 loading={loading}
                 placeholder={fieldPlaceholder}
-                searchPlaceholder="Search fields…"
+                searchPlaceholder={tr('designer.field.lookup.searchFields')}
                 disabled={readOnly}
                 mono
               />
-              <InspectorSelectField label="Operator" value={f.operator ?? 'eq'} options={LOOKUP_OPERATORS} onCommit={(v) => patchFilter(i, { operator: v })} disabled={readOnly} />
+              <InspectorSelectField label={tr('designer.field.lookup.filterOperator')} value={f.operator ?? 'eq'} options={LOOKUP_OPERATORS} onCommit={(v) => patchFilter(i, { operator: v })} disabled={readOnly} />
               <InspectorTextField
-                label="Value"
+                label={tr('designer.field.lookup.filterValue')}
                 value={valueToText(f.value)}
                 onCommit={(v) => patchFilter(i, { value: textToValue(f.operator, v) })}
                 placeholder={f.operator === 'in' || f.operator === 'notIn' ? 'comma,separated,values' : 'value'}
@@ -983,7 +987,7 @@ function LookupConfigFields({
 
       {/* Dependent lookup (dependsOn) — narrow candidates by other fields on this record */}
       <div className="space-y-1.5 pt-1">
-        <Label className="text-xs text-muted-foreground">Depends on (same-record fields)</Label>
+        <Label className="text-xs text-muted-foreground">{tr('designer.field.lookup.dependsOn')}</Label>
         {dependsOn.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {dependsOn.map((n) => (
@@ -1001,8 +1005,8 @@ function LookupConfigFields({
             value=""
             onCommit={(v) => addDependsOn(v)}
             options={hostOptions.filter((o) => !dependsOn.includes(o.value))}
-            placeholder="Add a field this lookup depends on…"
-            searchPlaceholder="Search this object's fields…"
+            placeholder={tr('designer.field.lookup.addDependsOn')}
+            searchPlaceholder={tr('designer.field.lookup.searchHostFields')}
             disabled={readOnly}
             allowCustom={false}
             mono
@@ -1011,9 +1015,9 @@ function LookupConfigFields({
       </div>
 
       <div className="grid grid-cols-2 gap-2 pt-1">
-        <InspectorNumberField label="Picker page size" value={pageSize} onCommit={(v) => patchDef({ lookupPageSize: v })} placeholder="10" disabled={readOnly} />
+        <InspectorNumberField label={tr('designer.field.lookup.pageSize')} value={pageSize} onCommit={(v) => patchDef({ lookupPageSize: v })} placeholder="10" disabled={readOnly} />
         <div className="flex items-end pb-1.5">
-          <InspectorCheckboxField label="Allow quick-create" value={allowCreate} onCommit={(v) => patchDef({ allowCreate: v || undefined })} disabled={readOnly} />
+          <InspectorCheckboxField label={tr('designer.field.lookup.allowCreate')} value={allowCreate} onCommit={(v) => patchDef({ allowCreate: v || undefined })} disabled={readOnly} />
         </div>
       </div>
     </div>

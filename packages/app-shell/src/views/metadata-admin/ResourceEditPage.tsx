@@ -854,7 +854,11 @@ function MetadataResourceEditPageImpl({
     if (designerAutoOnRef.current === key) return;
     const PC = getMetadataPreview(type);
     if (!PC) return;
-    const isArtifact = layered?.code != null;
+    // See `isArtifactItem` below — a `sys_metadata`-tagged code layer is a
+    // published org object, NOT a packaged artifact, so it stays editable.
+    const isArtifact =
+      layered?.code != null
+      && (layered.code as { _packageId?: string } | null)?._packageId !== 'sys_metadata';
     const cw = isArtifact
       ? !!entry?.allowOrgOverride
       : !!(entry?.allowOrgOverride || entry?.allowRuntimeCreate);
@@ -1194,7 +1198,16 @@ function MetadataResourceEditPageImpl({
   //   - artifact-backed items (layered.code != null) need allowOrgOverride
   //   - DB-only items (no artifact) need allowOrgOverride OR allowRuntimeCreate
   //   - createMode is always writable (the server will gate on intent)
-  const isArtifactItem = !createMode && layered?.code != null;
+  // A non-null `code` layer alone is NOT proof of a code (artifact) package:
+  // a published org object also surfaces its active version in `code`, but
+  // tagged with the `sys_metadata` provenance sentinel. Mirror the server's
+  // `isArtifactBacked` (which excludes `_packageId === 'sys_metadata'`) so an
+  // org-authored object stays editable after publish instead of being mis-read
+  // as a read-only packaged item.
+  const isArtifactItem =
+    !createMode
+    && layered?.code != null
+    && (layered.code as { _packageId?: string } | null)?._packageId !== 'sys_metadata';
   // ADR-0010 — server-computed lock flags. undefined means "no opinion"
   // (older server / non-lockable item) → preserve legacy behaviour.
   const lockEditable = layered?.editable !== false;
