@@ -180,6 +180,21 @@ describe('GanttView shift segmentation', () => {
     expect(first).toBeCloseTo(COLUMN_WIDTH / 2 + (COLUMN_WIDTH / 2) * (4 / 12), 0);
   });
 
+  it('hides the midnight marker when showMidnight is false', () => {
+    const noMid = normalizeShiftSegments({
+      dayStart: '08:00',
+      showMidnight: false,
+      bands: [
+        { key: 'day', label: '白班', start: '08:00', end: '20:00' },
+        { key: 'night', label: '夜班', start: '20:00', end: '08:00' },
+      ],
+    })!;
+    const { container } = renderView([makeTask('a', d(2024, 6, 4, 20), d(2024, 6, 5, 8))], {
+      shiftSegments: noMid,
+    });
+    expect(container.querySelectorAll('[data-testid^="gantt-midnight-"]').length).toBe(0);
+  });
+
   it('renders no midnight markers without a shift config', () => {
     const { container } = renderView([makeTask('a', d(2024, 6, 4, 0), d(2024, 6, 6, 0))]);
     expect(container.querySelectorAll('[data-testid^="gantt-midnight-"]').length).toBe(0);

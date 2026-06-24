@@ -3161,7 +3161,7 @@ export function GanttView({
                     line where the calendar date flips INSIDE a band — e.g. the
                     夜班 (20:00→次日08:00) straddles 0:00. The 排班日 cell stays
                     unbroken; the line is just a cue that the day rolled over. */}
-                {segmenting && shiftSegments && (
+                {segmenting && shiftSegments && shiftSegments.showMidnight && (
                   <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
                     {timeColumns.slice(colWindow.start, colWindow.end).map((col, i) => {
                       const idx = colWindow.start + i;

@@ -49,6 +49,11 @@ export interface ShiftSegmentsConfig {
   dayStart?: string;
   /** Ordered bands covering the 24h shift-day, beginning at `dayStart`. */
   bands: ShiftBandConfig[];
+  /**
+   * Draw the dashed calendar-midnight (日历午夜 0:00) cue inside cross-midnight
+   * bands. Defaults to `true`; set `false` to hide it.
+   */
+  showMidnight?: boolean;
 }
 
 /** Normalized band — duration in ms, ready for column layout. */
@@ -66,6 +71,8 @@ export interface NormShiftSegments {
   dayStartMin: number;
   /** Bands in order from `dayStart`; durations sum to ~24h. */
   bands: NormShiftBand[];
+  /** Whether to draw the dashed calendar-midnight cue. Default true. */
+  showMidnight: boolean;
 }
 
 /** Parse 'HH:mm' → minutes after midnight, or null when malformed. */
@@ -104,7 +111,7 @@ export function normalizeShiftSegments(
       durMs: durMin * MS_PER_MIN,
     });
   }
-  return { dayStartMin, bands };
+  return { dayStartMin, bands, showMidnight: cfg.showMidnight !== false };
 }
 
 /**

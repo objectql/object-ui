@@ -184,6 +184,11 @@ export type GanttConfig = {
       /** Optional accent color (any CSS color) for the column tint. */
       color?: string;
     }>;
+    /**
+     * Draw the dashed calendar-midnight (日历午夜 0:00) cue inside cross-midnight
+     * bands. Defaults to `true`; set `false` to hide it.
+     */
+    showMidnight?: boolean;
   };
 };
 

@@ -442,8 +442,9 @@ function ManufacturingLegend() {
  * (zero regression when unset). No `color` on the bands → 白班/夜班 render with no
  * background tint.
  */
-const SHIFTS = normalizeShiftSegments({
+const shiftConfig = (showMidnight: boolean) => ({
   dayStart: '08:00',
+  showMidnight,
   bands: [
     { key: 'day', label: '白班', start: '08:00', end: '20:00' },
     { key: 'night', label: '夜班', start: '20:00', end: '08:00' },
@@ -456,6 +457,12 @@ function App() {
   const perf = Number(params.get('perf') || 0);
   const edge = params.has('edge');
   const mfg = params.has('mfg');
+  // 制造排班示例: 日历午夜虚线开关 (默认显示)。
+  const [showMidnight, setShowMidnight] = React.useState(true);
+  const shifts = React.useMemo(
+    () => normalizeShiftSegments(shiftConfig(showMidnight)),
+    [showMidnight],
+  );
   const workingCalendar: WorkingCalendar | undefined =
     params.get('cal') === '1' ? { skipWeekends: true } : undefined;
   const showBaselines = params.get('baselines') !== '0';
@@ -528,6 +535,17 @@ function App() {
         <a href="?resource=owner">resource: owner</a>
         <a href="?resource=status">resource: status</a>
         <a href="?quickfilter=1">quick filter</a>
+        {mfg && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              data-testid="toggle-midnight"
+              checked={showMidnight}
+              onChange={(e) => setShowMidnight(e.target.checked)}
+            />
+            午夜虚线
+          </label>
+        )}
         <span style={{ marginLeft: 'auto' }}>
           {/* Language toggle: chrome + dates localize together. */}
           <a href={withParam('lang', 'en')}>English</a>
@@ -563,7 +581,7 @@ function App() {
           // 制造排班示例: 三级排产计划 (depth 2) 默认折叠。
           defaultCollapsedDepth={mfg ? 2 : undefined}
           // 制造排班示例: 启用班次分段 (白班/夜班), 排班日 08:00 起算。
-          shiftSegments={mfg ? SHIFTS : undefined}
+          shiftSegments={mfg ? shifts : undefined}
           persistLayoutKey={mfg ? undefined : "demo-project"}
           onLayoutChange={(l) => console.log('[gantt-demo] layout saved', l)}
           inlineEdit
