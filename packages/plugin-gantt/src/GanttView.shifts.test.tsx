@@ -166,6 +166,25 @@ describe('GanttView shift segmentation', () => {
     expect(captured!.start.getTime() - task.start.getTime()).toBe(12 * HOUR);
   });
 
+  it('draws a dashed calendar-midnight marker inside the cross-midnight 夜班', () => {
+    const { container } = renderView([makeTask('a', d(2024, 6, 4, 20), d(2024, 6, 5, 8))], {
+      shiftSegments: SHIFTS,
+    });
+    const marks = Array.from(
+      container.querySelectorAll('[data-testid^="gantt-midnight-"]'),
+    ) as HTMLElement[];
+    expect(marks.length).toBeGreaterThan(0);
+    // 0:00 falls 4h into the 12h 夜班 band → 1/3 of the way across a half-day
+    // column, which itself begins half a shift-day in.
+    const first = Math.min(...marks.map((m) => parseFloat(m.style.left)));
+    expect(first).toBeCloseTo(COLUMN_WIDTH / 2 + (COLUMN_WIDTH / 2) * (4 / 12), 0);
+  });
+
+  it('renders no midnight markers without a shift config', () => {
+    const { container } = renderView([makeTask('a', d(2024, 6, 4, 0), d(2024, 6, 6, 0))]);
+    expect(container.querySelectorAll('[data-testid^="gantt-midnight-"]').length).toBe(0);
+  });
+
   it('does not segment outside day mode', () => {
     const task = makeTask('a', d(2024, 6, 4, 8), d(2024, 6, 6, 8));
     const plain = renderView([task], { viewMode: 'week' });

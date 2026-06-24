@@ -3157,6 +3157,37 @@ export function GanttView({
                   })}
                 </div>
 
+                {/* Calendar-midnight markers (日历午夜). A subtle dashed vertical
+                    line where the calendar date flips INSIDE a band — e.g. the
+                    夜班 (20:00→次日08:00) straddles 0:00. The 排班日 cell stays
+                    unbroken; the line is just a cue that the day rolled over. */}
+                {segmenting && shiftSegments && (
+                  <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
+                    {timeColumns.slice(colWindow.start, colWindow.end).map((col, i) => {
+                      const idx = colWindow.start + i;
+                      const realMs = col.realMs ?? 0;
+                      if (!realMs) return null;
+                      const startMs = col.date.getTime();
+                      // Next LOCAL midnight after the band's start instant.
+                      const s = col.date;
+                      const mid = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 1, 0, 0, 0, 0).getTime();
+                      // Only draw when midnight falls strictly inside the band
+                      // (excludes bands that begin or end exactly on midnight).
+                      if (mid <= startMs || mid >= startMs + realMs) return null;
+                      const x = colOffsets[idx] + ((mid - startMs) / realMs) * col.width;
+                      return (
+                        <div
+                          key={`midnight-${idx}`}
+                          className="absolute top-0 bottom-0"
+                          style={{ left: x, borderLeft: '1px dashed hsl(var(--muted-foreground) / 0.4)' }}
+                          data-testid={`gantt-midnight-${idx}`}
+                          aria-hidden="true"
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+
                 {/* Task Bars — windowed to the visible rows */}
                 {rowWindow.startIdx > 0 && (
                   <div style={{ height: rowWindow.startIdx * rowHeight }} aria-hidden="true" />
