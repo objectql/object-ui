@@ -1296,16 +1296,16 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       // shell's locale remount (issue #1319). Keeping the key locale-free here
       // means a metadata *write* still invalidates the single entry it knows
       // about, without having to fan out across every cached locale.
-      const schema = await this.metadataCache.get(objectName, async () => {
-        const result: any = await this.client.meta.getItem('object', objectName);
-        
-        // Unwrap 'item' property if present (common API response wrapper)
-        if (result && result.item) {
-          return result.item;
-        }
-
-        return result;
-      });
+      // Read through a cache-revalidating fetch (see fetchObjectSchemaFresh):
+      // the server marks single-object metadata `public, max-age=3600`, so a
+      // plain fetch would keep serving the pre-publish schema from the browser
+      // HTTP cache for up to an hour — and the create/edit form (which reads
+      // getObjectSchema) would never show a field added + published in this
+      // session. The list endpoint is uncached, which is why list views already
+      // refresh on publish.
+      const schema = await this.metadataCache.get(objectName, () =>
+        this.fetchObjectSchemaFresh(objectName),
+      );
       
       return schema;
     } catch (error: unknown) {
@@ -1322,6 +1322,59 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       
       throw createErrorFromResponse(errorObj, `getObjectSchema(${objectName})`);
     }
+  }
+
+  /**
+   * Fetch a single object's schema while always revalidating the browser cache.
+   *
+   * The server serves `GET /api/v1/meta/object/:name` with
+   * `Cache-Control: public, max-age=3600`, so the default `fetch` the SDK uses
+   * keeps returning the same response from the browser HTTP cache for up to an
+   * hour without contacting the origin. Because the create/edit form reads the
+   * object schema through {@link getObjectSchema}, a field added + published in
+   * the same session never appears in the form even though it is live (the LIST
+   * endpoint, `/meta/object`, is uncached — which is why list views update).
+   *
+   * Issuing the read with `cache: 'no-cache'` forces a conditional revalidation
+   * (`If-None-Match`): a changed ETag returns the fresh schema, an unchanged one
+   * still gets a cheap `304`. We go through `fetchImpl` (the adapter's
+   * authenticated fetch) rather than `client.meta.getItem` because the SDK does
+   * not expose the request cache mode.
+   */
+  private async fetchObjectSchemaFresh(objectName: string): Promise<unknown> {
+    const baseUrl = (this.baseUrl || '').replace(/\/$/, '');
+    // Avoid doubling /api/v1 when baseUrl already carries the version suffix
+    // (mirrors rawFindWithPopulate).
+    const hasApiVersionSuffix = /\/api\/v\d+$/i.test(baseUrl);
+    const metaPath = hasApiVersionSuffix ? '/meta' : '/api/v1/meta';
+    const url = `${baseUrl}${metaPath}/object/${encodeURIComponent(objectName)}`;
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // Bearer (server-to-server) callers configure `this.token`; cookie/console
+    // auth is injected by `fetchImpl` (the authenticated fetch wrapper).
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    const res = await this.fetchImpl(url, {
+      method: 'GET',
+      headers,
+      // Revalidate instead of serving the stale `max-age` body (see doc above).
+      cache: 'no-cache',
+    });
+
+    if (!res.ok) {
+      const errBody: any = await res.json().catch(() => ({ message: res.statusText }));
+      const err: any = new Error(errBody?.error?.message || errBody?.message || res.statusText);
+      err.status = res.status;
+      throw err;
+    }
+
+    const body: any = await res.json();
+    // Unwrap defensively across server/SDK response shapes: the standard
+    // `{ success, data }` envelope, an `{ item }` wrapper, or the bare item.
+    const data = body && typeof body === 'object' && 'success' in body && 'data' in body ? body.data : body;
+    return data && typeof data === 'object' && 'item' in data ? data.item : data;
   }
 
   /**

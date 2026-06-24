@@ -1,0 +1,77 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { ObjectStackAdapter, clearSharedDiscoveryCache } from './index';
+
+/**
+ * A fetch mock that answers discovery + records the `GET /meta/object/:name`
+ * read so we can assert how it was issued.
+ */
+function makeFetch(objectBody: unknown) {
+  const calls: Array<{ url: string; init?: any }> = [];
+  const fetchImpl = vi.fn(async (url: any, init?: any) => {
+    const u = String(url);
+    calls.push({ url: u, init });
+    if (u.includes('/api/v1/discovery')) {
+      return { ok: true, status: 200, statusText: 'OK', json: async () => ({ success: true, data: { version: 'v1', routes: {} } }) } as any;
+    }
+    if (u.includes('/api/v1/meta/object/')) {
+      return { ok: true, status: 200, statusText: 'OK', json: async () => objectBody } as any;
+    }
+    return { ok: true, status: 200, statusText: 'OK', json: async () => ({}) } as any;
+  });
+  return { fetchImpl, calls };
+}
+
+describe('ObjectStackAdapter.getObjectSchema', () => {
+  beforeEach(() => clearSharedDiscoveryCache());
+
+  it('reads with cache: "no-cache" so a freshly published field is not masked by the server max-age', async () => {
+    // The server marks single-object metadata `public, max-age=3600`; without
+    // revalidation the browser HTTP cache would keep serving the pre-publish
+    // schema and the create/edit form would miss fields published this session.
+    const { fetchImpl, calls } = makeFetch({
+      name: 'leave_request',
+      fields: { employee_name: { type: 'text' }, department: { type: 'text' } },
+    });
+    const adapter = new ObjectStackAdapter({
+      baseUrl: 'http://localhost:3000',
+      token: 'tok_123',
+      autoReconnect: false,
+      fetch: fetchImpl as any,
+    });
+
+    const schema: any = await adapter.getObjectSchema('leave_request');
+
+    // Returns the (unwrapped) object schema with its fields.
+    expect(Object.keys(schema.fields)).toEqual(['employee_name', 'department']);
+
+    const get = calls.find((c) => c.url.includes('/api/v1/meta/object/'))!;
+    expect(get.url).toBe('http://localhost:3000/api/v1/meta/object/leave_request');
+    expect(get.init.method).toBe('GET');
+    // The crux of the fix: revalidate the HTTP cache instead of serving the
+    // stale `max-age` body.
+    expect(get.init.cache).toBe('no-cache');
+    expect(get.init.headers.Authorization).toBe('Bearer tok_123');
+  });
+
+  it('unwraps the { item } envelope when the server wraps the object', async () => {
+    const { fetchImpl } = makeFetch({ item: { name: 'account', fields: { x: { type: 'text' } } } });
+    const adapter = new ObjectStackAdapter({
+      baseUrl: 'http://localhost:3000',
+      autoReconnect: false,
+      fetch: fetchImpl as any,
+    });
+
+    const schema: any = await adapter.getObjectSchema('account');
+
+    expect(schema.name).toBe('account');
+    expect(Object.keys(schema.fields)).toEqual(['x']);
+  });
+});

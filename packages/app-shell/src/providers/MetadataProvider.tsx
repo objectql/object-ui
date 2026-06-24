@@ -543,6 +543,12 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
   // NOT gated to preview-drafts mode: the live world every tree reads changed.
   useEffect(() => {
     return subscribeMetadataRefresh(() => {
+      // The adapter keeps its OWN object-schema cache (getObjectSchema) that the
+      // context refresh below does not touch. A publish/install just changed the
+      // live schema, so drop it too — otherwise create/edit forms (which read
+      // the adapter's getObjectSchema, NOT this context) keep showing the
+      // pre-publish field set until the adapter cache's 5-minute TTL lapses.
+      try { adapterRef.current?.clearCache?.(); } catch { /* adapter mid-swap */ }
       void refresh();
     });
   }, [refresh]);
