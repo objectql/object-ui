@@ -1,5 +1,43 @@
 # @object-ui/types
 
+## 7.1.0
+
+### Minor Changes
+
+- 677f7ed: feat(charts,dashboard): data-screen customization primitives
+
+  - object-metric `variant:'bare'` — big tinted number + label, no card chrome
+    (data-screen KPIs that stay data-bound).
+  - object-chart `colors` prop overrides the theme `--chart-1..n` palette so a
+    page/dashboard can brand its charts; compact metric formatting (`'0.0a'` →
+    "1.1M").
+  - ObjectChartSchema.chartType widened to donut/horizontal-bar/column.
+
+- a71be60: chore: drop the unrendered `blank` / `record_review` page types and their config
+
+  The `blank` and `record_review` page types have no renderer and were removed
+  from `@objectstack/spec`'s `PageTypeSchema` (framework#2265, enforce-or-remove).
+  This drops their now-dead references in objectui so the upstream spec can hard-
+  remove `BlankPageLayoutSchema` / `RecordReviewConfigSchema`:
+
+  - `PageType` union: removed `dashboard` / `form` / `record_detail` /
+    `record_review` / `overview` / `blank` (grid/gallery/kanban/calendar/timeline
+    remain — those are list _visualizations_, a separate cleanup).
+  - Removed `blankLayout` from `PageLayout` and the `blankLayout` / `recordReview`
+    handling in the spec→SDUI page bridge.
+  - Removed the redundant `BlankPageLayout{,Schema,Item,ItemSchema}` re-import from
+    `@objectstack/spec/ui` (it was never used).
+
+### Patch Changes
+
+- cb03bc3: feat(types): type `object-chart` `colors` as a palette OR a value→color map
+
+  `ObjectChartSchema.colors` now accepts either a positional palette (`string[]`)
+  or an explicit value→color map (`Record<value, color>`, kanban-style). This
+  matches the chart renderer, which resolves a select/lookup dimension's option
+  colors per category and lets them (and any explicit map) win over the
+  positional palette — so health green/red/yellow paints semantically.
+
 ## 7.0.0
 
 ### Major Changes

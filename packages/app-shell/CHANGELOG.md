@@ -1,5 +1,286 @@
 # @object-ui/app-shell — Changelog
 
+## 7.1.0
+
+### Minor Changes
+
+- 7b5d0f0: Build-history timeline + revert UI for AI builds (ADR-0067)
+
+  The unpublished-app banner gains a **History** button that opens a commit timeline (`GET /packages/:id/commits`): every change an AI build/edit landed, newest-first, with **Revert** per apply commit (`POST /packages/:id/commits/:cid/revert`). The history-not-confirm model — review the timeline and revert, instead of approving each publish.
+
+  - `commitHistory.ts` — `fetchCommits` / `revertCommit` helpers.
+  - `CommitTimeline.tsx` — slide-over panel (sibling of `DraftChangesPanel`).
+  - `UnpublishedAppBar` — History button + timeline mount (package-scoped).
+
+- 7cd950e: feat(metadata-admin): dataset create opens the rich designer + dual-axis preview
+
+  - **Create → rich designer.** `dataset` joins `object` / `report` in
+    `CREATE_MODE_CANVAS_TYPES`, so "New dataset" opens the structured designer
+    (base-object picker, joins, dimension/measure editors, live preview) instead
+    of the degraded generic SchemaForm. `DatasetDefaultInspector` gains a
+    create-mode **Name** field that auto-derives a snake_case identifier from the
+    label until edited (mirrors `ReportDefaultInspector` / `ObjectDefaultInspector`),
+    so a dataset created through the canvas saves with a valid identity instead of
+    dead-ending.
+  - **Mixed-scale preview.** When a dataset preview mixes a ratio/percent measure
+    (e.g. `utilization`, `0.0%`) with magnitude measures (currency in the
+    hundred-thousands), the ratio measures now plot as a line on a secondary
+    (right) Y axis via the existing `combo` chart — they're no longer crushed to an
+    invisible sliver beside the large bars. Same-scale selections stay a plain bar
+    chart.
+
+- fccebfe: feat(metadata-admin): visual filter authoring in the dataset designer
+
+  The dataset designer gains a visual filter editor (reusing the shared
+  `FilterBuilder`) for both the dataset-level **Scope filter** (`dataset.filter`)
+  and per-measure **Filter** (`measure.filter`) — previously only settable via the
+  raw Source/JSON tab. Both are backed by real runtime: the analytics executor ANDs
+  the scope filter into every query and runs measure-scoped filters as supplementary
+  grouped queries, so e.g. `won_amount = sum(amount) where stage = won` and an
+  "exclude archived" dataset scope are now authorable without hand-writing JSON.
+
+  A small, unit-tested converter bridges the builder's flat `{field, op, value}`
+  group ⇄ the spec `FilterCondition` (Mongo-style `$and` / `$op`). Conditions it
+  can't faithfully round-trip (nested groups, `$or`, multi-operator objects) are
+  detected and shown as "edit in Source" rather than being silently rewritten.
+
+- 0acf0c8: feat(metadata-admin): friendlier + safer dataset measure authoring
+
+  The `dataset` designer's measure editor gets three improvements so a business
+  user can author measures without spec knowledge and without saving a broken
+  dataset:
+
+  - **Display-format picker** — replaces the raw `format` / `currency` numeral
+    text inputs with a structured Kind (Raw / Number / Currency / Percent) +
+    Decimals + Currency selection and a live sample (e.g. `US$1,234.50`). Parses
+    an existing format string back into the picker, so editing an existing measure
+    round-trips.
+  - **Auto-name from field** — picking a dimension/measure field when the row is
+    still unnamed defaults the name to the field's leaf (`account.region` →
+    `region`).
+  - **Author-time validation** — a `relationship.field` dimension/measure whose
+    relationship isn't in `include` now shows an inline warning with a one-click
+    "Add it", catching at design time the "relationship not declared in include"
+    error that previously only surfaced when the live preview query ran. A derived
+    measure with too few operands is flagged too.
+
+- 3e1fcf5: feat(chatbot): reveal the Build/Ask switcher in the app floating assistant when AI dev is unlocked
+
+  The bottom-right FAB assistant bound each app to a single agent and hid the
+  agent picker unless `VITE_AI_SHOW_AGENT_PICKER` was set, so a user on an
+  AI-unlocked environment could not switch from `ask` (read-only data/query) to
+  `build` (authoring) without leaving for the full `/ai` page.
+
+  The picker now auto-reveals when AI development is unlocked for the viewer — the
+  live agent catalog serves BOTH an `ask` and a `build` agent (alias-aware, so
+  legacy `data_chat`/`metadata_assistant` count) AND authoring isn't
+  deployment-disabled (`aiStudio`). Pure end-user apps (only `ask`) stay clean and
+  never see a picker. An explicit `showAgentPicker` prop or
+  `VITE_AI_SHOW_AGENT_PICKER` still forces it on.
+
+- e2b0072: Flow builder: live preview for Screen nodes (#1944)
+
+  Screen-flow nodes were authored blind — there was no way to see the form an end user would get, and the Debug simulator showed only `paused` when it reached a screen. Add a live preview that renders the screen exactly as it runs.
+
+  The runtime `FlowRunner`'s screen body (flat input fields + object-form mode) is extracted into a shared `ScreenView`, so the preview reuses the **same** renderer as runtime and can't drift (the design↔runtime divergence #1927 fixed). A new `ScreenPreview` builds a `ScreenSpec` from the node's authored `config` and feeds it to `ScreenView`.
+
+  - Reflects `title`, `description` (with `{var}` interpolation), input `fields`, and object-form mode (`objectName` / `mode` / `defaults`, rendered via `plugin-form`'s `ObjectForm`).
+  - Updates live as the node config changes.
+  - Two homes: the **flow node inspector** (interpolates against the flow's declared variable defaults) and the **Debug simulator** when paused at a screen (interpolates against the live simulated run state, replacing the bare `paused`).
+
+- 780cabc: feat(studio): add a "Local / Custom (this env)" scope to the package selector
+
+  In a self-hosted, metadata-customizable environment (single-tenant — no org
+  dimension), the package selector only listed code packages, so metadata authored
+  at runtime (`package_id = null` / `sys_metadata` provenance) was filtered out of
+  every code-package view and became un-navigable — opening such an item redirected
+  to "new". This complements framework #2252 + objectui #1937, which stop runtime
+  metadata from being stamped into a loaded code package and keep it editable.
+
+  - Surface a stable, always-present "Local / Custom (this env)" entry in the
+    Studio package context-selector (`ContextSelectors`), mapped to the
+    `sys_metadata` scope the metadata list/get API already understands.
+  - Accept that scope in the metadata-admin pages (`StudioHomePage`,
+    `DirectoryPage`, `ResourceListPage`) via a shared `buildPackageScopeOptions`
+    helper, so it no longer redirects, and the list shows this environment's
+    runtime-authored items (`package_id = null`).
+  - On the Studio home grid, the Local scope shows every runtime-creatable type so
+    the user can start authoring locally even with zero items yet.
+
+- 93cf2b1: feat(studio): preview record pages against a real sample record
+
+  The Studio page editor's Preview tab rendered a `type: 'record'` page's
+  `record:*` blocks (details / highlights / path / alert / quick_actions) as the
+  "bind a record to preview" placeholder — the metadata editor has no record
+  route, so the author designed blind.
+
+  The preview now fetches a handful of real records of the bound object (with
+  lookup / master_detail fields `$expand`ed so they show display names, not raw
+  foreign-key IDs), auto-binds the first one, and wraps the canvas in a
+  `<RecordContextProvider>` — mirroring the runtime `RecordDetailView`. A
+  "Preview record" dropdown lets the author switch records, so `visible` CEL
+  expressions (e.g. `record.status == 'in_review'`) and per-record field values
+  re-render live.
+
+### Patch Changes
+
+- 68d82ae: New script action seeds a valid body; add create-roundtrip conformance guard
+
+  A new action defaults to `type: 'script'`, which the spec requires to carry an executable `body` or `target` — the create form seeded neither, so "New action → Save" failed validation (422). Seed a no-op L2 body in `createDefaults` so the default create round-trips. Adds a conformance guard that asserts every authorable type's default create-form output passes spec validation (catches the "designer minimal shape ≠ spec required" family before it ships).
+
+- aae8791: Flow Screen preview: render inline master-detail subforms (follow-up to #1944)
+
+  The object-form mode of the Screen-node preview now renders inline master-detail
+  child grids, matching runtime. `ScreenPreview` feeds the SAME enriched object
+  list the runtime `FlowRunner` uses (`useMetadata().objects`, which derives
+  `form.subforms` from `inlineEdit` relationships via `attachInlineSubforms`), so
+  e.g. a `showcase_invoice` object-form step previews its **Line Items** grid
+  (with live Subtotal/Tax/Total) — only fetched in object-form mode.
+
+  To keep the preview non-persisting — consistent with the flat-field preview
+  (disabled Submit) and the simple object-form preview (no Save) — `MasterDetailForm`
+  now honours a `showSubmit` flag (default shown; backward-compatible) that
+  `ObjectForm` forwards, so the preview hides the master-detail Save bar. Also drops
+  a dead `e = formData` assignment in `ObjectForm` (lint `no-useless-assignment`).
+
+- 4014bc9: Flow Screen preview: gate fields by `visibleWhen` (follow-up to #1944)
+
+  The Screen-node preview now evaluates each input field's `visibleWhen` against
+  the active variables — reusing the simulator's own condition evaluator
+  (`evalCondition`), normalising `{var}` placeholders to bare identifiers — so it
+  hides/shows conditional fields exactly as the runtime `screen` executor does
+  (which filters server-side before emitting the `ScreenSpec`).
+
+  - Debug simulator (live run state): gates faithfully, e.g. a screen whose
+    `opportunityName`/`opportunityAmount` are `visibleWhen: "{createOpportunity} == true"`
+    hides them while `createOpportunity` is false.
+  - Inspector (no run state): fails open — an unparseable or not-yet-decidable
+    condition keeps the field visible, so configured fields are never hidden on
+    missing data — and a footnote reports how many fields are gated out.
+
+- d27f045: fix(metadata-admin): remove the unwired "Certified" measure toggle from the dataset designer
+
+  `measure.certified` is dead in the spec liveness ledger (declared but read by
+  nothing — no certifier authority, no provenance, not surfaced at point-of-use).
+  A self-asserted checkbox the dataset author flips on their own work isn't
+  certification — it's a fake trust signal. Drop the toggle (and the create
+  default) until real metric governance exists (separate `dataset.certify`
+  authority + `certifiedBy`/`certifiedAt` + a badge where reports pick measures).
+  The spec field stays (dormant, liveness=dead) so existing data is untouched.
+
+- d23ed60: feat(studio): author the approval revise loop in the flow designer (ADR-0044)
+
+  The ADR-0044 send-back-for-revision loop — an approval node's `revise` out-edge to a wait point, closed by a declared `type: 'back'` edge re-entering the approval (round N+1) — was previously reachable only by hand-editing flow JSON. The flow designer now authors it visually:
+
+  - **Revise branch** — an approval out-edge offers `approve` / `reject` / `revise` via a new Approval-branch picker in the edge inspector; `maxRevisions` surfaces on the approval node's property form (from the engine's published configSchema when online, with a hardcoded fallback offline).
+  - **Back-edge authoring** — a new Connection-type select marks an edge as `back` (also `fault` / `conditional`). A back-edge renders distinctly on the canvas as a dashed amber return arc and is excluded from the layered auto-layout (exactly as the engine excludes it from DAG validation), so the loop reads top-to-bottom instead of dragging its target node below the wait point.
+  - **Client-side DAG validation** — the simulator's preflight now flags an UNmarked cycle as an error (the graph minus declared back-edges must be a DAG, mirroring `registerFlow`), while a declared revise loop passes and a self-loop is caught.
+  - **One-click "add revision loop"** — an amber affordance on an approval node drops the signal `wait` node + the `revise` edge + the declared `back` edge in a single gesture, reproducing the canonical `showcase_budget_approval` shape.
+
+  Refs framework#1770. Follows the flow-builder work in #1927 and #1930.
+
+- 47c6e25: fix(studio/flow): wire decision branches to edges, expand screen config, align simulator with engine
+
+  Four fixes for the Studio Flow Builder, found dogfooding it as a business user:
+
+  - **Decision branches now route.** The "Branches" editor wrote `node.config.conditions`
+    but never the outgoing edges, so a decision built entirely in Studio left every
+    out-edge unconditional — the engine and simulator (which branch on `edge.condition`)
+    ran _all_ branches. Branches now mirror onto the node's out-edges (by order):
+    `FlowCanvas.addNode` carries the matching branch onto a newly-connected edge, and
+    `FlowNodeInspector` re-syncs existing edges when branches are edited (a `true`
+    expression marks the default/else edge).
+  - **Screen node config expanded.** The form exposed only `fields`; it now also edits
+    `title`, `description` (interpolates `{var}`), `waitForInput`, and the object-form
+    keys (`objectName`, `idVariable`, `mode`, `defaults`) — so a message screen or an
+    object-form wizard step no longer requires dropping to Advanced JSON.
+  - **Simulator applies assignment nodes.** Assignment was a no-op pass-through, so a
+    Debug run never reflected `Set variables`. It now normalizes the same shapes the
+    engine accepts (`assignments` map/array + flat) and interpolates `{var}`.
+  - **Simulator screen-pause parity.** The simulator paused on every screen; it now
+    pauses only when the screen collects input (`fields`) or sets `waitForInput`,
+    matching the engine's `shouldPause` — a field-less screen passes through.
+  - **Palette HTTP de-duplicated.** The base palette hardcoded the deprecated
+    `http_request` alias while the engine publishes the canonical `http`, showing
+    two HTTP entries. The base now uses `http` (merging into one), aliased to the
+    `http_request` config form so the inspector is unchanged.
+
+- 4c2f910: feat(studio): surface flow validation errors inline on the canvas
+
+  The flow designer's structural validation (an un-declared cycle, missing entry node, duplicate ids, dangling edges, …) was only visible in the Debug panel. It now surfaces **inline on the canvas**: an un-declared cycle paints its offending edges + nodes red — using the same `validateFlowDraft` the simulator preflight runs — and an error banner lists the messages, so the author sees a broken graph without opening Debug. Each edge that closes the cycle carries a tooltip pointing at the fix ("mark the edge that closes the loop as a back-edge"). A declared revise loop (ADR-0044 back-edge) is excluded from cycle detection and stays un-flagged.
+
+  Follows #1954 (revise-loop authoring) and #1955 (simulating approval decisions).
+
+- 1b3ccd1: feat(studio): simulate approval decisions in the flow debugger
+
+  The designer-time flow simulator treated an `approval` node as a pass-through that fanned out to every out-edge at once — so an ADR-0044 revise loop couldn't be debugged: it walked approve / reject / revise simultaneously and hit the step ceiling on the back-edge.
+
+  The simulator now models an approval as a durable pause (like `wait` / `screen`): it suspends at the node, and the Debug panel offers the node's out-edge labels (`approve` / `reject` / `revise`) as decision buttons. Resuming routes down ONLY the chosen branch — mirroring how the engine resumes a suspended approval by branch label — so a full revise loop is now walkable in the debugger: revise → wait → resubmit (back-edge) → round 2 → approve. An unmatched decision falls back to fanning out (mirroring the engine's label-fallback), logged so the author notices.
+
+  Follows #1954 (ADR-0044 revise-loop authoring).
+
+- 05584aa: feat(studio/flow): context-aware Start trigger fields + explicit decision-branch binding
+
+  Two flow-builder UX improvements (follow-ups to the decision/screen/simulator fixes in #1927):
+
+  - **Start node trigger fields are now context-aware.** The Start node showed `Object`
+    and `Entry condition` (record-trigger config) even on screen / manual flows where
+    they don't apply. They're now gated by the chosen `triggerType` — shown for record /
+    schedule / webhook / event triggers, hidden for manual / unset (screen wizards). A
+    field that already holds a value is never hidden, so existing flows are unaffected.
+  - **Decision branches can be bound to edges explicitly.** Selecting a decision out-edge
+    now shows a **Branch** picker listing the source decision's branches (label · condition,
+    or "· default"). Picking one writes that branch's expression / label (or marks the
+    default) onto the edge — so routing stays correct even when edges are connected out of
+    branch order, instead of relying solely on the implicit by-order auto-wire. A
+    "— Custom —" option preserves manual editing.
+
+  Adds `flow-node-config.test.ts` covering the trigger-field gating.
+
+- 44d4582: fix(studio): localize lookup picker config + keep published org objects editable
+
+  - The lookup field's "Picker config" sub-panel (display/description field,
+    selectable-records filters, depends-on, page size, quick-create) was
+    hard-coded English in an otherwise-Chinese designer. Routed every literal
+    through `t()`/`tFormat()` with new `designer.field.lookup.*` keys (en + zh).
+  - A freshly-published org object read back as read-only: after publish its
+    active version surfaces in the layered `code` slot tagged with the
+    `sys_metadata` provenance sentinel, and `ResourceEditPage` treated any
+    non-null `code` as a packaged artifact (needs `allowOrgOverride`, which the
+    `object` type lacks). Mirror the server's `isArtifactBacked` — which excludes
+    `_packageId === 'sys_metadata'` — so org-authored items stay editable.
+
+- b419a7c: fix(studio): enable report authoring (create flow, chart render, dataset-aware inspector)
+
+  Found dogfooding report design in Studio as a business user — you could not create a report at all, plus several follow-on gaps.
+
+  - **Report create now uses the canvas + `ReportDefaultInspector`.** Only `object` was in `CREATE_MODE_CANVAS_TYPES`, so report-create fell back to a stale name-first form whose create-config (`objectName`, `columns: []`) predates the ADR-0021 dataset-bound model — saving failed server validation (_"a report needs `dataset` + `values`"_) with no field to fix it. Add `'report'` to the canvas set; the inspector exposes an auto-derived snake_case Name in create mode; fix the create-config (drop `objectName`/`columns`, seed `type: 'summary'` + `drilldown: true`).
+  - **Preserve `?package=` on post-create navigation** — it was dropped, so the editor reloaded a blank draft in the user's default package.
+  - **Render a report's embedded `chart`** in `DatasetReportRenderer` (authorable in Studio but never rendered) via the lazily-registered generic chart component; requests a non-animated render for export/background-tab safety.
+  - **Dedicated Chart panel in the inspector** — chart type + dataset-aware X-Axis (dimension) / Y-Axis (measure) dropdowns + title, replacing free-text axis fields and the vague "Chart: Required text value" validation.
+
+- 15f140d: Validation messages name the offending widget + field
+
+  A nested Zod issue (e.g. `widgets.2.layout`) was shown as just its head field label — "Widgets: Invalid input" — so an author couldn't tell which widget or sub-field was at fault. `labelForIssuePath` now appends a readable trail, resolving each array index to the item's stable identity (id/name/title, incl. I18nLabel objects) from the draft: "Widgets → priority_split → layout". Single-segment paths are unchanged.
+
+- Updated dependencies [677f7ed]
+- Updated dependencies [08c47da]
+- Updated dependencies [a71be60]
+- Updated dependencies [cb03bc3]
+  - @object-ui/types@7.1.0
+  - @object-ui/core@7.1.0
+  - @object-ui/react@7.1.0
+  - @object-ui/auth@7.1.0
+  - @object-ui/collaboration@7.1.0
+  - @object-ui/components@7.1.0
+  - @object-ui/data-objectstack@7.1.0
+  - @object-ui/fields@7.1.0
+  - @object-ui/layout@7.1.0
+  - @object-ui/permissions@7.1.0
+  - @object-ui/plugin-editor@7.1.0
+  - @object-ui/providers@7.1.0
+  - @object-ui/i18n@7.1.0
+
 ## 7.0.0
 
 ### Minor Changes
