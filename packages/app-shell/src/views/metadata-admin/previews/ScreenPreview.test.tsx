@@ -22,7 +22,7 @@ vi.mock('../../../providers/AdapterProvider', () => ({
 }));
 
 import { ScreenPreview } from './ScreenPreview';
-import { buildScreenSpec } from './screen-spec';
+import { buildScreenSpec, isFieldVisibleWhen, hiddenFieldCount } from './screen-spec';
 
 afterEach(() => {
   cleanup();
@@ -111,6 +111,58 @@ describe('ScreenPreview — object-form mode', () => {
   });
 });
 
+describe('ScreenPreview — visibleWhen field gating', () => {
+  const node = {
+    id: 's1',
+    config: {
+      fields: [
+        { name: 'createOpp', label: 'Create Opportunity?', type: 'boolean' },
+        { name: 'oppName', label: 'Opportunity Name', type: 'text', visibleWhen: '{createOpp} == true' },
+      ],
+    },
+  };
+
+  it('hides a conditional field when its visibleWhen is false, with a hint', () => {
+    render(<ScreenPreview node={node} variables={{ createOpp: false }} />);
+    expect(screen.getByText('Create Opportunity?')).toBeInTheDocument();
+    expect(screen.queryByText('Opportunity Name')).not.toBeInTheDocument();
+    expect(screen.getByText(/hidden by .*visible when/i)).toBeInTheDocument();
+  });
+
+  it('shows the conditional field when its visibleWhen is true (no hint)', () => {
+    render(<ScreenPreview node={node} variables={{ createOpp: true }} />);
+    expect(screen.getByText('Opportunity Name')).toBeInTheDocument();
+    expect(screen.queryByText(/hidden by .*visible when/i)).not.toBeInTheDocument();
+  });
+
+  it('fail-opens: an undecidable condition (no run state) keeps the field visible', () => {
+    // The inspector passes declared defaults; an unset controller can't decide.
+    render(<ScreenPreview node={node} variables={{}} />);
+    expect(screen.getByText('Opportunity Name')).toBeInTheDocument();
+  });
+});
+
+describe('isFieldVisibleWhen', () => {
+  it('shows when there is no condition or no variables', () => {
+    expect(isFieldVisibleWhen(undefined, { x: 1 })).toBe(true);
+    expect(isFieldVisibleWhen('', { x: 1 })).toBe(true);
+    expect(isFieldVisibleWhen('discount > 0', undefined)).toBe(true);
+  });
+
+  it('evaluates {var} and bare-var conditions against the variables', () => {
+    expect(isFieldVisibleWhen('{createOpp} == true', { createOpp: true })).toBe(true);
+    expect(isFieldVisibleWhen('{createOpp} == true', { createOpp: false })).toBe(false);
+    expect(isFieldVisibleWhen('stage == "review"', { stage: 'review' })).toBe(true);
+    expect(isFieldVisibleWhen('stage == "review"', { stage: 'draft' })).toBe(false);
+    expect(isFieldVisibleWhen('discount > 0', { discount: 5 })).toBe(true);
+    expect(isFieldVisibleWhen('discount > 0', { discount: 0 })).toBe(false);
+  });
+
+  it('fail-opens when a referenced variable is not set', () => {
+    expect(isFieldVisibleWhen('{createOpp} == true', {})).toBe(true);
+  });
+});
+
 describe('buildScreenSpec', () => {
   it('maps authored config keys onto the runtime ScreenSpec', () => {
     const spec = buildScreenSpec({
@@ -133,5 +185,23 @@ describe('buildScreenSpec', () => {
     expect(spec.kind).toBe('object-form');
     expect(spec.objectName).toBe('crm_account');
     expect(spec.mode).toBe('create');
+  });
+
+  it('gates fields by visibleWhen against the supplied variables', () => {
+    const cfg = {
+      id: 'n1',
+      config: {
+        fields: [
+          { name: 'createOpp', label: 'Create?', type: 'boolean' },
+          { name: 'oppName', label: 'Name', type: 'text', visibleWhen: '{createOpp} == true' },
+        ],
+      },
+    };
+    expect(buildScreenSpec(cfg, { createOpp: true }).fields.map((f) => f.name)).toEqual(['createOpp', 'oppName']);
+    expect(buildScreenSpec(cfg, { createOpp: false }).fields.map((f) => f.name)).toEqual(['createOpp']);
+    // No variables → keep every field (design preview never hides on missing data).
+    expect(buildScreenSpec(cfg).fields.map((f) => f.name)).toEqual(['createOpp', 'oppName']);
+    expect(hiddenFieldCount(cfg, { createOpp: false })).toBe(1);
+    expect(hiddenFieldCount(cfg, { createOpp: true })).toBe(0);
   });
 });
