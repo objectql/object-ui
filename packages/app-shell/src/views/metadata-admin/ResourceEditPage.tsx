@@ -1775,7 +1775,7 @@ function MetadataResourceEditPageImpl({
                 folded into the lock banner). Only render it for the
                 non-locked read-only cases. */}
             {readOnly && !isLocked && (
-              <div className="text-xs text-amber-800 border border-amber-300/70 bg-amber-50/70 rounded-md px-3 py-2.5 dark:text-amber-200 dark:border-amber-700/40 dark:bg-amber-950/20 flex items-start gap-3">
+              <div data-testid="readonly-banner" className="text-xs text-amber-800 border border-amber-300/70 bg-amber-50/70 rounded-md px-3 py-2.5 dark:text-amber-200 dark:border-amber-700/40 dark:bg-amber-950/20 flex items-start gap-3">
                 <div className="flex-1">
                   {showArtifactLockedBanner ? (
                     /* Type allows runtime-create but THIS item ships from
@@ -1921,6 +1921,7 @@ function MetadataResourceEditPageImpl({
                 return (
                   <div
                     key={kind}
+                    data-testid={kind === 'error' ? 'metadata-validation-banner' : undefined}
                     className={`flex items-start gap-2 text-xs border rounded p-2.5 ${cls}`}
                   >
                     <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />

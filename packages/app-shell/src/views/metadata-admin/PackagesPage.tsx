@@ -222,6 +222,7 @@ function CreatePackageDialog({
             <Label htmlFor="pkg-id">{t('engine.packages.create.id', locale)}</Label>
             <Input
               id="pkg-id"
+              data-testid="package-id-input"
               placeholder="com.acme.crm"
               value={id}
               onChange={(e) => setId(e.target.value)}
@@ -237,6 +238,7 @@ function CreatePackageDialog({
             <Label htmlFor="pkg-name">{t('engine.packages.create.name', locale)}</Label>
             <Input
               id="pkg-name"
+              data-testid="package-name-input"
               placeholder="Acme CRM"
               value={name}
               onChange={(e) => setName(e.target.value)}

@@ -73,6 +73,7 @@ export function ObjectDefaultInspector({
             onCommit={setName}
             disabled={readOnly || !createMode}
             mono
+            testId="object-name-input"
             placeholder={tr('designer.object.namePlaceholder')}
           />
         </Field>

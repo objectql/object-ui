@@ -214,6 +214,7 @@ export function JsonSourceEditor({
     <div className="flex flex-col gap-2">
       <div
         ref={containerRef}
+        data-testid="source-editor"
         className="border rounded overflow-hidden bg-background"
         style={{ height: typeof height === 'number' ? `${height}px` : height }}
       >

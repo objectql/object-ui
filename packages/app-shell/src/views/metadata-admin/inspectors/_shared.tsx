@@ -139,6 +139,7 @@ export function InspectorTextField({
   placeholder,
   disabled,
   mono,
+  testId,
 }: {
   label: string;
   value: string;
@@ -148,6 +149,8 @@ export function InspectorTextField({
   placeholder?: string;
   disabled?: boolean;
   mono?: boolean;
+  /** Stable hook for e2e/dogfood selectors. */
+  testId?: string;
 }) {
   return (
     <div className="space-y-1">
@@ -158,6 +161,7 @@ export function InspectorTextField({
         onBlur={(e) => onBlur?.(e.target.value)}
         placeholder={placeholder}
         disabled={disabled}
+        data-testid={testId}
         className={cn('h-8 text-sm', mono && 'font-mono')}
       />
     </div>

@@ -263,6 +263,7 @@ function SelectorControl({
     >
       <SelectTrigger
         aria-label={label}
+        data-testid="package-switcher"
         className="h-9 w-full gap-2 rounded-md border-sidebar-border/70 bg-sidebar/80 px-2 text-xs font-medium text-sidebar-foreground shadow-none transition-colors hover:bg-sidebar-accent focus:ring-1 focus:ring-sidebar-ring data-[state=open]:bg-sidebar-accent [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:shrink-0"
       >
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">

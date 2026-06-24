@@ -314,6 +314,7 @@ export function ObjectFieldInspector({
           onCommit={setKey}
           disabled={readOnly}
           mono
+          testId="field-apiname-input"
         />
         <InspectorTextField
           label={tr('designer.field.label')}
@@ -321,6 +322,7 @@ export function ObjectFieldInspector({
           onCommit={(v) => patchDef({ label: v })}
           onBlur={maybeDeriveName}
           disabled={readOnly}
+          testId="field-label-input"
         />
         <InspectorSelectField
           label={tr('designer.field.type')}
