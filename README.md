@@ -19,93 +19,38 @@
 
 ---
 
-## 🎉 What's New (v3.3.x line)
+## What is Object UI?
 
-**v3.3.0 was the first official release** — all 39 packages under `packages/*` are published to npm. The current published patch is **v3.3.2** and the workspace now consumes **`@objectstack/spec` ^4.0.4** and **`@objectstack/client` ^4.0.4** (the UI sub-export remains backward compatible with the 3.3.x renderer).
+**Object UI is the View layer of the [ObjectStack](https://github.com/objectstack-ai/framework) ecosystem** — a standalone, schema-driven renderer that turns a JSON schema (or ObjectStack metadata) into production-grade React UI. Use it on its own with any backend, like Amis or Formily — or let it render ObjectStack apps end to end.
 
-> Unreleased work is queued in `.changeset/` and visible in `CHANGELOG.md`'s
-> `[Unreleased]` section — see "Recent Highlights" below.
-
-### Recent Highlights (post-3.3.2, queued for next release)
-
-- 📱 **Mobile UX rounds 1 & 2** — kanban readability, calendar default view on phones, timeline marker clipping, list/sidebar/record-detail polish (`apps/console`, `plugin-kanban`, `plugin-calendar`, `plugin-timeline`).
-- 🪟 **Manage Views dialog** (`@object-ui/plugin-view`) replaces inline tab drag for view CRUD.
-- 🧭 **App-shell view-tab strip** now renders for single-view objects too; broken DropdownMenu propagation fixed.
-- ⚡ **View metadata merging + request coalescing** — duplicate `find()` queries from concurrent renderers are deduped.
-- 🌐 **Convention-based i18n for sidebars, breadcrumbs, charts, tables, dashboards** — translation packs can localize every label without editing metadata.
-- 🛠️ **MetadataProvider lazy loading** — Console no longer fetches the entire `app/object/dashboard/report/page` graph on boot.
-
-### Highlights
-
-- 📦 **39 published packages** with complete release metadata, per-package `LICENSE` and `CHANGELOG.md`
-- 📚 **Refreshed documentation** across every package README and the [objectui.org docs site](https://www.objectui.org)
-- 🏗️ **Thin integration packages** — `@object-ui/app-shell` and `@object-ui/providers` enable third-party integration in ~50KB instead of pulling the full console
-- 🔌 **Spec v4 alignment** — plain-string `label` types across Navigation schemas, Protocol bridges updated
-- 🧠 **Unified Agent Skill** — `npx skills add objectstack-ai/objectui` installs a consolidated skill (works with Claude Code, Cursor, Codex, GitHub Copilot, Windsurf, Gemini, Cline). See [`skills/objectui/`](./skills/objectui/) and [skills.sh](https://skills.sh/objectstack-ai/objectui).
-
-### Component Namespaces
-Organize components into namespaces to prevent naming conflicts:
-```typescript
-ComponentRegistry.register('button', ButtonComponent, {
-  namespace: 'ui'  // Prevent conflicts across plugins
-});
+```
+Describe  →  ObjectStack   the metadata protocol
+Render    →  Object UI     this repo — JSON / metadata → React UI
+Run       →  ObjectOS      the runtime
 ```
 
-### Lazy Field Registration
-Load only the fields you need for 30-50% smaller bundles:
-```typescript
-import { registerField } from '@object-ui/fields';
+<p align="center">
+  <img src="docs/screenshots/hero-sdui.png" alt="A kanban JSON schema on the left renders into a live kanban board on the right">
+  <br><sub>A JSON schema in, a production React UI out — no component code.</sub>
+</p>
 
-// Only load what you use
-registerField('text');
-registerField('number');
-```
+### See what it renders
 
-### Build Performance
-- **3-5x faster CI builds** with Turbo v2
-- **Parallel package builds** with intelligent caching
-- **Instant rebuilds** for unchanged packages
+One schema, many view types — dashboards, Gantt schedules, kanban boards, calendars — plus visual designers to build them without code.
 
-👉 See [CHANGELOG.md](./CHANGELOG.md) for the full 3.3.x release notes and the `[Unreleased]` section.
-
----
-
-## 🚀 Quick Start (Development Mode)
-
-Since this package is not yet published to NPM, here is how to play with the source code:
-
-1.  **Clone & Install**
-
-    ```bash
-    git clone https://github.com/objectstack-ai/objectui.git
-    cd objectui
-    pnpm install
-    # Build the core engine
-    pnpm build
-    ```
-
-2.  **Run the ObjectStack Console**
-
-    Start the unified development console to preview your apps and objects:
-
-    ```bash
-    pnpm dev
-    # Opens http://localhost:5173
-    ```
-
-3.  **Try the BYO-Backend Console Example** (New!)
-
-    See how to integrate ObjectUI in your own app:
-
-    ```bash
-    cd examples/byo-backend-console
-    pnpm dev
-    # Opens http://localhost:5174
-    ```
-
-4.  **Edit & Reload**
-
-    Edit the JSON schema files and the changes will be instantly reflected in the browser.
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" width="49%" alt="Dashboard with KPIs and charts">
+  <img src="docs/screenshots/gantt.png" width="49%" alt="Gantt schedule with task bars and milestones">
+</p>
+<p align="center">
+  <img src="docs/screenshots/kanban.png" width="49%" alt="Kanban board grouped by status">
+  <img src="docs/screenshots/calendar.png" width="49%" alt="Calendar of records by date">
+</p>
+<p align="center">
+  <img src="docs/screenshots/modeling.png" width="49%" alt="Visual object designer">
+  <img src="docs/screenshots/automation.png" width="49%" alt="Visual flow designer">
+</p>
+<p align="center"><sub><b>Dashboard, Gantt, Kanban, Calendar</b> rendered from metadata, plus <b>visual designers</b> for objects and flows — all from the plugin packages listed below.</sub></p>
 
 ## Examples
 
@@ -181,38 +126,6 @@ function MyConsole() {
 - 📦 **Cherry-pick**: Use only what you need
 
 See [examples/byo-backend-console](examples/byo-backend-console) for a complete working example, or [examples/console-starter](examples/console-starter) if you want the full ObjectStack-bound console as a fork-ready template.
-
-### 🎨 **Beautiful by Default**
-- Professional designs using **Tailwind CSS** and **Shadcn/UI**
-- Light/dark theme support
-- Fully customizable with utility classes
-- WCAG 2.1 AA accessible
-
-### ⚡ **Blazing Fast**
-- **3x faster** page loads than traditional low-code platforms
-- **6x smaller** bundle sizes (< 50KB vs 300KB+)
-- Built on React 18+ with automatic optimizations
-- Tree-shakable architecture
-
-### 🚀 **Developer Friendly**
-- **TypeScript-first** with complete type definitions
-- **Zero learning curve** if you know React
-- Works with existing tools and workflows
-- Full control - extend or customize anything
-
-### 🛠️ **Production Ready**
-- 85%+ test coverage
-- Enterprise security built-in
-- Comprehensive documentation
-- Active development and support
-
-### 🔥 **Phase 3: Enterprise Data Protocol** (NEW!)
-- **Advanced Field Types**: Vector (AI embeddings), Grid (sub-tables), Formula, Summary
-- **Query AST Builder**: SQL-like queries with joins, aggregations, subqueries
-- **Smart Validation**: 30+ rules, async validation, cross-field dependencies
-- **Multi-Datasource**: Health monitoring, connection pooling, query caching
-- **40+ Filter Operators**: Date ranges, lookup filters, full-text search
-- **Object Inheritance**: Triggers, advanced permissions, metadata caching
 
 ## Why Object UI?
 
@@ -587,6 +500,7 @@ Object UI is [MIT licensed](./LICENSE).
 - 📖 [Documentation](https://www.objectui.org) - Comprehensive guides and API reference
 - 🐛 [Report Issues](https://github.com/objectstack-ai/objectui/issues) - Found a bug? Let us know
 - 📧 [Email Us](mailto:hello@objectui.org) - Get in touch
+- 🧠 **Agent skill** — `npx skills add objectstack-ai/objectui` installs an Object UI skill for Claude Code, Cursor, Copilot, and more
 
 ## 🙏 Acknowledgments
 
