@@ -30,6 +30,12 @@ export interface SimEdge {
   condition?: string | { source?: string };
   isDefault?: boolean;
   label?: string;
+  /**
+   * Connection type (FlowEdgeSchema). A `'back'` edge is an ADR-0044 declared
+   * back-edge: traversed normally at run time, but excluded from DAG cycle
+   * validation so a revise/rework loop can re-enter an earlier node.
+   */
+  type?: string;
 }
 
 export type SimStatus = 'idle' | 'running' | 'paused' | 'done' | 'error';

@@ -84,6 +84,11 @@ export function computeLayout(nodes: FlowNode[], edges: FlowEdge[]): Map<string,
   for (const n of nodes) incoming.set(n.id, 0);
   for (const e of edges) {
     if (!byId.has(e.source) || !byId.has(e.target) || e.source === e.target) continue;
+    // ADR-0044: a declared back-edge (`type: 'back'`) re-enters an earlier node
+    // to close a revise loop. Exclude it from layering — exactly as the engine
+    // excludes it from DAG validation — so the loop doesn't drag its target
+    // node below the wait point. The edge is still drawn (as a return arc).
+    if (isBackEdge(e)) continue;
     if (!outAdj.has(e.source)) outAdj.set(e.source, []);
     outAdj.get(e.source)!.push(e.target);
     incoming.set(e.target, (incoming.get(e.target) ?? 0) + 1);
@@ -214,6 +219,42 @@ export function edgePath(from: Point, to: Point): string {
 /** Midpoint of an edge — anchor for the condition label + insert affordance. */
 export function edgeMidpoint(from: Point, to: Point): Point {
   return { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+}
+
+/** True for an ADR-0044 declared back-edge (a revise/rework loop's return). */
+export function isBackEdge(edge: Pick<FlowEdge, 'type'>): boolean {
+  return edge.type === 'back';
+}
+
+/** Right-center anchor of a node — where a back-edge's return arc attaches. */
+export function rightAnchor(p: Point): Point {
+  return { x: p.x + NODE_W, y: p.y + NODE_H / 2 };
+}
+
+/** Horizontal bow of a back-edge's return arc, scaled to the vertical span. */
+function backEdgeBow(from: Point, to: Point): number {
+  return Math.max(64, Math.abs(to.y - from.y) * 0.35);
+}
+
+/**
+ * Curved return path for a declared back-edge (ADR-0044 revise loop). Unlike a
+ * forward edge (top→bottom), a back-edge re-enters an earlier node, so we route
+ * it off the right side of both endpoints and bow it out to the right — a
+ * distinct return arc that reads as "loop back" rather than crossing the
+ * top-to-bottom forward edges.
+ */
+export function backEdgePath(from: Point, to: Point): string {
+  const bow = backEdgeBow(from, to);
+  const c1 = { x: from.x + bow, y: from.y };
+  const c2 = { x: to.x + bow, y: to.y };
+  return `M ${from.x},${from.y} C ${c1.x},${c1.y} ${c2.x},${c2.y} ${to.x},${to.y}`;
+}
+
+/** Anchor for a back-edge's label pill — the apex of its return arc. */
+export function backEdgeLabelAnchor(from: Point, to: Point): Point {
+  // The cubic's t=0.5 point sits ~0.75·bow right of the (shared) right edge.
+  const bow = backEdgeBow(from, to);
+  return { x: Math.max(from.x, to.x) + bow * 0.75, y: (from.y + to.y) / 2 };
 }
 
 /**

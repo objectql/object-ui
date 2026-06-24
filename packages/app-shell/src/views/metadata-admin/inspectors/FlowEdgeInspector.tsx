@@ -82,6 +82,10 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
       const v = next[k];
       if (v === undefined || v === '' || v === false) delete next[k];
     }
+    // `type` defaults to 'default' (FlowEdgeSchema) — don't persist the noise so
+    // a normal edge stays `{ source, target }`; only `back`/`fault`/`conditional`
+    // are written.
+    if (next.type === 'default' || next.type === '' || next.type === undefined) delete next.type;
     onPatch({ edges: spliceArray(edges, index, next) });
   };
 
@@ -124,6 +128,20 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
     if (expr === '' || expr === 'true') patchEdge({ isDefault: true, condition: undefined, label: lbl });
     else patchEdge({ isDefault: false, condition: expr, label: lbl });
   };
+
+  // Approval out-edges (ADR-0019/0044) route by branch *label*: the engine
+  // resumes down the out-edge whose label matches the decision — `approve` /
+  // `reject`, or `revise` (ADR-0044 send-back-for-revision). Offer those as a
+  // picker (mirrors APPROVAL_BRANCH_LABELS in @objectstack/spec) so the author
+  // need not recall the exact keyword; a free-text label is still allowed.
+  const isApprovalSource = sourceNode?.type === 'approval';
+  const APPROVAL_BRANCHES: readonly string[] = ['approve', 'reject', 'revise'];
+  const currentApprovalBranch = (() => {
+    const l = (edge.label ?? '').trim().toLowerCase();
+    return APPROVAL_BRANCHES.includes(l) ? l : '';
+  })();
+
+  const edgeType = (typeof edge.type === 'string' && edge.type) || 'default';
 
   return (
     <InspectorShell
@@ -170,6 +188,23 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
         />
       )}
 
+      {isApprovalSource && (
+        <InspectorSelectField
+          label={t('engine.inspector.flowEdge.approvalBranch', locale)}
+          value={currentApprovalBranch}
+          options={[
+            { value: 'approve', label: t('engine.inspector.flowEdge.branchApprove', locale) },
+            { value: 'reject', label: t('engine.inspector.flowEdge.branchReject', locale) },
+            { value: 'revise', label: t('engine.inspector.flowEdge.branchRevise', locale) },
+            { value: '', label: t('engine.inspector.flowEdge.branchCustom', locale) },
+          ]}
+          // Picking a branch writes the matching label; "Custom" keeps the
+          // free-text label the author typed below.
+          onCommit={(v) => { if (v) patchEdge({ label: v }); }}
+          disabled={readOnly}
+        />
+      )}
+
       <InspectorTextField
         label={t('engine.inspector.flowEdge.label', locale)}
         value={edge.label ?? ''}
@@ -206,6 +241,30 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
       <p className="text-[11px] leading-snug text-muted-foreground">
         {t('engine.inspector.flowEdge.hint', locale)}
       </p>
+
+      <div className="flex items-center gap-2 pt-1">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('engine.inspector.flowEdge.connection', locale)}
+        </span>
+        <span className="h-px flex-1 bg-border" aria-hidden />
+      </div>
+      <InspectorSelectField
+        label={t('engine.inspector.flowEdge.type', locale)}
+        value={edgeType}
+        options={[
+          { value: 'default', label: t('engine.inspector.flowEdge.typeDefault', locale) },
+          { value: 'conditional', label: t('engine.inspector.flowEdge.typeConditional', locale) },
+          { value: 'fault', label: t('engine.inspector.flowEdge.typeFault', locale) },
+          { value: 'back', label: t('engine.inspector.flowEdge.typeBack', locale) },
+        ]}
+        onCommit={(v) => patchEdge({ type: v })}
+        disabled={readOnly}
+      />
+      {edge.type === 'back' && (
+        <p className="text-[11px] leading-snug text-amber-600 dark:text-amber-400" role="note">
+          {t('engine.inspector.flowEdge.backHint', locale)}
+        </p>
+      )}
     </InspectorShell>
   );
 }

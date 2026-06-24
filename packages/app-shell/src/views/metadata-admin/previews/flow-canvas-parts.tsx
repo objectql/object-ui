@@ -18,6 +18,7 @@ import {
   FileX,
   GitFork,
   Globe,
+  IterationCcw,
   ListChecks,
   MonitorSmartphone,
   Play,
@@ -383,6 +384,12 @@ export interface NodeCardProps {
   onPointerDown?: (e: React.PointerEvent) => void;
   onSelect?: () => void;
   onAppend?: () => void;
+  /**
+   * ADR-0044: when set (approval nodes without an existing revise loop), render
+   * the one-click "add revision loop" affordance — drops a wait node + the
+   * `revise` and declared `back` edges in a single gesture.
+   */
+  onAddReviseLoop?: () => void;
 }
 
 /**
@@ -402,11 +409,15 @@ export function NodeCard({
   onPointerDown,
   onSelect,
   onAppend,
+  onAddReviseLoop,
 }: NodeCardProps) {
   const tone = nodeTone(type);
   return (
     <div
-      className="absolute transition-opacity duration-200"
+      // `group` so the hover-revealed affordances (append "+", revise loop)
+      // appear when the pointer is anywhere over the card, not only over the
+      // tiny button itself.
+      className="group absolute transition-opacity duration-200"
       style={{ left: position.x, top: position.y, width: NODE_W, height: NODE_H, opacity: dimmed ? 0.35 : 1 }}
     >
       <div
@@ -481,6 +492,26 @@ export function NodeCard({
           )}
         >
           <Plus className="h-3.5 w-3.5" />
+        </button>
+      )}
+      {onAddReviseLoop && (
+        <button
+          type="button"
+          title="Add revision loop (send back for revision)"
+          aria-label="Add revision loop"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddReviseLoop();
+          }}
+          // Anchored to the right edge — where the back-edge's return arc
+          // attaches — and tinted amber to match the rendered back-edge.
+          className={cn(
+            'absolute -right-3 top-1/2 z-10 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-amber-600 shadow-sm transition-colors dark:text-amber-400',
+            'opacity-0 hover:border-amber-500 hover:text-amber-600 group-hover:opacity-100 focus-visible:opacity-100 dark:hover:text-amber-400',
+          )}
+        >
+          <IterationCcw className="h-3.5 w-3.5" />
         </button>
       )}
     </div>

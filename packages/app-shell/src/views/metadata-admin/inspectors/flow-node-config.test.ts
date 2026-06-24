@@ -36,3 +36,16 @@ describe('start node trigger-field gating (#5)', () => {
     expect(isFieldVisible(objectName, node, fields)).toBe(true);
   });
 });
+
+describe('approval node config (ADR-0044)', () => {
+  const fields = fieldsForNodeType('approval');
+
+  it('surfaces maxRevisions as a number field (offline / fallback parity with the server schema)', () => {
+    const maxRevisions = fields.find((f) => f.id === 'maxRevisions');
+    expect(maxRevisions).toBeDefined();
+    expect(maxRevisions!.kind).toBe('number');
+    expect(maxRevisions!.path).toEqual(['config', 'maxRevisions']);
+    // Always visible (no showWhen gating) so the guard is discoverable.
+    expect(isFieldVisible(maxRevisions!, { id: 'a', type: 'approval' }, fields)).toBe(true);
+  });
+});

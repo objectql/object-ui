@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { FlowSimulator } from '../flow-simulator';
-import { validateFlowDraft } from '../flow-sim-validate';
+import { validateFlowDraft, findCycle } from '../flow-sim-validate';
 import type { SimEdge, SimNode } from '../flow-sim-types';
 
 const run = (nodes: SimNode[], edges: SimEdge[], seed = {}, mocks = {}) => {
@@ -37,6 +37,66 @@ describe('validateFlowDraft', () => {
     );
     expect(v.startNodeId).toBe('s');
     expect(v.warnings.some((w) => /unreachable/.test(w.message))).toBe(true);
+  });
+
+  // ADR-0044 DAG-modulo-back-edges validation ───────────────────────────────
+  it('flags an UNMARKED cycle as an error', () => {
+    const v = validateFlowDraft(
+      [
+        { id: 's', type: 'start' },
+        { id: 'a', type: 'approval' },
+        { id: 'w', type: 'wait' },
+      ],
+      [
+        { source: 's', target: 'a' },
+        { id: 'rev', source: 'a', target: 'w', label: 'revise' },
+        // Closing edge left as a normal connection — an unmarked cycle.
+        { id: 'loop', source: 'w', target: 'a', label: 'resubmit' },
+      ],
+    );
+    expect(v.errors.some((e) => /Cycle detected/.test(e.message))).toBe(true);
+  });
+
+  it('accepts a declared revise loop (closing edge typed "back")', () => {
+    const v = validateFlowDraft(
+      [
+        { id: 's', type: 'start' },
+        { id: 'a', type: 'approval' },
+        { id: 'w', type: 'wait' },
+        { id: 'end', type: 'end' },
+      ],
+      [
+        { source: 's', target: 'a' },
+        { id: 'ok', source: 'a', target: 'end', label: 'approve' },
+        { id: 'rev', source: 'a', target: 'w', label: 'revise' },
+        // The declared back-edge closes the loop — excluded from cycle checks.
+        { id: 'back', source: 'w', target: 'a', label: 'resubmit', type: 'back' },
+      ],
+    );
+    expect(v.errors.some((e) => /Cycle detected/.test(e.message))).toBe(false);
+    expect(v.errors).toHaveLength(0);
+  });
+
+  it('flags a self-loop as a cycle', () => {
+    const v = validateFlowDraft(
+      [{ id: 's', type: 'start' }, { id: 'x', type: 'script' }],
+      [{ source: 's', target: 'x' }, { source: 'x', target: 'x' }],
+    );
+    expect(v.errors.some((e) => /Cycle detected/.test(e.message))).toBe(true);
+  });
+
+  it('findCycle returns the closing path, or null for a DAG', () => {
+    expect(findCycle(['a', 'b', 'c'], [
+      { source: 'a', target: 'b' },
+      { source: 'b', target: 'c' },
+    ])).toBeNull();
+    const cycle = findCycle(['a', 'b'], [
+      { source: 'a', target: 'b' },
+      { source: 'b', target: 'a' },
+    ]);
+    expect(cycle).not.toBeNull();
+    // First and last node match — the path closes the loop.
+    expect(cycle![0]).toBe(cycle![cycle!.length - 1]);
   });
 });
 
@@ -239,6 +299,9 @@ describe('FlowSimulator', () => {
   });
 
   it('guards against infinite loops with a step ceiling', () => {
+    // The closing edge is a DECLARED back-edge so static validation passes
+    // (ADR-0044) — leaving the runtime step ceiling as the backstop for a loop
+    // that never settles (mirrors the engine's MAX_NODE_REENTRIES guard).
     const sim = new FlowSimulator(
       [
         { id: 's', type: 'start' },
@@ -248,7 +311,7 @@ describe('FlowSimulator', () => {
       [
         { source: 's', target: 'a' },
         { source: 'a', target: 'b' },
-        { source: 'b', target: 'a' },
+        { source: 'b', target: 'a', type: 'back' },
       ],
     );
     sim.reset();

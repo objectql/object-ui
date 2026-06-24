@@ -36,6 +36,62 @@ export function evalCondition(
   }
 }
 
+/**
+ * Find a directed cycle in `edges` over `nodeIds`, returned as the node path
+ * that closes the loop (e.g. `['a','b','a']`), or `null` when the graph is a
+ * DAG. Iterative DFS with a recursion-stack colour map; the first cycle found
+ * wins (enough to report — the author fixes one at a time).
+ */
+export function findCycle(nodeIds: string[], edges: SimEdge[]): string[] | null {
+  const adj = new Map<string, string[]>();
+  for (const id of nodeIds) adj.set(id, []);
+  for (const e of edges) {
+    if (adj.has(e.source) && adj.has(e.target)) adj.get(e.source)!.push(e.target);
+  }
+  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const color = new Map<string, number>(nodeIds.map((id) => [id, WHITE]));
+  const stack: string[] = [];
+
+  const visit = (start: string): string[] | null => {
+    // Explicit stack of {node, next-child-index} frames so a deep graph can't
+    // blow the JS call stack.
+    const frames: Array<{ id: string; i: number }> = [{ id: start, i: 0 }];
+    color.set(start, GRAY);
+    stack.push(start);
+    while (frames.length) {
+      const frame = frames[frames.length - 1];
+      const children = adj.get(frame.id) ?? [];
+      if (frame.i < children.length) {
+        const next = children[frame.i++];
+        const c = color.get(next);
+        if (c === GRAY) {
+          // Back into the active path → cycle. Slice from `next` to close it.
+          const from = stack.indexOf(next);
+          return [...stack.slice(from), next];
+        }
+        if (c === WHITE) {
+          color.set(next, GRAY);
+          stack.push(next);
+          frames.push({ id: next, i: 0 });
+        }
+      } else {
+        color.set(frame.id, BLACK);
+        stack.pop();
+        frames.pop();
+      }
+    }
+    return null;
+  };
+
+  for (const id of nodeIds) {
+    if (color.get(id) === WHITE) {
+      const cycle = visit(id);
+      if (cycle) return cycle;
+    }
+  }
+  return null;
+}
+
 /** Static structural checks; `errors` block Run, `warnings` are advisory. */
 export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValidation {
   const errors: Diagnostic[] = [];
@@ -113,6 +169,21 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
         warnings.push({ level: 'warning', nodeId: n.id, message: `Node "${n.id}" is unreachable from the entry.` });
       }
     }
+  }
+
+  // DAG-modulo-back-edges (ADR-0044): the engine requires the flow graph MINUS
+  // declared back-edges to be acyclic. A declared revise loop (its closing edge
+  // marked `type: 'back'`) is excluded and passes; any *unmarked* cycle is an
+  // error — the author must opt in, edge by edge, exactly as `registerFlow`
+  // enforces server-side.
+  const forwardEdges = edges.filter((e) => e.type !== 'back');
+  const cycle = findCycle(ids.filter((id): id is string => !!id), forwardEdges);
+  if (cycle) {
+    errors.push({
+      level: 'error',
+      nodeId: cycle[0],
+      message: `Cycle detected (${cycle.join(' → ')}). Mark the connection that closes the loop as a back-edge (Connection type → Back-edge) to declare an intentional revise/rework loop.`,
+    });
   }
 
   return { errors, warnings, startNodeId };

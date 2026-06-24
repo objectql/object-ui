@@ -451,6 +451,15 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     },
     { id: 'escalation.escalateTo', path: ['config', 'escalation', 'escalateTo'], label: 'Escalate to', kind: 'reference', ref: { kind: 'role' }, placeholder: 'user id / role / manager level', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
     { id: 'escalation.notifySubmitter', path: ['config', 'escalation', 'notifySubmitter'], label: 'Notify submitter', kind: 'boolean', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
+    // ADR-0044 send-back-for-revision guard. Surfaces from the engine's
+    // published configSchema when online; this hardcoded copy keeps it visible
+    // offline / on an older backend. Only meaningful once the node has a
+    // `revise` out-edge (author one via the canvas "add revision loop").
+    cfg('maxRevisions', 'Max revisions', 'number', {
+      placeholder: '3',
+      defaultValue: '3',
+      help: 'Max send-backs for revision before the request auto-rejects (0 disables send-back). Needs a "revise" out-edge to take effect.',
+    }),
   ],
   wait: [
     at('waitEventConfig', 'eventType', 'Wait for', 'select', {

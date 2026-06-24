@@ -31,8 +31,12 @@ import {
   diagramSize,
   bottomAnchor,
   topAnchor,
+  rightAnchor,
   edgePath,
   edgeMidpoint,
+  backEdgePath,
+  backEdgeLabelAnchor,
+  isBackEdge,
   edgeKey,
   conditionText,
   type FlowNode,
@@ -223,6 +227,51 @@ export function FlowCanvas({
     },
     [edges, nodes, onPatch, onSelect, positionOf],
   );
+
+  /**
+   * ADR-0044 one-click "add revision loop": drop a signal `wait` node plus the
+   * two edges that form a send-back-for-revision loop on an approval node —
+   * a `revise` out-edge to the wait point, and a declared `back`-edge closing
+   * the loop (resubmit re-enters the approval node as round N+1). Reproduces the
+   * canonical `showcase_budget_approval` shape in a single gesture. The wait
+   * node is left unpinned so the layered auto-layout slots it among the
+   * approval node's other branches.
+   */
+  const addReviseLoop = React.useCallback(
+    (approvalId: string) => {
+      if (!onPatch) return;
+      if (!nodes.some((n) => n.id === approvalId)) return;
+      const waitId = uniqueId('node', nodes.map((n) => n.id).filter(Boolean) as string[]);
+      const waitNode: FlowNode = {
+        id: waitId,
+        type: 'wait',
+        label: 'Awaiting Revision',
+        // Signal-flavored wait: the submitter's resubmit signal resumes the run.
+        waitEventConfig: { eventType: 'signal', signalName: 'revision', onTimeout: 'fail' },
+      };
+      const existingEdgeIds = edges.map((e) => e.id).filter(Boolean) as string[];
+      const reviseId = uniqueId('edge', existingEdgeIds);
+      const backId = uniqueId('edge', [...existingEdgeIds, reviseId]);
+      const reviseEdge: FlowEdge = { id: reviseId, source: approvalId, target: waitId, label: 'revise' };
+      const backEdge: FlowEdge = { id: backId, source: waitId, target: approvalId, label: 'resubmit', type: 'back' };
+      onPatch({
+        nodes: appendArray(nodes, waitNode),
+        edges: appendArray(appendArray(edges, reviseEdge), backEdge),
+      });
+      onSelect(waitNode);
+    },
+    [edges, nodes, onPatch, onSelect],
+  );
+
+  // Approval nodes that already declare a `revise` out-edge — used to hide the
+  // "add revision loop" affordance once a loop exists (avoid duplicates).
+  const reviseLoopSources = React.useMemo(() => {
+    const s = new Set<string>();
+    for (const e of edges) {
+      if (typeof e.label === 'string' && e.label.trim().toLowerCase() === 'revise') s.add(e.source);
+    }
+    return s;
+  }, [edges]);
 
   const deleteNode = React.useCallback(
     (id: string) => {
@@ -459,20 +508,39 @@ export function FlowCanvas({
               >
                 <path d="M 0 0 L 10 5 L 0 10 z" className="fill-muted-foreground/55" />
               </marker>
+              {/* Distinct amber arrowhead for ADR-0044 back-edges (revise loop). */}
+              <marker
+                id="flow-arrow-back"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-amber-500/80" />
+              </marker>
             </defs>
             {edges.map((edge, i) => {
               const sp = layout.get(edge.source);
               const tp = layout.get(edge.target);
               if (!sp || !tp) return null;
-              const from = bottomAnchor(dragPos?.id === edge.source ? positionOf(edge.source) : sp);
-              const to = topAnchor(dragPos?.id === edge.target ? positionOf(edge.target) : tp);
-              const mid = edgeMidpoint(from, to);
+              // ADR-0044 back-edges (revise loop) re-enter an earlier node, so
+              // they attach to the right side of both endpoints and render as a
+              // dashed amber return arc — visually distinct from the forward
+              // top-to-bottom flow.
+              const back = isBackEdge(edge);
+              const sPos = dragPos?.id === edge.source ? positionOf(edge.source) : sp;
+              const tPos = dragPos?.id === edge.target ? positionOf(edge.target) : tp;
+              const from = back ? rightAnchor(sPos) : bottomAnchor(sPos);
+              const to = back ? rightAnchor(tPos) : topAnchor(tPos);
+              const labelPos = back ? backEdgeLabelAnchor(from, to) : edgeMidpoint(from, to);
               const cond = conditionText(edge.condition);
               const branchLabel = edge.isDefault ? 'else' : cond ? `if ${cond}` : edge.label;
               const eid = edgeKey(edge, i);
               const traversed = traversedSet.has(eid);
               const selected = selectedEdgeId === eid;
-              const d = edgePath(from, to);
+              const d = back ? backEdgePath(from, to) : edgePath(from, to);
               // Edges are selectable in design mode; the host opens the edge
               // inspector. A wide transparent hit-path widens the click target
               // beyond the 1.5px visible stroke without altering the visuals.
@@ -482,18 +550,21 @@ export function FlowCanvas({
                   <path
                     d={d}
                     strokeLinecap="round"
+                    strokeDasharray={back ? '5 4' : undefined}
                     className={cn(
                       'fill-none transition-[stroke] duration-150',
                       traversed
                         ? 'stroke-sky-500'
                         : selected
                           ? 'stroke-primary'
-                          : simRunning
-                            ? 'stroke-muted-foreground/20'
-                            : 'stroke-muted-foreground/40',
+                          : back
+                            ? 'stroke-amber-500/70'
+                            : simRunning
+                              ? 'stroke-muted-foreground/20'
+                              : 'stroke-muted-foreground/40',
                     )}
                     strokeWidth={traversed || selected ? 2.5 : 1.75}
-                    markerEnd="url(#flow-arrow)"
+                    markerEnd={back ? 'url(#flow-arrow-back)' : 'url(#flow-arrow)'}
                   />
                   {selectable && (
                     <path
@@ -506,13 +577,13 @@ export function FlowCanvas({
                         onSelectEdge!(edge, eid);
                       }}
                     >
-                      <title>{`${edge.source} → ${edge.target}`}</title>
+                      <title>{back ? `${edge.source} ↩ ${edge.target} (back-edge)` : `${edge.source} → ${edge.target}`}</title>
                     </path>
                   )}
                   {branchLabel && (
                     <foreignObject
-                      x={mid.x - 60}
-                      y={mid.y - 11}
+                      x={labelPos.x - 60}
+                      y={labelPos.y - 11}
                       width={120}
                       height={22}
                       className={cn(selectable && 'pointer-events-auto')}
@@ -524,7 +595,11 @@ export function FlowCanvas({
                           className={cn(
                             'max-w-full truncate rounded-full border bg-background/95 px-2 py-0.5 text-[10px] font-medium shadow-sm backdrop-blur-sm transition-colors',
                             selectable && 'cursor-pointer hover:border-primary/60',
-                            selected ? 'border-primary text-primary' : 'border-border text-muted-foreground',
+                            selected
+                              ? 'border-primary text-primary'
+                              : back
+                                ? 'border-amber-500/50 text-amber-600 dark:text-amber-400'
+                                : 'border-border text-muted-foreground',
                           )}
                         >
                           {branchLabel}
@@ -532,13 +607,13 @@ export function FlowCanvas({
                       </div>
                     </foreignObject>
                   )}
-                  {editable && (
+                  {editable && !back && (
                     <foreignObject
                       // Sit the insert handle at the edge midpoint, but slide it
                       // to the right of the branch-label pill when one is present
                       // so the two don't stack on the same spot.
-                      x={branchLabel ? mid.x + 66 : mid.x - 11}
-                      y={mid.y - 11}
+                      x={branchLabel ? labelPos.x + 66 : labelPos.x - 11}
+                      y={labelPos.y - 11}
                       width={22}
                       height={22}
                       className="pointer-events-auto"
@@ -581,6 +656,11 @@ export function FlowCanvas({
                 onPointerDown={onNodePointerDown(node.id)}
                 onSelect={() => designMode && onSelect(node)}
                 onAppend={() => addNode('create_record', { from: node.id })}
+                onAddReviseLoop={
+                  editable && node.type === 'approval' && !reviseLoopSources.has(node.id)
+                    ? () => addReviseLoop(node.id)
+                    : undefined
+                }
               />
             );
           })}
