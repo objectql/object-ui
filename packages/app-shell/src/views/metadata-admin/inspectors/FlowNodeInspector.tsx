@@ -34,6 +34,7 @@ import {
 import { jsonSchemaToFlowFields } from './json-schema-to-fields';
 import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
 import { FlowNodeConfigField } from './FlowNodeConfigField';
+import { ScreenPreview } from '../previews/ScreenPreview';
 
 interface FlowNode {
   id: string;
@@ -136,6 +137,15 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   }, [configSchemas, node?.type]);
   const config = asConfig(node);
   const visibleFields = fields.filter((f) => isFieldVisible(f, node, fields));
+
+  // `{var}` interpolation source for the screen preview — the flow's declared
+  // variables and their defaults (the designer has no live run state).
+  const screenVars = React.useMemo(() => {
+    const decls = Array.isArray((draft as any).variables) ? ((draft as any).variables as Array<Record<string, unknown>>) : [];
+    const out: Record<string, unknown> = {};
+    for (const v of decls) if (v && typeof v.name === 'string') out[v.name] = v.defaultValue;
+    return out;
+  }, [draft]);
   // Only fields stored under `config` "own" a config key; spec-structured
   // blocks (waitEventConfig, etc.) and top-level timeoutMs never suppress an
   // Advanced key.
@@ -179,6 +189,9 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   };
 
   const hasExtras = extraJson.trim() !== '';
+
+  // Screen nodes (and the `user_task` alias) get a live end-user preview.
+  const isScreen = node.type === 'screen' || node.type === 'user_task';
 
   const setField = (path: string[], value: unknown) => {
     const nextNode = setAtPath(node, path, value);
@@ -275,6 +288,8 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
           context={{ draft, node }}
         />
       ))}
+
+      {isScreen && <ScreenPreview node={node} variables={screenVars} className="mt-1" />}
 
       {hasExtras || advReveal ? (
         <details

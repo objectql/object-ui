@@ -9,6 +9,10 @@
  * On submit it POSTs `/api/v1/automation/{flow}/runs/{runId}/resume` with the
  * field values as `inputs`; a `paused` response renders the next screen
  * (multi-screen wizards), a terminal response closes and refreshes the view.
+ *
+ * The screen BODY (flat fields / object-form) is rendered by the shared
+ * {@link ScreenView} — the same renderer the Studio design preview reuses, so
+ * the two can never drift (cf. #1927).
  */
 import { useEffect, useState } from 'react';
 import {
@@ -19,46 +23,12 @@ import {
   DialogTitle,
   DialogDescription,
   Button,
-  Input,
-  Label,
-  Textarea,
-  Checkbox,
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
 } from '@object-ui/components';
-import { ObjectForm } from '@object-ui/plugin-form';
 import { toast } from 'sonner';
+import { ScreenView, isObjectFormScreen, initialScreenValues, type ScreenSpec } from './ScreenView';
 
-export interface ScreenFieldSpec {
-  name: string;
-  label?: string;
-  type?: string;
-  required?: boolean;
-  options?: Array<{ value: unknown; label: string }>;
-  defaultValue?: unknown;
-  placeholder?: string;
-}
-export interface ScreenSpec {
-  nodeId: string;
-  title?: string;
-  description?: string;
-  fields: ScreenFieldSpec[];
-  /**
-   * `'object-form'` renders the named object's FULL create/edit form — incl.
-   * inline master-detail child grids — as a wizard step (vs. the flat `fields`
-   * list). The form persists the record (and its children, atomically) itself,
-   * then resumes the run with the saved id bound to `idVariable`.
-   */
-  kind?: 'fields' | 'object-form';
-  objectName?: string;
-  mode?: 'create' | 'edit';
-  recordId?: string;
-  defaults?: Record<string, unknown>;
-  idVariable?: string;
-}
+export type { ScreenSpec, ScreenFieldSpec } from './ScreenView';
+
 export interface ScreenFlowState {
   flowName: string;
   runId: string;
@@ -89,12 +59,6 @@ export interface FlowRunnerProps {
   objects?: any[];
 }
 
-function initialValues(screen: ScreenSpec): Record<string, unknown> {
-  const v: Record<string, unknown> = {};
-  for (const f of screen.fields) if (f.defaultValue !== undefined) v[f.name] = f.defaultValue;
-  return v;
-}
-
 export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dataSource, objects }: FlowRunnerProps) {
   const [screen, setScreen] = useState<ScreenSpec | null>(null);
   const [runId, setRunId] = useState('');
@@ -107,7 +71,7 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
       setScreen(state.screen);
       setRunId(state.runId);
       setFlowName(state.flowName);
-      setValues(initialValues(state.screen));
+      setValues(initialScreenValues(state.screen));
     }
   }, [state]);
 
@@ -146,7 +110,7 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
     if (data.status === 'paused' && data.screen) {
       setScreen(data.screen);
       setRunId(data.runId || runId);
-      setValues(initialValues(data.screen));
+      setValues(initialScreenValues(data.screen));
       toast.success('Saved — next step');
     } else {
       // Terminal success — show the flow's declared completion message.
@@ -190,13 +154,7 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
     }
   };
 
-  const isObjectForm = screen.kind === 'object-form' && !!screen.objectName;
-  const objectDef = isObjectForm && Array.isArray(objects)
-    ? objects.find((o: any) => o?.name === screen.objectName)
-    : undefined;
-  const subforms = objectDef
-    ? ((objectDef as any).form?.subforms ?? (objectDef as any).formViews?.default?.subforms)
-    : undefined;
+  const isObjectForm = isObjectFormScreen(screen);
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o && !submitting) onClose(); }}>
@@ -206,93 +164,29 @@ export function FlowRunner({ state, authFetch, baseUrl, onClose, onComplete, dat
           {screen.description && <DialogDescription>{screen.description}</DialogDescription>}
         </DialogHeader>
 
-        {isObjectForm ? (
-          // Full object create/edit form (with inline master-detail grids). The
-          // form owns its own Save/Cancel bar; on save it persists and calls
-          // onObjectFormSaved, which resumes the run to the next step.
-          <div className="py-2">
-            {dataSource ? (
-              <ObjectForm
-                key={screen.nodeId}
-                schema={{
-                  type: 'object-form',
-                  formType: 'simple',
-                  objectName: screen.objectName!,
-                  mode: screen.mode === 'edit' ? 'edit' : 'create',
-                  recordId: screen.mode === 'edit' ? screen.recordId : undefined,
-                  ...(screen.defaults ? { initialValues: screen.defaults } : {}),
-                  layout: 'vertical',
-                  subforms,
-                  onSuccess: onObjectFormSaved,
-                  onCancel: onClose,
-                  showSubmit: true,
-                  showCancel: true,
-                  submitText: 'Save & Continue',
-                  cancelText: 'Cancel',
-                } as any}
-                dataSource={dataSource}
-              />
-            ) : (
-              <div className="text-sm text-destructive py-4">
-                This step renders an object form but no data source is available.
-              </div>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="space-y-4 py-2">
-              {screen.fields.map((f) => (
-                <div key={f.name} className="space-y-1.5">
-                  <Label htmlFor={`ff-${f.name}`} className="text-sm">
-                    {f.label || f.name}
-                    {f.required && <span className="text-destructive"> *</span>}
-                  </Label>
-                  <FieldInput field={f} value={values[f.name]} onChange={(v) => setVal(f.name, v)} />
-                </div>
-              ))}
-            </div>
+        <ScreenView
+          screen={screen}
+          values={values}
+          onValueChange={setVal}
+          dataSource={dataSource}
+          objects={objects}
+          objectForm={{
+            onSuccess: onObjectFormSaved,
+            onCancel: onClose,
+            showSubmit: true,
+            showCancel: true,
+            submitText: 'Save & Continue',
+            cancelText: 'Cancel',
+          }}
+        />
 
-            <DialogFooter>
-              <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
-              <Button onClick={submit} disabled={submitting}>{submitting ? 'Submitting…' : 'Submit'}</Button>
-            </DialogFooter>
-          </>
+        {!isObjectForm && (
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose} disabled={submitting}>Cancel</Button>
+            <Button onClick={submit} disabled={submitting}>{submitting ? 'Submitting…' : 'Submit'}</Button>
+          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function FieldInput({ field, value, onChange }: { field: ScreenFieldSpec; value: unknown; onChange: (v: unknown) => void }) {
-  const id = `ff-${field.name}`;
-  const t = (field.type || 'text').toLowerCase();
-
-  if (Array.isArray(field.options) && field.options.length > 0) {
-    return (
-      <Select value={value != null ? String(value) : undefined} onValueChange={(v) => onChange(v)}>
-        <SelectTrigger id={id}><SelectValue placeholder={field.placeholder || 'Select…'} /></SelectTrigger>
-        <SelectContent>
-          {field.options.map((o, i) => (
-            <SelectItem key={i} value={String(o.value)}>{o.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
-  }
-  if (t === 'boolean' || t === 'checkbox') {
-    return <Checkbox id={id} checked={value === true} onCheckedChange={(c) => onChange(c === true)} />;
-  }
-  if (t === 'textarea' || t === 'markdown') {
-    return <Textarea id={id} value={(value as string) ?? ''} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} />;
-  }
-  const htmlType = t === 'number' || t === 'currency' ? 'number' : t === 'email' ? 'email' : t === 'date' ? 'date' : 'text';
-  return (
-    <Input
-      id={id}
-      type={htmlType}
-      value={(value as string) ?? ''}
-      placeholder={field.placeholder}
-      onChange={(e) => onChange(htmlType === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)}
-    />
   );
 }

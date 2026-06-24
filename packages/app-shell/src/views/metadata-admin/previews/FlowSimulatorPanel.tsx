@@ -11,6 +11,7 @@ import * as React from 'react';
 import { Play, StepForward, RotateCcw, ChevronRight, AlertTriangle, CircleAlert, Plus, Trash2 } from 'lucide-react';
 import { Button, Input, Label, cn } from '@object-ui/components';
 import { FlowSimulator } from './simulator/flow-simulator';
+import { ScreenPreview } from './ScreenPreview';
 import type { FlowValidation, SimEdge, SimNode, SimState, SimStep } from './simulator/flow-sim-types';
 
 export interface FlowVariableDecl {
@@ -190,6 +191,14 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
   const status = snapshot?.status ?? 'idle';
   const blocked = (validation?.errors.length ?? 0) > 0;
 
+  // When the run pauses at a `screen` node, preview the form the end user would
+  // see (the shared runtime renderer) instead of just showing "paused".
+  const screenPause = React.useMemo(() => {
+    if (snapshot?.status !== 'paused' || snapshot.pausedReason !== 'screen' || !snapshot.activeNodeId) return null;
+    const node = nodes.find((n) => n.id === snapshot.activeNodeId);
+    return node ? { node, variables: snapshot.variables } : null;
+  }, [snapshot, nodes]);
+
   return (
     <div className="flex h-full flex-col text-xs">
       <div className="flex items-center gap-1.5 border-b bg-muted/30 px-3 py-2">
@@ -229,6 +238,14 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
               </div>
             ))}
           </div>
+        )}
+
+        {/* Paused at a screen — render the end-user form the runtime would show. */}
+        {screenPause && (
+          <section className="space-y-1.5">
+            <div className="font-medium text-muted-foreground">Screen</div>
+            <ScreenPreview node={screenPause.node} variables={screenPause.variables} />
+          </section>
         )}
 
         {/* Seed inputs */}
