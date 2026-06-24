@@ -1799,6 +1799,7 @@ const en = {
     },
     draftBar: {
       message: 'Draft preview — you are seeing unpublished changes. Nothing here is live until you publish.',
+      messageClean: 'Draft preview — no unpublished changes; everything here is already live.',
       publish: 'Publish',
       publishing: 'Publishing…',
       exit: 'Exit preview',

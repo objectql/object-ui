@@ -1804,6 +1804,7 @@ const zh = {
     },
     draftBar: {
       message: '草稿预览 —— 您看到的是未发布的更改，发布前不会生效。',
+      messageClean: '草稿预览 —— 没有未发布的更改，此处内容均已生效。',
       publish: '发布',
       publishing: '发布中…',
       exit: '退出预览',

@@ -17,7 +17,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Eye, X, Rocket, GitCompareArrows } from 'lucide-react';
-import { Button } from '@object-ui/components';
+import { Button, cn } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { usePreviewDrafts, markPreviewExit, PREVIEW_QUERY_FLAG } from './PreviewModeContext';
 import { usePublishAllDrafts } from './usePublishAllDrafts';
@@ -77,34 +77,55 @@ export function DraftPreviewBar() {
     setTimeout(() => { try { window.location.reload(); } catch { /* ignore */ } }, 300);
   };
 
+  // Under the auto-publish posture (and any time a draft preview is opened with
+  // nothing staged) there are zero pending drafts. Claiming "nothing is live
+  // until you publish" and offering a Publish button then is both false and a
+  // no-op, so the bar drops the publish affordance and softens to a neutral
+  // preview indicator. An UNKNOWN count (null — still loading or the fetch
+  // failed) keeps the publish path: we only relax when we KNOW the count is zero.
+  const noChanges = pendingCount === 0;
+
   return (
     <div
-      className="sticky top-0 z-40 flex items-center gap-3 border-b border-amber-300/70 bg-amber-50 px-4 py-2 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200"
+      className={cn(
+        'sticky top-0 z-40 flex items-center gap-3 border-b px-4 py-2 text-sm',
+        noChanges
+          ? 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-300'
+          : 'border-amber-300/70 bg-amber-50 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200',
+      )}
       data-testid="draft-preview-bar"
     >
       <Eye className="h-4 w-4 shrink-0" />
       <p className="min-w-0 flex-1 truncate">
-        {t('preview.draftBar.message', {
-          defaultValue: 'Draft preview — you are seeing unpublished changes. Nothing here is live until you publish.',
-        })}
+        {noChanges
+          ? t('preview.draftBar.messageClean', {
+              defaultValue: 'Draft preview — no unpublished changes; everything here is already live.',
+            })
+          : t('preview.draftBar.message', {
+              defaultValue: 'Draft preview — you are seeing unpublished changes. Nothing here is live until you publish.',
+            })}
       </p>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => setChangesOpen(true)}
-        data-testid="draft-preview-changes"
-      >
-        <GitCompareArrows className="mr-1 h-3.5 w-3.5" />
-        {t('preview.draftBar.changes', { defaultValue: 'Changes' })}
-        {typeof pendingCount === 'number' ? ` (${pendingCount})` : ''}
-      </Button>
-      <Button size="sm" onClick={publish} disabled={publishing} data-testid="draft-preview-publish">
-        <Rocket className="mr-1 h-3.5 w-3.5" />
-        {publishing
-          ? t('preview.draftBar.publishing', { defaultValue: 'Publishing…' })
-          : t('preview.draftBar.publish', { defaultValue: 'Publish' })}
-      </Button>
-      <DraftChangesPanel open={changesOpen} onOpenChange={setChangesOpen} />
+      {!noChanges && (
+        <>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setChangesOpen(true)}
+            data-testid="draft-preview-changes"
+          >
+            <GitCompareArrows className="mr-1 h-3.5 w-3.5" />
+            {t('preview.draftBar.changes', { defaultValue: 'Changes' })}
+            {typeof pendingCount === 'number' ? ` (${pendingCount})` : ''}
+          </Button>
+          <Button size="sm" onClick={publish} disabled={publishing} data-testid="draft-preview-publish">
+            <Rocket className="mr-1 h-3.5 w-3.5" />
+            {publishing
+              ? t('preview.draftBar.publishing', { defaultValue: 'Publishing…' })
+              : t('preview.draftBar.publish', { defaultValue: 'Publish' })}
+          </Button>
+          <DraftChangesPanel open={changesOpen} onOpenChange={setChangesOpen} />
+        </>
+      )}
       <Button size="sm" variant="outline" onClick={exit} data-testid="draft-preview-exit">
         <X className="mr-1 h-3.5 w-3.5" />
         {t('preview.draftBar.exit', { defaultValue: 'Exit preview' })}
