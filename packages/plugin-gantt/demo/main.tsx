@@ -16,6 +16,7 @@ import { GanttView, type GanttTask, type GanttMarker, type GanttViewMode } from 
 import { ResourceWorkload } from '../src/ResourceWorkload';
 import { ObjectGantt } from '../src/ObjectGantt';
 import type { WorkingCalendar } from '../src/scheduling';
+import { normalizeShiftSegments } from '../src/shifts';
 
 /**
  * Simplified Chinese pack for the Gantt chrome. Nested to match i18next's
@@ -62,6 +63,8 @@ const GANTT_ZH = {
 };
 
 const d = (s: string) => new Date(`${s}T00:00:00`);
+/** Datetime parse (local time, no trailing Z) — for shift-precise 排班 fixtures. */
+const dt = (s: string) => new Date(s);
 
 /** Build a URL preserving current params but overriding one key. */
 function withParam(key: string, value: string): string {
@@ -178,55 +181,58 @@ function manufacturingFixture(): GanttTask[] {
     { label: '实际起止', value: f.actual },
     { label: '状态', value: f.status },
   ];
+  // 排班分段 (白班 08:00–20:00 / 夜班 20:00–次日08:00): 三级排产计划按整排班日
+  // (08:00→08:00) 排, 四级派工单落到具体白班 / 夜班 — 含一条跨午夜的夜班 (wo-002)。
   return [
     // ── 一级: 项目 (无条) ───────────────────────────────────────────────
-    { id: 'prj-A', title: '项目A（导管架制造）', start: d('2026-06-01'), end: d('2026-06-30'), progress: 0, parent: null, type: 'group' },
+    { id: 'prj-A', title: '项目A（导管架制造）', start: dt('2026-06-03T08:00'), end: dt('2026-06-08T08:00'), progress: 0, parent: null, type: 'group' },
 
     // ── 二级: 产品A-1 (无条) ────────────────────────────────────────────
-    { id: 'prod-A1', title: '产品A-1（XX项目导管架）', start: d('2026-06-01'), end: d('2026-06-30'), progress: 0, parent: 'prj-A', type: 'group' },
+    { id: 'prod-A1', title: '产品A-1（XX项目导管架）', start: dt('2026-06-03T08:00'), end: dt('2026-06-05T20:00'), progress: 0, parent: 'prj-A', type: 'group' },
 
-    // 三级 plan-1 — 03 已完成 (深绿, 100%)
-    { id: 'plan-1', title: '将军柱组焊（排产计划）', start: d('2026-06-03'), end: d('2026-06-10'), progress: 100, parent: 'prod-A1', color: PLAN_COLOR.done,
-      fields: plan3({ code: 'PP-2026-001', obj: '将军柱·KK节点', span: '06-03 ~ 06-10', quota: '120h', mgr: '李工', doers: '张三、李四', status: '已完成', progress: '100%' }) },
-    { id: 'wo-001', title: 'WO001 张三（派工单）', start: d('2026-06-03'), end: d('2026-06-06'), progress: 100, parent: 'plan-1', color: WORK_COLOR.done, locked: true,
-      baselineStart: d('2026-06-03'), baselineEnd: d('2026-06-07'),
-      fields: wo4({ code: 'WO-2026-001', doer: '张三', obj: '将军柱·KK节点', plan: '06-03 ~ 06-07', actual: '06-03 ~ 06-06', status: '已完成' }) },
-    { id: 'wo-002', title: 'WO002 李四（派工单）', start: d('2026-06-06'), end: d('2026-06-10'), progress: 60, parent: 'plan-1', color: WORK_COLOR.reported, locked: true,
-      baselineStart: d('2026-06-06'), baselineEnd: d('2026-06-09'),
-      fields: wo4({ code: 'WO-2026-002', doer: '李四', obj: '将军柱·KK节点', plan: '06-06 ~ 06-09', actual: '06-06 ~ 06-10', status: '已报工' }) },
+    // 三级 plan-1 — 03 已完成 (深绿, 100%) · 整排班日 06-03 (白+夜)
+    { id: 'plan-1', title: '将军柱组焊（排产计划）', start: dt('2026-06-03T08:00'), end: dt('2026-06-04T08:00'), progress: 100, parent: 'prod-A1', color: PLAN_COLOR.done,
+      fields: plan3({ code: 'PP-2026-001', obj: '将军柱·KK节点', span: '06-03 08:00 ~ 06-04 08:00', quota: '24h', mgr: '李工', doers: '张三、李四', status: '已完成', progress: '100%' }) },
+    { id: 'wo-001', title: 'WO001 张三（白班派工单）', start: dt('2026-06-03T08:00'), end: dt('2026-06-03T20:00'), progress: 100, parent: 'plan-1', color: WORK_COLOR.done, locked: true,
+      baselineStart: dt('2026-06-03T08:00'), baselineEnd: dt('2026-06-03T20:00'),
+      fields: wo4({ code: 'WO-2026-001', doer: '张三', obj: '将军柱·KK节点', plan: '06-03 白班 (08:00~20:00)', actual: '06-03 白班', status: '已完成' }) },
+    { id: 'wo-002', title: 'WO002 李四（夜班·跨午夜派工单）', start: dt('2026-06-03T20:00'), end: dt('2026-06-04T08:00'), progress: 60, parent: 'plan-1', color: WORK_COLOR.reported, locked: true,
+      baselineStart: dt('2026-06-03T20:00'), baselineEnd: dt('2026-06-04T08:00'),
+      fields: wo4({ code: 'WO-2026-002', doer: '李四', obj: '将军柱·KK节点', plan: '06-03 夜班 (20:00~次日08:00)', actual: '06-03 夜班', status: '已报工' }) },
 
-    // 三级 plan-2 — 02 进行中 (绿, 45%) · 依赖 plan-1 (FS)
-    { id: 'plan-2', title: '主腿管接长（排产计划）', start: d('2026-06-10'), end: d('2026-06-16'), progress: 45, parent: 'prod-A1', color: PLAN_COLOR.doing,
+    // 三级 plan-2 — 02 进行中 (绿, 45%) · 整排班日 06-04 · 依赖 plan-1 (FS)
+    { id: 'plan-2', title: '主腿管接长（排产计划）', start: dt('2026-06-04T08:00'), end: dt('2026-06-05T08:00'), progress: 45, parent: 'prod-A1', color: PLAN_COLOR.doing,
       dependencies: [{ id: 'plan-1', type: 'fs' }],
-      fields: plan3({ code: 'PP-2026-002', obj: '主腿管·D1800', span: '06-10 ~ 06-16', quota: '96h', mgr: '李工', doers: '王五、赵六', status: '进行中', progress: '45%' }) },
-    { id: 'wo-003', title: 'WO003 王五（派工单）', start: d('2026-06-10'), end: d('2026-06-13'), progress: 70, parent: 'plan-2', color: WORK_COLOR.doing, locked: true,
-      baselineStart: d('2026-06-10'), baselineEnd: d('2026-06-12'),
-      fields: wo4({ code: 'WO-2026-003', doer: '王五', obj: '主腿管·D1800', plan: '06-10 ~ 06-12', actual: '06-10 ~ —（超期中）', status: '进行中' }) },
-    { id: 'wo-004', title: 'WO004 赵六（派工单）', start: d('2026-06-13'), end: d('2026-06-16'), progress: 0, parent: 'plan-2', color: WORK_COLOR.todo, locked: true,
-      fields: wo4({ code: 'WO-2026-004', doer: '赵六', obj: '主腿管·D1800', plan: '06-13 ~ 06-16', actual: '— ~ —', status: '待开始' }) },
+      fields: plan3({ code: 'PP-2026-002', obj: '主腿管·D1800', span: '06-04 08:00 ~ 06-05 08:00', quota: '24h', mgr: '李工', doers: '王五、赵六', status: '进行中', progress: '45%' }) },
+    // 唯一未锁定的派工单 — 可拖动 / 拉伸, 松手吸附到 12h 班次边界 (白班↔夜班)。
+    { id: 'wo-003', title: 'WO003 王五（白班派工单·可拖）', start: dt('2026-06-04T08:00'), end: dt('2026-06-04T20:00'), progress: 70, parent: 'plan-2', color: WORK_COLOR.doing,
+      baselineStart: dt('2026-06-04T08:00'), baselineEnd: dt('2026-06-04T20:00'),
+      fields: wo4({ code: 'WO-2026-003', doer: '王五', obj: '主腿管·D1800', plan: '06-04 白班 (08:00~20:00)', actual: '06-04 白班 (进行中)', status: '进行中' }) },
+    { id: 'wo-004', title: 'WO004 赵六（夜班·跨午夜派工单）', start: dt('2026-06-04T20:00'), end: dt('2026-06-05T08:00'), progress: 0, parent: 'plan-2', color: WORK_COLOR.todo, locked: true,
+      fields: wo4({ code: 'WO-2026-004', doer: '赵六', obj: '主腿管·D1800', plan: '06-04 夜班 (20:00~次日08:00)', actual: '— ~ —', status: '待开始' }) },
 
     // 三级 里程碑 — 仍是一条普通排产计划 (有计划起止/时间条), 只是 `是否里程碑=是`,
-    // 显示时在条上文字最前面加 ◆ 前缀标记 (不画菱形)。依赖 plan-2 (FS)。
-    { id: 'ms-A1', title: '◆ 段建完成（排产计划·里程碑）', start: d('2026-06-16'), end: d('2026-06-17'), progress: 0, parent: 'prod-A1', color: PLAN_COLOR.todo,
+    // 显示时在条上文字最前面加 ◆ 前缀标记 (不画菱形)。06-05 白班 · 依赖 plan-2 (FS)。
+    { id: 'ms-A1', title: '◆ 段建完成（排产计划·里程碑）', start: dt('2026-06-05T08:00'), end: dt('2026-06-05T20:00'), progress: 0, parent: 'prod-A1', color: PLAN_COLOR.todo,
       dependencies: [{ id: 'plan-2', type: 'fs' }],
-      fields: plan3({ code: 'PP-2026-005', obj: '段建·阶段验收', span: '06-16 ~ 06-17', quota: '8h', mgr: '李工', doers: '李工', status: '待开始', progress: '0%' }).concat({ label: '是否里程碑', value: '是' }) },
+      fields: plan3({ code: 'PP-2026-005', obj: '段建·阶段验收', span: '06-05 白班 (08:00~20:00)', quota: '8h', mgr: '李工', doers: '李工', status: '待开始', progress: '0%' }).concat({ label: '是否里程碑', value: '是' }) },
 
     // ── 二级: 产品A-2 (无条) ────────────────────────────────────────────
-    { id: 'prod-A2', title: '产品A-2（YY项目导管架）', start: d('2026-06-12'), end: d('2026-06-30'), progress: 0, parent: 'prj-A', type: 'group' },
+    { id: 'prod-A2', title: '产品A-2（YY项目导管架）', start: dt('2026-06-05T08:00'), end: dt('2026-06-08T08:00'), progress: 0, parent: 'prj-A', type: 'group' },
 
-    // 三级 plan-3 — 01 已下推 (蓝, 0%) · 依赖 plan-2 (FS)
-    { id: 'plan-3', title: '分段预制（排产计划）', start: d('2026-06-17'), end: d('2026-06-23'), progress: 0, parent: 'prod-A2', color: PLAN_COLOR.pushed,
+    // 三级 plan-3 — 01 已下推 (蓝, 0%) · 整排班日 06-05 · 依赖 plan-2 (FS)
+    { id: 'plan-3', title: '分段预制（排产计划）', start: dt('2026-06-05T08:00'), end: dt('2026-06-06T08:00'), progress: 0, parent: 'prod-A2', color: PLAN_COLOR.pushed,
       dependencies: [{ id: 'plan-2', type: 'fs' }],
-      fields: plan3({ code: 'PP-2026-003', obj: '分段·S2', span: '06-17 ~ 06-23', quota: '80h', mgr: '陈工', doers: '钱七', status: '已下推', progress: '0%' }) },
-    { id: 'wo-005', title: 'WO005 钱七（派工单）', start: d('2026-06-17'), end: d('2026-06-23'), progress: 0, parent: 'plan-3', color: WORK_COLOR.todo, locked: true,
-      fields: wo4({ code: 'WO-2026-005', doer: '钱七', obj: '分段·S2', plan: '06-17 ~ 06-23', actual: '— ~ —', status: '待开始' }) },
+      fields: plan3({ code: 'PP-2026-003', obj: '分段·S2', span: '06-05 08:00 ~ 06-06 08:00', quota: '24h', mgr: '陈工', doers: '钱七', status: '已下推', progress: '0%' }) },
+    { id: 'wo-005', title: 'WO005 钱七（整排班日派工单）', start: dt('2026-06-05T08:00'), end: dt('2026-06-06T08:00'), progress: 0, parent: 'plan-3', color: WORK_COLOR.todo, locked: true,
+      fields: wo4({ code: 'WO-2026-005', doer: '钱七', obj: '分段·S2', plan: '06-05 08:00 ~ 06-06 08:00 (白+夜)', actual: '— ~ —', status: '待开始' }) },
 
-    // 三级 plan-4 — 00 待开始 (深灰) · 依赖 plan-3 (FS)
-    { id: 'plan-4', title: '总装合拢（排产计划）', start: d('2026-06-24'), end: d('2026-06-30'), progress: 0, parent: 'prod-A2', color: PLAN_COLOR.todo,
+    // 三级 plan-4 — 00 待开始 (深灰) · 跨两个排班日 06-06→06-08 · 依赖 plan-3 (FS)
+    { id: 'plan-4', title: '总装合拢（排产计划）', start: dt('2026-06-06T08:00'), end: dt('2026-06-08T08:00'), progress: 0, parent: 'prod-A2', color: PLAN_COLOR.todo,
       dependencies: [{ id: 'plan-3', type: 'fs' }],
-      fields: plan3({ code: 'PP-2026-004', obj: '导管架·总装', span: '06-24 ~ 06-30', quota: '140h', mgr: '陈工', doers: '孙八', status: '待开始', progress: '0%' }) },
-    { id: 'wo-006', title: 'WO006 孙八（派工单）', start: d('2026-06-24'), end: d('2026-06-30'), progress: 0, parent: 'plan-4', color: WORK_COLOR.todo, locked: true,
-      fields: wo4({ code: 'WO-2026-006', doer: '孙八', obj: '导管架·总装', plan: '06-24 ~ 06-30', actual: '— ~ —', status: '待开始' }) },
+      fields: plan3({ code: 'PP-2026-004', obj: '导管架·总装', span: '06-06 08:00 ~ 06-08 08:00', quota: '48h', mgr: '陈工', doers: '孙八', status: '待开始', progress: '0%' }) },
+    { id: 'wo-006', title: 'WO006 孙八（连两个排班日派工单）', start: dt('2026-06-06T08:00'), end: dt('2026-06-08T08:00'), progress: 0, parent: 'plan-4', color: WORK_COLOR.todo, locked: true,
+      fields: wo4({ code: 'WO-2026-006', doer: '孙八', obj: '导管架·总装', plan: '06-06 08:00 ~ 06-08 08:00', actual: '— ~ —', status: '待开始' }) },
   ];
 }
 
@@ -426,6 +432,24 @@ function ManufacturingLegend() {
   );
 }
 
+/**
+ * 班次/排班分段 config — wired into the 制造排班 (4层树) demo (?mfg=1). Splits
+ * each 排班日 into 白班 (08:00–20:00) and 夜班 (20:00–次日08:00), 12h each. The
+ * "day" column starts at dayStart (08:00) and runs a full 24h so a cross-midnight
+ * 夜班 sits wholly inside one column. Two-tier header: top = 排班日 date, bottom =
+ * 白班 | 夜班. Drag a bar and it snaps to the 12h band boundary instead of whole
+ * days. Off by default — a pure config feature gated like working-calendar folding
+ * (zero regression when unset). No `color` on the bands → 白班/夜班 render with no
+ * background tint.
+ */
+const SHIFTS = normalizeShiftSegments({
+  dayStart: '08:00',
+  bands: [
+    { key: 'day', label: '白班', start: '08:00', end: '20:00' },
+    { key: 'night', label: '夜班', start: '20:00', end: '08:00' },
+  ],
+});
+
 function App() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('quickfilter') === '1') return <QuickFilterDemo />;
@@ -538,6 +562,8 @@ function App() {
           ungroupedLabel="未分组"
           // 制造排班示例: 三级排产计划 (depth 2) 默认折叠。
           defaultCollapsedDepth={mfg ? 2 : undefined}
+          // 制造排班示例: 启用班次分段 (白班/夜班), 排班日 08:00 起算。
+          shiftSegments={mfg ? SHIFTS : undefined}
           persistLayoutKey={mfg ? undefined : "demo-project"}
           onLayoutChange={(l) => console.log('[gantt-demo] layout saved', l)}
           inlineEdit

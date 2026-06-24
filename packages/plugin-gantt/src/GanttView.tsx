@@ -37,6 +37,7 @@ import {
   useResizeObserver,
 } from "@object-ui/components"
 import { computeCriticalPath, computeProjectReschedule, type WorkingCalendar, type RescheduleChange } from "./scheduling"
+import { shiftDayStart, type NormShiftSegments } from "./shifts"
 import { useGanttTranslation } from "./useGanttTranslation"
 
 const HEADER_HEIGHT = 50;
@@ -267,6 +268,15 @@ export interface GanttViewProps {
    * (ISO `yyyy-mm-dd` UTC keys) are skipped rather than consumed.
    */
   workingCalendar?: WorkingCalendar
+  /**
+   * Shift segmentation (班次/排班分段). When set AND the active granularity is
+   * `day`, each day column is replaced by one column per band (白班 | 夜班…), and
+   * the upper header tier shows the 排班日 (shift-day starting at `dayStart`, e.g.
+   * 08:00). Drag/resize then snaps to band boundaries instead of whole days.
+   * Off by default → existing gantts are unaffected (parity with `folding`).
+   * Mutually exclusive with weekend/holiday folding (segmenting wins).
+   */
+  shiftSegments?: NormShiftSegments | null
   /** Render planned-vs-actual baseline bars when tasks carry baseline dates. */
   showBaselines?: boolean
   /**
@@ -469,6 +479,7 @@ export function GanttView({
   rescheduleOnConflict: rescheduleOnConflictProp = false,
   criticalPathDefault = false,
   workingCalendar,
+  shiftSegments,
   showBaselines = true,
   readOnly = false,
   mobileReadOnly = false,
@@ -722,7 +733,13 @@ export function GanttView({
   const suppressNextClickRef = React.useRef(false);
 
   const computeDragChanges = React.useCallback((s: NonNullable<typeof dragState>) => {
-    const minDurationMs = MS_PER_DAY; // never collapse below 1 day
+    // In shift mode a bar can be as short as the smallest band (e.g. a 12h 白班);
+    // otherwise never collapse below one whole day.
+    const segActive = viewMode === 'day' && !!shiftSegments && shiftSegments.bands.length > 0;
+    const minDurationMs =
+      segActive && shiftSegments
+        ? Math.min(...shiftSegments.bands.map((b) => b.durMs))
+        : MS_PER_DAY;
     // Folded axes advance by working columns (Fri +1 → Mon); otherwise snap to
     // whole calendar units. foldShiftRef is set during render (below).
     const shift = (date: Date, n: number) =>
@@ -746,7 +763,7 @@ export function GanttView({
       }
     }
     return { start, end };
-  }, [viewMode]);
+  }, [viewMode, shiftSegments]);
 
   // --- Undo / redo (Phase 6) --------------------------------------------
   // GanttView is presentational — the parent owns task state — so we can't
@@ -880,10 +897,17 @@ export function GanttView({
   // commit via onTaskUpdate on pointerup, suppress the trailing click.
   React.useEffect(() => {
     if (!dragState) return;
+    // In shift mode each drag step is one band wide (smallest band, so every
+    // band boundary is reachable), not a whole day — so Δx / bandWidth = bands
+    // moved, matching shiftByWorkingColumns walking band columns.
+    const segActive = viewMode === 'day' && !!shiftSegments && shiftSegments.bands.length > 0;
+    const dragColWidth = segActive && shiftSegments
+      ? (pxPerDay * Math.min(...shiftSegments.bands.map((b) => b.durMs))) / MS_PER_DAY
+      : columnWidth;
     const onMove = (e: PointerEvent) => {
       const cur = dragStateRef.current;
       if (!cur) return;
-      const next = Math.round((e.clientX - cur.originClientX) / Math.max(columnWidth, 1));
+      const next = Math.round((e.clientX - cur.originClientX) / Math.max(dragColWidth, 1));
       if (next !== cur.unitDelta) {
         setDragState({ ...cur, unitDelta: next });
       }
@@ -929,7 +953,7 @@ export function GanttView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [dragState, columnWidth, tasks, onTaskUpdate, computeDragChanges, collectDescendants, commitTaskUpdates, maybeFlagConflict]);
+  }, [dragState, columnWidth, pxPerDay, viewMode, shiftSegments, tasks, onTaskUpdate, computeDragChanges, collectDescendants, commitTaskUpdates, maybeFlagConflict]);
 
   const beginDrag = React.useCallback((
     task: GanttTask,
@@ -1370,8 +1394,14 @@ export function GanttView({
     }
     
     // Snap the start to a column boundary of the active granularity so
-    // bars (linear ms→px from range start) line up with the grid.
-    start = startOfUnit(start, viewMode);
+    // bars (linear ms→px from range start) line up with the grid. In shift mode
+    // the boundary is the 排班日 start (e.g. 08:00), not calendar midnight, so a
+    // cross-midnight 夜班 sits wholly inside one shift-day's band columns.
+    if (viewMode === 'day' && shiftSegments && shiftSegments.bands.length > 0) {
+      start = shiftDayStart(start, shiftSegments.dayStartMin);
+    } else {
+      start = startOfUnit(start, viewMode);
+    }
     end.setHours(23,59,59,999);
 
     // NOTE: we deliberately do NOT pad the calendar to fill the viewport.
@@ -1381,7 +1411,7 @@ export function GanttView({
     // and `fitColumnWidth` stretches the column width so a short project still
     // fills the area — the industry "zoom to fit" approach.
     return { start, end };
-  }, [startDate, endDate, tasks, viewMode]);
+  }, [startDate, endDate, tasks, viewMode, shiftSegments]);
 
   // Non-linear working-time axis (非线性工作时间轴). In day mode, when a working
   // calendar marks weekends/holidays as non-working, those columns are DROPPED
@@ -1389,7 +1419,15 @@ export function GanttView({
   // timeline shows only working time. This makes the date→px mapping non-linear
   // (a weekend spans zero pixels), which is why all positioning is routed
   // through `dateToX`/`xToDate` below rather than a flat ms→px factor.
+  // Shift segmentation (班次分段). In day mode, when a normalized shift config is
+  // supplied, each day column is subdivided into its bands (白班 | 夜班…). Like
+  // `folding` this makes the axis non-linear in px (bands have different widths),
+  // so all positioning routes through `dateToX`/`xToDate`. Off → zero regression.
+  const segmenting =
+    viewMode === 'day' && !!shiftSegments && shiftSegments.bands.length > 0;
+
   const folding =
+    !segmenting &&
     viewMode === 'day' &&
     !!workingCalendar &&
     (!!workingCalendar.skipWeekends || !!(workingCalendar.holidays && workingCalendar.holidays.size));
@@ -1414,7 +1452,40 @@ export function GanttView({
   // Widths follow the calendar at pxPerDay, so a 31-day month column is
   // slightly wider than a 30-day one and stays aligned with the bars.
   const timeColumns = React.useMemo(() => {
-    const cols: { date: Date; label: string; sublabel?: string; isWeekend: boolean; width: number }[] = [];
+    const cols: {
+      date: Date;
+      label: string;
+      sublabel?: string;
+      isWeekend: boolean;
+      width: number;
+      /** Real calendar ms this column spans (band duration in shift mode). */
+      realMs?: number;
+      /** Band accent color for the column tint (shift mode only). */
+      bandColor?: string;
+    }[] = [];
+
+    // Shift mode: emit one column per band, walking shift-day by shift-day.
+    // Bands sum to 24h, so advancing the cursor by each band's duration lands
+    // exactly on the next 排班日 start — columns stay time-contiguous.
+    if (segmenting && shiftSegments) {
+      let cursor = new Date(timelineRange.start);
+      while (cursor <= timelineRange.end) {
+        for (const band of shiftSegments.bands) {
+          const width = (band.durMs / MS_PER_DAY) * pxPerDay;
+          cols.push({
+            date: new Date(cursor),
+            label: band.label,
+            isWeekend: false,
+            width,
+            realMs: band.durMs,
+            bandColor: band.color,
+          });
+          cursor = new Date(cursor.getTime() + band.durMs);
+        }
+      }
+      return cols;
+    }
+
     let current = new Date(timelineRange.start);
 
     while (current <= timelineRange.end) {
@@ -1450,7 +1521,7 @@ export function GanttView({
     }
 
     return cols;
-  }, [timelineRange, viewMode, pxPerDay, dateLocale, folding, isWorkingColumn]);
+  }, [timelineRange, viewMode, pxPerDay, dateLocale, folding, isWorkingColumn, segmenting, shiftSegments]);
 
   // Prefix sums of column widths — left edge of column i, used both for
   // positioning the virtualized cells and for the visible-range search.
@@ -1474,7 +1545,10 @@ export function GanttView({
   // can't use a single ms→px factor; it interpolates within the owning column.
   const colStartMs = React.useMemo(() => timeColumns.map((c) => c.date.getTime()), [timeColumns]);
   const colRealMs = React.useMemo(
-    () => timeColumns.map((c) => addUnits(c.date, 1, viewMode).getTime() - c.date.getTime()),
+    () =>
+      timeColumns.map((c) =>
+        c.realMs != null ? c.realMs : addUnits(c.date, 1, viewMode).getTime() - c.date.getTime(),
+      ),
     [timeColumns, viewMode],
   );
 
@@ -1501,10 +1575,10 @@ export function GanttView({
       }
       const real = colRealMs[i] || MS_PER_DAY;
       let frac = (t - colStartMs[i]) / real;
-      if (folding) frac = Math.max(0, Math.min(frac, 1));
+      if (folding || segmenting) frac = Math.max(0, Math.min(frac, 1));
       return colOffsets[i] + frac * timeColumns[i].width;
     },
-    [timeColumns, colStartMs, colRealMs, colOffsets, folding],
+    [timeColumns, colStartMs, colRealMs, colOffsets, folding, segmenting],
   );
 
   // x (px) → date. Inverse of dateToX, used by drag/resize to read the date
@@ -1618,12 +1692,37 @@ export function GanttView({
   // the common case; when the axis folds, it routes through working columns so
   // a drag tracks the compressed grid. The ref keeps that callback stable.
   const foldShiftRef = React.useRef<((date: Date, n: number) => Date) | null>(null);
-  foldShiftRef.current = folding ? shiftByWorkingColumns : null;
+  // Both folding (skip non-working columns) and segmenting (snap to band
+  // boundaries) advance a drag by visible columns; shiftByWorkingColumns walks
+  // colStartMs, which is band starts in shift mode → a one-column drag = one band.
+  foldShiftRef.current = folding || segmenting ? shiftByWorkingColumns : null;
 
   // Upper scale row: month groups under day/week, year groups under
   // month/quarter, decade groups under year.
   const headerGroups = React.useMemo(() => {
     const groups: { key: string; label: string; width: number; offset: number }[] = [];
+    // Shift mode: the upper tier is the 排班日 (shift-day). All bands of one
+    // shift-day share its `shiftDayStart`, so grouping by it yields one cell per
+    // day spanning its 白班|夜班 columns, labelled by the day's date.
+    if (segmenting && shiftSegments) {
+      let acc = 0;
+      for (const col of timeColumns) {
+        const key = String(shiftDayStart(col.date, shiftSegments.dayStartMin).getTime());
+        const last = groups[groups.length - 1];
+        if (last && last.key === key) {
+          last.width += col.width;
+        } else {
+          groups.push({
+            key,
+            label: col.date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' }),
+            width: col.width,
+            offset: acc,
+          });
+        }
+        acc += col.width;
+      }
+      return groups;
+    }
     const groupBy: 'decade' | 'year' | 'month' =
       viewMode === 'year' ? 'decade' : viewMode === 'month' || viewMode === 'quarter' ? 'year' : 'month';
     let acc = 0;
@@ -1651,7 +1750,7 @@ export function GanttView({
       acc += col.width;
     }
     return groups;
-  }, [timeColumns, viewMode, dateLocale]);
+  }, [timeColumns, viewMode, dateLocale, segmenting, shiftSegments]);
 
   // Normalized custom markers (invalid/out-of-range dates dropped), positioned
   // through the same date→px mapping the bars and the Today line use so they
@@ -1996,9 +2095,14 @@ export function GanttView({
     // non-working time folds out. For non-folded axes this is identical to the
     // old linear mapping (`(ms / MS_PER_DAY) * pxPerDay`).
     const left = dateToX(start);
-    // Min 1 day, and never thinner than 3px so the bar stays visible (and
-    // grabbable) at coarse granularities where a day is only ~2px.
-    const width = Math.max(dateToX(end) - left, pxPerDay, 3);
+    // Min one unit, and never thinner than 3px so the bar stays visible (and
+    // grabbable) at coarse granularities where a day is only ~2px. In shift mode
+    // the unit is the smallest band, so a single-shift bar isn't padded to a day.
+    const minUnitPx =
+      segmenting && shiftSegments
+        ? (pxPerDay * Math.min(...shiftSegments.bands.map((b) => b.durMs))) / MS_PER_DAY
+        : pxPerDay;
+    const width = Math.max(dateToX(end) - left, minUnitPx, 3);
 
     return { left, width };
   };
@@ -2775,7 +2879,13 @@ export function GanttView({
                       "absolute top-0 bottom-0 flex items-center justify-center gap-1 border-r text-xs text-muted-foreground overflow-hidden",
                       col.isWeekend && "bg-muted/50"
                     )}
-                    style={{ left: colOffsets[idx], width: col.width }}
+                    style={{
+                      left: colOffsets[idx],
+                      width: col.width,
+                      backgroundColor: col.bandColor
+                        ? `color-mix(in srgb, ${col.bandColor} 16%, transparent)`
+                        : undefined,
+                    }}
                   >
                     <span className="font-medium text-foreground truncate">{col.label}</span>
                     {col.sublabel && columnWidth >= 32 && (
@@ -3036,7 +3146,11 @@ export function GanttView({
                       style={{
                         left: colOffsets[idx],
                         width: col.width,
-                        backgroundColor: col.isWeekend ? 'hsl(var(--muted) / 0.4)' : undefined,
+                        backgroundColor: col.bandColor
+                          ? `color-mix(in srgb, ${col.bandColor} 8%, transparent)`
+                          : col.isWeekend
+                            ? 'hsl(var(--muted) / 0.4)'
+                            : undefined,
                       }}
                     />
                     );

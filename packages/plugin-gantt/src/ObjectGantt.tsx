@@ -53,6 +53,7 @@ import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, ty
 import { ResourceWorkload } from './ResourceWorkload';
 import { QuickFilterBar, type QuickFilterField, type QuickFilterOption } from './QuickFilterBar';
 import type { WorkingCalendar } from './scheduling';
+import { normalizeShiftSegments, type ShiftSegmentsConfig } from './shifts';
 
 /**
  * One quick-filter dimension (快速筛选维度). Generic by design: the page configures
@@ -138,6 +139,17 @@ type GanttConfigEx = GanttConfig & {
    * (unfiltered) task set while filtering only hides bars.
    */
   autoZoomToFilter?: boolean;
+  /**
+   * Shift segmentation (班次/排班分段). When set, the day-mode timeline splits each
+   * 排班日 (shift-day, starting at `dayStart`) into the configured bands (白班 |
+   * 夜班…): a two-tier header (date over band), per-band column tints, and
+   * drag/resize snapping to band boundaries. Pure config data — no shift concept
+   * is hardcoded. Off by default → existing gantts are unchanged. Example:
+   * `{ dayStart: '08:00', bands: [
+   *     { key: 'day', label: '白班', start: '08:00', end: '20:00' },
+   *     { key: 'night', label: '夜班', start: '20:00', end: '08:00' } ] }`.
+   */
+  timeSegments?: ShiftSegmentsConfig;
 };
 
 /** Map a record's type value onto a GanttTaskType (undefined = infer). */
@@ -282,6 +294,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           capacity: schema.capacity,
           quickFilters: schema.quickFilters,
           autoZoomToFilter: schema.autoZoomToFilter,
+          timeSegments: schema.timeSegments,
       };
       return config;
   }
@@ -677,6 +690,14 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       holidays: hol && hol.length ? new Set(hol) : undefined,
     };
   }, [schema]);
+
+  // Shift segmentation (班次分段). Normalize the declarative `timeSegments` config
+  // once into the model GanttView lays band columns / snaps drags against. null
+  // (no/invalid config) leaves the timeline an ordinary day axis.
+  const shiftSegments = useMemo(
+    () => normalizeShiftSegments(ganttConfig?.timeSegments),
+    [ganttConfig?.timeSegments],
+  );
 
   // ── Quick filters (快速筛选) ─────────────────────────────────────────────
   // Resolve each task's value for a filter dimension into a stable key. Lookups
@@ -1091,6 +1112,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           rescheduleOnConflict={!!ganttConfig?.dependenciesField}
           criticalPathDefault={!!(schema as any).criticalPath}
           workingCalendar={workingCalendar}
+          shiftSegments={shiftSegments}
           showBaselines={(schema as any).showBaselines !== false}
           readOnly={!!(schema as any).readOnly}
           mobileReadOnly={(schema as any).mobileReadOnly !== false}

@@ -35,6 +35,14 @@ export type {
 } from './GanttView';
 export { normalizeDependencies, normalizeTaskType } from './ObjectGantt';
 
+export { normalizeShiftSegments, parseHHMM, shiftDayStart, bandAt } from './shifts';
+export type {
+  ShiftSegmentsConfig,
+  ShiftBandConfig,
+  NormShiftSegments,
+  NormShiftBand,
+} from './shifts';
+
 export { ResourceWorkload } from './ResourceWorkload';
 export type { ResourceWorkloadProps } from './ResourceWorkload';
 export { computeWorkload } from './workload';
