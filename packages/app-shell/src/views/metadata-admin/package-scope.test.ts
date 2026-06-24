@@ -41,3 +41,18 @@ describe('package-scope (ADR-0070)', () => {
     expect(isLocalScope('app.acme.crm')).toBe(false);
   });
 });
+
+describe('package-scope D6 guardrail (ADR-0070 — no package-less default)', () => {
+  const raw = [
+    { manifest: { id: 'app.acme.crm', name: 'CRM', scope: 'project' } },
+    { manifest: { id: 'platform.core', name: 'Core', scope: 'system' } },
+  ];
+  it('never makes the Local sentinel the default scope (a real base sorts first, Local last)', () => {
+    const opts = buildPackageScopeOptions(raw);
+    expect(opts[0].id).not.toBe(LOCAL_PACKAGE_ID);
+    expect(opts[opts.length - 1].id).toBe(LOCAL_PACKAGE_ID);
+  });
+  it('the create-scope source (writableBaseOptions) excludes the Local sentinel entirely', () => {
+    expect(writableBaseOptions(raw).some((o) => o.id === LOCAL_PACKAGE_ID)).toBe(false);
+  });
+});

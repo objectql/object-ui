@@ -32,6 +32,8 @@ import {
   ExternalLink,
   AlertTriangle,
   Trash2,
+  Copy,
+  Inbox,
 } from 'lucide-react';
 import {
   Button,
@@ -455,14 +457,57 @@ function PackageDetailSheet({
       tFormat('engine.packages.detail.deleteConfirm', locale, { name: pkg?.manifest.name || id }),
     );
     if (!ok) return;
+    // ADR-0070 D4 (Q3) — let the user keep records (delete structure only).
+    const alsoData = window.confirm(t('engine.packages.detail.deleteKeepData', locale));
+    const qs = alsoData ? '' : '?keepData=true';
     setBusy('delete');
     setMsg(null);
     try {
-      await apiJson(`${API}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await apiJson(`${API}/${encodeURIComponent(id)}${qs}`, { method: 'DELETE' });
       onChanged();
       onOpenChange(false);
     } catch (e: any) {
       setMsg({ kind: 'err', text: e?.message ?? t('engine.packages.detail.deleteFailed', locale) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // ADR-0070 D4 — duplicate this base into a NEW writable package (re-namespaced).
+  const duplicateApp = async () => {
+    const target = window.prompt(t('engine.packages.detail.duplicatePrompt', locale), `${id}-copy`);
+    if (!target || !target.trim()) return;
+    setBusy('duplicate');
+    setMsg(null);
+    try {
+      await apiJson(`${API}/${encodeURIComponent(id)}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPackageId: target.trim(), targetName: `${pkg?.manifest.name ?? id} (copy)` }),
+      });
+      setMsg({ kind: 'ok', text: t('engine.packages.detail.duplicated', locale) });
+      onChanged();
+    } catch (e: any) {
+      setMsg({ kind: 'err', text: e?.message ?? 'Duplicate failed' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // ADR-0070 D5 — adopt every package-less (loose) item in this env INTO this base.
+  const adoptOrphans = async () => {
+    const ok = window.confirm(
+      tFormat('engine.packages.detail.adoptConfirm', locale, { name: pkg?.manifest.name || id }),
+    );
+    if (!ok) return;
+    setBusy('adopt');
+    setMsg(null);
+    try {
+      await apiJson(`${API}/${encodeURIComponent(id)}/adopt-orphans`, { method: 'POST' });
+      setMsg({ kind: 'ok', text: t('engine.packages.detail.adopted', locale) });
+      onChanged();
+    } catch (e: any) {
+      setMsg({ kind: 'err', text: e?.message ?? 'Adopt failed' });
     } finally {
       setBusy(null);
     }
@@ -612,6 +657,14 @@ function PackageDetailSheet({
               <Button size="sm" variant="outline" onClick={exportPkg} disabled={!!busy}>
                 <Download className="mr-1.5 h-3.5 w-3.5" />
                 {busy === 'export' ? t('engine.packages.detail.exporting', locale) : t('engine.packages.detail.export', locale)}
+              </Button>
+              <Button size="sm" variant="outline" onClick={duplicateApp} disabled={!!busy}>
+                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                {busy === 'duplicate' ? t('engine.packages.detail.duplicating', locale) : t('engine.packages.detail.duplicate', locale)}
+              </Button>
+              <Button size="sm" variant="outline" onClick={adoptOrphans} disabled={!!busy}>
+                <Inbox className="mr-1.5 h-3.5 w-3.5" />
+                {busy === 'adopt' ? t('engine.packages.detail.adopting', locale) : t('engine.packages.detail.adoptOrphans', locale)}
               </Button>
               <Button
                 size="sm"
