@@ -21,6 +21,8 @@ import * as React from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button, Input, Label } from '@object-ui/components';
 import { uniqueId } from './_shared';
+import { VariableTextInput } from './VariableTextInput';
+import type { ScopeGroup } from './useFlowScope';
 
 interface Row {
   id: string;
@@ -101,6 +103,8 @@ export interface FlowKeyValueFieldProps {
   valueLabel: string;
   removeLabel: string;
   emptyLabel: string;
+  /** In-scope variable references for the data-picker (#1934). */
+  scopeGroups?: ScopeGroup[];
 }
 
 export function FlowKeyValueField({
@@ -114,6 +118,7 @@ export function FlowKeyValueField({
   valueLabel,
   removeLabel,
   emptyLabel,
+  scopeGroups,
 }: FlowKeyValueFieldProps) {
   const external = isPlainObject(value) ? value : {};
   const [rows, setRows] = React.useState<Row[]>(() => toRows(external, []));
@@ -171,16 +176,18 @@ export function FlowKeyValueField({
               disabled={disabled}
               className="h-8 flex-1 font-mono text-xs"
             />
-            <Input
+            <VariableTextInput
+              mode="template"
               value={row.raw}
-              onChange={(e) => setRowField(row.id, { raw: e.target.value })}
+              onValueChange={(v) => setRowField(row.id, { raw: v })}
               onBlur={() => flush(rows)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
               }}
+              groups={scopeGroups ?? []}
               placeholder={valueLabel}
               disabled={disabled}
-              className="h-8 flex-1 text-xs"
+              className="flex-1"
             />
             <Button
               type="button"

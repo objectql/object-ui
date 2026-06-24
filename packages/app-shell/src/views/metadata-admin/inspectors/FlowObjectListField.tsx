@@ -17,6 +17,8 @@ import { Button, Input, Label, Checkbox } from '@object-ui/components';
 import { uniqueId } from './_shared';
 import type { FlowConfigColumn } from './flow-node-config';
 import { ReferenceCombobox, resolveRefKind, type FlowReferenceContext } from './FlowReferenceField';
+import { VariableTextInput } from './VariableTextInput';
+import type { ScopeGroup } from './useFlowScope';
 
 type Cell = string | boolean;
 interface Row {
@@ -73,6 +75,8 @@ export interface FlowObjectListFieldProps {
   emptyLabel: string;
   /** Draft + node context so `reference` columns can resolve their options. */
   context?: FlowReferenceContext;
+  /** In-scope variable references for `expression` columns (#1934). */
+  scopeGroups?: ScopeGroup[];
 }
 
 export function FlowObjectListField({
@@ -85,6 +89,7 @@ export function FlowObjectListField({
   removeLabel,
   emptyLabel,
   context,
+  scopeGroups,
 }: FlowObjectListFieldProps) {
   const external = React.useMemo(
     () =>
@@ -186,6 +191,22 @@ export function FlowObjectListField({
                         showHint={false}
                       />
                     </div>
+                  ) : col.kind === 'expression' ? (
+                    <div className="flex-1">
+                      <VariableTextInput
+                        mode="expression"
+                        mono
+                        value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
+                        onValueChange={(v) => setCell(row.id, col.key, v)}
+                        onBlur={() => flush(rows)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        }}
+                        groups={scopeGroups ?? []}
+                        placeholder={col.placeholder}
+                        disabled={disabled}
+                      />
+                    </div>
                   ) : (
                     <Input
                       value={typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : ''}
@@ -196,7 +217,7 @@ export function FlowObjectListField({
                       }}
                       placeholder={col.placeholder}
                       disabled={disabled}
-                      className={`h-8 flex-1 text-xs${col.kind === 'expression' ? ' font-mono' : ''}`}
+                      className="h-8 flex-1 text-xs"
                     />
                   )}
                 </div>

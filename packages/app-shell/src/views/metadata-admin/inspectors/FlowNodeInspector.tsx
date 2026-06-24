@@ -34,6 +34,7 @@ import {
 import { jsonSchemaToFlowFields } from './json-schema-to-fields';
 import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
 import { FlowNodeConfigField } from './FlowNodeConfigField';
+import { useFlowScope } from './useFlowScope';
 import { ScreenPreview } from '../previews/ScreenPreview';
 
 interface FlowNode {
@@ -130,6 +131,8 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   // with the backend. Falls back to the hardcoded field group when no schema is
   // published (offline / plugin absent / older backend).
   const configSchemas = useActionConfigSchemas();
+  // In-scope variable references for this node, for the data-picker (#1934).
+  const { groups: scopeGroups } = useFlowScope(draft as Record<string, unknown>, node?.id);
   const fields = React.useMemo(() => {
     const schema = node?.type ? configSchemas[node.type] : undefined;
     const serverFields = schema !== undefined ? jsonSchemaToFlowFields(schema) : null;
@@ -286,6 +289,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
           disabled={readOnly}
           locale={locale}
           context={{ draft, node }}
+          scopeGroups={scopeGroups}
         />
       ))}
 

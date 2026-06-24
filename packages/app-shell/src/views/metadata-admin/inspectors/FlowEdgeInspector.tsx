@@ -29,6 +29,8 @@ import {
 import { Label } from '@object-ui/components';
 import { edgeKey, conditionText } from '../previews/flow-canvas-layout';
 import { validateExpressionClient } from './expression-validate';
+import { useFlowScope } from './useFlowScope';
+import { VariableTextInput } from './VariableTextInput';
 
 interface FlowEdge {
   id?: string;
@@ -57,6 +59,9 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
   const edges = Array.isArray((draft as any).edges) ? ((draft as any).edges as FlowEdge[]) : [];
   const index = edges.findIndex((e, i) => edgeKey(e, i) === selection.id);
   const edge = index >= 0 ? edges[index] : null;
+  // References available on this edge are those in scope at its SOURCE node
+  // (#1934). Called unconditionally — `edge?.source` is undefined when missing.
+  const { groups: scopeGroups } = useFlowScope(draft as Record<string, unknown>, edge?.source);
 
   if (!edge) {
     return (
@@ -212,14 +217,18 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
         placeholder={t('engine.inspector.flowEdge.labelHint', locale)}
         disabled={readOnly || isDefault}
       />
-      <InspectorTextField
-        label={t('engine.inspector.flowEdge.condition', locale)}
-        value={conditionText(edge.condition) ?? ''}
-        onCommit={(v) => patchEdge({ condition: v || undefined })}
-        placeholder={t('engine.inspector.flowEdge.conditionHint', locale)}
-        disabled={readOnly || isDefault}
-        mono
-      />
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">{t('engine.inspector.flowEdge.condition', locale)}</Label>
+        <VariableTextInput
+          mode="expression"
+          mono
+          value={conditionText(edge.condition) ?? ''}
+          onValueChange={(v) => patchEdge({ condition: v || undefined })}
+          groups={scopeGroups}
+          placeholder={t('engine.inspector.flowEdge.conditionHint', locale)}
+          disabled={readOnly || isDefault}
+        />
+      </div>
       {(() => {
         // ADR-0032 — flag a malformed edge guard (e.g. `{record.x}` brace-in-CEL)
         // inline, with the same corrective message as build/agent validation.

@@ -10,7 +10,6 @@ import * as React from 'react';
 import type { FlowConfigField } from './flow-node-config';
 import { t } from '../i18n';
 import {
-  InspectorTextField,
   InspectorNumberField,
   InspectorSelectField,
   InspectorCheckboxField,
@@ -21,6 +20,8 @@ import { FlowStringListField } from './FlowStringListField';
 import { FlowObjectListField } from './FlowObjectListField';
 import { FlowReferenceField, type FlowReferenceContext } from './FlowReferenceField';
 import { validateExpressionClient } from './expression-validate';
+import { VariableTextInput } from './VariableTextInput';
+import type { ScopeGroup } from './useFlowScope';
 
 export interface FlowNodeConfigFieldProps {
   field: FlowConfigField;
@@ -30,9 +31,11 @@ export interface FlowNodeConfigFieldProps {
   locale?: string;
   /** Draft + node context so `reference` fields can resolve their options. */
   context?: FlowReferenceContext;
+  /** In-scope variable references for the data-picker (#1934). */
+  scopeGroups?: ScopeGroup[];
 }
 
-export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context }: FlowNodeConfigFieldProps) {
+export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, context, scopeGroups }: FlowNodeConfigFieldProps) {
   const control = (() => {
     switch (field.kind) {
       case 'reference':
@@ -57,6 +60,7 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
             valueLabel={t('engine.inspector.flowNode.kv.value', locale)}
             removeLabel={t('engine.inspector.flowNode.kv.remove', locale)}
             emptyLabel={t('engine.inspector.flowNode.kv.empty', locale)}
+            scopeGroups={scopeGroups}
           />
         );
       case 'stringList':
@@ -84,6 +88,7 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
             removeLabel={t('engine.inspector.flowNode.list.remove', locale)}
             emptyLabel={t('engine.inspector.flowNode.list.empty', locale)}
             context={context}
+            scopeGroups={scopeGroups}
           />
         );
       case 'number':
@@ -119,13 +124,15 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
         return (
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">{field.label}</Label>
-            <textarea
+            <VariableTextInput
+              multiline
+              rows={4}
+              mode="template"
               value={value != null ? String(value) : ''}
-              onChange={(e) => onCommit(e.target.value)}
+              onValueChange={(v) => onCommit(v)}
+              groups={scopeGroups ?? []}
               placeholder={field.placeholder}
               disabled={disabled}
-              rows={4}
-              className="w-full rounded border bg-background px-2 py-1.5 font-mono text-xs"
             />
           </div>
         );
@@ -133,14 +140,18 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
       case 'text':
       default:
         return (
-          <InspectorTextField
-            label={field.label}
-            value={value != null ? String(value) : ''}
-            placeholder={field.placeholder}
-            onCommit={(v) => onCommit(v)}
-            disabled={disabled}
-            mono={field.kind === 'expression'}
-          />
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">{field.label}</Label>
+            <VariableTextInput
+              mode={field.kind === 'expression' ? 'expression' : 'template'}
+              mono={field.kind === 'expression'}
+              value={value != null ? String(value) : ''}
+              onValueChange={(v) => onCommit(v)}
+              groups={scopeGroups ?? []}
+              placeholder={field.placeholder}
+              disabled={disabled}
+            />
+          </div>
         );
     }
   })();
