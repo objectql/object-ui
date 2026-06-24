@@ -118,7 +118,7 @@ const PanelGroup = ResizablePanelGroup as React.FC<any>;
  * editable via the no-selection default inspector. Other types keep
  * the conventional "name it first, design after save" create flow.
  */
-const CREATE_MODE_CANVAS_TYPES = new Set<string>(['object']);
+const CREATE_MODE_CANVAS_TYPES = new Set<string>(['object', 'report']);
 
 /**
  * Top-level metadata keys that a type's canvas PreviewComponent owns and
@@ -1026,7 +1026,15 @@ function MetadataResourceEditPageImpl({
       const stayInEditing = !createMode && !!getMetadataPreview(type);
       if (!createMode && !stayInEditing) setEditing(false);
       if (createMode) {
-        navigate(`../${encodeURIComponent(savedName)}`, { relative: 'path' });
+        // Preserve the active query string (notably `?package=…`) so the
+        // post-create navigation lands on the item in the SAME package the
+        // author was working in. Without this the param is dropped and the
+        // editor falls back to the user's default package, where the freshly
+        // saved draft doesn't exist — so it reloads a blank form.
+        const qs = searchParams.toString();
+        navigate(`../${encodeURIComponent(savedName)}${qs ? `?${qs}` : ''}`, {
+          relative: 'path',
+        });
       }
     } catch (err: any) {
       // Map destructive change → confirmation dialog.

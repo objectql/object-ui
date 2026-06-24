@@ -43,6 +43,7 @@
 import * as React from 'react';
 import { Loader2, AlertTriangle, Table2 } from 'lucide-react';
 import {
+  ComponentRegistry,
   formatMeasure,
   formatDimensionValue,
   buildDatasetFieldHelpers,
@@ -108,6 +109,8 @@ interface DatasetReportLike {
   filter?: Record<string, unknown>;
   /** Click-through to underlying records (default true). */
   drilldown?: boolean;
+  /** Embedded chart visualization (ADR-0021): type + xAxis/yAxis over the dataset. */
+  chart?: Record<string, unknown>;
   label?: unknown;
   description?: unknown;
   blocks?: DatasetReportLike[];
@@ -327,6 +330,136 @@ function DatasetReportTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/**
+ * Report chart type → the generic chart component's `chartType`. Families that
+ * aren't a cartesian/categorical series (gauge / kpi / metric / funnel /
+ * treemap / sankey / bullet / table / pivot) fall back to a bar so the
+ * visualization still renders; the grouped table beneath always carries the
+ * exact numbers, so the fallback never hides data.
+ */
+function mapReportChartType(t: unknown): string {
+  switch (t) {
+    case 'line':
+      return 'line';
+    case 'area':
+      return 'area';
+    case 'pie':
+      return 'pie';
+    case 'donut':
+      return 'donut';
+    case 'radar':
+      return 'radar';
+    case 'scatter':
+      return 'scatter';
+    case 'bar':
+    case 'column':
+    case 'horizontal-bar':
+    default:
+      return 'bar';
+  }
+}
+
+/**
+ * Resolve a registered component by type, triggering its LAZY loader and
+ * re-rendering once it registers. The generic `chart` component is registered
+ * via `registerLazy`, so a plain `ComponentRegistry.get` returns undefined
+ * until the plugin-charts chunk loads — this hook kicks off `loadLazy` and
+ * subscribes so the chart appears as soon as the chunk resolves. Kept decoupled
+ * (no static import of plugin-charts / @object-ui/react) so plugin-report stays
+ * dependency-light and its test module graph doesn't duplicate React.
+ */
+function useRegistryComponent(
+  type: string,
+): React.ComponentType<{ schema: Record<string, unknown> }> | undefined {
+  const [, bump] = React.useReducer((x: number) => x + 1, 0);
+  React.useEffect(() => {
+    if (ComponentRegistry.get(type)) return;
+    const unsub =
+      typeof ComponentRegistry.subscribe === 'function'
+        ? ComponentRegistry.subscribe(() => {
+            if (ComponentRegistry.get(type)) bump();
+          })
+        : undefined;
+    const pending = ComponentRegistry.loadLazy?.(type);
+    if (pending && typeof pending.then === 'function') {
+      pending.then(() => bump()).catch(() => {});
+    }
+    return unsub;
+  }, [type]);
+  return ComponentRegistry.get(type) as
+    | React.ComponentType<{ schema: Record<string, unknown> }>
+    | undefined;
+}
+
+/**
+ * Render a report's embedded `chart` (ADR-0021) by running its OWN dataset
+ * query — the `xAxis` dimension grouped, the `yAxis` measure aggregated — and
+ * feeding the rows to the registered generic chart component (plugin-charts).
+ *
+ * Decoupled via {@link ComponentRegistry} (same approach as the legacy
+ * renderer) so plugin-report keeps no hard dependency on plugin-charts: if the
+ * chart plugin isn't loaded, or the chart is incomplete, we render nothing and
+ * let the grouped table stand alone. Before this, a dataset-bound report's
+ * `chart` config was authorable in Studio but never rendered anywhere.
+ */
+function DatasetReportChart({
+  dataset,
+  chart,
+  runtimeFilter,
+  dataSource,
+}: {
+  dataset: string;
+  chart: Record<string, unknown>;
+  runtimeFilter?: Record<string, unknown>;
+  dataSource?: unknown;
+}) {
+  const xAxis = typeof chart.xAxis === 'string' ? chart.xAxis : '';
+  const yAxis = typeof chart.yAxis === 'string' ? chart.yAxis : '';
+  const state = useDatasetRows(
+    dataset,
+    xAxis ? [xAxis] : [],
+    yAxis ? [yAxis] : [],
+    runtimeFilter,
+    dataSource,
+  );
+  const ChartComponent = useRegistryComponent('chart');
+
+  // A chart needs both an x (dimension) and y (measure); without them, skip.
+  if (!xAxis || !yAxis) return null;
+  if (state.status === 'loading' || state.status === 'idle') {
+    return (
+      <div className="flex items-center gap-2 p-4 text-xs text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading chart…
+      </div>
+    );
+  }
+  // On error or empty, fall back silently to the table beneath.
+  if (state.status === 'error' || state.rows.length === 0) return null;
+  // The chart component is registered lazily; until it resolves render nothing
+  // (the grouped table beneath still shows the exact numbers).
+  if (!ChartComponent) return null;
+
+  const title = typeof chart.title === 'string' ? chart.title : undefined;
+  return (
+    <div className="rounded-md border bg-card p-3" data-testid="dataset-report-chart">
+      {title ? <h3 className="mb-2 text-sm font-semibold">{title}</h3> : null}
+      <ChartComponent
+        schema={{
+          chartType: mapReportChartType(chart.type),
+          data: state.rows,
+          xAxisKey: xAxis,
+          series: [{ dataKey: yAxis }],
+          height: typeof chart.height === 'number' ? chart.height : 280,
+          // Render deterministically (no rAF entrance animation): reports are
+          // often viewed in a background tab or exported, where an animated
+          // chart freezes at frame 0 (pie/donut would show no ring).
+          isAnimationActive: false,
+        }}
+      />
     </div>
   );
 }
@@ -621,9 +754,28 @@ export const DatasetReportRenderer: React.FC<DatasetReportRendererProps> = ({
     );
   }
 
-  // summary / tabular (and matrix without `columns`) → a single grouped table.
+  // summary / tabular (and matrix without `columns`) → a grouped table,
+  // preceded by the embedded chart visualization when the report declares one
+  // (ADR-0021: the chart plots the dataset's yAxis measure across the xAxis
+  // dimension; the table beneath always carries the exact numbers).
+  const chartCfg =
+    report.chart && typeof report.chart === 'object' && (report.chart as { type?: unknown }).type
+      ? (report.chart as Record<string, unknown>)
+      : null;
   return (
-    <div className={className} data-testid="dataset-report" data-report-name={report.name}>
+    <div
+      className={`${className ?? ''} flex flex-col gap-3`}
+      data-testid="dataset-report"
+      data-report-name={report.name}
+    >
+      {chartCfg ? (
+        <DatasetReportChart
+          dataset={String(report.dataset ?? '')}
+          chart={chartCfg}
+          runtimeFilter={outerFilter}
+          dataSource={dataSource}
+        />
+      ) : null}
       <DatasetReportTable
         dataset={String(report.dataset ?? '')}
         rows={readNames(report.rows)}

@@ -389,11 +389,20 @@ export function registerBuiltinAnchors(): void {
       groupLabel: 'Reports',
       order: 81,
     }],
-    createFields: ['label', 'name', 'objectName', 'description'],
+    // ADR-0021 single-form: a report is dataset-bound — `objectName` and the
+    // legacy `columns` array were removed from ReportSchema, so seeding them
+    // here produced a stub that failed server validation ("a report needs
+    // `dataset` + `values`"). Report-create now lights up the canvas +
+    // ReportDefaultInspector (see CREATE_MODE_CANVAS_TYPES), where the author
+    // picks the dataset/measures/dimensions directly; we just seed a sensible
+    // starting type.
+    createFields: ['label', 'name', 'description'],
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
-    createDefaults: { columns: [] },
+    // Seed `drilldown:true` so the inspector toggle reflects the schema default
+    // (otherwise it shows OFF on a fresh report while the spec default is true).
+    createDefaults: { type: 'summary', drilldown: true },
   });
 
   // Cosmetic defaults for the `object` type list page — gives Object the

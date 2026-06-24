@@ -412,6 +412,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   // Report default ("home") inspector
   'engine.inspector.report.kind': 'Report',
   'engine.inspector.report.close': 'Close report',
+  'engine.inspector.report.name': 'Name',
+  'engine.inspector.report.nameHint': 'snake_case identifier (cannot change after create)',
+  'engine.inspector.report.namePlaceholder': 'e.g. pipeline_by_stage',
   'engine.inspector.report.label': 'Label',
   'engine.inspector.report.labelPlaceholder': 'e.g. Pipeline by Stage',
   'engine.inspector.report.type': 'Report type',
@@ -427,6 +430,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.report.rowsEmpty': 'No dimensions yet. Add one from the dataset below.',
   'engine.inspector.report.columnsAcross': 'Columns (across dimensions)',
   'engine.inspector.report.columnsAcrossEmpty': 'No across dimensions yet — the matrix pivots rows × columns.',
+  'engine.inspector.report.chart': 'Chart',
+  'engine.inspector.report.chartType': 'Chart type',
+  'engine.inspector.report.chartNone': 'None (table only)',
+  'engine.inspector.report.chartTitle': 'Chart title',
+  'engine.inspector.report.chartX': 'X-Axis (dimension)',
+  'engine.inspector.report.chartY': 'Y-Axis (measure)',
   'engine.inspector.report.noSchema': 'Spec schema unavailable — basic properties only.',
   // Trailing section for fields the live server has but the bundled spec lacks.
   'engine.inspector.moreFields': 'More fields',
@@ -459,7 +468,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.edit.readOnlyTypeBanner':
     'This metadata type is read-only for safety: it ships executable code or sensitive configuration and cannot be overlaid at runtime. Edit the source in your package and redeploy. To override this lock (use with caution), set {flag} to include {type}, or flip {override} in the registry.',
   'engine.edit.artifactLockedBanner':
-    'This {type} is provided by an installed package, so it is read-only at runtime. To change it, edit it in its source package and republish — or create a new {type} from scratch.',
+    'This item is shipped by a code package and cannot be modified at runtime. You can still create your own {type} from scratch and freely edit or delete it.',
   'engine.badge.createOnly': 'create-only',
   'engine.repeater.empty': 'No items. Click + to add.',
   'engine.badge.writable': 'writable',
@@ -1065,6 +1074,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   // Report default ("home") inspector
   'engine.inspector.report.kind': '报表',
   'engine.inspector.report.close': '关闭报表',
+  'engine.inspector.report.name': '名称',
+  'engine.inspector.report.nameHint': 'snake_case 标识符（创建后不可修改）',
+  'engine.inspector.report.namePlaceholder': '例如：pipeline_by_stage',
   'engine.inspector.report.label': '显示名',
   'engine.inspector.report.labelPlaceholder': '例如：按阶段统计的销售管道',
   'engine.inspector.report.type': '报表类型',
@@ -1080,6 +1092,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.report.rowsEmpty': '还没有维度。从下方数据集中添加。',
   'engine.inspector.report.columnsAcross': '列（横向维度）',
   'engine.inspector.report.columnsAcrossEmpty': '还没有横向维度——矩阵按 行 × 列 透视。',
+  'engine.inspector.report.chart': '图表',
+  'engine.inspector.report.chartType': '图表类型',
+  'engine.inspector.report.chartNone': '无（仅表格）',
+  'engine.inspector.report.chartTitle': '图表标题',
+  'engine.inspector.report.chartX': 'X 轴（维度）',
+  'engine.inspector.report.chartY': 'Y 轴（度量）',
   'engine.inspector.report.noSchema': '规格 schema 不可用 —— 仅显示基础属性。',
   // Trailing section for fields the live server has but the bundled spec lacks.
   'engine.inspector.moreFields': '更多字段',
@@ -1112,7 +1130,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.edit.readOnlyTypeBanner':
     '出于安全考虑，此元数据类型为只读：它包含可执行代码或敏感配置，不允许在运行时通过覆盖层修改。请编辑包内源代码后重新部署。如需临时解除限制（请谨慎使用），可将 {flag} 设置为包含 {type}，或在注册表中开启 {override}。',
   'engine.edit.artifactLockedBanner':
-    '此 {type} 来自已安装的包，因此在运行时为只读。如需修改，请在其所属包的源中编辑并重新发布——或从零新建一个 {type}。',
+    '此条目由代码包提供，无法在运行时修改。但您可以新建自己的 {type}，并自由地编辑或删除。',
   'engine.badge.createOnly': '仅可新建',
   'engine.repeater.empty': '暂无条目。点击 + 添加。',
   'engine.badge.writable': '可写',

@@ -39,6 +39,7 @@ import {
   spliceArray,
 } from './_shared';
 import { AddFieldPopover, FieldListRow } from '../previews/ViewColumnPanes';
+import { toFieldName } from '../previews/object-fields-io';
 import type { MetadataDefaultInspectorProps } from '../default-inspector-registry';
 import { SchemaForm } from '../SchemaForm';
 import type { ObjectFieldInfo } from '../previews/useObjectFields';
@@ -65,7 +66,15 @@ const REPORT_CURATED_FIELDS = new Set([
   'values',
   'rows',
   'columns', // matrix across-dimensions — dedicated list below
+  'chart', // dedicated Chart panel below (type + dataset-aware X/Y pickers)
 ]);
+
+/**
+ * Chart types offered in the curated Chart panel. A dataset-bound report plots
+ * one measure (yAxis) across one dimension (xAxis), so we surface the families
+ * that fit that shape; the renderer maps the rest. (`''` = no chart / table-only.)
+ */
+const REPORT_CHART_TYPES = ['bar', 'column', 'line', 'area', 'pie', 'donut'] as const;
 
 export interface ReportDefaultInspectorProps extends MetadataDefaultInspectorProps {
   /**
@@ -205,6 +214,7 @@ export function DatasetNamesEditor({
 }
 
 export function ReportDefaultInspector({
+  name,
   draft,
   onPatch,
   readOnly,
@@ -213,6 +223,16 @@ export function ReportDefaultInspector({
   serverSchema,
 }: ReportDefaultInspectorProps) {
   const tr = React.useCallback((key: string) => t(key, locale), [locale]);
+
+  // In create mode the host passes an empty `name` (the PK is assigned on
+  // first save). Mirror ObjectDefaultInspector: expose an editable Name that
+  // auto-derives a snake_case slug from the label until the author edits it
+  // directly. Without this, a report created through the canvas would save
+  // with an empty name and fail the snake_case identity rule (the create flow
+  // would dead-end exactly the way it did before report-create used the canvas).
+  const createMode = !name;
+  const nameTouched = React.useRef(false);
+  const nameValue = typeof draft.name === 'string' ? (draft.name as string) : '';
 
   const reportType =
     typeof draft.type === 'string' ? (draft.type as string) : 'tabular';
@@ -262,6 +282,34 @@ export function ReportDefaultInspector({
     [semantics.dimensions],
   );
 
+  // Embedded chart (ADR-0021) — edited via the dedicated panel below so authors
+  // pick the X dimension / Y measure from dropdowns sourced from the bound
+  // dataset (instead of free-typing field names), and the generic spec-form
+  // graft excludes `chart`. Patching merges into the chart object; clearing the
+  // type drops the chart entirely.
+  const chart =
+    draft.chart && typeof draft.chart === 'object'
+      ? (draft.chart as Record<string, unknown>)
+      : {};
+  const chartType = typeof chart.type === 'string' ? (chart.type as string) : '';
+  const chartX = typeof chart.xAxis === 'string' ? (chart.xAxis as string) : '';
+  const chartY = typeof chart.yAxis === 'string' ? (chart.yAxis as string) : '';
+  const chartTitle = typeof chart.title === 'string' ? (chart.title as string) : '';
+  const commitChart = (patch: Record<string, unknown>) => {
+    const next = { ...chart, ...patch };
+    onPatch({ chart: next.type ? next : undefined });
+  };
+  const chartXOptions = React.useMemo(() => {
+    const opts = dimensionOptions.map((d) => ({ value: d.name, label: d.label || d.name }));
+    if (chartX && !opts.some((o) => o.value === chartX)) opts.push({ value: chartX, label: chartX });
+    return opts;
+  }, [dimensionOptions, chartX]);
+  const chartYOptions = React.useMemo(() => {
+    const opts = measureOptions.map((m) => ({ value: m.name, label: m.label || m.name }));
+    if (chartY && !opts.some((o) => o.value === chartY)) opts.push({ value: chartY, label: chartY });
+    return opts;
+  }, [measureOptions, chartY]);
+
   // A `joined` report carries its data on dataset-bound `blocks` (edited via
   // the spec form's repeater) — the top-level binding only applies otherwise.
   const datasetBound = reportType !== 'joined';
@@ -289,10 +337,29 @@ export function ReportDefaultInspector({
       closeLabel={tr('engine.inspector.report.close')}
       hideClose
     >
+      {createMode && (
+        <InspectorTextField
+          label={tr('engine.inspector.report.name')}
+          value={nameValue}
+          onCommit={(v) => {
+            nameTouched.current = true;
+            onPatch({ name: toFieldName(v) });
+          }}
+          placeholder={tr('engine.inspector.report.namePlaceholder')}
+          disabled={readOnly}
+          mono
+        />
+      )}
       <InspectorTextField
         label={tr('engine.inspector.report.label')}
         value={labelValue}
-        onCommit={(v) => onPatch({ label: v })}
+        onCommit={(v) => {
+          // Live-derive the snake_case name from the label until the author
+          // edits the Name field directly (create mode only).
+          const patch: Record<string, unknown> = { label: v };
+          if (createMode && !nameTouched.current) patch.name = toFieldName(v);
+          onPatch(patch);
+        }}
         placeholder={tr('engine.inspector.report.labelPlaceholder')}
         disabled={readOnly}
       />
@@ -359,6 +426,46 @@ export function ReportDefaultInspector({
               onCommit={(next) => onPatch({ columns: next })}
             />
           )}
+
+          <div className="border-t pt-3 space-y-2">
+            <Label className="text-xs text-muted-foreground">
+              {tr('engine.inspector.report.chart')}
+            </Label>
+            <InspectorSelectField
+              label={tr('engine.inspector.report.chartType')}
+              value={chartType}
+              options={[
+                { value: '', label: tr('engine.inspector.report.chartNone') },
+                ...REPORT_CHART_TYPES.map((tp) => ({ value: tp, label: tp })),
+              ]}
+              onCommit={(v) => commitChart({ type: v || undefined })}
+              disabled={readOnly}
+            />
+            {chartType ? (
+              <>
+                <InspectorTextField
+                  label={tr('engine.inspector.report.chartTitle')}
+                  value={chartTitle}
+                  onCommit={(v) => commitChart({ title: v || undefined })}
+                  disabled={readOnly}
+                />
+                <InspectorSelectField
+                  label={tr('engine.inspector.report.chartX')}
+                  value={chartX}
+                  options={chartXOptions}
+                  onCommit={(v) => commitChart({ xAxis: v })}
+                  disabled={readOnly}
+                />
+                <InspectorSelectField
+                  label={tr('engine.inspector.report.chartY')}
+                  value={chartY}
+                  options={chartYOptions}
+                  onCommit={(v) => commitChart({ yAxis: v })}
+                  disabled={readOnly}
+                />
+              </>
+            ) : null}
+          </div>
         </>
       )}
 
@@ -368,7 +475,7 @@ export function ReportDefaultInspector({
             schema={schema}
             form={form}
             value={draft}
-            hiddenFields={['type', 'label', 'name', 'dataset', 'values', 'rows', 'columns']}
+            hiddenFields={['type', 'label', 'name', 'dataset', 'values', 'rows', 'columns', 'chart']}
             readOnly={readOnly}
             onChange={(next) => onPatch(next)}
           />
