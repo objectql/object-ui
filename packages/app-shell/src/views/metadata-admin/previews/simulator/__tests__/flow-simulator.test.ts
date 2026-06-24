@@ -254,7 +254,7 @@ describe('FlowSimulator', () => {
     sim.reset();
     sim.runToEnd();
     expect(sim.state.pausedReason).toBe('screen');
-    sim.resume({ discount: 10 });
+    sim.resume({ screenOutputs: { discount: 10 } });
     sim.runToEnd();
     expect(sim.state.variables.discount).toBe(10);
     expect(sim.state.status).toBe('done');
@@ -296,6 +296,92 @@ describe('FlowSimulator', () => {
     expect(sim.state.variables.who).toBe('Ada');
     expect(sim.state.variables.greeting).toBe('hi Ada');
     expect(sim.state.status).toBe('done');
+  });
+
+  it('pauses at an approval and routes only the chosen decision branch', () => {
+    const sim = new FlowSimulator(
+      [
+        { id: 's', type: 'start' },
+        { id: 'a', type: 'approval' },
+        { id: 'ok', type: 'end' },
+        { id: 'no', type: 'end' },
+      ],
+      [
+        { source: 's', target: 'a' },
+        { id: 'app', source: 'a', target: 'ok', label: 'approve' },
+        { id: 'rej', source: 'a', target: 'no', label: 'reject' },
+      ],
+    );
+    sim.reset();
+    sim.runToEnd();
+    expect(sim.state.status).toBe('paused');
+    expect(sim.state.pausedReason).toBe('approval');
+    expect(sim.state.activeNodeId).toBe('a');
+    sim.resume({ decision: 'approve' });
+    sim.runToEnd();
+    expect(sim.state.status).toBe('done');
+    expect(sim.state.visitedNodeIds).toContain('ok');
+    expect(sim.state.visitedNodeIds).not.toContain('no');
+  });
+
+  it('walks a full ADR-0044 revise loop: revise -> wait -> resubmit -> approve', () => {
+    const sim = new FlowSimulator(
+      [
+        { id: 's', type: 'start' },
+        { id: 'a', type: 'approval' },
+        { id: 'w', type: 'wait' },
+        { id: 'ok', type: 'end' },
+        { id: 'no', type: 'end' },
+      ],
+      [
+        { source: 's', target: 'a' },
+        { id: 'app', source: 'a', target: 'ok', label: 'approve' },
+        { id: 'rej', source: 'a', target: 'no', label: 'reject' },
+        { id: 'rev', source: 'a', target: 'w', label: 'revise' },
+        { id: 'back', source: 'w', target: 'a', label: 'resubmit', type: 'back' },
+      ],
+    );
+    sim.reset();
+    sim.runToEnd();                      // round 1 -> pause at approval
+    expect(sim.state.pausedReason).toBe('approval');
+    sim.resume({ decision: 'revise' });  // send back
+    sim.runToEnd();                      // -> pause at wait
+    expect(sim.state.pausedReason).toBe('wait');
+    sim.resume();                        // resubmit -> back-edge -> approval
+    sim.runToEnd();                      // round 2 -> pause at approval again
+    expect(sim.state.pausedReason).toBe('approval');
+    expect(sim.state.activeNodeId).toBe('a');
+    sim.resume({ decision: 'approve' }); // approve round 2
+    sim.runToEnd();
+    expect(sim.state.status).toBe('done');
+    expect(sim.state.visitedNodeIds).toContain('ok');
+    expect(sim.state.visitedNodeIds).not.toContain('no');
+    // The approval node suspended twice (two rounds) -> two paused steps.
+    const pausedAtApproval = sim.state.steps.filter((st) => st.nodeId === 'a' && st.status === 'paused');
+    expect(pausedAtApproval.length).toBe(2);
+  });
+
+  it('falls back to fanning out when an approval decision matches no out-edge', () => {
+    const sim = new FlowSimulator(
+      [
+        { id: 's', type: 'start' },
+        { id: 'a', type: 'approval' },
+        { id: 'ok', type: 'end' },
+        { id: 'no', type: 'end' },
+      ],
+      [
+        { source: 's', target: 'a' },
+        { id: 'app', source: 'a', target: 'ok', label: 'approve' },
+        { id: 'rej', source: 'a', target: 'no', label: 'reject' },
+      ],
+    );
+    sim.reset();
+    sim.runToEnd();
+    sim.resume({ decision: 'nope' });
+    sim.runToEnd();
+    // Unmatched label mirrors the engine's branch-label fallback: take all edges.
+    expect(sim.state.visitedNodeIds).toContain('ok');
+    expect(sim.state.visitedNodeIds).toContain('no');
   });
 
   it('guards against infinite loops with a step ceiling', () => {

@@ -6,7 +6,8 @@
  *
  * Supported faithfully: start, decision (edge-first CEL routing), the CRUD /
  * get / http / connector / script(notification|code) side-effects (MOCKED), and
- * end. `wait` and `screen` PAUSE for manual continuation. `loop` resolves its
+ * end. `wait`, `screen`, and `approval` PAUSE for manual continuation (an approval
+ * resumes down the chosen decision's branch — approve / reject / revise). `loop` resolves its
  * collection and exposes the iterator but is a labelled single pass (the edge
  * model has no separate body/exit edge). `parallel_gateway` fans out WITHOUT
  * join synchronization; the ADR-0031 structured containers (`parallel`,
@@ -132,20 +133,52 @@ export class FlowSimulator {
     return this.state;
   }
 
-  /** Continue a flow paused on a `wait` / `screen` node. */
-  resume(screenOutputs?: Record<string, unknown>) {
+  /**
+   * Continue a flow paused on a `wait`, `screen`, or `approval` node.
+   *  - `screenOutputs` — inputs captured from a paused screen.
+   *  - `decision` — the branch an approval resumes down (ADR-0019/0044:
+   *    `approve` / `reject` / `revise`). The run takes ONLY the out-edge whose
+   *    label matches, mirroring how the engine resumes a suspended approval by
+   *    branch label — instead of fanning out to every out-edge.
+   */
+  resume(opts: { screenOutputs?: Record<string, unknown>; decision?: string } = {}) {
     const s = this.state;
     if (s.status !== 'paused' || !s.activeNodeId) return;
     const node = this.nodes.get(s.activeNodeId);
-    if (screenOutputs && node?.type === 'screen') {
-      Object.assign(s.variables, screenOutputs);
+    if (opts.screenOutputs && node?.type === 'screen') {
+      Object.assign(s.variables, opts.screenOutputs);
     }
     s.pausedReason = undefined;
     s.status = 'running';
-    if (node) this.enqueueSuccessors(node);
+    if (node?.type === 'approval') this.resumeApproval(node, opts.decision);
+    else if (node) this.enqueueSuccessors(node);
     if (s.frontier.length === 0) {
       s.status = 'done';
       s.activeNodeId = null;
+    }
+  }
+
+  /**
+   * Resume a suspended approval down the chosen decision's out-edge: the one
+   * whose `label` equals `decision` (case-insensitive — `approve` / `reject` /
+   * `revise`). With no match (or no decision) it falls back to fanning out —
+   * mirroring the engine's unmatched-`branchLabel` fallback — and logs that so
+   * the author notices the unrouted decision.
+   */
+  private resumeApproval(node: SimNode, decision?: string) {
+    const out = this.edges.map((e, i) => ({ e, i })).filter((x) => x.e.source === node.id);
+    const want = (decision ?? '').trim().toLowerCase();
+    const chosen = want ? out.find((x) => (x.e.label ?? '').trim().toLowerCase() === want) : undefined;
+    if (chosen) {
+      this.traverse(chosen.e, chosen.i);
+      this.record(node.id, 'approval', node.label, 'ok', { note: `Decision: ${decision} → ${chosen.e.target}` });
+    } else {
+      for (const x of out) this.traverse(x.e, x.i);
+      this.record(node.id, 'approval', node.label, 'ok', {
+        note: want
+          ? `No out-edge labelled "${decision}"; took all branches (engine label-fallback).`
+          : 'No decision supplied; took all branches.',
+      });
     }
   }
 
@@ -175,6 +208,16 @@ export class FlowSimulator {
       return this.record(node.id, type, node.label, 'ok', {
         note: 'Parallel split — branches fan out (no join synchronization is simulated).',
       });
+    }
+
+    if (type === 'approval') {
+      // ADR-0019: an approval node opens a request and SUSPENDS the run until a
+      // decision is recorded. Model that as a pause; the author resumes down the
+      // chosen approve / reject / revise out-edge (see resumeApproval) rather
+      // than fanning out to every out-edge at once.
+      this.state.status = 'paused';
+      this.state.pausedReason = 'approval';
+      return this.record(node.id, type, node.label, 'paused', { note: 'Approval reached — choose a decision to continue.' });
     }
 
     if (type === 'wait') {

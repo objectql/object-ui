@@ -162,6 +162,9 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
     // pressing Run again always reflects the new values.
     let sim = simRef.current;
     if (sim && sim.state.status === 'paused') {
+      // An approval pause needs an explicit decision (use the branch buttons);
+      // blind-resuming would fan out to every branch — so leave it for the user.
+      if (sim.state.pausedReason === 'approval') { sync(); return; }
       sim.resume();
     } else {
       reset();
@@ -175,9 +178,11 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
     sim.step();
     sync();
   };
-  const onResume = () => {
+  const onResume = () => onDecision();
+  /** Continue a paused run; `decision` routes an approval down one out-edge. */
+  const onDecision = (decision?: string) => {
     const sim = ensure();
-    sim.resume();
+    sim.resume(decision ? { decision } : {});
     sim.runToEnd();
     sync();
   };
@@ -199,6 +204,23 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
     return node ? { node, variables: snapshot.variables } : null;
   }, [snapshot, nodes]);
 
+  // When paused at an approval node, offer its out-edge labels (approve /
+  // reject / revise) as decision buttons so the run resumes down ONE branch —
+  // letting an author walk a revise loop instead of fanning out to every edge.
+  const approvalPause = React.useMemo(() => {
+    if (snapshot?.status !== 'paused' || snapshot.pausedReason !== 'approval' || !snapshot.activeNodeId) return null;
+    const node = nodes.find((n) => n.id === snapshot.activeNodeId);
+    if (!node) return null;
+    const decisions = [
+      ...new Set(
+        edges
+          .filter((e) => e.source === node.id && typeof e.label === 'string' && (e.label as string).trim())
+          .map((e) => (e.label as string).trim()),
+      ),
+    ];
+    return { node, decisions };
+  }, [snapshot, nodes, edges]);
+
   return (
     <div className="flex h-full flex-col text-xs">
       <div className="flex items-center gap-1.5 border-b bg-muted/30 px-3 py-2">
@@ -208,11 +230,27 @@ export function FlowSimulatorPanel({ nodes, edges, variables, onRunStateChange }
         <Button size="sm" variant="outline" className="h-7 gap-1 px-2" onClick={onStep} disabled={blocked || status === 'done' || status === 'error'}>
           <StepForward className="h-3.5 w-3.5" /> Step
         </Button>
-        {status === 'paused' && (
-          <Button size="sm" variant="outline" className="h-7 gap-1 px-2" onClick={onResume}>
-            <ChevronRight className="h-3.5 w-3.5" /> Continue
-          </Button>
-        )}
+        {status === 'paused' &&
+          (approvalPause && approvalPause.decisions.length > 0 ? (
+            <div className="flex items-center gap-1">
+              {approvalPause.decisions.map((d) => (
+                <Button
+                  key={d}
+                  size="sm"
+                  variant="outline"
+                  className="h-7 gap-1 px-2 capitalize"
+                  onClick={() => onDecision(d)}
+                  title={`Resume down the "${d}" branch`}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" /> {d}
+                </Button>
+              ))}
+            </div>
+          ) : (
+            <Button size="sm" variant="outline" className="h-7 gap-1 px-2" onClick={onResume}>
+              <ChevronRight className="h-3.5 w-3.5" /> Continue
+            </Button>
+          ))}
         <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-muted-foreground" onClick={onReset}>
           <RotateCcw className="h-3.5 w-3.5" /> Reset
         </Button>
