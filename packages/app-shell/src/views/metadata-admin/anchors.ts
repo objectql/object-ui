@@ -363,6 +363,15 @@ export function registerBuiltinAnchors(): void {
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
+    // A new action defaults to `type: 'script'` (ActionType.default), which the
+    // spec requires to carry an executable `body` or `target` — otherwise the
+    // draft fails validation on save (422) and AppPlugin registers no engine
+    // handler (the #2169 "Mark Done" runtime miss). Seed a no-op L2 body so
+    // "New action -> name -> Save" round-trips; the author edits the source after.
+    createDefaults: {
+      type: 'script',
+      body: { language: 'js', source: 'return { success: true };' },
+    },
   });
 
   // dashboard / report — surface ones bound to a specific object.
