@@ -29,6 +29,21 @@ describe('datasetFilterCondition', () => {
     expect(groupToCondition({ logic: 'and', conditions: [] })).toBeUndefined();
   });
 
+  it('drops incomplete rows (empty/blank value) instead of emitting {field:{$op:""}}', () => {
+    // a row whose value hasn't been typed yet must NOT become a garbage filter
+    expect(groupToCondition({ logic: 'and', conditions: [{ field: 'organization_id', operator: 'equals', value: '' }] })).toBeUndefined();
+    expect(groupToCondition({ logic: 'and', conditions: [{ field: 'x', operator: 'equals', value: undefined }] })).toBeUndefined();
+    expect(groupToCondition({ logic: 'and', conditions: [{ field: 'x', operator: 'in', value: [] }] })).toBeUndefined();
+    // a complete row alongside an incomplete one keeps only the complete one
+    expect(groupToCondition({ logic: 'and', conditions: [
+      { field: 'stage', operator: 'equals', value: 'won' },
+      { field: 'amount', operator: 'greaterThan', value: '' },
+    ] })).toEqual({ stage: { $eq: 'won' } });
+    // value-less operators are still kept
+    expect(groupToCondition({ logic: 'and', conditions: [{ field: 'closed_at', operator: 'isNotEmpty', value: '' }] }))
+      .toEqual({ closed_at: { $exists: true } });
+  });
+
   it('round-trips representable conditions (condition → group → condition)', () => {
     for (const c of [
       { status: { $eq: 'won' } },

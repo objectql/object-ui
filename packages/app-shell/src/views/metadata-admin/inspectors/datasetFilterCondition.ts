@@ -39,7 +39,11 @@ export function groupToCondition(group: BuilderGroup | undefined): FilterConditi
     if (c.operator === 'isNotEmpty') { parts.push({ [c.field]: { $exists: true } }); continue; }
     const mop = OP_TO_MONGO[c.operator];
     if (!mop) continue; // unmapped (e.g. notContains/between) — drop rather than emit a bad filter
-    parts.push({ [c.field]: { [mop]: c.value } });
+    // Skip incomplete rows (no value typed yet) — emitting `{field:{$op:''}}` would
+    // be a silently-wrong filter (matches only empty), not "no filter".
+    const v = c.value;
+    if (v == null || v === '' || (Array.isArray(v) && v.length === 0)) continue;
+    parts.push({ [c.field]: { [mop]: v } });
   }
   if (parts.length === 0) return undefined;
   if (parts.length === 1) return parts[0];
