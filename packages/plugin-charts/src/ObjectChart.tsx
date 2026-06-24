@@ -254,6 +254,14 @@ export const ObjectChart = (props: any) => {
   // Drill-down click event — must be declared with the other hooks (above
   // any conditional early return) to keep hook order stable between renders.
   const [drillEvent, setDrillEvent] = useState<DrillEvent | null>(null);
+  // P3: semantic per-category colors. The category dimension is usually a
+  // select field whose options carry colors (e.g. project health
+  // green=#10B981 / red=#EF4444). Charts otherwise paint categories from the
+  // generic --chart-1..5 palette, so a "Red" health slice renders teal. Resolve
+  // the dimension field's option colors → {value|label → color} so the render
+  // layer can use them. Keyed by BOTH value and label since the row category
+  // may be either (server resolves dataset dimension labels).
+  const [fieldOptionColors, setFieldOptionColors] = useState<Record<string, string> | null>(null);
   // Host-provided "open in list" navigation for the drill escape hatch.
   const { openRecordList } = useDrillNavigation();
   const tt = useSafeTranslate();
@@ -286,6 +294,49 @@ export const ObjectChart = (props: any) => {
   // Pie / donut / funnel are single-distribution charts where a comparison
   // overlay would be meaningless — we skip the comparison fetch entirely.
   const supportsCompareTo = (ct?: string) => ct !== 'pie' && ct !== 'donut' && ct !== 'funnel';
+
+  // Resolve the category dimension's option colors (P3). Best-effort: any
+  // failure leaves categoryColors null and the chart keeps the theme palette.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const reqOpts = { headers: { accept: 'application/json' }, credentials: 'include' as const };
+        let objectName: string | undefined = schema.objectName;
+        let fieldName: string | undefined;
+        const gb = schema.aggregate?.groupBy as any;
+        if (objectName) {
+          fieldName = (gb && typeof gb === 'object' && !Array.isArray(gb)) ? gb.field
+            : (typeof gb === 'string' ? gb : schema.xAxisKey);
+        } else if (schema.dataset) {
+          // dataset path: dataset.object + first dimension's underlying field
+          const dim0 = Array.isArray(schema.dimensions) && schema.dimensions.length ? schema.dimensions[0] : undefined;
+          const defRes = await fetch(`/api/v1/meta/dataset/${encodeURIComponent(schema.dataset)}`, reqOpts);
+          const defJson = await defRes.json().catch(() => null);
+          const def = defJson?.item ?? defJson?.data ?? defJson;
+          objectName = def?.object;
+          const dim = (def?.dimensions || []).find((d: any) => d?.name === dim0) ?? (def?.dimensions || [])[0];
+          fieldName = dim?.field ?? dim0;
+        }
+        if (!objectName || !fieldName) { if (!cancelled) setFieldOptionColors(null); return; }
+        const schemaRes = await fetch(`/api/v1/meta/object/${encodeURIComponent(objectName)}`, reqOpts);
+        const sj = await schemaRes.json().catch(() => null);
+        const objSchema = sj?.item ?? sj?.data ?? sj;
+        const fieldOpts = objSchema?.fields?.[fieldName]?.options;
+        if (!Array.isArray(fieldOpts) || !fieldOpts.length) { if (!cancelled) setFieldOptionColors(null); return; }
+        const map: Record<string, string> = {};
+        for (const o of fieldOpts) {
+          if (o && typeof o === 'object' && o.color) {
+            if (o.value != null) map[String(o.value)] = o.color;
+            if (o.label != null) map[String(o.label)] = o.color;
+          }
+        }
+        if (!cancelled) setFieldOptionColors(Object.keys(map).length ? map : null);
+      } catch { if (!cancelled) setFieldOptionColors(null); }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema.objectName, schema.dataset, datasetKey, aggregateKey, schema.xAxisKey]);
 
   // Run a single aggregate query (used for both the current and comparison
   // windows). Extracted so the two queries share identical logic.
@@ -565,7 +616,33 @@ export const ObjectChart = (props: any) => {
   const finalSchema = datasetChart
     ? { ...schema, data: datasetChart.data, xAxisKey: datasetChart.xAxisKey, series: datasetChart.series }
     : { ...schema, data: finalData, ...(augmentedSeries ? { series: augmentedSeries } : {}) };
-  
+
+  // P3: per-category semantic colors. When the category dimension is a select/
+  // lookup field, its option colors (resolved above into `fieldOptionColors`)
+  // paint each slice/bar — a "Red" health category renders red, not the next
+  // positional palette slot. The render layer looks each category up in
+  // `categoryColors` first and only falls back to the positional palette, so an
+  // explicit brand `colors` palette no longer suppresses the semantic colors.
+  //
+  // `colors` is overloaded kanban-style: a string[] is the positional palette
+  // (fallback only); a Record<value, color> is an explicit author map that wins
+  // over the field's option colors. We split the two and pass the palette as
+  // `colors` and the merged map as `categoryColors`.
+  const explicitColorMap: Record<string, string> | null =
+    (schema as any).colors && !Array.isArray((schema as any).colors) && typeof (schema as any).colors === 'object'
+      ? ((schema as any).colors as Record<string, string>)
+      : null;
+  const paletteColors: string[] | undefined =
+    Array.isArray((schema as any).colors) ? ((schema as any).colors as string[]) : undefined;
+  const mergedCategoryColors = (fieldOptionColors || explicitColorMap)
+    ? { ...(fieldOptionColors || {}), ...(explicitColorMap || {}) }
+    : undefined;
+  const finalSchemaWithColors = {
+    ...finalSchema,
+    colors: paletteColors,
+    ...(mergedCategoryColors ? { categoryColors: mergedCategoryColors } : {}),
+  };
+
   if (loading && finalData.length === 0) {
       return <div className={"flex items-center justify-center text-muted-foreground text-sm p-4 " + (schema.className || '')} data-testid="chart-loading">Loading chart data…</div>;
   }
@@ -667,7 +744,7 @@ export const ObjectChart = (props: any) => {
   return (
     <div className="relative">
       <RefreshIndicator active={loading && finalData.length > 0} />
-      <ChartRenderer {...props} schema={finalSchema} onChartClick={onChartClick} />
+      <ChartRenderer {...props} schema={finalSchemaWithColors} onChartClick={onChartClick} />
       {drillDrawer}
     </div>
   );

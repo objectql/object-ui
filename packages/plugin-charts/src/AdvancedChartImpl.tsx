@@ -101,11 +101,30 @@ export interface AdvancedChartImplProps {
    *  defaults so a page/dashboard can brand its charts (data-screens). */
   colors?: string[];
   /**
+   * Per-category colour map keyed by the category value OR its display label
+   * (e.g. `{ green: '#10B981', Green: '#10B981' }`). When the chart's category
+   * dimension is a select/lookup field, ObjectChart resolves the field's option
+   * colours into this map so a "Red" health slice paints red instead of taking
+   * the next positional palette slot. A category found here WINS over `colors`;
+   * categories absent here fall back to the positional palette, then the theme.
+   */
+  categoryColors?: Record<string, string>;
+  /**
    * Optional drill-down click handler. Fires when a chart segment is clicked
    * with `{ category, series, value }`. Wired for bar/horizontal-bar/line/
    * area/pie/donut. Other chart types are no-ops in L1.
    */
   onChartClick?: (event: { category?: string; series?: string; value?: number }) => void;
+  /**
+   * Disable Recharts' entrance animation when `false`. Animations drive the
+   * reveal via `requestAnimationFrame`, which browsers throttle/pause in
+   * hidden/background tabs — so a chart rendered off-screen (analytics export,
+   * a report opened in an inactive tab, headless capture) can freeze at frame 0
+   * and look empty (esp. pie/donut: sectors at angle 0 = no ring, legend only).
+   * Reports pass `false` for a deterministic, instant, export-safe render.
+   * Omitted/true preserves the animated default everywhere else (dashboards).
+   */
+  isAnimationActive?: boolean;
 }
 
 /**
@@ -120,12 +139,17 @@ export default function AdvancedChartImpl({
   series = [],
   className = '',
   colors,
+  categoryColors,
   onChartClick,
+  isAnimationActive,
 }: AdvancedChartImplProps) {
   // Normalize 'column' → 'bar' (Recharts BarChart is already vertical).
   // 'column' is the spec-level alias for vertical bars; 'horizontal-bar' stays as-is.
   const chartType = rawChartType === 'column' ? 'bar' : rawChartType;
   const data = Array.isArray(rawData) ? rawData : [];
+  // Only emit the prop when explicitly disabled, so the default (animated)
+  // behavior is byte-for-byte unchanged for every existing caller.
+  const animProps = isAnimationActive === false ? { isAnimationActive: false as const } : {};
   const [isMobile, setIsMobile] = React.useState(false);
 
   // Recharts' top-level onClick payload: { activeLabel, activePayload, ... }
@@ -152,6 +176,16 @@ export default function AdvancedChartImpl({
 
   const cartesianClickProps = onChartClick ? { onClick: handleCartesianClick, style: { cursor: 'pointer' as const } } : {};
   const pieClickProps = onChartClick ? { onClick: handlePieClick, style: { cursor: 'pointer' as const } } : {};
+
+  // Per-category colour: a select/lookup dimension's option colour (passed via
+  // `categoryColors`, keyed by value OR label) wins per slice/bar; categories
+  // with no option colour fall back to their positional palette slot. Used by
+  // pie/donut and single-series categorical bars so semantic colours (health
+  // green/red/yellow) survive even when a generic brand palette is also set.
+  const colorForCategory = React.useCallback((rawKey: any, index: number, palette: string[]): string => {
+    const mapped = categoryColors && categoryColors[rawKey == null ? '' : String(rawKey)];
+    return mapped || palette[index % palette.length];
+  }, [categoryColors]);
 
   // Scatter / treemap / sankey element clicks map to the same
   // { category, series, value } drill event via pure mappers (see
@@ -292,7 +326,7 @@ export default function AdvancedChartImpl({
       if (!pieConfig[key]) {
         pieConfig[key] = {
           label: key,
-          color: palette[index % palette.length],
+          color: colorForCategory(rawKey, index, palette),
         };
       }
     });
@@ -308,17 +342,13 @@ export default function AdvancedChartImpl({
             strokeWidth={5}
             paddingAngle={2}
             outerRadius="85%"
+            {...animProps}
             {...pieClickProps}
           >
              {data.map((entry, index) => {
-                // 1. Try config by nameKey (category)
-                let c = pieConfig[String(entry[xAxisKey])]?.color;
-                
-                // 2. Fallback to palette
-                if (!c) {
-                   c = palette[index % palette.length];
-                }
-                
+                // Per-category option colour wins; otherwise the positional
+                // palette slot (kept identical to the legend swatch above).
+                const c = colorForCategory(entry?.[xAxisKey], index, palette);
                 return <Cell key={`cell-${index}`} fill={resolveColor(c)} />;
              })}
           </Pie>
@@ -537,12 +567,12 @@ export default function AdvancedChartImpl({
             const cmp = comparisonStyle(s, seriesType as any);
 
             if (seriesType === 'line') {
-              return <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} />;
+              return <Line key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} stroke={color} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} />;
             }
             if (seriesType === 'area') {
-              return <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} />;
+              return <Area key={s.dataKey} yAxisId={yAxisId} type="monotone" dataKey={s.dataKey} fill={color} stroke={color} fillOpacity={cmp?.fillOpacity ?? 0.4} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} />;
             }
-            return <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} />;
+            return <Bar key={s.dataKey} yAxisId={yAxisId} dataKey={s.dataKey} fill={color} radius={4} fillOpacity={cmp?.fillOpacity} {...animProps} />;
           })}
         </BarChart>
       </ChartContainer>
@@ -556,8 +586,12 @@ export default function AdvancedChartImpl({
   // fills read as a polished ramp instead of flat blocks (大屏 look). Inline
   // `style` on the stops makes the `--chart-*` CSS vars resolve.
   const _gpal = getPalette();
+  // Per-category bars fill from a gradient keyed by the resolved colour, so any
+  // semantic option colour (categoryColors) needs its own gradient def too.
+  const _catColors = categoryColors ? Object.values(categoryColors).map((c) => resolveColor(String(c))) : [];
   const gradColors = Array.from(new Set<string>([
     ..._gpal,
+    ..._catColors,
     ...series.map((s: any, i: number) => resolveColor(((config[s.dataKey] as any)?.color) || _gpal[i % _gpal.length] || DEFAULT_CHART_COLOR)),
   ]));
   const gslug = (c: string) => 'g' + c.replace(/[^a-zA-Z0-9]/g, '');
@@ -624,20 +658,20 @@ export default function AdvancedChartImpl({
             const colorPerCategory = primaryCount === 1 && !isComparison && series.length === 1 && data.length > 1;
             const cmp = comparisonStyle(s, 'bar');
             return (
-              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity}>
-                {colorPerCategory && data.map((_entry, idx) => (
-                  <Cell key={`cell-${idx}`} fill={`url(#bg-${gslug(resolveColor(palette[idx % palette.length]))})`} />
+              <Bar key={s.dataKey} dataKey={s.dataKey} fill={`url(#bg-${gslug(seriesColor)})`} radius={4} fillOpacity={cmp?.fillOpacity} {...animProps}>
+                {colorPerCategory && data.map((entry, idx) => (
+                  <Cell key={`cell-${idx}`} fill={`url(#bg-${gslug(resolveColor(colorForCategory(entry?.[xAxisKey], idx, palette)))})`} />
                 ))}
               </Bar>
             );
           }
           if (chartType === 'line') {
             const cmp = comparisonStyle(s, 'line');
-            return <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} />;
+            return <Line key={s.dataKey} type="monotone" dataKey={s.dataKey} stroke={seriesColor} strokeWidth={2} dot={false} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} />;
           }
           if (chartType === 'area') {
             const cmp = comparisonStyle(s, 'area');
-            return <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} />;
+            return <Area key={s.dataKey} type="monotone" dataKey={s.dataKey} fill={`url(#ag-${gslug(seriesColor)})`} stroke={seriesColor} strokeWidth={2} fillOpacity={cmp?.fillOpacity ?? 1} strokeOpacity={cmp?.strokeOpacity} strokeDasharray={cmp?.strokeDasharray} {...animProps} />;
           }
           return null;
         })}

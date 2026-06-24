@@ -49,6 +49,13 @@ export interface ChartRendererProps {
     xAxisKey?: string;
     series?: Array<{ dataKey: string; label?: string; variant?: 'current' | 'comparison'; opacity?: number; dashArray?: string; chartType?: 'bar' | 'line' | 'area' }>;
     colors?: string[];
+    /** Per-category colour map (value/label → colour). Wins over `colors` per
+     *  category; see AdvancedChartImpl. Set by ObjectChart from select/lookup
+     *  dimension option colours and/or an explicit author map. */
+    categoryColors?: Record<string, string>;
+    /** Pass `false` for a deterministic, export-safe render with no entrance
+     *  animation (see AdvancedChartImpl). Omitted → animated default. */
+    isAnimationActive?: boolean;
   };
   /** Drill-down click handler — wired by ObjectChart when drillDown is enabled. */
   onChartClick?: (event: { category?: string; series?: string; value?: number }) => void;
@@ -109,7 +116,9 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ schema, onChartCli
         xAxisKey={props.xAxisKey}
         series={props.series}
         className={props.className}
-        colors={(schema as any).colors}
+        colors={Array.isArray((schema as any).colors) ? (schema as any).colors : undefined}
+        categoryColors={(schema as any).categoryColors}
+        isAnimationActive={schema.isAnimationActive}
         onChartClick={onChartClick}
       />
     </Suspense>
