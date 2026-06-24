@@ -28,6 +28,7 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@tanstack/react-virtual": "^3.14.3",
+    "exceljs": "^4.4.0",
     "lucide-react": "^1.21.0"
   },
   "peerDependencies": {

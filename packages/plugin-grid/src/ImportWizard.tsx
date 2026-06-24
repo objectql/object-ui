@@ -10,8 +10,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@object-ui/components';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2, ClipboardPaste } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
+import {
+  parseSpreadsheetFile, parseClipboardTable, inferColumnType, isTypeCompatible,
+  ImportParseError, type InferredType,
+} from './importParsers';
 
 /** Default English fallback strings used when no I18nProvider is mounted
  *  (standalone / unit-test usage). Mirrors the keys under `grid.import.*`. */
@@ -20,12 +24,16 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.stepUpload': 'Upload',
   'grid.import.stepMapping': 'Mapping',
   'grid.import.stepPreview': 'Preview',
-  'grid.import.uploadDescription': 'Upload a CSV file to get started.',
-  'grid.import.mappingDescription': 'Map CSV columns to object fields.',
+  'grid.import.uploadDescription': 'Upload a CSV or Excel file, or paste from a spreadsheet to get started.',
+  'grid.import.mappingDescription': 'Map columns to object fields.',
   'grid.import.previewDescription': 'Review data before importing.',
-  'grid.import.dragDrop': 'Drag & drop a CSV file here, or click to browse',
+  'grid.import.dragDrop': 'Drag & drop a CSV or Excel file here, or click to browse',
   'grid.import.browseFiles': 'Browse Files',
-  'grid.import.onlyCsv': 'Only CSV files are supported.',
+  'grid.import.parsing': 'Parsing…',
+  'grid.import.pasteHint': 'or paste (Ctrl/⌘+V) rows copied from Excel or Google Sheets',
+  'grid.import.legacyXls': "Legacy .xls files aren't supported — please re-save as .xlsx.",
+  'grid.import.unsupportedFile': 'Unsupported file type. Use CSV, TSV, or Excel (.xlsx).',
+  'grid.import.parseFailed': 'Could not read this file. Please check the format and try again.',
   'grid.import.fileNeedsHeader': 'File must contain a header row and at least one data row.',
   'grid.import.mappingTemplate': 'Mapping template:',
   'grid.import.chooseTemplate': 'Choose template…',
@@ -35,8 +43,14 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.templateName': 'Template name',
   'grid.import.save': 'Save',
   'grid.import.deleteTemplate': 'Delete template',
-  'grid.import.csvColumn': 'CSV Column',
+  'grid.import.csvColumn': 'Column',
   'grid.import.mapsTo': 'Maps To',
+  'grid.import.typeMismatch': 'Looks like {{type}}',
+  'grid.import.type.number': 'Number',
+  'grid.import.type.boolean': 'Boolean',
+  'grid.import.type.date': 'Date',
+  'grid.import.type.datetime': 'Date & time',
+  'grid.import.type.text': 'Text',
   'grid.import.status': 'Status',
   'grid.import.skipColumn': 'Skip column',
   'grid.import.skip': '— Skip —',
@@ -151,33 +165,6 @@ type WizardStep = 'upload' | 'mapping' | 'preview';
 /** Maximum number of rows to show in the preview step */
 const PREVIEW_ROW_COUNT = 10;
 
-/** CSV parser with quote handling */
-function parseCSV(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i + 1];
-    if (inQuotes) {
-      if (ch === '"' && next === '"') { field += '"'; i++; }
-      else if (ch === '"') inQuotes = false;
-      else field += ch;
-    } else if (ch === '"') { inQuotes = true; }
-    else if (ch === ',') { row.push(field.trim()); field = ''; }
-    else if (ch === '\n' || (ch === '\r' && next === '\n')) {
-      row.push(field.trim());
-      if (row.some((c) => c !== '')) rows.push(row);
-      row = []; field = '';
-      if (ch === '\r') i++;
-    } else { field += ch; }
-  }
-  row.push(field.trim());
-  if (row.some((c) => c !== '')) rows.push(row);
-  return rows;
-}
-
 function validateValue(value: string, type: string): boolean {
   if (!value) return true;
   switch (type) {
@@ -188,17 +175,45 @@ function validateValue(value: string, type: string): boolean {
   }
 }
 
-function autoMapColumns(headers: string[], fields: ImportWizardProps['fields']): Record<number, string> {
+const normalizeKey = (s: string) => s.toLowerCase().replace(/[_\s-]/g, '');
+
+/**
+ * Auto-map source columns to object fields. Pass 1 matches by normalized
+ * name/label (exact). Pass 2 fills still-unmapped columns by fuzzy name
+ * containment *gated on type compatibility* with the column's inferred type —
+ * the type gate keeps the fuzzy pass from confidently mis-mapping. `rows` is
+ * optional; without it only the exact pass runs.
+ */
+function autoMapColumns(
+  headers: string[],
+  fields: ImportWizardProps['fields'],
+  rows?: string[][],
+): Record<number, string> {
   const mapping: Record<number, string> = {};
+  const used = new Set<string>();
+  // Pass 1 — exact normalized name/label match.
   headers.forEach((header, idx) => {
-    const h = header.toLowerCase().replace(/[_\s-]/g, '');
-    const match = fields.find((f) => {
-      const name = f.name.toLowerCase().replace(/[_\s-]/g, '');
-      const label = f.label.toLowerCase().replace(/[_\s-]/g, '');
-      return name === h || label === h;
-    });
-    if (match) mapping[idx] = match.name;
+    const h = normalizeKey(header);
+    const match = fields.find((f) => normalizeKey(f.name) === h || normalizeKey(f.label) === h);
+    if (match && !used.has(match.name)) { mapping[idx] = match.name; used.add(match.name); }
   });
+  // Pass 2 — fuzzy containment, gated on inferred-type compatibility.
+  if (rows && rows.length) {
+    headers.forEach((header, idx) => {
+      if (mapping[idx]) return;
+      const h = normalizeKey(header);
+      if (h.length < 3) return;
+      const inferred = inferColumnType(rows.map((r) => r[idx]));
+      const match = fields.find((f) => {
+        if (used.has(f.name)) return false;
+        if (!isTypeCompatible(inferred, f.type)) return false;
+        const name = normalizeKey(f.name);
+        const label = normalizeKey(f.label);
+        return name.includes(h) || h.includes(name) || label.includes(h) || h.includes(label);
+      });
+      if (match) { mapping[idx] = match.name; used.add(match.name); }
+    });
+  }
   return mapping;
 }
 
@@ -270,23 +285,58 @@ function validateRow(row: string[], mappedCols: MappedCol[], rowIndex: number) {
   return { record, errors };
 }
 
-// Step 1: File Upload
+/** Map a thrown import-parse error code to a translated, user-facing message. */
+function parseErrorMessage(err: unknown, t: (k: string, v?: Record<string, unknown>) => string): string {
+  const code = err instanceof Error ? err.message : '';
+  if (code === ImportParseError.LegacyXls) return t('grid.import.legacyXls');
+  if (code === ImportParseError.Unsupported) return t('grid.import.unsupportedFile');
+  return t('grid.import.parseFailed');
+}
+
+// Step 1: File Upload (CSV / Excel / paste)
 const StepUpload: React.FC<{ onFileLoaded: (headers: string[], rows: string[][]) => void }> = ({ onFileLoaded }) => {
   const { t } = useImportTranslation();
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  const processFile = useCallback((file: File) => {
-    setError(null);
-    if (!file.name.endsWith('.csv')) { setError(t('grid.import.onlyCsv')); return; }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const parsed = parseCSV(e.target?.result as string);
-      if (parsed.length < 2) { setError(t('grid.import.fileNeedsHeader')); return; }
-      onFileLoaded(parsed[0], parsed.slice(1));
-    };
-    reader.readAsText(file);
+  /** Validate a freshly-parsed grid and hand it to the wizard, or report why not. */
+  const acceptParsed = useCallback((parsed: string[][]) => {
+    if (parsed.length < 2) { setError(t('grid.import.fileNeedsHeader')); return false; }
+    onFileLoaded(parsed[0], parsed.slice(1));
+    return true;
   }, [onFileLoaded, t]);
+
+  const processFile = useCallback(async (file: File) => {
+    setError(null); setBusy(true);
+    try {
+      acceptParsed(await parseSpreadsheetFile(file));
+    } catch (err) {
+      setError(parseErrorMessage(err, t));
+    } finally {
+      setBusy(false);
+    }
+  }, [acceptParsed, t]);
+
+  // Paste-to-import: while this step is mounted, intercept paste of tabular
+  // data copied from Excel/Sheets. Ignored when focus is in a text input so we
+  // don't hijack ordinary editing.
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    const el = e.target as HTMLElement | null;
+    if (el && /^(input|textarea)$/i.test(el.tagName)) return;
+    const data = e.clipboardData;
+    if (!data) return;
+    const parsed = parseClipboardTable(data.getData('text/html') || null, data.getData('text/plain') || null);
+    if (!parsed) return;
+    e.preventDefault();
+    setError(null);
+    if (!acceptParsed(parsed)) { /* message already set */ }
+  }, [acceptParsed]);
+
+  useEffect(() => {
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [handlePaste]);
 
   return (
     <div className="flex flex-col items-center gap-4 py-6">
@@ -294,17 +344,21 @@ const StepUpload: React.FC<{ onFileLoaded: (headers: string[], rows: string[][])
         className={cn(
           'flex w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-10 transition-colors',
           dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25',
+          busy && 'pointer-events-none opacity-60',
         )}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) processFile(f); }}
+        onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) void processFile(f); }}
       >
         <Upload className="h-10 w-10 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground">{t('grid.import.dragDrop')}</p>
+        <p className="text-sm text-muted-foreground">{busy ? t('grid.import.parsing') : t('grid.import.dragDrop')}</p>
         <label>
-          <input type="file" accept=".csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
+          <input type="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm" className="hidden" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void processFile(f); }} />
           <Button variant="outline" size="sm" asChild><span>{t('grid.import.browseFiles')}</span></Button>
         </label>
+        <p className="flex items-center gap-1 text-xs text-muted-foreground/80">
+          <ClipboardPaste className="h-3.5 w-3.5" /> {t('grid.import.pasteHint')}
+        </p>
       </div>
       {error && (
         <p className="flex items-center gap-1 text-sm text-destructive">
@@ -407,12 +461,13 @@ const StepMapping: React.FC<{
   fields: ImportWizardProps['fields'];
   mapping: Record<number, string>;
   onMappingChange: (mapping: Record<number, string>) => void;
+  inferredTypes: InferredType[];
   templates: ImportMappingTemplate[];
   selectedTemplateId: string | null;
   onSelectTemplate: (id: string) => void;
   onSaveTemplate: (name: string) => void;
   onDeleteTemplate: () => void;
-}> = ({ headers, fields, mapping, onMappingChange, templates, selectedTemplateId, onSelectTemplate, onSaveTemplate, onDeleteTemplate }) => {
+}> = ({ headers, fields, mapping, onMappingChange, inferredTypes, templates, selectedTemplateId, onSelectTemplate, onSaveTemplate, onDeleteTemplate }) => {
   const { t } = useImportTranslation();
   const usedFields = useMemo(() => new Set(Object.values(mapping)), [mapping]);
   const handleChange = useCallback((colIdx: number, fieldName: string) => {
@@ -441,9 +496,22 @@ const StepMapping: React.FC<{
           </TableRow>
         </TableHeader>
         <TableBody>
-          {headers.map((header, idx) => (
+          {headers.map((header, idx) => {
+            const inferred = inferredTypes[idx] ?? 'text';
+            const mappedField = mapping[idx] ? fields.find((f) => f.name === mapping[idx]) : undefined;
+            const typeMismatch = !!mappedField && !isTypeCompatible(inferred, mappedField.type);
+            return (
             <TableRow key={idx}>
-              <TableCell className="font-medium">{header}</TableCell>
+              <TableCell className="font-medium">
+                <div className="flex flex-col gap-0.5">
+                  <span>{header}</span>
+                  {inferred !== 'text' && (
+                    <Badge variant="outline" className="w-fit text-[10px] font-normal text-muted-foreground" data-testid={`import-inferred-${idx}`}>
+                      {t(`grid.import.type.${inferred}`)}
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
               <TableCell>
                 <Select value={mapping[idx] ?? '__skip__'} onValueChange={(v) => handleChange(idx, v)}>
                   <SelectTrigger className="h-8 w-56"><SelectValue placeholder={t('grid.import.skipColumn')} /></SelectTrigger>
@@ -456,6 +524,11 @@ const StepMapping: React.FC<{
                     ))}
                   </SelectContent>
                 </Select>
+                {typeMismatch && (
+                  <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600" data-testid={`import-type-warn-${idx}`}>
+                    <AlertCircle className="h-3 w-3" /> {t('grid.import.typeMismatch', { type: t(`grid.import.type.${inferred}`) })}
+                  </p>
+                )}
               </TableCell>
               <TableCell className="text-center">
                 {mapping[idx]
@@ -463,7 +536,8 @@ const StepMapping: React.FC<{
                   : <Badge variant="secondary" className="text-xs">{t('grid.import.skipped')}</Badge>}
               </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
       </div>
@@ -655,8 +729,14 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   }, [fields, mapping]);
 
   const handleFileLoaded = useCallback((h: string[], r: string[][]) => {
-    setHeaders(h); setRows(r); setMapping(autoMapColumns(h, fields)); setCorrections({}); setStep('mapping');
+    setHeaders(h); setRows(r); setMapping(autoMapColumns(h, fields, r)); setCorrections({}); setStep('mapping');
   }, [fields]);
+
+  // Per-column type guesses, sampled from the loaded rows — drives mapping hints.
+  const inferredTypes = useMemo<InferredType[]>(
+    () => headers.map((_, idx) => inferColumnType(rows.map((r) => r[idx]))),
+    [headers, rows],
+  );
 
   const handleImport = useCallback(async () => {
     setImporting(true); setProgress(0);
@@ -739,6 +819,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 fields={fields}
                 mapping={mapping}
                 onMappingChange={setMapping}
+                inferredTypes={inferredTypes}
                 templates={templates}
                 selectedTemplateId={selectedTemplateId}
                 onSelectTemplate={handleSelectTemplate}
