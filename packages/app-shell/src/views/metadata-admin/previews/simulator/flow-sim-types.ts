@@ -91,6 +91,11 @@ export interface Diagnostic {
   level: DiagnosticLevel;
   nodeId?: string;
   message: string;
+  /**
+   * For a cycle error: the node path that closes the loop (e.g. `['a','b','a']`),
+   * so the designer can paint the offending edges/nodes inline on the canvas.
+   */
+  cycle?: string[];
 }
 
 export interface FlowValidation {

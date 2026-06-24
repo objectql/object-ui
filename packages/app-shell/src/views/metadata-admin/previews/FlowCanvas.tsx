@@ -22,7 +22,7 @@
  */
 
 import * as React from 'react';
-import { Maximize2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
+import { AlertTriangle, Maximize2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import { uniqueId, appendArray, spliceArray } from '../inspectors/_shared';
 import { t as tr } from '../i18n';
@@ -81,6 +81,12 @@ export interface FlowCanvasProps {
   visitedNodeIds?: string[];
   /** Simulation overlay: ids of edges that were traversed. */
   traversedEdgeIds?: string[];
+  /** Structural-validation: node ids to paint with a red error ring. */
+  invalidNodeIds?: string[];
+  /** Structural-validation: edges (keyed `${source}->${target}`) to paint red. */
+  invalidEdges?: ReadonlySet<string>;
+  /** Structural-validation error messages shown in an inline canvas banner. */
+  validationErrors?: string[];
   onSelect: (node: FlowNode | null) => void;
   /** Select an edge (its `edgeKey`), or clear selection with `null`. */
   onSelectEdge?: (edge: FlowEdge | null, key: string) => void;
@@ -98,6 +104,9 @@ export function FlowCanvas({
   activeNodeId,
   visitedNodeIds,
   traversedEdgeIds,
+  invalidNodeIds,
+  invalidEdges,
+  validationErrors,
   onSelect,
   onSelectEdge,
   onPatch,
@@ -124,6 +133,7 @@ export function FlowCanvas({
   // Simulation overlay sets (display-only; never drives engine behavior).
   const visitedSet = React.useMemo(() => new Set(visitedNodeIds ?? []), [visitedNodeIds]);
   const traversedSet = React.useMemo(() => new Set(traversedEdgeIds ?? []), [traversedEdgeIds]);
+  const invalidNodeSet = React.useMemo(() => new Set(invalidNodeIds ?? []), [invalidNodeIds]);
   const simRunning = (visitedNodeIds?.length ?? 0) > 0 || !!activeNodeId;
 
   const positionOf = React.useCallback(
@@ -395,6 +405,25 @@ export function FlowCanvas({
 
   return (
     <div className="relative h-full min-h-[320px] w-full overflow-hidden">
+      {/* Inline structural-validation banner (ADR-0044 cycle surfacing): shows
+          errors directly on the canvas so the author needn't open Debug. */}
+      {validationErrors && validationErrors.length > 0 && (
+        <div className="absolute left-2 top-2 z-30 max-w-[min(60%,420px)] space-y-1">
+          {validationErrors.slice(0, 3).map((msg, i) => (
+            <div
+              key={i}
+              role="alert"
+              className="flex items-start gap-1.5 rounded-lg border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-[11px] leading-snug text-destructive shadow-sm backdrop-blur-sm"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{msg}</span>
+            </div>
+          ))}
+          {validationErrors.length > 3 && (
+            <div className="px-2.5 text-[10px] text-destructive/80">+{validationErrors.length - 3} more…</div>
+          )}
+        </div>
+      )}
       {/* Toolbar */}
       <div className="absolute right-2 top-2 z-30 flex items-center gap-1.5">
         {editable && (
@@ -520,6 +549,18 @@ export function FlowCanvas({
               >
                 <path d="M 0 0 L 10 5 L 0 10 z" className="fill-amber-500/80" />
               </marker>
+              {/* Red arrowhead for edges flagged by structural validation. */}
+              <marker
+                id="flow-arrow-error"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="7"
+                markerHeight="7"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 0 L 10 5 L 0 10 z" className="fill-destructive" />
+              </marker>
             </defs>
             {edges.map((edge, i) => {
               const sp = layout.get(edge.source);
@@ -530,6 +571,9 @@ export function FlowCanvas({
               // dashed amber return arc — visually distinct from the forward
               // top-to-bottom flow.
               const back = isBackEdge(edge);
+              // Structural-validation error (e.g. part of an un-declared cycle).
+              // Back-edges are excluded from cycle detection, so they're never invalid.
+              const invalid = !back && !!invalidEdges?.has(`${edge.source}->${edge.target}`);
               const sPos = dragPos?.id === edge.source ? positionOf(edge.source) : sp;
               const tPos = dragPos?.id === edge.target ? positionOf(edge.target) : tp;
               const from = back ? rightAnchor(sPos) : bottomAnchor(sPos);
@@ -546,7 +590,7 @@ export function FlowCanvas({
               // beyond the 1.5px visible stroke without altering the visuals.
               const selectable = designMode && !!onSelectEdge;
               return (
-                <g key={edge.id || `${edge.source}-${edge.target}-${i}`}>
+                <g key={edge.id || `${edge.source}-${edge.target}-${i}`} data-invalid={invalid || undefined}>
                   <path
                     d={d}
                     strokeLinecap="round"
@@ -557,14 +601,16 @@ export function FlowCanvas({
                         ? 'stroke-sky-500'
                         : selected
                           ? 'stroke-primary'
-                          : back
-                            ? 'stroke-amber-500/70'
-                            : simRunning
-                              ? 'stroke-muted-foreground/20'
-                              : 'stroke-muted-foreground/40',
+                          : invalid
+                            ? 'stroke-destructive'
+                            : back
+                              ? 'stroke-amber-500/70'
+                              : simRunning
+                                ? 'stroke-muted-foreground/20'
+                                : 'stroke-muted-foreground/40',
                     )}
-                    strokeWidth={traversed || selected ? 2.5 : 1.75}
-                    markerEnd={back ? 'url(#flow-arrow-back)' : 'url(#flow-arrow)'}
+                    strokeWidth={traversed || selected || invalid ? 2.5 : 1.75}
+                    markerEnd={invalid ? 'url(#flow-arrow-error)' : back ? 'url(#flow-arrow-back)' : 'url(#flow-arrow)'}
                   />
                   {selectable && (
                     <path
@@ -577,7 +623,7 @@ export function FlowCanvas({
                         onSelectEdge!(edge, eid);
                       }}
                     >
-                      <title>{back ? `${edge.source} ↩ ${edge.target} (back-edge)` : `${edge.source} → ${edge.target}`}</title>
+                      <title>{invalid ? `${edge.source} → ${edge.target} — part of an un-declared cycle; mark the edge that closes the loop as a back-edge` : back ? `${edge.source} ↩ ${edge.target} (back-edge)` : `${edge.source} → ${edge.target}`}</title>
                     </path>
                   )}
                   {branchLabel && (
@@ -597,9 +643,11 @@ export function FlowCanvas({
                             selectable && 'cursor-pointer hover:border-primary/60',
                             selected
                               ? 'border-primary text-primary'
-                              : back
-                                ? 'border-amber-500/50 text-amber-600 dark:text-amber-400'
-                                : 'border-border text-muted-foreground',
+                              : invalid
+                                ? 'border-destructive/60 text-destructive'
+                                : back
+                                  ? 'border-amber-500/50 text-amber-600 dark:text-amber-400'
+                                  : 'border-border text-muted-foreground',
                           )}
                         >
                           {branchLabel}
@@ -661,6 +709,7 @@ export function FlowCanvas({
                     ? () => addReviseLoop(node.id)
                     : undefined
                 }
+                invalid={invalidNodeSet.has(node.id)}
               />
             );
           })}

@@ -57,6 +57,27 @@ describe('validateFlowDraft', () => {
     expect(v.errors.some((e) => /Cycle detected/.test(e.message))).toBe(true);
   });
 
+  it('cycle error carries the closing node path (for inline canvas highlighting)', () => {
+    const v = validateFlowDraft(
+      [
+        { id: 's', type: 'start' },
+        { id: 'a', type: 'approval' },
+        { id: 'w', type: 'wait' },
+      ],
+      [
+        { source: 's', target: 'a' },
+        { source: 'a', target: 'w', label: 'revise' },
+        { source: 'w', target: 'a', label: 'resubmit' },
+      ],
+    );
+    const cyc = v.errors.find((e) => e.cycle);
+    expect(cyc).toBeDefined();
+    // The path closes the loop and names the involved nodes.
+    expect(cyc!.cycle![0]).toBe(cyc!.cycle![cyc!.cycle!.length - 1]);
+    expect(cyc!.cycle).toContain('a');
+    expect(cyc!.cycle).toContain('w');
+  });
+
   it('accepts a declared revise loop (closing edge typed "back")', () => {
     const v = validateFlowDraft(
       [

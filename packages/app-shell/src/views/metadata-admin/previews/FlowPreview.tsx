@@ -38,6 +38,8 @@ import { FlowCanvas } from './FlowCanvas';
 import { edgeKey } from './flow-canvas-layout';
 import { FlowSimulatorPanel } from './FlowSimulatorPanel';
 import { FlowRunsPanel } from './FlowRunsPanel';
+import { validateFlowDraft } from './simulator/flow-sim-validate';
+import type { SimEdge, SimNode } from './simulator/flow-sim-types';
 
 interface FlowNode {
   id: string;
@@ -69,8 +71,10 @@ interface FlowVariable {
 
 export function FlowPreview({ draft, editing, selection, onSelectionChange, onPatch, locale }: MetadataPreviewProps) {
   const d = draft as Record<string, unknown>;
-  const nodes: FlowNode[] = Array.isArray(d.nodes) ? (d.nodes as FlowNode[]) : [];
-  const edges: FlowEdge[] = Array.isArray(d.edges) ? (d.edges as FlowEdge[]) : [];
+  // Memoized so hook deps (validation memo, handleAddNode) get a stable array
+  // reference across renders instead of a fresh `[]`/cast each time.
+  const nodes = React.useMemo<FlowNode[]>(() => (Array.isArray(d.nodes) ? (d.nodes as FlowNode[]) : []), [d.nodes]);
+  const edges = React.useMemo<FlowEdge[]>(() => (Array.isArray(d.edges) ? (d.edges as FlowEdge[]) : []), [d.edges]);
   const variables: FlowVariable[] = Array.isArray(d.variables) ? (d.variables as FlowVariable[]) : [];
 
   const designMode = !!(editing && onSelectionChange);
@@ -86,6 +90,31 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
     visitedNodeIds: string[];
     traversedEdgeIds: string[];
   } | null>(null);
+
+  // Continuous structural validation surfaced INLINE on the canvas (ADR-0044):
+  // an un-declared cycle (and other structural errors) paints the offending
+  // edges/nodes red and shows a banner — so the author sees it without opening
+  // the Debug panel. Same `validateFlowDraft` the simulator preflight uses.
+  const { invalidNodeIds, invalidEdges, validationErrors } = React.useMemo(() => {
+    const v = validateFlowDraft(nodes as unknown as SimNode[], edges as unknown as SimEdge[]);
+    const nodeSet = new Set<string>();
+    const edgeSet = new Set<string>();
+    for (const diag of v.errors) {
+      if (diag.nodeId) nodeSet.add(diag.nodeId);
+      // A cycle error carries its closing node path → mark each hop's edge red.
+      if (diag.cycle) {
+        for (let i = 0; i < diag.cycle.length - 1; i++) {
+          nodeSet.add(diag.cycle[i]);
+          edgeSet.add(`${diag.cycle[i]}->${diag.cycle[i + 1]}`);
+        }
+      }
+    }
+    return {
+      invalidNodeIds: [...nodeSet],
+      invalidEdges: edgeSet,
+      validationErrors: v.errors.map((diag) => diag.message),
+    };
+  }, [nodes, edges]);
 
   const handleAddNode = React.useCallback(() => {
     if (!canEdit) return;
@@ -206,6 +235,9 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 activeNodeId={runHL?.activeNodeId ?? null}
                 visitedNodeIds={runHL?.visitedNodeIds}
                 traversedEdgeIds={runHL?.traversedEdgeIds}
+                invalidNodeIds={invalidNodeIds}
+                invalidEdges={invalidEdges}
+                validationErrors={validationErrors}
                 onSelect={(n) =>
                   n
                     ? onSelectionChange?.({ kind: 'node', id: n.id, label: n.label || n.id })

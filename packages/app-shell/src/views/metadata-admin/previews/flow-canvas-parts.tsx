@@ -381,6 +381,8 @@ export interface NodeCardProps {
   runState?: 'active' | 'visited';
   /** Dim nodes not yet reached while a simulation is in progress. */
   dimmed?: boolean;
+  /** Structural-validation error highlight (e.g. part of an un-declared cycle). */
+  invalid?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
   onSelect?: () => void;
   onAppend?: () => void;
@@ -406,6 +408,7 @@ export function NodeCard({
   editable,
   runState,
   dimmed,
+  invalid,
   onPointerDown,
   onSelect,
   onAppend,
@@ -418,6 +421,7 @@ export function NodeCard({
       // appear when the pointer is anywhere over the card, not only over the
       // tiny button itself.
       className="group absolute transition-opacity duration-200"
+      data-invalid={invalid || undefined}
       style={{ left: position.x, top: position.y, width: NODE_W, height: NODE_H, opacity: dimmed ? 0.35 : 1 }}
     >
       <div
@@ -446,7 +450,9 @@ export function NodeCard({
               ? 'border-emerald-500/70 ring-1 ring-emerald-400/40'
               : selected
                 ? 'border-primary shadow-md ring-2 ring-primary/30'
-                : 'border-border/80',
+                : invalid
+                  ? 'border-destructive ring-2 ring-destructive/50'
+                  : 'border-border/80',
         )}
       >
         <div

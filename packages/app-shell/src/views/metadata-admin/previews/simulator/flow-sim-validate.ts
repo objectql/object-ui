@@ -182,6 +182,7 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
     errors.push({
       level: 'error',
       nodeId: cycle[0],
+      cycle,
       message: `Cycle detected (${cycle.join(' → ')}). Mark the connection that closes the loop as a back-edge (Connection type → Back-edge) to declare an intentional revise/rework loop.`,
     });
   }
