@@ -105,6 +105,7 @@ import { getMetadataDefaultInspector } from './default-inspector-registry';
 import { detectLocale, t, tFormat, translateValidationMessage } from './i18n';
 import { JsonSourceEditor } from './JsonSourceEditor';
 import { validateMetadataDraft, hasClientValidator } from './clientValidation';
+import { describeIssuePath } from './issuePath';
 
 // react-resizable-panels' `direction` prop type does not always narrow
 // cleanly in our TS config; cast at the boundary (precedent:
@@ -918,20 +919,27 @@ function MetadataResourceEditPageImpl({
   function labelForIssuePath(path: string): string {
     const key = path.split('.')[0];
     if (!key) return path;
-    const formForLabels = (createMode && config.createSchema ? undefined : (entry?.form as any));
-    const sections = Array.isArray(formForLabels?.sections) ? formForLabels.sections : [];
-    for (const section of sections) {
-      const fields = Array.isArray(section?.fields) ? section.fields : [];
-      for (const field of fields) {
-        if (typeof field === 'string') {
-          if (field === key) return field;
-        } else if (field?.field === key) {
-          return String(field.label ?? key);
+    // Resolve the human label for the HEAD segment from the form/schema.
+    const headLabel = ((): string => {
+      const formForLabels = (createMode && config.createSchema ? undefined : (entry?.form as any));
+      const sections = Array.isArray(formForLabels?.sections) ? formForLabels.sections : [];
+      for (const section of sections) {
+        const fields = Array.isArray(section?.fields) ? section.fields : [];
+        for (const field of fields) {
+          if (typeof field === 'string') {
+            if (field === key) return field;
+          } else if (field?.field === key) {
+            return String(field.label ?? key);
+          }
         }
       }
-    }
-    const props = (schema?.properties ?? {}) as Record<string, any>;
-    return String(props[key]?.title ?? key);
+      const props = (schema?.properties ?? {}) as Record<string, any>;
+      return String(props[key]?.title ?? key);
+    })();
+    // For a NESTED path (e.g. `widgets.2.layout`) append a readable trail naming
+    // the offending element + sub-field, so a terse "Widgets: Invalid input"
+    // becomes "Widgets → priority_split → layout".
+    return describeIssuePath(headLabel, path, draft);
   }
 
   async function doSave(force: boolean) {
