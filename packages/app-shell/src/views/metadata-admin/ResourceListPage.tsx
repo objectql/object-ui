@@ -39,6 +39,7 @@ import {
   resolveResourceConfig,
 } from './registry';
 import { t, tFormat, translateMetadataType, detectLocale } from './i18n';
+import { buildPackageScopeOptions, LOCAL_PACKAGE_ID } from './package-scope';
 
 export interface MetadataResourceListPageProps {
   type?: string;
@@ -134,21 +135,7 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
       try {
         const list = await client.list<any>('package');
         if (cancelled) return;
-        const SYSTEM_SCOPES = new Set(['system', 'cloud']);
-        const rows = (list ?? [])
-          .map((raw) => {
-            const item =
-              raw && typeof raw === 'object' && 'item' in raw ? raw.item : raw;
-            const m = ((item as any)?.manifest ?? item ?? {}) as Record<string, unknown>;
-            return {
-              id: m.id as string,
-              scope: m.scope as string,
-              name: (m.name as string) || (m.id as string),
-            };
-          })
-          .filter((p) => p.id && !SYSTEM_SCOPES.has(p.scope));
-        rows.sort((a, b) => a.name.localeCompare(b.name));
-        setProjectPackages(rows.map((p) => ({ id: p.id, name: p.name })));
+        setProjectPackages(buildPackageScopeOptions(list));
       } catch {
         if (!cancelled) setProjectPackages([]);
       }
@@ -287,8 +274,11 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
         // 'sys_metadata' sentinel and untagged rows never match.
         if (!activePackage) return false;
         const pkg = (row.item as any)?._packageId;
-        const effectivePkg = !pkg || pkg === 'sys_metadata' ? null : pkg;
-        return effectivePkg === activePackage;
+        const isLocal = !pkg || pkg === LOCAL_PACKAGE_ID;
+        // Local/Custom scope surfaces this environment's runtime-authored items
+        // (untagged / `sys_metadata` provenance); a code package shows its own.
+        if (activePackage === LOCAL_PACKAGE_ID) return isLocal;
+        return !isLocal && pkg === activePackage;
       }),
     [items, activePackage, config],
   );

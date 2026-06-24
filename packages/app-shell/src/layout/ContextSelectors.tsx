@@ -27,6 +27,18 @@ import {
 import { getIcon } from '../utils/getIcon';
 import { resolveI18nLabel } from '../utils';
 
+// Local/Custom scope sentinel — kept inline (not imported from metadata-admin)
+// so this layout module never forms an import cycle with the metadata-admin
+// views. Mirrors `LOCAL_PACKAGE_ID` in views/metadata-admin/package-scope.ts.
+const LOCAL_SCOPE_ID = 'sys_metadata';
+function localScopeLabel(): string {
+  const lang =
+    (typeof document !== 'undefined' && document.documentElement?.lang) ||
+    (typeof navigator !== 'undefined' && navigator.language) ||
+    '';
+  return /^zh/i.test(lang) ? '本地 / 自定义（本环境）' : 'Local / Custom (this env)';
+}
+
 export interface ContextSelectorFilter {
   key: string;
   op?: 'eq' | 'ne' | 'in' | 'nin';
@@ -117,6 +129,15 @@ function useSelectorOptions(def: ContextSelectorDef): { options: Option[]; refet
         opts.push({ value, label: typeof labelRaw === 'string' && labelRaw ? labelRaw : value });
       }
       opts.sort((a, b) => a.label.localeCompare(b.label));
+      // The package-scope selector gets a stable "Local / Custom (this env)"
+      // entry for this environment's runtime, DB-authored metadata — it is
+      // never a real package row (`package_id = null` / `sys_metadata`
+      // provenance) yet must always be selectable so org-authored items are
+      // discoverable and editable. The metadata list/get API already treats
+      // `?package=sys_metadata` as exactly this local scope.
+      if (/package/i.test(endpoint) && !opts.some((o) => o.value === LOCAL_SCOPE_ID)) {
+        opts.push({ value: LOCAL_SCOPE_ID, label: localScopeLabel() });
+      }
       setOptions(opts);
     } catch {
       /* offline / unauthorized — render with no options */

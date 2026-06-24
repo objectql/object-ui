@@ -59,6 +59,7 @@ import {
   tFormat,
   detectLocale,
 } from './i18n';
+import { buildPackageScopeOptions, LOCAL_PACKAGE_ID } from './package-scope';
 
 const HIDDEN_TYPES = new Set(['field', 'package']);
 
@@ -139,21 +140,7 @@ export function StudioHomePage() {
       try {
         const list = await client.list<any>('package');
         if (cancelled) return;
-        const SYSTEM_SCOPES = new Set(['system', 'cloud']);
-        const rows = (list ?? [])
-          .map((raw) => {
-            const item =
-              raw && typeof raw === 'object' && 'item' in raw ? raw.item : raw;
-            const m = ((item as any)?.manifest ?? item ?? {}) as Record<string, unknown>;
-            return {
-              id: m.id as string,
-              scope: m.scope as string,
-              name: (m.name as string) || (m.id as string),
-            };
-          })
-          .filter((p) => p.id && !SYSTEM_SCOPES.has(p.scope));
-        rows.sort((a, b) => a.name.localeCompare(b.name));
-        setProjectPackages(rows.map((p) => ({ id: p.id, name: p.name })));
+        setProjectPackages(buildPackageScopeOptions(list));
       } catch {
         if (!cancelled) setProjectPackages([]);
       }
@@ -194,6 +181,9 @@ export function StudioHomePage() {
       entries.filter((e) => {
         if (HIDDEN_TYPES.has(e.type)) return false;
         if (!activePackage) return false;
+        // Local/Custom scope: show every runtime-creatable type so the user can
+        // start authoring any kind of metadata here, even with zero items yet.
+        if (activePackage === LOCAL_PACKAGE_ID) return e.allowOrgOverride || e.allowRuntimeCreate;
         return (packagesByType[e.type] ?? []).includes(activePackage);
       }),
     [activePackage, entries, packagesByType],
