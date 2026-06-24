@@ -465,6 +465,15 @@ export const ObjectChartSchema = BaseSchema.extend({
   dataset: z.string().optional().describe('Semantic-layer dataset name (ADR-0021)'),
   dimensions: z.array(z.string()).optional().describe('Dataset dimension names'),
   values: z.array(z.string()).optional().describe('Dataset measure names'),
+  // Colors are overloaded kanban-style: a string[] is the positional palette
+  // (applied per category in order; fallback only), while a Record<value,color>
+  // is an explicit value→color map. A select/lookup dimension's option colors —
+  // and any explicit map — take precedence over the positional palette per
+  // category, so health green/red/yellow paints semantically.
+  colors: z.union([
+    z.array(z.string()),
+    z.record(z.string(), z.string()),
+  ]).optional().describe('Positional palette (string[]) OR a value→color map ({ value: color }, kanban-style). Select/lookup option colors and explicit maps win over the palette per category.'),
 });
 
 /**
