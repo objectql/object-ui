@@ -118,6 +118,14 @@ export interface FlowConfigField {
    * the spec's top-level `node.waitEventConfig.eventType`.
    */
   path: string[];
+  /**
+   * Optional secondary read location used when `path` holds no value — lets the
+   * inspector tolerate a looser on-disk shape the engine also accepts (e.g. a
+   * `wait` node authored with `config.eventType` instead of the spec-canonical
+   * `waitEventConfig.eventType`). Reads fall back to it; the inspector writes the
+   * canonical `path` and prunes the fallback (migrate-on-edit).
+   */
+  fallbackPath?: string[];
   /** Human-readable field label (English — repo is English-only). */
   label: string;
   kind: FlowConfigFieldKind;
@@ -471,23 +479,27 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
         { value: 'condition', label: 'Condition' },
       ],
       defaultValue: 'timer',
+      fallbackPath: ['config', 'eventType'],
     }),
     at('waitEventConfig', 'timerDuration', 'Duration', 'text', {
       placeholder: 'PT1H · P3D',
       help: 'ISO 8601 duration (e.g. PT1H, P3D).',
       showWhen: { field: 'waitEventConfig.eventType', equals: ['timer'] },
+      fallbackPath: ['config', 'timerDuration'],
     }),
     at('waitEventConfig', 'signalName', 'Signal name', 'text', {
       placeholder: 'contract.renewed',
       showWhen: { field: 'waitEventConfig.eventType', equals: ['signal', 'webhook'] },
+      fallbackPath: ['config', 'signalName'],
     }),
-    at('waitEventConfig', 'timeoutMs', 'Timeout (ms)', 'number', { placeholder: '3600000' }),
+    at('waitEventConfig', 'timeoutMs', 'Timeout (ms)', 'number', { placeholder: '3600000', fallbackPath: ['config', 'timeoutMs'] }),
     at('waitEventConfig', 'onTimeout', 'On timeout', 'select', {
       options: [
         { value: 'fail', label: 'Fail' },
         { value: 'continue', label: 'Continue' },
       ],
       defaultValue: 'fail',
+      fallbackPath: ['config', 'onTimeout'],
     }),
   ],
   subflow: [
@@ -595,14 +607,19 @@ export function fieldsForNodeType(type?: string): FlowConfigField[] {
   return FLOW_NODE_CONFIG[canonical] ?? [];
 }
 
-/** Read the current value at a field's node path. */
+/** Read the current value at a field's node path, falling back to `fallbackPath`. */
 export function getFieldValue(node: Record<string, unknown> | null | undefined, field: FlowConfigField): unknown {
-  let cur: unknown = node;
-  for (const seg of field.path) {
-    if (cur && typeof cur === 'object' && !Array.isArray(cur)) cur = (cur as Record<string, unknown>)[seg];
-    else return undefined;
-  }
-  return cur;
+  const read = (path: string[]): unknown => {
+    let cur: unknown = node;
+    for (const seg of path) {
+      if (cur && typeof cur === 'object' && !Array.isArray(cur)) cur = (cur as Record<string, unknown>)[seg];
+      else return undefined;
+    }
+    return cur;
+  };
+  const primary = read(field.path);
+  if (primary !== undefined) return primary;
+  return field.fallbackPath ? read(field.fallbackPath) : undefined;
 }
 
 /**

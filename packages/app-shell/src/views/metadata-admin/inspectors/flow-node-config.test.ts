@@ -1,7 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect } from 'vitest';
-import { fieldsForNodeType, isFieldVisible } from './flow-node-config';
+import { fieldsForNodeType, isFieldVisible, getFieldValue } from './flow-node-config';
 
 describe('start node trigger-field gating (#5)', () => {
   const fields = fieldsForNodeType('start');
@@ -47,5 +47,32 @@ describe('approval node config (ADR-0044)', () => {
     expect(maxRevisions!.path).toEqual(['config', 'maxRevisions']);
     // Always visible (no showWhen gating) so the guard is discoverable.
     expect(isFieldVisible(maxRevisions!, { id: 'a', type: 'approval' }, fields)).toBe(true);
+  });
+});
+
+
+describe('wait node loose-config fallback (ADR-0044 showcase parity)', () => {
+  const fields = fieldsForNodeType('wait');
+  const eventType = fields.find((f) => f.id === 'waitEventConfig.eventType')!;
+  const signalName = fields.find((f) => f.id === 'waitEventConfig.signalName')!;
+
+  it('reads the canonical waitEventConfig shape', () => {
+    const node = { id: 'w', type: 'wait', waitEventConfig: { eventType: 'signal', signalName: 'x' } };
+    expect(getFieldValue(node, eventType)).toBe('signal');
+    expect(getFieldValue(node, signalName)).toBe('x');
+  });
+
+  it('falls back to a loose config shape the engine also accepts', () => {
+    // showcase_budget_approval authors the wait node as `config: { eventType, signalName }`.
+    const node = { id: 'w', type: 'wait', config: { eventType: 'signal', signalName: 'budget_revision' } };
+    expect(getFieldValue(node, eventType)).toBe('signal');
+    expect(getFieldValue(node, signalName)).toBe('budget_revision');
+    // The dependent field reveals because its controller resolves via the fallback.
+    expect(isFieldVisible(signalName, node, fields)).toBe(true);
+  });
+
+  it('prefers the canonical path when both shapes are present', () => {
+    const node = { id: 'w', type: 'wait', waitEventConfig: { eventType: 'timer' }, config: { eventType: 'signal' } };
+    expect(getFieldValue(node, eventType)).toBe('timer');
   });
 });

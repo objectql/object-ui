@@ -30,6 +30,7 @@ import {
   getFieldValue,
   configKeyOf,
   FLOW_NODE_TYPE_OPTIONS,
+  type FlowConfigField,
 } from './flow-node-config';
 import { jsonSchemaToFlowFields } from './json-schema-to-fields';
 import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
@@ -157,6 +158,9 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
     for (const f of fields) {
       const k = configKeyOf(f);
       if (k) s.add(k);
+      // A loose-shape fallback rooted at `config` is claimed too, so a tolerated
+      // legacy key (e.g. a wait node's `config.eventType`) never leaks to Advanced.
+      if (f.fallbackPath && f.fallbackPath.length >= 2 && f.fallbackPath[0] === 'config') s.add(f.fallbackPath[1]);
     }
     return s;
   }, [fields]);
@@ -196,8 +200,12 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   // Screen nodes (and the `user_task` alias) get a live end-user preview.
   const isScreen = node.type === 'screen' || node.type === 'user_task';
 
-  const setField = (path: string[], value: unknown) => {
-    const nextNode = setAtPath(node, path, value);
+  const setField = (field: FlowConfigField, value: unknown) => {
+    const path = field.path;
+    let nextNode = setAtPath(node, path, value);
+    // Migrate-on-edit: writing the canonical path drops any looser fallback
+    // location, so the node never carries a stale duplicate (engine + designer agree).
+    if (field.fallbackPath) nextNode = setAtPath(nextNode, field.fallbackPath, undefined);
     const patch: Record<string, unknown> = { nodes: spliceArray(nodes, index, nextNode) };
     // Decision branches drive routing — mirror them onto the node's outgoing
     // edges so the engine/simulator can actually branch (they read
@@ -285,7 +293,7 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
           key={field.id}
           field={field}
           value={getFieldValue(node, field)}
-          onCommit={(v) => setField(field.path, v)}
+          onCommit={(v) => setField(field, v)}
           disabled={readOnly}
           locale={locale}
           context={{ draft, node }}
