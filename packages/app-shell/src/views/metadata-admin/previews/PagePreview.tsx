@@ -10,7 +10,8 @@
  */
 
 import * as React from 'react';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, RecordContextProvider } from '@object-ui/react';
+import { buildExpandFields } from '@object-ui/core';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
 import { OutlineStrip } from './OutlineStrip';
@@ -97,6 +98,97 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
     onSelectionChange?.({ kind: 'block', id: `children[${next.length - 1}]`, label: newBlock.type });
   }, [canEdit, draft, onPatch, onSelectionChange, shape]);
 
+  // ── Record binding ──────────────────────────────────────────────────────
+  // A `type: 'record'` page's `record:*` blocks (details / highlights / path /
+  // alert) read their data from <RecordContextProvider>. The metadata editor
+  // has no record route, so without binding a sample they render the
+  // "bind a record to preview" placeholder — i.e. the author designs blind.
+  // Fetch a handful of real records of the bound object + its schema and let
+  // the author pick which one to preview against (mirrors the runtime
+  // RecordDetailView's RecordContextProvider).
+  const recordObject = (draft as { type?: string; object?: string })?.type === 'record'
+    ? (draft as { object?: string })?.object
+    : undefined;
+  const [recordSamples, setRecordSamples] = React.useState<any[]>([]);
+  const [recordSchema, setRecordSchema] = React.useState<any>(null);
+  const [selectedRecordId, setSelectedRecordId] = React.useState<string | number | null>(null);
+  React.useEffect(() => {
+    if (!recordObject) { setRecordSamples([]); setRecordSchema(null); setSelectedRecordId(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const opts = { headers: { accept: 'application/json' }, credentials: 'include' as const };
+        // Schema first: it tells us which fields are lookup/master_detail so we
+        // can `$expand` them. Without expansion record:details/highlights would
+        // show raw foreign-key IDs (e.g. "O4VKrNesnsj2JYMa") instead of display
+        // names — the runtime RecordDetailView $expands for exactly this reason.
+        const schemaRes = await fetch(`/api/v1/meta/object/${encodeURIComponent(recordObject)}`, opts);
+        const schemaJson = await schemaRes.json().catch(() => null);
+        const schema = schemaJson?.item ?? schemaJson?.data ?? schemaJson;
+        const expand = buildExpandFields(schema?.fields);
+        const query = expand.length > 0
+          ? `?$top=50&$expand=${encodeURIComponent(expand.join(','))}`
+          : `?$top=50`;
+        const recsRes = await fetch(`/api/v1/data/${encodeURIComponent(recordObject)}${query}`, opts);
+        const recsJson = await recsRes.json().catch(() => null);
+        // The REST data endpoint returns `{ object, records, total, hasMore }`;
+        // tolerate the other common envelopes too.
+        const recs = Array.isArray(recsJson?.records) ? recsJson.records
+          : Array.isArray(recsJson?.items) ? recsJson.items
+          : Array.isArray(recsJson?.data) ? recsJson.data
+          : Array.isArray(recsJson) ? recsJson : [];
+        if (cancelled) return;
+        setRecordSamples(recs);
+        setRecordSchema(schema);
+        // Same id-resolution order as recordIdOf so the initial selection's
+        // value matches an <option> even for objects keyed only by `name`.
+        setSelectedRecordId((prev) => prev ?? (recs[0]?.id ?? recs[0]?._id ?? recs[0]?.name ?? null));
+      } catch { if (!cancelled) { setRecordSamples([]); setRecordSchema(null); } }
+    })();
+    return () => { cancelled = true; };
+  }, [recordObject]);
+  const recordIdOf = (r: any) => r?.id ?? r?._id ?? r?.name;
+  const recordLabelOf = (r: any) =>
+    String(r?.name ?? r?.title ?? r?.label ?? r?.subject ?? recordIdOf(r) ?? '(record)');
+  const selectedRecord = React.useMemo(() => {
+    if (!recordSamples.length) return null;
+    return recordSamples.find((r) => String(recordIdOf(r)) === String(selectedRecordId)) ?? recordSamples[0];
+  }, [recordSamples, selectedRecordId]);
+  // Wrap record-page content in the record context (+ a sample-record picker)
+  // so detail/highlights/path/alert blocks render real data. No-op for
+  // non-record pages and for record pages with no rows yet (renders the node
+  // unchanged so the existing placeholder still shows).
+  const withRecordBinding = (node: React.ReactNode): React.ReactNode => {
+    if (!recordObject || !selectedRecord) return node;
+    return (
+      <RecordContextProvider
+        objectName={recordObject}
+        recordId={recordIdOf(selectedRecord)}
+        data={selectedRecord}
+        objectSchema={recordSchema ?? undefined}
+        embedded
+      >
+        {recordSamples.length > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-muted/30 text-xs">
+            <span className="text-muted-foreground shrink-0">Preview record</span>
+            <select
+              className="h-7 rounded-md border bg-background px-2 text-xs max-w-[260px]"
+              value={String(selectedRecordId ?? '')}
+              onChange={(e) => setSelectedRecordId(e.target.value)}
+            >
+              {recordSamples.map((r) => {
+                const id = recordIdOf(r);
+                return <option key={String(id)} value={String(id)}>{recordLabelOf(r)}</option>;
+              })}
+            </select>
+            <span className="text-muted-foreground/70 shrink-0">{recordSamples.length} sample{recordSamples.length === 1 ? '' : 's'}</span>
+          </div>
+        )}
+        {node}
+      </RecordContextProvider>
+    );
+  };
+
   // Interface page → always mirror the runtime (InterfaceListPage), in BOTH
   // design and preview modes. These pages are config-driven, not region-
   // composed, so there is nothing to drag on a canvas: the author edits the
@@ -149,12 +241,14 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
   if (designMode && shape === 'regions') {
     return (
       <PreviewShell hint={`page · design`}>
-        <PageBlockCanvas
-          draft={draft}
-          onPatch={canEdit ? onPatch : undefined}
-          selection={selection ?? null}
-          onSelectionChange={onSelectionChange}
-        />
+        {withRecordBinding(
+          <PageBlockCanvas
+            draft={draft}
+            onPatch={canEdit ? onPatch : undefined}
+            selection={selection ?? null}
+            onSelectionChange={onSelectionChange}
+          />
+        )}
       </PreviewShell>
     );
   }
@@ -172,9 +266,11 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
             addLabel={tr('engine.inspector.add.block', locale)}
           />
         )}
-        <div className="min-h-[200px] max-h-[70vh] overflow-auto p-4">
-          <SchemaRenderer schema={schema as any} />
-        </div>
+        {withRecordBinding(
+          <div className="min-h-[200px] max-h-[70vh] overflow-auto p-4">
+            <SchemaRenderer schema={schema as any} />
+          </div>
+        )}
       </PreviewErrorBoundary>
     </PreviewShell>
   );

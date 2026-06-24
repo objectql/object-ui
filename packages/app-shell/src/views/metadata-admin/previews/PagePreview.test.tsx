@@ -10,6 +10,7 @@ vi.mock('../../InterfaceListPage', () => ({
 }));
 vi.mock('@object-ui/react', () => ({
   SchemaRenderer: () => <div data-testid="mock-schema-renderer" />,
+  RecordContextProvider: ({ children }: { children: any }) => <>{children}</>,
 }));
 vi.mock('./PageBlockCanvas', () => ({
   PageBlockCanvas: () => <div data-testid="mock-page-canvas" />,
