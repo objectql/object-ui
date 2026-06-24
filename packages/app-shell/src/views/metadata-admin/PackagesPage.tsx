@@ -144,7 +144,7 @@ function StatusBadge({ pkg }: { pkg: InstalledPackage }) {
 const ID_RE = /^[a-z0-9][a-z0-9._-]{1,254}$/i;
 const VERSION_RE = /^\d+\.\d+\.\d+$/;
 
-function CreatePackageDialog({
+export function CreatePackageDialog({
   open,
   onOpenChange,
   onCreated,

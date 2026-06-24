@@ -1060,6 +1060,14 @@ function MetadataResourceEditPageImpl({
         setDestructiveIssues(Array.isArray(i) ? i : []);
         setPendingItem(draft);
       }
+      // ADR-0070 D1/D3 — the kernel rejects authoring into a read-only
+      // code/installed package (`writable_package_required`, also HTTP 422,
+      // so this MUST precede the generic invalid_metadata branch below).
+      // Surface an actionable message guiding the author to pick or create a
+      // writable base rather than mangling it into phantom field issues.
+      else if (err?.code === 'writable_package_required') {
+        setError(t('engine.package.writableRequired', locale));
+      }
       // Map schema validation → inline field errors.
       else if (err?.status === 422 || err?.code === 'invalid_metadata' || err?.code === 'invalid_payload') {
         const i = err?.body?.issues ?? [];

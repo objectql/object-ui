@@ -213,6 +213,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.list.allSources': 'All sources',
   'engine.list.allPackages': 'All packages',
   'engine.package.local': 'Local / Custom (this env)',
+  'engine.package.writableRequired': 'Pick or create a writable base (package) first — this item cannot be authored into a read-only code package.',
   'engine.list.packageFilter': 'Package',
   'engine.list.source.artifact': 'Artifact',
   'engine.list.source.runtime': 'Runtime',
@@ -840,6 +841,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
 };
 
 const ENGINE_STRINGS_ZH: Record<string, string> = {
+  'engine.package.writableRequired': '请先选择或新建一个可写的基座（package）——只读的代码包中无法新建该项。',
   'engine.directory.title': '元数据',
   'engine.directory.description':
     '平台协议共暴露 {count} 个元数据类型（其中 {writable} 个支持运行时覆盖）。点击任意卡片即可浏览、覆盖或创建实例。',

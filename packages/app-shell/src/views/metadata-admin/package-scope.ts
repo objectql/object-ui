@@ -51,3 +51,23 @@ export function buildPackageScopeOptions(
   // preserved; the user opts into the local scope explicitly.
   return [...opts, { id: LOCAL_PACKAGE_ID, name: t('engine.package.local', detectLocale()) }];
 }
+
+/**
+ * True for the runtime/null "Local / Custom" sentinel scope. Per ADR-0070 D5
+ * this is a *migration* surface (move loose items into a base), never a valid
+ * create destination — callers gate "create" on a real writable base.
+ */
+export function isLocalScope(id: string | null | undefined): boolean {
+  return !id || id === LOCAL_PACKAGE_ID;
+}
+
+/**
+ * The writable bases (project-scoped DB packages) from the raw package list —
+ * the only valid authoring destinations (ADR-0070 D2). Excludes code/installed
+ * (system|cloud) packages AND the Local sentinel.
+ */
+export function writableBaseOptions(
+  rawList: unknown[] | null | undefined,
+): { id: string; name: string }[] {
+  return buildPackageScopeOptions(rawList).filter((o) => o.id !== LOCAL_PACKAGE_ID);
+}

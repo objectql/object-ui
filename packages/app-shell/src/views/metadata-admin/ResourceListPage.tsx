@@ -28,6 +28,7 @@ import {
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { PageShell } from './PageShell';
 import { MetadataTypeActions } from './MetadataTypeActions';
+import { CreatePackageDialog } from './PackagesPage';
 import {
   useMetadataClient,
   useMetadataTypes,
@@ -39,7 +40,7 @@ import {
   resolveResourceConfig,
 } from './registry';
 import { t, tFormat, translateMetadataType, detectLocale } from './i18n';
-import { buildPackageScopeOptions, LOCAL_PACKAGE_ID } from './package-scope';
+import { buildPackageScopeOptions, LOCAL_PACKAGE_ID, isLocalScope } from './package-scope';
 
 export interface MetadataResourceListPageProps {
   type?: string;
@@ -221,6 +222,23 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
     ? `?package=${encodeURIComponent(activePackage)}`
     : '';
 
+  // ADR-0070 D3 — never start a create that would orphan the item. When a real
+  // writable base exists, create into it (defaulting away from the Local/null
+  // scope); when none exists yet, prompt to create a base first.
+  const [showCreateBase, setShowCreateBase] = React.useState(false);
+  const handleCreate = React.useCallback(() => {
+    const realBases = (projectPackages ?? []).filter((p) => !isLocalScope(p.id));
+    if (projectPackages !== null && realBases.length === 0) {
+      setShowCreateBase(true);
+      return;
+    }
+    if (realBases.length > 0 && (!activePackage || isLocalScope(activePackage))) {
+      navigate(`./new?package=${encodeURIComponent(realBases[0].id)}`);
+      return;
+    }
+    navigate(`./new${pkgSuffix}`);
+  }, [projectPackages, activePackage, pkgSuffix, navigate]);
+
   React.useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -384,7 +402,7 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
             <Button
               size="sm"
               variant={config.createFields ? 'default' : 'outline'}
-              onClick={() => navigate(`./new${pkgSuffix}`)}
+              onClick={handleCreate}
               title={
                 config.createFields
                   ? tFormat('engine.list.createHint', locale, { type: typeLabel })
@@ -399,6 +417,11 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
       }
     >
       <div className="p-6 space-y-4">
+        <CreatePackageDialog
+          open={showCreateBase}
+          onOpenChange={setShowCreateBase}
+          onCreated={(id) => navigate(`./new?package=${encodeURIComponent(id)}`)}
+        />
         {/* Filter row */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -455,7 +478,7 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
             </EmptyDescription>
             {scopedItems.length === 0 && (entry?.allowOrgOverride || entry?.allowRuntimeCreate) && (
               <div className="mt-4">
-                <Button onClick={() => navigate(`./new${pkgSuffix}`)}>
+                <Button onClick={handleCreate}>
                   <Plus className="h-4 w-4 mr-1" />
                   {t('engine.list.create', locale)}
                 </Button>
