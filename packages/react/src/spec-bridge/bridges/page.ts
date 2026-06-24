@@ -36,14 +36,6 @@ interface PageVariable {
   source?: string;
 }
 
-interface BlankPageLayoutItem {
-  componentId: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 interface PageSpec {
   name?: string;
   label?: string;
@@ -54,14 +46,8 @@ interface PageSpec {
   regions?: PageRegion[];
   template?: string;
   object?: string;
-  // P1.4 additions
-  blankLayout?: {
-    columns?: number;
-    rowHeight?: number;
-    gap?: number;
-    items?: BlankPageLayoutItem[];
-  };
-  recordReview?: any;
+  // NOTE: blankLayout/recordReview removed — the `blank`/`record_review` page
+  // types have no renderer and were dropped from @objectstack/spec (framework#2265).
   isDefault?: boolean;
   assignedProfiles?: string[];
   interfaceConfig?: any;
@@ -129,11 +115,8 @@ export const bridgePage: BridgeFn<PageSpec> = (
   if (spec.template) node.template = spec.template;
   if (spec.object) node.object = spec.object;
 
-  // P1.4 — Blank page layout
-  if (spec.blankLayout) node.blankLayout = spec.blankLayout;
-
-  // P1.4 — Additional page properties
-  if (spec.recordReview) node.recordReview = spec.recordReview;
+  // Additional page properties (blankLayout/recordReview dropped — their page
+  // types have no renderer and were removed from @objectstack/spec, framework#2265)
   if (spec.isDefault != null) node.isDefault = spec.isDefault;
   if (spec.assignedProfiles) node.assignedProfiles = spec.assignedProfiles;
   if (spec.interfaceConfig) node.interfaceConfig = spec.interfaceConfig;

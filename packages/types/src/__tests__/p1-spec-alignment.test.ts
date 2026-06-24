@@ -409,12 +409,14 @@ describe('P1.3 Dashboard Spec Alignment', () => {
 // P1.4 Page Composition Spec Alignment
 // ============================================================================
 describe('P1.4 Page Composition Spec Alignment', () => {
-  it('should accept all 16 page types', () => {
+  it('should accept all page types', () => {
+    // The roadmap types (dashboard/form/record_detail/record_review/overview/
+    // blank) were removed — no renderer, dropped from @objectstack/spec
+    // PageTypeSchema (framework#2265). grid/gallery/kanban/calendar/timeline
+    // remain pending a separate "visualizations are not page types" cleanup.
     const allTypes: PageType[] = [
       'record', 'home', 'app', 'utility',
-      'dashboard', 'grid', 'list', 'gallery',
-      'kanban', 'calendar', 'timeline', 'form',
-      'record_detail', 'record_review', 'overview', 'blank',
+      'grid', 'list', 'gallery', 'kanban', 'calendar', 'timeline',
     ];
     allTypes.forEach((type) => {
       const page: PageSchema = {
@@ -435,25 +437,8 @@ describe('P1.4 Page Composition Spec Alignment', () => {
     expect(variable.source).toBe('url_param');
   });
 
-  it('should accept blank page layout', () => {
-    const page: PageSchema = {
-      type: 'page',
-      pageType: 'blank',
-      blankLayout: {
-        columns: 12,
-        rowHeight: 60,
-        gap: 8,
-        items: [
-          { componentId: 'header-1', x: 0, y: 0, width: 12, height: 2 },
-          { componentId: 'chart-1', x: 0, y: 2, width: 6, height: 4 },
-          { componentId: 'metric-1', x: 6, y: 2, width: 6, height: 4 },
-        ],
-      },
-    };
-    expect(page.blankLayout?.columns).toBe(12);
-    expect(page.blankLayout?.items).toHaveLength(3);
-    expect(page.blankLayout?.items![0].componentId).toBe('header-1');
-  });
+  // (Removed "should accept blank page layout" — the `blank` page type and its
+  // blankLayout config were dropped: no renderer (framework#2265).)
 
   it('should accept page ARIA properties', () => {
     const page: PageSchema = {

@@ -1187,10 +1187,8 @@ export type {
   PageTypeSchema as SpecPageTypeSchema,
   PageVariable as SpecPageVariable,
   PageVariableSchema as SpecPageVariableSchema,
-  BlankPageLayout,
-  BlankPageLayoutSchema,
-  BlankPageLayoutItem,
-  BlankPageLayoutItemSchema,
+  // BlankPageLayout{,Schema,Item,ItemSchema} dropped — `blank` page type has no
+  // renderer; removed from @objectstack/spec PageTypeSchema (framework#2265).
 } from '@objectstack/spec/ui';
 
 // ============================================================================

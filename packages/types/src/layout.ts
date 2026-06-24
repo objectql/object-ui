@@ -434,18 +434,17 @@ export type PageType =
   | 'home'
   | 'app'
   | 'utility'
-  | 'dashboard'
+  // The roadmap page types (dashboard/form/record_detail/record_review/overview/
+  // blank) were removed: they have no renderer and were dropped from
+  // @objectstack/spec PageTypeSchema (framework#2265, enforce-or-remove).
+  // NOTE: grid/list/gallery/kanban/calendar/timeline below are list
+  // VISUALIZATIONS, not page kinds — retained pending a separate cleanup.
   | 'grid'
   | 'list'
   | 'gallery'
   | 'kanban'
   | 'calendar'
-  | 'timeline'
-  | 'form'
-  | 'record_detail'
-  | 'record_review'
-  | 'overview'
-  | 'blank';
+  | 'timeline';
 
 /**
  * Page Variable
@@ -540,32 +539,8 @@ export interface PageSchema extends BaseSchema {
    * (Aligned with @objectstack/spec Page.regions)
    */
   regions?: PageRegion[];
-  /**
-   * Blank page grid layout
-   * Used when pageType is 'blank' for free-form grid canvas.
-   * Aligned with @objectstack/spec BlankPageLayoutSchema.
-   */
-  blankLayout?: {
-    /** Number of grid columns */
-    columns?: number;
-    /** Row height in pixels */
-    rowHeight?: number;
-    /** Gap between grid items in pixels */
-    gap?: number;
-    /** Items placed on the grid */
-    items?: Array<{
-      /** Component ID reference */
-      componentId: string;
-      /** Grid column position */
-      x: number;
-      /** Grid row position */
-      y: number;
-      /** Width in grid columns */
-      width: number;
-      /** Height in grid rows */
-      height: number;
-    }>;
-  };
+  // blankLayout removed — the `blank` page type has no renderer and was dropped
+  // from @objectstack/spec PageTypeSchema (framework#2265, enforce-or-remove).
   /**
    * Main content array (Legacy/Simple mode)
    */

@@ -384,7 +384,6 @@ export const PageRenderer: React.FC<{
     description: _descriptionProp,
     object: _objectProp,
     variables: _variablesProp,
-    blankLayout: _blankLayoutProp,
     body: _bodyProp,
     isDefault: _isDefaultProp,
     assignedProfiles: _assignedProfilesProp,

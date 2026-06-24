@@ -524,9 +524,7 @@ describe('P1 SpecBridge Protocol Alignment', () => {
       const bridge = new SpecBridge();
       const pageTypes = [
         'record', 'home', 'app', 'utility',
-        'dashboard', 'grid', 'list', 'gallery',
-        'kanban', 'calendar', 'timeline', 'form',
-        'record_detail', 'record_review', 'overview', 'blank',
+        'grid', 'list', 'gallery', 'kanban', 'calendar', 'timeline',
       ];
 
       pageTypes.forEach((pageType) => {
@@ -538,26 +536,9 @@ describe('P1 SpecBridge Protocol Alignment', () => {
       });
     });
 
-    it('should map blank page layout', () => {
-      const bridge = new SpecBridge();
-      const node = bridge.transformPage({
-        name: 'blank_page',
-        type: 'blank',
-        blankLayout: {
-          columns: 12,
-          rowHeight: 60,
-          gap: 8,
-          items: [
-            { componentId: 'header', x: 0, y: 0, width: 12, height: 2 },
-            { componentId: 'chart', x: 0, y: 2, width: 6, height: 4 },
-          ],
-        },
-      });
-
-      expect(node.blankLayout).toBeDefined();
-      expect(node.blankLayout.columns).toBe(12);
-      expect(node.blankLayout.items).toHaveLength(2);
-    });
+    // (Removed "should map blank page layout" — the bridge no longer maps
+    // blankLayout; the `blank` page type has no renderer, dropped from
+    // @objectstack/spec (framework#2265).)
 
     it('should map page variables with source', () => {
       const bridge = new SpecBridge();
