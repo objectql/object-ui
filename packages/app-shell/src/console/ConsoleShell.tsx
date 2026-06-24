@@ -18,6 +18,7 @@ import { SchemaRendererProvider } from '@object-ui/react';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
 import { AdapterProvider, useAdapter } from '../providers/AdapterProvider';
 import { MetadataProvider, useMetadata } from '../providers/MetadataProvider';
+import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { PreviewModeProvider } from '../preview/PreviewModeContext';
 import { NavigationProvider } from '../context/NavigationContext';
 import { FavoritesProvider } from '../context/FavoritesProvider';
@@ -179,6 +180,31 @@ export function RequireOrganization({ children }: { children: ReactNode }) {
   const orgList = organizations ?? [];
   const orgFeatureEnabled = orgList.length > 0 || !!activeOrganization;
   if (orgFeatureEnabled && !activeOrganization) return <Navigate to="/organizations" replace />;
+  return <>{children}</>;
+}
+
+/**
+ * RequireAiSurface — gate for the `/ai*` routes. The console is edition-agnostic
+ * (MIT, runtime-gated): a Community Edition runtime serves no AI agent, so a
+ * stale `/ai` bookmark or external link must not land on a broken/empty chat.
+ * When the server serves no agent it redirects to `redirectTo` (home) instead.
+ *
+ * Availability is the live agent catalog (see {@link useAiSurfaceEnabled}) — the
+ * same signal every other AI entry point now gates on, so the route is reachable
+ * from exactly the entry points that are visible (no shown CTA that bounces back
+ * to home, no hidden FAB to a working route). Waits for the catalog to resolve
+ * before deciding so the redirect never flashes on first paint.
+ */
+export function RequireAiSurface({
+  children,
+  redirectTo = '/home',
+}: {
+  children: ReactNode;
+  redirectTo?: string;
+}) {
+  const { enabled, isLoading } = useAiSurfaceEnabled();
+  if (isLoading) return <LoadingFallback />;
+  if (!enabled) return <Navigate to={redirectTo} replace />;
   return <>{children}</>;
 }
 

@@ -31,6 +31,9 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
+  Empty,
+  EmptyTitle,
+  EmptyDescription,
   cn,
 } from '@object-ui/components';
 import { PanelLeft, PanelLeftClose, PanelLeftOpen, Share2 } from 'lucide-react';
@@ -493,8 +496,16 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   const env = (import.meta as any).env ?? {};
   const envDefaultAgent = env.VITE_AI_DEFAULT_AGENT as string | undefined;
 
-  const { agents, isLoading: agentsLoading, error: agentsError } = useAgents({ apiBase });
+  const { agents, isLoading: agentsLoading, error: agentsError, refetch: refetchAgents } =
+    useAgents({ apiBase });
   const catalogNames = useMemo(() => agents.map((a) => a.name), [agents]);
+  // Catalog resolved with no agent to talk to. The `/ai` route guard already
+  // redirects when discovery reports AI unavailable (Community Edition), so this
+  // is the secondary safety net: a deployment that reports AI enabled but serves
+  // no agent (misconfig), a transient `/agents` failure, or a `VITE_AI_BASE_URL`
+  // server that returns an empty list. Either way, degrade to a graceful state
+  // instead of the agent-less echo chat (autoResponse) that ChatPane falls into.
+  const noAgents = !agentsLoading && agents.length === 0;
 
   // Is the first path segment an agent? It is when it resolves to one (friendly
   // alias / new id / legacy id). When it doesn't, it's a legacy bare
@@ -739,40 +750,55 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   return (
     <div className="flex h-svh w-full flex-col bg-background" data-testid="ai-chat-page">
       <header className="sticky top-0 z-30 flex h-14 w-full shrink-0 items-center gap-2 border-b bg-background/95 px-2 backdrop-blur sm:px-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0 md:hidden"
-          onClick={() => setMobileChatsOpen(true)}
-          aria-label={t('console.ai.openChats')}
-          data-testid="ai-chat-mobile-sidebar-trigger"
-        >
-          <PanelLeft className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="hidden h-8 w-8 shrink-0 md:inline-flex"
-          onClick={toggleChatsCollapsed}
-          aria-label={
-            chatsCollapsed
-              ? t('console.ai.showChats', { defaultValue: 'Show chats' })
-              : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
-          }
-          title={
-            chatsCollapsed
-              ? t('console.ai.showChats', { defaultValue: 'Show chats' })
-              : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
-          }
-          data-testid="ai-chat-collapse-sidebar-trigger"
-          aria-pressed={chatsCollapsed}
-        >
-          {chatsCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </Button>
+        {/* Chat-list toggles are meaningless with no agent/conversations, so
+            hide them in the graceful no-agents state. */}
+        {!noAgents && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 md:hidden"
+              onClick={() => setMobileChatsOpen(true)}
+              aria-label={t('console.ai.openChats')}
+              data-testid="ai-chat-mobile-sidebar-trigger"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden h-8 w-8 shrink-0 md:inline-flex"
+              onClick={toggleChatsCollapsed}
+              aria-label={
+                chatsCollapsed
+                  ? t('console.ai.showChats', { defaultValue: 'Show chats' })
+                  : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
+              }
+              title={
+                chatsCollapsed
+                  ? t('console.ai.showChats', { defaultValue: 'Show chats' })
+                  : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
+              }
+              data-testid="ai-chat-collapse-sidebar-trigger"
+              aria-pressed={chatsCollapsed}
+            >
+              {chatsCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </Button>
+          </>
+        )}
         <div className="min-w-0 flex-1">
           <AppHeader variant="home" />
         </div>
       </header>
+      {noAgents ? (
+        <AiUnavailable
+          hasError={Boolean(agentsError)}
+          onRetry={refetchAgents}
+          onHome={() => navigate('/home')}
+          t={t}
+        />
+      ) : (
+      <>
       <Sheet open={mobileChatsOpen} onOpenChange={setMobileChatsOpen}>
         <SheetContent side="left" className="w-[320px] p-0 sm:max-w-[360px]" data-testid="ai-chat-mobile-sidebar">
           <SheetHeader className="sr-only">
@@ -829,6 +855,58 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
           />
         </main>
       </div>
+      </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Graceful state for `/ai` when the agent catalog resolved empty — shown
+ * instead of an agent-less echo chat. `hasError` distinguishes "AI not enabled
+ * on this deployment" (Community Edition) from "couldn't reach the AI service"
+ * (offline/misconfig), which also offers a retry. Either way there's a way out
+ * (back to home), so the route never dead-ends.
+ */
+function AiUnavailable({
+  hasError,
+  onRetry,
+  onHome,
+  t,
+}: {
+  hasError: boolean;
+  onRetry: () => void;
+  onHome: () => void;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}) {
+  return (
+    <div className="flex flex-1 items-center justify-center p-6" data-testid="ai-unavailable">
+      <Empty>
+        <EmptyTitle>
+          {t('console.ai.unavailableTitle', { defaultValue: 'AI assistant unavailable' })}
+        </EmptyTitle>
+        <EmptyDescription>
+          {hasError
+            ? t('console.ai.unavailableError', {
+                defaultValue:
+                  "Couldn't reach the AI service. It may be temporarily offline — try again, or head back home.",
+              })
+            : t('console.ai.unavailableDescription', {
+                defaultValue:
+                  "This deployment doesn't have an AI assistant enabled. Everything else works as usual.",
+              })}
+        </EmptyDescription>
+        <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row">
+          {hasError && (
+            <Button variant="outline" onClick={onRetry} data-testid="ai-unavailable-retry">
+              {t('console.ai.unavailableRetry', { defaultValue: 'Try again' })}
+            </Button>
+          )}
+          <Button onClick={onHome} data-testid="ai-unavailable-home">
+            {t('console.ai.unavailableHome', { defaultValue: 'Back to home' })}
+          </Button>
+        </div>
+      </Empty>
     </div>
   );
 }

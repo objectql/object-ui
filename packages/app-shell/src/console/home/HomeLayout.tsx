@@ -11,7 +11,7 @@
 import React, { useEffect } from 'react';
 import { useNavigationContext } from '../../context/NavigationContext';
 import { AppHeader } from '../../layout/AppHeader';
-import { useDiscovery } from '@object-ui/react';
+import { useAiSurfaceEnabled } from '../../hooks/useAiSurface';
 import { useObjectTranslation } from '@object-ui/i18n';
 
 // Lightweight FAB stub — the heavy chat chunk graph only downloads on
@@ -29,13 +29,11 @@ interface HomeLayoutProps {
 
 export function HomeLayout({ children, userId }: HomeLayoutProps) {
   const { setContext } = useNavigationContext();
-  const { isAiEnabled } = useDiscovery();
   const { t } = useObjectTranslation();
-  // Render the chatbot whenever AI is reachable. If the developer has explicitly
-  // configured `VITE_AI_BASE_URL`, trust that opt-in even when discovery
-  // reports AI as disabled (e.g. framework started without `--preset full`).
-  const aiBaseUrlConfigured = Boolean(import.meta.env?.VITE_AI_BASE_URL);
-  const showChatbot = isAiEnabled || aiBaseUrlConfigured;
+  // Render the chatbot only when the server serves AI (or an explicit
+  // `VITE_AI_BASE_URL` opt-in is set) — same runtime signal as the rest of the
+  // console's AI surface. See useAiSurfaceEnabled.
+  const { enabled: showChatbot } = useAiSurfaceEnabled();
 
   useEffect(() => {
     setContext('home');

@@ -55,11 +55,18 @@ export {
   ConsoleShell,
   ConnectedShell,
   RequireOrganization,
+  RequireAiSurface,
   AuthenticatedRoute,
   RootRedirect,
   SystemRedirect,
   LoadingFallback,
 } from './console/ConsoleShell';
+
+// Runtime AI-availability signal — the single source of truth every AI entry
+// point gates on (FAB, /ai routes, designer "Ask AI"). Server-pushed, no
+// build-time edition flag. See ./hooks/useAiSurface.
+export { useAiSurfaceEnabled } from './hooks/useAiSurface';
+export type { AiSurfaceState } from './hooks/useAiSurface';
 
 // Layout chrome
 export {

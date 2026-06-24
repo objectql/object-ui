@@ -70,6 +70,7 @@ import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
 import { useCommandPalette } from '../context/CommandPaletteProvider';
 import { useUrlOverlay } from '../hooks/useUrlOverlay';
+import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { getProductName } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
 
@@ -136,6 +137,10 @@ export function AppHeader({
     isOrganizationsLoading,
   } = useAuth();
   const dataSource = useAdapter();
+  // Runtime AI gating: hide the top-bar AI entry point when the server serves
+  // no AI (Community Edition) so it can't dead-end on a chat with no agent.
+  // Same signal as the FAB and the `/ai` route guard.
+  const { enabled: aiEnabled } = useAiSurfaceEnabled();
   const { t } = useObjectTranslation();
   const { objectLabel, dashboardLabel, pageLabel, reportLabel, viewLabel, appLabel } = useObjectLabel();
   const { apps: metadataApps, dashboards: metadataDashboards, pages: metadataPages, reports: metadataReports } = useMetadata();
@@ -818,18 +823,21 @@ export function AppHeader({
             onMarkRead={markNotificationRead}
           />
 
-          {/* AI Assistant */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            asChild
-            aria-label={t('topbar.aiAssistant', { defaultValue: 'AI Assistant' })}
-          >
-            <Link to="/ai">
-              <Bot className="h-4 w-4" />
-            </Link>
-          </Button>
+          {/* AI Assistant — only when the runtime serves AI (hidden on
+              Community Edition so it can't dead-end on an agent-less chat). */}
+          {aiEnabled && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              asChild
+              aria-label={t('topbar.aiAssistant', { defaultValue: 'AI Assistant' })}
+            >
+              <Link to="/ai">
+                <Bot className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
 
           {/* Help & Documentation — an aggregated menu rather than a bare
               external link: contextual "This app's docs" (only when the

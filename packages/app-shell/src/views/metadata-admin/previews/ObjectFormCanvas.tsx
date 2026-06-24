@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import type { MetadataSelection } from '../preview-registry';
 import { requestAssistantOpen } from '../../../assistant/assistantBus';
+import { useAiSurfaceEnabled } from '../../../hooks/useAiSurface';
 import {
   readFields,
   writeFields,
@@ -104,6 +105,10 @@ export function ObjectFormCanvas({
   locale,
 }: ObjectFormCanvasProps) {
   const readOnly = !onPatch;
+  // The "Ask AI" affordances arm the global chat FAB (requestAssistantOpen).
+  // Hide them when the runtime serves no AI — otherwise they'd dead-end with no
+  // FAB to open. Same server-pushed signal the FAB itself gates on.
+  const { enabled: aiEnabled } = useAiSurfaceEnabled();
 
   const view = React.useMemo(() => readFields((draft as any).fields), [draft]);
 
@@ -466,7 +471,7 @@ export function ObjectFormCanvas({
         )}
 
         {emptyState ? (
-          <EmptyCanvas onAdd={readOnly ? undefined : addField} locale={locale} />
+          <EmptyCanvas onAdd={readOnly ? undefined : addField} locale={locale} aiEnabled={aiEnabled} />
         ) : (
           <div className="space-y-5">
             {groups.map((g) => {
@@ -544,15 +549,17 @@ export function ObjectFormCanvas({
               <FolderPlus className="h-3.5 w-3.5" />
               {t('designer.canvas.addSection', locale)}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 ml-auto text-primary/80 hover:text-primary"
-              onClick={() => requestAssistantOpen()}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              {t('designer.canvas.askAi', locale)}
-            </Button>
+            {aiEnabled && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 ml-auto text-primary/80 hover:text-primary"
+                onClick={() => requestAssistantOpen()}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {t('designer.canvas.askAi', locale)}
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -1208,7 +1215,16 @@ function FieldRow({
   );
 }
 
-function EmptyCanvas({ onAdd, locale }: { onAdd?: (type: FieldTypeId) => void; locale?: string }) {
+function EmptyCanvas({
+  onAdd,
+  locale,
+  aiEnabled,
+}: {
+  onAdd?: (type: FieldTypeId) => void;
+  locale?: string;
+  /** Show the "Ask AI to generate" affordance only when the runtime serves AI. */
+  aiEnabled?: boolean;
+}) {
   return (
     <div className="rounded-lg border-2 border-dashed bg-background py-16 px-6 text-center space-y-3">
       <div className="text-sm font-medium">{t('designer.canvas.noFields', locale)}</div>
@@ -1218,15 +1234,17 @@ function EmptyCanvas({ onAdd, locale }: { onAdd?: (type: FieldTypeId) => void; l
       {onAdd && (
         <div className="pt-2 flex items-center justify-center gap-2">
           <AddFieldButton onPick={onAdd} locale={locale} />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-primary/80 hover:text-primary"
-            onClick={() => requestAssistantOpen()}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            {t('designer.canvas.askAiGenerate', locale)}
-          </Button>
+          {aiEnabled && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-primary/80 hover:text-primary"
+              onClick={() => requestAssistantOpen()}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {t('designer.canvas.askAiGenerate', locale)}
+            </Button>
+          )}
         </div>
       )}
     </div>

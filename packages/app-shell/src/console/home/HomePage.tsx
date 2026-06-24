@@ -31,15 +31,7 @@ import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/componen
 import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
-
-/** Resolve the AI service base, mirroring AiChatPage/ConsoleFloatingChatbot. */
-function resolveAiApiBase(): string {
-  const env = (import.meta as any).env ?? {};
-  const fromEnv = env.VITE_AI_BASE_URL as string | undefined;
-  if (fromEnv) return fromEnv.replace(/\/$/, '');
-  const serverUrl = (env.VITE_SERVER_URL as string | undefined) ?? '';
-  return `${serverUrl.replace(/\/$/, '')}/api/v1/ai`;
-}
+import { resolveAiApiBase } from '../../hooks/useAiSurface';
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single

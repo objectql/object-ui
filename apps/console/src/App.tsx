@@ -23,6 +23,7 @@ import {
   ConsoleShell,
   ConnectedShell,
   RequireOrganization,
+  RequireAiSurface,
   SystemRedirect,
   LoadingFallback,
   ConsoleToaster,
@@ -263,20 +264,27 @@ export function App() {
               back-compat redirects: bare `/ai` → the default agent surface, and
               a single-segment `/ai/:agent` that is actually a legacy bare
               conversation id → `/ai/:agent/:conversationId`.
+
+              `RequireAiSurface` keeps these from dead-ending on a runtime that
+              serves no AI (Community Edition): with AI unavailable a stale
+              bookmark / external link redirects to home instead of mounting a
+              chat with no agent to talk to. Cloud installs pass straight
+              through. Purely additive runtime gating — same server signal the
+              floating-chat FAB has always used.
             */}
             <Route path="/ai" element={
               <ProtectedRoute>
-                <DefaultAiChatPage />
+                <RequireAiSurface><DefaultAiChatPage /></RequireAiSurface>
               </ProtectedRoute>
             } />
             <Route path="/ai/:agent" element={
               <ProtectedRoute>
-                <DefaultAiChatPage />
+                <RequireAiSurface><DefaultAiChatPage /></RequireAiSurface>
               </ProtectedRoute>
             } />
             <Route path="/ai/:agent/:conversationId" element={
               <ProtectedRoute>
-                <DefaultAiChatPage />
+                <RequireAiSurface><DefaultAiChatPage /></RequireAiSurface>
               </ProtectedRoute>
             } />
             <Route path="/apps/:appName/*" element={

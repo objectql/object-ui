@@ -10,7 +10,6 @@
 
 import React, { useEffect } from 'react';
 import { AppShell } from '@object-ui/layout';
-import { useDiscovery } from '@object-ui/react';
 import { isBuildAgent } from '@object-ui/plugin-chatbot';
 
 // Lightweight FAB stub — the heavy chat chunk graph (plugin-chatbot,
@@ -23,6 +22,7 @@ import { UnifiedSidebar } from './UnifiedSidebar';
 import { AppHeader } from './AppHeader';
 import { MobileViewSwitcherProvider } from './MobileViewSwitcherContext';
 import { useResponsiveSidebar } from '../hooks/useResponsiveSidebar';
+import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { useNavigationContext } from '../context/NavigationContext';
 import { CommandPaletteProvider } from '../context/CommandPaletteProvider';
 import { resolveI18nLabel } from '../utils';
@@ -68,11 +68,10 @@ export function ConsoleLayout({
   userId,
 }: ConsoleLayoutProps) {
   const appLabel = resolveI18nLabel(activeApp?.label) || activeAppName;
-  const { isAiEnabled } = useDiscovery();
-  // Trust an explicit `VITE_AI_BASE_URL` opt-in even when discovery reports
-  // AI as disabled (e.g. framework started without `--preset full`).
-  const aiBaseUrlConfigured = Boolean(import.meta.env?.VITE_AI_BASE_URL);
-  const showChatbot = isAiEnabled || aiBaseUrlConfigured;
+  // Runtime, server-pushed AI gating (shared with the `/ai` route guard and the
+  // top-bar AI link): show the chatbot only when the server actually serves AI,
+  // or when an explicit `VITE_AI_BASE_URL` opt-in points at an external server.
+  const { enabled: showChatbot } = useAiSurfaceEnabled();
   // AI Studio (AI-driven metadata authoring / "online development") can be
   // turned off per deployment. When off, suppress the metadata-authoring
   // assistant so the chatbot falls back to the generic data assistant — the

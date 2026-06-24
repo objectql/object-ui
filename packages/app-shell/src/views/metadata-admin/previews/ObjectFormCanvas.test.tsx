@@ -1,10 +1,22 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { ObjectFormCanvas } from './ObjectFormCanvas';
 import { assistantBus } from '../../../assistant/assistantBus';
+import { useAiSurfaceEnabled } from '../../../hooks/useAiSurface';
 
+// The designer's "Ask AI" affordances are runtime-gated on the shared
+// AI-surface signal. Mock it so both states can be exercised without standing
+// up a discovery data source; every test starts with AI enabled (see
+// beforeEach), and the Community-Edition case overrides it to disabled.
+vi.mock('../../../hooks/useAiSurface', () => ({
+  useAiSurfaceEnabled: vi.fn(() => ({ enabled: true, isLoading: false })),
+}));
+
+beforeEach(() => {
+  vi.mocked(useAiSurfaceEnabled).mockReturnValue({ enabled: true, isLoading: false });
+});
 afterEach(cleanup);
 
 /* shared fixtures for the review/diff tests */
@@ -342,5 +354,28 @@ describe('ObjectFormCanvas — Ask AI entry point', () => {
       />,
     );
     expect(screen.queryByText('Ask AI')).not.toBeInTheDocument();
+  });
+
+  it('hides both Ask AI affordances when AI is unavailable (Community Edition)', () => {
+    vi.mocked(useAiSurfaceEnabled).mockReturnValue({ enabled: false, isLoading: false });
+
+    // Populated canvas: the toolbar "Ask AI" is gone, but the rest of the
+    // toolbar (Add field / Add section) stays.
+    const populated = render(
+      <ObjectFormCanvas
+        objectName="x"
+        draft={{ name: 'x', fields: { a: { type: 'text', label: 'A' } } }}
+        onPatch={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText('Ask AI')).not.toBeInTheDocument();
+    expect(screen.getByText('Add section')).toBeInTheDocument();
+    populated.unmount();
+
+    // Empty canvas: "Generate fields with AI" is gone, "Add field" remains so
+    // the designer is still usable without AI.
+    render(<ObjectFormCanvas objectName="x" draft={{ name: 'x', fields: {} }} onPatch={vi.fn()} />);
+    expect(screen.queryByText('Generate fields with AI')).not.toBeInTheDocument();
+    expect(screen.getByText('Add field')).toBeInTheDocument();
   });
 });
