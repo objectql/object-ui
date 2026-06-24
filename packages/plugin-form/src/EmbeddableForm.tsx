@@ -208,7 +208,9 @@ export const EmbeddableForm: React.FC<EmbeddableFormProps> = ({
   const [consentError, setConsentError] = useState<string | null>(null);
 
   const honeypotRef = useRef<HTMLInputElement | null>(null);
-  const mountedAtRef = useRef<number>(Date.now());
+  // Seeded lazily by the mount effect below — Date.now() is impure and must not
+  // run during render. The effect always overwrites this before any submit.
+  const mountedAtRef = useRef<number>(0);
   useEffect(() => {
     // Reset the mount timestamp whenever the form returns from the thank-you
     // screen so anti-bot timing measures the next interaction, not the first.

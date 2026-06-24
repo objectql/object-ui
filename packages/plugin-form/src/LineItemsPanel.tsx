@@ -49,13 +49,11 @@ export interface LineItemsPanelSchema {
 export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ schema }) => {
   const ctx = useSchemaContext() as any;
   const dataSource = ctx?.dataSource;
-  let record: any;
-  try {
-    // useRecordContext throws outside a provider in some builds; guard it.
-    record = useRecordContext();
-  } catch {
-    record = undefined;
-  }
+  // useRecordContext returns null outside a <RecordContextProvider> (e.g. in the
+  // Studio designer/palette), so it never throws — call it unconditionally to
+  // keep hook order stable across renders. A null record just means "no parent
+  // record bound", which the optional chaining below already handles.
+  const record = useRecordContext() as any;
 
   const parentObject = schema.parentObject || record?.objectName;
   const parentId =
