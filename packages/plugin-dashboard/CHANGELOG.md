@@ -1,5 +1,44 @@
 # @object-ui/plugin-dashboard
 
+## 7.1.0
+
+### Minor Changes
+
+- 677f7ed: feat(charts,dashboard): data-screen customization primitives
+
+  - object-metric `variant:'bare'` — big tinted number + label, no card chrome
+    (data-screen KPIs that stay data-bound).
+  - object-chart `colors` prop overrides the theme `--chart-1..n` palette so a
+    page/dashboard can brand its charts; compact metric formatting (`'0.0a'` →
+    "1.1M").
+  - ObjectChartSchema.chartType widened to donut/horizontal-bar/column.
+
+### Patch Changes
+
+- 08c47da: feat(dashboard): dataset chart widgets paint select/lookup dimensions in their option colors
+
+  A dashboard `DatasetWidget` chart grouped by a select/lookup dimension (e.g.
+  project `health`) painted its categories from the generic `--chart-1..5`
+  palette — the same gap the chart view (`object-chart`) had before #1932. It now
+  resolves the dimension field's option colors (using the dataset's base `object`
+  - dimension→field map the query already returns) and threads them to the
+    renderer as a per-category `categoryColors` map, so health green/red/yellow
+    paints semantically.
+
+  The value/label→color resolution is extracted into a shared `buildOptionColorMap`
+  (`@object-ui/core`) now used by both `DatasetWidget` and `ObjectChart`.
+
+- Updated dependencies [677f7ed]
+- Updated dependencies [08c47da]
+- Updated dependencies [a71be60]
+- Updated dependencies [cb03bc3]
+  - @object-ui/types@7.1.0
+  - @object-ui/core@7.1.0
+  - @object-ui/react@7.1.0
+  - @object-ui/components@7.1.0
+  - @object-ui/fields@7.1.0
+  - @object-ui/i18n@7.1.0
+
 ## 7.0.0
 
 ### Minor Changes

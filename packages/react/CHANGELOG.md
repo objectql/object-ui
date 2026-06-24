@@ -1,5 +1,35 @@
 # @object-ui/react
 
+## 7.1.0
+
+### Minor Changes
+
+- a71be60: chore: drop the unrendered `blank` / `record_review` page types and their config
+
+  The `blank` and `record_review` page types have no renderer and were removed
+  from `@objectstack/spec`'s `PageTypeSchema` (framework#2265, enforce-or-remove).
+  This drops their now-dead references in objectui so the upstream spec can hard-
+  remove `BlankPageLayoutSchema` / `RecordReviewConfigSchema`:
+
+  - `PageType` union: removed `dashboard` / `form` / `record_detail` /
+    `record_review` / `overview` / `blank` (grid/gallery/kanban/calendar/timeline
+    remain — those are list _visualizations_, a separate cleanup).
+  - Removed `blankLayout` from `PageLayout` and the `blankLayout` / `recordReview`
+    handling in the spec→SDUI page bridge.
+  - Removed the redundant `BlankPageLayout{,Schema,Item,ItemSchema}` re-import from
+    `@objectstack/spec/ui` (it was never used).
+
+### Patch Changes
+
+- Updated dependencies [677f7ed]
+- Updated dependencies [08c47da]
+- Updated dependencies [a71be60]
+- Updated dependencies [cb03bc3]
+  - @object-ui/types@7.1.0
+  - @object-ui/core@7.1.0
+  - @object-ui/data-objectstack@7.1.0
+  - @object-ui/i18n@7.1.0
+
 ## 7.0.0
 
 ### Minor Changes
