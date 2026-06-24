@@ -13,7 +13,7 @@ vi.mock('./useDatasetFields', () => ({
   fieldTypeToDimensionType: (t: string) => (t === 'date' ? 'date' : 'string'),
 }));
 
-import { DatasetDefaultInspector } from './DatasetDefaultInspector';
+import { DatasetDefaultInspector, objectChangePatch } from './DatasetDefaultInspector';
 
 afterEach(cleanup);
 
@@ -131,5 +131,16 @@ describe('DatasetDefaultInspector', () => {
     render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={false} />);
     expect(screen.getByText('Scope filter')).toBeInTheDocument();
     expect(screen.getByText('Filter (measure-scoped)')).toBeInTheDocument();
+  });
+});
+
+describe('objectChangePatch (re-base on base-object change)', () => {
+  it('clears object-dependent config (include/dimensions/measures/filter) when the object changes', () => {
+    expect(objectChangePatch('showcase_account', 'showcase_project')).toEqual({
+      object: 'showcase_account', include: [], dimensions: [], measures: [], filter: undefined,
+    });
+  });
+  it('is a no-op (only sets object) when the object is unchanged', () => {
+    expect(objectChangePatch('showcase_project', 'showcase_project')).toEqual({ object: 'showcase_project' });
   });
 });

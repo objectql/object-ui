@@ -262,6 +262,18 @@ function DatasetFilterField({ label, help, value, onCommit, fields, disabled }: 
   );
 }
 
+/**
+ * Patch for a base-object change. A dataset's joins (`include`), `dimensions`,
+ * `measures`, and `filter` all reference the OLD object's fields, so a real
+ * object change re-bases the dataset and clears them — preventing stale field
+ * refs from silently producing broken/ambiguous queries. Selecting the SAME
+ * object is a no-op (only sets `object`).
+ */
+export function objectChangePatch(next: string, current: string): Record<string, unknown> {
+  if (next === current) return { object: next };
+  return { object: next, include: [], dimensions: [], measures: [], filter: undefined };
+}
+
 export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: MetadataDefaultInspectorProps) {
   const label = typeof draft.label === 'string' ? draft.label : '';
   const description = typeof draft.description === 'string' ? draft.description : '';
@@ -369,7 +381,7 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: Meta
       <InspectorComboField
         label="Base object"
         value={object}
-        onCommit={(v) => onPatch({ object: v })}
+        onCommit={(v) => onPatch(objectChangePatch(v, object))}
         options={objectComboOptions}
         loading={objectsLoading}
         placeholder="Select an object…"
@@ -377,6 +389,9 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: Meta
         disabled={readOnly}
         mono
       />
+      {object && (dimensions.length > 0 || measures.length > 0 || include.length > 0 || !!datasetFilter) && (
+        <p className="text-[10px] text-muted-foreground">Changing the base object clears its dimensions, measures, joins &amp; filters.</p>
+      )}
 
       {/* Included relationships (the join allowlist) */}
       <div className="border-t pt-3 space-y-1.5">
