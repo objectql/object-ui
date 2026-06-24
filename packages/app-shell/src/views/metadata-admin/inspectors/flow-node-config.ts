@@ -196,10 +196,12 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       ref: { kind: 'object' },
       placeholder: 'crm_lead',
       help: 'Target object for record / scheduled-scan triggers.',
+      showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'webhook', 'event'] },
     }),
     cfg('condition', 'Entry condition', 'expression', {
       placeholder: 'status == "qualifying" && previous.status != "qualifying"',
       help: 'CEL predicate — the flow runs only when this is true. Leave empty to run on every event.',
+      showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'webhook', 'event'] },
     }),
     cfg('cron', 'Cron schedule', 'text', {
       placeholder: '0 7 * * *',

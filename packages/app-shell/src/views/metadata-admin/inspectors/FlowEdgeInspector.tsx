@@ -20,6 +20,7 @@ import { t } from '../i18n';
 import {
   InspectorShell,
   InspectorTextField,
+  InspectorSelectField,
   InspectorCheckboxField,
   InspectorRemoveButton,
   InspectorEmptyState,
@@ -86,6 +87,44 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
 
   const isDefault = edge.isDefault === true;
 
+  // Decision out-edges can bind EXPLICITLY to one of the source decision's
+  // branches (vs the implicit by-order auto-wire): picking a branch writes its
+  // expression / label (or marks the default) onto this edge, so routing stays
+  // correct even when edges are connected out of branch order.
+  const nodes = Array.isArray((draft as { nodes?: unknown }).nodes)
+    ? ((draft as { nodes: Array<Record<string, unknown>> }).nodes)
+    : [];
+  const sourceNode = nodes.find((n) => n.id === edge.source);
+  const branches =
+    sourceNode?.type === 'decision' &&
+    Array.isArray((sourceNode.config as Record<string, unknown> | undefined)?.conditions)
+      ? ((sourceNode.config as { conditions: Array<Record<string, unknown>> }).conditions)
+      : [];
+  const branchExpr = (b: Record<string, unknown>) => (typeof b.expression === 'string' ? b.expression.trim() : '');
+  const branchName = (b: Record<string, unknown>) => (typeof b.label === 'string' ? b.label.trim() : '');
+  // Which branch this edge currently represents: the default edge maps to the
+  // `true`/empty branch; otherwise match by condition, then by label. '' = custom.
+  const selectedBranch = (() => {
+    if (!branches.length) return '';
+    if (isDefault) {
+      const i = branches.findIndex((b) => { const e = branchExpr(b); return e === '' || e === 'true'; });
+      return i >= 0 ? String(i) : '';
+    }
+    const cond = conditionText(edge.condition);
+    let i = cond ? branches.findIndex((b) => branchExpr(b) === cond) : -1;
+    if (i < 0 && edge.label) i = branches.findIndex((b) => branchName(b) === edge.label);
+    return i >= 0 ? String(i) : '';
+  })();
+  const applyBranch = (key: string) => {
+    if (key === '') return; // keep current custom values
+    const b = branches[Number(key)];
+    if (!b) return;
+    const expr = branchExpr(b);
+    const lbl = branchName(b) || undefined;
+    if (expr === '' || expr === 'true') patchEdge({ isDefault: true, condition: undefined, label: lbl });
+    else patchEdge({ isDefault: false, condition: expr, label: lbl });
+  };
+
   return (
     <InspectorShell
       kindLabel={t('engine.inspector.flowEdge.kind', locale)}
@@ -112,6 +151,24 @@ export function FlowEdgeInspector({ selection, draft, onPatch, onClearSelection,
         </span>
         <span className="h-px flex-1 bg-border" aria-hidden />
       </div>
+
+      {branches.length > 0 && (
+        <InspectorSelectField
+          label={t('engine.inspector.flowEdge.branch', locale)}
+          value={selectedBranch}
+          options={[
+            ...branches.map((b, i) => {
+              const expr = branchExpr(b);
+              const nm = branchName(b) || `Branch ${i + 1}`;
+              const suffix = expr === '' || expr === 'true' ? ' \u00b7 default' : ` \u00b7 ${expr}`;
+              return { value: String(i), label: `${nm}${suffix}` };
+            }),
+            { value: '', label: '\u2014 Custom \u2014' },
+          ]}
+          onCommit={applyBranch}
+          disabled={readOnly}
+        />
+      )}
 
       <InspectorTextField
         label={t('engine.inspector.flowEdge.label', locale)}
