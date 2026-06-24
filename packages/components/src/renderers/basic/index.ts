@@ -19,3 +19,4 @@ import './navigation-menu';
 import './elements';
 import './metadata-viewer';
 import './data-list';
+import './record-picker';

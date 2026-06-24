@@ -25,6 +25,7 @@ import {
 } from '@object-ui/core';
 import { SchemaRendererContext } from './context/SchemaRendererContext';
 import { usePredicateScope } from './hooks/useExpression';
+import { usePageVariables } from './hooks/usePageVariables';
 import { resolveI18nLabel } from './utils/i18n';
 
 /**
@@ -195,6 +196,11 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
   // ExpressionProvider. Threaded into `visible`/expression evaluation so
   // component predicates can gate on the signed-in user & deployment flags.
   const predicateScope = usePredicateScope();
+  // Page-local state (PageSchema.variables), provided by PageVariablesProvider.
+  // Exposed to predicates/bindings under `page.<var>` so an interactive element
+  // (e.g. element:record_picker) writing a variable can drive another
+  // component's `visible`/`visibility`. Empty object outside a Page.
+  const { variables: pageVariables } = usePageVariables();
 
   // Re-render trigger when the global ComponentRegistry mutates (e.g. a
   // lazy-loaded plugin finishes registering its components).
@@ -219,11 +225,14 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
 
     // `data` (record/datasource) plus the ambient host scope. `current_user`
     // is aliased to `user` so both `user.email` and `current_user.email`
-    // resolve in component `visible`/`visibleOn` expressions.
+    // resolve in component `visible`/`visibleOn` expressions. `page` exposes
+    // page-local state so predicates can gate on `page.<var>` (e.g. a record
+    // picker's selection toggling another component's visibility).
     const evaluator = new ExpressionEvaluator({
       ...predicateScope,
       current_user: (predicateScope as any)?.user,
       data: dataSource,
+      page: pageVariables,
     });
     // Shallow copy
     const newSchema = { ...schema };
@@ -263,13 +272,20 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       newSchema.props = newProps;
     }
 
-    // Evaluate visibility: visible / visibleOn / hidden / hiddenOn
+    // Evaluate visibility: visible / visibleOn / visibility / hidden / hiddenOn
     const shouldHide = (() => {
       if (newSchema.visible !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visible);
       }
       if (newSchema.visibleOn !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visibleOn);
+      }
+      // `visibility` is the spec-canonical predicate (PageComponentSchema.visibility,
+      // an ExpressionInput) — show-when-truthy, same semantics as `visibleOn`. The
+      // spec→node bridge preserves it verbatim on the node, so this is where it
+      // finally gates rendering (previously it was inert and leaked as a DOM prop).
+      if (newSchema.visibility !== undefined) {
+        return !evaluator.evaluateCondition(newSchema.visibility);
       }
       if (newSchema.hidden !== undefined) {
         return evaluator.evaluateCondition(newSchema.hidden);
@@ -300,7 +316,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     }
 
     return newSchema;
-  }, [schema, dataSource, predicateScope]);
+  }, [schema, dataSource, predicateScope, pageVariables]);
 
   if (!evaluatedSchema) return null;
   // Handle visibility: if evaluated schema is hidden, render nothing
@@ -367,6 +383,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     schema: _schema,
     visible: _visible,
     visibleOn: _visibleOn,
+    visibility: _visibility,
     hidden: _hidden,
     hiddenOn: _hiddenOn,
     disabled: _disabled,

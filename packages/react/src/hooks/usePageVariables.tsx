@@ -16,6 +16,13 @@ import type { PageVariable } from '@object-ui/types';
 export interface PageVariablesContextValue {
   /** Current variable values */
   variables: Record<string, any>;
+  /**
+   * The variable definitions backing this provider. Exposed so writer
+   * elements can resolve which variable they feed via `PageVariable.source`
+   * (the component id that writes to the variable) — see
+   * {@link usePageVariableBinding}.
+   */
+  definitions: PageVariable[];
   /** Set a single variable value */
   setVariable: (name: string, value: any) => void;
   /** Set multiple variable values at once */
@@ -108,9 +115,11 @@ export const PageVariablesProvider: React.FC<PageVariablesProviderProps> = ({
     setVariablesState(initializeVariables(definitions));
   }, [definitions]);
 
+  const defs = useMemo<PageVariable[]>(() => definitions ?? [], [definitions]);
+
   const value = useMemo<PageVariablesContextValue>(
-    () => ({ variables, setVariable, setVariables, resetVariables }),
-    [variables, setVariable, setVariables, resetVariables]
+    () => ({ variables, definitions: defs, setVariable, setVariables, resetVariables }),
+    [variables, defs, setVariable, setVariables, resetVariables]
   );
 
   return (
@@ -141,6 +150,7 @@ export function usePageVariables(): PageVariablesContextValue {
     // Graceful fallback — allows components to work outside a Page
     return {
       variables: {},
+      definitions: [],
       setVariable: () => {},
       setVariables: () => {},
       resetVariables: () => {},
@@ -154,4 +164,51 @@ export function usePageVariables(): PageVariablesContextValue {
  */
 export function useHasPageVariables(): boolean {
   return useContext(PageVariablesContext) !== null;
+}
+
+/**
+ * A writer binding for a page variable, resolved from a component id.
+ */
+export interface PageVariableBinding {
+  /** The bound variable's name */
+  name: string;
+  /** The bound variable's current value */
+  value: any;
+  /** Write a new value into the bound variable */
+  setValue: (value: any) => void;
+}
+
+/**
+ * Resolve the page variable that a given component writes to.
+ *
+ * Per `@objectstack/spec`'s `PageVariableSchema`, a variable's `source`
+ * names the **component id** that feeds it — e.g. a `variables` entry
+ * `{ name: 'selectedProjectId', source: 'project_picker' }` is written by the
+ * component whose `id` is `project_picker`. An interactive element (record
+ * picker, filter, …) calls this with its own `schema.id` and writes the
+ * user's selection through the returned `setValue`.
+ *
+ * Returns `null` when no variable targets the given component (or when called
+ * outside a {@link PageVariablesProvider}), so callers can treat themselves as
+ * uncontrolled in that case.
+ *
+ * @example
+ * ```tsx
+ * const binding = usePageVariableBinding(schema.id);
+ * // on selection:
+ * binding?.setValue(record.id);
+ * ```
+ */
+export function usePageVariableBinding(componentId?: string): PageVariableBinding | null {
+  const { variables, definitions, setVariable } = usePageVariables();
+  return useMemo(() => {
+    if (!componentId) return null;
+    const def = definitions.find((d) => d.source === componentId);
+    if (!def) return null;
+    return {
+      name: def.name,
+      value: variables[def.name],
+      setValue: (value: any) => setVariable(def.name, value),
+    };
+  }, [componentId, definitions, variables, setVariable]);
 }

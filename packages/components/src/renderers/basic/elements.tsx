@@ -15,9 +15,9 @@
  *   - element:divider                            (no-props separator)
  *   - ElementButtonProps  -> element:button
  *
- * Heavier interactive elements (element:filter, element:form,
- * element:record_picker) live in their owning plugins and are left to
- * those packages.
+ * Heavier interactive elements (element:filter, element:form) live in their
+ * owning plugins and are left to those packages. element:record_picker — which
+ * writes its selection into a page variable — ships alongside in `./record-picker`.
  *
  * All props are read off `schema.properties` per the spec's
  * `UIComponent.properties` convention; `schema.props` is also accepted
