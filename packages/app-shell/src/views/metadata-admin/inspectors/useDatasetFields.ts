@@ -140,13 +140,38 @@ export function normalizeObject(doc: Record<string, unknown> | null | undefined,
 }
 
 /**
- * Build the flat `field` / `relationship.field` option list from the base
- * object and the included relationships' (already-fetched) target objects.
+ * Walk a dotted relationship PATH from the base object, returning the object at
+ * its end (whose fields a `path.field` references) plus each hop's relationship
+ * label, or undefined if any hop can't be resolved (ADR-0071 multi-hop).
+ * `objectsByName` holds the already-fetched objects along the chain.
+ */
+export function resolvePath(
+  base: NormalizedObject,
+  path: string,
+  objectsByName: Record<string, NormalizedObject>,
+): { target: NormalizedObject; labels: string[] } | undefined {
+  let current: NormalizedObject = base;
+  const labels: string[] = [];
+  for (const seg of path.split('.')) {
+    const rel = current.relationships.find((r) => r.name === seg);
+    if (!rel?.referenceTo) return undefined;
+    const next = objectsByName[rel.referenceTo];
+    if (!next) return undefined;
+    labels.push(rel.label);
+    current = next;
+  }
+  return { target: current, labels };
+}
+
+/**
+ * Build the flat `field` / `relationship[.relationship].field` option list from
+ * the base object and the (already-fetched) objects along each included PATH.
+ * Single-hop paths behave exactly as before.
  */
 export function buildFieldOptions(
   base: NormalizedObject,
   include: string[],
-  targets: Record<string, NormalizedObject>,
+  objectsByName: Record<string, NormalizedObject>,
 ): DatasetFieldOption[] {
   const options: DatasetFieldOption[] = base.fields.map((f) => ({
     value: f.name,
@@ -154,13 +179,12 @@ export function buildFieldOptions(
     type: f.type,
     group: base.label,
   }));
-  for (const rel of include) {
-    const relationship = base.relationships.find((r) => r.name === rel);
-    const target = relationship?.referenceTo ? targets[relationship.referenceTo] : undefined;
-    if (!target) continue;
-    const heading = `${relationship!.label} → ${target.label}`;
-    for (const f of target.fields) {
-      options.push({ value: `${rel}.${f.name}`, label: f.label, type: f.type, group: heading });
+  for (const path of include) {
+    const resolved = resolvePath(base, path, objectsByName);
+    if (!resolved) continue;
+    const heading = [...resolved.labels, resolved.target.label].join(' → ');
+    for (const f of resolved.target.fields) {
+      options.push({ value: `${path}.${f.name}`, label: f.label, type: f.type, group: heading });
     }
   }
   return options;
@@ -238,29 +262,48 @@ export function useDatasetFieldCatalog(
         const baseDoc = await client.get<Record<string, unknown>>('object', object);
         if (cancelled) return;
         const base = normalizeObject(baseDoc, object);
-        // Resolve which target objects the included relationships point at,
-        // then fetch each unique target's fields for `rel.field` options.
-        const wantedTargets = new Set<string>();
-        for (const rel of includeKey ? includeKey.split(' ') : []) {
-          const r = base.relationships.find((x) => x.name === rel);
-          if (r?.referenceTo) wantedTargets.add(r.referenceTo);
-        }
-        const targetEntries = await Promise.all(
-          [...wantedTargets].map(async (t) => {
-            try {
-              const doc = await client.get<Record<string, unknown>>('object', t);
-              return [t, normalizeObject(doc, t)] as const;
-            } catch {
-              return [t, normalizeObject(null, t)] as const;
-            }
-          }),
-        );
-        if (cancelled) return;
-        const targets: Record<string, NormalizedObject> = Object.fromEntries(targetEntries);
         const includeList = includeKey ? includeKey.split(' ') : [];
+        // Walk each included PATH hop-by-hop, fetching every object along the
+        // chain (memoized by name) so multi-hop `a.b.field` paths resolve
+        // (ADR-0021 single-hop, generalized by ADR-0071). Hops can't be fetched
+        // in parallel across a chain — hop N's target is only known once hop
+        // N-1 is fetched.
+        const objectsByName: Record<string, NormalizedObject> = { [object]: base };
+        const fetchObject = async (name: string): Promise<NormalizedObject> => {
+          if (objectsByName[name]) return objectsByName[name];
+          let norm: NormalizedObject;
+          try {
+            norm = normalizeObject(await client.get<Record<string, unknown>>('object', name), name);
+          } catch {
+            norm = normalizeObject(null, name);
+          }
+          objectsByName[name] = norm;
+          return norm;
+        };
+        for (const path of includeList) {
+          let current = base;
+          for (const seg of path.split('.')) {
+            const rel = current.relationships.find((r) => r.name === seg);
+            if (!rel?.referenceTo) break;
+            current = await fetchObject(rel.referenceTo);
+          }
+        }
+        if (cancelled) return;
+        // The include combo offers base relationships AND one level deeper along
+        // each already-included path (so the author drills `account` ->
+        // `account.owner`), capped at the 3-hop ADR-0071 limit.
+        const relationshipPaths: DatasetRelationship[] = [...base.relationships];
+        for (const path of includeList) {
+          if (path.split('.').length >= 3) continue;
+          const resolved = resolvePath(base, path, objectsByName);
+          if (!resolved) continue;
+          for (const r of resolved.target.relationships) {
+            relationshipPaths.push({ name: `${path}.${r.name}`, label: `${path}.${r.name}`, referenceTo: r.referenceTo });
+          }
+        }
         setState({
-          relationships: base.relationships,
-          fieldOptions: buildFieldOptions(base, includeList, targets),
+          relationships: relationshipPaths,
+          fieldOptions: buildFieldOptions(base, includeList, objectsByName),
           loading: false,
         });
       } catch {

@@ -196,10 +196,12 @@ function MeasureFormatField({ measure, onPatch, disabled }: { measure: Measure; 
   );
 }
 
-/** The relationship prefix of a `relationship.field` path that isn't yet in `include`, else null. */
+/** The relationship PATH of a `relationship[.relationship].field` reference (all
+ *  segments but the final column) that isn't yet in `include`, else null. ADR-0071
+ *  multi-hop: `account.owner.region` → `account.owner`. */
 function missingRelationship(field: string | undefined, include: string[]): string | null {
   if (!field || !field.includes('.')) return null;
-  const rel = field.split('.')[0];
+  const rel = field.slice(0, field.lastIndexOf('.'));
   return rel && !include.includes(rel) ? rel : null;
 }
 

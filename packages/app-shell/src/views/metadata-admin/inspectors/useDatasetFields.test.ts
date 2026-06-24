@@ -7,6 +7,7 @@ import {
   fieldTypeToDimensionType,
   normalizeObject,
   buildFieldOptions,
+  resolvePath,
   referencesDataset,
   type NormalizedObject,
 } from './useDatasetFields';
@@ -128,5 +129,58 @@ describe('referencesDataset', () => {
   });
   it('is false for unrelated docs', () => {
     expect(referencesDataset({ widgets: [{ object: 'sales' }] }, 'sales')).toBe(false);
+  });
+});
+
+describe('resolvePath + multi-hop buildFieldOptions (ADR-0071)', () => {
+  const base: NormalizedObject = {
+    label: 'Opportunity',
+    fields: [{ name: 'amount', label: 'Amount', type: 'currency', def: {} }],
+    relationships: [{ name: 'account', label: 'Account', referenceTo: 'account' }],
+  };
+  const accountObj: NormalizedObject = {
+    label: 'Account',
+    fields: [{ name: 'region', label: 'Region', type: 'text', def: {} }],
+    relationships: [{ name: 'owner', label: 'Owner', referenceTo: 'user' }],
+  };
+  const userObj: NormalizedObject = {
+    label: 'User',
+    fields: [
+      { name: 'region', label: 'User Region', type: 'text', def: {} },
+      { name: 'email', label: 'Email', type: 'text', def: {} },
+    ],
+    relationships: [],
+  };
+  const objectsByName = { account: accountObj, user: userObj };
+
+  it('walks a single hop', () => {
+    const r = resolvePath(base, 'account', objectsByName);
+    expect(r?.target.label).toBe('Account');
+    expect(r?.labels).toEqual(['Account']);
+  });
+
+  it('walks a two-hop chain, collecting each hop label', () => {
+    const r = resolvePath(base, 'account.owner', objectsByName);
+    expect(r?.target.label).toBe('User');
+    expect(r?.labels).toEqual(['Account', 'Owner']);
+  });
+
+  it('returns undefined when a hop object is not loaded', () => {
+    expect(resolvePath(base, 'account.owner', { account: accountObj })).toBeUndefined();
+  });
+
+  it('returns undefined for an unknown relationship segment', () => {
+    expect(resolvePath(base, 'nope', objectsByName)).toBeUndefined();
+  });
+
+  it('emits multi-hop `path.field` options with a chained heading', () => {
+    const opts = buildFieldOptions(base, ['account.owner'], objectsByName);
+    expect(opts).toContainEqual({ value: 'account.owner.region', label: 'User Region', type: 'text', group: 'Account → Owner → User' });
+    expect(opts).toContainEqual({ value: 'account.owner.email', label: 'Email', type: 'text', group: 'Account → Owner → User' });
+  });
+
+  it('skips a multi-hop path whose chain is not fully loaded', () => {
+    const opts = buildFieldOptions(base, ['account.owner'], { account: accountObj });
+    expect(opts.some((o) => o.value.startsWith('account.owner.'))).toBe(false);
   });
 });
