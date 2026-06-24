@@ -120,8 +120,8 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
   // on-canvas badges and the Problems panel. Recomputed from the live draft so
   // badges + rows clear as the author fixes each issue.
   const problems = React.useMemo<FlowProblem[]>(
-    () => buildFlowProblems({ nodes, edges, serverDiagnostics: diagnostics }),
-    [nodes, edges, diagnostics],
+    () => buildFlowProblems({ nodes, edges, serverDiagnostics: diagnostics, variables }),
+    [nodes, edges, diagnostics, d.variables],
   );
   const errorCount = problems.filter((p) => p.level === 'error').length;
 

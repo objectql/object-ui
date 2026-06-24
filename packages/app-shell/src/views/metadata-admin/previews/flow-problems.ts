@@ -21,6 +21,7 @@
 import { validateFlowDraft } from './simulator/flow-sim-validate';
 import type { Diagnostic, DiagnosticLevel, SimEdge, SimNode } from './simulator/flow-sim-types';
 import { edgeKey, type FlowEdge, type FlowNode } from './flow-canvas-layout';
+import { flowExpressionProblems } from './flow-expr-problems';
 
 /** What a problem points at on the canvas — drives badge placement + reveal. */
 export type FlowProblemTarget =
@@ -29,7 +30,7 @@ export type FlowProblemTarget =
   | { kind: 'flow' };
 
 /** Origin of a problem — labels the panel row and lets the UI group counts. */
-export type FlowProblemSource = 'structural' | 'server';
+export type FlowProblemSource = 'structural' | 'server' | 'expression';
 
 /** One actionable issue, resolved onto a concrete canvas element. */
 export interface FlowProblem {
@@ -116,6 +117,8 @@ export interface BuildFlowProblemsArgs {
   edges: FlowEdge[];
   /** Server `_diagnostics`, flattened to a severity-tagged, path-keyed list. */
   serverDiagnostics?: ServerDiagnostic[];
+  /** Declared flow variables — needed to resolve scope for the expression check. */
+  variables?: unknown[];
 }
 
 /**
@@ -123,7 +126,7 @@ export interface BuildFlowProblemsArgs {
  * diagnostics. Errors are listed before warnings; within a level each source
  * keeps its own emit order (structural before server).
  */
-export function buildFlowProblems({ nodes, edges, serverDiagnostics }: BuildFlowProblemsArgs): FlowProblem[] {
+export function buildFlowProblems({ nodes, edges, serverDiagnostics, variables }: BuildFlowProblemsArgs): FlowProblem[] {
   const problems: FlowProblem[] = [];
 
   const v = validateFlowDraft(nodes as unknown as SimNode[], edges as unknown as SimEdge[]);
@@ -151,6 +154,27 @@ export function buildFlowProblems({ nodes, edges, serverDiagnostics }: BuildFlow
       message: diag.message,
       target,
       source: 'server',
+    });
+  });
+
+  // Client-side EXPRESSION issues (ADR-0032 braces + scope-aware unknown refs),
+  // resolved onto node / edge targets — see flow-expr-problems.
+  flowExpressionProblems({ nodes, edges, variables: variables ?? [] }).forEach((ep, i) => {
+    const target: FlowProblemTarget =
+      ep.target.kind === 'edge'
+        ? {
+            kind: 'edge',
+            source: ep.target.source,
+            target: ep.target.target,
+            edgeKey: resolveEdgeKey(edges, ep.target.source, ep.target.target),
+          }
+        : { kind: 'node', nodeId: ep.target.nodeId };
+    problems.push({
+      id: `expression:${ep.level}:${i}:${targetKey(target)}`,
+      level: ep.level,
+      message: ep.message,
+      target,
+      source: 'expression',
     });
   });
 

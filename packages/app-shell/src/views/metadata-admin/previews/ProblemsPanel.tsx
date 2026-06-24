@@ -90,6 +90,7 @@ export function ProblemsPanel({ problems, selectedKey, onSelectProblem }: Proble
                       <TargetIcon className="h-2.5 w-2.5 shrink-0" />
                       <span className="truncate font-mono">{targetLabel(p)}</span>
                       {p.source === 'server' && <span className="uppercase tracking-wide">· schema</span>}
+                      {p.source === 'expression' && <span className="uppercase tracking-wide">· expression</span>}
                     </span>
                   </span>
                 </button>
