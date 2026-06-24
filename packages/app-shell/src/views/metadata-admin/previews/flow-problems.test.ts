@@ -1,0 +1,163 @@
+// Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
+
+import { describe, it, expect } from 'vitest';
+import { validateFlowDraft } from './simulator/flow-sim-validate';
+import { buildFlowProblems, indexProblemBadges } from './flow-problems';
+
+describe('validateFlowDraft — per-element keying', () => {
+  it('attaches the edge endpoints to a dangling-edge error', () => {
+    const v = validateFlowDraft([{ id: 'a', type: 'start' }], [{ source: 'a', target: 'ghost' }]);
+    const dangling = v.errors.find((e) => e.message.includes('target "ghost"'));
+    expect(dangling?.edge).toEqual({ source: 'a', target: 'ghost' });
+  });
+});
+
+describe('buildFlowProblems — structural mapping', () => {
+  it('maps a duplicate node id to a node target', () => {
+    const problems = buildFlowProblems({
+      nodes: [
+        { id: 'a', type: 'start' },
+        { id: 'a', type: 'end' },
+      ],
+      edges: [],
+    });
+    const dup = problems.find((p) => p.message.includes('Duplicate node id'));
+    expect(dup?.target).toEqual({ kind: 'node', nodeId: 'a' });
+    expect(dup?.level).toBe('error');
+    expect(dup?.source).toBe('structural');
+  });
+
+  it('maps a dangling edge to an edge target with a resolved edge key', () => {
+    const problems = buildFlowProblems({
+      nodes: [{ id: 'a', type: 'start' }],
+      edges: [{ id: 'e1', source: 'a', target: 'ghost' }],
+    });
+    const dangling = problems.find((p) => p.message.includes('"ghost"'));
+    expect(dangling?.target).toMatchObject({ kind: 'edge', source: 'a', target: 'ghost', edgeKey: 'e1' });
+  });
+
+  it('points an un-declared cycle at the closing edge', () => {
+    // a → b → a; the b→a hop closes the loop.
+    const problems = buildFlowProblems({
+      nodes: [
+        { id: 'a', type: 'decision' },
+        { id: 'b', type: 'create_record' },
+      ],
+      edges: [
+        { source: 'a', target: 'b' },
+        { source: 'b', target: 'a' },
+      ],
+    });
+    const cycle = problems.find((p) => p.message.includes('Cycle detected'));
+    expect(cycle?.target).toMatchObject({ kind: 'edge', source: 'b', target: 'a' });
+  });
+
+  it('maps a missing-default decision warning to its node', () => {
+    const problems = buildFlowProblems({
+      nodes: [
+        { id: 's', type: 'start' },
+        { id: 'd', type: 'decision' },
+        { id: 'x', type: 'end' },
+        { id: 'y', type: 'end' },
+      ],
+      edges: [
+        { source: 's', target: 'd' },
+        { source: 'd', target: 'x', condition: 'a > 1' },
+        { source: 'd', target: 'y', condition: 'a < 0' },
+      ],
+    });
+    const warn = problems.find((p) => p.level === 'warning' && p.message.includes('no default branch'));
+    expect(warn?.target).toEqual({ kind: 'node', nodeId: 'd' });
+  });
+
+  it('keeps a no-entry error as a flow-level problem', () => {
+    const problems = buildFlowProblems({
+      nodes: [
+        { id: 'a', type: 'create_record' },
+        { id: 'b', type: 'create_record' },
+      ],
+      // fully cyclic → no entry node; that error has no specific element.
+      edges: [
+        { source: 'a', target: 'b' },
+        { source: 'b', target: 'a' },
+      ],
+    });
+    const noEntry = problems.find((p) => p.message.toLowerCase().includes('entry'));
+    expect(noEntry?.target).toEqual({ kind: 'flow' });
+  });
+
+  it('lists errors before warnings', () => {
+    const problems = buildFlowProblems({
+      nodes: [
+        { id: 'a', type: 'start' },
+        { id: 'a', type: 'decision' },
+      ],
+      edges: [],
+    });
+    const levels = problems.map((p) => p.level);
+    expect(levels).toEqual([...levels].sort((x, y) => (x === y ? 0 : x === 'error' ? -1 : 1)));
+  });
+});
+
+describe('buildFlowProblems — server diagnostics', () => {
+  const nodes = [
+    { id: 's', type: 'start' },
+    { id: 'task', type: 'create_record' },
+  ];
+  const edges = [{ id: 'e1', source: 's', target: 'task' }];
+
+  it('maps a nodes.<i> path to the node', () => {
+    const problems = buildFlowProblems({
+      nodes,
+      edges,
+      serverDiagnostics: [{ path: 'nodes.1.config.objectName', message: 'Required', severity: 'error' }],
+    });
+    const p = problems.find((x) => x.source === 'server');
+    expect(p?.target).toEqual({ kind: 'node', nodeId: 'task' });
+    expect(p?.level).toBe('error');
+  });
+
+  it('maps an edges.<i> path (array form) to the edge', () => {
+    const problems = buildFlowProblems({
+      nodes,
+      edges,
+      serverDiagnostics: [{ path: ['edges', 0, 'target'], message: 'bad', severity: 'warning' }],
+    });
+    const p = problems.find((x) => x.source === 'server');
+    expect(p?.target).toMatchObject({ kind: 'edge', source: 's', target: 'task', edgeKey: 'e1' });
+    expect(p?.level).toBe('warning');
+  });
+
+  it('falls back to flow-level for an unmappable path (default severity error)', () => {
+    const problems = buildFlowProblems({
+      nodes,
+      edges,
+      serverDiagnostics: [{ path: 'name', message: 'flow name required' }],
+    });
+    const p = problems.find((x) => x.source === 'server');
+    expect(p?.target).toEqual({ kind: 'flow' });
+    expect(p?.level).toBe('error');
+  });
+});
+
+describe('indexProblemBadges', () => {
+  it('returns empty maps for no problems', () => {
+    const idx = indexProblemBadges([]);
+    expect(idx.byNode.size).toBe(0);
+    expect(idx.byEdge.size).toBe(0);
+  });
+
+  it('folds error over warning on the same element', () => {
+    const problems = buildFlowProblems({
+      nodes: [
+        { id: 's', type: 'start' },
+        { id: 'd', type: 'decision' },
+      ],
+      edges: [{ source: 's', target: 'd' }],
+      serverDiagnostics: [{ path: 'nodes.1.config', message: 'bad config', severity: 'error' }],
+    });
+    const { byNode } = indexProblemBadges(problems);
+    expect(byNode.get('d')?.level).toBe('error');
+    expect(byNode.get('d')?.count).toBeGreaterThanOrEqual(2);
+  });
+});

@@ -89,6 +89,14 @@ export interface MetadataPreviewProps {
    * "click widget → edit widget in the right panel" pattern.
    */
   onSelectionChange?: (selection: MetadataSelection | null) => void;
+  /**
+   * Optional: server-computed validation diagnostics for the current draft
+   * (the layered record's `_diagnostics`, kept in sync with live client-side
+   * issues). Each entry carries a dotted JSON path so a preview can map it onto
+   * the offending sub-element. Used by the flow preview's Problems panel +
+   * on-canvas badges; ignored by previews that don't surface diagnostics.
+   */
+  diagnostics?: Array<{ path?: string; message: string; severity?: 'error' | 'warning' }>;
 }
 
 export type MetadataPreview = ComponentType<MetadataPreviewProps>;

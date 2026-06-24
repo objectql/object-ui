@@ -20,6 +20,7 @@
 
 import * as React from 'react';
 import {
+  AlertCircle,
   Bug,
   CircleDot,
   GitBranch,
@@ -40,6 +41,8 @@ import { FlowSimulatorPanel } from './FlowSimulatorPanel';
 import { FlowRunsPanel } from './FlowRunsPanel';
 import { validateFlowDraft } from './simulator/flow-sim-validate';
 import type { SimEdge, SimNode } from './simulator/flow-sim-types';
+import { ProblemsPanel } from './ProblemsPanel';
+import { buildFlowProblems, type FlowProblem } from './flow-problems';
 
 interface FlowNode {
   id: string;
@@ -69,7 +72,7 @@ interface FlowVariable {
   isOutput?: boolean;
 }
 
-export function FlowPreview({ draft, editing, selection, onSelectionChange, onPatch, locale }: MetadataPreviewProps) {
+export function FlowPreview({ draft, editing, selection, onSelectionChange, onPatch, locale, diagnostics }: MetadataPreviewProps) {
   const d = draft as Record<string, unknown>;
   // Memoized so hook deps (validation memo, handleAddNode) get a stable array
   // reference across renders instead of a fresh `[]`/cast each time.
@@ -85,6 +88,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
   const [showDebug, setShowDebug] = React.useState(false);
   const [showVars, setShowVars] = React.useState(true);
   const [showRuns, setShowRuns] = React.useState(false);
+  const [showProblems, setShowProblems] = React.useState(false);
   const [runHL, setRunHL] = React.useState<{
     activeNodeId: string | null;
     visitedNodeIds: string[];
@@ -115,6 +119,34 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
       validationErrors: v.errors.map((diag) => diag.message),
     };
   }, [nodes, edges]);
+
+  // Unified problem list (structural + server `_diagnostics`) shared by the
+  // on-canvas badges and the Problems panel. Recomputed from the live draft so
+  // badges + rows clear as the author fixes each issue.
+  const problems = React.useMemo<FlowProblem[]>(
+    () => buildFlowProblems({ nodes, edges, serverDiagnostics: diagnostics }),
+    [nodes, edges, diagnostics],
+  );
+  const errorCount = problems.filter((p) => p.level === 'error').length;
+
+  // "Reveal" handshake with the canvas: a changing nonce pans to the element.
+  const [reveal, setReveal] = React.useState<{ target: FlowProblem['target']; nonce: number } | null>(null);
+  const selectedKey = selectedId ? `node:${selectedId}` : (selectedEdgeId ?? null);
+  const handleSelectProblem = React.useCallback(
+    (p: FlowProblem) => {
+      if (p.target.kind === 'node') {
+        // Destructure before the .find() closure — TS drops the union narrowing
+        // of `p.target` inside a nested callback, so capture nodeId as a string.
+        const { nodeId } = p.target;
+        const node = nodes.find((n) => n.id === nodeId);
+        onSelectionChange?.({ kind: 'node', id: nodeId, label: node?.label || nodeId });
+      } else if (p.target.kind === 'edge') {
+        onSelectionChange?.({ kind: 'edge', id: p.target.edgeKey, label: `${p.target.source} → ${p.target.target}` });
+      }
+      setReveal((r) => ({ target: p.target, nonce: (r?.nonce ?? 0) + 1 }));
+    },
+    [nodes, onSelectionChange],
+  );
 
   const handleAddNode = React.useCallback(() => {
     if (!canEdit) return;
@@ -162,7 +194,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
       <PreviewErrorBoundary fallbackHint="One of the flow nodes or edges is malformed.">
         <div className={
           'grid gap-0 h-full min-h-[440px] ' +
-          (showDebug || showVars || showRuns ? 'lg:grid-cols-[1fr_240px]' : 'grid-cols-1')
+          (showDebug || showVars || showRuns || showProblems ? 'lg:grid-cols-[1fr_240px]' : 'grid-cols-1')
         }>
           {/* Visual canvas */}
           <div className="flex flex-col min-w-0 min-h-0">
@@ -173,7 +205,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
               {version && <Pill label="v" value={version} />}
               {errorStrategy && <Pill icon={GitBranch} label="On error" value={errorStrategy} />}
               <div className="ml-auto flex items-center gap-1.5">
-                {!showDebug && !showRuns && (
+                {!showDebug && !showRuns && !showProblems && (
                   <button
                     type="button"
                     onClick={() => setShowVars((v) => !v)}
@@ -194,6 +226,7 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                     onClick={() => {
                       setShowRuns((v) => !v);
                       setShowDebug(false);
+                      setShowProblems(false);
                     }}
                     className={
                       'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ' +
@@ -209,8 +242,36 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 <button
                   type="button"
                   onClick={() => {
+                    setShowProblems((v) => !v);
+                    setShowDebug(false);
+                    setShowRuns(false);
+                  }}
+                  className={
+                    'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ' +
+                    (showProblems
+                      ? 'border-rose-500 bg-rose-50 text-rose-700'
+                      : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground')
+                  }
+                  title="Validation problems"
+                >
+                  <AlertCircle className="h-3 w-3" /> Problems
+                  {problems.length > 0 && (
+                    <span
+                      className={
+                        'ml-0.5 inline-flex min-w-[16px] items-center justify-center rounded-full px-1 text-[10px] font-semibold ' +
+                        (errorCount > 0 ? 'bg-destructive/15 text-destructive' : 'bg-amber-500/15 text-amber-600')
+                      }
+                    >
+                      {problems.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
                     setShowDebug((v) => !v);
                     setShowRuns(false);
+                    setShowProblems(false);
                   }}
                   className={
                     'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors ' +
@@ -238,6 +299,8 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 invalidNodeIds={invalidNodeIds}
                 invalidEdges={invalidEdges}
                 validationErrors={validationErrors}
+                problems={problems}
+                revealSignal={reveal}
                 onSelect={(n) =>
                   n
                     ? onSelectionChange?.({ kind: 'node', id: n.id, label: n.label || n.id })
@@ -256,7 +319,15 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
           {/* Right side panel: Variables (default), the debug simulator, or
               the engine run history. Collapsible so the canvas can use the
               full width. */}
-          {showDebug ? (
+          {showProblems ? (
+            <div className="border-l bg-muted/20">
+              <ProblemsPanel
+                problems={problems}
+                selectedKey={selectedKey}
+                onSelectProblem={handleSelectProblem}
+              />
+            </div>
+          ) : showDebug ? (
             <div className="border-l bg-muted/20">
               <FlowSimulatorPanel
                 nodes={nodes}

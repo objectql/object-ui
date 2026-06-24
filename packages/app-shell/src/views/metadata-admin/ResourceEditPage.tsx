@@ -431,6 +431,29 @@ function MetadataResourceEditPageImpl({
     () => (createMode && !createDirty ? [] : issues),
     [createMode, createDirty, issues],
   );
+  // Server-computed diagnostics handed to a canvas Preview (e.g. the flow
+  // Problems panel + on-canvas badges). Errors prefer the live client-side Zod
+  // issues when a client validator exists (so they track every keystroke);
+  // warnings stay server-sourced. Mirrors the read-only banner's source
+  // selection, flattened to a path-keyed, severity-tagged list.
+  const previewDiagnostics = React.useMemo<
+    Array<{ path?: string; message: string; severity: 'error' | 'warning' }>
+  >(() => {
+    const diag = (layered as any)?._diagnostics as
+      | { errors?: Array<{ path: string; message: string }>; warnings?: Array<{ path: string; message: string }> }
+      | undefined;
+    const errs = hasClientValidator(type)
+      ? displayIssues.map((i) => ({ path: i.path, message: translateValidationMessage(i.message, locale) }))
+      : (diag?.errors ?? []).map((i) => ({ path: i.path, message: translateValidationMessage(i.message, locale) }));
+    const warns = (diag?.warnings ?? []).map((i) => ({
+      path: i.path,
+      message: translateValidationMessage(i.message, locale),
+    }));
+    return [
+      ...errs.map((e) => ({ path: e.path || undefined, message: e.message, severity: 'error' as const })),
+      ...warns.map((w) => ({ path: w.path || undefined, message: w.message, severity: 'warning' as const })),
+    ];
+  }, [layered, displayIssues, type, locale]);
   // Per-item draft pending publish (mode=draft saves land here).
   // When non-null, the editor is "viewing the draft" and we surface
   // Publish / Discard-draft actions.
@@ -2087,6 +2110,7 @@ function MetadataResourceEditPageImpl({
                           selection={previewOnly ? null : selection}
                           onSelectionChange={setSelection}
                           locale={locale}
+                          diagnostics={previewDiagnostics}
                           onPatch={(patch) =>
                             handleDraftChange((d) => ({ ...(d as Record<string, unknown>), ...patch }))
                           }

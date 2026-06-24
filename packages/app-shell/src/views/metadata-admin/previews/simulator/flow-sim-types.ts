@@ -89,7 +89,13 @@ export type DiagnosticLevel = 'error' | 'warning';
 
 export interface Diagnostic {
   level: DiagnosticLevel;
+  /** The node this diagnostic points at (for an inline badge + click-to-reveal). */
   nodeId?: string;
+  /**
+   * The edge this diagnostic points at (e.g. a dangling endpoint). Carries the
+   * endpoints so the designer can key the inline badge by `source->target`.
+   */
+  edge?: { source: string; target: string };
   message: string;
   /**
    * For a cycle error: the node path that closes the loop (e.g. `['a','b','a']`),

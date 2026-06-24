@@ -109,8 +109,12 @@ export function validateFlowDraft(nodes: SimNode[], edges: SimEdge[]): FlowValid
   }
 
   for (const e of edges) {
-    if (!idSet.has(e.source)) errors.push({ level: 'error', message: `Edge source "${e.source}" does not exist.` });
-    if (!idSet.has(e.target)) errors.push({ level: 'error', message: `Edge target "${e.target}" does not exist.` });
+    // Attach the endpoints so a dangling-edge error can badge the offending
+    // connection on the canvas (not just appear as a flow-level message).
+    if (!idSet.has(e.source))
+      errors.push({ level: 'error', edge: { source: e.source, target: e.target }, message: `Edge source "${e.source}" does not exist.` });
+    if (!idSet.has(e.target))
+      errors.push({ level: 'error', edge: { source: e.source, target: e.target }, message: `Edge target "${e.target}" does not exist.` });
   }
 
   // Entry resolution: prefer an explicit `start` node, else a node with no

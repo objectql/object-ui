@@ -22,13 +22,15 @@
  */
 
 import * as React from 'react';
-import { AlertTriangle, Maximize2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Maximize2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import { cn } from '@object-ui/components';
 import { uniqueId, appendArray, spliceArray } from '../inspectors/_shared';
 import { t as tr } from '../i18n';
 import {
   computeLayout,
   diagramSize,
+  NODE_W,
+  NODE_H,
   bottomAnchor,
   topAnchor,
   rightAnchor,
@@ -45,6 +47,7 @@ import {
 } from './flow-canvas-layout';
 import { NodeCard, NodePalette, defaultNodeLabel, defaultNodeExtras } from './flow-canvas-parts';
 import { useFlowNodePalette } from './useFlowNodePalette';
+import { indexProblemBadges, edgeProblemKey, type FlowProblem } from './flow-problems';
 
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 1.6;
@@ -87,6 +90,17 @@ export interface FlowCanvasProps {
   invalidEdges?: ReadonlySet<string>;
   /** Structural-validation error messages shown in an inline canvas banner. */
   validationErrors?: string[];
+  /**
+   * Unified validation issues (structural + server) rendered as per-element
+   * badges; the Problems panel shares the same list.
+   */
+  problems?: FlowProblem[];
+  /**
+   * Imperative "reveal" request from the Problems panel: when `nonce` changes
+   * the canvas pans to center the targeted node/edge. Selection highlight is
+   * driven separately via `selectedId` / `selectedEdgeId`.
+   */
+  revealSignal?: { target: FlowProblem['target']; nonce: number } | null;
   onSelect: (node: FlowNode | null) => void;
   /** Select an edge (its `edgeKey`), or clear selection with `null`. */
   onSelectEdge?: (edge: FlowEdge | null, key: string) => void;
@@ -107,6 +121,8 @@ export function FlowCanvas({
   invalidNodeIds,
   invalidEdges,
   validationErrors,
+  problems,
+  revealSignal,
   onSelect,
   onSelectEdge,
   onPatch,
@@ -135,6 +151,14 @@ export function FlowCanvas({
   const traversedSet = React.useMemo(() => new Set(traversedEdgeIds ?? []), [traversedEdgeIds]);
   const invalidNodeSet = React.useMemo(() => new Set(invalidNodeIds ?? []), [invalidNodeIds]);
   const simRunning = (visitedNodeIds?.length ?? 0) > 0 || !!activeNodeId;
+
+  // Per-element validation badges (errors dominate warnings on the same
+  // element). Derived from the live `problems` list so badges clear as issues
+  // are resolved.
+  const { byNode: nodeBadges, byEdge: edgeBadges } = React.useMemo(
+    () => indexProblemBadges(problems ?? []),
+    [problems],
+  );
 
   const positionOf = React.useCallback(
     (id: string): Point => {
@@ -384,6 +408,26 @@ export function FlowCanvas({
     });
   }, [size.height, size.width]);
 
+  // Pan to center an element when the Problems panel asks to reveal it. Driven
+  // by a changing `nonce` so re-clicking the same problem re-centers it.
+  React.useEffect(() => {
+    if (!revealSignal) return;
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const t = revealSignal.target;
+    let pt: Point | null = null;
+    if (t.kind === 'node') {
+      const p = layout.get(t.nodeId);
+      if (p) pt = { x: p.x + NODE_W / 2, y: p.y + NODE_H / 2 };
+    } else if (t.kind === 'edge') {
+      const s = layout.get(t.source);
+      const d = layout.get(t.target);
+      if (s && d) pt = { x: (s.x + d.x) / 2 + NODE_W / 2, y: (s.y + d.y) / 2 + NODE_H / 2 };
+    }
+    if (pt) setPan({ x: vp.clientWidth / 2 - pt.x * zoom, y: vp.clientHeight / 2 - pt.y * zoom });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealSignal?.nonce]);
+
   // ── Keyboard: delete selected node ─────────────────────────────────────────
 
   const onKeyDown = React.useCallback(
@@ -582,6 +626,7 @@ export function FlowCanvas({
               const cond = conditionText(edge.condition);
               const branchLabel = edge.isDefault ? 'else' : cond ? `if ${cond}` : edge.label;
               const eid = edgeKey(edge, i);
+              const edgeBadge = edgeBadges.get(edgeProblemKey(edge.source, edge.target));
               const traversed = traversedSet.has(eid);
               const selected = selectedEdgeId === eid;
               const d = back ? backEdgePath(from, to) : edgePath(from, to);
@@ -655,6 +700,32 @@ export function FlowCanvas({
                       </div>
                     </foreignObject>
                   )}
+                  {edgeBadge && (
+                    <foreignObject
+                      x={labelPos.x - 9}
+                      y={labelPos.y - 30}
+                      width={18}
+                      height={18}
+                      className="pointer-events-auto overflow-visible"
+                    >
+                      <span
+                        title={edgeBadge.title}
+                        data-problem={edgeBadge.level}
+                        className={cn(
+                          'inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border bg-background shadow-sm',
+                          edgeBadge.level === 'error'
+                            ? 'border-destructive/50 text-destructive'
+                            : 'border-amber-500/50 text-amber-600 dark:text-amber-400',
+                        )}
+                      >
+                        {edgeBadge.level === 'error' ? (
+                          <AlertCircle className="h-3 w-3" />
+                        ) : (
+                          <AlertTriangle className="h-3 w-3" />
+                        )}
+                      </span>
+                    </foreignObject>
+                  )}
                   {editable && !back && (
                     <foreignObject
                       // Sit the insert handle at the edge midpoint, but slide it
@@ -710,6 +781,7 @@ export function FlowCanvas({
                     : undefined
                 }
                 invalid={invalidNodeSet.has(node.id)}
+                badge={nodeBadges.get(node.id)}
               />
             );
           })}

@@ -8,6 +8,8 @@
 
 import * as React from 'react';
 import {
+  AlertCircle,
+  AlertTriangle,
   Code,
   CircleDot,
   CircleStop,
@@ -383,6 +385,11 @@ export interface NodeCardProps {
   dimmed?: boolean;
   /** Structural-validation error highlight (e.g. part of an un-declared cycle). */
   invalid?: boolean;
+  /**
+   * Validation badge shown at the card's top-right corner (error or warning),
+   * with the issue message(s) as its tooltip. Cleared when the issue resolves.
+   */
+  badge?: { level: 'error' | 'warning'; title: string };
   onPointerDown?: (e: React.PointerEvent) => void;
   onSelect?: () => void;
   onAppend?: () => void;
@@ -409,6 +416,7 @@ export function NodeCard({
   runState,
   dimmed,
   invalid,
+  badge,
   onPointerDown,
   onSelect,
   onAppend,
@@ -482,6 +490,24 @@ export function NodeCard({
           </div>
         </div>
       </div>
+      {badge && (
+        <span
+          title={badge.title}
+          data-problem={badge.level}
+          className={cn(
+            'absolute -right-2 -top-2 z-20 inline-flex h-5 w-5 items-center justify-center rounded-full border bg-background shadow-sm',
+            badge.level === 'error'
+              ? 'border-destructive/50 text-destructive'
+              : 'border-amber-500/50 text-amber-600 dark:text-amber-400',
+          )}
+        >
+          {badge.level === 'error' ? (
+            <AlertCircle className="h-3 w-3" />
+          ) : (
+            <AlertTriangle className="h-3 w-3" />
+          )}
+        </span>
+      )}
       {editable && type !== 'end' && (
         <button
           type="button"
