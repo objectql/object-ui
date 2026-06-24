@@ -12,6 +12,7 @@
 import * as React from 'react';
 import { SchemaRenderer, RecordContextProvider } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
+import { buildDefaultPageSchema } from '@object-ui/plugin-detail';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
 import { OutlineStrip } from './OutlineStrip';
@@ -106,9 +107,13 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
   // Fetch a handful of real records of the bound object + its schema and let
   // the author pick which one to preview against (mirrors the runtime
   // RecordDetailView's RecordContextProvider).
-  const recordObject = (draft as { type?: string; object?: string })?.type === 'record'
-    ? (draft as { object?: string })?.object
-    : undefined;
+  // Match the runtime resolver (usePageAssignment): a record page is keyed by
+  // either bare `type: 'record'` (editor draft shape) or `pageType: 'record'`
+  // (persisted envelope shape). Both must bind a sample record so record:*
+  // blocks render real data.
+  const isRecordPage = (draft as { type?: string; pageType?: string })?.type === 'record'
+    || (draft as { pageType?: string })?.pageType === 'record';
+  const recordObject = isRecordPage ? (draft as { object?: string })?.object : undefined;
   const [recordSamples, setRecordSamples] = React.useState<any[]>([]);
   const [recordSchema, setRecordSchema] = React.useState<any>(null);
   const [selectedRecordId, setSelectedRecordId] = React.useState<string | number | null>(null);
@@ -154,6 +159,28 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
     if (!recordSamples.length) return null;
     return recordSamples.find((r) => String(recordIdOf(r)) === String(selectedRecordId)) ?? recordSamples[0];
   }, [recordSamples, selectedRecordId]);
+
+  // ── Slotted record page synthesis ────────────────────────────────────────
+  // A `kind: 'slotted'` page carries an empty `regions: []` plus a `slots` map
+  // of overrides, so the raw draft renders blank through SchemaRenderer (there
+  // are no regions to walk). Mirror the runtime RecordDetailView: synthesize the
+  // canonical default page from the bound object's schema and apply the slot
+  // overrides via the SAME `buildDefaultPageSchema(objectDef, { slots })` path,
+  // so omitted slots fall through to the synthesized header/details/discussion
+  // while authored slots (highlights/tabs/…) override in place. Non-slotted
+  // pages render their authored schema unchanged.
+  const isSlotted = (draft as { kind?: string })?.kind === 'slotted';
+  const renderSchema = React.useMemo(() => {
+    if (!isSlotted) return schema;
+    try {
+      const slots = (draft as { slots?: Record<string, unknown> })?.slots ?? {};
+      // `recordSchema` arrives async; until then synthesize with no objectDef
+      // (structure renders immediately, field-level detail fills in on load).
+      return buildDefaultPageSchema(recordSchema ?? undefined, { slots }) as Record<string, unknown>;
+    } catch {
+      return schema;
+    }
+  }, [isSlotted, schema, draft, recordSchema]);
   // Wrap record-page content in the record context (+ a sample-record picker)
   // so detail/highlights/path/alert blocks render real data. No-op for
   // non-record pages and for record pages with no rows yet (renders the node
@@ -268,7 +295,7 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
         )}
         {withRecordBinding(
           <div className="min-h-[200px] max-h-[70vh] overflow-auto p-4">
-            <SchemaRenderer schema={schema as any} />
+            <SchemaRenderer schema={renderSchema as any} />
           </div>
         )}
       </PreviewErrorBoundary>
