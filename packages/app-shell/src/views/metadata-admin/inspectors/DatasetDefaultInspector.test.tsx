@@ -126,4 +126,10 @@ describe('DatasetDefaultInspector', () => {
     render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={false} />);
     expect(screen.queryByText('Certified')).not.toBeInTheDocument();
   });
+
+  it('exposes a dataset Scope filter and a per-measure filter editor', () => {
+    render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={false} />);
+    expect(screen.getByText('Scope filter')).toBeInTheDocument();
+    expect(screen.getByText('Filter (measure-scoped)')).toBeInTheDocument();
+  });
 });

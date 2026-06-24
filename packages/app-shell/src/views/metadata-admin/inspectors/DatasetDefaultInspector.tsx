@@ -20,8 +20,8 @@
  */
 
 import * as React from 'react';
-import { AlertTriangle, ArrowRight, Plus, Trash2, X } from 'lucide-react';
-import { Badge, Button, Label } from '@object-ui/components';
+import { AlertTriangle, ArrowRight, ChevronDown, Plus, Trash2, X } from 'lucide-react';
+import { Badge, Button, FilterBuilder, Label, Popover, PopoverContent, PopoverTrigger } from '@object-ui/components';
 import {
   InspectorShell,
   InspectorTextField,
@@ -33,6 +33,7 @@ import {
 import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
 import { toFieldName } from '../previews/object-fields-io';
 import { formatMeasure } from '@object-ui/core';
+import { conditionToGroup, groupToCondition, type FilterCondition } from './datasetFilterCondition';
 import {
   useObjectOptions,
   useDatasetFieldCatalog,
@@ -111,6 +112,7 @@ type Measure = {
   format?: string;
   currency?: string;
   derived?: DerivedSpec;
+  filter?: FilterCondition;
 };
 
 function SectionHeader({ title, count, onAdd, addLabel }: { title: string; count: number; onAdd?: () => void; addLabel: string }) {
@@ -214,6 +216,52 @@ function RelWarning({ rel, onAdd, disabled }: { rel: string; onAdd?: () => void;
   );
 }
 
+/**
+ * Visual filter editor for a dataset/measure `FilterCondition`. Wraps the shared
+ * {@link FilterBuilder} (a flat AND of `field op value` rows) and converts to/from
+ * the spec's Mongo-style `FilterCondition`. Filters it can't faithfully edit
+ * (nested / `$or` / multi-op) degrade to a "edit in Source" note rather than being
+ * silently rewritten. See {@link conditionToGroup} / {@link groupToCondition}.
+ */
+function DatasetFilterField({ label, help, value, onCommit, fields, disabled }: {
+  label: string;
+  help?: string;
+  value: FilterCondition | undefined;
+  onCommit: (fc: FilterCondition | undefined) => void;
+  fields: Array<{ value: string; label?: string; type?: string }>;
+  disabled?: boolean;
+}) {
+  const { group, representable } = conditionToGroup(value);
+  const count = group.conditions.length;
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {!representable ? (
+        <p className="rounded-md border border-dashed bg-muted/30 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+          Advanced filter (nested / OR) — edit it in the <span className="font-medium">Source</span> tab.
+        </p>
+      ) : (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type="button" variant="outline" size="sm" disabled={disabled} className="h-8 w-full justify-between text-xs font-normal">
+              <span className="truncate text-left">{count ? `${count} condition${count === 1 ? '' : 's'}` : <span className="text-muted-foreground">+ Add filter…</span>}</span>
+              <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-[440px] max-w-[90vw] p-3">
+            {fields.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Pick a base object to add filter conditions.</p>
+            ) : (
+              <FilterBuilder fields={fields as any} value={group as any} onChange={(g: any) => onCommit(groupToCondition(g))} />
+            )}
+          </PopoverContent>
+        </Popover>
+      )}
+      {help && <p className="text-[10px] text-muted-foreground">{help}</p>}
+    </div>
+  );
+}
+
 export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: MetadataDefaultInspectorProps) {
   const label = typeof draft.label === 'string' ? draft.label : '';
   const description = typeof draft.description === 'string' ? draft.description : '';
@@ -248,6 +296,13 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: Meta
     () => fieldOptions.map((f) => ({ value: f.value, label: f.label, hint: f.type, group: f.group })),
     [fieldOptions],
   );
+  // Base-object fields for the filter builders (scope + measure filters operate on
+  // the base table; relationship-path filters are out of scope for v1).
+  const filterFields = React.useMemo(
+    () => fieldOptions.filter((f) => !f.value.includes('.')).map((f) => ({ value: f.value, label: f.label, type: f.type })),
+    [fieldOptions],
+  );
+  const datasetFilter = draft.filter && typeof draft.filter === 'object' ? (draft.filter as FilterCondition) : undefined;
 
   const baseLabel = objectComboOptions.find((o) => o.value === object)?.label ?? object;
 
@@ -372,6 +427,18 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: Meta
         )}
       </div>
 
+      {/* Scope filter — the dataset's intrinsic FilterCondition */}
+      <div className="border-t pt-3">
+        <DatasetFilterField
+          label="Scope filter"
+          help="Intrinsic scope, ANDed into every query (e.g. exclude soft-deleted records)."
+          value={datasetFilter}
+          onCommit={(fc) => onPatch({ filter: fc })}
+          fields={filterFields}
+          disabled={readOnly}
+        />
+      </div>
+
       {/* Dimensions */}
       <div className="border-t pt-3 space-y-2">
         <SectionHeader
@@ -468,6 +535,14 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly, name }: Meta
               <Advanced>
                 <InspectorTextField label="Label (optional)" value={m.label ?? ''} onCommit={(v) => patchMeasure(i, { label: v || undefined })} placeholder={m.name || 'Display label'} disabled={readOnly} />
                 <MeasureFormatField measure={m} onPatch={(pp) => patchMeasure(i, pp)} disabled={readOnly} />
+                <DatasetFilterField
+                  label="Filter (measure-scoped)"
+                  help="Only rows matching this filter feed this measure (e.g. won_amount = sum(amount) where stage = won)."
+                  value={m.filter}
+                  onCommit={(fc) => patchMeasure(i, { filter: fc })}
+                  fields={filterFields}
+                  disabled={readOnly}
+                />
                 <InspectorCheckboxField
                   label="Derived — computed from other measures"
                   value={!!derived}
