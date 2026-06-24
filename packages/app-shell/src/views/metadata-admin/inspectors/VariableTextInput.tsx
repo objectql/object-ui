@@ -37,6 +37,28 @@ export function formatToken(token: string, mode: VariableFieldMode): string {
   return mode === 'template' ? `{${token}}` : token;
 }
 
+/**
+ * Splice a reference into `value` at the selection `[selStart, selEnd]`, in the
+ * brace mode for the field, returning the new string and the caret position
+ * just after the inserted token. Pure (the DOM caret restore lives in the
+ * component); selection bounds are clamped and order-normalized so a reversed or
+ * out-of-range selection can't corrupt the value.
+ */
+export function insertToken(
+  value: string,
+  mode: VariableFieldMode,
+  token: string,
+  selStart: number,
+  selEnd: number,
+): { next: string; caret: number } {
+  const text = formatToken(token, mode);
+  const a = Math.min(Math.max(selStart, 0), value.length);
+  const b = Math.min(Math.max(selEnd, 0), value.length);
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return { next: value.slice(0, lo) + text + value.slice(hi), caret: lo + text.length };
+}
+
 export interface VariableTextInputProps {
   value: string;
   onValueChange: (v: string) => void;
@@ -95,10 +117,7 @@ export function VariableTextInput({
   };
 
   const insert = (token: string) => {
-    const text = formatToken(token, mode);
-    const start = Math.min(caret.current.start, value.length);
-    const end = Math.min(caret.current.end, value.length);
-    const next = value.slice(0, start) + text + value.slice(end);
+    const { next, caret: pos } = insertToken(value, mode, token, caret.current.start, caret.current.end);
     onValueChange(next);
     setOpen(false);
     // Restore focus + place the caret just after the inserted token.
@@ -106,7 +125,6 @@ export function VariableTextInput({
       const el = inputRef.current;
       if (!el) return;
       el.focus();
-      const pos = start + text.length;
       try {
         el.setSelectionRange(pos, pos);
       } catch {
