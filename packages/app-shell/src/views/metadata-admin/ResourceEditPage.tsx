@@ -106,6 +106,7 @@ import { detectLocale, t, tFormat, translateValidationMessage } from './i18n';
 import { JsonSourceEditor } from './JsonSourceEditor';
 import { validateMetadataDraft, hasClientValidator } from './clientValidation';
 import { describeIssuePath } from './issuePath';
+import { buildCreateModeBody } from './createBody';
 
 // react-resizable-panels' `direction` prop type does not always narrow
 // cleanly in our TS config; cast at the boundary (precedent:
@@ -952,10 +953,14 @@ function MetadataResourceEditPageImpl({
       // or `{ list: { data: { object } } }` for view) is present so
       // the saved body satisfies its JSONSchema. User-supplied values
       // always win over the defaults.
+      // Prefer the server's authoritative create seed (from /meta/types — the
+      // single source of truth in @objectstack/spec) over the locally hardcoded
+      // createDefaults, so the create shape can't drift from the spec's required
+      // fields (the dashboard-`layout` / action-`body` 422 family). `createSeed`
+      // is a runtime field absent from the bundled GetMetaTypes type, hence the cast.
+      const specCreateSeed = (entry as { createSeed?: Record<string, unknown> } | undefined)?.createSeed;
       let builtBody = createMode
-        ? (config.createBuildBody
-            ? config.createBuildBody(draft)
-            : { ...(config.createDefaults ?? {}), ...draft })
+        ? buildCreateModeBody(config, draft, specCreateSeed)
         // Edit mode: serialise the editor draft back to the wire shape
         // (inverse of `toDraft` — e.g. `view` folds the `{ list | form }`
         // family key back into the ViewItem `config` wrapper).
