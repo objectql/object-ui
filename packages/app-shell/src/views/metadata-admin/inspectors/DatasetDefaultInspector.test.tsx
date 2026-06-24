@@ -88,4 +88,22 @@ describe('DatasetDefaultInspector', () => {
     expect(screen.queryByText('Add measure')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Remove/ })).not.toBeInTheDocument();
   });
+
+  it('warns at author time when a dimension uses a relationship.field whose join is not included', () => {
+    const onPatch = vi.fn();
+    const d2 = { ...draft, include: [], dimensions: [{ name: 'region', field: 'account.region', type: 'string' }] };
+    render(<DatasetDefaultInspector {...baseProps} draft={d2} onPatch={onPatch} readOnly={false} />);
+    expect(screen.getByText(/isn't in Included relationships/)).toBeInTheDocument();
+    // The one-click "Add it" affordance declares the missing join.
+    fireEvent.click(screen.getByText('Add it'));
+    expect(onPatch).toHaveBeenCalledWith({ include: ['account'] });
+  });
+
+  it('offers a structured format picker instead of a raw numeral-string field', () => {
+    render(<DatasetDefaultInspector {...baseProps} draft={draft} onPatch={vi.fn()} readOnly={false} />);
+    // Measure Advanced now renders the kind/decimals picker…
+    expect(screen.getByText('Display format')).toBeInTheDocument();
+    // …and no longer the free-text "$0,0.00" numeral field.
+    expect(screen.queryByPlaceholderText('$0,0.00')).not.toBeInTheDocument();
+  });
 });

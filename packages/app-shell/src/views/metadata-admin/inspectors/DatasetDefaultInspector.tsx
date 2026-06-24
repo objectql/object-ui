@@ -20,7 +20,7 @@
  */
 
 import * as React from 'react';
-import { ArrowRight, Plus, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Plus, Trash2, X } from 'lucide-react';
 import { Badge, Button, Label } from '@object-ui/components';
 import {
   InspectorShell,
@@ -31,6 +31,7 @@ import {
   spliceArray,
 } from './_shared';
 import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
+import { formatMeasure } from '@object-ui/core';
 import {
   useObjectOptions,
   useDatasetFieldCatalog,
@@ -71,6 +72,31 @@ const DERIVED_OP_OPTIONS = [
   { value: 'sum', label: 'sum (a + b)' },
   { value: 'difference', label: 'difference (a − b)' },
   { value: 'product', label: 'product (a × b)' },
+];
+
+// Display-format picker options — a business user shouldn't have to know numeral
+// syntax (`$0,0.00`), so the inspector offers kind + decimals + currency and
+// generates the `format`/`currency` strings.
+const FORMAT_KIND_OPTIONS = [
+  { value: 'raw', label: 'Raw number' },
+  { value: 'number', label: 'Number — 1,234.5' },
+  { value: 'currency', label: 'Currency — $1,234.50' },
+  { value: 'percent', label: 'Percent — 12.3%' },
+];
+const DECIMALS_OPTIONS = [
+  { value: '0', label: '0' },
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+];
+const CURRENCY_OPTIONS = [
+  { value: 'USD', label: 'USD ($)' },
+  { value: 'EUR', label: 'EUR (€)' },
+  { value: 'GBP', label: 'GBP (£)' },
+  { value: 'CNY', label: 'CNY (¥)' },
+  { value: 'JPY', label: 'JPY (¥)' },
+  { value: 'INR', label: 'INR (₹)' },
+  { value: 'CAD', label: 'CAD ($)' },
+  { value: 'AUD', label: 'AUD ($)' },
 ];
 
 type Dimension = { name?: string; label?: string; field?: string; type?: string; dateGranularity?: string };
@@ -117,6 +143,76 @@ function Advanced({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Best-effort parse of a stored measure format into the picker's {kind, decimals}. */
+function parseMeasureFormat(format?: string, currency?: string): { kind: string; decimals: number } {
+  const f = (format ?? '').trim();
+  const m = f.match(/\.(0+)/);
+  const decimals = m ? Math.min(m[1].length, 2) : 0;
+  if (currency || /[$£€¥₹]/.test(f)) return { kind: 'currency', decimals };
+  if (f.includes('%')) return { kind: 'percent', decimals };
+  if (f) return { kind: 'number', decimals };
+  return { kind: 'raw', decimals: 0 };
+}
+
+/** Generate {format, currency} from the picker selection. */
+function buildMeasureFormat(kind: string, decimals: number, currency: string): { format?: string; currency?: string } {
+  const dp = decimals > 0 ? '.' + '0'.repeat(decimals) : '';
+  switch (kind) {
+    case 'number': return { format: `0,0${dp}`, currency: undefined };
+    case 'currency': return { format: `0,0${dp}`, currency: currency || 'USD' };
+    case 'percent': return { format: `0${dp}%`, currency: undefined };
+    default: return { format: undefined, currency: undefined };
+  }
+}
+
+/**
+ * Structured display-format picker for a measure. Maps {kind, decimals, currency}
+ * ⇄ the spec's `format`/`currency` strings and shows a live sample so a business
+ * user never has to hand-write a numeral pattern.
+ */
+function MeasureFormatField({ measure, onPatch, disabled }: { measure: Measure; onPatch: (p: Partial<Measure>) => void; disabled?: boolean }) {
+  const { kind, decimals } = parseMeasureFormat(measure.format, measure.currency);
+  const currency = measure.currency || 'USD';
+  const apply = (k: string, d: number, c: string) => onPatch(buildMeasureFormat(k, d, c));
+  const sample = formatMeasure(kind === 'percent' ? 0.1234 : 1234.5, measure.format, measure.currency);
+  return (
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-1.5">
+        <InspectorSelectField label="Display format" value={kind} options={FORMAT_KIND_OPTIONS} onCommit={(v) => apply(v, decimals, currency)} disabled={disabled} />
+        {kind !== 'raw' && (
+          <InspectorSelectField label="Decimals" value={String(decimals)} options={DECIMALS_OPTIONS} onCommit={(v) => apply(kind, parseInt(v, 10) || 0, currency)} disabled={disabled} />
+        )}
+      </div>
+      {kind === 'currency' && (
+        <InspectorSelectField label="Currency" value={currency} options={CURRENCY_OPTIONS} onCommit={(v) => apply(kind, decimals, v)} disabled={disabled} />
+      )}
+      {kind !== 'raw' && (
+        <p className="text-[10px] text-muted-foreground">Sample: <span className="font-mono tabular-nums">{sample}</span></p>
+      )}
+    </div>
+  );
+}
+
+/** The relationship prefix of a `relationship.field` path that isn't yet in `include`, else null. */
+function missingRelationship(field: string | undefined, include: string[]): string | null {
+  if (!field || !field.includes('.')) return null;
+  const rel = field.split('.')[0];
+  return rel && !include.includes(rel) ? rel : null;
+}
+
+/** Inline author-time warning: a `relationship.field` whose join isn't declared in `include`. */
+function RelWarning({ rel, onAdd, disabled }: { rel: string; onAdd?: () => void; disabled?: boolean }) {
+  return (
+    <p className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+      <AlertTriangle className="h-3 w-3 shrink-0" />
+      <span>Relationship <code className="font-mono">{rel}</code> isn't in Included relationships.</span>
+      {!disabled && onAdd && (
+        <button type="button" className="underline hover:no-underline" onClick={onAdd}>Add it</button>
+      )}
+    </p>
+  );
+}
+
 export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDefaultInspectorProps) {
   const label = typeof draft.label === 'string' ? draft.label : '';
   const description = typeof draft.description === 'string' ? draft.description : '';
@@ -153,9 +249,17 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
   // Picking a field auto-infers the dimension type from the field's framework
   // type (region:string, close_date:date, …) — the BI "pick field, type follows"
   // convention — while leaving the Type select free to override.
+  const leafName = (path: string) => (path.includes('.') ? path.split('.').pop() ?? path : path);
   const pickDimensionField = (i: number, v: string) => {
     const opt = fieldOptions.find((o) => o.value === v);
-    patchDimension(i, opt?.type ? { field: v, type: fieldTypeToDimensionType(opt.type) } : { field: v });
+    const patch: Partial<Dimension> = opt?.type ? { field: v, type: fieldTypeToDimensionType(opt.type) } : { field: v };
+    if (!dimensions[i]?.name) patch.name = leafName(v); // auto-name from field when unnamed
+    patchDimension(i, patch);
+  };
+  const pickMeasureField = (i: number, v: string) => {
+    const patch: Partial<Measure> = { field: v };
+    if (!measures[i]?.name) patch.name = leafName(v); // auto-name from field when unnamed
+    patchMeasure(i, patch);
   };
 
   return (
@@ -275,6 +379,7 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
               disabled={readOnly}
               mono
             />
+            {(() => { const rel = missingRelationship(d.field, include); return rel ? <RelWarning rel={rel} disabled={readOnly} onAdd={() => onPatch({ include: appendArray(include, rel) })} /> : null; })()}
             <InspectorSelectField label="Type" value={d.type} options={DIMENSION_TYPE_OPTIONS} onCommit={(v) => patchDimension(i, { type: v })} disabled={readOnly} />
             <Advanced>
               <InspectorTextField label="Label (optional)" value={d.label ?? ''} onCommit={(v) => patchDimension(i, { label: v || undefined })} placeholder={d.name || 'Display label'} disabled={readOnly} />
@@ -320,7 +425,7 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
               <InspectorComboField
                 label="Field"
                 value={m.field ?? ''}
-                onCommit={(v) => patchMeasure(i, { field: v })}
+                onCommit={(v) => pickMeasureField(i, v)}
                 options={fieldComboOptions}
                 loading={catalogLoading}
                 placeholder="field (optional for count)"
@@ -328,13 +433,11 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
                 disabled={readOnly}
                 mono
               />
+              {(() => { const rel = missingRelationship(m.field, include); return rel ? <RelWarning rel={rel} disabled={readOnly} onAdd={() => onPatch({ include: appendArray(include, rel) })} /> : null; })()}
               <InspectorCheckboxField label="Certified" value={!!m.certified} onCommit={(v) => patchMeasure(i, { certified: v })} disabled={readOnly} />
               <Advanced>
                 <InspectorTextField label="Label (optional)" value={m.label ?? ''} onCommit={(v) => patchMeasure(i, { label: v || undefined })} placeholder={m.name || 'Display label'} disabled={readOnly} />
-                <div className="grid grid-cols-2 gap-1.5">
-                  <InspectorTextField label="Format" value={m.format ?? ''} onCommit={(v) => patchMeasure(i, { format: v || undefined })} placeholder="$0,0.00" disabled={readOnly} mono />
-                  <InspectorTextField label="Currency" value={m.currency ?? ''} onCommit={(v) => patchMeasure(i, { currency: v ? v.toUpperCase().slice(0, 3) : undefined })} placeholder="USD" disabled={readOnly} mono />
-                </div>
+                <MeasureFormatField measure={m} onPatch={(pp) => patchMeasure(i, pp)} disabled={readOnly} />
                 <InspectorCheckboxField
                   label="Derived — computed from other measures"
                   value={!!derived}
@@ -345,6 +448,7 @@ export function DatasetDefaultInspector({ draft, onPatch, readOnly }: MetadataDe
                   <div className="space-y-1.5 rounded-md border border-dashed p-2">
                     <InspectorSelectField label="Operation" value={derived.op} options={DERIVED_OP_OPTIONS} onCommit={(v) => patchMeasure(i, { derived: { ...derived, op: v } })} disabled={readOnly} />
                     <Label className="text-xs text-muted-foreground">Operands (other measures)</Label>
+                    {(() => { const need = derived.op === 'ratio' || derived.op === 'difference' ? 2 : 1; const have = Array.isArray(derived.of) ? derived.of.length : 0; return have < need ? <p className="text-[10px] text-amber-600 dark:text-amber-400">Select {need === 2 ? 'exactly 2 measures' : 'at least 1 measure'} for {derived.op}.</p> : null; })()}
                     {otherMeasures.length === 0 ? (
                       <p className="text-[11px] italic text-muted-foreground">Add other measures first.</p>
                     ) : (
