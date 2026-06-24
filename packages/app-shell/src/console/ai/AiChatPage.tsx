@@ -1083,7 +1083,11 @@ function ChatPane({
         messages={messages as ChatMessage[]}
         placeholder={
           activeAgent
-            ? t('console.ai.askAgent', { agent: activeAgentLabel })
+            ? agentRouteName(activeAgent) === 'ask'
+              // The generic "Ask {agent}…" doubles to "Ask Ask…" for the data-query
+              // agent whose label IS "Ask". Use its purpose-built placeholder instead.
+              ? t('console.ai.askAnything')
+              : t('console.ai.askAgent', { agent: activeAgentLabel })
             : agentsLoading
               ? t('console.ai.loadingAgents')
               : t('console.ai.askAnything')
