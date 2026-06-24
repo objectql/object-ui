@@ -482,8 +482,20 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   }
 
   const expressionUser = user
-    ? { name: user.name, email: user.email, role: user.role ?? 'user' }
-    : { name: 'Anonymous', email: '', role: 'guest' };
+    ? {
+        id: (user as any).id,
+        name: user.name,
+        email: user.email,
+        role: user.role ?? 'user',
+        roles: (user as any).roles,
+        // Surface the platform-admin flag so action `visible` CEL predicates
+        // gated on `ctx.user.isPlatformAdmin == true` (e.g. sys_environment
+        // "Change Plan (admin)") evaluate correctly. Previously only
+        // name/email/role were forwarded → isPlatformAdmin-gated actions were
+        // hidden even for platform admins.
+        isPlatformAdmin: (user as any).isPlatformAdmin ?? false,
+      }
+    : { name: 'Anonymous', email: '', role: 'guest', isPlatformAdmin: false };
 
   return (
     <ExpressionProvider user={expressionUser} app={activeApp} data={{}} features={features}>

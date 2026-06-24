@@ -19,7 +19,7 @@
 
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator } from '@object-ui/core';
-import { useRecordContext, useAction } from '@object-ui/react';
+import { useRecordContext, useAction, usePredicateScope } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCount } from '../../hooks/related-count-store';
@@ -664,6 +664,13 @@ export function cleanupTitleSeparators(s: string): string {
 const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const ctx = useRecordContext();
+  // Ambient host scope (signed-in user / app / features), fed by app-shell's
+  // ExpressionProvider. Needed so header-action `visible` CEL predicates can
+  // gate on `ctx.user.*` (e.g. sys_environment "Change Plan (admin)" →
+  // `ctx.user.isPlatformAdmin == true`). Without it the action-visibility
+  // evalCtx below only had record fields, so every `ctx.user`-gated header
+  // action was silently filtered out.
+  const predicateScope = usePredicateScope();
   const { execute } = useAction();
   const { objectLabel: tObjectLabel, actionLabel: tActionLabel } = useObjectLabel();
   const { fieldOptionLabel } = useSafeFieldLabel();
@@ -717,10 +724,23 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // this, bare identifiers fall through to the JS global scope and silently
     // resolve to e.g. `window.status` (empty string), causing every action
     // with a `visible` expression to be filtered out.
+    // Carry the ambient host scope (user / app / features) and expose the
+    // canonical `ctx.*` namespace so `ctx.user.isPlatformAdmin`-style
+    // predicates resolve — alongside the record fields spread for bare
+    // `status`/`is_default` CEL.
+    const scopeUser = (predicateScope as any)?.user;
     const evalCtx = {
       ...(recordData && typeof recordData === 'object' ? recordData : {}),
       record: recordData,
       data: recordData,
+      user: scopeUser,
+      ctx: {
+        user: scopeUser,
+        record: recordData,
+        data: recordData,
+        app: (predicateScope as any)?.app,
+        features: (predicateScope as any)?.features,
+      },
     };
     const evaluator = new ExpressionEvaluator(evalCtx);
     const evalExpr = (src: string): any => {
@@ -795,7 +815,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       out.push(a);
     }
     return out;
-  }, [rawHeaderActions, hostSystemActions, ctx?.data]);
+  }, [rawHeaderActions, hostSystemActions, ctx?.data, predicateScope]);
 
   const renderHeaderActions = () => {
     if (headerActions.length === 0) return null;
