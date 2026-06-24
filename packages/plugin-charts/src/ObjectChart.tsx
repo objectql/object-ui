@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, type CompareToConfig, type DrillEvent } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, type CompareToConfig, type DrillEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -322,16 +322,8 @@ export const ObjectChart = (props: any) => {
         const schemaRes = await fetch(`/api/v1/meta/object/${encodeURIComponent(objectName)}`, reqOpts);
         const sj = await schemaRes.json().catch(() => null);
         const objSchema = sj?.item ?? sj?.data ?? sj;
-        const fieldOpts = objSchema?.fields?.[fieldName]?.options;
-        if (!Array.isArray(fieldOpts) || !fieldOpts.length) { if (!cancelled) setFieldOptionColors(null); return; }
-        const map: Record<string, string> = {};
-        for (const o of fieldOpts) {
-          if (o && typeof o === 'object' && o.color) {
-            if (o.value != null) map[String(o.value)] = o.color;
-            if (o.label != null) map[String(o.label)] = o.color;
-          }
-        }
-        if (!cancelled) setFieldOptionColors(Object.keys(map).length ? map : null);
+        const map = buildOptionColorMap(objSchema?.fields?.[fieldName]?.options);
+        if (!cancelled) setFieldOptionColors(map);
       } catch { if (!cancelled) setFieldOptionColors(null); }
     })();
     return () => { cancelled = true; };

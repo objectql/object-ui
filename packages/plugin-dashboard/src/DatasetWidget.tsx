@@ -30,6 +30,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import {
   buildChartSeries,
+  buildOptionColorMap,
   findChartSeriesRow,
   formatMeasure,
   formatDimensionValue,
@@ -193,6 +194,12 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
   // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
   const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
+  // Per-category colors: when the chart's first dimension is a select/lookup
+  // field, paint each category in its option color (health green/red/yellow)
+  // instead of the generic --chart-1..5 palette — the same wiring the chart
+  // view uses (ObjectChart). The renderer's `categoryColors` map wins over the
+  // positional palette and falls back to it for categories without a color.
+  const [categoryColors, setCategoryColors] = useState<Record<string, string> | null>(null);
 
   // Signature uses the RAW filter (stable) — the resolved one carries a
   // render-time `now` and would otherwise force a refetch loop.
@@ -218,6 +225,30 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
+
+  // Resolve the first dimension's select/lookup option colors (charts only;
+  // metric/table/pivot don't use per-category colors). The dataset query gives
+  // us the base `object` and the dimension→field map, so we fetch the object
+  // schema and build a {value|label → color} map. Best-effort: any failure
+  // leaves it null and the chart keeps the positional palette.
+  useEffect(() => {
+    if (isMetric || isTable) { setCategoryColors(null); return; }
+    const object = state.object;
+    const dim0 = dimensions[0];
+    const field = (state.dimensionFields && state.dimensionFields[dim0]) || dim0;
+    if (!object || !field) { setCategoryColors(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/v1/meta/object/${encodeURIComponent(object)}`, { headers: { accept: 'application/json' }, credentials: 'include' });
+        const j = await res.json().catch(() => null);
+        const objSchema = j?.item ?? j?.data ?? j;
+        const map = buildOptionColorMap(objSchema?.fields?.[field]?.options);
+        if (!cancelled) setCategoryColors(map);
+      } catch { if (!cancelled) setCategoryColors(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [state.object, state.dimensionFields, dimensions, isMetric, isTable]);
 
   if (values.length === 0) {
     return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">{tt('dashboard.pickMeasures', 'Pick measures (values) for this dataset widget.')}</div>;
@@ -466,7 +497,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   return (
     <div className={cn('relative h-full w-full min-h-[220px]')}>
       <SchemaRenderer
-        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series } as any}
+        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series, ...(categoryColors ? { categoryColors } : {}) } as any}
         onChartClick={chartDrill}
         onSegmentClick={chartDrill}
       />

@@ -119,3 +119,31 @@ export function findChartSeriesRow(
   }
   return safeRows.findIndex((r) => String(r[xDim] ?? '') === c);
 }
+
+/**
+ * Build a per-category colour map from a select/lookup field's `options`.
+ *
+ * Keyed by BOTH the option `value` AND its display `label`, because a chart
+ * row's category may carry either — the server resolves dataset select
+ * dimensions value→label, while the legacy aggregate path keeps the raw value.
+ * Returns `null` when the field has no options or none carry a colour, so the
+ * caller can fall back to the positional palette.
+ *
+ * Shared by `ObjectChart` (plugin-charts) and `DatasetWidget` (plugin-dashboard)
+ * so a select/lookup dimension's option colours (e.g. health green/red/yellow)
+ * paint identically across the chart view and dashboard widgets.
+ */
+export function buildOptionColorMap(options: unknown): Record<string, string> | null {
+  if (!Array.isArray(options) || options.length === 0) return null;
+  const map: Record<string, string> = {};
+  for (const opt of options) {
+    if (opt && typeof opt === 'object') {
+      const o = opt as { value?: unknown; label?: unknown; color?: unknown };
+      if (typeof o.color === 'string' && o.color) {
+        if (o.value != null) map[String(o.value)] = o.color;
+        if (o.label != null) map[String(o.label)] = o.color;
+      }
+    }
+  }
+  return Object.keys(map).length > 0 ? map : null;
+}
