@@ -2,46 +2,44 @@
  * useAiSurfaceEnabled
  *
  * Single source of truth for "should the in-UI AI surface be shown on this
- * deployment?". The console ships under MIT and is edition-agnostic: it never
- * knows at build time whether the runtime is a Community Edition (framework
- * only, no cloud AI package) or a full cloud install. It decides purely at
- * runtime from what the server reports — no `VITE_EDITION` flag, no tree-shake.
+ * deployment?". The console ships under MIT and is edition-agnostic: it decides
+ * purely at runtime from what the server reports — no `VITE_EDITION` flag, no
+ * tree-shake.
  *
- * The signal is **a non-empty agent catalog** (`GET /api/v1/ai/agents`), NOT
- * the discovery `services.ai` flag. That distinction matters:
+ * The signal is whether the **`@objectstack/service-ai` capability is present**,
+ * as reported by discovery (`/discovery` → `services.ai.enabled &&
+ * status === 'available'`, i.e. `isAiEnabled`).
  *
- *   The `ask`/`build` agent *personas* are a commercial feature that moved to
- *   the cloud-only `@objectstack/service-ai-studio` package; the open-source
- *   framework keeps a HEADLESS `@objectstack/service-ai` that still
- *   `registerService('ai')`s. So on a Community Edition runtime discovery can
- *   STILL report `services.ai` as available (the service is running) while the
- *   agent catalog is empty (no persona attached). Gating on `isAiEnabled` would
- *   then leave the FAB / "Ask AI" affordances visible with nothing to talk to —
- *   a dead end. The catalog is the real "is there an agent to answer?" signal,
- *   and it's exactly what the Home "Build/Ask AI" CTAs already gate on, so every
- *   AI entry point now agrees.
+ * `service-ai` is an ENTERPRISE capability: a Community-Edition runtime does not
+ * depend on it, so the framework never registers the AI service and discovery
+ * reports `services.ai` unavailable → the whole AI surface hides. An install
+ * that ships `service-ai` reports it available → AI shows. It is the presence of
+ * the CAPABILITY that gates, NOT whether any specific agent happens to be
+ * configured yet (an install with `service-ai` but no agents has AI "available";
+ * AiChatPage degrades gracefully if the catalog is empty).
  *
- * The `VITE_AI_BASE_URL` opt-in flows through naturally: {@link resolveAiApiBase}
- * points the catalog fetch at the configured server, so an external AI server
- * with agents lights the surface up and an agent-less one keeps it hidden.
+ * The framework only registers the AI service when the host app declares
+ * `@objectstack/service-ai`, so discovery's `services.ai` is an honest edition
+ * signal (see objectstack-ai/framework#2311). Earlier this hook gated on the
+ * agent catalog as a workaround for the headless service reporting itself
+ * available in CE; with #2311 that no longer happens, so discovery is correct.
  *
- * `isLoading` is surfaced so the `/ai` route guard can wait for the catalog to
+ * `VITE_AI_BASE_URL` is an explicit opt-in: it points the console at an external
+ * AI server and is trusted even when local discovery reports AI unavailable.
+ *
+ * `isLoading` is surfaced so the `/ai` route guard can wait for discovery to
  * resolve before redirecting — otherwise a stale bookmark would flash a redirect
- * to home before the fetch even starts. Entry-point buttons (FAB, top-bar link,
- * designer "Ask AI") ignore it: staying hidden during the brief load is the
- * correct, flash-free behaviour for a control that must not appear unless AI can
- * actually answer.
+ * to home before the server's answer is in.
  *
  * @module
  */
 
-import { useRef } from 'react';
-import { useAgents } from '@object-ui/plugin-chatbot';
+import { useDiscovery } from '@object-ui/react';
 
 /**
  * Resolve the AI service base URL, mirroring AiChatPage / the Home CTAs:
  * an explicit `VITE_AI_BASE_URL` wins, otherwise `${VITE_SERVER_URL}/api/v1/ai`.
- * Shared so every catalog fetch (route guard, layouts, Home) hits the same URL.
+ * Shared so every AI fetch (Home catalog, AiChatPage) hits the same URL.
  */
 export function resolveAiApiBase(): string {
   const env = (import.meta as any).env ?? {};
@@ -52,31 +50,22 @@ export function resolveAiApiBase(): string {
 }
 
 export interface AiSurfaceState {
-  /** True when the AI UI should be rendered (the server serves ≥1 agent). */
+  /** True when the AI capability (`service-ai`) is available, so the AI UI shows. */
   enabled: boolean;
-  /** True until the agent catalog has resolved; route guards wait on this. */
+  /** True until discovery resolves (and no `VITE_AI_BASE_URL` opt-in); guards wait on this. */
   isLoading: boolean;
 }
 
 /**
  * Whether the console's AI surface (FAB, `/ai` routes, "Ask AI" affordances)
- * should be shown, driven off the live agent catalog.
+ * should be shown — driven off the presence of the `service-ai` capability in
+ * discovery.
  */
 export function useAiSurfaceEnabled(): AiSurfaceState {
-  const { agents, isLoading } = useAgents({ apiBase: resolveAiApiBase() });
-
-  // useAgents starts `isLoading=false` and only kicks off the fetch in an effect
-  // a tick later, so the first render's empty list means "not fetched yet", not
-  // "no agents". Latch whether a fetch has actually been in flight so the route
-  // guard treats that initial frame as loading (not a definitive empty → redirect).
-  const fetchStartedRef = useRef(false);
-  if (isLoading) fetchStartedRef.current = true;
-
-  const enabled = agents.length > 0;
-  return {
-    enabled,
-    // Agents present → resolved/available. Otherwise we're loading until a fetch
-    // has both started and finished with an empty result.
-    isLoading: enabled ? false : isLoading || !fetchStartedRef.current,
-  };
+  const { isAiEnabled, isLoading } = useDiscovery();
+  // An explicit external-AI opt-in is trusted even if local discovery reports AI
+  // unavailable; it's synchronous, so there's nothing to wait for.
+  const aiBaseUrlConfigured = Boolean((import.meta as any).env?.VITE_AI_BASE_URL);
+  if (aiBaseUrlConfigured) return { enabled: true, isLoading: false };
+  return { enabled: isAiEnabled, isLoading };
 }
