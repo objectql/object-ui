@@ -112,20 +112,18 @@ export function CreateWorkspaceDialog({
 
       try {
         const org = await createOrganization({ name: name.trim(), slug: slug.trim() });
-        // Born-with-env: eagerly provision the new org's production environment
-        // so the user lands in a ready workspace with no onboarding-wizard
-        // detour. `createOrganization` already switched the active org; we also
-        // pass `organizationId` explicitly so the target is unambiguous.
-        // Best-effort — on failure the onboarding gate provisions the env
-        // lazily on first navigation, so multi-org still works.
+        // Born-with-env: eagerly ensure the new org's production environment so
+        // the user lands in a ready workspace with no onboarding-wizard detour.
+        // `createOrganization` already switched the active org; we also pass
+        // `organizationId` explicitly so the target is unambiguous. Idempotent +
+        // best-effort: a control plane that auto-provisions the env on create
+        // resolves this to `alreadyProvisioned`; a genuine failure falls through
+        // to the onboarding gate (lazy provision on first navigation).
         try {
-          await provisionProductionEnvironment({
-            displayName: name.trim(),
-            organizationId: org.id,
-          });
+          await provisionProductionEnvironment({ organizationId: org.id });
         } catch (provisionErr) {
           console.warn(
-            '[CreateWorkspace] eager env provision failed; falling back to lazy onboarding gate',
+            '[CreateWorkspace] eager env provision failed; onboarding gate will provision lazily',
             provisionErr,
           );
         }

@@ -1905,6 +1905,7 @@ const zh = {
   },
   organizations: {
     mine: '我的组织',
+    create: '创建工作区',
     title: '组织',
     heading: '您的组织',
     subtitle: '选择一个组织以继续，或新建一个组织。',

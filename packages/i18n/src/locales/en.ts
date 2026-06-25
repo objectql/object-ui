@@ -1900,6 +1900,7 @@ const en = {
   },
   organizations: {
     mine: 'My Organizations',
+    create: 'Create workspace',
     title: 'Organizations',
     heading: 'Your Organizations',
     subtitle: 'Select an organization to continue, or create a new one.',

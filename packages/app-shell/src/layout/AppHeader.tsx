@@ -41,6 +41,7 @@ import {
   Lock,
   LogOut,
   Boxes,
+  Plus,
   Layers,
   Bot,
   User,
@@ -135,6 +136,7 @@ export function AppHeader({
     organizations,
     activeOrganization,
     isOrganizationsLoading,
+    getAuthConfig,
   } = useAuth();
   const dataSource = useAdapter();
   // Runtime AI gating: hide the top-bar AI entry point when the server serves
@@ -497,6 +499,24 @@ export function AppHeader({
   const activeActivities = activities ?? apiActivities ?? [];
   const orgList = organizations ?? [];
   const hasOrgSection = isOrganizationsLoading || orgList.length > 0 || !!activeOrganization;
+  // Mirror the server's `beforeCreateOrganization` gate so the "Create
+  // workspace" entry only shows where multi-org self-service is enabled.
+  // Default to allowed until the config resolves (avoids hiding it on slow
+  // networks); the server still enforces.
+  const [multiOrgDisabled, setMultiOrgDisabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    getAuthConfig?.()
+      .then((cfg) => {
+        if (!cancelled) setMultiOrgDisabled(cfg?.features?.multiOrgEnabled === false);
+      })
+      .catch(() => {
+        /* leave default — server still enforces */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getAuthConfig]);
 
   // Build path segments (only used in `app` variant)
   const pathParts = location.pathname.split('/').filter(Boolean);
@@ -948,6 +968,16 @@ export function AppHeader({
                 <DropdownMenuItem onClick={() => navigate('/organizations')} className="cursor-pointer">
                   <Boxes className="mr-2 h-4 w-4" />
                   {t('organizations.mine', { defaultValue: 'My Organizations' })}
+                </DropdownMenuItem>
+              )}
+              {hasOrgSection && !multiOrgDisabled && (
+                <DropdownMenuItem
+                  onClick={() => navigate('/organizations?create=1')}
+                  className="cursor-pointer"
+                  data-testid="header-create-workspace"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t('organizations.create', { defaultValue: 'Create workspace' })}
                 </DropdownMenuItem>
               )}
               {/*

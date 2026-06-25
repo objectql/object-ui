@@ -22,7 +22,7 @@ import { Plus, Search, Loader2 } from 'lucide-react';
 import { useAuth } from '@object-ui/auth';
 import type { AuthOrganization } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { resolveHomeUrl } from './resolveHomeUrl';
 
@@ -38,6 +38,12 @@ function getOrgInitials(name: string): string {
 export function OrganizationsPage() {
   const { t } = useObjectTranslation();
   const navigate = useNavigate();
+  // `?create=1` is the header "Create workspace" entry point: it opens the
+  // create dialog directly and suppresses the single-org auto-skip below, so a
+  // single-org user can reach the dialog (the picker alone auto-redirects them
+  // home before they could click "New organization").
+  const [searchParams] = useSearchParams();
+  const wantsCreate = searchParams.get('create') === '1';
   const {
     organizations,
     activeOrganization,
@@ -112,16 +118,27 @@ export function OrganizationsPage() {
   useEffect(() => {
     if (autoSelectedRef.current) return;
     if (isOrganizationsLoading) return;
+    if (wantsCreate) return; // user came here to create — show the dialog, don't bounce
     if (orgList.length !== 1) return;
     autoSelectedRef.current = true;
     void handleSelect(orgList[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOrganizationsLoading, orgList.length]);
+  }, [isOrganizationsLoading, orgList.length, wantsCreate]);
+
+  // Open the create dialog when arriving via the header "Create workspace"
+  // entry (`?create=1`). Guarded so closing the dialog doesn't re-open it.
+  const createOpenedRef = useRef(false);
+  useEffect(() => {
+    if (wantsCreate && !createOpenedRef.current) {
+      createOpenedRef.current = true;
+      setIsCreateOpen(true);
+    }
+  }, [wantsCreate]);
 
   // Show a spinner while we're either still loading, or about to auto-redirect
   // because there's only one org. This prevents the picker from briefly
   // flashing on screen for single-org users.
-  const willAutoSelect = !isOrganizationsLoading && orgList.length === 1;
+  const willAutoSelect = !isOrganizationsLoading && orgList.length === 1 && !wantsCreate;
   if (isOrganizationsLoading || willAutoSelect) {
     return (
       <div className="flex flex-1 items-center justify-center py-20">
