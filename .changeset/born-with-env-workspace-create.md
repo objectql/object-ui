@@ -17,5 +17,11 @@ provision is best-effort: on failure the onboarding gate provisions the env lazi
 first navigation, so multi-org still works. The `multiOrgEnabled` enable-gate is unchanged
 (already wired end-to-end via the auth `/config` `features.multiOrgEnabled` flag).
 
+Adds a gated **"Create workspace"** entry to the org switcher (avatar dropdown) that
+opens the dialog directly — previously a single-org user could never reach it, because
+the only path (`/organizations`) auto-skips to home when you belong to exactly one org.
+The eager provision is idempotent: a control plane that auto-provisions the production
+env on org create resolves it to "already provisioned" rather than erroring.
+
 Also removes the unreferenced `apps/console` `CreateWorkspaceDialog` duplicate; the live
 component is the app-shell copy used by `OrganizationsPage`.
