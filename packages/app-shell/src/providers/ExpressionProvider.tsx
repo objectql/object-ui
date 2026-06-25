@@ -50,7 +50,11 @@ interface ExpressionProviderProps {
 
 export function ExpressionProvider({ children, user = {}, app = {}, data = {}, features = {} }: ExpressionProviderProps) {
   const value = useMemo(() => {
-    const context = { user, app, data, features };
+    // ADR-0068: expose the SAME user object under the canonical `current_user`
+    // plus the back-compat `user` alias and the server-RLS-parity `ctx.user`
+    // alias, so a predicate authored against any one form evaluates identically
+    // on client, server-formula, and server-RLS.
+    const context = { current_user: user, user, ctx: { user }, app, data, features };
     const evaluator = new ExpressionEvaluator(context);
     return { user, app, data, features, evaluator };
   }, [user, app, data, features]);
@@ -58,7 +62,11 @@ export function ExpressionProvider({ children, user = {}, app = {}, data = {}, f
   // Also feed the predicate scope used by useCondition/useExpression in
   // @object-ui/react so action visibility predicates (e.g. on toolbar
   // buttons) can see deployment-level flags like features.multiOrgEnabled.
-  const scope = useMemo(() => ({ user, app, data, features }), [user, app, data, features]);
+  // Mirror the canonical `current_user`/`user`/`ctx.user` aliases here too.
+  const scope = useMemo(
+    () => ({ current_user: user, user, ctx: { user }, app, data, features }),
+    [user, app, data, features],
+  );
 
   return (
     <ExprCtx.Provider value={value}>
@@ -76,7 +84,8 @@ export function useExpressionContext(): ExpressionContextValue {
   if (!ctx) {
     // Return a safe default so components can be used outside the provider
     const fallback = { user: {}, app: {}, data: {}, features: {} };
-    return { ...fallback, evaluator: new ExpressionEvaluator(fallback) };
+    const evalContext = { current_user: {}, ctx: { user: {} }, ...fallback };
+    return { ...fallback, evaluator: new ExpressionEvaluator(evalContext) };
   }
   return ctx;
 }

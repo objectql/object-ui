@@ -15,6 +15,12 @@ const ADMIN_ROLES = new Set([
   'superadmin',
   'platform_admin',
   'system_admin',
+  // ADR-0068 canonical role names emitted into `user.roles[]` by the server
+  // customSession (raw better-auth owner/admin are normalized to org_owner/
+  // org_admin). Accept both raw and canonical so admin detection survives the
+  // removal of the `user.role = 'admin'` overwrite footgun.
+  'org_owner',
+  'org_admin',
 ]);
 
 function isAdminRole(role: unknown): boolean {
