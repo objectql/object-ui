@@ -14,7 +14,7 @@
 
 import React, { useMemo } from 'react';
 import type { PageSchema, PageRegion, SchemaNode } from '@object-ui/types';
-import { SchemaRenderer, PageVariablesProvider } from '@object-ui/react';
+import { SchemaRenderer, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { cn } from '../../lib/utils';
 
@@ -470,6 +470,9 @@ export const PageRenderer: React.FC<{
   if (schema.variables && schema.variables.length > 0) {
     return (
       <PageVariablesProvider definitions={schema.variables}>
+        {/* Publish the live page-variable snapshot into the action runtime so a
+            submit button can post `{{page.<var>}}` values (SDUI form data-entry). */}
+        <PageVariableActionBridge />
         {pageContent}
       </PageVariablesProvider>
     );

@@ -20,3 +20,4 @@ import './elements';
 import './metadata-viewer';
 import './data-list';
 import './record-picker';
+import './text-input';

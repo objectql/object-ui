@@ -280,6 +280,10 @@ export interface ActionContext {
   
   /** Selected records (for list actions) */
   selectedRecords?: Record<string, any>[];
+
+  /** Live page-variable snapshot (ADR-0049) published by PageVariableActionBridge —
+   *  lets a submit action read page-local form state via `{{page.<var>}}` tokens. */
+  pageVariables?: Record<string, any>;
   
   /** Current user */
   user?: Record<string, any>;

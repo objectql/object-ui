@@ -10,6 +10,7 @@ export * from './useExpression';
 export * from './useActionRunner';
 export * from './useNavigationOverlay';
 export * from './usePageVariables';
+export * from './usePageVariableActionBridge';
 export * from './useViewData';
 export * from './useDynamicApp';
 export * from './useDiscovery';

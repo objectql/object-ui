@@ -44,6 +44,7 @@ import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDi
 import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog';
 import { FlowRunner, type ScreenFlowState } from '../views/FlowRunner';
 import { resolveActionParams } from '../utils/resolveActionParams';
+import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
@@ -197,7 +198,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   // Authenticated fetch for direct backend calls. Declared before apiHandler.
   const authFetch = useMemo(() => createAuthenticatedFetch(), []);
 
-  const apiHandler = useCallback(async (action: ActionDef): Promise<ActionResult> => {
+  const apiHandler = useCallback(async (action: ActionDef, context?: ActionContext): Promise<ActionResult> => {
     try {
       const target = action.target || action.name;
       const params = action.params || {};
@@ -214,6 +215,13 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         const rowRecord = rawParams._rowRecord as Record<string, any> | undefined;
         delete rawParams._rowRecord;
 
+        // Resolve `{{page.<var>}}` tokens against the live page-variable snapshot
+        // (published into the action context by PageVariableActionBridge). This is
+        // what lets a pure-SDUI form submit the values its inputs wrote into page
+        // variables; whole-value tokens preserve type. See resolvePageVarTokens.
+        const pageVars = (context?.pageVariables ?? undefined) as Record<string, any> | undefined;
+        const resolvedParams = resolvePageVarTokens(rawParams, pageVars);
+
         // Interpolate `{field}` tokens in the target URL from the row record.
         let resolvedTarget = targetStr;
         if (rowRecord && /\{[a-z_][a-z0-9_]*\}/i.test(resolvedTarget)) {
@@ -227,7 +235,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         const wrap = action.bodyShape && typeof action.bodyShape === 'object' && action.bodyShape.wrap
           ? action.bodyShape.wrap
           : undefined;
-        const body: Record<string, any> = wrap ? { [wrap]: rawParams } : { ...rawParams };
+        const body: Record<string, any> = wrap ? { [wrap]: resolvedParams } : { ...resolvedParams };
 
         if (rowRecord && action.recordIdParam) {
           const rowField = action.recordIdField || 'id';
@@ -241,7 +249,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         }
 
         if (action.bodyExtra && typeof action.bodyExtra === 'object') {
-          Object.assign(body, action.bodyExtra);
+          Object.assign(body, resolvePageVarTokens(action.bodyExtra, pageVars));
         }
 
         const method = (action.method || 'POST').toUpperCase();

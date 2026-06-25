@@ -47,6 +47,8 @@ export interface ActionContext {
   data?: Record<string, any>;
   record?: any;
   selectedRecords?: Record<string, any>[];
+  /** Live page-variable snapshot (ADR-0049), published by PageVariableActionBridge. */
+  pageVariables?: Record<string, any>;
   user?: any;
   [key: string]: any;
 }

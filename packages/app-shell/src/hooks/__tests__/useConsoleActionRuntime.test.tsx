@@ -45,7 +45,7 @@ vi.mock('../../views/ActionResultDialog', () => ({ ActionResultDialog: () => nul
 vi.mock('../../views/FlowRunner', () => ({ FlowRunner: () => null }));
 
 import { useConsoleActionRuntime, ConsoleActionRuntimeProvider } from '../useConsoleActionRuntime';
-import { useAction } from '@object-ui/react';
+import { useAction, usePageVariables, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 
 beforeEach(() => {
   authFetchSpy.mockReset();
@@ -323,5 +323,115 @@ describe('ConsoleActionRuntimeProvider — page-level action execution', () => {
     await waitFor(() => expect(authFetchSpy).toHaveBeenCalled());
     expect(String(authFetchSpy.mock.calls[0][0])).toContain('/api/v1/environments');
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Gap 2 — page-variable → submit bridge. apiHandler resolves `{{page.<var>}}`
+// tokens in the request body against the live page-variable snapshot that
+// PageVariableActionBridge publishes into the action context. This is the
+// data-entry half of SDUI pages: an input writes a page variable, a submit
+// button posts it.
+// ---------------------------------------------------------------------------
+describe('apiHandler — page-variable submit bridge', () => {
+  it('resolves {{page.<var>}} tokens in params from context.pageVariables (type-preserving)', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    await act(async () => {
+      await result.current.apiHandler(
+        {
+          type: 'api',
+          name: 'onboard',
+          target: '/api/v1/cloud/onboarding/complete',
+          params: {
+            workspace_name: '{{page.workspaceName}}',
+            seats: '{{page.seats}}',
+            label: 'ws-{{page.subdomain}}',
+          },
+        } as any,
+        { pageVariables: { workspaceName: 'Acme', seats: 5, subdomain: 'acme' } } as any,
+      );
+    });
+
+    const body = JSON.parse(authFetchSpy.mock.calls[0][1].body);
+    expect(body.workspace_name).toBe('Acme');
+    expect(body.seats).toBe(5); // whole-value token preserves the number type
+    expect(body.label).toBe('ws-acme'); // embedded token is string-interpolated
+  });
+
+  it('resolves {{page.<var>}} tokens in bodyExtra as well', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({}) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    await act(async () => {
+      await result.current.apiHandler(
+        { type: 'api', name: 'x', target: '/api/v1/x', bodyExtra: { src: '{{page.subdomain}}' } } as any,
+        { pageVariables: { subdomain: 'acme' } } as any,
+      );
+    });
+
+    expect(JSON.parse(authFetchSpy.mock.calls[0][1].body).src).toBe('acme');
+  });
+
+  it('passes tokens through verbatim when no pageVariables context is present (back-compat)', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({}) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    await act(async () => {
+      await result.current.apiHandler(
+        { type: 'api', name: 'x', target: '/api/v1/x', params: { a: '{{page.missing}}' } } as any,
+      );
+    });
+
+    expect(JSON.parse(authFetchSpy.mock.calls[0][1].body).a).toBe('{{page.missing}}');
+  });
+});
+
+describe('PageVariableActionBridge — end-to-end submit loop', () => {
+  function FormProbe() {
+    const { setVariable } = usePageVariables();
+    const { execute } = useAction();
+    return (
+      <>
+        <button onClick={() => setVariable('workspaceName', 'Acme')}>type</button>
+        <button
+          onClick={() =>
+            void execute({
+              type: 'api',
+              name: 'onboard',
+              target: '/api/v1/cloud/onboarding/complete',
+              params: { workspace_name: '{{page.workspaceName}}' },
+            } as any)
+          }
+        >
+          submit
+        </button>
+      </>
+    );
+  }
+
+  it('input → page variable → submit posts the resolved value', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({}) });
+    render(
+      <ConsoleActionRuntimeProvider dataSource={{}} objects={[]}>
+        <PageVariablesProvider definitions={[{ name: 'workspaceName', type: 'string', source: 'ws' }]}>
+          <PageVariableActionBridge />
+          <FormProbe />
+        </PageVariablesProvider>
+      </ConsoleActionRuntimeProvider>,
+    );
+
+    fireEvent.click(screen.getByText('type')); // writes page variable → bridge publishes snapshot
+    fireEvent.click(screen.getByText('submit')); // executes api action → apiHandler resolves token
+
+    await waitFor(() => expect(authFetchSpy).toHaveBeenCalled());
+    expect(JSON.parse(authFetchSpy.mock.calls[0][1].body).workspace_name).toBe('Acme');
   });
 });
