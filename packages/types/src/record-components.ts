@@ -102,6 +102,18 @@ export interface RecordRelatedListComponentProps {
   showViewAll?: boolean;
   /** Available actions for the related list */
   actions?: string[];
+  /**
+   * Add-existing-via-picker config (generic m2m/junction assignment). Pick
+   * records from `add.picker.object` and create link rows in `objectName`
+   * (`{[relationshipField]: parentId, [add.linkField]: pickedId}`), or omit
+   * `linkField` to re-parent the picked 1:m child. Mirrors the spec
+   * RecordRelatedListProps.add.
+   */
+  add?: {
+    picker: { object: string; valueField?: string; labelField?: string; filter?: unknown };
+    linkField?: string;
+    label?: string;
+  };
   /** ARIA accessibility attributes */
   aria?: RecordComponentAriaProps;
 }
