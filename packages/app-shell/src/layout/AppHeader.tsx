@@ -945,7 +945,7 @@ export function AppHeader({
                 {t('user.profile', { defaultValue: 'Profile' })}
               </DropdownMenuItem>
               {hasOrgSection && (
-                <DropdownMenuItem onClick={() => navigate('/organizations')} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => navigate('/organizations?manage=1')} className="cursor-pointer">
                   <Boxes className="mr-2 h-4 w-4" />
                   {t('organizations.mine', { defaultValue: 'My Organizations' })}
                 </DropdownMenuItem>

@@ -22,7 +22,7 @@ import { Plus, Search, Loader2 } from 'lucide-react';
 import { useAuth } from '@object-ui/auth';
 import type { AuthOrganization } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
 import { resolveHomeUrl } from './resolveHomeUrl';
 
@@ -38,6 +38,11 @@ function getOrgInitials(name: string): string {
 export function OrganizationsPage() {
   const { t } = useObjectTranslation();
   const navigate = useNavigate();
+  // `?manage=1` (set by the avatar menu's "My Organizations" entry) means the
+  // user explicitly came to manage / create orgs — don't auto-skip the picker
+  // for a single-org user, or they could never reach "New organization".
+  const [searchParams] = useSearchParams();
+  const manageMode = searchParams.get('manage') === '1';
   const {
     organizations,
     activeOrganization,
@@ -112,16 +117,17 @@ export function OrganizationsPage() {
   useEffect(() => {
     if (autoSelectedRef.current) return;
     if (isOrganizationsLoading) return;
+    if (manageMode) return;
     if (orgList.length !== 1) return;
     autoSelectedRef.current = true;
     void handleSelect(orgList[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOrganizationsLoading, orgList.length]);
+  }, [isOrganizationsLoading, orgList.length, manageMode]);
 
   // Show a spinner while we're either still loading, or about to auto-redirect
   // because there's only one org. This prevents the picker from briefly
   // flashing on screen for single-org users.
-  const willAutoSelect = !isOrganizationsLoading && orgList.length === 1;
+  const willAutoSelect = !manageMode && !isOrganizationsLoading && orgList.length === 1;
   if (isOrganizationsLoading || willAutoSelect) {
     return (
       <div className="flex flex-1 items-center justify-center py-20">
