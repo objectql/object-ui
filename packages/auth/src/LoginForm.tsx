@@ -34,6 +34,8 @@ export interface LoginFormLabels {
   signUpText?: string;
   /** Divider label between social sign-in and email/password (defaults to "or") */
   orText?: string;
+  /** Label for the SSO sign-in button (defaults to "Sign in with SSO") */
+  ssoButton?: string;
 }
 
 export interface LoginFormProps {
@@ -130,6 +132,7 @@ export function LoginForm({
     noAccountText: labels.noAccountText ?? "Don't have an account?",
     signUpText: labels.signUpText ?? 'Sign up',
     orText: labels.orText ?? 'or',
+    ssoButton: labels.ssoButton ?? 'Sign in with SSO',
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -144,6 +147,33 @@ export function LoginForm({
       const code = (authError as Error & { code?: string }).code;
       setError((code && errorMessages?.[code]) || authError.message);
       onError?.(authError);
+    }
+  };
+
+  /**
+   * Federated SSO sign-in: routes the entered email to its configured IdP
+   * (better-auth `@better-auth/sso`, by email domain) and redirects the
+   * browser to the provider's authorization endpoint. Falls back to an inline
+   * error when no provider matches the domain.
+   */
+  const handleSso = async () => {
+    setError(null);
+    try {
+      const base = window.location.pathname.replace(/\/login(?:\/.*)?$/, '');
+      const res = await fetch('/api/v1/auth/sign-in/sso', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, callbackURL: base + '/home' }),
+        credentials: 'include',
+      });
+      const data = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
+      if (res.ok && typeof data.url === 'string') {
+        window.location.href = data.url;
+        return;
+      }
+      setError(data.message || 'No SSO provider is configured for this email domain.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -214,6 +244,15 @@ export function LoginForm({
           >
             {isLoading && <AuthSpinner />}
             {isLoading ? l.submittingButton : l.submitButton}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSso}
+            disabled={isLoading}
+            className="flex w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
+          >
+            {l.ssoButton}
           </button>
         </form>
       </div>
