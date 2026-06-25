@@ -522,6 +522,9 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   nextStepsLabel?: string;
   /** Heading for the pre-build proposed-plan card (default "Proposed plan"). */
   planTitleLabel?: string;
+  /** Extend mode: prefix shown when proposedPlan.targetApp is set, framing
+   *  the build as additive (e.g. "Adding to existing app"). */
+  planExtendLabel?: string;
   /** Heading above the structure-deciding questions in the plan card (default "Confirm before building"). */
   planQuestionsLabel?: string;
   /** Heading above the agent's assumptions in the plan card (default "Assumptions"). */
@@ -915,6 +918,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       verifiedLabel = 'Verified',
       nextStepsLabel = "What's next",
       planTitleLabel = 'Proposed plan',
+      planExtendLabel = 'Adding to existing app',
       planQuestionsLabel = 'Confirm before building',
       planAssumptionsLabel = 'Assumptions',
       planApproveHintLabel = 'Reply to approve or adjust this plan.',
@@ -1577,6 +1581,14 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                   <ClipboardList className="size-3.5" />
                   {planTitleLabel}
                 </span>
+                {tool.proposedPlan.targetApp ? (
+                  <span
+                    className="inline-flex w-fit items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300"
+                    data-testid="proposed-plan-extend"
+                  >
+                    + {planExtendLabel} 「{tool.proposedPlan.targetApp}」
+                  </span>
+                ) : null}
                 {tool.proposedPlan.summary ? (
                   <p className="text-xs text-muted-foreground">{tool.proposedPlan.summary}</p>
                 ) : null}
