@@ -22,6 +22,7 @@ import { useAuth, LoginForm } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Card } from '@object-ui/components';
 import { AuthLayout } from './AuthLayout';
+import { followOauthAuthorize } from './followAuthorize';
 
 /** Restrict the post-login redirect to same-origin paths. */
 function isSafeRedirect(target: string | null): target is string {
@@ -67,6 +68,9 @@ export function LoginPage() {
 
   const [signUpDisabled, setSignUpDisabled] = useState(false);
   const [autoSelectingOrg, setAutoSelectingOrg] = useState(false);
+  // The OAuth hand-off fetch must fire at most once even though the post-login
+  // effect re-runs as org state settles (it navigates away on success).
+  const ssoHandoffStartedRef = useRef(false);
 
   // `isLoading` from useAuth() is overloaded: it is true both during the
   // initial session check AND during every in-flight signIn. The full-page
@@ -114,11 +118,18 @@ export function LoginPage() {
     if (!user) return;
 
     // 1. OAuth provider hand-off (see file header). Replay the signed
-    //    authorize params verbatim so the IdP can issue the code.
+    //    authorize params so the IdP issues the code, then FOLLOW the redirect
+    //    it hands back. better-auth's oauth-provider answers a same-origin
+    //    fetch with `200 { redirect: true, url }` (NOT a 302), so a plain
+    //    navigation to /authorize would just render that JSON and strand the
+    //    user on this spinner — we must fetch + navigate ourselves.
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
       if (sp.has('client_id') && sp.has('redirect_uri')) {
-        window.location.assign(`/api/v1/auth/oauth2/authorize${window.location.search}`);
+        if (!ssoHandoffStartedRef.current) {
+          ssoHandoffStartedRef.current = true;
+          followOauthAuthorize(window.location.search);
+        }
         return;
       }
     }

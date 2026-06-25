@@ -13,12 +13,13 @@
  *    here mid-SSO so the IdP can continue the flow post-signup.
  */
 
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, RegisterForm } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Card } from '@object-ui/components';
 import { AuthLayout } from './AuthLayout';
+import { followOauthAuthorize } from './followAuthorize';
 
 function isSafeRedirect(target: string | null): target is string {
   return !!target && target.startsWith('/') && !target.startsWith('//');
@@ -57,6 +58,8 @@ export function RegisterPage() {
 
   const [signUpDisabled, setSignUpDisabled] = useState<boolean | null>(null);
   const [autoSelectingOrg, setAutoSelectingOrg] = useState(false);
+  // Fire the OAuth hand-off fetch at most once (see LoginPage).
+  const ssoHandoffStartedRef = useRef(false);
 
   // See LoginPage: `isLoading` is overloaded (initial session check + every
   // in-flight signUp). Latch once the first check resolves so a failed
@@ -95,7 +98,10 @@ export function RegisterPage() {
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
       if (sp.has('client_id') && sp.has('redirect_uri')) {
-        window.location.assign(`/api/v1/auth/oauth2/authorize${window.location.search}`);
+        if (!ssoHandoffStartedRef.current) {
+          ssoHandoffStartedRef.current = true;
+          followOauthAuthorize(window.location.search);
+        }
         return;
       }
     }
