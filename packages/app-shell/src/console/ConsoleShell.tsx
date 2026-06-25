@@ -10,7 +10,7 @@
  * apps/console/src/App.tsx for one with custom system routes + CreateApp.
  */
 
-import { Suspense, useEffect, useRef, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { AuthGuard, useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
@@ -175,11 +175,27 @@ function UserStateBridge() {
  * deployments (empty organizations list) render through.
  */
 export function RequireOrganization({ children }: { children: ReactNode }) {
-  const { activeOrganization, organizations, isOrganizationsLoading } = useAuth();
+  const { activeOrganization, organizations, isOrganizationsLoading, getAuthConfig } = useAuth();
+  // Multi-org (cloud) deployments route a brand-new, org-less user into the
+  // guided "Create your workspace" flow; single-tenant self-host renders through.
+  const [multiOrgEnabled, setMultiOrgEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getAuthConfig()
+      .then((cfg: any) => { if (!cancelled) setMultiOrgEnabled(cfg?.features?.multiOrgEnabled !== false); })
+      .catch(() => { if (!cancelled) setMultiOrgEnabled(false); });
+    return () => { cancelled = true; };
+  }, [getAuthConfig]);
   if (isOrganizationsLoading) return <LoadingFallback />;
   const orgList = organizations ?? [];
   const orgFeatureEnabled = orgList.length > 0 || !!activeOrganization;
   if (orgFeatureEnabled && !activeOrganization) return <Navigate to="/organizations" replace />;
+  // No org at all: on multi-org, send them to /organizations (the create
+  // screen); wait for the flag so we don't flash /home then redirect.
+  if (orgList.length === 0 && !activeOrganization) {
+    if (multiOrgEnabled === null) return <LoadingFallback />;
+    if (multiOrgEnabled) return <Navigate to="/organizations" replace />;
+  }
   return <>{children}</>;
 }
 
