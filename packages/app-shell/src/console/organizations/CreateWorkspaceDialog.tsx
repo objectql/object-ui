@@ -23,6 +23,7 @@ import { useAuth } from '@object-ui/auth';
 import type { AuthOrganization } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
+import { provisionProductionEnvironment } from './provisionEnvironment';
 
 /** Convert a display name to a URL-friendly slug */
 function nameToSlug(name: string): string {
@@ -111,6 +112,23 @@ export function CreateWorkspaceDialog({
 
       try {
         const org = await createOrganization({ name: name.trim(), slug: slug.trim() });
+        // Born-with-env: eagerly provision the new org's production environment
+        // so the user lands in a ready workspace with no onboarding-wizard
+        // detour. `createOrganization` already switched the active org; we also
+        // pass `organizationId` explicitly so the target is unambiguous.
+        // Best-effort — on failure the onboarding gate provisions the env
+        // lazily on first navigation, so multi-org still works.
+        try {
+          await provisionProductionEnvironment({
+            displayName: name.trim(),
+            organizationId: org.id,
+          });
+        } catch (provisionErr) {
+          console.warn(
+            '[CreateWorkspace] eager env provision failed; falling back to lazy onboarding gate',
+            provisionErr,
+          );
+        }
         onCreated?.(org);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create workspace');
@@ -118,7 +136,7 @@ export function CreateWorkspaceDialog({
         setIsSubmitting(false);
       }
     },
-    [name, slug, createOrganization, onCreated],
+    [name, slug, multiOrgDisabled, t, createOrganization, onCreated],
   );
 
   return (
