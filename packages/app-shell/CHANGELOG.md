@@ -1,5 +1,232 @@
 # @object-ui/app-shell — Changelog
 
+## 7.2.0
+
+### Minor Changes
+
+- e301475: feat(console): hide the AI surface at runtime when the server serves no AI agent (Community Edition)
+
+  A self-host Community Edition runtime (framework + this MIT console, without the
+  cloud `@objectstack/service-ai-studio` package) serves no `ask`/`build` agent.
+  The console now hides every AI entry point via runtime, server-pushed gating —
+  no build-time edition flag, no tree-shake.
+
+  Crucially, gating is driven off the **agent catalog** (`GET /api/v1/ai/agents`),
+  not the discovery `services.ai` flag: the open-source framework keeps a headless
+  `@objectstack/service-ai` that still reports `services.ai` as available, so a CE
+  runtime can report AI "available" while serving zero agents. The catalog is the
+  real "is there an agent to answer?" signal.
+
+  - New `useAiSurfaceEnabled()` hook + `RequireAiSurface` route guard (exported).
+  - `/ai*` routes redirect to home when no agent is served; the FAB, top-bar AI
+    link and the metadata designers' "Ask AI" buttons hide; `AiChatPage` shows a
+    graceful "AI unavailable" state instead of an agent-less echo chat.
+  - Fully additive for cloud installs — when an agent is served, every AI surface
+    renders and works as before.
+
+- 616157a: feat(studio): multi-hop relationship fields in the dataset designer (ADR-0071)
+
+  The dataset designer's field catalog and Included-relationships picker now
+  support multi-hop relationship paths (`account.owner.region`), matching the
+  framework's multi-hop join support (ADR-0071 P2):
+
+  - `useDatasetFieldCatalog` walks each included path hop-by-hop, fetching every
+    object along the chain, so `path.field` options surface for fields two–three
+    to-one hops deep (grouped under a chained `Account → Owner → User` heading).
+  - The Included-relationships combo offers one level deeper along each
+    already-included path (drill `account` → `account.owner`), capped at 3 hops.
+  - The author-time "relationship not in Included" warning generalizes to the full
+    relationship path (`account.owner`), with one-click "Add it".
+
+  Single-hop datasets are unchanged.
+
+- 41c60c4: Flow builder: variable data-picker for expression / template config fields. Expression and template surfaces (decision Branches, edge Condition, Assignment values, Screen description, CRUD field values / filter, subflow / script inputs) now show a "{x}" picker listing the references in scope at that node — flow variables, upstream node outputs, the trigger record's fields, and any enclosing loop item — resolved graph-aware by walking the flow back from the node. Selecting a reference inserts the correctly-braced token at the cursor (bare CEL in `expression` fields, `{var}` in template fields), handling the ADR-0032 brace-in-CEL trap for the author. Free-text typing is unchanged and an empty scope degrades to a plain input.
+
+### Patch Changes
+
+- 81ad9aa: feat(studio): package lifecycle UI — Duplicate base, Adopt loose items, structure-only delete (ADR-0070 D4/D5/D6)
+
+  `PackageDetailSheet` gains the user-facing affordances for the package-as-
+  lifecycle-unit work:
+  - **Duplicate** → `POST /packages/:id/duplicate` (clone a base into a new
+    writable package; D4).
+  - **Adopt loose items** → `POST /packages/:id/adopt-orphans` (migrate every
+    package-less orphan into this base; D5).
+  - **Delete** now asks whether to drop records too (`?keepData`) — structure-only
+    vs everything (D4 Q3).
+
+  D6 guardrail test: the scope selector never defaults to the package-less
+  `Local / Custom` sentinel (`writableBaseOptions` excludes it; real bases sort
+  first).
+
+- 4b1cb7a: feat(studio): package-first create flow — prompt or redirect to a writable base (ADR-0070 D3)
+
+  Studio's create entry points no longer let a new metadata item land in a code
+  package or the package-less "Local / Custom" bucket. ResourceListPage's create
+  gate (`handleCreate`) now: opens the create-base dialog when no writable base
+  exists; redirects into the first base when the active scope is Local/none but
+  bases exist; otherwise proceeds normally. Adds package-scope helpers
+  (`isLocalScope` / `writableBaseOptions`) with tests, surfaces the kernel's
+  `writable_package_required` (422) as an actionable error in ResourceEditPage,
+  and exports `CreatePackageDialog` from PackagesPage for reuse.
+
+- 8a3b351: fix(console): gate the AI surface on the `service-ai` capability (discovery), not the agent catalog
+
+  `useAiSurfaceEnabled` now keys off discovery's `services.ai` (`isAiEnabled`) —
+  i.e. whether the enterprise `@objectstack/service-ai` capability is present —
+  instead of a non-empty agent catalog.
+
+  `service-ai` is an enterprise capability: a Community-Edition runtime doesn't
+  ship it, so the framework doesn't register the AI service and discovery reports
+  `services.ai` unavailable → the whole AI surface hides. An install that has
+  `service-ai` reports it available → AI shows. The presence of the CAPABILITY
+  gates, not whether a specific agent happens to be configured yet.
+
+  The earlier catalog-based gating was a workaround for the headless service
+  reporting itself available in CE; the framework now only registers the AI
+  service when the host app declares `@objectstack/service-ai`
+  (objectstack-ai/framework#2311), so discovery is an honest edition signal and
+  the catalog detour is no longer needed. Everything else stays: the centralized
+  hook, the `RequireAiSurface` `/ai` route guard, the gated top-bar link + designer
+  "Ask AI" buttons, and AiChatPage's graceful empty state.
+
+- e575da0: fix(ai): stop the AI composer placeholder doubling to "Ask Ask…" for the Ask agent
+
+  The composer placeholder is `Ask {agent}…`, which reads fine for most agents
+  ("Ask Build…") but doubles to "Ask Ask…" for the data-query agent whose label is
+  literally "Ask". The Ask agent now uses its purpose-built placeholder
+  (`console.ai.askAnything` → "Ask anything…", already localized) instead. Found
+  dogfooding the AI Ask flow.
+
+- 0d8dbda: fix(metadata-admin): dataset filter builder ignores incomplete conditions
+
+  `groupToCondition` emitted a condition for any row that had a `field`, even when
+  its value was still blank — producing a silently-wrong filter like
+  `{ organization_id: { $eq: "" } }` (matches only empty → excludes everything)
+  instead of "no filter". Now rows with an empty/`undefined`/`[]` value are skipped
+  (value-less operators like is-empty / is-not-empty are still kept). Applies to both
+  the dataset Scope filter and per-measure filters. Found by dogfooding.
+
+- e8c1c85: fix(metadata-admin): re-base a dataset when its base object changes
+
+  A dataset's joins (`include`), dimensions, measures, and filter all reference the
+  base object's fields. Changing the base object left those referencing the OLD
+  object — stale field refs that silently produce broken/ambiguous queries. Now a
+  real object change clears the object-dependent config (selecting the same object
+  is a no-op), and a heads-up note appears while there is config that a change would
+  clear. Found by dogfooding (G1).
+
+- 0119ff4: Designer derives create defaults from the spec's create seed (/meta/types)
+
+  The metadata create flow now builds a new item's body from the server's authoritative `createSeed` (delivered per type on the `/meta/types` registry entry — the single source of truth in `@objectstack/spec`) instead of the locally hardcoded `createDefaults`, falling back to `createDefaults` when the server provides no seed (older server, or canvas-create types). This closes the drift loop behind the "designer emits a minimal shape the spec rejects → create→save 422" family (dashboard `layout`, action `body`): the structural create defaults now come from the same place the spec validates against, so they cannot diverge. Extracted as the pure, unit-tested `buildCreateModeBody`.
+
+- 8e7c1da: fix(preview): draft-preview bar no longer demands a redundant Publish when nothing is pending
+
+  Under the auto-publish posture an AI build leaves zero pending drafts, yet opening a
+  draft preview still showed "Draft preview — Nothing here is live until you publish."
+  alongside "Changes (0)" and a Publish button — a self-contradicting, no-op call to
+  action. `DraftPreviewBar` now reflects the real pending-draft count: when it is
+  known to be zero the bar softens to a neutral preview indicator and drops the
+  Publish/Changes affordances; an unknown count (still loading / fetch failed) keeps
+  the publish path. `HomePage` (count-gated) and `RuntimeDraftBar` (draft-gated)
+  already behaved this way — this aligns the third surface.
+
+- 522a54c: feat(studio): make the flow-canvas error banner clickable
+
+  The inline structural-error banner (ADR-0044 cycle surfacing) is now driven by
+  the unified `problems` list, and each row with a concrete target is clickable —
+  clicking it selects and pans-to-reveal the offending node/edge (the same reveal
+  the Problems panel performs). So the always-visible banner is actionable without
+  opening the panel. Drops the now-redundant `validationErrors` string prop: the
+  banner, the Problems panel, and the on-canvas badges all share one source.
+
+- cdc6246: Flow builder (#1934): expression problems — ADR-0032 brace/shape errors and scope-aware "unknown reference" warnings — now also surface in the flow **Problems panel** and as on-canvas **node/edge badges** (#1972), not just inline in the inspector. A `{record.x}` brace-in-CEL mistake or a typo'd variable is now visible at the flow level without opening each node. The start node's bare trigger-record fields are excluded from the ref check to avoid false positives (the inline inspector check still covers them).
+- 7fe2735: Flow builder data-picker (#1934): the cursor-insertion math is extracted into a pure `insertToken` helper with unit tests (alongside `formatToken`) — bare CEL vs `{var}` template insertion, append / mid-string / selection-replace, and clamping a reversed or out-of-range selection. Pure refactor, no behavior change.
+- 3f529a8: refactor(studio): derive the flow red-error highlight from the unified problem list (one validateFlowDraft pass)
+
+  Follow-up to #1972 (Problems panel + badges) and #1976 (clickable banner). The
+  flow preview still ran `validateFlowDraft` twice per render — once in
+  `buildFlowProblems` (badges / banner / panel) and again in a separate memo that
+  derived the red node/edge ring/stroke — with the cycle-highlight logic duplicated
+  between them.
+
+  `buildFlowProblems` is now the single validation pass: a new
+  `deriveInvalidElements(problems)` produces the red error set (errors only; a
+  cycle paints its whole loop via a per-problem `highlight` set while its badge +
+  reveal stay on the closing edge). The preview drops its second `validateFlowDraft`
+  call. The clickable banner (#1976), badges, and panel are unchanged — all four
+  surfaces now derive from one list, so they cannot drift.
+
+- 0b9c96c: Flow builder data-picker follow-ups (#1934): (1) a scope-aware "unknown reference" warning pairs the picker with inline validation — a typed reference whose root isn't in scope at the node is flagged with a nearest-match "did you mean?" hint (conservative: root-only, skips function calls / string literals / runtime globals; non-blocking amber). (2) Assignment values authored in the array form `[{ variable, value }]` now render in the key/value editor (and get the picker) instead of falling back to Advanced JSON; the editor reads both the object-map and array shapes and preserves whichever was authored. (3) A script `code` body (JS/TS, not a `{var}` template) now inserts bare references via a `refMode` field override — `{x}` is a syntax error in a script.
+- 47537fe: Flow builder data-picker (#1934): inline validation now also shows on the repeater surfaces that carry the picker — decision **Branches** expressions, screen field **"visible when"**, and key/value **values** — not just single fields. Each shows the ADR-0032 brace error (red) or a scope-aware "unknown reference" warning (amber) via a shared `FlowExprIssue` line. The trigger-record picker also offers `previous.<field>` references on update / change / before-update triggers.
+- 17ba30d: feat(studio): on-canvas validation badges + a Problems panel for the flow builder
+
+  Flow validation only surfaced as a top banner ("…N error(s)") that didn't point
+  to the offending element — in a non-trivial flow you couldn't tell _which_ node
+  or edge was wrong. The simulator's `validateFlowDraft` already detected the
+  structural problems (no resolvable entry, unreachable nodes, a decision with no
+  default branch, duplicate node ids, dangling edges, un-declared cycles); they
+  just weren't shown on the canvas. This was a surfacing gap, not a detection one.
+
+  The flow preview now:
+
+  - renders an error / warning **badge** on each offending node and edge, with the
+    issue message(s) as its tooltip;
+  - adds a **Problems panel** listing every issue (structural + the server
+    `_diagnostics` already attached to the layered record); clicking a row selects
+    and reveals (pans to) the node/edge;
+  - clears badges + rows as issues are resolved (everything derives from the live
+    draft).
+
+  `validateFlowDraft` now tags dangling-edge errors with their endpoints so they
+  key to the offending connection, and a new `flow-problems` module maps both
+  sources onto concrete canvas elements (node id / stable edge key). Server
+  diagnostics reach the preview through a new optional `diagnostics` prop on
+  `MetadataPreviewProps`.
+
+- 104d181: fix(studio): flow wait-node inspector tolerates the loose `config` shape
+
+  The wait-node property form read only the spec-canonical
+  `waitEventConfig.{eventType,signalName,…}`, but the engine also accepts a looser
+  `config.{eventType,…}` shape — which the canonical `showcase_budget_approval`
+  (and AI-authored flows) use. So a showcase-shaped wait node opened in the
+  designer showed blank "Wait for" / "Signal name" fields.
+
+  Flow config fields gain an optional `fallbackPath`: reads fall back to it (so
+  loose-shape wait nodes display, and dependent fields reveal), writes target the
+  canonical path and prune the fallback (migrate-on-edit), and the fallback's
+  config key is suppressed from the Advanced block. The `wait` fields now fall
+  back to `config.*`, so the designer matches the engine's tolerance. Pairs with
+  the ADR-0044 revise-loop authoring (#1954).
+
+- 1fa5982: fix(studio): preview joined reports in the report editor (was "design blind")
+
+  Found dogfooding report design in Studio as a business user. The report editor's
+  live preview only rendered single dataset-bound reports — a `joined` report
+  (which carries its data on `blocks`, with no top-level `dataset`) fell through to
+  the "Bind a dataset to preview this report" empty state, so an author building a
+  joined report saw nothing and designed blind.
+
+  `ReportPreview` now renders a joined report (≥1 dataset-bound block) through the
+  same runtime `ReportRenderer` (→ `DatasetReportRenderer`, which already stacks
+  the blocks), keeping the preview pixel-equal with the runtime, and shows a
+  joined-aware empty state ("Add a block…") when no block is bound yet.
+
+- Updated dependencies [8e7c1da]
+  - @object-ui/i18n@7.2.0
+  - @object-ui/components@7.2.0
+  - @object-ui/fields@7.2.0
+  - @object-ui/react@7.2.0
+  - @object-ui/layout@7.2.0
+  - @object-ui/plugin-editor@7.2.0
+  - @object-ui/types@7.2.0
+  - @object-ui/core@7.2.0
+  - @object-ui/data-objectstack@7.2.0
+  - @object-ui/auth@7.2.0
+  - @object-ui/permissions@7.2.0
+  - @object-ui/collaboration@7.2.0
+  - @object-ui/providers@7.2.0
+
 ## 7.1.0
 
 ### Minor Changes
