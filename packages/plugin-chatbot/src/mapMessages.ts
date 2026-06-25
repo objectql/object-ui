@@ -258,6 +258,47 @@ export function detectProposedPlan(result: unknown): ProposedPlan | undefined {
   };
 }
 
+/**
+ * A granular metadata-change preview (confirm-before-change). A mutating tool
+ * that has NOT been approved this turn returns
+ * { status: 'changes_proposed', changes: [...], summary? } instead of
+ * committing, so the chat renders a "确认修改" card. Mirrors detectProposedPlan.
+ */
+export interface ProposedChanges {
+  summary?: string;
+  changes: Array<{
+    verb: string;
+    object?: string;
+    field?: string;
+    type?: string;
+    name?: string;
+    details?: string;
+  }>;
+}
+
+export function detectProposedChanges(result: unknown): ProposedChanges | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj || obj.status !== 'changes_proposed') return undefined;
+  const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+  const rawChanges = (obj as { changes?: unknown }).changes;
+  const changes = (Array.isArray(rawChanges) ? rawChanges : []).flatMap((c) => {
+    const r = c as Record<string, unknown>;
+    if (typeof r?.verb !== 'string' || !r.verb) return [];
+    return [
+      {
+        verb: r.verb,
+        ...(str(r.object) ? { object: str(r.object) } : {}),
+        ...(str(r.field) ? { field: str(r.field) } : {}),
+        ...(str(r.type) ? { type: str(r.type) } : {}),
+        ...(str(r.name) ? { name: str(r.name) } : {}),
+        ...(str(r.details) ? { details: str(r.details) } : {}),
+      },
+    ];
+  });
+  if (changes.length === 0) return undefined;
+  return { ...(str(obj.summary) ? { summary: str(obj.summary) } : {}), changes };
+}
+
 export function detectDraftResult(result: unknown): DraftReview | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'drafted') return undefined;
@@ -390,6 +431,7 @@ function extractToolInvocations(
       const pending = detectPendingApproval(result);
       const draftReview = detectDraftResult(result);
       const proposedPlan = detectProposedPlan(result);
+      const proposedChanges = detectProposedChanges(result);
       // Promote a dangling `input-*` state to a terminal one so a reloaded
       // conversation never shows "Running" forever (the server doesn't always
       // snapshot the terminal tool state). Two cases:
@@ -422,6 +464,7 @@ function extractToolInvocations(
         pendingActionId: pending?.pendingActionId,
         draftReview,
         proposedPlan,
+        proposedChanges,
       } satisfies ChatToolInvocation;
     });
 }

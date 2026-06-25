@@ -251,6 +251,13 @@ export interface ChatToolInvocation {
     assumptions: string[];
     targetApp?: string;
   };
+  /** Granular metadata-change preview (confirm-before-change). Set only
+   *  when a mutating tool returned status:'changes_proposed' — i.e. it was
+   *  NOT yet approved this turn, so nothing changed. Rendered as a 确认修改 card. */
+  proposedChanges?: {
+    summary?: string;
+    changes: Array<{ verb: string; object?: string; field?: string; type?: string; name?: string; details?: string }>;
+  };
 }
 
 export interface ChatSource {
@@ -718,6 +725,31 @@ function getToolState(tool: ChatToolInvocation): ToolSummaryState {
   return 'running';
 }
 
+/** Render one granular change descriptor as a readable line for the confirm card. */
+function formatChangeRow(c: {
+  verb: string;
+  object?: string;
+  field?: string;
+  type?: string;
+  name?: string;
+  details?: string;
+}): string {
+  const VERB: Record<string, string> = {
+    create_object: '新建对象',
+    add_field: '新增字段',
+    modify_field: '修改字段',
+    delete_field: '删除字段',
+    create_metadata: '新建',
+    update_metadata: '修改',
+    create_seed: '生成示例数据',
+    create_package: '新建应用包',
+  };
+  const verb = VERB[c.verb] ?? c.verb;
+  const target = c.field ? `${c.object ? `${c.object}.` : ''}${c.field}` : (c.object ?? c.name ?? '');
+  const typePart = c.type ? `（${c.type}）` : '';
+  return [verb, `${target}${typePart}`, c.details].filter(Boolean).join(' ');
+}
+
 function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
   const state = getToolState(tool);
   return (
@@ -727,7 +759,8 @@ function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
     Boolean(tool.draftReview?.items.length) ||
     // The pre-build "Proposed plan" card lives in the detailed tool body; route
     // a propose_blueprint result there instead of collapsing it into a chip.
-    Boolean(tool.proposedPlan)
+    Boolean(tool.proposedPlan) ||
+    Boolean(tool.proposedChanges)
   );
 }
 
@@ -1214,6 +1247,32 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       return ids;
     }, [messages]);
 
+    // A granular 确认修改 card collapses to a static 已确认 badge once the change
+    // has been applied — i.e. a LATER invocation of the SAME tool committed (no
+    // longer a changes_proposed preview). Positional + per-tool so an earlier
+    // confirmed change doesn't silence a later still-pending one.
+    const confirmedChangeIds = React.useMemo(() => {
+      const ids = new Set<string>();
+      const proposals: Array<{ id: string; toolName: string; order: number }> = [];
+      const lastCommitByTool = new Map<string, number>();
+      let order = 0;
+      for (const message of messages) {
+        for (const tool of message.toolInvocations ?? []) {
+          if (tool.proposedChanges && tool.toolCallId) {
+            proposals.push({ id: tool.toolCallId, toolName: tool.toolName ?? '', order });
+          } else if (tool.toolName) {
+            lastCommitByTool.set(tool.toolName, order);
+          }
+          order += 1;
+        }
+      }
+      for (const p of proposals) {
+        const commit = lastCommitByTool.get(p.toolName);
+        if (commit !== undefined && commit > p.order) ids.add(p.id);
+      }
+      return ids;
+    }, [messages]);
+
     const renderToolDetail = (tool: ChatToolInvocation) => {
       const state =
         tool.state ??
@@ -1278,7 +1337,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             state === 'output-error' ||
             state === 'approval-requested' ||
             Boolean(tool.draftReview && tool.draftReview.items.length > 0) ||
-            Boolean(tool.proposedPlan)
+            Boolean(tool.proposedPlan) ||
+            Boolean(tool.proposedChanges)
           }
         >
           <ToolHeader type={partType} state={state} title={titleNode} />
@@ -1653,6 +1713,70 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                   <span className="text-[11px] italic text-muted-foreground/80">
                     {planApproveHintLabel}
                   </span>
+                )}
+              </div>
+            ) : null}
+            {/* Granular confirm-before-change card — a mutating tool that was
+                not approved this turn returns status:'changes_proposed' (a
+                preview) instead of committing. Same confirm gate as the plan
+                card: see the change, then 确认修改 / 调整. Nothing changed yet. */}
+            {tool.proposedChanges ? (
+              <div
+                className="flex flex-col gap-2 border-t bg-muted/20 px-3 py-2.5"
+                data-testid="proposed-changes"
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                  <ClipboardList className="size-3.5" />
+                  确认改动
+                </span>
+                {tool.proposedChanges.summary ? (
+                  <p className="text-xs text-muted-foreground">{tool.proposedChanges.summary}</p>
+                ) : null}
+                <div className="flex flex-col gap-1">
+                  {tool.proposedChanges.changes.map((c, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-1.5 rounded-md border bg-background px-2 py-1 text-[11px] text-foreground/80"
+                    >
+                      <Table2 className="mt-px size-3 shrink-0 text-foreground/40" />
+                      <span>{formatChangeRow(c)}</span>
+                    </div>
+                  ))}
+                </div>
+                {onSendMessage ? (
+                  confirmedChangeIds.has(tool.toolCallId) ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                      <span
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        data-testid="proposed-changes-confirmed"
+                      >
+                        <CheckCircle2 className="size-3.5" />
+                        已确认
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-changes-actions">
+                      <button
+                        type="button"
+                        onClick={() => onSendMessage('确认修改，应用你刚才提议的改动。')}
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                        data-testid="proposed-changes-confirm"
+                      >
+                        <CheckCircle2 className="size-3.5" />
+                        确认修改
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePlanAdjust}
+                        className="inline-flex h-7 items-center rounded-md border bg-background px-3 text-xs font-medium hover:bg-accent"
+                        data-testid="proposed-changes-adjust"
+                      >
+                        调整
+                      </button>
+                    </div>
+                  )
+                ) : (
+                  <span className="text-[11px] italic text-muted-foreground/80">回复以确认或调整该改动。</span>
                 )}
               </div>
             ) : null}
