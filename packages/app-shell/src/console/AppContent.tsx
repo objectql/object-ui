@@ -24,7 +24,7 @@ import { usePreviewDrafts } from '../preview/PreviewModeContext';
 import { PreviewDraftEmptyState } from '../preview/PreviewDraftEmptyState';
 import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionProvider';
 import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent';
-import { resolveRecordFormTarget, resolveNavigateCreateUrl, resolveNavigateEditUrl } from '../utils/recordFormNavigation';
+import { resolveRecordFormTarget, resolveFormViewLayout, resolveNavigateCreateUrl, resolveNavigateEditUrl } from '../utils/recordFormNavigation';
 import { matchAppBySegment } from '../utils/appRoute';
 import { resolveHref, type NavTemplateContext } from '@object-ui/layout';
 import { ExpressionEvaluator } from '@object-ui/core';
@@ -608,20 +608,14 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 objectName: currentObjectDef.name,
                 mode: editingRecord ? 'edit' : 'create',
                 recordId: editingRecord?.id,
-                // Master-detail by config: if the object's form view declares
-                // inline child collections, the standard New/Edit modal renders
-                // them as an atomic master-detail form (no bespoke page).
-                subforms: (currentObjectDef as any).form?.subforms
-                  ?? (currentObjectDef as any).formViews?.default?.subforms,
-                // ADR-0050 (#1890): forward the default form view's layout so the
-                // New/Edit modal can be tabbed (not just a flat stack). `formType`
-                // stays 'modal' (the container); `contentLayout` carries the layout.
-                ...(() => {
-                  const fd: any = (currentObjectDef as any).form ?? (currentObjectDef as any).formViews?.default;
-                  return fd?.type === 'tabbed' && Array.isArray(fd?.sections)
-                    ? { contentLayout: 'tabbed' as const, sections: fd.sections }
-                    : {};
-                })(),
+                // Honor the object's DEFAULT FORM VIEW: curated sections (field
+                // selection + order + grouping), `contentLayout: 'tabbed'` when the
+                // view is tabbed, and inline child collections (master-detail).
+                // When the view declares sections they drive the modal layout and
+                // win over the flat `fields` list below; otherwise this resolves to
+                // {} and `fields` (every field, raw schema order) is used as before.
+                // `formType` stays 'modal' (the container). (#1890 / ADR-0050.)
+                ...resolveFormViewLayout(currentObjectDef as any),
                 title: editingRecord
                   ? t('form.editTitle', { object: objectLabel(currentObjectDef as any) })
                   : t('form.createTitle', { object: objectLabel(currentObjectDef as any) }),

@@ -4,10 +4,14 @@
 
 export {
   resolveRecordFormTarget,
+  resolveFormViewLayout,
 } from './recordFormNavigation';
 export type {
   ObjectDefinitionForNavigation,
   RecordFormTarget,
+  ObjectDefinitionForFormView,
+  FormViewDefinition,
+  FormViewModalLayout,
 } from './recordFormNavigation';
 
 export { deriveRelatedLists } from './deriveRelatedLists';

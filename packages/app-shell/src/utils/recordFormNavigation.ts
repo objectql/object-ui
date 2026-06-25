@@ -71,6 +71,88 @@ export function resolveRecordFormTarget(opts: {
 }
 
 /**
+ * Subset of the default form-view shape consumed by
+ * {@link resolveFormViewLayout}. This is the flattened `config` body of the
+ * object's default `viewKind: 'form'` ViewItem (ADR-0017), merged onto the
+ * object by `MetadataProvider` as `objectDef.form` (and mirrored under
+ * `objectDef.formViews.default` for the legacy aggregated-container shape).
+ */
+export interface FormViewDefinition {
+  /**
+   * Layout family declared by the form view (`simple` | `tabbed` | `wizard`
+   * | `split`). Only `tabbed` changes the *modal's* internal layout; the
+   * others still render their curated sections, just stacked.
+   */
+  type?: string;
+  /** Curated field sections — the selection, order, and grouping to render. */
+  sections?: any[];
+  /** Inline child collections (master-detail). */
+  subforms?: any[];
+}
+
+/**
+ * Object metadata subset carrying the default form view, as merged onto the
+ * runtime objects list (`useMetadata().objects`).
+ */
+export interface ObjectDefinitionForFormView {
+  form?: FormViewDefinition | null;
+  formViews?: { default?: FormViewDefinition | null } | null;
+}
+
+/**
+ * Layout props derived from an object's default form view, ready to spread
+ * into a `<ModalForm>` schema.
+ */
+export interface FormViewModalLayout {
+  /** Curated sections to render (omitted when the form view declares none). */
+  sections?: any[];
+  /** `'tabbed'` when the form view is tabbed; omitted otherwise (stacked). */
+  contentLayout?: 'tabbed';
+  /** Inline child collections for a master-detail modal. */
+  subforms?: any[];
+}
+
+/**
+ * Resolve a `<ModalForm>`'s layout props from an object's DEFAULT FORM VIEW
+ * (curated sections + field selection/order, plus master-detail subforms).
+ *
+ * The create / edit record modal otherwise falls back to the raw object
+ * schema — rendering every field in schema order and ignoring the curated
+ * form view entirely. This resolver lets the New/Edit modal honor the same
+ * view-driven layout the full-screen record page (`RecordFormPage`) does.
+ *
+ * Resolution mirrors `RecordFormPage`: prefer `objectDef.form` (the default
+ * ViewItem) and fall back to `objectDef.formViews.default` (legacy container).
+ *
+ * Returns an EMPTY object when the object has no form view, or a form view
+ * that declares no sections — the caller then keeps its existing behavior
+ * (a flat field list, i.e. the raw object schema). Empty `sections` /
+ * `subforms` arrays are treated as absent so an empty curation never blanks
+ * out the form.
+ */
+export function resolveFormViewLayout(
+  objectDef: ObjectDefinitionForFormView | null | undefined,
+): FormViewModalLayout {
+  const formView = objectDef?.form ?? objectDef?.formViews?.default;
+  if (!formView) return {};
+
+  const layout: FormViewModalLayout = {};
+
+  if (Array.isArray(formView.sections) && formView.sections.length > 0) {
+    layout.sections = formView.sections;
+    // Only 'tabbed' maps to a modal content layout; 'wizard'/'split' have no
+    // modal equivalent and degrade to a stacked section list.
+    if (formView.type === 'tabbed') layout.contentLayout = 'tabbed';
+  }
+
+  if (Array.isArray(formView.subforms) && formView.subforms.length > 0) {
+    layout.subforms = formView.subforms;
+  }
+
+  return layout;
+}
+
+/**
  * Action descriptor accepted by the navigate-create / navigate-edit
  * handlers. Loose-typed because the same shape is constructed dynamically
  * from JSON metadata at runtime and we want the helpers to be tolerant of

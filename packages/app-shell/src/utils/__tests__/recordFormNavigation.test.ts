@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   resolveRecordFormTarget,
+  resolveFormViewLayout,
   resolveNavigateCreateUrl,
   resolveNavigateEditUrl,
 } from '../recordFormNavigation';
@@ -258,5 +259,79 @@ describe('resolveNavigateEditUrl', () => {
       success: false,
       error: 'navigate_edit: objectName and recordId are required',
     });
+  });
+});
+
+
+describe('resolveFormViewLayout', () => {
+  it('returns {} when objectDef is missing', () => {
+    expect(resolveFormViewLayout(undefined)).toEqual({});
+    expect(resolveFormViewLayout(null)).toEqual({});
+  });
+
+  it('returns {} when the object declares no form view', () => {
+    expect(resolveFormViewLayout({})).toEqual({});
+    expect(resolveFormViewLayout({ formViews: {} })).toEqual({});
+  });
+
+  it('returns the curated sections for a simple form view (no contentLayout)', () => {
+    const sections = [{ label: 'Details', fields: [{ field: 'subject' }] }];
+    expect(resolveFormViewLayout({ form: { type: 'simple', sections } })).toEqual({ sections });
+  });
+
+  it('adds contentLayout:"tabbed" for a tabbed form view with sections', () => {
+    const sections = [
+      { label: 'A', fields: [{ field: 'x' }] },
+      { label: 'B', fields: [{ field: 'y' }] },
+    ];
+    expect(resolveFormViewLayout({ form: { type: 'tabbed', sections } })).toEqual({
+      sections,
+      contentLayout: 'tabbed',
+    });
+  });
+
+  it('stacks wizard/split sections (no contentLayout — no modal equivalent)', () => {
+    const sections = [{ label: 'Step 1', fields: ['a'] }];
+    expect(resolveFormViewLayout({ form: { type: 'wizard', sections } })).toEqual({ sections });
+    expect(resolveFormViewLayout({ form: { type: 'split', sections } })).toEqual({ sections });
+  });
+
+  it('treats an empty sections array as "no curation" (omits the key)', () => {
+    expect(resolveFormViewLayout({ form: { type: 'simple', sections: [] } })).toEqual({});
+    // …even when tabbed: contentLayout only rides along with real sections.
+    expect(resolveFormViewLayout({ form: { type: 'tabbed', sections: [] } })).toEqual({});
+  });
+
+  it('forwards non-empty subforms (master-detail) and omits empty ones', () => {
+    const subforms = [{ childObject: 'invoice_line' }];
+    expect(resolveFormViewLayout({ form: { type: 'simple', subforms } })).toEqual({ subforms });
+    expect(resolveFormViewLayout({ form: { type: 'simple', subforms: [] } })).toEqual({});
+  });
+
+  it('combines sections + subforms', () => {
+    const sections = [{ label: 'Details', fields: ['subject'] }];
+    const subforms = [{ childObject: 'invoice_line' }];
+    expect(resolveFormViewLayout({ form: { type: 'simple', sections, subforms } })).toEqual({
+      sections,
+      subforms,
+    });
+  });
+
+  it('falls back to formViews.default when `form` is absent (legacy container)', () => {
+    const sections = [{ label: 'Details', fields: ['subject'] }];
+    expect(
+      resolveFormViewLayout({ formViews: { default: { type: 'simple', sections } } }),
+    ).toEqual({ sections });
+  });
+
+  it('prefers the default `form` ViewItem over formViews.default', () => {
+    const formSections = [{ label: 'Primary', fields: ['a'] }];
+    const legacySections = [{ label: 'Legacy', fields: ['b'] }];
+    expect(
+      resolveFormViewLayout({
+        form: { type: 'simple', sections: formSections },
+        formViews: { default: { type: 'simple', sections: legacySections } },
+      }),
+    ).toEqual({ sections: formSections });
   });
 });

@@ -40,8 +40,9 @@ import {
   SheetTitle,
   cn,
 } from '@object-ui/components';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useMetadata } from '@object-ui/react';
 import { ModalForm } from '@object-ui/plugin-form';
+import { resolveFormViewLayout } from '../utils/recordFormNavigation';
 
 type Placement = 'center' | 'side' | 'bottom' | 'fullscreen';
 type ModalSize = 'sm' | 'default' | 'lg' | 'xl' | 'full';
@@ -95,6 +96,10 @@ export function normalizeModalSchema(schema: any): ModalDescriptor {
 
 export function useActionModal(dataSource?: any) {
   const [state, setState] = useState<{ d: ModalDescriptor; resolve: (r: ActionResult) => void } | null>(null);
+  // Object metadata — degrades to an empty list outside a MetadataProvider
+  // (see useMetadata). Used to resolve the object's default form view so the
+  // create/edit modal honors its curated sections + field selection/order.
+  const { objects } = useMetadata();
 
   const close = useCallback((r: ActionResult) => {
     setState((s) => {
@@ -119,6 +124,14 @@ export function useActionModal(dataSource?: any) {
     };
 
     if (d.objectName && !d.content) {
+      // Honor the object's default FORM VIEW (curated sections + field
+      // selection/order + master-detail subforms) unless the action descriptor
+      // passed an explicit field list. Without this the modal falls back to the
+      // raw object schema — every field, in schema order. Mirrors the global
+      // New/Edit modal in AppContent so action-opened forms stay consistent.
+      const viewLayout = (d.fields || (d as any).sections)
+        ? {}
+        : resolveFormViewLayout(objects.find((o: any) => o?.name === d.objectName));
       modalElement = (
         <ModalForm
           schema={{
@@ -130,6 +143,7 @@ export function useActionModal(dataSource?: any) {
             title: d.title,
             description: d.description,
             fields: d.fields,
+            ...viewLayout,
             modalSize: d.size,
             open: true,
             onOpenChange,
