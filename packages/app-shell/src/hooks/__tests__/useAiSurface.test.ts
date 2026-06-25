@@ -1,34 +1,55 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useDiscovery } from '@object-ui/react';
+import { useAgents } from '@object-ui/plugin-chatbot';
 import { useAiSurfaceEnabled } from '../useAiSurface';
 
-// The AI surface gates on whether the `service-ai` capability is present, as
-// reported by discovery. Mock useDiscovery rather than standing up a data source.
-// (The VITE_AI_BASE_URL opt-in branch isn't unit-tested here: vitest fixes
-// import.meta.env at startup, so it can't be stubbed per-test; it's a thin
-// synchronous env read exercised in the real app.)
-vi.mock('@object-ui/react', () => ({ useDiscovery: vi.fn() }));
-const mockDiscovery = vi.mocked(useDiscovery);
+// The surface is gated on the live agent catalog, so we mock useAgents and
+// assert the catalog → enabled/loading mapping (incl. the not-yet-fetched latch).
+vi.mock('@object-ui/plugin-chatbot', () => ({ useAgents: vi.fn() }));
+const mockAgents = vi.mocked(useAgents);
 
-afterEach(() => mockDiscovery.mockReset());
+function agentsResult(names: string[], isLoading: boolean) {
+  return {
+    agents: names.map((name) => ({ name, label: name })),
+    isLoading,
+    error: undefined,
+    refetch: vi.fn(),
+  };
+}
+
+afterEach(() => mockAgents.mockReset());
 
 describe('useAiSurfaceEnabled', () => {
-  it('is enabled when discovery reports service-ai available (enterprise install)', () => {
-    mockDiscovery.mockReturnValue({ isAiEnabled: true, isLoading: false } as any);
+  it('is enabled when the catalog serves at least one agent (cloud / agents present)', () => {
+    mockAgents.mockReturnValue(agentsResult(['ask'], false));
     const { result } = renderHook(() => useAiSurfaceEnabled());
     expect(result.current).toEqual({ enabled: true, isLoading: false });
   });
 
-  it('is disabled — not loading — when service-ai is unavailable (Community Edition: no service-ai)', () => {
-    mockDiscovery.mockReturnValue({ isAiEnabled: false, isLoading: false } as any);
-    const { result } = renderHook(() => useAiSurfaceEnabled());
-    expect(result.current).toEqual({ enabled: false, isLoading: false });
-  });
-
-  it('reports loading while discovery is still resolving, so guards do not flash a redirect', () => {
-    mockDiscovery.mockReturnValue({ isAiEnabled: false, isLoading: true } as any);
+  it('reports loading on the first frame before the catalog fetch has started', () => {
+    // useAgents starts isLoading=false with an empty list — that is "not fetched
+    // yet", not "no agents", so the guard must keep waiting (not redirect).
+    mockAgents.mockReturnValue(agentsResult([], false));
     const { result } = renderHook(() => useAiSurfaceEnabled());
     expect(result.current).toEqual({ enabled: false, isLoading: true });
+  });
+
+  it('reports loading while the catalog fetch is in flight', () => {
+    mockAgents.mockReturnValue(agentsResult([], true));
+    const { result } = renderHook(() => useAiSurfaceEnabled());
+    expect(result.current).toEqual({ enabled: false, isLoading: true });
+  });
+
+  it('is disabled — not loading — once a fetch resolves empty (Community Edition: no agents)', () => {
+    // Simulate the real lifecycle: fetch in flight → resolves with an empty
+    // catalog. The latch records that a fetch ran, so the empty result is now
+    // definitive and the guard redirects instead of spinning forever.
+    mockAgents.mockReturnValue(agentsResult([], true));
+    const { result, rerender } = renderHook(() => useAiSurfaceEnabled());
+    expect(result.current.isLoading).toBe(true);
+
+    mockAgents.mockReturnValue(agentsResult([], false));
+    rerender();
+    expect(result.current).toEqual({ enabled: false, isLoading: false });
   });
 });

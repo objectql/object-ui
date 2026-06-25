@@ -1,45 +1,52 @@
 /**
  * useAiSurfaceEnabled
  *
- * Single source of truth for "should the in-UI AI surface be shown on this
- * deployment?". The console ships under MIT and is edition-agnostic: it decides
- * purely at runtime from what the server reports — no `VITE_EDITION` flag, no
- * tree-shake.
+ * Single source of truth for "should the in-UI AI surface be shown — for THIS
+ * user, on this deployment?". The console ships under MIT and is edition- and
+ * seat-agnostic at build time; it decides purely at runtime from what the
+ * server reports — no `VITE_EDITION` flag, no tree-shake.
  *
- * The signal is whether the **`@objectstack/service-ai` capability is present**,
- * as reported by discovery (`/discovery` → `services.ai.enabled &&
- * status === 'available'`, i.e. `isAiEnabled`).
+ * The signal is **the agent catalog** (`GET /api/v1/ai/agents`): the surface
+ * shows iff that returns >= 1 agent. The catalog is the right signal because it
+ * is the ONLY one that is BOTH edition- AND user-aware:
  *
- * `service-ai` is an ENTERPRISE capability: a Community-Edition runtime does not
- * depend on it, so the framework never registers the AI service and discovery
- * reports `services.ai` unavailable → the whole AI surface hides. An install
- * that ships `service-ai` reports it available → AI shows. It is the presence of
- * the CAPABILITY that gates, NOT whether any specific agent happens to be
- * configured yet (an install with `service-ai` but no agents has AI "available";
- * AiChatPage degrades gracefully if the catalog is empty).
+ *   • The route is access-filtered server-side (ADR-0049 / ADR-0068): it returns
+ *     only the agents the CALLER may chat. A user WITHOUT the per-user AI seat
+ *     (the `ai_seat` permission) gets an EMPTY catalog -> the whole AI surface
+ *     hides for them, instead of showing a button that 403s on click. The
+ *     deployment-wide discovery `services.ai` flag CANNOT express this — it is
+ *     identical for every user — which is exactly why we do NOT gate on it.
+ *   • It is ALSO the honest edition signal: a Community-Edition runtime that
+ *     ships no `@objectstack/service-ai` registers no AI service and persists no
+ *     agents -> empty catalog -> hidden. (The old "headless service reports
+ *     available in CE" worry is moot: empty catalog hides the surface either way.)
  *
- * The framework only registers the AI service when the host app declares
- * `@objectstack/service-ai`, so discovery's `services.ai` is an honest edition
- * signal (see objectstack-ai/framework#2311). Earlier this hook gated on the
- * agent catalog as a workaround for the headless service reporting itself
- * available in CE; with #2311 that no longer happens, so discovery is correct.
+ * ⚠️  Do NOT "simplify" this back to `discovery.services.ai` (isAiEnabled): that
+ * reintroduces the per-user gap — seat-less users would see the FAB / links and
+ * hit 403 on click. The per-user AI-seat gate (ADR-0068) DEPENDS on this catalog
+ * signal. (This reverts objectui#1992, which dropped the per-user dimension.)
  *
- * `VITE_AI_BASE_URL` is an explicit opt-in: it points the console at an external
- * AI server and is trusted even when local discovery reports AI unavailable.
+ * The `VITE_AI_BASE_URL` opt-in flows through naturally: {@link resolveAiApiBase}
+ * points the catalog fetch at the configured server, so an external AI server
+ * with reachable agents lights the surface up and an agent-less one keeps it hidden.
  *
- * `isLoading` is surfaced so the `/ai` route guard can wait for discovery to
+ * `isLoading` is surfaced so the `/ai` route guard can wait for the catalog to
  * resolve before redirecting — otherwise a stale bookmark would flash a redirect
- * to home before the server's answer is in.
+ * to home before the fetch even starts. Entry-point buttons (FAB, top-bar link,
+ * designer "Ask AI") ignore it: staying hidden during the brief load is the
+ * correct, flash-free behaviour for a control that must not appear unless AI can
+ * actually answer.
  *
  * @module
  */
 
-import { useDiscovery } from '@object-ui/react';
+import { useRef } from 'react';
+import { useAgents } from '@object-ui/plugin-chatbot';
 
 /**
  * Resolve the AI service base URL, mirroring AiChatPage / the Home CTAs:
  * an explicit `VITE_AI_BASE_URL` wins, otherwise `${VITE_SERVER_URL}/api/v1/ai`.
- * Shared so every AI fetch (Home catalog, AiChatPage) hits the same URL.
+ * Shared so every catalog fetch (route guard, layouts, Home) hits the same URL.
  */
 export function resolveAiApiBase(): string {
   const env = (import.meta as any).env ?? {};
@@ -50,22 +57,32 @@ export function resolveAiApiBase(): string {
 }
 
 export interface AiSurfaceState {
-  /** True when the AI capability (`service-ai`) is available, so the AI UI shows. */
+  /** True when the AI UI should render — the CALLER can reach >= 1 agent (access-filtered). */
   enabled: boolean;
-  /** True until discovery resolves (and no `VITE_AI_BASE_URL` opt-in); guards wait on this. */
+  /** True until the agent catalog has resolved; route guards wait on this. */
   isLoading: boolean;
 }
 
 /**
  * Whether the console's AI surface (FAB, `/ai` routes, "Ask AI" affordances)
- * should be shown — driven off the presence of the `service-ai` capability in
- * discovery.
+ * should be shown FOR THE CURRENT USER, driven off the access-filtered agent
+ * catalog (empty for seat-less users -> AI hidden; ADR-0068).
  */
 export function useAiSurfaceEnabled(): AiSurfaceState {
-  const { isAiEnabled, isLoading } = useDiscovery();
-  // An explicit external-AI opt-in is trusted even if local discovery reports AI
-  // unavailable; it's synchronous, so there's nothing to wait for.
-  const aiBaseUrlConfigured = Boolean((import.meta as any).env?.VITE_AI_BASE_URL);
-  if (aiBaseUrlConfigured) return { enabled: true, isLoading: false };
-  return { enabled: isAiEnabled, isLoading };
+  const { agents, isLoading } = useAgents({ apiBase: resolveAiApiBase() });
+
+  // useAgents starts `isLoading=false` and only kicks off the fetch in an effect
+  // a tick later, so the first render's empty list means "not fetched yet", not
+  // "no agents". Latch whether a fetch has actually been in flight so the route
+  // guard treats that initial frame as loading (not a definitive empty → redirect).
+  const fetchStartedRef = useRef(false);
+  if (isLoading) fetchStartedRef.current = true;
+
+  const enabled = agents.length > 0;
+  return {
+    enabled,
+    // Agents present → resolved/available. Otherwise we're loading until a fetch
+    // has both started and finished with an empty result.
+    isLoading: enabled ? false : isLoading || !fetchStartedRef.current,
+  };
 }
