@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { SocialSignInButtons } from './SocialSignInButtons';
 import type { AuthLinkComponentProps } from './types';
@@ -115,11 +115,32 @@ export function LoginForm({
   labels = {},
   errorMessages,
 }: LoginFormProps) {
-  const { signIn, isLoading } = useAuth();
+  const { signIn, isLoading, getAuthConfig } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [hasSocialProviders, setHasSocialProviders] = useState(false);
+  // Enterprise SSO is opt-in server-side (`@better-auth/sso`). Mirror the
+  // social-provider pattern below: ask the server whether SSO is wired and
+  // only render the "Sign in with SSO" button when it is. Defaults to hidden,
+  // so a server that doesn't report `features.sso` (or a failed config fetch)
+  // never shows a button whose `/sign-in/sso` route 404s at click time.
+  const [ssoEnabled, setSsoEnabled] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.resolve()
+      .then(() => getAuthConfig())
+      .then((config) => {
+        if (!cancelled) setSsoEnabled(config?.features?.sso === true);
+      })
+      .catch(() => {
+        // SSO is an enhancement, not required — leave the button hidden.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getAuthConfig]);
 
   const l = {
     emailLabel: labels.emailLabel ?? 'Email',
@@ -246,14 +267,16 @@ export function LoginForm({
             {isLoading ? l.submittingButton : l.submitButton}
           </button>
 
-          <button
-            type="button"
-            onClick={handleSso}
-            disabled={isLoading}
-            className="flex w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
-          >
-            {l.ssoButton}
-          </button>
+          {ssoEnabled && (
+            <button
+              type="button"
+              onClick={handleSso}
+              disabled={isLoading}
+              className="flex w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
+            >
+              {l.ssoButton}
+            </button>
+          )}
         </form>
       </div>
 

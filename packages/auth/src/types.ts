@@ -120,6 +120,13 @@ export interface AuthPublicConfig {
     magicLink?: boolean;
     organization?: boolean;
     /**
+     * Whether enterprise SSO (domain-routed `@better-auth/sso`) is wired on
+     * the server. When falsy the `/sign-in/sso` route isn't mounted, so the
+     * login UI hides the "Sign in with SSO" button instead of rendering one
+     * that only fails at click time with "No SSO provider is configured".
+     */
+    sso?: boolean;
+    /**
      * When `false`, the server's `beforeCreateOrganization` hook blocks
      * creation of new organizations. The org plugin endpoints (list, update,
      * invite-accept) still work — only fresh creation is forbidden.
