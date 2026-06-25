@@ -44,6 +44,8 @@ import { ActionParamDialog, type ParamDialogState } from '../views/ActionParamDi
 import { ActionResultDialog, type ResultDialogState } from '../views/ActionResultDialog';
 import { FlowRunner, type ScreenFlowState } from '../views/FlowRunner';
 import { resolveActionParams } from '../utils/resolveActionParams';
+import { EnvironmentEntitlementDialog, type EntitlementDialogState } from '../environment/EnvironmentEntitlementDialog';
+import { entitlementDialogFromError, type EntitlementDialogSpec } from '../environment/entitlements';
 import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
@@ -71,6 +73,8 @@ export interface ConsoleActionRuntime {
   serverActionHandler: (action: ActionDef, context?: ActionContext) => Promise<ActionResult>;
   /** Authenticated fetch wrapper (Bearer + tenant + cookies). */
   authFetch: ReturnType<typeof createAuthenticatedFetch>;
+  /** Open the shared environment entitlement (upgrade / limit) dialog. */
+  openEntitlementDialog: (spec: EntitlementDialogSpec) => void;
   /** Props to spread onto `<ActionProvider>`. */
   actionProviderProps: {
     context: Record<string, any>;
@@ -118,6 +122,9 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const [resultDialogState, setResultDialogState] = useState<ResultDialogState>({ open: false });
   // A paused `screen`-node flow awaiting user input.
   const [screenFlow, setScreenFlow] = useState<ScreenFlowState | null>(null);
+  // Plan/capacity gate dialog (upgrade / limit), shared by the env-list toolbar
+  // (proactive) and the api-action error path below (reactive safety net).
+  const [entitlementDialog, setEntitlementDialog] = useState<EntitlementDialogState>({ open: false });
   // Guards against double-firing a server action (slow SSO handoff, etc.).
   const serverActionInFlight = useRef<Set<string>>(new Set());
 
@@ -198,6 +205,10 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   // Authenticated fetch for direct backend calls. Declared before apiHandler.
   const authFetch = useMemo(() => createAuthenticatedFetch(), []);
 
+  const openEntitlementDialog = useCallback((spec: EntitlementDialogSpec) => {
+    setEntitlementDialog({ open: true, spec });
+  }, []);
+
   const apiHandler = useCallback(async (action: ActionDef, context?: ActionContext): Promise<ActionResult> => {
     try {
       const target = action.target || action.name;
@@ -263,11 +274,20 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         }
         const res = await authFetch(url, init);
         if (!res.ok) {
-          let detail = `HTTP ${res.status}`;
-          try {
-            const j = await res.json();
-            detail = (j as any)?.error || (j as any)?.message || detail;
-          } catch { /* response body not JSON */ }
+          let body: any = null;
+          try { body = await res.json(); } catch { /* response body not JSON */ }
+          // Plan/capacity gates (e.g. creating an environment the org's plan
+          // doesn't include) come back as coded 403s. Surface them as a friendly
+          // upgrade/limit DIALOG with a CTA — never a generic red error toast.
+          // Returning success:false WITHOUT an `error` suppresses the runner's
+          // error toast (ActionRunner.handlePostExecution); the dialog owns the
+          // messaging.
+          const entitlementSpec = entitlementDialogFromError(body);
+          if (entitlementSpec) {
+            openEntitlementDialog(entitlementSpec);
+            return { success: false };
+          }
+          const detail = (body as any)?.error || (body as any)?.message || `HTTP ${res.status}`;
           return { success: false, error: detail };
         }
         const data = await res.json().catch(() => ({}));
@@ -328,7 +348,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }, [dataSource, objApiName, authFetch, activeOrganization, refresh]);
+  }, [dataSource, objApiName, authFetch, activeOrganization, refresh, openEntitlementDialog]);
 
   // Flow action handler — POST to /api/v1/automation/{name}/trigger.
   // `context` is the shared ActionRunner context (registered handlers are
@@ -578,6 +598,11 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
         onClose={() => setScreenFlow(null)}
         onComplete={() => { setScreenFlow(null); refresh(); }}
       />
+      <EnvironmentEntitlementDialog
+        state={entitlementDialog}
+        apiBase={import.meta.env.VITE_SERVER_URL || ''}
+        onOpenChange={(open) => { if (!open) setEntitlementDialog({ open: false }); }}
+      />
     </>
   );
 
@@ -591,6 +616,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     flowHandler,
     serverActionHandler,
     authFetch,
+    openEntitlementDialog,
     actionProviderProps,
     dialogs,
   };

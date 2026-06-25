@@ -92,6 +92,42 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     expect(onRefresh).not.toHaveBeenCalled();
   });
 
+  it('apiHandler turns an entitlement 403 into the upgrade dialog, not a red error toast', async () => {
+    // Free org that already has its production env clicks "create" → the control
+    // plane 403s with DEV_ENV_PLAN_LOCKED. The runtime must open a friendly
+    // dialog and NOT return an `error` (which the ActionRunner would toast red).
+    authFetchSpy.mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({
+        error: 'Development environments are a paid feature. Upgrade to add them.',
+        code: 'DEV_ENV_PLAN_LOCKED',
+        upgrade_url: '/settings/billing',
+        plan: 'free',
+      }),
+    });
+    const onRefresh = vi.fn();
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], onRefresh }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.apiHandler({
+        type: 'api', name: 'create_environment',
+        target: '/api/v1/cloud/environments', params: { displayName: 'x' },
+      } as any);
+    });
+
+    // No `error` key → ActionRunner.handlePostExecution suppresses the red toast.
+    expect(res).toEqual({ success: false });
+    expect(onRefresh).not.toHaveBeenCalled();
+
+    // …and the shared entitlement dialog is now open with the upgrade title.
+    render(<>{result.current.dialogs}</>);
+    expect(await screen.findByText('Development environments are a paid feature')).toBeTruthy();
+  });
+
   it('apiHandler merges bodyExtra into the dataSource update payload (pure-confirmation action)', async () => {
     // A pure-confirmation action carries no params array; its mutation lives in
     // `bodyExtra`. Without merging it, `fields` is empty and the update below is

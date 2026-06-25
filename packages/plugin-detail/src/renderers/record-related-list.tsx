@@ -117,6 +117,19 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
         columns={filteredColumns as any}
         pageSize={schema.limit}
         dataSource={ctx?.dataSource as any}
+        add={(schema as any).add}
+        onRowDelete={
+          // Generic remove for link/junction rows: delete the related row itself.
+          // RelatedList refreshes after this resolves. Only wired when an `add`
+          // config is present (i.e. this is a managed assignment list), so plain
+          // read-only related lists keep their existing behavior.
+          (schema as any).add && ctx?.dataSource
+            ? async (row: any) => {
+                const id = row?.id ?? row?._id;
+                if (id != null) await (ctx!.dataSource as any).delete?.(objectName, String(id));
+              }
+            : undefined
+        }
       />
     </div>
   );

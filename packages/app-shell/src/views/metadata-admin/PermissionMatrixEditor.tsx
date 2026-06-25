@@ -62,6 +62,7 @@ import { PageShell } from './PageShell';
 import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
 import { resolveResourceConfig } from './registry';
 import { t as translate, detectLocale } from './i18n';
+import { AssignedUsersSection } from './AssignedUsersSection';
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Domain shapes                                                      */
@@ -450,6 +451,11 @@ export function PermissionMatrixEditPage({ type, name }: PermissionMatrixEditPag
             onFieldPerm={updateFieldPerm}
             onBulkSet={bulkSetObject}
           />
+        </div>
+        {/* Manage Assignments — generic "Assigned Users" via the related-list
+            primitive (works for every permission set; `ai_seat` is one of them). */}
+        <div className="shrink-0 border-t max-h-80 overflow-auto bg-background">
+          <AssignedUsersSection permissionSetName={name} />
         </div>
       </div>
 

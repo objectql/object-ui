@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
-import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, RecordPickerDialog } from '@object-ui/fields';
 import { useSafeFieldLabel } from '@object-ui/react';
 import { usePermissions } from '@object-ui/permissions';
 import { useDetailTranslation } from './useDetailTranslation';
@@ -63,6 +63,20 @@ export interface RelatedListProps {
   onRowEdit?: (row: any) => void;
   /** Callback when a row Delete action is clicked */
   onRowDelete?: (row: any) => void;
+  /**
+   * Add-existing-via-picker config (generic m2m/junction assignment). When set,
+   * the toolbar shows an "Add" button that opens a record picker on
+   * `picker.object`; selecting records creates link rows in this list's `api`
+   * object as `{[referenceField]: parentId, [linkField]: <pickedId>}` (junction
+   * case), or — when `linkField` is omitted — re-parents the picked child by
+   * setting its `referenceField` to `parentId` (1:m case). Server-side rules on
+   * insert (e.g. the AI-seat cap) surface as an inline error.
+   */
+  add?: {
+    picker: { object: string; valueField?: string; labelField?: string; filter?: any };
+    linkField?: string;
+    label?: string;
+  };
   /** Callback when a row is clicked (opens record detail) */
   onRowClick?: (row: any) => void;
   /** Maximum number of columns to auto-generate. Default 6. */
@@ -125,6 +139,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   onRowEdit,
   onRowDelete,
   onRowClick,
+  add,
   maxColumns = 6,
   pageSize,
   sortable = false,
@@ -150,6 +165,12 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const [filterText, setFilterText] = React.useState('');
   const [objectSchema, setObjectSchema] = React.useState<any>(null);
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
+  // Add-by-picker (generic m2m/junction assignment). `refreshNonce` re-runs the
+  // auto-fetch after an add/remove so the list reflects the new link rows.
+  const [pickerOpen, setPickerOpen] = React.useState(false);
+  const [addBusy, setAddBusy] = React.useState(false);
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = React.useState(0);
   // Per-lookup-field cache of resolved labels: fieldName -> Map<id, label>
   const [lookupLabels, setLookupLabels] = React.useState<Record<string, Record<string, string>>>({});
   const { t } = useDetailTranslation();
@@ -227,7 +248,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           .finally(() => setLoading(false));
       }
     }
-  }, [api, dataProvided, dataSource, referenceField, parentId]);
+  }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce]);
 
   // Resolve lookup-field display labels by batch-fetching referenced records.
   // For each lookup/master_detail column whose data is a primitive ID, gather
@@ -276,6 +297,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
                 r?.title ||
                 r?.label ||
                 r?.code ||
+                r?.email ||
                 String(id);
             }
             return { fieldName, map };
@@ -357,10 +379,44 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     setDeleteTarget(row);
   }, []);
 
-  const handleConfirmDelete = React.useCallback(() => {
-    if (deleteTarget) onRowDelete?.(deleteTarget);
+  const handleConfirmDelete = React.useCallback(async () => {
+    if (deleteTarget) {
+      try {
+        await onRowDelete?.(deleteTarget);
+        setRefreshNonce((n) => n + 1); // reflect the removal
+      } catch (err) {
+        console.error('[RelatedList] remove failed', err);
+      }
+    }
     setDeleteTarget(null);
   }, [deleteTarget, onRowDelete]);
+
+  // Add existing records via picker → create link rows (junction) or re-parent
+  // (1:m). Server-side insert rules (e.g. the AI-seat cap) surface inline.
+  const handleAddRecords = React.useCallback(async (records: any[]) => {
+    if (!add || !dataSource || !api || referenceField == null || parentId === undefined || parentId === null) return;
+    const vf = add.picker.valueField || 'id';
+    setAddBusy(true);
+    setAddError(null);
+    try {
+      for (const rec of records || []) {
+        const pickedId = rec?.[vf] ?? rec?.id;
+        if (pickedId == null) continue;
+        if (add.linkField) {
+          await (dataSource as any).create?.(api, { [referenceField]: parentId, [add.linkField]: pickedId });
+        } else {
+          await (dataSource as any).update?.(add.picker.object, String(pickedId), { [referenceField]: parentId });
+        }
+      }
+      setRefreshNonce((n) => n + 1);
+    } catch (err: any) {
+      const raw = err?.body?.error ?? err?.error ?? err?.message ?? String(err);
+      setAddError(typeof raw === 'string' ? raw : 'Failed to add');
+    } finally {
+      setAddBusy(false);
+      setPickerOpen(false);
+    }
+  }, [add, dataSource, api, referenceField, parentId]);
 
   // Generate effective columns from explicit prop or object schema fields.
   // Behavior:
@@ -639,6 +695,18 @@ export const RelatedList: React.FC<RelatedListProps> = ({
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {add && (
+              <Button
+                variant={isEmpty ? 'ghost' : 'outline'}
+                size="sm"
+                disabled={addBusy}
+                onClick={(e) => { e.stopPropagation(); setAddError(null); setPickerOpen(true); }}
+                className="gap-1 h-9 sm:h-7 text-xs shadow-none"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {add.label || t('detail.add', { defaultValue: 'Add' })}
+              </Button>
+            )}
             {onNew && (
               <Button
                 variant={isEmpty ? 'ghost' : 'outline'}
@@ -768,6 +836,26 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {addError && (
+        <div
+          className="mx-4 mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          role="alert"
+        >
+          {addError}
+        </div>
+      )}
+      {add && dataSource && (
+        <RecordPickerDialog
+          open={pickerOpen}
+          onOpenChange={(o) => setPickerOpen(o)}
+          multiple
+          dataSource={dataSource as any}
+          objectName={add.picker.object}
+          title={add.label || t('detail.add', { defaultValue: 'Add' })}
+          onSelect={() => {}}
+          onSelectRecords={(records: any[]) => { void handleAddRecords(records); }}
+        />
+      )}
     </Card>
   );
 };

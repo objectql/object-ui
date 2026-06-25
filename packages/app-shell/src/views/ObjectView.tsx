@@ -56,6 +56,8 @@ import { useRealtimeSubscription, useConflictResolution } from '@object-ui/colla
 import { ActionProvider, useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
 import { toast } from 'sonner';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
+import { useEnvironmentEntitlements } from '../environment/useEnvironmentEntitlements';
+import { EnvironmentListToolbar } from '../environment/EnvironmentListToolbar';
 
 /** Map view types to Lucide icons (Airtable-style) */
 const VIEW_TYPE_ICONS: Record<string, ComponentType<{ className?: string }>> = {
@@ -321,6 +323,31 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         onRefresh: () => setRefreshKey((k) => k + 1),
     });
     const { confirmHandler, toastHandler } = actionRuntime;
+
+    // Environment list (sys_environment) is entitlement- + state-aware: born
+    // with one production env per org, its single `create_environment` action
+    // means different things — "Set up your production environment", "Add
+    // development environment", or an upgrade prompt — depending on org state.
+    // Resolved org-side here; the hook is a no-op for every other object.
+    const isEnvironmentList = objectDef.name === 'sys_environment';
+    const environmentEntitlements = useEnvironmentEntitlements({
+        enabled: isEnvironmentList,
+        dataSource,
+        authFetch: actionRuntime.authFetch,
+        apiBase: (import.meta as any).env?.VITE_SERVER_URL || '',
+        refreshKey,
+    });
+    // Localized `list_toolbar` actions, shared by the generic action bar and the
+    // environment-aware toolbar (the action:bar renderer filters by location).
+    const localizedToolbarActions = useMemo(
+        () => (objectDef.actions || []).map((a: any) => ({
+            ...a,
+            label: actionLabel(objectDef.name, a.name, a.label || a.name),
+            ...(a.confirmText !== undefined && { confirmText: actionConfirm(objectDef.name, a.name, a.confirmText) }),
+            ...(a.successMessage !== undefined && { successMessage: actionSuccess(objectDef.name, a.name, a.successMessage) }),
+        })),
+        [objectDef, actionLabel, actionConfirm, actionSuccess],
+    );
 
     // Resolve which generic CRUD affordances belong in the toolbar for
     // this object's lifecycle bucket (`managedBy`).  config tables show
@@ -1526,19 +1553,17 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
                     {/* Schema-driven toolbar actions */}
                     {objectDef.actions?.some((a: any) => a.locations?.includes('list_toolbar')) && (
+                      isEnvironmentList ? (
+                        <EnvironmentListToolbar
+                          actions={localizedToolbarActions}
+                          entitlements={environmentEntitlements}
+                          onUpgrade={actionRuntime.openEntitlementDialog}
+                        />
+                      ) : (
                       <SchemaRenderer schema={{
                         type: 'action:bar',
                         location: 'list_toolbar',
-                        actions: (objectDef.actions || []).map((a: any) => ({
-                          ...a,
-                          label: actionLabel(objectDef.name, a.name, a.label || a.name),
-                          ...(a.confirmText !== undefined && {
-                            confirmText: actionConfirm(objectDef.name, a.name, a.confirmText),
-                          }),
-                          ...(a.successMessage !== undefined && {
-                            successMessage: actionSuccess(objectDef.name, a.name, a.successMessage),
-                          }),
-                        })),
+                        actions: localizedToolbarActions,
                         size: 'sm',
                         variant: 'outline',
                         // On mobile, collapse all schema-driven toolbar actions
@@ -1547,6 +1572,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         // title off-screen.
                         mobileMaxVisible: 0,
                       }} />
+                      )
                     )}
 
                     {/*
