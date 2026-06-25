@@ -860,7 +860,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           return (cols as ListColumn[])
             .filter((col) => col?.field && typeof col.field === 'string' && !col.hidden)
             .map((col, colIndex) => {
-              const rawHeader = resolveColumnLabel(col.label) || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
+              // Fall back to the SCHEMA FIELD's label before prettifying the machine
+              // name — otherwise a column declared as bare { field } shows an English
+              // name-derived header (e.g. "Request title") even when the field has a
+              // localized label (e.g. "申请标题") on a non-English app.
+              const rawHeader = resolveColumnLabel(col.label)
+                || resolveColumnLabel(objectSchema?.fields?.[col.field]?.label)
+                || col.field.charAt(0).toUpperCase() + col.field.slice(1).replace(/_/g, ' ');
               const header = schema.objectName ? resolveFieldLabel(schema.objectName, col.field, rawHeader) : rawHeader;
 
               // Build custom cell renderer based on column configuration
