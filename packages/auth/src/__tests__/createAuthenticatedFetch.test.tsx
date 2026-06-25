@@ -84,3 +84,75 @@ describe('createAuthenticatedFetch', () => {
     expect(calls[0].headers.get('Accept-Language')).toBe('ja');
   });
 });
+
+describe('createAuthenticatedFetch — cloud_control cross-org signal (platformScope)', () => {
+  const DATA_ENV = 'http://localhost/api/v1/data/sys_environment';
+
+  beforeEach(() => {
+    ActiveOrganizationStorage.clear();
+    vi.spyOn(TokenStorage, 'get').mockReturnValue(null);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    window.history.pushState({}, '', '/'); // reset route between tests
+  });
+
+  const inApp = (appName: string) => window.history.pushState({}, '', `/apps/${appName}/sys_environment`);
+
+  it('appends platformScope=all for a cross-org object while in the cloud_control app', async () => {
+    inApp('cloud_control');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()(DATA_ENV);
+    expect(calls[0].url).toBe(`${DATA_ENV}?platformScope=all`);
+  });
+
+  it('uses & when the request already has a query string', async () => {
+    inApp('cloud_control');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()(`${DATA_ENV}?top=50`);
+    expect(calls[0].url).toBe(`${DATA_ENV}?top=50&platformScope=all`);
+  });
+
+  it('honors a basename prefix in the route (/_console/apps/cloud_control/…)', async () => {
+    window.history.pushState({}, '', '/_console/apps/cloud_control/sys_team');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()('http://localhost/api/v1/data/sys_team');
+    expect(calls[0].url).toContain('platformScope=all');
+  });
+
+  it('does NOT append for a non-cross-org object, even in cloud_control', async () => {
+    inApp('cloud_control');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()('http://localhost/api/v1/data/sys_user');
+    expect(calls[0].url).toBe('http://localhost/api/v1/data/sys_user');
+  });
+
+  it('does NOT append a partial-name match (sys_environment_log) — exact segment only', async () => {
+    inApp('cloud_control');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()('http://localhost/api/v1/data/sys_environment_log');
+    expect(calls[0].url).not.toContain('platformScope');
+  });
+
+  it('still matches sys_environment_member (whitelisted) distinctly from sys_environment', async () => {
+    inApp('cloud_control');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()('http://localhost/api/v1/data/sys_environment_member');
+    expect(calls[0].url).toContain('platformScope=all');
+  });
+
+  it('does NOT append when a different app is active', async () => {
+    inApp('crm');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()(DATA_ENV);
+    expect(calls[0].url).toBe(DATA_ENV);
+  });
+
+  it('does not double-append when the caller already set platformScope', async () => {
+    inApp('cloud_control');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()(`${DATA_ENV}?platformScope=all`);
+    expect(calls[0].url).toBe(`${DATA_ENV}?platformScope=all`);
+  });
+});

@@ -21,6 +21,31 @@ export interface AuthenticatedAdapterOptions {
 const ACTIVE_ORG_STORAGE_KEY = 'auth-active-organization-id';
 
 /**
+ * Control-plane objects whose Cloud Admin (`cloud_control`) list views may read
+ * across organizations for a platform super-admin. The server-side org-scope
+ * hook recognizes AND strips the `platformScope=all` signal for EXACTLY these
+ * objects, so we only ever attach it to their requests — never to any other
+ * object, whose query the unrecognized param would otherwise corrupt.
+ */
+const CROSS_ORG_OBJECTS_RE =
+  /\/api\/v1\/data\/(sys_environment_member|sys_environment|sys_app|sys_team|sys_invitation|sys_organization)(?:[/?#]|$)/i;
+
+/**
+ * True when the platform Cloud Admin app (`cloud_control`) is the active app —
+ * the only app allowed to request cross-org scope. Read from the route
+ * (`/apps/cloud_control/…`, basename-agnostic) so this non-React middleware
+ * needs no context wiring; fails closed off the browser.
+ */
+function isCloudControlAppActive(): boolean {
+  try {
+    return typeof window !== 'undefined'
+      && /\/apps\/cloud_control(?:[/?#]|$)/.test(window.location.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get/set the active organization ID for tenant-scoped API requests.
  * Used by createAuthenticatedFetch to inject X-Tenant-ID header.
  */
@@ -100,6 +125,24 @@ export function createAuthenticatedFetch(): (input: RequestInfo | URL, init?: Re
       if (lang) {
         headers.set('Accept-Language', lang);
       }
+    }
+    // Cloud Admin (cloud_control) cross-org reads: a platform super-admin
+    // browsing the Cloud Admin should see every org's environments / teams /
+    // apps / invitations, not just their own. Signal the server with
+    // `?platformScope=all`, scoped to (a) the cloud_control app and (b) the
+    // control-plane objects the server recognizes + strips — so it can never
+    // alter another app's or object's query. The server HONORS it only for a
+    // VERIFIED super-admin (and audits it); for anyone else it is ignored and
+    // stripped, so attaching it is always safe.
+    if (
+      isApiCall
+      && (typeof input === 'string' || input instanceof URL)
+      && CROSS_ORG_OBJECTS_RE.test(url)
+      && !/[?&]platformScope=/.test(url)
+      && isCloudControlAppActive()
+    ) {
+      const sep = url.includes('?') ? '&' : '?';
+      return fetch(`${url}${sep}platformScope=all`, { ...init, headers });
     }
     return fetch(input, { ...init, headers });
   };
