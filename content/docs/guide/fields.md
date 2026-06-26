@@ -81,6 +81,8 @@ Object UI comes with built-in support for the standard [ObjectStack Protocol](/p
 | `select` | Dropdown |
 | `lookup` | Reference to another object |
 | `master_detail` | Parent-child relationship |
+| `user` | Person picker — searches the `sys_user` object (a lookup specialized to users) |
+| `owner` | Record owner — a `user` field, typically read-only and stamped with the current user |
 
 ## Using Renderers in Custom Components
 

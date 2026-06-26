@@ -68,26 +68,22 @@ import { UserCellRenderer } from '@object-ui/fields';
 // Multiple users: Overlapping avatars + count
 ```
 
-## Integration
+## How it works
 
-User selection requires integration with your user management system:
+`user` / `owner` fields are a **lookup specialized to the framework's `sys_user`
+object** — there is no custom user API to wire up. The `UserField` widget
+delegates to the shared lookup picker with the reference fixed to `sys_user`,
+reusing the same debounced search, record-picker dialog and id resolution as any
+lookup field:
 
-```plaintext
-// Example user search API
-const searchUsers = async (query: string) => {
-  const response = await fetch(`/api/users/search?q=${query}`);
-  return response.json();
-};
+- The field stores the selected user's **id** (a foreign key to `sys_user`);
+  `multiple: true` stores an array of ids.
+- A `dataSource` (provided by `SchemaRenderer` / the app shell) supplies the
+  candidate search — the picker queries `sys_user` by name/email as you type.
+- On read, `$expand` resolves the id(s) to the full user record so cells and
+  read-only views show the name/avatar (via `UserCellRenderer`).
 
-// Example user data structure
-const user = {
-  id: 'user_123',
-  name: 'John Doe',
-  username: 'johndoe',
-  email: 'john@example.com',
-  avatar: 'https://example.com/avatars/john.jpg'
-};
-```
+No custom user-management integration is required when a `dataSource` is present.
 
 ## Permission Patterns
 
@@ -100,7 +96,7 @@ Common permission configurations:
   name: 'owner',
   label: 'Owner',
   readonly: true,
-  defaultValue: '${current_user.id}'
+  defaultValue: 'current_user'
 }
 
 // Assignable user
@@ -129,42 +125,14 @@ Common permission configurations:
 - **Approval Workflows**: Approvers, reviewers
 - **Collaboration**: Document collaborators, editors
 
-## Backend Implementation
+## Backend behavior
 
-Example backend logic for user fields:
+The platform handles the common cases natively — you generally don't write
+backend code for user fields:
 
-```plaintext
-// Set owner on create
-const createRecord = async (data: any, currentUser: User) => {
-  return db.create('records', {
-    ...data,
-    owner: currentUser.id,
-    created_by: currentUser.id
-  });
-};
-
-// Validate user assignment permissions
-const canAssignUser = async (
-  record: any,
-  targetUser: User,
-  currentUser: User
-) => {
-  // Only owner or admin can reassign
-  if (record.owner === currentUser.id || currentUser.isAdmin) {
-    return true;
-  }
-  return false;
-};
-
-// Get user details for display
-const getUserDetails = async (userId: string) => {
-  const user = await db.findOne('users', { id: userId });
-  return {
-    id: user.id,
-    name: user.name,
-    username: user.username,
-    email: user.email,
-    avatar: user.avatar_url
-  };
-};
-```
+- **Owner stamping** — declare `defaultValue: 'current_user'` and the acting
+  user's id is filled in at insert time (no create hook required).
+- **Display resolution** — request `expand=<field>` and the stored id(s) resolve
+  to the full `sys_user` record (name / avatar) for rendering.
+- **Ownership & permissions** — record ownership and row-level security continue
+  to use the platform's `owner_id` convention and security rules.
