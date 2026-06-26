@@ -41,6 +41,7 @@ import {
   ChatbotEnhanced,
   useAgents,
   useObjectChat,
+  useAiModels,
   useHitlInChat,
   resolveDefaultAgentName,
   PLATFORM_DEFAULT_AGENT,
@@ -1009,6 +1010,14 @@ function ChatPane({
   const { errorSuppressed, handleChatError, setMessagesRef, resetSuppression } =
     useReconcileOnError({ chatApi, conversationId });
 
+  // ADR-0028: plan-filtered selectable AI model on the full-page Build/Ask
+  // surface. The footer <select> in ChatbotEnhanced renders only for 2+ models,
+  // so free / single-model envs see nothing. Mirrors ConsoleFloatingChatbot;
+  // the chosen model rides each request via useObjectChat's `model` below.
+  const { models: aiModels, defaultModelId } = useAiModels({ apiBase });
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(undefined);
+  const effectiveModelId = selectedModelId ?? defaultModelId;
+
   const {
     messages,
     isLoading,
@@ -1021,6 +1030,8 @@ function ChatPane({
   } = useObjectChat({
     api: chatApi,
     conversationId,
+    // ADR-0028: the user's picked model (or the env default) rides each request.
+    model: effectiveModelId,
     onError: handleChatError,
     body: {
       context: {
@@ -1194,6 +1205,12 @@ function ChatPane({
           trace: t('console.ai.trace'),
           viewTrace: t('console.ai.viewTrace'),
         }}
+        // ADR-0028: selectable AI model — ChatbotEnhanced renders the footer
+        // <select> only when 2+ models are offered (free / single-model envs
+        // see none). The picked model flows to useObjectChat above.
+        models={aiModels}
+        selectedModelId={effectiveModelId}
+        onModelChange={setSelectedModelId}
         suggestions={suggestions}
         onSendMessage={handleSend}
         onClear={clear}
