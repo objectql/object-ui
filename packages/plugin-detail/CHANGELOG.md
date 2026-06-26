@@ -1,5 +1,16 @@
 # @object-ui/plugin-detail
 
+## 7.2.0
+
+### Minor Changes
+
+- d23db5c: feat(detail): related-list add-by-picker (generic m2m/junction) + a generic "Assigned Users" management UI on permission sets (assign ai_seat and any role with zero bespoke CRUD; server-side cap errors surface inline).
+
+### Patch Changes
+
+- Updated dependencies [8e7c1da]
+  - @object-ui/i18n@7.2.0
+
 ## 7.1.0
 
 ### Patch Changes

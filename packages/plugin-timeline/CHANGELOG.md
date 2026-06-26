@@ -1,5 +1,16 @@
 # @object-ui/plugin-timeline
 
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [d23db5c]
+  - @object-ui/types@7.2.0
+  - @object-ui/components@7.2.0
+  - @object-ui/react@7.2.0
+  - @object-ui/core@7.2.0
+  - @object-ui/mobile@7.2.0
+
 ## 7.1.0
 
 ### Patch Changes

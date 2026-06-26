@@ -1,5 +1,19 @@
 # @object-ui/plugin-gantt
 
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [8e7c1da]
+- Updated dependencies [d23db5c]
+  - @object-ui/i18n@7.2.0
+  - @object-ui/types@7.2.0
+  - @object-ui/plugin-detail@7.2.0
+  - @object-ui/components@7.2.0
+  - @object-ui/fields@7.2.0
+  - @object-ui/react@7.2.0
+  - @object-ui/core@7.2.0
+
 ## 7.1.0
 
 ### Patch Changes
