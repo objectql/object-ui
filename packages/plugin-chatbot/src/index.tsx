@@ -256,6 +256,10 @@ export type {
   AgentDescriptor,
 } from './useAgents';
 
+// Export the AI-model picker allowlist hook (ADR-0028; GET /api/v1/ai/models).
+export { useAiModels } from './useAiModels';
+export type { UseAiModelsOptions, UseAiModelsReturn } from './useAiModels';
+
 // Agent alias resolution — friendly console routes (`/ai/build`, `/ai/ask`) ↔
 // built-in agent ids, robust across the Path A rename.
 export {

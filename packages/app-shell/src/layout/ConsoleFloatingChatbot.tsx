@@ -16,6 +16,7 @@ import {
   FloatingChatbot,
   useObjectChat,
   useAgents,
+  useAiModels,
   useHitlInChat,
   resolveDefaultAgentName,
   uiMessagesToChatMessages,
@@ -400,6 +401,15 @@ function ChatbotInner({
   // and drives context-aware starter suggestions.
   const { editor } = useAssistant();
 
+  // ADR-0028: the plan-filtered AI-model allowlist this env offers in the
+  // picker (free / single-model envs return one entry → the footer picker
+  // hides itself). The selected id is sent with each turn; the backend
+  // validates it against the same allowlist and weights the quota by the
+  // chosen model's cost_weight.
+  const { models: aiModels, defaultModelId } = useAiModels({ apiBase });
+  const [selectedModelId, setSelectedModelId] = React.useState<string | undefined>(undefined);
+  const effectiveModelId = selectedModelId ?? defaultModelId;
+
   // Replay persisted history when present.
   const hydratedHistory = React.useMemo<ChatMessage[]>(() => {
     if (!persistedMessages || persistedMessages.length === 0) return [];
@@ -440,6 +450,9 @@ function ChatbotInner({
   } = useObjectChat({
     api: chatApi,
     conversationId,
+    // ADR-0028: the user's picked model (or the env default) — sent in each
+    // request body; the agent route validates it + routes the turn to it.
+    model: effectiveModelId,
     onError: handleChatError,
     body: {
       context: {
@@ -587,6 +600,11 @@ function ChatbotInner({
         headerActions={headerActions}
         messages={messages as ChatMessage[]}
         labels={locale.labels}
+        // ADR-0028: model picker — ChatbotEnhanced renders the footer <select>
+        // only when 2+ models are offered, so free / single-model envs see none.
+        models={aiModels}
+        selectedModelId={effectiveModelId}
+        onModelChange={setSelectedModelId}
         showAvatars
         hideClearBar
         assistantAvatarFallback={locale.agentLabel}
