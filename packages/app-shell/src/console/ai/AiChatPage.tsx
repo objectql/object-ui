@@ -486,6 +486,11 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   // existing conversation, and the flag is stripped once the fresh id is
   // mirrored into the URL.
   const forceNewConversation = searchParams.get('new') !== null;
+  // ADR-0070 "Edit with AI": the package the user opened to edit (from the app
+  // list's per-app action). Forwarded to the build agent as `context.packageId`
+  // so its metadata reads scope to that app and edits bind to it from the first
+  // message (the agent seeds it as the conversation's active package).
+  const editPackageId = searchParams.get('package')?.trim() || undefined;
   const navigate = useNavigate();
   const { setContext } = useNavigationContext();
 
@@ -849,6 +854,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             chatApi={chatApi}
             apiBase={apiBase}
             conversationId={conversationId}
+            editPackageId={editPackageId}
             initialMessages={initialMessages}
             onSent={handleSent}
             onShare={() => setShareOpen(true)}
@@ -920,6 +926,9 @@ interface ChatPaneProps {
   chatApi: string | undefined;
   apiBase: string;
   conversationId: string | undefined;
+  /** ADR-0070 "Edit with AI": the package the user opened to edit (from `?package=`),
+   *  forwarded to the build agent as `context.packageId` to scope it to that app. */
+  editPackageId?: string;
   initialMessages: HydratedUIMessage[];
   onSent: (firstUserMessage?: string) => void;
   onShare: () => void;
@@ -935,6 +944,7 @@ function ChatPane({
   chatApi,
   apiBase,
   conversationId,
+  editPackageId,
   initialMessages,
   onSent,
   onShare,
@@ -1040,6 +1050,9 @@ function ChatPane({
         // Tell the agent the environment's publish posture so its narration
         // matches reality (an auto-published build is live, not "to publish").
         autoPublishAiBuilds: getRuntimeConfig().features.autoPublishAiBuilds,
+        // ADR-0070 "Edit with AI": scope the build agent to the app the user
+        // opened to edit. Cloud seeds it as the conversation's active package.
+        ...(editPackageId ? { packageId: editPackageId } : {}),
       },
     },
     initialMessages: hydrated,

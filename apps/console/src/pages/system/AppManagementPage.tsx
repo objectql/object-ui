@@ -25,6 +25,7 @@ import {
   Star,
   ExternalLink,
   Search,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useMetadata } from '@object-ui/app-shell';
@@ -241,6 +242,23 @@ export function AppManagementPage() {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
+                    {app._packageId ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Edit with AI"
+                        aria-label={`Edit ${app.label || app.name} with AI`}
+                        // ADR-0070 — open the build agent in a fresh conversation
+                        // pre-scoped to this app's package (passed as the chat
+                        // context.packageId the cloud seeds as the active package),
+                        // so the AI iterates within THIS app, not the whole env.
+                        onClick={() =>
+                          navigate(`/ai/build?package=${encodeURIComponent(app._packageId!)}&new=1`)
+                        }
+                      >
+                        <Sparkles className="h-4 w-4" />
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       size="icon"
