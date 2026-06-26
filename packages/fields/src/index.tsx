@@ -1656,6 +1656,11 @@ export function mapFieldTypeToFormType(fieldType: string): string {
     lookup: 'field:lookup',
     master_detail: 'field:master_detail',
     tree: 'field:lookup', // hierarchical reference — pick the parent via a lookup
+    // `user` is a lookup specialized to sys_user; `owner` mirrors it (record
+    // ownership). Both render via the UserField person-picker (delegates to the
+    // lookup picker). Without these they would fall through to `field:text`.
+    user: 'field:user',
+    owner: 'field:owner',
 
     // Contact fields
     email: 'field:email',
