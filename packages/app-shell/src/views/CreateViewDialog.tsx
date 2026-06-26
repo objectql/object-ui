@@ -46,6 +46,7 @@ import {
   Clock,
   Map as MapIcon,
   BarChart3,
+  ListTree,
   AlertCircle,
 } from 'lucide-react';
 
@@ -87,6 +88,7 @@ function buildViewTypeMeta(t: (k: string) => string): ViewTypeMeta[] {
     { type: 'gantt',    icon: GanttChartSquare, label: t('console.objectView.viewTypeGantt'),    description: t('console.objectView.viewTypeGanttDesc') },
     { type: 'map',      icon: MapIcon,          label: t('console.objectView.viewTypeMap'),      description: t('console.objectView.viewTypeMapDesc') },
     { type: 'chart',    icon: BarChart3,        label: t('console.objectView.viewTypeChart'),    description: t('console.objectView.viewTypeChartDesc') },
+    { type: 'tree',     icon: ListTree,         label: t('console.objectView.viewTypeTree'),     description: t('console.objectView.viewTypeTreeDesc') },
   ];
 }
 
@@ -252,6 +254,19 @@ const REQUIRED_FIELDS_BY_TYPE: Record<string, RequiredFieldDef[]> = {
       i18nKey: 'console.objectView.yAxisField',
       helpI18nKey: 'console.objectView.yAxisFieldHelp',
       filter: (f) => f.type === 'number',
+    },
+  ],
+  tree: [
+    {
+      key: 'parentField',
+      i18nKey: 'console.objectView.parentField',
+      helpI18nKey: 'console.objectView.parentFieldHelp',
+      // Self-referencing pointer: a `tree` field, or a lookup/master_detail
+      // back to the same object. `rawType` carries the unnormalized field type.
+      filter: (f) =>
+        f.rawType === 'tree' ||
+        f.rawType === 'lookup' ||
+        f.rawType === 'master_detail',
     },
   ],
   // grid has no strictly required fields at create time

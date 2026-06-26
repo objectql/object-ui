@@ -79,6 +79,32 @@ describe('ObjectTree', () => {
     expect(screen.queryByText('Engineering')).toBeNull();
   });
 
+  it('accepts field entries as objects (host columns), not just strings', async () => {
+    // ListView passes columns as field *objects*; feeding those straight into
+    // `.replace()` threw "e.replace is not a function" and failed to render.
+    render(
+      <ObjectTree
+        schema={{
+          type: 'object-tree',
+          objectName: 'business_unit',
+          parentField: 'parent_id',
+          labelField: { name: 'name', label: 'Name' },
+          fields: [
+            { name: 'name', label: 'Name' },
+            { fieldName: 'head', label: 'Head' },
+          ],
+          data: orgUnits,
+        }}
+        data={orgUnits}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('object-tree')).toBeTruthy());
+    expect(screen.getByText('Acme')).toBeTruthy();
+    // The object-shaped `head` column still renders its values.
+    expect(screen.getByText('VP Eng')).toBeTruthy();
+    expect(screen.getByText('Head')).toBeTruthy();
+  });
+
   it('keeps orphan records (parent outside the result set) as roots', async () => {
     const orphans = [
       { id: '10', name: 'Floating', parent_id: '999' },

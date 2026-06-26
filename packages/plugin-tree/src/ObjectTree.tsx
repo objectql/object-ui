@@ -57,16 +57,31 @@ function getDataConfig(schema: any): ViewData | null {
   return null;
 }
 
+/**
+ * Normalize a field entry to its string key. Hosts like ListView pass columns
+ * as field *objects* (`{ name | fieldName | field, label, … }`), not bare
+ * strings — feeding those straight into `.replace()`/record indexing throws
+ * ("e.replace is not a function"). Accept both shapes here so the tree is
+ * resilient regardless of caller.
+ */
+function fieldKey(f: any): string | undefined {
+  if (typeof f === 'string') return f;
+  if (f && typeof f === 'object') return f.name || f.fieldName || f.field || f.key;
+  return undefined;
+}
+
 function getTreeConfig(schema: any): TreeConfig {
   const nested = (schema.tree || schema.filter?.tree || {}) as Partial<TreeConfig>;
+  const rawFields = Array.isArray(schema.fields)
+    ? schema.fields
+    : Array.isArray(nested.fields)
+      ? nested.fields
+      : [];
   return {
-    parentField: schema.parentField ?? nested.parentField,
-    labelField: schema.labelField ?? nested.labelField ?? schema.titleField ?? 'name',
-    fields: Array.isArray(schema.fields)
-      ? schema.fields
-      : Array.isArray(nested.fields)
-        ? nested.fields
-        : [],
+    parentField: fieldKey(schema.parentField ?? nested.parentField),
+    labelField:
+      fieldKey(schema.labelField ?? nested.labelField ?? schema.titleField) ?? 'name',
+    fields: rawFields.map(fieldKey).filter((f): f is string => !!f),
     defaultExpandedDepth: schema.defaultExpandedDepth ?? nested.defaultExpandedDepth,
   };
 }
