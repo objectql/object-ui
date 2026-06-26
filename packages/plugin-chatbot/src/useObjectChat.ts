@@ -254,6 +254,13 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     [],
   );
 
+  // ADR-0028: the AI SDK caches the transport from the first render, so a
+  // mid-session model switch in the picker would never reach the static
+  // `body.model` below. Keep the live model in a ref and inject it per-send in
+  // prepareSendMessagesRequest (the hook closes over this stable ref).
+  const modelRef = useRef(model);
+  modelRef.current = model;
+
   // Build a transport for API mode that posts to the configured endpoint and
   // forwards conversation/system/model metadata in the request body.
   // Note: conversationId is sent in the body (not a header) to avoid CORS
@@ -272,8 +279,13 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
       },
       // Stamp a stable per-turn idempotency key (ADR-0013 D1). See withTurnId —
       // it reconstructs the full default body (incl. messages) + adds turnId.
-      prepareSendMessagesRequest: ({ id, body: reqBody, messages, trigger, messageId }) =>
-        withTurnId({ id, body: reqBody, messages, trigger, messageId }),
+      prepareSendMessagesRequest: ({ id, body: reqBody, messages, trigger, messageId }) => {
+        const req = withTurnId({ id, body: reqBody, messages, trigger, messageId });
+        // ADR-0028: always send the CURRENTLY selected model (see modelRef above)
+        // so a mid-session picker switch routes, despite the cached transport.
+        if (modelRef.current) (req.body as Record<string, unknown>).model = modelRef.current;
+        return req;
+      },
     });
   }, [isApiMode, api, headers, body, model, systemPrompt, streamingEnabled, conversationId]);
 

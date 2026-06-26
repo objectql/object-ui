@@ -73,37 +73,55 @@ export function useAiModels(options: UseAiModelsOptions = {}): UseAiModelsReturn
 
     const controller = new AbortController();
     let cancelled = false;
-
-    setIsLoading(true);
-    setError(undefined);
-
     const url = `${apiBase.replace(/\/$/, '')}/models`;
-    fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json', ...(headersRef.current ?? {}) },
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
+
+    // The env runtime may cold-boot its per-env kernel on first access, so the
+    // very first /models hit can transiently 404/503 or return an empty set
+    // before the AI plugin is mounted. Retry a few times (short backoff) so the
+    // picker self-heals instead of being permanently empty after one race.
+    const MAX_ATTEMPTS = 5;
+    let attempt = 0;
+
+    const load = async (): Promise<void> => {
+      if (cancelled) return;
+      setIsLoading(true);
+      setError(undefined);
+      try {
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: { Accept: 'application/json', ...(headersRef.current ?? {}) },
+          credentials: 'include',
+          signal: controller.signal,
+        });
         if (!res.ok) throw new Error(`Failed to load AI models (${res.status})`);
-        return res.json() as Promise<{ models?: RawModel[]; defaultModel?: string } | RawModel[]>;
-      })
-      .then((payload) => {
+        const payload = (await res.json()) as { models?: RawModel[]; defaultModel?: string } | RawModel[];
         if (cancelled) return;
         const list = Array.isArray(payload) ? payload : payload?.models ?? [];
         const reportedDefault = Array.isArray(payload) ? undefined : payload?.defaultModel;
-        setModels(normalize(list));
+        const normalized = normalize(list);
+        setModels(normalized);
         setDefaultModelId(reportedDefault ?? list.find((m) => m?.default)?.id ?? list[0]?.id);
-      })
-      .catch((err: Error) => {
-        if (cancelled || err.name === 'AbortError') return;
-        setError(err);
-        setModels([]);
-        setDefaultModelId(undefined);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
+        setIsLoading(false);
+        // Empty while the kernel is still warming → try again shortly.
+        if (normalized.length === 0 && attempt < MAX_ATTEMPTS && !cancelled) {
+          attempt += 1;
+          setTimeout(() => { void load(); }, 1200);
+        }
+      } catch (err) {
+        if (cancelled || (err as Error)?.name === 'AbortError') return;
+        if (attempt < MAX_ATTEMPTS) {
+          attempt += 1;
+          setTimeout(() => { void load(); }, 1200);
+        } else {
+          setError(err as Error);
+          setModels([]);
+          setDefaultModelId(undefined);
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void load();
 
     return () => {
       cancelled = true;
