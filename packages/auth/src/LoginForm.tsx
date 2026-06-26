@@ -36,6 +36,16 @@ export interface LoginFormLabels {
   orText?: string;
   /** Label for the SSO sign-in button (defaults to "Sign in with SSO") */
   ssoButton?: string;
+  /**
+   * Break-glass link shown under the federated button when SSO-only
+   * ("enforced") mode hides the password form (defaults to "Use a password
+   * instead"). Reveals the email/password form for the env owner / local admin.
+   */
+  usePasswordText?: string;
+  /** Link to collapse the revealed break-glass form back to SSO-only (defaults to "Back to single sign-on"). */
+  backToSsoText?: string;
+  /** Description shown above the form in SSO-only mode (defaults to "Sign in with your organization's single sign-on"). */
+  ssoOnlyDescription?: string;
 }
 
 export interface LoginFormProps {
@@ -126,21 +136,40 @@ export function LoginForm({
   // so a server that doesn't report `features.sso` (or a failed config fetch)
   // never shows a button whose `/sign-in/sso` route 404s at click time.
   const [ssoEnabled, setSsoEnabled] = useState(false);
+  // SSO-only ("enforced") mode: the server locks the team login to the IdP.
+  // Hide the local password form + sign-up; show the federated button(s) plus
+  // an understated break-glass link. `emailPassword.enabled === false` is a
+  // belt-and-suspenders fallback for older servers that signal the lock that
+  // way. Defaults to false (a failed config fetch never hides the form).
+  const [ssoEnforced, setSsoEnforced] = useState(false);
+  // Break-glass: reveal the password form for the env owner / local admin even
+  // under enforced mode (e.g. during an IdP outage).
+  const [showPasswordFallback, setShowPasswordFallback] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     Promise.resolve()
       .then(() => getAuthConfig())
       .then((config) => {
-        if (!cancelled) setSsoEnabled(config?.features?.sso === true);
+        if (cancelled) return;
+        setSsoEnabled(config?.features?.sso === true);
+        setSsoEnforced(
+          config?.features?.ssoEnforced === true ||
+            config?.emailPassword?.enabled === false,
+        );
       })
       .catch(() => {
-        // SSO is an enhancement, not required — leave the button hidden.
+        // SSO is an enhancement, not required — leave the buttons/form hidden
+        // or shown at their safe defaults.
       });
     return () => {
       cancelled = true;
     };
   }, [getAuthConfig]);
+
+  // Under enforced mode the password form is collapsed until the user opts into
+  // the break-glass path; otherwise it's always shown.
+  const passwordFormVisible = !ssoEnforced || showPasswordFallback;
 
   const l = {
     emailLabel: labels.emailLabel ?? 'Email',
@@ -154,6 +183,10 @@ export function LoginForm({
     signUpText: labels.signUpText ?? 'Sign up',
     orText: labels.orText ?? 'or',
     ssoButton: labels.ssoButton ?? 'Sign in with SSO',
+    usePasswordText: labels.usePasswordText ?? 'Use a password instead',
+    backToSsoText: labels.backToSsoText ?? 'Back to single sign-on',
+    ssoOnlyDescription:
+      labels.ssoOnlyDescription ?? "Sign in with your organization's single sign-on",
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -203,12 +236,13 @@ export function LoginForm({
       <AuthFormHeader
         icon={hideIcon ? undefined : (icon ?? <DefaultLockIcon />)}
         title={title}
-        description={description}
+        description={ssoEnforced && !showPasswordFallback ? l.ssoOnlyDescription : description}
       />
 
       <div className="space-y-5">
         <SocialSignInButtons mode="sign-in" onProvidersResolved={(hasProviders) => setHasSocialProviders(hasProviders)} />
 
+        {passwordFormVisible ? (
         <form onSubmit={handleSubmit} className="space-y-4">
           {hasSocialProviders && <AuthDivider label={l.orText} />}
 
@@ -277,10 +311,37 @@ export function LoginForm({
               {l.ssoButton}
             </button>
           )}
+
+          {/* Break-glass form was opened under enforced mode — let the user
+              collapse back to the SSO-only view. */}
+          {ssoEnforced && showPasswordFallback && (
+            <button
+              type="button"
+              onClick={() => setShowPasswordFallback(false)}
+              className="w-full text-center text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+            >
+              {l.backToSsoText}
+            </button>
+          )}
         </form>
+        ) : (
+          /* SSO-only ("enforced"): the federated button(s) above are the path.
+             Surface any social-sign-in error and an understated break-glass
+             link to the password form for the env owner / local admin. */
+          <div className="space-y-4">
+            {error && <AuthErrorBanner message={error} />}
+            <button
+              type="button"
+              onClick={() => setShowPasswordFallback(true)}
+              className="w-full text-center text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+            >
+              {l.usePasswordText}
+            </button>
+          </div>
+        )}
       </div>
 
-      {registerUrl && (
+      {registerUrl && !ssoEnforced && (
         <p className="px-8 text-center text-sm text-muted-foreground">
           {l.noAccountText}{' '}
           <LinkComp href={registerUrl} className={AUTH_LINK_CLASS}>

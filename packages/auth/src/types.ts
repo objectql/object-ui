@@ -127,6 +127,17 @@ export interface AuthPublicConfig {
      */
     sso?: boolean;
     /**
+     * SSO-only ("enforced") login. When `true`, the team/console login is
+     * locked to the configured IdP (cloud-as-IdP or an external OIDC/SAML
+     * provider): the login UI hides the local email/password form and the
+     * sign-up link, showing the federated button only — plus an understated
+     * break-glass "use a password instead" link so the env owner / local admin
+     * can still reach the password form during an IdP outage. The server keeps
+     * `emailPassword.enabled` true (managed users simply hold no credential),
+     * so this is purely a UI affordance over the same endpoints.
+     */
+    ssoEnforced?: boolean;
+    /**
      * When `false`, the server's `beforeCreateOrganization` hook blocks
      * creation of new organizations. The org plugin endpoints (list, update,
      * invite-accept) still work — only fresh creation is forbidden.

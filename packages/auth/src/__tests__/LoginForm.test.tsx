@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { AuthProvider } from '../AuthProvider';
 import { LoginForm } from '../LoginForm';
 import type { AuthClient, AuthPublicConfig } from '../types';
@@ -76,5 +76,46 @@ describe('LoginForm — server-gated SSO button', () => {
 
     await screen.findByLabelText('Email');
     expect(screen.queryByRole('button', SSO_BUTTON)).toBeNull();
+  });
+});
+
+describe('LoginForm — SSO-only (enforced) mode', () => {
+  const BREAK_GLASS = { name: 'Use a password instead' } as const;
+
+  it('hides the password form + sign-up and shows a break-glass link when features.ssoEnforced', async () => {
+    renderLogin(createMockClient({ features: { sso: true, ssoEnforced: true } }));
+
+    // The break-glass link appears (federated buttons are the path)…
+    await screen.findByRole('button', BREAK_GLASS);
+    // …the local password form is hidden…
+    expect(screen.queryByLabelText('Email')).toBeNull();
+    expect(screen.queryByLabelText('Password')).toBeNull();
+    // …and the sign-up link is hidden (no self-registration under enforced).
+    expect(screen.queryByText('Sign up')).toBeNull();
+  });
+
+  it('treats emailPassword.enabled === false as enforced (belt-and-suspenders)', async () => {
+    renderLogin(createMockClient({ emailPassword: { enabled: false } }));
+
+    await screen.findByRole('button', BREAK_GLASS);
+    expect(screen.queryByLabelText('Email')).toBeNull();
+  });
+
+  it('reveals the password form when the break-glass link is clicked', async () => {
+    renderLogin(createMockClient({ features: { ssoEnforced: true } }));
+
+    fireEvent.click(await screen.findByRole('button', BREAK_GLASS));
+
+    // Password form now visible, plus a way back to SSO-only.
+    await screen.findByLabelText('Email');
+    expect(screen.getByLabelText('Password')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Back to single sign-on' })).toBeTruthy();
+  });
+
+  it('shows the password form normally when not enforced', async () => {
+    renderLogin(createMockClient({ features: { ssoEnforced: false } }));
+
+    await screen.findByLabelText('Email');
+    expect(screen.queryByRole('button', BREAK_GLASS)).toBeNull();
   });
 });
