@@ -1,5 +1,17 @@
 # @object-ui/runner
 
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [d23db5c]
+  - @object-ui/types@7.2.0
+  - @object-ui/components@7.2.0
+  - @object-ui/plugin-charts@7.2.0
+  - @object-ui/plugin-kanban@7.2.0
+  - @object-ui/react@7.2.0
+  - @object-ui/core@7.2.0
+
 ## 7.1.0
 
 ### Patch Changes

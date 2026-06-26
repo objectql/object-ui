@@ -1,5 +1,19 @@
 # @object-ui/plugin-view
 
+## 7.2.0
+
+### Patch Changes
+
+- Updated dependencies [0caea33]
+- Updated dependencies [4aa8b84]
+- Updated dependencies [d23db5c]
+  - @object-ui/plugin-grid@7.2.0
+  - @object-ui/plugin-form@7.2.0
+  - @object-ui/types@7.2.0
+  - @object-ui/components@7.2.0
+  - @object-ui/react@7.2.0
+  - @object-ui/core@7.2.0
+
 ## 7.1.0
 
 ### Patch Changes

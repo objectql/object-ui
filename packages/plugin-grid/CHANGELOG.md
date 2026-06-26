@@ -1,5 +1,28 @@
 # @object-ui/plugin-grid
 
+## 7.2.0
+
+### Patch Changes
+
+- 0caea33: fix(grid): list column headers fall back to the field's label, not the prettified machine name
+
+  A view column declared as a bare `{ field: 'request_title' }` (no explicit `label`) rendered
+  its header from the prettified machine name ("Request title") even when the field had a
+  localized label ("申请标题"). On a non-English app that surfaced English column headers despite
+  fully-localized field labels. ObjectGrid now resolves the header as
+  `column.label → schema field label → prettified name`, matching the other header-resolution
+  sites in the same file. Found dogfooding AI-built Chinese apps.
+
+- Updated dependencies [8e7c1da]
+- Updated dependencies [d23db5c]
+  - @object-ui/i18n@7.2.0
+  - @object-ui/types@7.2.0
+  - @object-ui/components@7.2.0
+  - @object-ui/fields@7.2.0
+  - @object-ui/react@7.2.0
+  - @object-ui/core@7.2.0
+  - @object-ui/mobile@7.2.0
+
 ## 7.1.0
 
 ### Patch Changes
