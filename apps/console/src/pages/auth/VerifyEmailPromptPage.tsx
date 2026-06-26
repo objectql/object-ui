@@ -32,6 +32,11 @@ export function VerifyEmailPromptPage() {
 
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
+  // Persistent error state: the server now reports a real failure when the
+  // verification email can't be sent (e.g. no transport configured) instead
+  // of silently succeeding, so surface it on the screen — not just a toast —
+  // so the user understands why no email arrives and isn't left stuck.
+  const [resendError, setResendError] = useState<string | null>(null);
 
   const handleResend = async () => {
     if (!email) {
@@ -49,6 +54,7 @@ export function VerifyEmailPromptPage() {
     }
 
     setResending(true);
+    setResendError(null);
     try {
       await sendVerificationEmail(email, redirect || '/');
       setResent(true);
@@ -63,11 +69,19 @@ export function VerifyEmailPromptPage() {
         },
       );
     } catch (err) {
+      const description =
+        (err as Error)?.message?.trim() ||
+        t('auth.verifyEmail.resendUnavailable', {
+          defaultValue:
+            'Email delivery may not be configured for this environment. Contact support if this persists.',
+        });
+      setResent(false);
+      setResendError(description);
       toast.error(
         t('auth.verifyEmail.resendFailed', {
           defaultValue: 'Failed to resend verification email',
         }),
-        { description: (err as Error).message },
+        { description },
       );
     } finally {
       setResending(false);
@@ -103,6 +117,20 @@ export function VerifyEmailPromptPage() {
                 {t('auth.verifyEmail.sentTo', { defaultValue: 'Sent to:' })}{' '}
                 <span className="font-medium text-foreground">{email}</span>
               </p>
+            ) : null}
+
+            {resendError ? (
+              <div
+                role="alert"
+                className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                <p className="font-medium">
+                  {t('auth.verifyEmail.resendFailed', {
+                    defaultValue: 'Failed to resend verification email',
+                  })}
+                </p>
+                <p className="mt-1 text-destructive/90">{resendError}</p>
+              </div>
             ) : null}
 
             <Button
