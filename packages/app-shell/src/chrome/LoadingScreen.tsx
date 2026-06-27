@@ -132,6 +132,8 @@ export function LoadingScreen({ message, error, onRetry, retrying }: LoadingScre
                 </span>
               </div>
             ))}
+            {/* Reassure first-time users that a fresh environment can take a beat. */}
+            <p className="mt-1 text-xs text-muted-foreground">{strings.loadingHint}</p>
           </div>
         )}
       </div>
