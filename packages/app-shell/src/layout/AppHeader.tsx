@@ -40,7 +40,6 @@ import {
   Check,
   Lock,
   LogOut,
-  Boxes,
   Plus,
   Layers,
   Bot,
@@ -54,6 +53,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useOffline } from '@object-ui/react';
 import { PresenceAvatars, useTenantPresence, type PresenceUser } from '@object-ui/collaboration';
 import { ModeToggle } from './ModeToggle';
+import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { LocaleSwitcher } from './LocaleSwitcher';
 import { ConnectionStatus } from './ConnectionStatus';
 import type { ActivityItem } from './ActivityFeed';
@@ -644,6 +644,12 @@ export function AppHeader({
           </span>
         )}
 
+        {/* Workspace (organization) switcher — the global "which org am I in /
+            switch org" affordance. Renders just the org name for single-org
+            users, a switch dropdown for multi-org. Sits right after the brand,
+            before the app/section breadcrumb. */}
+        <WorkspaceSwitcher />
+
         {resolvedVariant === 'orgs' && (
           <>
             <PathSep />
@@ -964,12 +970,10 @@ export function AppHeader({
                 <User className="mr-2 h-4 w-4" />
                 {t('user.profile', { defaultValue: 'Profile' })}
               </DropdownMenuItem>
-              {hasOrgSection && (
-                <DropdownMenuItem onClick={() => navigate('/organizations?manage=1')} className="cursor-pointer">
-                  <Boxes className="mr-2 h-4 w-4" />
-                  {t('organizations.mine', { defaultValue: 'My Organizations' })}
-                </DropdownMenuItem>
-              )}
+              {/* "My Organizations" moved to the global WorkspaceSwitcher in the
+                  header-left (switch + manage members live there now). Only the
+                  create-workspace shortcut stays here, so single-org users —
+                  whose switcher has no dropdown — can still create a second org. */}
               {hasOrgSection && !multiOrgDisabled && (
                 <DropdownMenuItem
                   onClick={() => navigate('/organizations?create=1')}

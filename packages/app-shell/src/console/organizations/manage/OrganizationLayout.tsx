@@ -85,13 +85,20 @@ export function OrganizationLayout() {
 
       <div className="border-b">
         <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 pt-6">
-          <button
-            onClick={() => navigate('/organizations')}
-            className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            {t('organization.backToList', { defaultValue: 'Back to organizations' })}
-          </button>
+          {/* "Back to organizations" only makes sense when there IS a list to
+              return to. Single-org users (the vast majority) have no picker —
+              `/organizations` auto-skips them straight to home — so the button
+              would just dump them on home. Hide it for them; they leave via the
+              global header (logo / app switcher). */}
+          {(organizations ?? []).length > 1 && (
+            <button
+              onClick={() => navigate('/organizations')}
+              className="mb-3 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              {t('organization.backToList', { defaultValue: 'Back to organizations' })}
+            </button>
+          )}
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <h1 className="truncate text-2xl font-bold tracking-tight">{org.name}</h1>
