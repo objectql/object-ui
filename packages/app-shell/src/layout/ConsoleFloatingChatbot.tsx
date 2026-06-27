@@ -141,8 +141,12 @@ function buildChatLocale(
       planApprove: '开始搭建',
       planAdjust: '调整方案',
       planBuilt: '已搭建',
-      planApproveMessage: '就按这个方案搭建吧。',
-      planApproveDefaultsMessage: '就按你的合理假设直接搭建，未决问题用默认即可。',
+      // These messages the button SENDS must match the cloud confirm gate's
+      // APPROVAL_RE (service-ai-studio confirm-gate.ts) or the agent re-proposes
+      // and "开始搭建" looks inert — the gate anchors Chinese approval on 确认 /
+      // 直接搭建, so a bare "…搭建吧" does NOT match. Keep these 确认-anchored.
+      planApproveMessage: '确认，开始搭建。',
+      planApproveDefaultsMessage: '确认搭建，未决问题按你的合理假设和默认处理。',
       planAnswer: (question: string, option: string) => `关于「${question}」，我选择「${option}」。`,
       publishOk: '已发布，对象已生效。',
       publishFailed: '发布失败',

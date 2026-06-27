@@ -93,9 +93,24 @@ describe('@object-ui/i18n', () => {
       expect(i18n.t('console.ai.planApproveHint')).toBe('回复以确认或调整该方案。');
       expect(i18n.t('console.ai.planApprove')).toBe('开始搭建');
       expect(i18n.t('console.ai.planAdjust')).toBe('调整方案');
-      expect(i18n.t('console.ai.planApproveMessage')).toBe('就按这个方案搭建吧。');
-      expect(i18n.t('console.ai.planApproveDefaultsMessage')).toBe('就按你的合理假设直接搭建，未决问题用默认即可。');
+      expect(i18n.t('console.ai.planApproveMessage')).toBe('确认，开始搭建。');
+      expect(i18n.t('console.ai.planApproveDefaultsMessage')).toBe('确认搭建，未决问题按你的合理假设和默认处理。');
       expect(i18n.t('console.ai.nextSteps')).toBe('下一步');
+    });
+
+    // Regression guard: the "开始搭建" button SENDS these two messages, and the
+    // cloud confirm gate (service-ai-studio confirm-gate.ts APPROVAL_RE) only
+    // treats Chinese text as approval when it is 确认-anchored (e.g. "确认搭建").
+    // A bare "…搭建吧" silently fails the gate → the agent re-proposes and the
+    // button looks inert. Keep both messages matching the gate's 确认 anchor.
+    it('AI plan-approve messages stay anchored on the confirm gate keyword (确认)', () => {
+      const i18n = createI18n({ defaultLanguage: 'zh', detectBrowserLanguage: false });
+      // Mirror of the cloud APPROVAL_RE Chinese clause (confirm-gate.ts). Kept
+      // narrow on purpose: a plain build REQUEST ("帮我搭建一个 CRM") must NOT match.
+      const gate = /确认[，,、]?\s*(开始|可以|并|要)?\s*(搭建|创建|生成|构建|修改|应用)|直接搭建/;
+      expect(i18n.t('console.ai.planApproveMessage')).toMatch(gate);
+      expect(i18n.t('console.ai.planApproveDefaultsMessage')).toMatch(gate);
+      expect('帮我搭建一个 CRM').not.toMatch(gate);
     });
 
     it('translates common keys in Japanese', () => {

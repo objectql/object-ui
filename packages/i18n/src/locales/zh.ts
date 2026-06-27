@@ -1172,8 +1172,13 @@ const zh = {
       planApproveHint: '回复以确认或调整该方案。',
       planApprove: '开始搭建',
       planAdjust: '调整方案',
-      planApproveMessage: '就按这个方案搭建吧。',
-      planApproveDefaultsMessage: '就按你的合理假设直接搭建，未决问题用默认即可。',
+      // The two messages the "开始搭建" button SENDS (not the label above) must
+      // match the cloud confirm gate's APPROVAL_RE (service-ai-studio
+      // confirm-gate.ts), or the agent re-proposes instead of building and the
+      // button looks inert. The gate anchors Chinese approval on 确认 (or
+      // 直接搭建) — a bare "…搭建吧" does NOT match. Keep these 确认-anchored.
+      planApproveMessage: '确认，开始搭建。',
+      planApproveDefaultsMessage: '确认搭建，未决问题按你的合理假设和默认处理。',
       planAnswerMessage: '关于「{{question}}」，我选择「{{option}}」。',
       justNow: '刚刚',
       minutesAgo: '{{count}} 分钟前',
