@@ -20,7 +20,7 @@
 import * as React from 'react';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
-import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert, ClipboardList, HelpCircle, Table2, WifiOff, Sparkles } from 'lucide-react';
+import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert, ClipboardList, HelpCircle, Table2, WifiOff, Sparkles, Hourglass } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -543,6 +543,14 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   planQuestionsLabel?: string;
   /** Heading above the agent's assumptions in the plan card (default "Assumptions"). */
   planAssumptionsLabel?: string;
+  /**
+   * Heading for the distinct "not yet built" section of the plan card — the
+   * assumptions that name a business rule the build is explicitly DEFERRING to a
+   * later flow/permission/approval pass (default "Not yet built"). Surfaced apart
+   * from ordinary assumptions so the user does not mistake a deferred rule for
+   * delivered behaviour (improvement 2). Split heuristically by
+   * `classifyAssumptions`; the section only appears when something is deferred. */
+  planDeferredLabel?: string;
   /** Footer hint inviting the user to approve or adjust the plan (default "Reply to approve or adjust this plan."). Shown only when `onSendMessage` is absent (no one-click gate). */
   planApproveHintLabel?: string;
   /** Label for the plan card's primary one-click "build it" button (default "Build it"). */
@@ -803,6 +811,75 @@ function isUnstructuredBuildProposal(tool: ChatToolInvocation): boolean {
   );
 }
 
+/**
+ * Phrases (Chinese + English, case-insensitive) that mark a plan `assumption` as
+ * a business rule the build will NOT implement THIS turn — it is explicitly left
+ * for a later flow/permission/approval pass. These read as "…will be added
+ * later" / "…需要后续单独补权限" rather than a design note about what the build
+ * already does, and the user must not mistake them for delivered behaviour.
+ *
+ * Kept deliberately conservative: only an explicit deferral marker matches. A
+ * neutral design note (e.g. "设备通过所属客户建立归属关系") has none of these and
+ * stays a normal assumption. Anchored on forward-looking / "not yet" cues, not on
+ * the mere mention of "flow" or "permission" (a built rule can mention those too).
+ */
+const DEFERRED_ASSUMPTION_MARKERS: readonly string[] = [
+  // Chinese deferral cues.
+  '待补',
+  '后续', // covers 后续 / 需要后续 / 后续单独 / 后续配置
+  '将在',
+  '稍后',
+  '暂不',
+  '暂未',
+  '尚未',
+  '确认后一起补',
+  '一起补',
+  '另行', // 另行配置 / 另行补充
+  '日后',
+  // English deferral cues (matched lowercase).
+  'not yet',
+  'will be implemented',
+  'will be added',
+  'to be added',
+  'to be implemented',
+  'later',
+  'deferred',
+  'follow-up',
+  'follow up',
+  'future',
+  'subsequent',
+  'coming soon',
+  'tbd',
+];
+
+/**
+ * Splits a plan's `assumptions` into ordinary design notes vs. business rules the
+ * build is explicitly deferring ("待补 / Not yet built"). Pure + side-effect-free
+ * so it is unit-tested directly; the card renders the two groups distinctly so a
+ * user can tell "already built" from "still to come" at a glance (improvement 2).
+ *
+ * Order within each group is preserved. A blank/whitespace assumption is dropped.
+ */
+export function classifyAssumptions(assumptions: readonly string[]): {
+  designNotes: string[];
+  deferred: string[];
+} {
+  const designNotes: string[] = [];
+  const deferred: string[] = [];
+  for (const raw of assumptions) {
+    if (typeof raw !== 'string') continue;
+    const text = raw.trim();
+    if (!text) continue;
+    const haystack = text.toLowerCase();
+    if (DEFERRED_ASSUMPTION_MARKERS.some((m) => haystack.includes(m))) {
+      deferred.push(text);
+    } else {
+      designNotes.push(text);
+    }
+  }
+  return { designNotes, deferred };
+}
+
 function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
   const state = getToolState(tool);
   return (
@@ -975,6 +1052,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planExtendLabel = 'Adding to existing app',
       planQuestionsLabel = 'Confirm before building',
       planAssumptionsLabel = 'Assumptions',
+      planDeferredLabel = 'Not yet built',
       planApproveHintLabel = 'Reply to approve or adjust this plan.',
       planApproveLabel = 'Build it',
       planAdjustLabel = 'Adjust',
@@ -1701,22 +1779,56 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     <span className="text-[11px] text-muted-foreground">{bits.join(' · ')}</span>
                   ) : null;
                 })()}
-                {tool.proposedPlan.assumptions.length > 0 ? (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] font-medium text-foreground/70">
-                      {planAssumptionsLabel}
-                    </span>
-                    {tool.proposedPlan.assumptions.map((a, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-start gap-1.5 text-[11px] text-muted-foreground"
-                      >
-                        <span className="mt-px shrink-0 text-foreground/40">·</span>
-                        <span>{a}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+                {/* Assumptions split into ordinary design notes vs. business
+                    rules the build is explicitly DEFERRING ("待补 / Not yet
+                    built"). The deferred set gets its own labelled, tinted
+                    section with an hourglass so a user can't mistake a
+                    still-to-come rule for delivered behaviour (improvement 2). */}
+                {(() => {
+                  const { designNotes, deferred } = classifyAssumptions(
+                    tool.proposedPlan!.assumptions,
+                  );
+                  return (
+                    <>
+                      {designNotes.length > 0 ? (
+                        <div className="flex flex-col gap-0.5" data-testid="proposed-plan-assumptions">
+                          <span className="text-[11px] font-medium text-foreground/70">
+                            {planAssumptionsLabel}
+                          </span>
+                          {designNotes.map((a, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-start gap-1.5 text-[11px] text-muted-foreground"
+                            >
+                              <span className="mt-px shrink-0 text-foreground/40">·</span>
+                              <span>{a}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {deferred.length > 0 ? (
+                        <div
+                          className="flex flex-col gap-1 rounded-md border border-dashed border-amber-300 bg-amber-50/60 px-2 py-1.5 dark:border-amber-800/60 dark:bg-amber-950/20"
+                          data-testid="proposed-plan-deferred"
+                        >
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+                            <Hourglass className="size-3.5" />
+                            {planDeferredLabel}
+                          </span>
+                          {deferred.map((a, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-start gap-1.5 text-[11px] text-amber-900/90 dark:text-amber-200/90"
+                            >
+                              <span className="mt-px shrink-0 text-amber-500/80">·</span>
+                              <span>{a}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  );
+                })()}
                 {tool.proposedPlan.questions.length > 0 ? (
                   <div
                     className="flex flex-col gap-1 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 dark:border-amber-900/50 dark:bg-amber-950/30"
@@ -2612,29 +2724,62 @@ function LivenessIndicator({
  * reassurance — the call is one atomic LLM request with no partial stream, so
  * these don't reflect real sub-steps; they just let the (tens-of-seconds) wait
  * read as deliberate design work instead of a hang. Order roughly follows how a
- * human would think a schema through. Overridable/localizable via the
- * `designingPlanHints` label.
+ * human would think a schema through, with a few extra later-stage lines so a
+ * multi-minute wait keeps showing fresh copy instead of an obvious 5-item loop
+ * (improvement 4). Overridable/localizable via the `designingPlanHints` label.
  */
 const DEFAULT_DESIGNING_PLAN_HINTS = [
   'Mapping out the data you’ll track…',
   'Shaping objects and their fields…',
   'Connecting related records…',
+  'Setting up relationships and lookups…',
   'Planning the screens and views…',
+  'Laying out forms and lists…',
+  'Adding sensible defaults and validations…',
+  'Sketching a dashboard to track it…',
+  'Double-checking the structure hangs together…',
   'Pulling the plan together…',
 ];
 
-/** How long each rotating design hint stays up (ms) before the next one. */
+/** How long each design-stage hint stays up (ms) before advancing to the next. */
 const DESIGNING_HINT_ROTATE_MS = 3500;
+
+/**
+ * Which design hint to show after `elapsedMs` of waiting. Pure + deterministic
+ * so it can be unit-tested and so the visible stage is a function of the live
+ * elapsed clock (improvement 4) rather than a free-running interval.
+ *
+ * It advances ONE stage every `stepMs`, then CLAMPS on the final hint instead of
+ * wrapping back to the start — so a long wait reads as steady forward progress
+ * ("…pulling it together" stays up at the end) and never loops back to "mapping
+ * data", which would look like it restarted. Returns the 0-based stage index;
+ * `-1` when there is nothing to show (empty list). This is presentational
+ * staging, NOT a claim of real sub-step progress or a fake percentage.
+ */
+export function selectDesignHintIndex(
+  elapsedMs: number,
+  hintCount: number,
+  stepMs: number = DESIGNING_HINT_ROTATE_MS,
+): number {
+  if (hintCount <= 0) return -1;
+  if (hintCount === 1) return 0;
+  const safeElapsed = Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : 0;
+  const step = stepMs > 0 ? stepMs : DESIGNING_HINT_ROTATE_MS;
+  const stage = Math.floor(safeElapsed / step);
+  return Math.min(stage, hintCount - 1);
+}
 
 /**
  * Friendly in-progress indicator for the build agent's `propose_blueprint`
  * step. Because that call is a SINGLE long, atomic LLM request (no token
  * stream, no partial results), a bare elapsed timer made it look like the UI
  * might be stuck. This pairs the live `ToolRunningTimer` with a short lead-in
- * ("Designing your app…") and a hint that ROTATES every few seconds, so the
- * wait visibly "moves" and reads as deliberate work. The rotation is purely
- * presentational — it is NOT claiming real sub-step progress. An empty `hints`
- * array (or a single entry) just pins the lead-in + timer with no rotation.
+ * ("Designing your app…"), a hint that ADVANCES through the design stages as the
+ * wait grows, and a row of step dots filled up to the current stage so the wait
+ * visibly "moves forward". The staging is purely presentational — it is NOT
+ * claiming real sub-step progress or a percentage; it just clamps on the final
+ * stage rather than looping. An empty `hints` array (or a single entry) just
+ * pins the lead-in + timer with no rotation or dots.
  */
 function BuildProposalProgressHint({
   label,
@@ -2645,17 +2790,22 @@ function BuildProposalProgressHint({
   hints: string[];
   offlineLabel: string;
 }) {
-  const [index, setIndex] = React.useState(0);
+  // Re-read the real elapsed clock once per stage interval; the visible stage is
+  // DERIVED from it (via the pure selector) so the hint and the step dots advance
+  // off one source of truth. The live seconds timer beside this ticks every 1s on
+  // its own, so the strip keeps "moving" between stage changes.
+  const [elapsedMs, setElapsedMs] = React.useState(0);
   React.useEffect(() => {
-    if (hints.length <= 1) return; // nothing to rotate through
-    const id = setInterval(
-      () => setIndex((i) => (i + 1) % hints.length),
-      DESIGNING_HINT_ROTATE_MS,
-    );
+    if (hints.length <= 1) return; // nothing to advance through
+    const start = Date.now();
+    const id = setInterval(() => setElapsedMs(Date.now() - start), DESIGNING_HINT_ROTATE_MS);
     return () => clearInterval(id);
   }, [hints.length]);
-  // Guard the index against a shrinking `hints` list (label change mid-rotation).
-  const hint = hints.length > 0 ? hints[index % hints.length] : undefined;
+  const index = selectDesignHintIndex(elapsedMs, hints.length);
+  const hint = index >= 0 ? hints[index] : undefined;
+  // Show the lightweight step dots only once there are real stages to track and
+  // we won't crowd the strip (cap the dot count so a long custom list stays sane).
+  const showDots = hints.length > 1 && hints.length <= 12;
   return (
     <span
       className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
@@ -2666,9 +2816,26 @@ function BuildProposalProgressHint({
       <span className="font-medium text-foreground/80">{label}</span>
       {hint ? (
         // `key` on the hint text restarts the fade each time it swaps, so the
-        // rotation reads as a gentle change rather than an instant flicker.
+        // stage change reads as a gentle transition rather than an instant flicker.
         <span key={hint} className="truncate animate-in fade-in duration-500">
           {hint}
+        </span>
+      ) : null}
+      {showDots ? (
+        <span
+          className="hidden shrink-0 items-center gap-0.5 sm:inline-flex"
+          data-testid="build-proposal-progress-dots"
+          aria-hidden
+        >
+          {hints.map((_, i) => (
+            <span
+              key={i}
+              className={cn(
+                'size-1 rounded-full transition-colors',
+                i <= index ? 'bg-primary/70' : 'bg-muted-foreground/25',
+              )}
+            />
+          ))}
         </span>
       ) : null}
       <ToolRunningTimer offlineLabel={offlineLabel} />

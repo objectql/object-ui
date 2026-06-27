@@ -119,7 +119,12 @@ function buildChatLocale(
           '梳理需要记录的数据…',
           '设计对象与字段…',
           '关联相关记录…',
+          '配置关系与查找字段…',
           '规划页面与视图…',
+          '布置表单与列表…',
+          '补充默认值与校验…',
+          '规划一个看板来跟踪…',
+          '复核整体结构是否自洽…',
           '汇总成完整方案…',
         ],
         toolDetailsHidden: '已隐藏工具参数和原始结果，仅保留过程摘要。',
@@ -145,6 +150,7 @@ function buildChatLocale(
       planTitle: '方案预览',
       planQuestions: '搭建前请确认',
       planAssumptions: '假设',
+      planDeferred: '待补 / 暂未搭建',
       planApproveHint: '回复以确认或调整该方案。',
       planApprove: '开始搭建',
       planAdjust: '调整方案',
@@ -192,7 +198,12 @@ function buildChatLocale(
         'Mapping out the data you’ll track…',
         'Shaping objects and their fields…',
         'Connecting related records…',
+        'Setting up relationships and lookups…',
         'Planning the screens and views…',
+        'Laying out forms and lists…',
+        'Adding sensible defaults and validations…',
+        'Sketching a dashboard to track it…',
+        'Double-checking the structure hangs together…',
         'Pulling the plan together…',
       ],
       toolDetailsHidden: 'Tool inputs and raw results are hidden in this view.',
@@ -218,6 +229,7 @@ function buildChatLocale(
     planTitle: 'Proposed plan',
     planQuestions: 'Confirm before building',
     planAssumptions: 'Assumptions',
+    planDeferred: 'Not yet built',
     planApproveHint: 'Reply to approve or adjust this plan.',
     planApprove: 'Build it',
     planAdjust: 'Adjust',
@@ -740,6 +752,7 @@ function ChatbotInner({
         planTitleLabel={locale.planTitle}
         planQuestionsLabel={locale.planQuestions}
         planAssumptionsLabel={locale.planAssumptions}
+        planDeferredLabel={locale.planDeferred}
         planApproveHintLabel={locale.planApproveHint}
         planApproveLabel={locale.planApprove}
         planAdjustLabel={locale.planAdjust}

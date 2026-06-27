@@ -1248,7 +1248,12 @@ function ChatPane({
             t('console.ai.designingPlanHint.data', { defaultValue: 'Mapping out the data you’ll track…' }),
             t('console.ai.designingPlanHint.objects', { defaultValue: 'Shaping objects and their fields…' }),
             t('console.ai.designingPlanHint.relations', { defaultValue: 'Connecting related records…' }),
+            t('console.ai.designingPlanHint.lookups', { defaultValue: 'Setting up relationships and lookups…' }),
             t('console.ai.designingPlanHint.views', { defaultValue: 'Planning the screens and views…' }),
+            t('console.ai.designingPlanHint.forms', { defaultValue: 'Laying out forms and lists…' }),
+            t('console.ai.designingPlanHint.defaults', { defaultValue: 'Adding sensible defaults and validations…' }),
+            t('console.ai.designingPlanHint.dashboard', { defaultValue: 'Sketching a dashboard to track it…' }),
+            t('console.ai.designingPlanHint.review', { defaultValue: 'Double-checking the structure hangs together…' }),
             t('console.ai.designingPlanHint.finalize', { defaultValue: 'Pulling the plan together…' }),
           ],
           toolDetailsHidden: t('console.ai.toolDetailsHidden'),
@@ -1348,6 +1353,7 @@ function ChatPane({
         planTitleLabel={t('console.ai.planTitle', { defaultValue: 'Proposed plan' })}
         planQuestionsLabel={t('console.ai.planQuestions', { defaultValue: 'Confirm before building' })}
         planAssumptionsLabel={t('console.ai.planAssumptions', { defaultValue: 'Assumptions' })}
+        planDeferredLabel={t('console.ai.planDeferred', { defaultValue: 'Not yet built' })}
         planApproveHintLabel={t('console.ai.planApproveHint', {
           defaultValue: 'Reply to approve or adjust this plan.',
         })}

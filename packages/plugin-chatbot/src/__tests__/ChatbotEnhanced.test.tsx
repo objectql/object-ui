@@ -9,7 +9,12 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { ChatbotEnhanced, type ChatMessage } from '../ChatbotEnhanced';
+import {
+  ChatbotEnhanced,
+  classifyAssumptions,
+  selectDesignHintIndex,
+  type ChatMessage,
+} from '../ChatbotEnhanced';
 
 describe('ChatbotEnhanced (AI Elements composition)', () => {
   beforeEach(() => {
@@ -1228,5 +1233,262 @@ describe('ChatbotEnhanced — propose_blueprint in-progress design hints', () =>
     );
     expect(container.querySelector('[data-testid="build-proposal-progress"]')).toBeNull();
     expect(container.querySelector('[data-tool-running-timer]')).not.toBeNull();
+  });
+});
+
+// Improvement 2: a plan's `assumptions` mix neutral design notes with business
+// rules the build is explicitly DEFERRING ("…will be added later / 需要后续单独补").
+// `classifyAssumptions` splits them so the card can surface the deferred set
+// apart, and the user can't mistake a still-to-come rule for delivered behaviour.
+describe('classifyAssumptions (deferred vs. design-note split)', () => {
+  it('routes explicit "deferred" markers (zh + en) to `deferred`, keeps the rest as design notes', () => {
+    const { designNotes, deferred } = classifyAssumptions([
+      '设备通过所属客户建立归属关系', // neutral design note
+      '技师只能看到分配给自己的工单，将在后续 Flow / 权限配置中实现', // deferred (将在 / 后续)
+      'Each device belongs to one customer', // neutral design note
+      'Role-based access for technicians will be added later', // deferred (will be added / later)
+      '审批流确认后一起补', // deferred (一起补)
+      '需要后续单独补权限/流程配置', // deferred (需要后续)
+    ]);
+    expect(designNotes).toEqual([
+      '设备通过所属客户建立归属关系',
+      'Each device belongs to one customer',
+    ]);
+    expect(deferred).toEqual([
+      '技师只能看到分配给自己的工单，将在后续 Flow / 权限配置中实现',
+      'Role-based access for technicians will be added later',
+      '审批流确认后一起补',
+      '需要后续单独补权限/流程配置',
+    ]);
+  });
+
+  it('matches deferral markers case-insensitively and is not fooled by a bare "flow"/"permission" mention', () => {
+    const { designNotes, deferred } = classifyAssumptions([
+      'Approvals are NOT YET wired up', // deferred — uppercase marker
+      'A flow runs on every new work order', // built rule that merely mentions "flow" → design note
+      'Permissions follow the org role', // built rule that mentions permission → design note
+    ]);
+    expect(deferred).toEqual(['Approvals are NOT YET wired up']);
+    expect(designNotes).toEqual([
+      'A flow runs on every new work order',
+      'Permissions follow the org role',
+    ]);
+  });
+
+  it('trims and drops blank/whitespace assumptions and tolerates non-strings', () => {
+    const { designNotes, deferred } = classifyAssumptions([
+      '  One shelf for now  ',
+      '',
+      '   ',
+      // @ts-expect-error — guard against malformed backend data
+      null,
+      '暂不实现导出', // deferred (暂不)
+    ]);
+    expect(designNotes).toEqual(['One shelf for now']);
+    expect(deferred).toEqual(['暂不实现导出']);
+  });
+
+  it('handles the all-design-notes and all-deferred extremes', () => {
+    expect(classifyAssumptions(['plain a', 'plain b'])).toEqual({
+      designNotes: ['plain a', 'plain b'],
+      deferred: [],
+    });
+    expect(classifyAssumptions(['deferred later', '稍后补充'])).toEqual({
+      designNotes: [],
+      deferred: ['deferred later', '稍后补充'],
+    });
+  });
+});
+
+// Improvement 2 (render): the plan card surfaces the deferred assumptions in a
+// distinct "Not yet built" section, separate from the ordinary assumptions list.
+describe('ChatbotEnhanced — proposed plan deferred-assumptions section', () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+  });
+
+  const planWithAssumptions = (assumptions: string[]): ChatMessage[] => [
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      toolInvocations: [
+        {
+          toolCallId: 't1',
+          toolName: 'propose_blueprint',
+          state: 'output-available',
+          proposedPlan: {
+            summary: 'A field-service app',
+            objects: [{ name: 'work_order', label: 'Work Order', fieldCount: 4 }],
+            counts: { objects: 1, views: 0, dashboards: 0, seedData: 0 },
+            questions: [],
+            assumptions,
+          },
+        },
+      ],
+    },
+  ];
+
+  it('renders deferred assumptions in their own "Not yet built" section, design notes in the normal list', () => {
+    render(
+      <ChatbotEnhanced
+        messages={planWithAssumptions([
+          'Devices belong to a customer',
+          '技师只能看到自己的工单，将在后续权限配置中实现',
+        ])}
+        planAssumptionsLabel="ASSUMPTIONS"
+        planDeferredLabel="NOT_YET_BUILT"
+      />,
+    );
+    const deferred = screen.getByTestId('proposed-plan-deferred');
+    expect(deferred).toHaveTextContent('NOT_YET_BUILT');
+    expect(deferred).toHaveTextContent('将在后续权限配置中实现');
+    // The neutral note stays in the ordinary assumptions group, NOT the deferred box.
+    const notes = screen.getByTestId('proposed-plan-assumptions');
+    expect(notes).toHaveTextContent('Devices belong to a customer');
+    expect(notes).not.toHaveTextContent('将在后续权限配置中实现');
+  });
+
+  it('omits the deferred section entirely when no assumption is deferred', () => {
+    render(
+      <ChatbotEnhanced
+        messages={planWithAssumptions(['Devices belong to a customer'])}
+        planDeferredLabel="NOT_YET_BUILT"
+      />,
+    );
+    expect(screen.getByTestId('proposed-plan-assumptions')).toBeInTheDocument();
+    expect(screen.queryByTestId('proposed-plan-deferred')).not.toBeInTheDocument();
+  });
+
+  it('omits the ordinary assumptions section when every assumption is deferred', () => {
+    render(
+      <ChatbotEnhanced
+        messages={planWithAssumptions(['审批流确认后一起补', 'Exports to be added later'])}
+        planDeferredLabel="NOT_YET_BUILT"
+      />,
+    );
+    expect(screen.getByTestId('proposed-plan-deferred')).toBeInTheDocument();
+    expect(screen.queryByTestId('proposed-plan-assumptions')).not.toBeInTheDocument();
+  });
+});
+
+// Improvement 4: the design-wait hint should read as steady forward progress on a
+// long (multi-minute) propose_blueprint call. `selectDesignHintIndex` advances one
+// stage per interval, then CLAMPS on the last hint instead of wrapping — so it never
+// looks like it restarted, and there is no fake percentage.
+describe('selectDesignHintIndex (elapsed → design stage)', () => {
+  const step = 3500;
+  it('advances one stage per interval', () => {
+    expect(selectDesignHintIndex(0, 5, step)).toBe(0);
+    expect(selectDesignHintIndex(step - 1, 5, step)).toBe(0);
+    expect(selectDesignHintIndex(step, 5, step)).toBe(1);
+    expect(selectDesignHintIndex(step * 2, 5, step)).toBe(2);
+    expect(selectDesignHintIndex(step * 3, 5, step)).toBe(3);
+  });
+
+  it('clamps on the final stage rather than wrapping back to the start', () => {
+    // Way past the last stage (a multi-minute wait) — pins the last hint, never loops.
+    expect(selectDesignHintIndex(step * 4, 5, step)).toBe(4);
+    expect(selectDesignHintIndex(step * 50, 5, step)).toBe(4);
+    expect(selectDesignHintIndex(step * 999, 10, step)).toBe(9);
+  });
+
+  it('returns -1 for an empty list and pins index 0 for a single hint', () => {
+    expect(selectDesignHintIndex(0, 0, step)).toBe(-1);
+    expect(selectDesignHintIndex(step * 5, 0, step)).toBe(-1);
+    expect(selectDesignHintIndex(0, 1, step)).toBe(0);
+    expect(selectDesignHintIndex(step * 5, 1, step)).toBe(0);
+  });
+
+  it('treats negative / non-finite elapsed as stage 0 (no crash)', () => {
+    expect(selectDesignHintIndex(-100, 5, step)).toBe(0);
+    expect(selectDesignHintIndex(Number.NaN, 5, step)).toBe(0);
+    // Infinity is not finite → guarded to stage 0 rather than NaN/overflow.
+    expect(selectDesignHintIndex(Number.POSITIVE_INFINITY, 5, step)).toBe(0);
+  });
+});
+
+// Improvement 4 (render): the running-proposal indicator shows step dots that fill
+// up to the current stage and advances forward through a longer hint pool.
+describe('ChatbotEnhanced — design-wait staging (dots + forward progress)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  const runningProposal: ChatMessage[] = [
+    { id: 'u1', role: 'user', content: 'build me a CRM' },
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      toolInvocations: [
+        { toolCallId: 't1', toolName: 'propose_blueprint', state: 'input-available' },
+      ],
+    },
+  ];
+
+  it('renders one step dot per hint and advances the hint forward as the wait grows', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={runningProposal}
+        labels={{
+          designingPlanLabel: 'DESIGNING',
+          designingPlanHints: ['HINT_A', 'HINT_B', 'HINT_C'],
+        }}
+      />,
+    );
+    const dots = () => container.querySelector('[data-testid="build-proposal-progress-dots"]');
+    const hint = () => container.querySelector('[data-testid="build-proposal-progress"]');
+    expect(dots()?.children.length).toBe(3);
+    expect(hint()?.textContent).toContain('HINT_A');
+    act(() => {
+      vi.advanceTimersByTime(3500);
+    });
+    expect(hint()?.textContent).toContain('HINT_B');
+    act(() => {
+      vi.advanceTimersByTime(3500);
+    });
+    expect(hint()?.textContent).toContain('HINT_C');
+  });
+
+  it('clamps on the last hint on a long wait instead of looping back', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={runningProposal}
+        labels={{ designingPlanLabel: 'DESIGNING', designingPlanHints: ['HINT_A', 'HINT_B'] }}
+      />,
+    );
+    const hint = () => container.querySelector('[data-testid="build-proposal-progress"]');
+    act(() => {
+      vi.advanceTimersByTime(3500 * 8); // well past the last stage
+    });
+    expect(hint()?.textContent).toContain('HINT_B');
+    expect(hint()?.textContent).not.toContain('HINT_A');
+  });
+
+  it('shows no step dots when rotation is disabled (single hint)', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={runningProposal}
+        labels={{ designingPlanLabel: 'DESIGNING', designingPlanHints: ['ONLY'] }}
+      />,
+    );
+    expect(container.querySelector('[data-testid="build-proposal-progress"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="build-proposal-progress-dots"]')).toBeNull();
   });
 });
