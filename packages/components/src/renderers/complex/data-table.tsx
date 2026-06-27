@@ -61,6 +61,45 @@ import {
 
 type SortDirection = 'asc' | 'desc' | null;
 
+/**
+ * Inline-edit helpers: convert a stored cell value to the string a native
+ * `<input type="date">` / `<input type="datetime-local">` expects, and back.
+ *
+ * Native date inputs require `yyyy-MM-dd`; datetime-local requires
+ * `yyyy-MM-ddTHH:mm`. We pad to the LOCAL wall-clock so the picker shows the
+ * same day the user sees, then convert back on change. A `date` field stays a
+ * plain `yyyy-MM-dd` string; a `datetime` field round-trips through an ISO
+ * string (matching how display/format code already treats ISO datetimes).
+ */
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function toDateInputValue(value: unknown): string {
+  if (value == null || value === '') return '';
+  // A bare yyyy-MM-dd (or its leading slice of an ISO string) is already in the
+  // exact shape the native control wants. Pass it through verbatim — parsing it
+  // through `new Date()` would interpret it as UTC midnight and can shift the
+  // displayed day by one in negative-offset timezones.
+  if (typeof value === 'string') {
+    const m = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m) return m[1];
+  }
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function toDateTimeInputValue(value: unknown): string {
+  if (value == null || value === '') return '';
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+// Field types that should edit as a numeric `<Input type="number">`.
+const NUMERIC_EDIT_TYPES = new Set(['number', 'currency', 'percent', 'int', 'integer', 'float', 'double']);
+
 // Default English fallback translations for the data table
 const TABLE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'table.rowsPerPage': 'Rows per page',
@@ -1062,19 +1101,96 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                               maxWidth: columnWidth,
                               ...(isFrozen && { left: frozenOffset }),
                             }}
-                            onDoubleClick={() => isEditable && !singleClickEdit && startEdit(rowIndex, col.accessorKey)}
-                            onClick={() => isEditable && singleClickEdit && startEdit(rowIndex, col.accessorKey)}
+                            onDoubleClick={(e) => {
+                              // Entering edit mode must NOT also fire the row's
+                              // onRowClick (record-detail drawer). The row heuristic
+                              // can't see the editor yet (the <input> only renders
+                              // next frame), so stop propagation here explicitly.
+                              if (isEditable && !singleClickEdit) {
+                                e.stopPropagation();
+                                startEdit(rowIndex, col.accessorKey);
+                              }
+                            }}
+                            onClick={(e) => {
+                              if (isEditable && singleClickEdit) {
+                                e.stopPropagation();
+                                startEdit(rowIndex, col.accessorKey);
+                              }
+                            }}
                             onKeyDown={(e) => handleCellKeyDown(e, rowIndex, col.accessorKey)}
                             tabIndex={0}
                           >
                             {isEditing ? (
-                              <Input
-                                ref={editInputRef}
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onKeyDown={handleEditKeyDown}
-                                className="h-8 px-2 py-1"
-                              />
+                              (() => {
+                                // Type-aware inline editor. `col.type` is forwarded
+                                // from ObjectGrid's column inference. Keep this a small,
+                                // readable switch that's easy to extend.
+                                const editType = (col as any).type as string | undefined;
+
+                                if (editType === 'date') {
+                                  return (
+                                    <Input
+                                      ref={editInputRef}
+                                      type="date"
+                                      value={toDateInputValue(editValue)}
+                                      // Store a plain yyyy-MM-dd string — matches how
+                                      // date fields are displayed/persisted elsewhere.
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      onKeyDown={handleEditKeyDown}
+                                      className="h-8 px-2 py-1"
+                                    />
+                                  );
+                                }
+
+                                if (editType === 'datetime' || editType === 'datetime-local') {
+                                  return (
+                                    <Input
+                                      ref={editInputRef}
+                                      type="datetime-local"
+                                      value={toDateTimeInputValue(editValue)}
+                                      // The native control yields a local `yyyy-MM-ddTHH:mm`;
+                                      // store back as an ISO string so display/format code
+                                      // (formatCellValue) renders it consistently.
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        const d = v ? new Date(v) : null;
+                                        setEditValue(d && !Number.isNaN(d.getTime()) ? d.toISOString() : v);
+                                      }}
+                                      onKeyDown={handleEditKeyDown}
+                                      className="h-8 px-2 py-1"
+                                    />
+                                  );
+                                }
+
+                                if (editType && NUMERIC_EDIT_TYPES.has(editType)) {
+                                  return (
+                                    <Input
+                                      ref={editInputRef}
+                                      type="number"
+                                      value={editValue ?? ''}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      onKeyDown={handleEditKeyDown}
+                                      className="h-8 px-2 py-1"
+                                    />
+                                  );
+                                }
+
+                                // NOTE: `select`/`boolean` editors are intentionally not
+                                // wired here — the data-table column does not currently
+                                // carry option metadata. Extension point: when `col.options`
+                                // is forwarded from ObjectGrid, render a <Select>/checkbox.
+
+                                // Fallback: plain text input (original behavior).
+                                return (
+                                  <Input
+                                    ref={editInputRef}
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onKeyDown={handleEditKeyDown}
+                                    className="h-8 px-2 py-1"
+                                  />
+                                );
+                              })()
                             ) : (
                               <div className="truncate w-full" title={cellValue != null && typeof cellValue !== 'object' ? String(cellValue) : undefined}>
                                 {typeof col.cell === 'function'

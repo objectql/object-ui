@@ -849,6 +849,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
 
             return {
               ...col,
+              // Forward the resolved type so the inline editor (data-table) can
+              // pick a type-aware control (date picker, number, ...).
+              type: col.type ?? inferredType,
               ...(schema.showColumnTypeIcons && { headerIcon: getTypeIcon(inferredType) }),
               cell: (value: any) => <CellRenderer value={value} field={fieldMeta as any} />,
             };
@@ -1010,6 +1013,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               return {
                 header,
                 accessorKey: col.field,
+                // Forward the resolved (base) field type so the inline editor can
+                // pick a type-aware control. Use baseInferredType (date/number/...)
+                // rather than the renderer type so e.g. `date` stays `date`.
+                ...(baseInferredType && { type: baseInferredType }),
                 ...(schema.showColumnTypeIcons && { headerIcon: getTypeIcon(inferredType) }),
                 ...(!isEssential && { className: 'hidden sm:table-cell' }),
                 ...(col.width && { width: col.width }),
@@ -1090,6 +1097,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           return {
             header,
             accessorKey: fieldName,
+            // Forward the resolved field type for the type-aware inline editor.
+            ...(resolvedType && { type: resolvedType }),
             ...(schema.showColumnTypeIcons && resolvedType && { headerIcon: getTypeIcon(resolvedType) }),
             ...(inferredAlign && { align: inferredAlign }),
             ...(cellRenderer && { cell: cellRenderer }),
@@ -1133,6 +1142,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           return {
             header,
             accessorKey: fieldName,
+            // Forward the resolved field type for the type-aware inline editor.
+            ...(resolvedType && { type: resolvedType }),
             ...(schema.showColumnTypeIcons && resolvedType && { headerIcon: getTypeIcon(resolvedType) }),
             ...(inferredAlign && { align: inferredAlign }),
             ...(CellRenderer && { cell: (value: any) => <CellRenderer value={value} field={fieldMeta as any} /> }),
@@ -1197,6 +1208,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       generatedColumns.push({
         header: schema.objectName ? resolveFieldLabel(schema.objectName, fieldName, field.label || fieldName) : field.label || fieldName,
         accessorKey: fieldName,
+        // Forward the field type for the type-aware inline editor.
+        ...(field.type && { type: field.type }),
         ...(numericTypes.includes(field.type) && { align: 'right' }),
         cell: (value: any) => <CellRenderer value={value} field={fieldForCell} />,
         sortable: field.sortable !== false,
@@ -1544,6 +1557,56 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     }
   };
 
+  // Default inline-edit persistence.
+  //
+  // When a consumer wires `onRowSave`/`onBatchSave` (React host), we defer to it.
+  // But a declaratively-configured `editable: true` view has no host wiring — so
+  // "Save All" would otherwise just clear pending changes without writing to the
+  // backend. Supply a default that persists through the grid's `dataSource`, then
+  // refresh so the grid reflects persisted values. Throwing on failure is
+  // important: DataTable's saveRow/saveBatch keep pending changes when the save
+  // promise rejects, so a failed write doesn't silently lose the user's edits.
+  const resolveRecordId = (row: any): string | number | undefined =>
+    row?._id ?? row?.id;
+
+  const defaultRowSave = async (
+    _rowIndex: number,
+    changes: Record<string, any>,
+    row: any,
+  ): Promise<void> => {
+    if (!dataSource || !objectName) {
+      throw new Error('Cannot persist inline edit: no dataSource/objectName configured on the grid.');
+    }
+    const id = resolveRecordId(row);
+    if (id === undefined || id === null) {
+      throw new Error('Cannot persist inline edit: row has no id/_id.');
+    }
+    await dataSource.update(objectName, id, changes);
+    // Refresh so the grid shows the persisted values.
+    setRefreshKey(k => k + 1);
+  };
+
+  const defaultBatchSave = async (
+    changes: Array<{ rowIndex: number; changes: Record<string, any>; row: any }>,
+  ): Promise<void> => {
+    if (!dataSource || !objectName) {
+      throw new Error('Cannot persist inline edits: no dataSource/objectName configured on the grid.');
+    }
+    // Update each modified row. The DataSource `bulk`/`bulkUpdate` primitives
+    // apply a single uniform patch across many ids, which does NOT fit per-row
+    // edits (each row has its own field changes), so issue one update per row.
+    await Promise.all(
+      changes.map(({ changes: rowChanges, row }) => {
+        const id = resolveRecordId(row);
+        if (id === undefined || id === null) {
+          throw new Error('Cannot persist inline edit: row has no id/_id.');
+        }
+        return dataSource.update(objectName, id, rowChanges);
+      }),
+    );
+    setRefreshKey(k => k + 1);
+  };
+
   // Determine pagination settings (support both new and legacy formats)
   const paginationEnabled = schema.pagination !== undefined 
     ? true 
@@ -1639,8 +1702,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     },
     onRowClick: navigation.handleClick,
     onCellChange: onCellChange,
-    onRowSave: onRowSave,
-    onBatchSave: onBatchSave,
+    // Install a dataSource-backed default only when the consumer did NOT wire
+    // its own handler, so declarative `editable: true` views still persist.
+    onRowSave: onRowSave ?? defaultRowSave,
+    onBatchSave: onBatchSave ?? defaultBatchSave,
     onColumnResize: (columnKey: string, width: number) => {
       saveColumnState({
         ...columnState,
