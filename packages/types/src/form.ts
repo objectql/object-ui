@@ -966,6 +966,14 @@ export interface FormSchema extends BaseSchema {
    */
   onChange?: (data: Record<string, any>) => void;
   /**
+   * Dirty-state handler — fires whenever the form transitions between
+   * pristine and edited (react-hook-form's `formState.isDirty`). Overlay
+   * hosts (modal/drawer) use this to guard against accidentally discarding
+   * unsaved input when the user clicks the backdrop, presses Escape, or hits
+   * the close/cancel button.
+   */
+  onDirtyChange?: (isDirty: boolean) => void;
+  /**
    * Cancel handler
    */
   onCancel?: () => void;

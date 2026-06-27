@@ -13,7 +13,7 @@
  * Aligns with @objectstack/spec FormView type: 'drawer'
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef, useId } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import {
   Sheet,
@@ -21,10 +21,21 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
+  Button,
   cn,
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
 } from '@object-ui/components';
+import { Loader2 } from 'lucide-react';
 
 import { SchemaRenderer, useSafeFieldLabel, usePreviewMode } from '@object-ui/react';
+import { createSafeTranslation } from '@object-ui/i18n';
 import { MasterDetailForm } from './MasterDetailForm';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
@@ -42,6 +53,18 @@ const CONTAINER_GRID_COLS: Record<number, string | undefined> = {
   3: 'grid gap-4 grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3',
   4: 'grid gap-4 grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4',
 };
+
+// Localized strings for the unsaved-changes guard. Falls back to English when
+// no i18n provider is mounted (createSafeTranslation handles that).
+const useDiscardTranslation = createSafeTranslation(
+  {
+    'form.discardTitle': 'Discard changes?',
+    'form.discardMessage': 'You have unsaved changes. If you close this form now, your edits will be lost.',
+    'form.keepEditing': 'Keep editing',
+    'form.discard': 'Discard',
+  },
+  'form.discardTitle',
+);
 
 export interface DrawerFormSectionConfig {
   name?: string;
@@ -75,6 +98,16 @@ export interface DrawerFormSchema {
    * Callback when open state changes.
    */
   onOpenChange?: (open: boolean) => void;
+
+  /**
+   * Guard against *accidentally* discarding unsaved input. When the form has
+   * unsaved changes, an accidental close (backdrop click, Escape, or the X
+   * button) first asks the user to confirm. The explicit Cancel button is an
+   * intentional discard and always closes immediately. Set to `false` to drop
+   * the confirmation entirely.
+   * @default true
+   */
+  confirmOnDiscard?: boolean;
 
   /**
    * Drawer side.
@@ -130,15 +163,29 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   className,
 }) => {
   const { fieldLabel } = useSafeFieldLabel();
+  const { t } = useDiscardTranslation();
   const previewMode = usePreviewMode();
   const [objectSchema, setObjectSchema] = useState<any>(null);
   const [formFields, setFormFields] = useState<FormField[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // Unsaved-changes guard (mirrors ModalForm). `isDirty` is fed up from the
+  // inner form renderer via onDirtyChange; `discardOpen` controls the confirm
+  // dialog shown when the user tries to close a dirty form.
+  const [isDirty, setIsDirty] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const cancelIntentRef = useRef(false);
+  const confirmOnDiscard = schema.confirmOnDiscard !== false;
 
   const isOpen = schema.open !== false;
   const side = schema.drawerSide || 'right';
+
+  // Stable form id so the footer's external submit button can target the
+  // inner <form> via the `form` attribute (actions live in the footer, not
+  // inside the form renderer — see baseFormSchema.showActions below).
+  const formId = useId();
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
@@ -258,16 +305,17 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
 
   // Handle form submission
   const handleSubmit = useCallback(async (data: Record<string, any>) => {
-    if (!dataSource) {
-      if (schema.onSuccess) {
-        await schema.onSuccess(data);
-      }
-      // Close drawer on success
-      schema.onOpenChange?.(false);
-      return data;
-    }
-
+    setIsSubmitting(true);
     try {
+      if (!dataSource) {
+        if (schema.onSuccess) {
+          await schema.onSuccess(data);
+        }
+        // Close drawer on success
+        schema.onOpenChange?.(false);
+        return data;
+      }
+
       let result;
       const payload = sanitizeFormData(data, objectSchema);
       if (schema.mode === 'create') {
@@ -286,17 +334,41 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         schema.onError(err as Error);
       }
       throw err;
+    } finally {
+      setIsSubmitting(false);
     }
   }, [schema, dataSource, objectSchema]);
 
-  // Handle cancel
-  const handleCancel = useCallback(() => {
-    if (schema.onCancel) {
-      schema.onCancel();
+  // Actually close the drawer, firing onCancel only when the close originated
+  // from the explicit Cancel button.
+  const finalizeClose = useCallback(() => {
+    setDiscardOpen(false);
+    if (cancelIntentRef.current) {
+      cancelIntentRef.current = false;
+      schema.onCancel?.();
     }
-    // Close drawer on cancel
     schema.onOpenChange?.(false);
   }, [schema]);
+
+  // Attempt to close. With unsaved changes, intercept and ask for confirmation
+  // instead of discarding the user's input. `viaCancel` marks the Cancel button.
+  const attemptClose = useCallback((viaCancel: boolean) => {
+    cancelIntentRef.current = viaCancel;
+    if (confirmOnDiscard && isDirty) {
+      setDiscardOpen(true);
+    } else {
+      finalizeClose();
+    }
+  }, [confirmOnDiscard, isDirty, finalizeClose]);
+
+  // The explicit Cancel button is an *intentional* discard, so it closes
+  // immediately — no "Discard changes?" prompt. The unsaved-changes guard only
+  // intercepts *accidental* closes (backdrop click, Escape, the X), which Radix
+  // routes through onOpenChange below. (attemptClose stays for that path.)
+  const handleCancel = useCallback(() => {
+    cancelIntentRef.current = true;
+    finalizeClose();
+  }, [finalizeClose]);
 
   // Width style for the drawer content
   const widthStyle = useMemo(() => {
@@ -311,18 +383,32 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
     ? schema.layout
     : 'vertical';
 
+  // Action buttons live in the drawer's own footer (not inside the form
+  // renderer). Routing Cancel through the footer lets it call the
+  // unsaved-changes guard directly; the form renderer's built-in Cancel does a
+  // `form.reset()` *before* invoking onCancel, which would wipe the user's
+  // input before the "Discard changes?" prompt even appears — so "Keep editing"
+  // would keep an already-emptied form. Mirrors ModalForm.
+  const showSubmit = schema.showSubmit !== false && schema.mode !== 'view';
+  const showCancel = schema.showCancel !== false;
+  const submitLabel = schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update');
+  const cancelLabel = schema.cancelText || 'Cancel';
+
   // Build base form schema
   const baseFormSchema = {
     type: 'form' as const,
     objectName: schema.objectName,
     layout: formLayout,
     defaultValues: formData,
-    submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
-    cancelLabel: schema.cancelText,
-    showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
-    showCancel: schema.showCancel !== false,
+    submitLabel,
+    cancelLabel,
+    showSubmit,
+    showCancel,
     onSubmit: handleSubmit,
     onCancel: handleCancel,
+    onDirtyChange: setIsDirty, // Feed unsaved-changes state up to the close guard
+    showActions: false, // Actions render in the drawer footer instead
+    id: formId,         // Link the footer's submit button via the form attribute
   };
 
   const renderContent = () => {
@@ -447,7 +533,15 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
   }
 
   return (
-    <Sheet open={isOpen} onOpenChange={schema.onOpenChange}>
+    <Sheet
+      open={isOpen}
+      onOpenChange={(open) => {
+        // Backdrop click, Escape, and the X button all route through here.
+        // Intercept closes so unsaved input isn't silently discarded.
+        if (open) { schema.onOpenChange?.(true); return; }
+        attemptClose(false);
+      }}
+    >
       <SheetContent
         side={side}
         className={cn('overflow-y-auto', className, schema.className)}
@@ -469,6 +563,63 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         <div className="@container py-4">
           {drawerBody}
         </div>
+
+        {/* Sticky footer — own action buttons. Cancel calls the discard guard
+            directly (no form.reset), so unsaved input survives "Keep editing".
+            Suppressed for the master-detail path, which owns its own action bar. */}
+        {!error && !loading && !(subforms?.length && schema.mode !== 'view') && (showSubmit || showCancel) && (
+          <div className="shrink-0 border-t px-4 py-3 bg-background" data-testid="drawer-form-footer">
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              {showCancel && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleCancel}
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  {cancelLabel}
+                </Button>
+              )}
+              {showSubmit && (
+                <Button
+                  type="submit"
+                  form={formId}
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {submitLabel}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Unsaved-changes guard — rendered INSIDE SheetContent so its portal
+            inherits the Sheet's Radix layer context (focus scope + dismissable
+            layer) through React. As a sibling of <Sheet> it had no such context,
+            so the still-open drawer swallowed its button clicks and "Keep
+            editing" did nothing. Nesting lets Radix stack the two overlays
+            correctly: the alert becomes the topmost layer and its buttons work. */}
+        <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('form.discardTitle')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('form.discardMessage')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { cancelIntentRef.current = false; }}>
+                {t('form.keepEditing')}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={finalizeClose}>
+                {t('form.discard')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SheetContent>
     </Sheet>
   );

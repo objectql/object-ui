@@ -13,7 +13,7 @@
  * Aligns with @objectstack/spec FormView type: 'modal'
  */
 
-import React, { useState, useCallback, useEffect, useMemo, useId } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useId, useRef } from 'react';
 import type { FormField, DataSource } from '@object-ui/types';
 import {
   Dialog,
@@ -28,16 +28,37 @@ import {
   TabsList,
   TabsTrigger,
   TabsContent,
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
 } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
 import { MasterDetailForm } from './MasterDetailForm';
 import { SchemaRenderer, useSafeFieldLabel, usePreviewMode } from '@object-ui/react';
+import { createSafeTranslation } from '@object-ui/i18n';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { applyAutoLayout, inferModalSize } from './autoLayout';
 import { sanitizeFormData } from './sanitize';
 import { usePermissions } from '@object-ui/permissions';
+
+// Localized strings for the unsaved-changes guard. Falls back to English when
+// no i18n provider is mounted (createSafeTranslation handles that).
+const useDiscardTranslation = createSafeTranslation(
+  {
+    'form.discardTitle': 'Discard changes?',
+    'form.discardMessage': 'You have unsaved changes. If you close this form now, your edits will be lost.',
+    'form.keepEditing': 'Keep editing',
+    'form.discard': 'Discard',
+  },
+  'form.discardTitle',
+);
 
 export interface ModalFormSectionConfig {
   name?: string;
@@ -84,6 +105,16 @@ export interface ModalFormSchema {
    * @default true
    */
   modalCloseButton?: boolean;
+
+  /**
+   * Guard against *accidentally* discarding unsaved input. When the form has
+   * unsaved changes, an accidental close (backdrop click, Escape, or the X
+   * button) first asks the user to confirm. The explicit Cancel button is an
+   * intentional discard and always closes immediately. Set to `false` to drop
+   * the confirmation entirely.
+   * @default true
+   */
+  confirmOnDiscard?: boolean;
 
   // Common form props
   showSubmit?: boolean;
@@ -154,6 +185,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   className,
 }) => {
   const { fieldLabel } = useSafeFieldLabel();
+  const { t } = useDiscardTranslation();
   const previewMode = usePreviewMode();
   const perms = usePermissions();
   // FLS gate: drop non-readable fields, disable non-editable ones.
@@ -183,6 +215,16 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Unsaved-changes guard. `isDirty` is fed up from the inner form renderer via
+  // onDirtyChange; `discardOpen` controls the confirm dialog shown when the user
+  // tries to close a dirty form.
+  const [isDirty, setIsDirty] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  // Whether the pending close came from the explicit Cancel button (so we fire
+  // schema.onCancel) versus a backdrop/Escape/X dismissal (which historically
+  // did not). Kept in a ref so it survives the confirm round-trip.
+  const cancelIntentRef = useRef(false);
+  const confirmOnDiscard = schema.confirmOnDiscard !== false;
 
   const isOpen = schema.open !== false;
 
@@ -363,14 +405,36 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     }
   }, [schema, dataSource, objectSchema, perms]);
 
-  // Handle cancel
-  const handleCancel = useCallback(() => {
-    if (schema.onCancel) {
-      schema.onCancel();
+  // Actually close the modal, firing onCancel only when the close originated
+  // from the explicit Cancel button.
+  const finalizeClose = useCallback(() => {
+    setDiscardOpen(false);
+    if (cancelIntentRef.current) {
+      cancelIntentRef.current = false;
+      schema.onCancel?.();
     }
-    // Close modal on cancel
     schema.onOpenChange?.(false);
   }, [schema]);
+
+  // Attempt to close. With unsaved changes, intercept and ask for confirmation
+  // instead of discarding the user's input. `viaCancel` marks the Cancel button.
+  const attemptClose = useCallback((viaCancel: boolean) => {
+    cancelIntentRef.current = viaCancel;
+    if (confirmOnDiscard && isDirty) {
+      setDiscardOpen(true);
+    } else {
+      finalizeClose();
+    }
+  }, [confirmOnDiscard, isDirty, finalizeClose]);
+
+  // The explicit Cancel button is an *intentional* discard, so it closes
+  // immediately — no "Discard changes?" prompt. The unsaved-changes guard only
+  // intercepts *accidental* closes (backdrop click, Escape, the X), which Radix
+  // routes through onOpenChange below. (attemptClose stays for that path.)
+  const handleCancel = useCallback(() => {
+    cancelIntentRef.current = true;
+    finalizeClose();
+  }, [finalizeClose]);
 
   const formLayout = (schema.layout === 'vertical' || schema.layout === 'horizontal')
     ? schema.layout
@@ -394,6 +458,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     showCancel,
     onSubmit: handleSubmit,
     onCancel: handleCancel,
+    onDirtyChange: setIsDirty, // Feed unsaved-changes state up to the close guard
     showActions: false, // Hide actions — rendered in sticky footer
     id: formId,        // Link external submit button via form attribute
   };
@@ -562,7 +627,15 @@ export const ModalForm: React.FC<ModalFormProps> = ({
   const hasFooter = !loading && !error && (showSubmit || showCancel);
 
   return (
-    <Dialog open={isOpen} onOpenChange={schema.onOpenChange}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        // Radix routes backdrop click, Escape, and the X button all through
+        // here. Intercept closes so unsaved input isn't silently discarded.
+        if (open) { schema.onOpenChange?.(true); return; }
+        attemptClose(false);
+      }}
+    >
       <MobileDialogContent className={cn(sizeClass, 'flex flex-col h-[100dvh] sm:h-auto sm:max-h-[90vh] overflow-hidden p-0', className, schema.className)}>
         {(schema.title || schema.description) && (
           <DialogHeader className="shrink-0 px-4 pt-4 sm:px-6 sm:pt-6 pb-2 border-b">
@@ -610,6 +683,31 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             </div>
           </div>
         )}
+
+        {/* Unsaved-changes guard — rendered INSIDE DialogContent so its portal
+            inherits the Dialog's Radix layer context (focus scope + dismissable
+            layer) through React. As a sibling of <Dialog> it had no such
+            context, so the still-open modal swallowed its button clicks and
+            "Keep editing" did nothing. Nesting lets Radix stack the two modals
+            correctly: the alert becomes the topmost layer and its buttons work. */}
+        <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('form.discardTitle')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('form.discardMessage')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { cancelIntentRef.current = false; }}>
+                {t('form.keepEditing')}
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={finalizeClose}>
+                {t('form.discard')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </MobileDialogContent>
     </Dialog>
   );

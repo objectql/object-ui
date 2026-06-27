@@ -67,6 +67,45 @@ const useSafeFormTranslation = createSafeTranslation(
   'common.selectOption',
 );
 
+// --- Dirty detection -------------------------------------------------------
+// react-hook-form's `isDirty` compares current values against `defaultValues`
+// by strict identity, which produces false positives on a freshly opened form:
+// several field widgets normalize their empty state on mount (e.g. '' -> null,
+// undefined -> '', a cleared lookup -> null), and `null !== undefined` makes
+// RHF flag an untouched create form as dirty. That made the discard-guard pop
+// its "unsaved changes?" prompt even when the user typed nothing. We instead
+// compute dirtiness ourselves with a comparison that treats all empty-ish
+// values as equivalent, so only a genuine edit (empty <-> meaningful, or one
+// meaningful value -> another) counts.
+const isEmptyish = (v: unknown): boolean =>
+  v === undefined ||
+  v === null ||
+  v === '' ||
+  (Array.isArray(v) && v.length === 0);
+
+const valuesEqualForDirty = (a: unknown, b: unknown): boolean => {
+  if (isEmptyish(a) && isEmptyish(b)) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return a === b;
+  }
+};
+
+const computeDirty = (
+  baseline: Record<string, unknown>,
+  values: Record<string, unknown>,
+): boolean => {
+  const keys = new Set([
+    ...Object.keys(baseline ?? {}),
+    ...Object.keys(values ?? {}),
+  ]);
+  for (const k of keys) {
+    if (!valuesEqualForDirty(baseline?.[k], values?.[k])) return true;
+  }
+  return false;
+};
+
 const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
 const DATA_SOURCE_FIELD_TYPES = new Set(['lookup', 'master_detail', 'tree']);
 
@@ -208,6 +247,7 @@ ComponentRegistry.register('form',
       columns = 1,
       onSubmit: onSubmitProp,
       onChange: onChangeProp,
+      onDirtyChange: onDirtyChangeProp,
       onCancel: onCancelProp,
       resetOnSubmit = false,
       validationMode = 'onSubmit',
@@ -290,12 +330,21 @@ ComponentRegistry.register('form',
     // value so a genuine change (e.g. an edit-mode record finishing loading)
     // still resets, while identity churn is ignored.
     const lastDefaultsKey = React.useRef<string | undefined>(undefined);
+    // The pristine snapshot the dirty check compares against. Kept in sync with
+    // whatever we last reset the form to (initial defaults, or a loaded record).
+    const baselineRef = React.useRef<Record<string, unknown>>(
+      (defaultValues ?? {}) as Record<string, unknown>,
+    );
     React.useEffect(() => {
       let key: string;
       try { key = JSON.stringify(defaultValues ?? {}); } catch { key = String(Date.now()); }
       if (lastDefaultsKey.current === key) return;
       lastDefaultsKey.current = key;
       form.reset(defaultValues);
+      baselineRef.current = (defaultValues ?? {}) as Record<string, unknown>;
+      // A fresh reset is by definition pristine — clear any stale dirty signal
+      // (e.g. an edit-mode record that just finished loading).
+      onDirtyChangeProp?.(false);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [defaultValues]);
 
@@ -312,6 +361,20 @@ ComponentRegistry.register('form',
         return () => subscription.unsubscribe();
       }
     }, [form, onAction]);
+
+    // Surface dirty state to the host (e.g. a modal/drawer guarding against
+    // accidental discard of unsaved input). We compute it via a normalized
+    // comparison against the pristine baseline (see computeDirty) rather than
+    // react-hook-form's `isDirty`, which false-positives on fields that
+    // self-normalize their empty value on mount.
+    React.useEffect(() => {
+      const subscription = form.watch((values) => {
+        onDirtyChangeProp?.(
+          computeDirty(baselineRef.current, values as Record<string, unknown>),
+        );
+      });
+      return () => subscription.unsubscribe();
+    }, [form, onDirtyChangeProp]);
 
     // Handle form submission
     const handleSubmit = form.handleSubmit(async (data) => {
