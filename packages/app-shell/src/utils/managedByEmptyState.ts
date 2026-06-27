@@ -37,6 +37,7 @@ type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 export function resolveManagedByEmptyState(
   managedBy: string | undefined | null,
   t: TranslateFn,
+  objectName?: string | null,
 ): ManagedByEmptyState | undefined {
   switch (managedBy) {
     case 'system':
@@ -58,12 +59,31 @@ export function resolveManagedByEmptyState(
         }),
       };
     case 'better-auth':
+      // `sys_user` is the one identity table with a concrete onboarding
+      // answer, so give it actionable guidance: teammates arrive via an
+      // org-level invite + SSO just-in-time provisioning (ADR-0024 D9), and
+      // app end-users self-register. We deliberately do NOT name the env-level
+      // "Invite User" action — it is multi-org-gated and hidden in single-org —
+      // nor a "Reset Password" toolbar action, which does not exist (cloud#580).
+      // Every other identity table (sessions, accounts, tokens, jwks,
+      // verifications, …) is written purely by auth flows, so keep the generic
+      // copy — naming an invite/signup CTA on a token list would be wrong.
+      if (objectName === 'sys_user') {
+        return {
+          icon: 'ShieldAlert',
+          title: t('list.managedBy.betterAuthUser.title', { defaultValue: 'No users yet' }),
+          message: t('list.managedBy.betterAuthUser.message', {
+            defaultValue:
+              'User accounts are provisioned by the authentication provider, not created here. Invite teammates to your organization and they appear automatically on first sign-in (SSO just-in-time provisioning). App end-users arrive when they sign up through your app.',
+          }),
+        };
+      }
       return {
         icon: 'ShieldAlert',
         title: t('list.managedBy.betterAuth.title', { defaultValue: 'No identity records' }),
         message: t('list.managedBy.betterAuth.message', {
           defaultValue:
-            'Identity rows are managed by the authentication provider. Use the dedicated identity workflows (Invite User, Reset Password, …) to create new entries.',
+            'These records are created by the authentication provider — through sign-in, provisioning, and security flows — not added by hand here.',
         }),
       };
     default:

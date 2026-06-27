@@ -1290,7 +1290,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     viewDef.name || viewDef.id || '',
                     viewDef.emptyState
                         ?? listSchema.emptyState
-                        ?? resolveManagedByEmptyState((objectDef as any)?.managedBy, t),
+                        ?? resolveManagedByEmptyState((objectDef as any)?.managedBy, t, objectDef.name),
                 ),
             aria: viewDef.aria ?? listSchema.aria,
             // Propagate filter/sort as default filters/sort for data flow

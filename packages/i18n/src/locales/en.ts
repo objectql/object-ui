@@ -284,7 +284,12 @@ const en = {
       betterAuth: {
         title: 'No identity records',
         message:
-          'Identity rows are managed by the authentication provider. Use the dedicated identity workflows (Invite User, Reset Password, …) to create new entries.',
+          'These records are created by the authentication provider — through sign-in, provisioning, and security flows — not added by hand here.',
+      },
+      betterAuthUser: {
+        title: 'No users yet',
+        message:
+          'User accounts are provisioned by the authentication provider, not created here. Invite teammates to your organization and they appear automatically on first sign-in (SSO just-in-time provisioning). App end-users arrive when they sign up through your app.',
       },
     },
     showAll: 'Show all',

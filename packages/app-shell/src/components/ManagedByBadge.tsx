@@ -92,7 +92,7 @@ const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
     short: 'Identity',
     title: 'Managed by the identity provider',
     body: (display) =>
-      `This object's schema is owned by ${display}. Direct edits bypass password hashing, session validation, two-factor checks, and audit hooks. Use the dedicated identity workflows instead (Invite User, Reset Password, Revoke Session, Rotate Key, …).`,
+      `This object's schema is owned by ${display}. Direct edits bypass password hashing, session validation, two-factor checks, and audit hooks. Manage these records through your authentication provider's sign-in, invitation, and security flows instead.`,
     tone: 'border-amber-300/60 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-100',
   },
 };
