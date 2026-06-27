@@ -39,7 +39,7 @@ import {
 } from '@object-ui/app-shell';
 
 import { AppContent } from './AppContent';
-import { CloudAwareRootRedirect } from './components/CloudAwareRootRedirect';
+import { RootLandingRedirect } from './components/RootLandingRedirect';
 import { FormPage } from './components/FormPage';
 import { MetadataHmrReloader } from './components/MetadataHmrReloader';
 import SharedRecordPage from './pages/SharedRecordPage';
@@ -292,7 +292,7 @@ export function App() {
                 <AppContent />
               </ProtectedRoute>
             } />
-            <Route path="/" element={<ConnectedShell><CloudAwareRootRedirect /></ConnectedShell>} />
+            <Route path="/" element={<ConnectedShell><RootLandingRedirect /></ConnectedShell>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ConsoleShell>
