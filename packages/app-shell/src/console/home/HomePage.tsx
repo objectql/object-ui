@@ -32,6 +32,7 @@ import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText } from 'lucide
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
 import { resolveAiApiBase } from '../../hooks/useAiSurface';
+import { getRuntimeConfig } from '../../runtime-config';
 
 /**
  * Which AI home CTAs to surface, driven by the live agent catalog (the single
@@ -271,7 +272,7 @@ export function HomePage() {
         */}
         {isAdmin ? (
           <Empty>
-            <EmptyTitle>{t('home.welcome', { defaultValue: 'Welcome to ObjectUI' })}</EmptyTitle>
+            <EmptyTitle>{t('home.welcome', { product: getRuntimeConfig().branding.productName, defaultValue: 'Welcome to {{product}}' })}</EmptyTitle>
             <EmptyDescription>
               {buildAvailable
                 ? t('home.welcomeAdminDescription', {
