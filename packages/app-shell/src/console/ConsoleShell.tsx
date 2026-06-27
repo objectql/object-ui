@@ -28,6 +28,7 @@ import {
   useAttachUserStateAdapters,
 } from '../context/UserStateAdapters';
 import { ThemeProvider } from '../chrome/ThemeProvider';
+import { RemediationOverlay } from './RemediationOverlay';
 
 export function LoadingFallback() {
   return (
@@ -59,6 +60,8 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           <FavoritesProvider>
             <RecentItemsProvider>
               <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
+              {/* ADR-0069 — full-screen gate (expired password / required MFA) above all routes */}
+              <RemediationOverlay />
             </RecentItemsProvider>
           </FavoritesProvider>
         </UserStateAdaptersProvider>

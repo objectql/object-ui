@@ -266,3 +266,4 @@ export type {
   AssistantEditorContext,
   AssistantEditorField,
 } from './assistant/assistantBus';
+export { RemediationOverlay } from './console/RemediationOverlay';

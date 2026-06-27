@@ -7,7 +7,7 @@
  */
 
 import { createAuthClient as createBetterAuthClient } from 'better-auth/client';
-import { organizationClient } from 'better-auth/client/plugins';
+import { organizationClient, twoFactorClient } from 'better-auth/client/plugins';
 import type {
   AuthClient, AuthClientConfig, AuthUser, AuthSession, SignInCredentials, SignUpData,
   AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions,
@@ -190,7 +190,7 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
     basePath,
     disableDefaultFetchPlugins: true,
     fetchOptions: { customFetchImpl: bearerFetch },
-    plugins: [organizationClient()],
+    plugins: [organizationClient(), twoFactorClient()],
   });
 
   // The better-auth client exposes methods whose TS return types are narrower
@@ -386,6 +386,33 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       if (error) {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
       }
+    },
+
+    // ADR-0069 — enforced-MFA enrollment. Returns the otpauth:// URI (for a QR)
+    // and one-time backup codes. Runtime methods come from the twoFactorClient
+    // plugin; cast through unknown to bridge loose better-auth client types.
+    async enrollTotp(password: string) {
+      type EnableFn = (opts: { password: string }) =>
+        Promise<{ data?: { totpURI?: string; backupCodes?: string[] } | null; error?: { message?: string; status?: number } | null }>;
+      const tf = (betterAuth as unknown as { twoFactor?: { enable?: EnableFn } }).twoFactor;
+      if (!tf || typeof tf.enable !== 'function') {
+        throw new Error('two-factor enrollment is not available on this auth backend');
+      }
+      const { data, error } = await tf.enable({ password });
+      if (error) throw new Error(error.message ?? `Two-factor enable failed (${error.status ?? '?'})`);
+      return { totpURI: data?.totpURI ?? '', backupCodes: data?.backupCodes ?? [] };
+    },
+
+    // ADR-0069 — verify the first TOTP code to activate enrollment.
+    async verifyTotp(code: string) {
+      type VerifyFn = (opts: { code: string }) =>
+        Promise<{ error?: { message?: string; status?: number } | null }>;
+      const tf = (betterAuth as unknown as { twoFactor?: { verifyTotp?: VerifyFn } }).twoFactor;
+      if (!tf || typeof tf.verifyTotp !== 'function') {
+        throw new Error('two-factor verification is not available on this auth backend');
+      }
+      const { error } = await tf.verifyTotp({ code });
+      if (error) throw new Error(error.message ?? `Two-factor verification failed (${error.status ?? '?'})`);
     },
 
     async setInitialPassword(newPassword: string) {

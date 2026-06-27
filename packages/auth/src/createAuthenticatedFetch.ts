@@ -7,6 +7,7 @@
  */
 
 import { TokenStorage } from './createAuthClient';
+import { authGateEvents, detectAuthGate } from './auth-gate-events';
 
 /**
  * Options for creating an authenticated adapter.
@@ -101,6 +102,15 @@ export function createAuthenticatedFetch(): (input: RequestInfo | URL, init?: Re
         headers.set('Accept-Language', lang);
       }
     }
-    return fetch(input, { ...init, headers });
+    const response = await fetch(input, { ...init, headers });
+    // ADR-0069 — surface an auth-policy gate (expired password / required MFA)
+    // to the remediation overlay. Clone so the caller still reads the body.
+    if (isApiCall && response.status === 403) {
+      try {
+        const gate = detectAuthGate(response.status, await response.clone().json());
+        if (gate) authGateEvents.emit(gate);
+      } catch { /* not a JSON gate body — leave the response untouched */ }
+    }
+    return response;
   };
 }

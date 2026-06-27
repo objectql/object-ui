@@ -174,6 +174,10 @@ export interface AuthClient {
   resetPassword: (token: string, newPassword: string) => Promise<void>;
   /** Change password (requires current password). For users who already have a local password. */
   changePassword: (currentPassword: string, newPassword: string, options?: { revokeOtherSessions?: boolean }) => Promise<void>;
+  /** ADR-0069 — start TOTP enrollment; returns the otpauth URI + backup codes. */
+  enrollTotp: (password: string) => Promise<{ totpURI: string; backupCodes: string[] }>;
+  /** ADR-0069 — verify the first TOTP code to activate enrollment. */
+  verifyTotp: (code: string) => Promise<void>;
   /** Set an INITIAL local password for SSO-onboarded users with no credential account. */
   setInitialPassword: (newPassword: string) => Promise<void>;
   /** Whether the current user has a local credential password configured. */

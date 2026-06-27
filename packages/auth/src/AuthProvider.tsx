@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { authGateEvents } from './auth-gate-events';
 import type { AuthUser, AuthClient, AuthProviderConfig, PreviewModeOptions, AuthOrganization, AuthOrganizationMember, AuthInvitation, AuthPublicConfig, SignInWithProviderOptions } from './types';
 import { AuthCtx, type AuthContextValue } from './AuthContext';
 import { createAuthClient } from './createAuthClient';
@@ -72,6 +73,7 @@ export function AuthProvider({
   const [session, setSession] = useState<AuthContextValue['session']>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [remediationRequired, setRemediationRequired] = useState<{ code: string; message: string } | null>(null);
 
   // Organization / workspace state
   const [organizations, setOrganizations] = useState<AuthOrganization[]>([]);
@@ -278,6 +280,17 @@ export function AuthProvider({
     },
     [client],
   );
+
+  // ADR-0069 — the API fetch interceptor emits an auth-policy gate; raise the
+  // remediation overlay. Don't override an already-shown gate.
+  useEffect(() => {
+    return authGateEvents.subscribe((gate) => {
+      setRemediationRequired((prev) => prev ?? gate);
+    });
+  }, []);
+
+  const enrollTotp = useCallback((password: string) => client.enrollTotp(password), [client]);
+  const verifyTotp = useCallback((code: string) => client.verifyTotp(code), [client]);
 
   const changePassword = useCallback(
     async (currentPassword: string, newPassword: string, options?: { revokeOtherSessions?: boolean }) => {
@@ -551,6 +564,10 @@ export function AuthProvider({
       sendVerificationEmail,
       resetPassword,
       changePassword,
+      remediationRequired,
+      setRemediationRequired,
+      enrollTotp,
+      verifyTotp,
       setInitialPassword,
       hasLocalPassword,
       getAuthConfig,
@@ -579,6 +596,7 @@ export function AuthProvider({
     [
       user, session, isAuthenticated, isAuthEnabled, isLoading, error, isPreviewMode, previewMode,
       signIn, signUp, signOut, updateUser, forgotPassword, sendVerificationEmail, resetPassword, changePassword, setInitialPassword, hasLocalPassword, getAuthConfig, signInWithProvider,
+      remediationRequired, enrollTotp, verifyTotp,
       organizations, activeOrganization, activeMember, isOrganizationsLoading, switchOrganization, createOrganization, refreshOrganizations,
       updateOrganization, deleteOrganization, leaveOrganization,
       getMembers, inviteMember, removeMember, updateMemberRole,

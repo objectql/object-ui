@@ -54,6 +54,18 @@ export interface AuthContextValue {
    */
   changePassword: (currentPassword: string, newPassword: string, options?: { revokeOtherSessions?: boolean }) => Promise<void>;
   /**
+   * ADR-0069 — an authentication-policy gate the user must clear before
+   * continuing (e.g. expired password, required MFA enrollment), or null. Set
+   * by the API fetch interceptor; consumed by the remediation overlay.
+   */
+  remediationRequired: { code: string; message: string } | null;
+  /** Clear (or set) the remediation gate — overlay calls this on success. */
+  setRemediationRequired: (gate: { code: string; message: string } | null) => void;
+  /** ADR-0069 — start TOTP enrollment; returns the otpauth URI + backup codes. */
+  enrollTotp: (password: string) => Promise<{ totpURI: string; backupCodes: string[] }>;
+  /** ADR-0069 — verify the first TOTP code to activate enrollment. */
+  verifyTotp: (code: string) => Promise<void>;
+  /**
    * Set an INITIAL local password for an SSO-onboarded user that has no
    * credential account yet. Refuses if a password already exists — call
    * `changePassword` in that case. Use after `hasLocalPassword()` returns
