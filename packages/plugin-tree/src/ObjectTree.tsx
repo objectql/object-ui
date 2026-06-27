@@ -81,7 +81,7 @@ function getTreeConfig(schema: any): TreeConfig {
     parentField: fieldKey(schema.parentField ?? nested.parentField),
     labelField:
       fieldKey(schema.labelField ?? nested.labelField ?? schema.titleField) ?? 'name',
-    fields: rawFields.map(fieldKey).filter((f): f is string => !!f),
+    fields: rawFields.map(fieldKey).filter((f: unknown): f is string => !!f),
     defaultExpandedDepth: schema.defaultExpandedDepth ?? nested.defaultExpandedDepth,
   };
 }
