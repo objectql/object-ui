@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/providers",
-  "version": "7.3.0",
+  "version": "11.0.0",
   "type": "module",
   "license": "MIT",
   "description": "Reusable context providers for ObjectUI applications",

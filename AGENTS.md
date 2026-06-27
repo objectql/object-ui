@@ -147,6 +147,12 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - 任务结束:停**自己起的**后台服务(见下方"服务纪律";别按端口杀别人的)、清 `.playwright-mcp/`。
 - 改完代码提交时:功能改进(feature)需写 changeset(`pnpm changeset`);纯 bug 修复不需要。
 
+### 版本号策略(version alignment)
+- **objectui 的 major 与 `@objectstack`(spec/client/formula)的 major 保持一致**:依赖到 `@objectstack ^11.x` 时,objectui 这个固定版本组(`.changeset/config.json` 的 `fixed`,39 个包一起发)的 major 必须是 `11`。心智模型:**major 相同即兼容**。
+- minor/patch **独立演进**——objectstack 没动时不必跟发;objectui 自己的改动照常用 changeset 推进(从当前 major 起步,如 `11.0.0 → 11.1.0`)。
+- objectstack 跨 major(→12)时,下一次 objectui 发版一并把 major 提到 `12`。
+- 这是约定优先于 semver 纯粹性的取舍(为可维护/好记),因此 objectui 的 major 不代表「它自身 API 的破坏性变更次数」。`@object-ui/site` 与 `@object-ui/example-*` 在 `ignore` 列表,不随组联动。
+
 ### 多 agent 协作纪律(并行修改本仓库,务必遵守)
 
 本仓库有**多个 agent 并行**修改 —— 分支会被切换、共享文件会在你工作时被改动(正常现象,不是 bug):

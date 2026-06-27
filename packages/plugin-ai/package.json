@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-ai",
-  "version": "7.3.0",
+  "version": "11.0.0",
   "type": "module",
   "main": "dist/index.umd.cjs",
   "module": "dist/index.js",
