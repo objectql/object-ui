@@ -40,7 +40,7 @@ import {
   resolveResourceConfig,
 } from './registry';
 import { t, tFormat, translateMetadataType, detectLocale } from './i18n';
-import { buildPackageScopeOptions, LOCAL_PACKAGE_ID, isLocalScope } from './package-scope';
+import { buildPackageScopeOptions } from './package-scope';
 
 export interface MetadataResourceListPageProps {
   type?: string;
@@ -227,13 +227,13 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
   // scope); when none exists yet, prompt to create a base first.
   const [showCreateBase, setShowCreateBase] = React.useState(false);
   const handleCreate = React.useCallback(() => {
-    const realBases = (projectPackages ?? []).filter((p) => !isLocalScope(p.id));
-    if (projectPackages !== null && realBases.length === 0) {
+    const bases = projectPackages ?? [];
+    if (projectPackages !== null && bases.length === 0) {
       setShowCreateBase(true);
       return;
     }
-    if (realBases.length > 0 && (!activePackage || isLocalScope(activePackage))) {
-      navigate(`./new?package=${encodeURIComponent(realBases[0].id)}`);
+    if (bases.length > 0 && !activePackage) {
+      navigate(`./new?package=${encodeURIComponent(bases[0].id)}`);
       return;
     }
     navigate(`./new${pkgSuffix}`);
@@ -292,11 +292,10 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
         // 'sys_metadata' sentinel and untagged rows never match.
         if (!activePackage) return false;
         const pkg = (row.item as any)?._packageId;
-        const isLocal = !pkg || pkg === LOCAL_PACKAGE_ID;
-        // Local/Custom scope surfaces this environment's runtime-authored items
-        // (untagged / `sys_metadata` provenance); a code package shows its own.
-        if (activePackage === LOCAL_PACKAGE_ID) return isLocal;
-        return !isLocal && pkg === activePackage;
+        // Only rows tagged with the active writable base match. Untagged /
+        // `sys_metadata`-provenance legacy rows have no scope of their own
+        // (ADR-0070 D5 — the package-less "Local / Custom" scope is removed).
+        return pkg === activePackage;
       }),
     [items, activePackage, config],
   );

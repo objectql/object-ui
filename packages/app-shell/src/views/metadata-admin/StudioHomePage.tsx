@@ -59,7 +59,7 @@ import {
   tFormat,
   detectLocale,
 } from './i18n';
-import { buildPackageScopeOptions, LOCAL_PACKAGE_ID } from './package-scope';
+import { buildPackageScopeOptions } from './package-scope';
 
 const HIDDEN_TYPES = new Set(['field', 'package']);
 
@@ -181,9 +181,6 @@ export function StudioHomePage() {
       entries.filter((e) => {
         if (HIDDEN_TYPES.has(e.type)) return false;
         if (!activePackage) return false;
-        // Local/Custom scope: show every runtime-creatable type so the user can
-        // start authoring any kind of metadata here, even with zero items yet.
-        if (activePackage === LOCAL_PACKAGE_ID) return e.allowOrgOverride || e.allowRuntimeCreate;
         return (packagesByType[e.type] ?? []).includes(activePackage);
       }),
     [activePackage, entries, packagesByType],
