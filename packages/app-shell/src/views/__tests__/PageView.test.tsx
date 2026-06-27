@@ -38,6 +38,12 @@ vi.mock('@object-ui/i18n', () => ({
     fieldOptionLabel: (_o: any, _f: any, _v: any, l: any) => l,
     actionParamText: (_o: any, _a: any, _p: any, _attr: any, fallback: any) => fallback,
   }),
+  // ObjectForm → Modal/DrawerForm build their discard-guard strings with this;
+  // return a hook that just echoes the supplied English defaults.
+  createSafeTranslation:
+    (defaults: Record<string, string>) => () => ({
+      t: (k: string) => defaults?.[k] ?? k,
+    }),
 }));
 
 vi.mock('../../providers/MetadataProvider', () => ({
