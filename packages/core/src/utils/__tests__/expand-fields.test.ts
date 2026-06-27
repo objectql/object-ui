@@ -7,7 +7,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildExpandFields } from '../expand-fields';
+import {
+  buildExpandFields,
+  isExpandableFieldType,
+  EXPANDABLE_FIELD_TYPES,
+} from '../expand-fields';
 
 describe('buildExpandFields', () => {
   const sampleFields = {
@@ -116,5 +120,81 @@ describe('buildExpandFields', () => {
       detail1: { type: 'master_detail', reference_to: 'obj1' },
     };
     expect(buildExpandFields(fields)).toEqual(['detail1']);
+  });
+
+  // ── Reference-bearing types beyond lookup/master_detail ────────────────────
+  // A list/grid that shows a `user` or `tree` relation column must still
+  // request `$expand` for it, or the cell receives a bare id and renders "—".
+  // This is the regression these cases lock in: previously only `lookup` /
+  // `master_detail` were collected, so `user`/`tree` columns silently broke.
+  const relationalZoo = {
+    name: { type: 'text', label: 'Name' },
+    f_lookup: { type: 'lookup', label: 'Account', reference: 'showcase_account' },
+    f_master_detail: { type: 'master_detail', label: 'Project', reference: 'showcase_project' },
+    f_tree: { type: 'tree', label: 'Category', reference: 'showcase_category' },
+    f_user: { type: 'user', label: 'Assignee', reference: 'sys_user' },
+    status: { type: 'select', label: 'Status' },
+    cover: { type: 'image', label: 'Cover' },
+  };
+
+  it('should include user and tree reference types (not just lookup/master_detail)', () => {
+    expect(buildExpandFields(relationalZoo)).toEqual([
+      'f_lookup',
+      'f_master_detail',
+      'f_tree',
+      'f_user',
+    ]);
+  });
+
+  it('should NOT include non-reference field types in $expand', () => {
+    const result = buildExpandFields(relationalZoo);
+    expect(result).not.toContain('name');
+    expect(result).not.toContain('status');
+    expect(result).not.toContain('cover');
+  });
+
+  it('should scope to ONLY the visible reference columns (the default behavior)', () => {
+    // A grid showing [name, f_lookup, f_user, status] must expand exactly the
+    // two visible reference columns — never the unshown f_master_detail / f_tree.
+    const columns = ['name', 'f_lookup', 'f_user', 'status'];
+    expect(buildExpandFields(relationalZoo, columns)).toEqual(['f_lookup', 'f_user']);
+  });
+
+  it('should produce an EMPTY set when no visible column is a reference (omit $expand)', () => {
+    expect(buildExpandFields(relationalZoo, ['name', 'status', 'cover'])).toEqual([]);
+  });
+
+  it('should expand a lone user-type column once it is visible', () => {
+    // The exact bug: a `user` column ("technician") shown in a list view.
+    const fields = { title: { type: 'text' }, technician: { type: 'user', reference: 'sys_user' } };
+    expect(buildExpandFields(fields, ['title'])).toEqual([]);
+    expect(buildExpandFields(fields, ['title', 'technician'])).toEqual(['technician']);
+  });
+});
+
+describe('EXPANDABLE_FIELD_TYPES / isExpandableFieldType', () => {
+  it('covers exactly the reference-bearing types', () => {
+    expect([...EXPANDABLE_FIELD_TYPES].sort()).toEqual(
+      ['lookup', 'master_detail', 'tree', 'user'].sort(),
+    );
+  });
+
+  it('treats reference field defs as expandable', () => {
+    for (const type of ['lookup', 'master_detail', 'tree', 'user']) {
+      expect(isExpandableFieldType({ type })).toBe(true);
+    }
+  });
+
+  it('treats scalar/non-reference field defs as NOT expandable', () => {
+    for (const type of ['text', 'number', 'select', 'image', 'formula', 'summary', 'date']) {
+      expect(isExpandableFieldType({ type })).toBe(false);
+    }
+  });
+
+  it('is null/shape safe', () => {
+    expect(isExpandableFieldType(null)).toBe(false);
+    expect(isExpandableFieldType(undefined)).toBe(false);
+    expect(isExpandableFieldType('lookup')).toBe(false);
+    expect(isExpandableFieldType({})).toBe(false);
   });
 });
