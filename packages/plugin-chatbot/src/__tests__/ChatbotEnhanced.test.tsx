@@ -489,6 +489,129 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     fireEvent.change(picker, { target: { value: 'claude-3-5-sonnet' } });
     expect(onModelChange).toHaveBeenCalledWith('claude-3-5-sonnet');
   });
+
+  // Improvement 1: a propose_blueprint can FINISH without its result parsing
+  // into a structured `proposedPlan` (a thin/odd envelope, or a prose proposal).
+  // Before, that collapsed into a "Completed" chip and the user was left with
+  // prose and no button — guess-the-"确认". Now a fallback confirm card with an
+  // explicit "Build it" / "Adjust" always renders.
+  describe('fallback confirm gate for an unstructured propose_blueprint', () => {
+    // A completed propose_blueprint with NO proposedPlan (detector returned
+    // undefined) — the regression case.
+    const unstructured: ChatMessage[] = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: "Here's a plan for a reading list. Reply to confirm and I'll build it.",
+        toolInvocations: [
+          { toolCallId: 't1', toolName: 'propose_blueprint', state: 'output-available' },
+        ],
+      },
+    ];
+
+    it('renders the fallback "Build it" card (not just prose) when the plan did not parse', () => {
+      render(
+        <ChatbotEnhanced messages={unstructured} onSendMessage={vi.fn()} planReadyLabel="READY_TEXT" />,
+      );
+      expect(screen.getByTestId('proposed-plan-fallback')).toBeInTheDocument();
+      // An explicit, one-click confirm gate — no guessing the "确认" phrase.
+      expect(screen.getByTestId('proposed-plan-approve')).toBeInTheDocument();
+      expect(screen.getByTestId('proposed-plan-adjust')).toBeInTheDocument();
+      expect(screen.getByText('READY_TEXT')).toBeInTheDocument();
+    });
+
+    it('"Build it" on the fallback card sends the plain approve message (no open questions to default)', () => {
+      const onSendMessage = vi.fn();
+      render(
+        <ChatbotEnhanced
+          messages={unstructured}
+          onSendMessage={onSendMessage}
+          planApproveMessage="APPROVE_PLAIN"
+          planApproveDefaultsMessage="APPROVE_DEFAULTS"
+        />,
+      );
+      fireEvent.click(screen.getByTestId('proposed-plan-approve'));
+      expect(onSendMessage).toHaveBeenCalledWith('APPROVE_PLAIN');
+    });
+
+    it('falls back to the static hint (no buttons) when message sending is not wired', () => {
+      render(<ChatbotEnhanced messages={unstructured} planApproveHintLabel="HINT_TEXT" />);
+      expect(screen.getByTestId('proposed-plan-fallback')).toBeInTheDocument();
+      expect(screen.queryByTestId('proposed-plan-actions')).not.toBeInTheDocument();
+      expect(screen.getByText('HINT_TEXT')).toBeInTheDocument();
+    });
+
+    it('collapses the fallback card to an inert "Built" badge once apply_blueprint has run', () => {
+      const built: ChatMessage[] = [
+        ...unstructured,
+        {
+          id: 'a2',
+          role: 'assistant',
+          content: '',
+          toolInvocations: [
+            { toolCallId: 't2', toolName: 'apply_blueprint', state: 'output-available' },
+          ],
+        },
+      ];
+      render(<ChatbotEnhanced messages={built} onSendMessage={vi.fn()} planBuiltLabel="BUILT_BADGE" />);
+      expect(screen.queryByTestId('proposed-plan-approve')).not.toBeInTheDocument();
+      expect(screen.getByTestId('proposed-plan-built')).toBeInTheDocument();
+      expect(screen.getByText('BUILT_BADGE')).toBeInTheDocument();
+    });
+
+    it('does NOT render the fallback card while the propose_blueprint is still running', () => {
+      // A running proposal keeps its live timer in the summary strip; the
+      // fallback confirm gate is only for the FINISHED-but-unstructured case.
+      render(
+        <ChatbotEnhanced
+          isLoading
+          messages={[
+            { id: 'u1', role: 'user', content: 'build me a CRM' },
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: '',
+              streaming: true,
+              toolInvocations: [
+                { toolCallId: 't1', toolName: 'propose_blueprint', state: 'input-available' },
+              ],
+            },
+          ]}
+          onSendMessage={vi.fn()}
+        />,
+      );
+      expect(screen.queryByTestId('proposed-plan-fallback')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('proposed-plan-approve')).not.toBeInTheDocument();
+    });
+
+    it('prefers the RICH plan card over the fallback when the plan DID parse', () => {
+      const structured: ChatMessage[] = [
+        {
+          id: 'a1',
+          role: 'assistant',
+          content: '',
+          toolInvocations: [
+            {
+              toolCallId: 't1',
+              toolName: 'propose_blueprint',
+              state: 'output-available',
+              proposedPlan: {
+                summary: 'A reading list',
+                objects: [{ name: 'book', label: 'Book', fieldCount: 2 }],
+                counts: { objects: 1, views: 0, dashboards: 0, seedData: 0 },
+                questions: [],
+                assumptions: [],
+              },
+            },
+          ],
+        },
+      ];
+      render(<ChatbotEnhanced messages={structured} onSendMessage={vi.fn()} />);
+      // Rich card present, fallback absent — no double card.
+      expect(screen.getByTestId('proposed-plan')).toBeInTheDocument();
+      expect(screen.queryByTestId('proposed-plan-fallback')).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe('ChatbotEnhanced — auto-publish drafts (self-use magic moment)', () => {
@@ -1016,5 +1139,94 @@ describe('ChatbotEnhanced — activity-driven liveness (not a fake clock)', () =
     // Never went amber — the heartbeats kept it honestly "receiving".
     expect(screen.queryByText(/Waiting for server/i)).not.toBeInTheDocument();
     expect(screen.getByText('0:08')).toBeInTheDocument();
+  });
+});
+
+// Improvement 2: the propose_blueprint call is a single long, atomic LLM request
+// (no token stream), so a bare timer felt stuck. While it runs, the summary strip
+// shows a friendly "Designing your app…" lead-in plus a hint that rotates every
+// few seconds — presentational reassurance that the wait is moving.
+describe('ChatbotEnhanced — propose_blueprint in-progress design hints', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  const runningProposal: ChatMessage[] = [
+    { id: 'u1', role: 'user', content: 'build me a CRM' },
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      toolInvocations: [
+        { toolCallId: 't1', toolName: 'propose_blueprint', state: 'input-available' },
+      ],
+    },
+  ];
+
+  it('shows the friendly designing indicator (lead-in + rotating hint + timer) for a running proposal', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={runningProposal}
+        labels={{
+          designingPlanLabel: 'DESIGNING',
+          designingPlanHints: ['HINT_A', 'HINT_B'],
+        }}
+      />,
+    );
+    const hint = container.querySelector('[data-testid="build-proposal-progress"]');
+    expect(hint).not.toBeNull();
+    expect(hint?.textContent).toContain('DESIGNING');
+    // First hint up immediately, plus the live elapsed timer beside it.
+    expect(hint?.textContent).toContain('HINT_A');
+    expect(hint?.querySelector('[data-tool-running-timer]')).not.toBeNull();
+  });
+
+  it('rotates to the next hint after the interval elapses', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={runningProposal}
+        labels={{ designingPlanLabel: 'DESIGNING', designingPlanHints: ['HINT_A', 'HINT_B'] }}
+      />,
+    );
+    const hint = () => container.querySelector('[data-testid="build-proposal-progress"]');
+    expect(hint()?.textContent).toContain('HINT_A');
+    act(() => {
+      vi.advanceTimersByTime(3500);
+    });
+    expect(hint()?.textContent).toContain('HINT_B');
+    expect(hint()?.textContent).not.toContain('HINT_A');
+  });
+
+  it('a non-proposal running tool keeps the plain timer, not the design hint', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={[
+          { id: 'u1', role: 'user', content: 'do something' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: '',
+            streaming: true,
+            toolInvocations: [
+              { toolCallId: 't1', toolName: 'query_records', state: 'input-available' },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(container.querySelector('[data-testid="build-proposal-progress"]')).toBeNull();
+    expect(container.querySelector('[data-tool-running-timer]')).not.toBeNull();
   });
 });

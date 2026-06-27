@@ -1239,6 +1239,18 @@ function ChatPane({
           connectionWaiting: t('console.ai.connectionWaiting', { defaultValue: 'Waiting for server…' }),
           connectionStalledLabel: t('console.ai.connectionStalled', { defaultValue: 'Still working…' }),
           connectionOfflineLabel: t('console.ai.connectionOffline', { defaultValue: 'Connection lost — reconnecting…' }),
+          // Friendly in-progress feedback for the long, atomic propose_blueprint
+          // call — a lead-in plus rotating hints so the wait reads as deliberate
+          // design work, not a hang. Each hint is translated individually (the
+          // established per-string pattern; avoids an i18n returnObjects array).
+          designingPlanLabel: t('console.ai.designingPlan', { defaultValue: 'Designing your app…' }),
+          designingPlanHints: [
+            t('console.ai.designingPlanHint.data', { defaultValue: 'Mapping out the data you’ll track…' }),
+            t('console.ai.designingPlanHint.objects', { defaultValue: 'Shaping objects and their fields…' }),
+            t('console.ai.designingPlanHint.relations', { defaultValue: 'Connecting related records…' }),
+            t('console.ai.designingPlanHint.views', { defaultValue: 'Planning the screens and views…' }),
+            t('console.ai.designingPlanHint.finalize', { defaultValue: 'Pulling the plan together…' }),
+          ],
           toolDetailsHidden: t('console.ai.toolDetailsHidden'),
           copy: t('console.ai.copy'),
           copied: t('console.ai.copied'),
@@ -1342,6 +1354,9 @@ function ChatPane({
         planApproveLabel={t('console.ai.planApprove', { defaultValue: 'Build it' })}
         planAdjustLabel={t('console.ai.planAdjust', { defaultValue: 'Adjust' })}
         planBuiltLabel={t('console.ai.planBuilt', { defaultValue: 'Built' })}
+        planReadyLabel={t('console.ai.planReady', {
+          defaultValue: 'The plan is ready. Build it now, or tell me what to adjust.',
+        })}
         planApproveMessage={t('console.ai.planApproveMessage', {
           defaultValue: 'Looks good — build it as proposed.',
         })}

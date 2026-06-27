@@ -114,6 +114,14 @@ function buildChatLocale(
         connectionWaiting: '正在等待服务器响应…',
         connectionStalledLabel: '仍在处理中…',
         connectionOfflineLabel: '网络已断开，正在重连…',
+        designingPlanLabel: '正在为你设计方案…',
+        designingPlanHints: [
+          '梳理需要记录的数据…',
+          '设计对象与字段…',
+          '关联相关记录…',
+          '规划页面与视图…',
+          '汇总成完整方案…',
+        ],
         toolDetailsHidden: '已隐藏工具参数和原始结果，仅保留过程摘要。',
         copy: '复制',
         copied: '已复制',
@@ -141,6 +149,7 @@ function buildChatLocale(
       planApprove: '开始搭建',
       planAdjust: '调整方案',
       planBuilt: '已搭建',
+      planReady: '方案已就绪。点击开始搭建，或告诉我需要调整什么。',
       // These messages the button SENDS must match the cloud confirm gate's
       // APPROVAL_RE (service-ai-studio confirm-gate.ts) or the agent re-proposes
       // and "开始搭建" looks inert — the gate anchors Chinese approval on 确认 /
@@ -178,6 +187,14 @@ function buildChatLocale(
       connectionWaiting: 'Waiting for server…',
       connectionStalledLabel: 'Still working…',
       connectionOfflineLabel: 'Connection lost — reconnecting…',
+      designingPlanLabel: 'Designing your app…',
+      designingPlanHints: [
+        'Mapping out the data you’ll track…',
+        'Shaping objects and their fields…',
+        'Connecting related records…',
+        'Planning the screens and views…',
+        'Pulling the plan together…',
+      ],
       toolDetailsHidden: 'Tool inputs and raw results are hidden in this view.',
       copy: 'Copy',
       copied: 'Copied',
@@ -205,6 +222,7 @@ function buildChatLocale(
     planApprove: 'Build it',
     planAdjust: 'Adjust',
     planBuilt: 'Built',
+    planReady: 'The plan is ready. Build it now, or tell me what to adjust.',
     planApproveMessage: 'Looks good — build it as proposed.',
     planApproveDefaultsMessage: 'Build it with your best assumptions; use sensible defaults for the open questions.',
     planAnswer: (question: string, option: string) => `For "${question}", go with: ${option}.`,
@@ -726,6 +744,7 @@ function ChatbotInner({
         planApproveLabel={locale.planApprove}
         planAdjustLabel={locale.planAdjust}
         planBuiltLabel={locale.planBuilt}
+        planReadyLabel={locale.planReady}
         planApproveMessage={locale.planApproveMessage}
         planApproveDefaultsMessage={locale.planApproveDefaultsMessage}
         planAnswerMessage={locale.planAnswer}

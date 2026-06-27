@@ -20,7 +20,7 @@
 import * as React from 'react';
 import { cn } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
-import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert, ClipboardList, HelpCircle, Table2, WifiOff } from 'lucide-react';
+import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, Eye, GitCompareArrows, Rocket, Clock3, CheckCircle2, XCircle, Loader2, ShieldCheck, TriangleAlert, ClipboardList, HelpCircle, Table2, WifiOff, Sparkles } from 'lucide-react';
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
@@ -326,6 +326,20 @@ export interface ChatbotLabels {
    * mid-turn — e.g. "Connection lost — reconnecting…". The honest disconnect cue.
    */
   connectionOfflineLabel?: string;
+  /**
+   * Lead-in shown while the build agent is designing a plan (the long, atomic
+   * `propose_blueprint` call) — e.g. "Designing your app…". Pairs with the live
+   * timer so the wait reads as deliberate work, not a hang.
+   */
+  designingPlanLabel?: string;
+  /**
+   * Rotating "what I'm doing now" hints cycled through during that same
+   * propose_blueprint wait (the call is a single atomic LLM request with no
+   * partial stream, so these are presentational reassurance, not live status).
+   * Defaults to a sensible English set when omitted; pass a localized list to
+   * override. An empty array disables rotation (only `designingPlanLabel` shows).
+   */
+  designingPlanHints?: string[];
 }
 
 export type ChatbotProcessVisibility = 'hidden' | 'summary' | 'debug';
@@ -537,6 +551,13 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   planAdjustLabel?: string;
   /** Static badge shown in place of the "Build it" button once this plan's build has run, so it can't be re-triggered (default "Built"). */
   planBuiltLabel?: string;
+  /**
+   * Body line of the FALLBACK confirm card shown when a propose_blueprint step
+   * finished but produced no structured plan (so the rich card can't render).
+   * The "Build it"/"Adjust" buttons (reusing `planApproveLabel`/`planAdjustLabel`)
+   * still appear, so the user never has to guess the confirmation phrase
+   * (default "The plan is ready. Build it now, or tell me what to adjust."). */
+  planReadyLabel?: string;
   /** Message sent when the user approves a plan with no open questions (default "Looks good — build it as proposed."). */
   planApproveMessage?: string;
   /** Message sent when the user approves a plan that still has open questions — tells the agent to proceed on sensible defaults (default "Build it with your best assumptions; use sensible defaults for the open questions."). */
@@ -753,6 +774,35 @@ function formatChangeRow(c: {
   return [verb, `${target}${typePart}`, c.details].filter(Boolean).join(' ');
 }
 
+/**
+ * True when this tool is the build agent's "propose a plan" step
+ * (`propose_blueprint`). Matched by name so we can recognise it even when its
+ * result did NOT parse into a structured `proposedPlan` — the case that used to
+ * leave the user with a bare "reply 确认 to build" text and no button.
+ */
+function isBuildProposalTool(tool: ChatToolInvocation): boolean {
+  return tool.toolName === 'propose_blueprint';
+}
+
+/**
+ * A COMPLETED propose_blueprint whose result the detector could not turn into a
+ * rich `proposedPlan` card (e.g. the model returned a thin/oddly-shaped envelope,
+ * or proposed in prose). We still owe the user an explicit confirm gate, so the
+ * detailed body renders a minimal "ready to build — Build it / Adjust" card
+ * instead of collapsing the step into a chip and forcing them to guess the magic
+ * "确认" phrase. Only the finished, non-error state qualifies: a running proposal
+ * keeps its live timer, an errored one keeps its error card.
+ */
+function isUnstructuredBuildProposal(tool: ChatToolInvocation): boolean {
+  return (
+    isBuildProposalTool(tool) &&
+    getToolState(tool) === 'completed' &&
+    !tool.proposedPlan &&
+    !tool.proposedChanges &&
+    !tool.draftReview?.items.length
+  );
+}
+
 function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
   const state = getToolState(tool);
   return (
@@ -763,7 +813,11 @@ function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
     // The pre-build "Proposed plan" card lives in the detailed tool body; route
     // a propose_blueprint result there instead of collapsing it into a chip.
     Boolean(tool.proposedPlan) ||
-    Boolean(tool.proposedChanges)
+    Boolean(tool.proposedChanges) ||
+    // A completed propose_blueprint that produced NO structured plan still needs
+    // the detailed body — that's where the fallback "Build it" confirm gate
+    // renders so the user is never left guessing the confirmation phrase.
+    isUnstructuredBuildProposal(tool)
   );
 }
 
@@ -925,6 +979,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planApproveLabel = 'Build it',
       planAdjustLabel = 'Adjust',
       planBuiltLabel = 'Built',
+      planReadyLabel = 'The plan is ready. Build it now, or tell me what to adjust.',
       planApproveMessage = 'Looks good — build it as proposed.',
       planApproveDefaultsMessage = 'Build it with your best assumptions; use sensible defaults for the open questions.',
       planAnswerMessage = (question: string, option: string) => `For "${question}", go with: ${option}.`,
@@ -969,6 +1024,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         connectionWaiting: labels?.connectionWaiting ?? 'Waiting for server…',
         connectionStalledLabel: labels?.connectionStalledLabel ?? 'Still working…',
         connectionOfflineLabel: labels?.connectionOfflineLabel ?? 'Connection lost — reconnecting…',
+        designingPlanLabel: labels?.designingPlanLabel ?? 'Designing your app…',
+        // `?? DEFAULT_DESIGNING_PLAN_HINTS` (not `||`) so a caller can pass `[]`
+        // to deliberately disable the rotation while keeping the lead-in label.
+        designingPlanHints: labels?.designingPlanHints ?? DEFAULT_DESIGNING_PLAN_HINTS,
       }),
       [labels],
     );
@@ -1242,7 +1301,12 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       let order = 0;
       for (const message of messages) {
         for (const tool of message.toolInvocations ?? []) {
-          if (tool.proposedPlan && tool.toolCallId) plans.push({ id: tool.toolCallId, order });
+          // Both the structured plan card AND the fallback confirm card (an
+          // unstructured propose_blueprint) own a "Build it" button, so both must
+          // collapse to the inert "Built" badge once their build has run.
+          if ((tool.proposedPlan || isUnstructuredBuildProposal(tool)) && tool.toolCallId) {
+            plans.push({ id: tool.toolCallId, order });
+          }
           if (tool.toolName === 'apply_blueprint') lastBuildOrder = order;
           order += 1;
         }
@@ -1323,14 +1387,27 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       // static "Running" (issue #432).
       const isRunning = state === 'input-streaming' || state === 'input-available';
       const titleNode = (
-        <span className="inline-flex items-center gap-2">
+        <span className="inline-flex min-w-0 items-center gap-2">
           <span>{friendlyTitle || tool.toolName}</span>
           {showRawName ? (
             <code className="rounded bg-muted px-1 py-px text-[10px] font-mono text-muted-foreground">
               {tool.toolName}
             </code>
           ) : null}
-          {isRunning ? <ToolRunningTimer offlineLabel={L.connectionOfflineLabel} /> : null}
+          {isRunning ? (
+            // The plan-design step gets the friendly rotating-hint indicator
+            // (long atomic call, no stream); every other running tool keeps the
+            // compact timer. Mirrors the summary-strip treatment.
+            isBuildProposalTool(tool) ? (
+              <BuildProposalProgressHint
+                label={L.designingPlanLabel}
+                hints={L.designingPlanHints}
+                offlineLabel={L.connectionOfflineLabel}
+              />
+            ) : (
+              <ToolRunningTimer offlineLabel={L.connectionOfflineLabel} />
+            )
+          ) : null}
         </span>
       );
 
@@ -1342,7 +1419,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             state === 'approval-requested' ||
             Boolean(tool.draftReview && tool.draftReview.items.length > 0) ||
             Boolean(tool.proposedPlan) ||
-            Boolean(tool.proposedChanges)
+            Boolean(tool.proposedChanges) ||
+            // Fallback confirm gate (unstructured proposal) must open so its
+            // "Build it" button is visible without an extra click.
+            isUnstructuredBuildProposal(tool)
           }
         >
           <ToolHeader type={partType} state={state} title={titleNode} />
@@ -1720,6 +1800,67 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       {planAdjustLabel}
                     </button>
                   </div>
+                  )
+                ) : (
+                  <span className="text-[11px] italic text-muted-foreground/80">
+                    {planApproveHintLabel}
+                  </span>
+                )}
+              </div>
+            ) : null}
+            {/* FALLBACK confirm gate — a propose_blueprint that FINISHED but whose
+                result didn't parse into the rich plan card above (a thin/oddly
+                shaped envelope, or a prose proposal). Previously this collapsed
+                into a "Propose blueprint · Completed" chip and the user was left
+                with the assistant's prose telling them to reply "确认" — no
+                button, guess-the-phrase. We always give them an explicit, one
+                click "Build it" / "Adjust" instead. Same approve/adjust handlers
+                and the same #432 built-state collapse as the structured card. */}
+            {isUnstructuredBuildProposal(tool) ? (
+              <div
+                className="flex flex-col gap-2 border-t bg-muted/20 px-3 py-2.5"
+                data-testid="proposed-plan-fallback"
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                  <ClipboardList className="size-3.5" />
+                  {planTitleLabel}
+                </span>
+                <p className="text-xs text-muted-foreground">{planReadyLabel}</p>
+                {onSendMessage ? (
+                  builtPlanIds.has(tool.toolCallId) ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-plan-actions">
+                      <span
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300"
+                        data-testid="proposed-plan-built"
+                      >
+                        <CheckCircle2 className="size-3.5" />
+                        {planBuiltLabel}
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex flex-wrap items-center gap-1.5 pt-0.5"
+                      data-testid="proposed-plan-actions"
+                    >
+                      <button
+                        type="button"
+                        // No structured questions to default through → plain approve.
+                        onClick={() => handlePlanApprove(false)}
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                        data-testid="proposed-plan-approve"
+                      >
+                        <Rocket className="size-3.5" />
+                        {planApproveLabel}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePlanAdjust}
+                        className="inline-flex h-7 items-center rounded-md border bg-background px-3 text-xs font-medium hover:bg-accent"
+                        data-testid="proposed-plan-adjust"
+                      >
+                        {planAdjustLabel}
+                      </button>
+                    </div>
                   )
                 ) : (
                   <span className="text-[11px] italic text-muted-foreground/80">
@@ -2467,6 +2608,75 @@ function LivenessIndicator({
 }
 
 /**
+ * Default rotating hints for the propose_blueprint wait. Presentational
+ * reassurance — the call is one atomic LLM request with no partial stream, so
+ * these don't reflect real sub-steps; they just let the (tens-of-seconds) wait
+ * read as deliberate design work instead of a hang. Order roughly follows how a
+ * human would think a schema through. Overridable/localizable via the
+ * `designingPlanHints` label.
+ */
+const DEFAULT_DESIGNING_PLAN_HINTS = [
+  'Mapping out the data you’ll track…',
+  'Shaping objects and their fields…',
+  'Connecting related records…',
+  'Planning the screens and views…',
+  'Pulling the plan together…',
+];
+
+/** How long each rotating design hint stays up (ms) before the next one. */
+const DESIGNING_HINT_ROTATE_MS = 3500;
+
+/**
+ * Friendly in-progress indicator for the build agent's `propose_blueprint`
+ * step. Because that call is a SINGLE long, atomic LLM request (no token
+ * stream, no partial results), a bare elapsed timer made it look like the UI
+ * might be stuck. This pairs the live `ToolRunningTimer` with a short lead-in
+ * ("Designing your app…") and a hint that ROTATES every few seconds, so the
+ * wait visibly "moves" and reads as deliberate work. The rotation is purely
+ * presentational — it is NOT claiming real sub-step progress. An empty `hints`
+ * array (or a single entry) just pins the lead-in + timer with no rotation.
+ */
+function BuildProposalProgressHint({
+  label,
+  hints,
+  offlineLabel,
+}: {
+  label: string;
+  hints: string[];
+  offlineLabel: string;
+}) {
+  const [index, setIndex] = React.useState(0);
+  React.useEffect(() => {
+    if (hints.length <= 1) return; // nothing to rotate through
+    const id = setInterval(
+      () => setIndex((i) => (i + 1) % hints.length),
+      DESIGNING_HINT_ROTATE_MS,
+    );
+    return () => clearInterval(id);
+  }, [hints.length]);
+  // Guard the index against a shrinking `hints` list (label change mid-rotation).
+  const hint = hints.length > 0 ? hints[index % hints.length] : undefined;
+  return (
+    <span
+      className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"
+      data-testid="build-proposal-progress"
+      aria-live="polite"
+    >
+      <Sparkles className="size-3 shrink-0 animate-pulse text-primary" aria-hidden />
+      <span className="font-medium text-foreground/80">{label}</span>
+      {hint ? (
+        // `key` on the hint text restarts the fade each time it swaps, so the
+        // rotation reads as a gentle change rather than an instant flicker.
+        <span key={hint} className="truncate animate-in fade-in duration-500">
+          {hint}
+        </span>
+      ) : null}
+      <ToolRunningTimer offlineLabel={offlineLabel} />
+    </span>
+  );
+}
+
+/**
  * Compact elapsed-timer + offline cue for a tool that is currently RUNNING
  * (issue #432) — e.g. the "Propose blueprint · Running" header. Counts up from
  * when the running card mounts so a long tool call (a blueprint can take tens of
@@ -2641,6 +2851,8 @@ interface ToolActivitySummaryLabels {
   toolAwaitingApproval: string;
   toolFailed: string;
   connectionOfflineLabel: string;
+  designingPlanLabel: string;
+  designingPlanHints: string[];
 }
 
 function ToolActivitySummary({
@@ -2674,8 +2886,19 @@ function ToolActivitySummary({
             {group.state === 'running' ? (
               // A running tool (e.g. "Propose blueprint") shows a LIVE elapsed
               // timer instead of a static "Running", and a red offline cue if
-              // the network drops (issue #432).
-              <ToolRunningTimer offlineLabel={labels.connectionOfflineLabel} />
+              // the network drops (issue #432). The build agent's plan-design
+              // step is special-cased: that one call is a long, atomic LLM
+              // request with no token stream, so a bare timer felt stuck — give
+              // it a friendly "Designing your app…" lead-in with rotating hints.
+              group.rawName === 'propose_blueprint' ? (
+                <BuildProposalProgressHint
+                  label={labels.designingPlanLabel}
+                  hints={labels.designingPlanHints}
+                  offlineLabel={labels.connectionOfflineLabel}
+                />
+              ) : (
+                <ToolRunningTimer offlineLabel={labels.connectionOfflineLabel} />
+              )
             ) : (
               <span
                 className={cn(
