@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/plugin-map",
-  "version": "7.2.0",
+  "version": "7.3.0",
   "type": "module",
   "license": "MIT",
   "description": "Map visualization plugin for Object UI",

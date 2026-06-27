@@ -1,5 +1,16 @@
 # @object-ui/runner
 
+## 7.3.0
+
+### Patch Changes
+
+- @object-ui/plugin-kanban@7.3.0
+- @object-ui/types@7.3.0
+- @object-ui/core@7.3.0
+- @object-ui/react@7.3.0
+- @object-ui/components@7.3.0
+- @object-ui/plugin-charts@7.3.0
+
 ## 7.2.0
 
 ### Patch Changes

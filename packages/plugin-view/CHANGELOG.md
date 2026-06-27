@@ -1,5 +1,16 @@
 # @object-ui/plugin-view
 
+## 7.3.0
+
+### Patch Changes
+
+- @object-ui/plugin-form@7.3.0
+- @object-ui/plugin-grid@7.3.0
+- @object-ui/types@7.3.0
+- @object-ui/core@7.3.0
+- @object-ui/react@7.3.0
+- @object-ui/components@7.3.0
+
 ## 7.2.0
 
 ### Patch Changes
