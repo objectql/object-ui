@@ -26,7 +26,7 @@ import {
   DropdownMenuSeparator,
 } from '@object-ui/components';
 import { ChevronsUpDown, Check, Plus, Users } from 'lucide-react';
-import { resolveHomeUrl } from '../console/organizations/resolveHomeUrl';
+import { resolveRootUrl } from '../console/organizations/resolveHomeUrl';
 
 function getOrgInitials(name: string): string {
   return name
@@ -89,9 +89,11 @@ export function WorkspaceSwitcher() {
     if (org.id === current.id) return;
     try {
       await switchOrganization(org.id);
-      // switchOrganization only updates state; reload to home so the new active
-      // org propagates to every data scope app-wide (same as OrganizationsPage).
-      window.location.href = resolveHomeUrl();
+      // switchOrganization only updates state; reload to the console root so the
+      // new active org propagates to every data scope app-wide AND
+      // RootLandingRedirect resolves the right landing (single-app workspace →
+      // that app, not the redundant launcher). Same as OrganizationsPage.
+      window.location.href = resolveRootUrl();
     } catch (err) {
       console.error('[WorkspaceSwitcher] switch failed', err);
     }

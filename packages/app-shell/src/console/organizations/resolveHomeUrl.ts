@@ -19,9 +19,28 @@ export function resolveHomeUrl(baseURI?: string): string {
   if (baseURI !== undefined) {
     return new URL('home', baseURI).toString();
   }
+  return new URL('home', consoleRoot()).toString();
+}
+
+/** The deployment-mounted console root (`/_console/`, `/`, …). */
+function consoleRoot(): URL {
   const baseHref = document.querySelector('base')?.getAttribute('href');
-  const root = baseHref
+  return baseHref
     ? new URL(baseHref, window.location.origin)
     : new URL('/', window.location.origin);
-  return new URL('home', root).toString();
+}
+
+/**
+ * The console ROOT URL (not `/home`). Used after switching/creating an org so
+ * the SPA's root route runs `RootLandingRedirect`, which resolves the right
+ * landing: a single-app workspace lands IN that app (skipping the redundant
+ * launcher), and only a multi-app workspace falls back to `/home`.
+ */
+export function resolveRootUrl(baseURI?: string): string {
+  if (baseURI !== undefined) {
+    // The mount directory of the base URI ('.' resolves to the dir), e.g.
+    // '/_console/organizations' → '/_console/', '/_console/' → '/_console/'.
+    return new URL('.', baseURI).toString();
+  }
+  return consoleRoot().toString();
 }

@@ -12,7 +12,7 @@
 import { useState } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { SchemaRenderer, useAdapter } from '@object-ui/react';
-import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
+import { Empty, EmptyTitle, EmptyDescription, Spinner } from '@object-ui/components';
 import { FileText, Pencil } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth } from '@object-ui/auth';
@@ -35,7 +35,7 @@ export function PageView() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
 
-  const { pages, objects } = useMetadata();
+  const { pages, objects, getTypeStatus } = useMetadata();
   // ADR-0048 Phase 2 — prefer the page owned by the current app's package so
   // two packages shipping `page/<same-name>` each resolve within their own
   // container instead of by load order.
@@ -47,6 +47,20 @@ export function PageView() {
   const page = preferLocal(pages as any[], pageName, (activeApp as any)?._packageId);
 
   if (!page) {
+    // `page` metadata is lazy-loaded: on the very first access `pages` is an
+    // empty array while the fetch is in flight, which would flash a false
+    // "page not found" (or a blank body) — exactly the post-signup landing
+    // race where the app's home page is the first thing rendered. Show a
+    // loading state until the `page` type is actually resolved, then trust the
+    // not-found. (getTypeStatus absent = hand-rolled context = always ready.)
+    const pageStatus = getTypeStatus?.('page');
+    if (pageStatus === 'idle' || pageStatus === 'loading') {
+      return (
+        <div className="h-full flex items-center justify-center p-8" data-testid="page-loading">
+          <Spinner className="h-5 w-5 text-muted-foreground" />
+        </div>
+      );
+    }
     return (
       <div className="h-full flex items-center justify-center p-8">
         <Empty>

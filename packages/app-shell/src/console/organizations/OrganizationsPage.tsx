@@ -24,7 +24,7 @@ import type { AuthOrganization } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CreateWorkspaceDialog } from './CreateWorkspaceDialog';
-import { resolveHomeUrl } from './resolveHomeUrl';
+import { resolveRootUrl } from './resolveHomeUrl';
 
 function getOrgInitials(name: string): string {
   return name
@@ -94,7 +94,11 @@ export function OrganizationsPage() {
       if (org.id !== activeOrganization?.id) {
         await switchOrganization(org.id);
       }
-      window.location.href = resolveHomeUrl();
+      // Land on the console ROOT so RootLandingRedirect resolves the right
+      // landing — a single-app workspace (e.g. a fresh cloud signup, whose only
+      // app is Cloud) goes straight INTO that app instead of the redundant
+      // workspace launcher; multi-app workspaces still fall back to /home.
+      window.location.href = resolveRootUrl();
     } catch (err) {
       console.error('[OrganizationsPage] Failed to switch:', err);
       setSwitchingId(null);
