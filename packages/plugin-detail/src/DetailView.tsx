@@ -1234,6 +1234,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   objectName={schema.objectName}
                   isEditing={isInlineEditing}
                   onFieldChange={handleInlineFieldChange}
+                  dataSource={dataSource}
                 />
               ))
             )}
@@ -1247,6 +1248,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   objectName={schema.objectName}
                   isEditing={isInlineEditing}
                   onFieldChange={handleInlineFieldChange}
+                  dataSource={dataSource}
                 />
               ))
             )}
@@ -1261,6 +1263,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 objectName={schema.objectName}
                 isEditing={isInlineEditing}
                 onFieldChange={handleInlineFieldChange}
+                dataSource={dataSource}
               />
             )}
             {/* Comments in details tab */}
@@ -1409,6 +1412,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   objectName={schema.objectName}
                   isEditing={isInlineEditing}
                   onFieldChange={handleInlineFieldChange}
+                  dataSource={dataSource}
                 />
               ))}
             </div>
@@ -1426,6 +1430,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   objectName={schema.objectName}
                   isEditing={isInlineEditing}
                   onFieldChange={handleInlineFieldChange}
+                  dataSource={dataSource}
                 />
               ))}
             </div>
@@ -1443,6 +1448,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
               objectName={schema.objectName}
               isEditing={isInlineEditing}
               onFieldChange={handleInlineFieldChange}
+              dataSource={dataSource}
             />
           )}
 

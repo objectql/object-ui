@@ -25,7 +25,7 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
-import { getCellRenderer, resolveCellRendererType, SelectField, BooleanField } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, SelectField, BooleanField, LookupField, UserField, coerceToSafeValue } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
 import { useDetailTranslation } from './useDetailTranslation';
@@ -53,6 +53,29 @@ export function getResponsiveSpanClass(span: number | undefined, columns: number
   return '';
 }
 
+/**
+ * Field types that carry a `reference_to` for relational metadata but are NOT
+ * edited via the lookup picker (they have their own dedicated inputs/renderers).
+ * Used so the inline-edit branch doesn't hijack them into a record picker.
+ */
+const TEXTUAL_REF_FALLBACK_TYPES = new Set(['formula', 'summary', 'rollup', 'auto_number']);
+
+/**
+ * Extract the id a reference widget expects from a value that may already be
+ * an `$expand`-ed record object (`{ id, name, ... }`), an array of those, or a
+ * bare id. Mirrors the display logic in `LookupCellRenderer` so edit-mode and
+ * read-mode agree on which id a relationship points at.
+ */
+function extractLookupId(value: unknown): unknown {
+  if (value == null) return value;
+  if (Array.isArray(value)) return value.map(extractLookupId);
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    return obj.id ?? obj._id ?? obj.value ?? '';
+  }
+  return value;
+}
+
 export interface VirtualScrollOptions {
   /** Enable virtual scrolling for large field sets */
   enabled?: boolean;
@@ -74,6 +97,8 @@ export interface DetailSectionProps {
   isEditing?: boolean;
   /** Callback when a field value changes during inline editing */
   onFieldChange?: (field: string, value: any) => void;
+  /** DataSource used by reference (lookup/master_detail/user) widgets during inline editing */
+  dataSource?: any;
   /** Virtual scrolling configuration for sections with many fields */
   virtualScroll?: VirtualScrollOptions;
 }
@@ -86,6 +111,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   objectName,
   isEditing = false,
   onFieldChange,
+  dataSource,
   virtualScroll,
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(section.defaultCollapsed ?? false);
@@ -267,6 +293,28 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                   />
                 );
               }
+              // Reference fields (lookup / master_detail / tree / user / owner)
+              // store an id but may arrive `$expand`-ed as a record object. A
+              // plain text input would stringify that to "[object Object]", so
+              // render the real picker and feed it the id extracted from the
+              // (possibly expanded) value.
+              const isUserRef = editType === 'user' || editType === 'owner';
+              const isLookupRef =
+                editType === 'lookup' ||
+                editType === 'master_detail' ||
+                editType === 'tree' ||
+                (!!enrichedField.reference_to && !TEXTUAL_REF_FALLBACK_TYPES.has(editType as string));
+              if (isUserRef || isLookupRef) {
+                const RefWidget = isUserRef ? UserField : LookupField;
+                return (
+                  <RefWidget
+                    field={enrichedField as any}
+                    value={extractLookupId(value)}
+                    onChange={(v: any) => onFieldChange?.(field.name, v)}
+                    dataSource={dataSource}
+                  />
+                );
+              }
               const isDate = editType === 'date' || editType === 'datetime';
               const inputType = editType === 'number' ? 'number' : isDate ? 'date' : 'text';
               // <input type="date"> needs a YYYY-MM-DD string; raw ISO
@@ -282,7 +330,12 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                       const d = new Date(s);
                       return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-CA');
                     })()
-                  : String(value);
+                  // Coerce objects (e.g. an unexpanded reference that slipped
+                  // through type detection) to a readable label rather than
+                  // leaking "[object Object]" into the input.
+                  : typeof value === 'object'
+                    ? String(coerceToSafeValue(value) ?? '')
+                    : String(value);
               return (
                 <input
                   type={inputType}

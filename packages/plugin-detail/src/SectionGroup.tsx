@@ -26,6 +26,8 @@ export interface SectionGroupProps {
   objectName?: string;
   isEditing?: boolean;
   onFieldChange?: (field: string, value: any) => void;
+  /** DataSource used by reference widgets during inline editing */
+  dataSource?: any;
 }
 
 export const SectionGroup: React.FC<SectionGroupProps> = ({
@@ -36,6 +38,7 @@ export const SectionGroup: React.FC<SectionGroupProps> = ({
   objectName,
   isEditing = false,
   onFieldChange,
+  dataSource,
 }) => {
   const collapsible = group.collapsible ?? true;
   const [isCollapsed, setIsCollapsed] = React.useState(group.defaultCollapsed ?? false);
@@ -51,6 +54,7 @@ export const SectionGroup: React.FC<SectionGroupProps> = ({
           objectName={objectName}
           isEditing={isEditing}
           onFieldChange={onFieldChange}
+          dataSource={dataSource}
         />
       ))}
     </div>
