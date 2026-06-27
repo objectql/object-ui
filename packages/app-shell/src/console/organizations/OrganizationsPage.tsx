@@ -120,10 +120,18 @@ export function OrganizationsPage() {
   useEffect(() => {
     if (autoSelectedRef.current) return;
     if (isOrganizationsLoading) return;
-    if (manageMode || wantsCreate) return; // came to manage/create — don't bounce
+    if (wantsCreate) return; // came to create — don't bounce
     if (orgList.length !== 1) return;
     autoSelectedRef.current = true;
-    void handleSelect(orgList[0]);
+    // Single-org users have no real choice to make. In manage mode (`?manage=1`,
+    // used by the Cloud app "Members" nav and the avatar "My Organizations"
+    // entry), skip the pointless one-item picker and deep-link straight to that
+    // org's member management; otherwise switch into the org and land on home.
+    if (manageMode) {
+      navigate(`/organizations/${orgList[0].slug}/members`, { replace: true });
+    } else {
+      void handleSelect(orgList[0]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOrganizationsLoading, orgList.length, manageMode, wantsCreate]);
 
@@ -141,7 +149,7 @@ export function OrganizationsPage() {
   // because there's only one org. This prevents the picker from briefly
   // flashing on screen for single-org users.
   const willAutoSelect =
-    !manageMode && !wantsCreate && !isOrganizationsLoading && orgList.length === 1;
+    !wantsCreate && !isOrganizationsLoading && orgList.length === 1;
   if (isOrganizationsLoading || willAutoSelect) {
     return (
       <div className="flex flex-1 items-center justify-center py-20">
