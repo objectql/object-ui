@@ -1813,6 +1813,13 @@ const en = {
       publishing: 'Publishing…',
       exit: 'Exit preview',
       changes: 'Changes',
+      // Magic-moment hint: a freshly-built draft renders empty (dashboards at 0,
+      // lists "Nothing here yet") because seed/sample rows only load on publish.
+      // Say so plainly so an empty preview never reads as a broken build.
+      sampleDataTitle: 'Sample data appears once you publish',
+      sampleDataBody:
+        'You’re previewing your app’s structure. Publish to load example records and make it live.',
+      publishCta: 'Publish to see it live',
     },
     changes: {
       title: 'Pending changes',

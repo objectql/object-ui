@@ -58,6 +58,9 @@ describe('DraftPreviewBar', () => {
       expect(screen.queryByTestId('draft-preview-publish')).not.toBeInTheDocument();
     });
     expect(screen.queryByTestId('draft-preview-changes')).not.toBeInTheDocument();
+    // The empty-data magic-moment hint is pending-only too: nothing is staged,
+    // so there is no "publish to load sample data" to promise.
+    expect(screen.queryByTestId('draft-preview-sample-hint')).not.toBeInTheDocument();
     expect(screen.getByTestId('draft-preview-bar')).toHaveTextContent(/no unpublished changes/i);
     expect(screen.getByTestId('draft-preview-exit')).toBeInTheDocument();
   });
@@ -72,12 +75,24 @@ describe('DraftPreviewBar', () => {
     expect(screen.getByTestId('draft-preview-bar')).toHaveTextContent(/Nothing here is live until you publish/i);
   });
 
-  it('keeps Publish visible when the draft count is unknown (fetch failed) — only a known zero relaxes', async () => {
+  it('explains the empty preview and elevates Publish to the dominant CTA when drafts are pending', async () => {
+    mockDrafts([{ type: 'object', name: 'a' }]);
+    renderBar();
+    // The magic-moment hint names WHY the preview looks empty (seed data loads
+    // on publish), so a hollow-looking draft never reads as a broken build…
+    const hint = await screen.findByTestId('draft-preview-sample-hint');
+    expect(hint).toHaveTextContent(/sample data appears once you publish/i);
+    // …and the Publish button is the prominent, action-oriented next step.
+    expect(screen.getByTestId('draft-preview-publish')).toHaveTextContent(/publish to see it live/i);
+  });
+
+  it('keeps Publish + the sample-data hint visible when the draft count is unknown (fetch failed) — only a known zero relaxes', async () => {
     global.fetch = vi.fn(async () => ({ ok: false, json: async () => null })) as unknown as typeof fetch;
     renderBar();
     // pendingCount stays null → not known-zero → safe default keeps the publish path.
     await waitFor(() => {
       expect(screen.getByTestId('draft-preview-publish')).toBeInTheDocument();
     });
+    expect(screen.getByTestId('draft-preview-sample-hint')).toBeInTheDocument();
   });
 });

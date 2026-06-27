@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Eye, X, Rocket, GitCompareArrows } from 'lucide-react';
+import { Eye, X, Rocket, GitCompareArrows, Sparkles } from 'lucide-react';
 import { Button, cn } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { usePreviewDrafts, markPreviewExit, PREVIEW_QUERY_FLAG } from './PreviewModeContext';
@@ -88,25 +88,29 @@ export function DraftPreviewBar() {
   return (
     <div
       className={cn(
-        'sticky top-0 z-40 flex items-center gap-3 border-b px-4 py-2 text-sm',
+        'sticky top-0 z-40 border-b',
         noChanges
           ? 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-300'
           : 'border-amber-300/70 bg-amber-50 text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200',
       )}
       data-testid="draft-preview-bar"
     >
-      <Eye className="h-4 w-4 shrink-0" />
-      <p className="min-w-0 flex-1 truncate">
-        {noChanges
-          ? t('preview.draftBar.messageClean', {
-              defaultValue: 'Draft preview — no unpublished changes; everything here is already live.',
-            })
-          : t('preview.draftBar.message', {
-              defaultValue: 'Draft preview — you are seeing unpublished changes. Nothing here is live until you publish.',
-            })}
-      </p>
-      {!noChanges && (
-        <>
+      {/* Control strip — the persistent preview indicator and secondary
+          controls (Changes / Exit). The dominant Publish action lives in the
+          hint band below so it reads as the one obvious next step. */}
+      <div className="flex items-center gap-3 px-4 py-2 text-sm">
+        <Eye className="h-4 w-4 shrink-0" />
+        <p className="min-w-0 flex-1 truncate">
+          {noChanges
+            ? t('preview.draftBar.messageClean', {
+                defaultValue: 'Draft preview — no unpublished changes; everything here is already live.',
+              })
+            : t('preview.draftBar.message', {
+                defaultValue:
+                  'Draft preview — you are seeing unpublished changes. Nothing here is live until you publish.',
+              })}
+        </p>
+        {!noChanges && (
           <Button
             size="sm"
             variant="outline"
@@ -117,19 +121,53 @@ export function DraftPreviewBar() {
             {t('preview.draftBar.changes', { defaultValue: 'Changes' })}
             {typeof pendingCount === 'number' ? ` (${pendingCount})` : ''}
           </Button>
-          <Button size="sm" onClick={publish} disabled={publishing} data-testid="draft-preview-publish">
-            <Rocket className="mr-1 h-3.5 w-3.5" />
-            {publishing
-              ? t('preview.draftBar.publishing', { defaultValue: 'Publishing…' })
-              : t('preview.draftBar.publish', { defaultValue: 'Publish' })}
-          </Button>
+        )}
+        <Button size="sm" variant="outline" onClick={exit} data-testid="draft-preview-exit">
+          <X className="mr-1 h-3.5 w-3.5" />
+          {t('preview.draftBar.exit', { defaultValue: 'Exit preview' })}
+        </Button>
+      </div>
+
+      {/* Magic-moment hint band — shown only while changes are pending. A
+          freshly-built draft renders empty (dashboards at 0, lists "Nothing
+          here yet") because seed/sample rows load only on publish. Naming that
+          plainly, and elevating Publish to the dominant CTA, keeps an empty
+          preview from ever reading as a broken or hollow build. */}
+      {!noChanges && (
+        <>
+          <div
+            className="flex items-center gap-3 border-t border-amber-300/50 px-4 py-2.5 dark:border-amber-700/40"
+            data-testid="draft-preview-sample-hint"
+          >
+            <Sparkles className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold leading-tight">
+                {t('preview.draftBar.sampleDataTitle', {
+                  defaultValue: 'Sample data appears once you publish',
+                })}
+              </p>
+              <p className="text-xs leading-snug text-amber-800/80 dark:text-amber-200/70">
+                {t('preview.draftBar.sampleDataBody', {
+                  defaultValue:
+                    'You’re previewing your app’s structure. Publish to load example records and make it live.',
+                })}
+              </p>
+            </div>
+            <Button
+              onClick={publish}
+              disabled={publishing}
+              data-testid="draft-preview-publish"
+              className="shrink-0 shadow-sm"
+            >
+              <Rocket className="mr-1.5 h-4 w-4" />
+              {publishing
+                ? t('preview.draftBar.publishing', { defaultValue: 'Publishing…' })
+                : t('preview.draftBar.publishCta', { defaultValue: 'Publish to see it live' })}
+            </Button>
+          </div>
           <DraftChangesPanel open={changesOpen} onOpenChange={setChangesOpen} />
         </>
       )}
-      <Button size="sm" variant="outline" onClick={exit} data-testid="draft-preview-exit">
-        <X className="mr-1 h-3.5 w-3.5" />
-        {t('preview.draftBar.exit', { defaultValue: 'Exit preview' })}
-      </Button>
     </div>
   );
 }
