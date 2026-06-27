@@ -36,7 +36,7 @@ import {
   EmptyDescription,
   cn,
 } from '@object-ui/components';
-import { PanelLeft, PanelLeftClose, PanelLeftOpen, Share2 } from 'lucide-react';
+import { Bug, PanelLeft, PanelLeftClose, PanelLeftOpen, Share2 } from 'lucide-react';
 import {
   ChatbotEnhanced,
   useAgents,
@@ -76,6 +76,7 @@ import {
 import { useReconcileOnError } from '../../hooks/useReconcileOnError';
 import { ConversationsSidebar } from './ConversationsSidebar';
 import { LiveCanvas } from './LiveCanvas';
+import { BuildDebugDrawer } from './BuildDebugDrawer';
 
 const DEFAULT_AI_PATH = '/api/v1/ai';
 
@@ -633,6 +634,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   const [refreshKey, setRefreshKey] = useState(0);
   const [titleHints, setTitleHints] = useState<Record<string, string>>({});
   const [shareOpen, setShareOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [mobileChatsOpen, setMobileChatsOpen] = useState(false);
   const {
     collapsed: chatsCollapsed,
@@ -833,6 +835,14 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
           publicBaseUrl={publicShareBase}
         />
       )}
+      {conversationId && isBuildAgent(activeAgent) && (
+        <BuildDebugDrawer
+          apiBase={apiBase}
+          conversationId={conversationId}
+          open={debugOpen}
+          onOpenChange={setDebugOpen}
+        />
+      )}
       <div className="flex min-h-0 flex-1 w-full bg-muted/20">
         {!chatsCollapsed && (
           <ConversationsSidebar
@@ -858,6 +868,8 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             initialMessages={initialMessages}
             onSent={handleSent}
             onShare={() => setShareOpen(true)}
+            onDebug={() => setDebugOpen(true)}
+            showDebug={isBuildAgent(activeAgent)}
             onCanvasOpenChange={handleCanvasOpenChange}
           />
         </main>
@@ -932,6 +944,10 @@ interface ChatPaneProps {
   initialMessages: HydratedUIMessage[];
   onSent: (firstUserMessage?: string) => void;
   onShare: () => void;
+  /** Opens the Build Doctor drawer (build agent only). */
+  onDebug?: () => void;
+  /** Show the Build Doctor button — true only for build-agent conversations. */
+  showDebug?: boolean;
   /** Reports the Live Canvas preview opening/closing so the page can auto-tuck the chats list. */
   onCanvasOpenChange?: (open: boolean) => void;
 }
@@ -948,6 +964,8 @@ function ChatPane({
   initialMessages,
   onSent,
   onShare,
+  onDebug,
+  showDebug,
   onCanvasOpenChange,
 }: ChatPaneProps) {
   const { t } = useObjectTranslation();
@@ -1141,6 +1159,20 @@ function ChatPane({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {showDebug && onDebug ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            onClick={onDebug}
+            disabled={!conversationId}
+            aria-label="Build Doctor"
+            data-testid="ai-chat-debug-button"
+            title={conversationId ? 'Build Doctor — what actually landed?' : 'Send a message first'}
+          >
+            <Bug className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
         <Button
           variant="ghost"
           size="icon"
