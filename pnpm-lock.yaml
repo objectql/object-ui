@@ -862,6 +862,9 @@ importers:
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../sdui-parser
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types
@@ -2540,6 +2543,8 @@ importers:
       vite:
         specifier: ^8.0.16
         version: 8.0.16(@types/node@26.0.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  packages/sdui-parser: {}
 
   packages/tenant:
     dependencies:

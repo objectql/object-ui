@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@object-ui/core": "workspace:*",
+    "@object-ui/sdui-parser": "workspace:*",
     "@object-ui/i18n": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",

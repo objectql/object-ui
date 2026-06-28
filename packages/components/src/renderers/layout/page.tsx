@@ -16,6 +16,7 @@ import React, { useMemo } from 'react';
 import type { PageSchema, PageRegion, SchemaNode } from '@object-ui/types';
 import { SchemaRenderer, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
+import { compile, manifestFromConfigs } from '@object-ui/sdui-parser';
 import { cn } from '../../lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -354,6 +355,30 @@ const UtilityPageLayout: React.FC<{ schema: PageSchema }> = ({ schema }) => {
 };
 
 // ---------------------------------------------------------------------------
+// ADR-0080: a `kind:'jsx'` page carries a constrained JSX `source`. We compile
+// it (parse, never execute) into a SchemaNode tree and render it. The whitelist
+// / contract is the live registry. Cached; rebuilt when the registry grows.
+let _jsxManifestSig = -1;
+let _jsxManifest: ReturnType<typeof manifestFromConfigs> | null = null;
+function getJsxManifest() {
+  // Key the whitelist by the registry's tag keys (bare AND namespaced) — a
+  // config's `.type` is always the namespaced form (Registry stores the bare
+  // alias pointing at the namespaced type), so getAllConfigs() alone would
+  // never admit the bare `<flex>` tag authors write.
+  const types = ComponentRegistry.getAllTypes();
+  if (_jsxManifest === null || _jsxManifestSig !== types.length) {
+    const configs = types.map((t) => {
+      const cfg = ComponentRegistry.getConfig(t) as
+        | { namespace?: string; isContainer?: boolean; inputs?: unknown }
+        | undefined;
+      return { type: t, namespace: cfg?.namespace, isContainer: cfg?.isContainer, inputs: cfg?.inputs };
+    });
+    _jsxManifest = manifestFromConfigs(configs as unknown as Parameters<typeof manifestFromConfigs>[0]);
+    _jsxManifestSig = types.length;
+  }
+  return _jsxManifest;
+}
+
 // Main PageRenderer
 // ---------------------------------------------------------------------------
 
@@ -404,6 +429,25 @@ export const PageRenderer: React.FC<{
 
   // Select the layout variant based on template or page type
   const layoutElement = useMemo(() => {
+    // ADR-0080 JSX-source page: compile the source to a tree and render it.
+    if ((schema as { kind?: string }).kind === 'jsx') {
+      const src = (schema as { source?: string }).source ?? '';
+      const { tree, diagnostics } = compile(src, getJsxManifest());
+      const errors = diagnostics.filter((d) => d.severity === 'error');
+      if (errors.length) {
+        return (
+          <div className="m-4 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            <div className="font-semibold">JSX page failed to compile ({errors.length})</div>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {errors.slice(0, 8).map((e, i) => (
+                <li key={i}>{e.message}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      }
+      return tree ? <SchemaRenderer schema={tree as unknown as SchemaNode} /> : null;
+    }
     const TemplateLayout = resolveTemplate(schema);
     if (TemplateLayout) {
       // Template takes priority over page type
