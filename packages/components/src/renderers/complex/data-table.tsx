@@ -319,6 +319,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const startX = useRef<number>(0);
   const startWidth = useRef<number>(0);
   const editInputRef = useRef<HTMLInputElement>(null);
+  // When an edit ends via Enter (already saved) or Escape (cancelled), the
+  // input also blurs. This flag tells the blur handler not to save again so we
+  // don't double-commit (Enter) or resurrect a cancelled value (Escape).
+  const skipBlurSaveRef = useRef(false);
 
   // Update columns when schema changes
   useEffect(() => {
@@ -636,8 +640,19 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   };
 
   const cancelEdit = () => {
+    skipBlurSaveRef.current = true;
     setEditingCell(null);
     setEditValue('');
+  };
+
+  // Commit the in-flight edit when the input loses focus (e.g. the user clicks
+  // another cell). Without this, switching cells discards the typed value.
+  const handleEditBlur = () => {
+    if (skipBlurSaveRef.current) {
+      skipBlurSaveRef.current = false;
+      return;
+    }
+    saveEdit(true);
   };
 
   const saveRow = async (rowIndex: number) => {
@@ -728,6 +743,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const handleEditKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      // Already saving here; suppress the redundant save the ensuing blur triggers.
+      skipBlurSaveRef.current = true;
       saveEdit(true);
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -1137,6 +1154,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                       // date fields are displayed/persisted elsewhere.
                                       onChange={(e) => setEditValue(e.target.value)}
                                       onKeyDown={handleEditKeyDown}
+                                      onBlur={handleEditBlur}
                                       className="h-8 px-2 py-1"
                                     />
                                   );
@@ -1157,6 +1175,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                         setEditValue(d && !Number.isNaN(d.getTime()) ? d.toISOString() : v);
                                       }}
                                       onKeyDown={handleEditKeyDown}
+                                      onBlur={handleEditBlur}
                                       className="h-8 px-2 py-1"
                                     />
                                   );
@@ -1170,6 +1189,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                       value={editValue ?? ''}
                                       onChange={(e) => setEditValue(e.target.value)}
                                       onKeyDown={handleEditKeyDown}
+                                      onBlur={handleEditBlur}
                                       className="h-8 px-2 py-1"
                                     />
                                   );
@@ -1187,6 +1207,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                     value={editValue}
                                     onChange={(e) => setEditValue(e.target.value)}
                                     onKeyDown={handleEditKeyDown}
+                                    onBlur={handleEditBlur}
                                     className="h-8 px-2 py-1"
                                   />
                                 );

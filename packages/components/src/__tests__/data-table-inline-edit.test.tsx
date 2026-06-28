@@ -95,4 +95,40 @@ describe('data-table — inline edit is per-row usable', () => {
     expect(input).toBeTruthy();
     expect(input.type).toBe('number');
   });
+
+  it('C) editing a cell then clicking away (blur) commits the typed value', () => {
+    // Regression: switching cells dropped the in-flight value because only
+    // Enter/Escape committed the edit. Blur must save it too.
+    const onCellChange = vi.fn();
+    const { container } = renderComponent({ ...editableSchema, onCellChange });
+
+    const cells = container.querySelectorAll('tbody td');
+    const qtyCell = cells[2] as HTMLElement; // 报工数量
+    fireEvent.click(qtyCell);
+
+    const input = qtyCell.querySelector('input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '42' } });
+    // Click away (focus leaves the editor) — value must persist, not vanish.
+    fireEvent.blur(input);
+
+    expect(onCellChange).toHaveBeenCalledTimes(1);
+    expect(onCellChange).toHaveBeenCalledWith(0, 'qty', '42', expect.anything());
+  });
+
+  it('C2) pressing Escape discards the edit and does NOT commit on blur', () => {
+    const onCellChange = vi.fn();
+    const { container } = renderComponent({ ...editableSchema, onCellChange });
+
+    const cells = container.querySelectorAll('tbody td');
+    const qtyCell = cells[2] as HTMLElement; // 报工数量
+    fireEvent.click(qtyCell);
+
+    const input = qtyCell.querySelector('input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '99' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    // The ensuing blur must not resurrect the cancelled value.
+    fireEvent.blur(input);
+
+    expect(onCellChange).not.toHaveBeenCalled();
+  });
 });
