@@ -3,7 +3,7 @@ import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } 
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
 import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, type CompareToConfig, type DrillEvent } from '@object-ui/core';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button } from '@object-ui/components';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 
@@ -635,8 +635,23 @@ export const ObjectChart = (props: any) => {
     ...(mergedCategoryColors ? { categoryColors: mergedCategoryColors } : {}),
   };
 
+  // Pending with nothing to draw yet → a chart-shaped skeleton (placeholder
+  // bars), not a 0-value axis or a thin text line. Reads as "loading", never as
+  // an empty/broken chart on the first paint. Once any data is present the chart
+  // renders and a RefreshIndicator covers subsequent refetches.
   if (loading && finalData.length === 0) {
-      return <div className={"flex items-center justify-center text-muted-foreground text-sm p-4 " + (schema.className || '')} data-testid="chart-loading">Loading chart data…</div>;
+      return (
+        <div
+          className={"p-2 " + (schema.className || '')}
+          data-testid="chart-loading"
+          role="status"
+          aria-busy="true"
+          aria-live="polite"
+        >
+          <span className="sr-only">Loading chart data…</span>
+          <ChartSkeleton className="h-full" />
+        </div>
+      );
   }
 
   // Error state — show the error prominently so issues are not hidden

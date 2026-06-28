@@ -95,6 +95,46 @@ describe('DatasetWidget', () => {
     expect(src.queryDataset).not.toHaveBeenCalled();
   });
 
+  // ── loading skeleton (three distinct states: loading ≠ empty ≠ data) ──────
+  // A query that never settles keeps the widget in its pending state so we can
+  // assert what the FIRST paint shows. The bug this guards: pending used to read
+  // as empty/0 (a 0-value axis / blank table) instead of "loading".
+  const pendingSource = () => ({ queryDataset: vi.fn(() => new Promise<{ rows: any[] }>(() => {})) });
+
+  it('shows a chart skeleton (not "No rows", not a 0-axis) while a chart query is pending', () => {
+    const src = pendingSource();
+    const { container } = render(<DatasetWidget widget={{ type: 'bar', dataset: 'sales', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
+    expect(screen.getByTestId('dataset-loading')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="chart-skeleton"]')).toBeInTheDocument();
+    // The empty state must NOT show while loading — that was the bug.
+    expect(screen.queryByText('No rows')).not.toBeInTheDocument();
+  });
+
+  it('shows a row (grid) skeleton while a table query is pending', () => {
+    const src = pendingSource();
+    const { container } = render(<DatasetWidget widget={{ type: 'table', dataset: 'tasks', dimensions: ['status'], values: ['task_count'] }} dataSource={src} />);
+    expect(screen.getByTestId('dataset-loading')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="grid-skeleton"]')).toBeInTheDocument();
+  });
+
+  it('shows a skeleton (not a premature 0) while a metric query is pending', () => {
+    const src = pendingSource();
+    render(<DatasetWidget widget={{ type: 'metric', dataset: 'sales', values: ['revenue'] }} dataSource={src} />);
+    expect(screen.getByTestId('dataset-loading')).toBeInTheDocument();
+    // The loading state must not pre-render the empty-metric "0".
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  it('clears the loading skeleton once the chart query resolves with rows', async () => {
+    const src = makeSource(async () => ({ rows: [{ stage: 'won', revenue: 100 }, { stage: 'lost', revenue: 20 }] }));
+    render(<DatasetWidget widget={{ type: 'bar', dataset: 'sales', dimensions: ['stage'], values: ['revenue'] }} dataSource={src} />);
+    // Skeleton first…
+    expect(screen.getByTestId('dataset-loading')).toBeInTheDocument();
+    // …then it clears once data arrives (status → ok, rows present).
+    await waitFor(() => expect(screen.queryByTestId('dataset-loading')).not.toBeInTheDocument());
+    expect(screen.queryByText('No rows')).not.toBeInTheDocument();
+  });
+
   it('shows 0 (not "No rows") for a metric over an empty dataset', async () => {
     const src = makeSource(async () => ({ rows: [] }));
     render(<DatasetWidget widget={{ type: 'metric', dataset: 'books', values: ['count'] }} dataSource={src} />);

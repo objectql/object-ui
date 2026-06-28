@@ -38,9 +38,9 @@ import {
   buildDatasetDrillFilter,
   type DatasetResultField,
 } from '@object-ui/core';
-import { cn } from '@object-ui/components';
+import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
-import { Loader2, BarChart3, AlertTriangle, Download } from 'lucide-react';
+import { BarChart3, AlertTriangle, Download } from 'lucide-react';
 import { resolveDateMacros } from './utils';
 import { DrillDownDrawer } from './DrillDownDrawer';
 
@@ -253,8 +253,38 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   if (values.length === 0) {
     return <div className="flex h-full w-full items-center justify-center rounded border border-dashed bg-muted/20 p-4 text-xs text-muted-foreground">{tt('dashboard.pickMeasures', 'Pick measures (values) for this dataset widget.')}</div>;
   }
+  // Pending → a SHAPE-MATCHED skeleton, not a 0-value chart or an empty table.
+  // The widget's eventual footprint (chart bars / table rows / a KPI number) is
+  // hinted while `queryDataset` is in flight so the first paint reads as
+  // "loading", never as "broken / empty". Three states stay distinct: this is
+  // loading; `state.rows.length === 0 && status==='ok'` is the empty state
+  // ("No rows" / a KPI 0) handled below; data renders last.
   if (state.status === 'loading' || state.status === 'idle') {
-    return <div className="flex h-full w-full items-center justify-center p-4 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /></div>;
+    return (
+      <div
+        className="h-full w-full p-2"
+        data-testid="dataset-loading"
+        role="status"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <span className="sr-only">{tt('dashboard.loading', 'Loading…')}</span>
+        {isMetric ? (
+          <div className="flex h-full w-full flex-col items-start justify-center gap-2 p-2">
+            <Skeleton className="h-8 w-32 rounded" />
+            <Skeleton className="h-3 w-20 rounded" />
+          </div>
+        ) : isTable ? (
+          <GridSkeleton
+            className="h-full"
+            rows={5}
+            columns={Math.max(2, dimensions.length + values.length)}
+          />
+        ) : (
+          <ChartSkeleton className="h-full" />
+        )}
+      </div>
+    );
   }
   if (state.status === 'error') {
     return (
