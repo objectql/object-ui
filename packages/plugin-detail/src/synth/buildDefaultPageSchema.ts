@@ -111,6 +111,21 @@ export interface BuildPageOptions {
     icon?: string;
   }>;
   /**
+   * How the related child lists are laid out under the tab strip.
+   *
+   * - `'stack'` (default) — all related lists stack vertically inside a
+   *   single `Related` tab. Preserves the legacy behavior.
+   * - `'tabs'` — each related child gets its OWN tab (label = the child's
+   *   `title`, falling back to `objectName`) instead of sharing one
+   *   `Related` tab. Lets authors surface related tables as peer tabs
+   *   purely via config (per object: `detail.relatedLayout`).
+   *
+   * Ignored when the `Related` tab is suppressed (`hideRelatedTab`).
+   *
+   * @default 'stack'
+   */
+  relatedLayout?: 'stack' | 'tabs';
+  /**
    * When true, emit an Activity tab that renders `record:activity`.
    * The activity renderer fetches its own data via RecordContext.
    */
@@ -370,7 +385,7 @@ export function buildDefaultDetails(
 export function buildDefaultTabs(
   def: ObjectDefLike | undefined,
   options: Pick<BuildPageOptions,
-    'sections' | 'related' | 'showActivity' | 'history' | 'highlightFields' | 'statusField' | 'hideRelatedTab'
+    'sections' | 'related' | 'showActivity' | 'history' | 'highlightFields' | 'statusField' | 'hideRelatedTab' | 'relatedLayout'
   > = {},
 ): any {
   const statusField = options.statusField ?? detectStatusField(def);
@@ -384,18 +399,31 @@ export function buildDefaultTabs(
     Array.isArray(options.related) &&
     options.related.length > 0
   ) {
-    items.push({
-      label: 'Related',
-      children: options.related.map((rel) => ({
-        type: 'record:related_list',
-        title: rel.title,
-        objectName: rel.objectName,
-        relationshipField: rel.relationshipField,
-        ...(rel.columns ? { columns: rel.columns } : {}),
-        ...(rel.limit ? { limit: rel.limit } : {}),
-        ...(rel.icon ? { icon: rel.icon } : {}),
-      })),
+    const relatedNode = (rel: NonNullable<BuildPageOptions['related']>[number]) => ({
+      type: 'record:related_list',
+      title: rel.title,
+      objectName: rel.objectName,
+      relationshipField: rel.relationshipField,
+      ...(rel.columns ? { columns: rel.columns } : {}),
+      ...(rel.limit ? { limit: rel.limit } : {}),
+      ...(rel.icon ? { icon: rel.icon } : {}),
     });
+    if (options.relatedLayout === 'tabs') {
+      // One peer tab per related child, instead of a single shared
+      // `Related` tab that stacks them all vertically.
+      for (const rel of options.related) {
+        items.push({
+          label: rel.title || rel.objectName,
+          ...(rel.icon ? { icon: rel.icon } : {}),
+          children: [relatedNode(rel)],
+        });
+      }
+    } else {
+      items.push({
+        label: 'Related',
+        children: options.related.map(relatedNode),
+      });
+    }
   }
   if (options.showActivity) {
     items.push({ label: 'Activity', children: [{ type: 'record:activity' }] });
@@ -524,6 +552,7 @@ export function buildDefaultPageSchema(
       highlightFields: options.highlightFields,
       statusField: options.statusField,
       hideRelatedTab,
+      relatedLayout: options.relatedLayout,
     });
     // Replace the first tab's children (Details) with the override.
     if (Array.isArray(tabsNode.items) && tabsNode.items.length > 0) {
@@ -539,6 +568,7 @@ export function buildDefaultPageSchema(
       highlightFields: options.highlightFields,
       statusField: options.statusField,
       hideRelatedTab,
+      relatedLayout: options.relatedLayout,
     }));
   }
 

@@ -421,6 +421,90 @@ describe('buildDefaultPageSchema', () => {
         'History',
       ]);
     });
+
+    describe("relatedLayout: 'tabs'", () => {
+      const related = [
+        {
+          objectName: 'task',
+          relationshipField: 'lead_id',
+          title: 'Tasks',
+          limit: 10,
+          icon: 'check',
+        },
+        {
+          objectName: 'note',
+          relationshipField: 'parent_id',
+        },
+      ];
+
+      it("gives each related list its own peer tab instead of one shared Related tab", () => {
+        const page = buildDefaultPageSchema(leadDef, {
+          related,
+          relatedLayout: 'tabs',
+        });
+        const tabs = page.regions[0].components.find(
+          (c: any) => c.type === 'page:tabs',
+        );
+        // Details + one tab per related child (no shared 'Related' tab).
+        expect(tabs.items.map((t: any) => t.label)).toEqual([
+          'Details',
+          'Tasks',
+          'note',
+        ]);
+        const tasksTab = tabs.items[1];
+        expect(tasksTab.icon).toBe('check');
+        expect(tasksTab.children).toHaveLength(1);
+        expect(tasksTab.children[0].type).toBe('record:related_list');
+        expect(tasksTab.children[0].objectName).toBe('task');
+        expect(tasksTab.children[0].relationshipField).toBe('lead_id');
+        expect(tasksTab.children[0].limit).toBe(10);
+        // The second related child (no title) falls back to its objectName.
+        expect(tabs.items[2].children[0].objectName).toBe('note');
+      });
+
+      it("defaults to the stacked 'Related' tab when relatedLayout is omitted", () => {
+        const page = buildDefaultPageSchema(leadDef, { related });
+        const tabs = page.regions[0].components.find(
+          (c: any) => c.type === 'page:tabs',
+        );
+        expect(tabs.items.map((t: any) => t.label)).toEqual([
+          'Details',
+          'Related',
+        ]);
+        expect(tabs.items[1].children).toHaveLength(2);
+      });
+
+      it("still honours hideRelatedTab (no related tabs emitted)", () => {
+        const page = buildDefaultPageSchema(leadDef, {
+          related,
+          relatedLayout: 'tabs',
+          hideRelatedTab: true,
+        });
+        const tabs = page.regions[0].components.find(
+          (c: any) => c.type === 'page:tabs',
+        );
+        expect(tabs.items.map((t: any) => t.label)).toEqual(['Details']);
+      });
+
+      it("keeps Activity / History after the per-table tabs", () => {
+        const page = buildDefaultPageSchema(leadDef, {
+          related,
+          relatedLayout: 'tabs',
+          showActivity: true,
+          history: { entries: [], loading: false },
+        });
+        const tabs = page.regions[0].components.find(
+          (c: any) => c.type === 'page:tabs',
+        );
+        expect(tabs.items.map((t: any) => t.label)).toEqual([
+          'Details',
+          'Tasks',
+          'note',
+          'Activity',
+          'History',
+        ]);
+      });
+    });
   });
 
   describe('slice I — slot overrides', () => {

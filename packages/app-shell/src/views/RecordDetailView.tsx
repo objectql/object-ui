@@ -1748,6 +1748,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             (objectDef as any)?.detail?.hideReferenceRail === true || undefined,
           hideRelatedTab:
             (objectDef as any)?.detail?.hideRelatedTab === true || undefined,
+          relatedLayout:
+            (objectDef as any)?.detail?.relatedLayout === 'tabs' ? 'tabs' : undefined,
           ...(assignedSlots ? { slots: assignedSlots } : {}),
         });
     return (
