@@ -181,7 +181,8 @@ export function App() {
             {/* Dev-only (ADR-0080 slice-1): Studio WYSIWYG design surface
               * harness. Public + backend-free so it renders from a fixture.
               * Purely additive — touches no existing surface. Not product nav. */}
-            <Route path="/dev/studio-design" element={
+            <Route path="/studio/:packageId" element={<Navigate to="interfaces" replace />} />
+            <Route path="/studio/:packageId/:tab" element={
               <ProtectedRoute>
                 <StudioDesignSurface />
               </ProtectedRoute>

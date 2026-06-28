@@ -3,18 +3,19 @@
 /**
  * StudioDesignSurface — the open-source WYSIWYG design surface (ADR-0080).
  *
- * Three zones — single-App nav · live canvas · property inspector — composed
- * AROUND the existing metadata-admin registry (`getMetadataPreview` /
- * `getMetadataInspector`), the runtime `SchemaRenderer`, and the shared
- * `MetadataClient`. Design-time is literally run-time (same renderer, same
- * metadata), and edits persist through the real draft → publish pipeline.
+ * Routed as /studio/:packageId/{data|automations|interfaces} — the three
+ * pillars are real routes, scoped to the package being designed. Each pillar
+ * is composed AROUND existing renderers (no new editor code):
+ *   - Interfaces: the App nav + live canvas (getMetadataPreview) + inspector
+ *     (getMetadataInspector), edits persisting through draft → publish.
+ *   - Data / Automations: object + flow surfaces (in progress).
  *
  * Open-core boundary: the left AI copilot is NOT part of the open-source
- * surface. It is an injected slot (`aiSlot`) the cloud edition fills; the OSS
- * build renders three zones.
+ * surface — it is an injected slot (`aiSlot`) the cloud edition fills.
  */
 
 import * as React from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { SchemaRenderer } from '@object-ui/react';
 import {
   Boxes,
@@ -24,13 +25,18 @@ import {
   Eye,
   Loader2,
   Save,
-  Send,
+  Database,
+  Workflow,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 
-const PILLARS = ['Data', 'Automations', 'Interfaces'] as const;
+const PILLARS = [
+  { key: 'data', label: 'Data' },
+  { key: 'automations', label: 'Automations' },
+  { key: 'interfaces', label: 'Interfaces' },
+] as const;
 
 interface NavItem {
   type: string;
@@ -38,11 +44,7 @@ interface NavItem {
   label: string;
 }
 
-/**
- * Normalize the framework draft envelope `{ type, name, item }` into the draft
- * body or null (mirrors ResourceEditPage.extractDraftBody — a "no draft" stub
- * still carries type/name/label keys, so the `item` key is the only signal).
- */
+/** Normalize the framework draft envelope `{ type, name, item }` → body | null. */
 function extractDraftBody(resp: unknown): Record<string, unknown> | null {
   if (!resp || typeof resp !== 'object') return null;
   const env = resp as Record<string, unknown>;
@@ -53,15 +55,94 @@ function extractDraftBody(resp: unknown): Record<string, unknown> | null {
 }
 
 export interface StudioDesignSurfaceProps {
-  /**
-   * Open-core slot. The cloud edition injects its AI copilot panel here
-   * (rendered as the far-left zone). The open-source build leaves it
-   * undefined, so the surface renders three zones.
-   */
+  /** Open-core slot — the cloud edition injects its AI copilot panel here. */
   aiSlot?: React.ReactNode;
 }
 
 export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React.ReactElement {
+  const params = useParams<{ packageId?: string; tab?: string }>();
+  const packageId = params.packageId ?? 'com.example.showcase';
+  const tab = params.tab ?? 'interfaces';
+
+  return (
+    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+      {/* ── AI copilot — OPEN-CORE SLOT (cloud-injected; absent in OSS) ── */}
+      {aiSlot ? (
+        <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
+      ) : null}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* shell header: package + three pillar routes */}
+        <header className="flex items-center gap-3 border-b px-3 py-2">
+          <span className="flex items-center gap-1.5 whitespace-nowrap text-[13px] font-medium">
+            <Boxes className="h-4 w-4" /> {packageId}
+          </span>
+          <span className="text-muted-foreground">·</span>
+          <nav className="flex gap-1">
+            {PILLARS.map((p) => (
+              <Link
+                key={p.key}
+                to={`/studio/${packageId}/${p.key}`}
+                className={
+                  'rounded-md px-2.5 py-1 text-xs ' +
+                  (tab === p.key
+                    ? 'bg-primary/10 font-medium text-primary'
+                    : 'text-muted-foreground hover:bg-muted')
+                }
+              >
+                {p.label}
+              </Link>
+            ))}
+          </nav>
+        </header>
+
+        <div className="min-h-0 flex-1">
+          {tab === 'data' ? (
+            <PillarPlaceholder
+              icon={<Database className="h-6 w-6" />}
+              title="Data — 对象 / 字段 / 记录"
+              detail="数据层:列出包内对象,查看字段与记录网格。建设中。"
+            />
+          ) : tab === 'automations' ? (
+            <PillarPlaceholder
+              icon={<Workflow className="h-6 w-6" />}
+              title="Automations — flow / 触发器 / 审批"
+              detail="自动化:列出 flow,默认 OFF / 审阅再启用(ADR-0080)。建设中。"
+            />
+          ) : (
+            <InterfacesPillar packageId={packageId} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PillarPlaceholder({
+  icon,
+  title,
+  detail,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  detail: string;
+}): React.ReactElement {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
+      <div className="opacity-60">{icon}</div>
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="max-w-sm text-xs">{detail}</p>
+    </div>
+  );
+}
+
+/**
+ * The Interfaces pillar — single-App nav · live canvas · inspector. Drives the
+ * real MetadataClient: pages become menu items, clicking loads that surface,
+ * the toolbar saves drafts / publishes. (A later slice swaps the page list for
+ * the real App.navigation tree with view/dashboard/object items.)
+ */
+function InterfacesPillar({ packageId: _packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
   const locale = 'zh-CN';
 
@@ -74,9 +155,6 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const [hasDraft, setHasDraft] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Load the single-App nav: the env's pages become the menu items (a later
-  // slice resolves the real App.navigation tree; pages are the demonstrable
-  // Interface surfaces today). First item auto-opens.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -97,8 +175,6 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
     };
   }, [client]);
 
-  // Load the selected surface's draft (effective baseline + pending overlay),
-  // mirroring ResourceEditPage's load.
   React.useEffect(() => {
     if (!current) return;
     let cancelled = false;
@@ -166,162 +242,130 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const Inspector = getMetadataInspector(current?.type ?? 'page');
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* ── Zone 0 · AI copilot — OPEN-CORE SLOT (cloud-injected; absent in OSS) ── */}
-      {aiSlot ? (
-        <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
-      ) : null}
+    <div className="flex h-full flex-col">
+      {/* pillar toolbar: draft / publish */}
+      <div className="flex items-center justify-end gap-2 border-b px-3 py-1.5">
+        {hasDraft && (
+          <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+            未发布草稿
+          </span>
+        )}
+        <button
+          onClick={doSave}
+          disabled={!current || !!saving}
+          className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+        >
+          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          保存草稿
+        </button>
+        <button
+          onClick={doPublish}
+          disabled={!current || !hasDraft || !!saving}
+          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          发布
+        </button>
+      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* top bar: three pillars + draft/publish */}
-        <header className="flex items-center justify-between border-b px-3 py-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex items-center gap-1.5 whitespace-nowrap text-[13px] font-medium">
-              <Boxes className="h-4 w-4" /> Showcase
+      <div className="flex min-h-0 flex-1">
+        {/* nav (real pages; click switches the canvas) */}
+        <nav className="w-48 shrink-0 overflow-auto border-r p-2">
+          <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">单一 App · 页面</p>
+          {nav.length === 0 && (
+            <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+          )}
+          {nav.map((it) => (
+            <button
+              key={it.name}
+              onClick={() => setCurrent(it)}
+              className={
+                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                (current?.name === it.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+              }
+            >
+              <FileText className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1 truncate">{it.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* canvas (live render = runtime) */}
+        <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+              <Eye className="h-3 w-3" /> 预览即运行 · 同一渲染器
             </span>
-            <span className="text-muted-foreground">·</span>
-            <nav className="flex gap-1">
-              {PILLARS.map((p) => (
-                <span
-                  key={p}
-                  className={
-                    'rounded-md px-2.5 py-1 text-xs ' +
-                    (p === 'Interfaces'
-                      ? 'bg-primary/10 font-medium text-primary'
-                      : 'text-muted-foreground')
-                  }
-                >
-                  {p}
-                </span>
-              ))}
-            </nav>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {hasDraft && (
-              <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
-                未发布草稿
+            {current && (
+              <span className="text-[11px] text-muted-foreground">
+                {current.type} · {current.name}
               </span>
             )}
-            <button
-              onClick={doSave}
-              disabled={!current || !!saving}
-              className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
-            >
-              {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              保存草稿
-            </button>
-            <button
-              onClick={doPublish}
-              disabled={!current || !hasDraft || !!saving}
-              className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              发布
-            </button>
           </div>
-        </header>
-
-        <div className="flex min-h-0 flex-1">
-          {/* ── Zone 1 · single-App nav (real pages; click switches the canvas) ── */}
-          <nav className="w-48 shrink-0 overflow-auto border-r p-2">
-            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">单一 App · 页面</p>
-            {nav.length === 0 && (
-              <p className="px-2 py-3 text-[11px] text-muted-foreground">
-                {error ? '加载失败' : '加载中…'}
-              </p>
-            )}
-            {nav.map((it) => (
-              <button
-                key={it.name}
-                onClick={() => setCurrent(it)}
-                className={
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
-                  (current?.name === it.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
-                }
-              >
-                <FileText className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1 truncate">{it.label}</span>
-              </button>
-            ))}
-          </nav>
-
-          {/* ── Zone 2 · canvas (live render of the real surface = runtime) ── */}
-          <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-                <Eye className="h-3 w-3" /> 预览即运行 · 同一渲染器
-              </span>
-              {current && (
-                <span className="text-[11px] text-muted-foreground">
-                  {current.type} · {current.name}
-                </span>
-              )}
+          {error && (
+            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
             </div>
-            {error && (
-              <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                {error}
+          )}
+          <div className="rounded-lg border bg-background p-4">
+            {loading || !current ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
+              </div>
+            ) : Preview ? (
+              <Preview
+                type={current.type}
+                name={current.name}
+                draft={draft}
+                editing
+                selection={selection}
+                onSelectionChange={setSelection}
+                onPatch={onPatch}
+                locale={locale}
+              />
+            ) : (
+              <SchemaRenderer schema={{ ...draft, type: current.type } as never} />
+            )}
+          </div>
+          <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <MousePointer2 className="h-3 w-3" /> 点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」
+          </p>
+        </main>
+
+        {/* inspector (selected block's property schema) */}
+        <aside className="w-72 shrink-0 overflow-auto border-l">
+          <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span className="text-[13px] font-medium">属性</span>
+            {selection?.label && (
+              <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                {selection.label}
+              </span>
+            )}
+          </header>
+          <div className="p-3">
+            {selection && Inspector && current ? (
+              <Inspector
+                type={current.type}
+                name={current.name}
+                draft={draft}
+                selection={selection}
+                onPatch={onPatch}
+                onClearSelection={() => setSelection(null)}
+                onSelectionChange={setSelection}
+                readOnly={false}
+                locale={locale}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+                <MousePointer2 className="h-5 w-5" />
+                在画布里点选一个积木,
+                <br />
+                它的属性会在这里直接编辑。
               </div>
             )}
-            <div className="rounded-lg border bg-background p-4">
-              {loading || !current ? (
-                <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
-                </div>
-              ) : Preview ? (
-                <Preview
-                  type={current.type}
-                  name={current.name}
-                  draft={draft}
-                  editing
-                  selection={selection}
-                  onSelectionChange={setSelection}
-                  onPatch={onPatch}
-                  locale={locale}
-                />
-              ) : (
-                <SchemaRenderer schema={{ ...draft, type: current.type } as never} />
-              )}
-            </div>
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <MousePointer2 className="h-3 w-3" /> 点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」
-            </p>
-          </main>
-
-          {/* ── Zone 3 · inspector (selected block's property schema) ── */}
-          <aside className="w-72 shrink-0 overflow-auto border-l">
-            <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span className="text-[13px] font-medium">属性</span>
-              {selection?.label && (
-                <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                  {selection.label}
-                </span>
-              )}
-            </header>
-            <div className="p-3">
-              {selection && Inspector && current ? (
-                <Inspector
-                  type={current.type}
-                  name={current.name}
-                  draft={draft}
-                  selection={selection}
-                  onPatch={onPatch}
-                  onClearSelection={() => setSelection(null)}
-                  onSelectionChange={setSelection}
-                  readOnly={false}
-                  locale={locale}
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
-                  <MousePointer2 className="h-5 w-5" />
-                  在画布里点选一个积木,
-                  <br />
-                  它的属性会在这里直接编辑。
-                </div>
-              )}
-            </div>
-          </aside>
-        </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
