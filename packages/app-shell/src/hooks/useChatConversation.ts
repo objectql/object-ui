@@ -54,6 +54,21 @@ export interface UseChatConversationOptions {
    * conversation is created. Ignored while `activeId` is set.
    */
   forceNew?: boolean;
+  /**
+   * How a plain visit (no `activeId`, no `forceNew`) treats the cached
+   * conversation:
+   *   - `'resume'` (default): re-open the last conversation. Right for the full
+   *     `/ai` page and the stateful BUILD surface, where losing an in-progress
+   *     build (staged drafts, the awaiting-confirm plan) is harmful.
+   *   - `'fresh'`: open a clean thread instead. Used by the floating assistant's
+   *     ASK/data surface, where each open should feel new. To avoid littering
+   *     the history (the list endpoint keeps empty rows — there's no prune), an
+   *     UNTOUCHED (zero-message) cached conversation is REUSED rather than
+   *     re-created; a cached conversation that the user actually used is left in
+   *     history and a fresh one is minted.
+   * Ignored when `activeId` or `forceNew` is set.
+   */
+  resumeMode?: 'resume' | 'fresh';
 }
 
 export interface UseChatConversationReturn {
@@ -69,6 +84,13 @@ export interface UseChatConversationReturn {
   isLoading: boolean;
   /** Delete the current conversation + start a fresh one. */
   reset: () => Promise<void>;
+  /**
+   * Start a NEW conversation WITHOUT deleting the current one (the floating
+   * assistant's "New chat" button). Mints a fresh row and switches to it; the
+   * prior thread stays in history (reachable from the `/ai` sidebar). Contrast
+   * with {@link reset}, which deletes the current conversation first.
+   */
+  startNew: () => Promise<void>;
 }
 
 /**
@@ -518,7 +540,7 @@ async function deleteConversation(apiBase: string, id: string): Promise<void> {
 export function useChatConversation(
   options: UseChatConversationOptions,
 ): UseChatConversationReturn {
-  const { userId, scope, apiBase, activeId, forceNew } = options;
+  const { userId, scope, apiBase, activeId, forceNew, resumeMode = 'resume' } = options;
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [initialMessages, setInitialMessages] = useState<HydratedUIMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(userId));
@@ -596,15 +618,34 @@ export function useChatConversation(
             const existing = await fetchConversation(apiBase, cached);
             if (cancelled) return;
             if (existing) {
-              setConversationId(existing.id);
               const messages = toUIMessages(existing.messages);
-              setInitialMessages(messages.length > 0 ? messages : readMessageCache(existing.id));
-              resolvedForUserRef.current = userId;
-              resolvedScopeRef.current = scope;
-              return;
+              // 'fresh' (the floating ASK surface): only reuse the cached
+              // conversation while it's untouched — once the user has actually
+              // used it, start a clean thread instead so opening the assistant
+              // feels new. Reusing an empty conversation (rather than minting
+              // another) keeps repeated opens from littering the history with
+              // empty rows. 'resume' (default) re-opens the prior thread.
+              const reuse = resumeMode !== 'fresh' || messages.length === 0;
+              if (reuse) {
+                setConversationId(existing.id);
+                setInitialMessages(
+                  resumeMode === 'fresh'
+                    ? []
+                    : messages.length > 0
+                      ? messages
+                      : readMessageCache(existing.id),
+                );
+                resolvedForUserRef.current = userId;
+                resolvedScopeRef.current = scope;
+                return;
+              }
+              // 'fresh' + a used conversation: fall through to create a fresh
+              // one; the used thread stays in history (writeCache below repoints
+              // the cache to the new conversation).
+            } else {
+              writeCache(key, undefined);
+              writeConversationMessagesCache(cached, []);
             }
-            writeCache(key, undefined);
-            writeConversationMessagesCache(cached, []);
           }
         }
         const fresh = await createConversation(apiBase);
@@ -631,7 +672,7 @@ export function useChatConversation(
     // short-circuit guard, which is governed by the ref. Including it would
     // re-run the effect after we successfully resolved an id.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, scope, apiBase, activeId, forceNew]);
+  }, [userId, scope, apiBase, activeId, forceNew, resumeMode]);
 
   const reset = useCallback(async () => {
     if (!userId) return;
@@ -657,8 +698,33 @@ export function useChatConversation(
     }
   }, [conversationId, userId, scope, apiBase]);
 
+  const startNew = useCallback(async () => {
+    if (!userId) return;
+    const key = cacheKey(userId, scope);
+    setIsLoading(true);
+    try {
+      // Mint a fresh conversation and switch to it. The current conversation is
+      // intentionally NOT deleted — it stays in history (reachable from the
+      // `/ai` sidebar), unlike reset(). The remount keyed on `conversationId`
+      // in the host clears the visible thread.
+      const fresh = await createConversation(apiBase);
+      writeCache(key, fresh.id);
+      writeConversationMessagesCache(fresh.id, []);
+      if (!mountedRef.current) return;
+      setConversationId(fresh.id);
+      setInitialMessages([]);
+      resolvedForUserRef.current = userId;
+      resolvedScopeRef.current = scope;
+    } catch {
+      // Keep the current conversation on failure — better than dropping the
+      // user into a broken empty state.
+    } finally {
+      if (mountedRef.current) setIsLoading(false);
+    }
+  }, [userId, scope, apiBase]);
+
   // `resolvedScopeRef` is updated in lockstep with every `setConversationId`
   // (same async tick), so at render time it always describes the scope the
   // current `conversationId` was resolved under.
-  return { conversationId, conversationScope: resolvedScopeRef.current, initialMessages, isLoading, reset };
+  return { conversationId, conversationScope: resolvedScopeRef.current, initialMessages, isLoading, reset, startNew };
 }

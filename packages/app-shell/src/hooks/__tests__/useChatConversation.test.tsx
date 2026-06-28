@@ -304,6 +304,98 @@ describe('useChatConversation — forceNew (the sidebar New button)', () => {
   });
 });
 
+// The floating assistant's ASK surface opens a FRESH thread each visit
+// (`resumeMode: 'fresh'`) instead of resuming the last conversation, while
+// avoiding empty-row spam by reusing an untouched cached conversation. Its
+// "New chat" button calls startNew(), which mints a fresh conversation WITHOUT
+// deleting the current one (contrast reset()).
+describe('useChatConversation — resumeMode "fresh" + startNew (the floating ask surface)', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('reuses an untouched (zero-message) cached conversation rather than minting another', async () => {
+    localStorage.setItem(`${CACHE_PREFIX}:u1`, 'conv-empty');
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'conv-empty', messages: [] }));
+
+    const { result } = renderHook(() =>
+      useChatConversation({ userId: 'u1', apiBase: API_BASE, resumeMode: 'fresh' }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-empty');
+    expect(result.current.initialMessages).toEqual([]);
+    // GET only — the empty conversation is reused, NOT a fresh POST (no spam).
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/conversations/conv-empty`);
+  });
+
+  it('starts a fresh conversation when the cached one was actually used, leaving it in history', async () => {
+    localStorage.setItem(`${CACHE_PREFIX}:u1`, 'conv-used');
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'conv-used',
+          messages: [{ id: 'm1', role: 'user', content: 'an earlier question' }],
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ id: 'conv-fresh', messages: [] }));
+
+    const { result } = renderHook(() =>
+      useChatConversation({ userId: 'u1', apiBase: API_BASE, resumeMode: 'fresh' }),
+    );
+
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-fresh'));
+    expect(result.current.initialMessages).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/conversations/conv-used`);
+    expect(fetchMock.mock.calls[1][0]).toBe(`${API_BASE}/conversations`);
+    expect((fetchMock.mock.calls[1][1] as RequestInit).method).toBe('POST');
+    // The used conversation is NOT deleted; the cache simply repoints to the new one.
+    const methods = fetchMock.mock.calls.map((c) => (c[1] as RequestInit | undefined)?.method ?? 'GET');
+    expect(methods).not.toContain('DELETE');
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1`)).toBe('conv-fresh');
+  });
+
+  it('startNew() mints a fresh conversation and switches to it without deleting the current one', async () => {
+    localStorage.setItem(`${CACHE_PREFIX}:u1`, 'conv-current');
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'conv-current',
+          messages: [{ id: 'm1', role: 'user', content: 'hi' }],
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ id: 'conv-next', messages: [] }));
+
+    const { result } = renderHook(() =>
+      useChatConversation({ userId: 'u1', apiBase: API_BASE }),
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-current'));
+
+    await act(async () => {
+      await result.current.startNew();
+    });
+
+    expect(result.current.conversationId).toBe('conv-next');
+    expect(result.current.initialMessages).toEqual([]);
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1`)).toBe('conv-next');
+    // Crucially: NO delete — the prior thread survives in history.
+    const methods = fetchMock.mock.calls.map((c) => (c[1] as RequestInit | undefined)?.method ?? 'GET');
+    expect(methods).not.toContain('DELETE');
+    expect(fetchMock.mock.calls[1][0]).toBe(`${API_BASE}/conversations`);
+    expect((fetchMock.mock.calls[1][1] as RequestInit).method).toBe('POST');
+  });
+});
+
 // Regression: a cache-fallback reload (server returns no/partial messages →
 // `readMessageCache`) must keep the draft/plan affordance cards, not just the
 // bare tool header. `sanitizeChatMessagesForCache` used to drop the tool

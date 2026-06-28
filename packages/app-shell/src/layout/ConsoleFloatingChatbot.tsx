@@ -406,6 +406,13 @@ interface ChatbotInnerProps {
    * instead of an empty "welcome" thread.
    */
   initialMessages?: HydratedUIMessage[];
+  /**
+   * Start a brand-new server conversation (the "New chat" button). Mints a
+   * fresh `ai_conversations` row and switches to it — the old thread stays in
+   * history. Without this the button only cleared the local message array while
+   * the next turn kept appending to the SAME conversation server-side.
+   */
+  onNewChat: () => void;
 }
 
 function ChatbotInner({
@@ -422,6 +429,7 @@ function ChatbotInner({
   defaultOpen = false,
   conversationId,
   initialMessages: persistedMessages,
+  onNewChat,
 }: ChatbotInnerProps) {
   const { language } = useObjectTranslation();
   const navigate = useNavigate();
@@ -602,7 +610,7 @@ function ChatbotInner({
           aria-label={locale.newChat}
           title={locale.newChat}
           data-testid="floating-chatbot-new"
-          onClick={clear}
+          onClick={onNewChat}
         >
           <SquarePen className="h-4 w-4" />
         </Button>
@@ -831,15 +839,23 @@ export default function ConsoleFloatingChatbot({
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`
     : undefined;
 
+  // The stateful BUILD surface resumes its in-progress conversation (staged
+  // drafts + the awaiting-confirm plan would otherwise be orphaned on reload);
+  // the ASK/data surface opens a fresh thread each visit (each question is
+  // largely self-contained, and resuming stale data answers is confusing). See
+  // `resumeMode` in useChatConversation.
+  const isBuildAgent = activeAgent ? agentRouteName(activeAgent) === 'build' : false;
+
   // Server-backed conversation. Scoped by agent so each agent gets its own
   // persistent history. Hook is inert until `userId` is provided; without it
   // the FAB continues to work in local-only mode (no persistence). Gate `userId`
   // on the agent being resolved so the conversation binds to the right scope
   // from the first resolve (not a scopeless one during the catalog load).
-  const { conversationId, initialMessages } = useChatConversation({
+  const { conversationId, initialMessages, startNew } = useChatConversation({
     userId: activeAgent ? userId : undefined,
     scope: activeAgent,
     apiBase,
+    resumeMode: isBuildAgent ? 'resume' : 'fresh',
   });
 
   // `key` forces a clean remount whenever the chat endpoint OR the resolved
@@ -862,6 +878,7 @@ export default function ConsoleFloatingChatbot({
       defaultOpen={defaultOpen}
       conversationId={conversationId}
       initialMessages={initialMessages}
+      onNewChat={startNew}
     />
   );
 }
