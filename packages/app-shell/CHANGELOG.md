@@ -1,5 +1,67 @@
 # @object-ui/app-shell — Changelog
 
+## 11.2.0
+
+### Minor Changes
+
+- 490ba55: feat(cloud): state-aware onboarding next-step widget for the Cloud Welcome page
+
+  The Cloud control-plane Welcome page is static SDUI, but the most useful thing it
+  can show — "what do I do next?" — depends on live state the metadata can't carry:
+  does the caller's org already have its production environment? New signups are
+  auto-provisioned one, so a static "Step 1: create an environment" is wrong for
+  most first-time users.
+
+  Add `cloud:onboarding-next`, a registered SDUI widget that resolves
+  `hasProductionEnv` from the same org-scoped `/cloud/environment-entitlements`
+  endpoint the environment list uses, and renders the right primary action:
+
+  - no production env → **Create your environment** (the real first step);
+  - has production env → **Open Production** (full-page nav that follows the SSO
+    302 into the env) + **Manage environments**;
+  - loading → a neutral skeleton (no CTA flash / layout jump);
+  - unknown / error → degrades to the open-production actions, so the button
+    always works.
+
+  Routes and the SSO endpoint come from the page metadata (`properties`), so the
+  Cloud app owns its URLs and copy; the widget owns only the state logic.
+
+- 32dbd6a: feat(detail): `relatedLayout: 'tabs'` — surface related tables as peer tabs via config
+
+  Record detail pages can now show each related table as its own top-level tab
+  instead of stacking them all inside a single **Related** tab — no custom page
+  required. Set `detail.relatedLayout: 'tabs'` on the object; the synthesized
+  record page then emits one tab per related list (label = the related list's
+  `title`, falling back to its `objectName`, carrying its `icon`), slotted between
+  the **Details** tab and **Activity** / **History**.
+
+  - `buildDefaultPageSchema` (`@object-ui/plugin-detail`): new
+    `BuildPageOptions.relatedLayout?: 'stack' | 'tabs'` threaded through
+    `buildDefaultTabs` (the single choke point for the related-tab emission).
+    `'tabs'` fans the related children out into peer tabs; `'stack'` (default)
+    keeps the legacy single **Related** tab — **zero regression** when omitted.
+    Still honours `hideRelatedTab` (no related tabs emitted) in both modes.
+  - `RecordDetailView` (`@object-ui/app-shell`): reads
+    `objectDef.detail.relatedLayout` per object and forwards it to the synth.
+
+### Patch Changes
+
+- Updated dependencies [9e7a986]
+- Updated dependencies [1311749]
+  - @object-ui/components@11.2.0
+  - @object-ui/core@11.2.0
+  - @object-ui/fields@11.2.0
+  - @object-ui/layout@11.2.0
+  - @object-ui/plugin-editor@11.2.0
+  - @object-ui/data-objectstack@11.2.0
+  - @object-ui/react@11.2.0
+  - @object-ui/types@11.2.0
+  - @object-ui/i18n@11.2.0
+  - @object-ui/auth@11.2.0
+  - @object-ui/permissions@11.2.0
+  - @object-ui/collaboration@11.2.0
+  - @object-ui/providers@11.2.0
+
 ## 11.1.0
 
 ### Minor Changes

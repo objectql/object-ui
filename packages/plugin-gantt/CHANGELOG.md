@@ -1,5 +1,20 @@
 # @object-ui/plugin-gantt
 
+## 11.2.0
+
+### Patch Changes
+
+- Updated dependencies [32dbd6a]
+- Updated dependencies [9e7a986]
+- Updated dependencies [1311749]
+  - @object-ui/plugin-detail@11.2.0
+  - @object-ui/components@11.2.0
+  - @object-ui/core@11.2.0
+  - @object-ui/fields@11.2.0
+  - @object-ui/react@11.2.0
+  - @object-ui/types@11.2.0
+  - @object-ui/i18n@11.2.0
+
 ## 11.1.0
 
 ### Patch Changes

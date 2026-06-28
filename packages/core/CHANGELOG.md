@@ -1,5 +1,16 @@
 # @object-ui/core
 
+## 11.2.0
+
+### Minor Changes
+
+- 9e7a986: ADR-0080: AI-authored UI pages. New `@object-ui/sdui-parser` compiles a constrained JSX/HTML+Tailwind source into the SchemaNode tree (parse, never execute) with whitelist sanitization, manifest validation, and `.d.ts` codegen for the JSX type surface. `PageRenderer` renders `kind:'jsx'` pages; `ComponentRegistry` gains `tier` + `getPublicConfigs()` (capability vs contract).
+- 1311749: ADR-0080 M5: curated PUBLIC block contract (capability ≠ contract). Adds `PUBLIC_BLOCKS` — the single, reviewable list of ~36 object-aware + layout/content blocks that form the AI/contract surface (Salesforce-App-Builder-shaped). `getPublicConfigs()` now returns the curated set (plus any `tier:'public'` opt-in), keyed by bare tag and deduped across the registry's dual-key registrations. The full ~244 registered types remain a rendering capability.
+
+### Patch Changes
+
+- @object-ui/types@11.2.0
+
 ## 11.1.0
 
 ### Patch Changes

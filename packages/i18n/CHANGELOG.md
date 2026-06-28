@@ -1,5 +1,7 @@
 # @object-ui/i18n
 
+## 11.2.0
+
 ## 11.1.0
 
 ### Patch Changes
