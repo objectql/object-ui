@@ -38,7 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@object-ui/components';
-import { extractRecords, buildExpandFields } from '@object-ui/core';
+import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 import {
   getSemanticColorName,
   getSemanticHex,
@@ -435,28 +435,27 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return cur;
     };
 
-    // Fallback chain: configured titleField → object's `name`/`title`/`subject`
-    // → embedded lookup display label → record id. Avoids the dreaded
-    // "Untitled Task" placeholder when an autonumber/title field is null but
-    // other identifying data exists on the record.
+    // Title resolution (ADR-0079):
+    //   1. configured `titleField` (supports dotted paths, e.g. `account.name`);
+    //   2. a couple of common embedded-lookup labels that the object-level
+    //      resolver can't see (the gantt often renders related records);
+    //   3. the unified `@object-ui/core#getRecordDisplayName` — objectSchema
+    //      titleFormat → displayNameField → type-aware field derivation →
+    //      `Record #<id>` floor. This is what stops a task object whose name
+    //      lives in e.g. `activity_name` (no `name`/title field) from rendering
+    //      "Untitled".
     const resolveTitle = (record: any): string => {
-      const candidates: unknown[] = [
+      const direct: unknown[] = [
         resolvePath(record, titleField),
-        record?.name,
-        record?.title,
-        record?.subject,
-        record?.label,
         // Common single embedded lookup labels (e.g. account.name on a contract).
         record?.account?.name,
         record?.opportunity?.name,
         record?.contact && [record.contact.first_name, record.contact.last_name].filter(Boolean).join(' '),
-        record?.id,
-        record?._id,
       ];
-      for (const v of candidates) {
+      for (const v of direct) {
         if (v != null && String(v).trim() !== '') return String(v);
       }
-      return 'Untitled';
+      return getRecordDisplayName(objectSchema, record);
     };
 
     // Label for a tooltip field: explicit override → object schema label →

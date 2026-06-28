@@ -12,6 +12,7 @@ import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types'
 import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
 import { deriveLookupColumns } from './deriveLookupColumns';
+import { getRecordDisplayName } from '@object-ui/core';
 import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
 import { getCellRendererResolver } from './_cell-renderer-bridge';
 import { SchemaRendererContext as ImportedSchemaRendererContext } from '@object-ui/react';
@@ -69,10 +70,17 @@ function formatRecordTitle(record: any, titleFormat: string): string | null {
 /**
  * Map a raw record to a LookupOption using a display field and an id field.
  *
- * When `titleFormat` is supplied (typically derived from the referenced
- * object's schema), the label is rendered via the template so users see a
- * human-readable name (e.g. `"Acme - John Doe"`) instead of falling all the
- * way through to the raw record id.
+ * Label precedence (ADR-0079):
+ *   1. `titleFormat` template (when supplied, derived from the referenced
+ *      object's schema) — e.g. `"Acme - John Doe"`.
+ *   2. the explicit `displayField` value on the record.
+ *   3. the unified `@object-ui/core#getRecordDisplayName` against the referenced
+ *      object's schema (`objectDef`) — adds `displayNameField` + type-aware
+ *      field derivation, so a lookup to an object whose name lives in e.g.
+ *      `activity_name` resolves a real name instead of the raw id. We stop short
+ *      of the resolver's `Record #<id>` floor here so the chip still falls
+ *      through to the bare id when nothing nameable exists.
+ *   4. the legacy hard-coded name list, then the raw id.
  */
 function recordToOption(
   record: any,
@@ -80,12 +88,27 @@ function recordToOption(
   idField: string,
   descriptionField?: string,
   titleFormat?: string | null,
+  objectDef?: any,
 ): LookupOption {
   const val = record[idField] ?? record.id ?? record._id;
   const templated = titleFormat ? formatRecordTitle(record, titleFormat) : null;
+
+  // Object-level resolver fallback (displayNameField + derivation), excluding
+  // its id floor so we don't shadow the explicit `String(val)` tail.
+  let unified: string | undefined;
+  if (objectDef) {
+    const resolved = getRecordDisplayName(objectDef, record);
+    const id = record?.id ?? record?._id;
+    const isFloor =
+      resolved === 'Untitled' ||
+      (id !== null && id !== undefined && resolved === `Record #${id}`);
+    if (!isFloor) unified = resolved;
+  }
+
   const label =
     templated ??
     record[displayField] ??
+    unified ??
     record.label ??
     record.name ??
     record.full_name ??
@@ -358,7 +381,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
         const result = await dataSource.find(referenceTo, params);
         const records: any[] = result?.data ?? result ?? [];
-        const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat));
+        const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
 
         setFetchedOptions(mapped);
         setTotalCount(result?.total ?? records.length);
@@ -455,14 +478,14 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         for (const id of unresolved) {
           if (typeof (dataSource as any).findOne === 'function') {
             const rec = await (dataSource as any).findOne(referenceTo, id);
-            if (rec) fetched.push(recordToOption(rec, displayField, idField, effectiveDescriptionField, refTitleFormat));
+            if (rec) fetched.push(recordToOption(rec, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
           } else {
             const res = await dataSource.find(referenceTo, {
               $filter: { [idField]: id },
               $top: 1,
             } as QueryParams);
             const rows = res?.data ?? res ?? [];
-            if (rows[0]) fetched.push(recordToOption(rows[0], displayField, idField, effectiveDescriptionField, refTitleFormat));
+            if (rows[0]) fetched.push(recordToOption(rows[0], displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
           }
         }
         if (!cancelled && fetched.length) {
@@ -539,7 +562,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // findOption can resolve display labels after the dialog closes.
   const handlePickerSelectRecords = useCallback(
     (records: any[]) => {
-      const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat));
+      const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
       if (referenceTo) mapped.forEach((o) => pushRecentLookupId(referenceTo, o.value));
       setPickerResolvedRecords(mapped);
     },
@@ -561,7 +584,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           if (cached) { recs.push(cached); continue; }
           if (typeof (dataSource as any).findOne === 'function') {
             const r = await (dataSource as any).findOne(referenceTo, id);
-            if (r) recs.push(recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat));
+            if (r) recs.push(recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
           }
         }
         if (!cancelled) setRecentOptions(recs);
@@ -592,7 +615,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       setError(null);
       try {
         const created = await (dataSource as any).create(referenceTo, { [displayField]: label });
-        const opt = recordToOption(created, displayField, idField, effectiveDescriptionField, refTitleFormat);
+        const opt = recordToOption(created, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema);
         setPickerResolvedRecords((prev) => [opt, ...prev.filter((o) => o.value !== opt.value)]);
         handleSelect(opt);
       } catch (err) {

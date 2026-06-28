@@ -7,34 +7,13 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getRecordDisplayName as defaultDisplayName } from '@object-ui/core';
 
-/**
- * Local copy of the display-name resolver used by app-shell. Kept in
- * `@object-ui/react` so hooks can derive a record's visible label without
- * pulling in the shell. Mirrors `app-shell/src/utils#getRecordDisplayName`;
- * the two should stay in sync.
- */
-function defaultDisplayName(objectDef: any, record: any): string {
-  const fmt: string | undefined = objectDef?.titleFormat;
-  if (fmt && typeof fmt === 'string') {
-    const rendered = fmt.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, path) => {
-      const v = path.split('.').reduce((acc: any, k: string) => (acc == null ? acc : acc[k]), record);
-      return v == null ? '' : String(v);
-    }).trim();
-    if (rendered.length > 0) return rendered;
-  }
-  return (
-    record?.name ||
-    record?.full_name ||
-    record?.fullName ||
-    record?.title ||
-    record?.label ||
-    record?.subject ||
-    record?.id ||
-    record?._id ||
-    'Untitled'
-  );
-}
+// ADR-0079: the global-search default display-name resolver is now the ONE
+// shared `getRecordDisplayName` from `@object-ui/core` (honors titleFormat →
+// `displayNameField` → type-aware derivation → `Record #<id>`). Callers can
+// still pass an explicit `getDisplayName` (app-shell's CommandPalette passes
+// the same shared resolver re-exported via `@object-ui/app-shell`).
 
 /**
  * Relevance score for a single record hit against the query. Higher wins.

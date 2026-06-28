@@ -40,7 +40,7 @@ import {
   Input,
   Label,
 } from '@object-ui/components';
-import { extractRecords, buildExpandFields } from '@object-ui/core';
+import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 
 export interface CalendarSchema {
   type: 'calendar';
@@ -340,63 +340,19 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
     }
 
     const { startDateField, endDateField, titleField, colorField } = calendarConfig;
-    const rawTitleFormat: any = objectSchema?.titleFormat;
-    const titleFormat: string | undefined =
-      typeof rawTitleFormat === 'string'
-        ? rawTitleFormat
-        : (rawTitleFormat && typeof rawTitleFormat === 'object' && typeof rawTitleFormat.source === 'string')
-          ? rawTitleFormat.source
-          : undefined;
-    const nameFieldKey: string | undefined = objectSchema?.NAME_FIELD_KEY;
-    const TITLE_FALLBACK_FIELDS = [
-      'name', 'full_name', 'fullName', 'title', 'subject',
-      'label', 'display_name', 'displayName',
-    ];
-
-    const renderFromTemplate = (template: string, item: Record<string, any>) => {
-      const EMPTY_TOKEN = '\u0000';
-      const SEPARATORS = '[-\\u2013\\u2014|/·,:]';
-      let anyResolved = false;
-      const raw = template.replace(/\{([^{}]+)\}/g, (_m, key) => {
-        const v = item[key.trim()];
-        if (v !== undefined && v !== null && v !== '') {
-          anyResolved = true;
-          return String(v);
-        }
-        return EMPTY_TOKEN;
-      });
-      if (!anyResolved) return '';
-      return raw
-        .replace(new RegExp(`\\s*${SEPARATORS}\\s*${EMPTY_TOKEN}`, 'g'), '')
-        .replace(new RegExp(`${EMPTY_TOKEN}\\s*${SEPARATORS}\\s*`, 'g'), '')
-        .replace(new RegExp(EMPTY_TOKEN, 'g'), '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
-
     const resolveTitle = (record: Record<string, any>): string => {
-      let resolved: any = undefined;
+      // 1. Explicit titleField wins when present on the record.
       if (titleField) {
-        resolved = record[titleField];
-        if (typeof resolved === 'string') resolved = resolved.trim();
+        const v = record[titleField];
+        const s = typeof v === 'string' ? v.trim() : v;
+        if (s) return String(s);
       }
-      if (!resolved && titleFormat) {
-        const rendered = renderFromTemplate(titleFormat, record);
-        if (rendered) resolved = rendered;
-      }
-      if (!resolved && nameFieldKey) {
-        const v = record[nameFieldKey];
-        if (typeof v === 'string') resolved = v.trim();
-        else if (v) resolved = v;
-      }
-      if (!resolved) {
-        for (const f of TITLE_FALLBACK_FIELDS) {
-          const v = record[f];
-          const s = typeof v === 'string' ? v.trim() : v;
-          if (s) { resolved = s; break; }
-        }
-      }
-      return resolved || 'Untitled';
+      // 2-4. Unified object-level resolver (ADR-0079): objectSchema.titleFormat
+      //   → objectSchema.displayNameField → type-aware field derivation →
+      //   `Record #<id>` floor. Replaces the old per-view chain (template render
+      //   → NAME_FIELD_KEY → hard-coded name list → "Untitled") so an event
+      //   object whose name lives in e.g. `activity_name` shows the real name.
+      return getRecordDisplayName(objectSchema, record);
     };
 
     return data.map((record, index) => {

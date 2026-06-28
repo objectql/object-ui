@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useContext } from 'react';
 import { useDataScope, SchemaRendererContext, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
-import { ComponentRegistry, buildExpandFields } from '@object-ui/core';
+import { ComponentRegistry, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 import { cn, Card, CardContent, NavigationOverlay } from '@object-ui/components';
 import type { GalleryConfig, ViewNavigationConfig, GroupingConfig } from '@object-ui/types';
 import { ChevronRight, ChevronDown } from 'lucide-react';
@@ -210,7 +210,12 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
     const coverField = gallery?.coverField ?? schema.imageField ?? 'image';
     const coverFit = gallery?.coverFit ?? 'cover';
     const cardSize = gallery?.cardSize ?? 'medium';
-    const titleField = gallery?.titleField ?? schema.titleField ?? 'name';
+    // ADR-0079: honour an author-chosen title field, but DON'T fall back to the
+    // literal `'name'`. When unset, each card's title is resolved via the
+    // unified `getRecordDisplayName` (titleFormat → object.displayNameField →
+    // type-aware derivation → `Record #<id>`), so a gallery over an object whose
+    // name lives in e.g. `activity_name` shows the real name, not "Untitled".
+    const titleField = gallery?.titleField ?? schema.titleField;
     const visibleFields = gallery?.visibleFields;
 
     // i18n: translate select-field option labels in card cells
@@ -438,7 +443,13 @@ export const ObjectGallery: React.FC<ObjectGalleryProps> = (props) => {
 
     const renderCard = (item: Record<string, unknown>, i: number) => {
         const id = (item.id ?? item._id ?? i) as string | number;
-        const title = String(item[titleField] ?? 'Untitled');
+        // Prefer the explicit title field when authored & present; otherwise
+        // defer to the unified object-level resolver (ADR-0079).
+        const explicitTitle =
+            titleField != null && item[titleField] != null && item[titleField] !== ''
+                ? String(item[titleField])
+                : undefined;
+        const title = explicitTitle ?? getRecordDisplayName(objectDef, item);
         const imageUrl = item[coverField] as string | undefined;
         const placeholder = pickPlaceholderGradient(String(id) + '|' + title);
 

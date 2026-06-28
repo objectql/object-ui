@@ -43,7 +43,7 @@ import { ActivityTimeline } from './ActivityTimeline';
 import { HistoryTimeline } from './HistoryTimeline';
 import { RecordMetaFooter } from './RecordMetaFooter';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
-import { buildExpandFields } from '@object-ui/core';
+import { buildExpandFields, getRecordDisplayName, formatTitleTemplate } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import type { DetailViewSchema, DataSource, ActionSchema, SchemaNode } from '@object-ui/types';
@@ -56,12 +56,13 @@ const DEFAULT_RELATED_PAGE_SIZE = 5;
  * Resolve the human-readable title for the detail header.
  *
  * Priority order:
- *   1. `schema.primaryField` value on the record
- *   2. Render `objectSchema.titleFormat` (e.g. `{full_name} - {company}`),
- *      stripping orphan separators around empty placeholders.
- *   3. `schema.title` (caller-provided override, typically the object label)
- *   4. Common name-like fields on the record (`name`, `full_name`, …)
- *   5. Translated "Details" fallback.
+ *   1. `schema.primaryField` value on the record (view-author override).
+ *   2. `objectSchema.titleFormat` (e.g. `{full_name} - {company}`).
+ *   3. `objectSchema.displayNameField` + type-aware field derivation, via the
+ *      unified `@object-ui/core#getRecordDisplayName` (ADR-0079) — so the detail
+ *      header matches gallery / calendar / lookup / search.
+ *   4. `schema.title` (caller-provided override, typically the object label).
+ *   5. `Record #<id>` floor, else the translated "Details" fallback.
  */
 function resolveDisplayTitle(
   data: any,
@@ -70,71 +71,42 @@ function resolveDisplayTitle(
   fallback: string,
 ): string {
   if (data && typeof data === 'object') {
+    // 1. Explicit primary field wins (author's chosen header field).
     if (schema.primaryField) {
       const v = (data as any)[schema.primaryField];
       if (v !== null && v !== undefined && v !== '') return String(v);
     }
-    const rawTitleFormat: any = objectSchema?.titleFormat;
-    const titleFormat: string | undefined =
-      typeof rawTitleFormat === 'string'
-        ? rawTitleFormat
-        : (rawTitleFormat && typeof rawTitleFormat === 'object' && typeof rawTitleFormat.source === 'string')
-          ? rawTitleFormat.source
-          : undefined;
-    if (titleFormat) {
-      const EMPTY = '\u0000';
-      const SEP = '[-\\u2013\\u2014|/·,:]';
-      let any = false;
-      const raw = titleFormat.replace(/\{([^{}]+)\}/g, (_m, key) => {
-        // Support dotted paths (e.g. `{account.name}`) so titleFormat can
-        // reference fields on $expanded lookup objects.
-        const parts = String(key).trim().split('.');
-        let v: any = data;
-        for (const p of parts) {
-          if (v == null) break;
-          v = (v as any)[p];
-        }
-        // When the resolved value is an expanded reference object (no
-        // sub-key was requested) fall back to its display name. Tries the
-        // Salesforce-style fallback chain: standard display fields →
-        // `salutation first_name last_name` composite → email.
-        if (v && typeof v === 'object') {
-          const o = v as any;
-          let display = o.name ?? o.full_name ?? o.display_name ?? o.label ?? o.title ?? o.subject ?? null;
-          if (display == null || (typeof display === 'string' && !display.trim())) {
-            const composite = [o.salutation, o.first_name, o.last_name]
-              .filter((p: any) => typeof p === 'string' && p.trim())
-              .map((p: string) => p.trim())
-              .join(' ');
-            if (composite) display = composite;
-            else if (typeof o.email === 'string' && o.email.trim()) display = o.email.trim();
-            else display = null;
-          }
-          v = display;
-        }
-        if (v !== null && v !== undefined && v !== '') {
-          any = true;
-          return String(v);
-        }
-        return EMPTY;
-      });
-      if (any) {
-        const out = raw
-          .replace(new RegExp(`\\s*${SEP}\\s*${EMPTY}`, 'g'), '')
-          .replace(new RegExp(`${EMPTY}\\s*${SEP}\\s*`, 'g'), '')
-          .replace(new RegExp(EMPTY, 'g'), '')
-          .replace(/\s+/g, ' ')
-          .trim();
-        if (out) return out;
-      }
-    }
+    // 2. titleFormat (kept first to preserve existing header behavior). The
+    //    shared renderer walks dotted paths + embedded lookup objects and
+    //    strips orphan separators around empty placeholders.
+    const formatted = formatTitleTemplate(objectSchema?.titleFormat, data);
+    if (formatted) return formatted;
   }
-  if (schema.title) return schema.title;
+  // 3. Unified resolver (ADR-0079): displayNameField → type-aware field
+  //    derivation, so an object whose name lives in e.g. `activity_name`
+  //    (no titleFormat, no standard `name` field) still renders its real name
+  //    here — matching gallery / calendar / lookup / search. We stop short of
+  //    the resolver's `Record #<id>` floor because the detail header prefers
+  //    the object label (`schema.title`) over a bare id; detect & skip it.
   if (data && typeof data === 'object') {
-    for (const k of ['name', 'full_name', 'fullName', 'title', 'subject', 'label', 'display_name', 'displayName']) {
-      const v = (data as any)[k];
-      if (typeof v === 'string' && v.trim()) return v.trim();
-      if (v !== null && v !== undefined && v !== '') return String(v);
+    const id = (data as any).id ?? (data as any)._id;
+    // `deriveFromRecordKeys: false` → only the object-DECLARED identity
+    // (displayNameField + type-aware field derivation) contributes here; a bare
+    // record-key guess does NOT outrank the caller's `schema.title` object
+    // label below. We also detect & skip the resolver's `Record #<id>` floor.
+    const unified = getRecordDisplayName(objectSchema, data, { deriveFromRecordKeys: false });
+    const isFloor =
+      unified === 'Untitled' ||
+      (id !== null && id !== undefined && unified === `Record #${id}`);
+    if (!isFloor) return unified;
+  }
+  // 4. Caller-provided title override (object label).
+  if (schema.title) return schema.title;
+  // 5. `Record #<id>` floor, else the translated "Details" fallback.
+  if (data && typeof data === 'object') {
+    const id = (data as any).id ?? (data as any)._id;
+    if (id !== null && id !== undefined && String(id).trim() !== '') {
+      return `Record #${id}`;
     }
   }
   return fallback;

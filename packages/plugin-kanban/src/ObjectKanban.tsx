@@ -10,7 +10,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import type { DataSource } from '@object-ui/types';
 import { useDataScope, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
-import { extractRecords, buildExpandFields } from '@object-ui/core';
+import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 import { getBadgeColorClasses, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import { KanbanRenderer } from './index';
 import { KanbanSchema } from './types';
@@ -140,94 +140,42 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
     const explicitTitleField: string | undefined =
       schema.cardTitle || (schema as any).titleField;
 
-    // Resolve title via, in order:
+    // Title is resolved per-item below via:
     //   1. explicit titleField (schema.cardTitle / schema.titleField), if it
-    //      yields a non-empty value for the record
-    //   2. objectDef.titleFormat — render the full template
-    //      (e.g. "{full_name} - {company}")
-    //   3. objectDef.NAME_FIELD_KEY
-    //   4. Common name-like field fallbacks
+    //      yields a non-empty value for the record;
+    //   2-4. otherwise the unified `@object-ui/core#getRecordDisplayName`
+    //      (ADR-0079): objectDef.titleFormat → objectDef.displayNameField →
+    //      type-aware field derivation → `Record #<id>` floor.
     //
-    // We always evaluate steps 2-4 when step 1 produced nothing, even when an
-    // explicit titleField was supplied. ListView used to default titleField
-    // to the literal "name" for objects that didn't have one, which made the
-    // explicit-only path resolve to undefined for every record and bypassed
-    // the objectDef-derived inference below.
-    const TITLE_FALLBACK_FIELDS = [
-      'name',
-      'full_name',
-      'fullName',
-      'title',
-      'subject',
-      'label',
-      'display_name',
-      'displayName',
-    ];
-
-    const rawTitleFormat: any = objectDef?.titleFormat;
-    const titleFormat: string | undefined =
-      typeof rawTitleFormat === 'string'
-        ? rawTitleFormat
-        : (rawTitleFormat && typeof rawTitleFormat === 'object' && typeof rawTitleFormat.source === 'string')
-          ? rawTitleFormat.source
-          : undefined;
+    // ListView used to default titleField to the literal "name" for objects
+    // that had none, which made the explicit-only path resolve to undefined for
+    // every record and bypassed any objectDef-derived inference. The shared
+    // resolver removes that footgun.
+    // `nameFieldKey` is retained: it still feeds the description-field skip set
+    // below so the title field's raw value isn't repeated in the card body.
     const nameFieldKey: string | undefined = objectDef?.NAME_FIELD_KEY;
-
-    const renderFromTemplate = (template: string, item: Record<string, any>) => {
-      // Sentinel for empty placeholders so we can strip orphan separators.
-      const EMPTY_TOKEN = '\u0000';
-      const SEPARATORS = '[-\\u2013\\u2014|/·,:]';
-      let anyResolved = false;
-      const raw = template.replace(/\{([^{}]+)\}/g, (_m, key) => {
-        const v = item[key.trim()];
-        if (v !== undefined && v !== null && v !== '') {
-          anyResolved = true;
-          return String(v);
-        }
-        return EMPTY_TOKEN;
-      });
-      if (!anyResolved) return '';
-      const out = raw
-        .replace(new RegExp(`\\s*${SEPARATORS}\\s*${EMPTY_TOKEN}`, 'g'), '')
-        .replace(new RegExp(`${EMPTY_TOKEN}\\s*${SEPARATORS}\\s*`, 'g'), '')
-        .replace(new RegExp(EMPTY_TOKEN, 'g'), '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      return out;
-    };
 
     return rawData.map(item => {
       let resolvedTitle: any = undefined;
 
-      // 1. Explicit titleField
+      // 1. Explicit titleField (schema.cardTitle / schema.titleField).
       if (explicitTitleField) {
         resolvedTitle = item[explicitTitleField];
         if (typeof resolvedTitle === 'string') resolvedTitle = resolvedTitle.trim();
       }
 
-      // 2. titleFormat template
-      if (!resolvedTitle && titleFormat) {
-        const rendered = renderFromTemplate(titleFormat, item);
-        if (rendered) resolvedTitle = rendered;
-      }
-
-      // 3. NAME_FIELD_KEY
-      if (!resolvedTitle && nameFieldKey) {
-        const v = item[nameFieldKey];
-        if (typeof v === 'string') resolvedTitle = v.trim();
-        else if (v) resolvedTitle = v;
-      }
-
-      // 4. Common field-name fallbacks
+      // 2-4. Unified object-level resolver (ADR-0079): titleFormat →
+      //   objectDef.displayNameField → type-aware field derivation. Replaces the
+      //   old per-view chain (template render → NAME_FIELD_KEY → hard-coded
+      //   name list) so a board over an object whose name lives in e.g.
+      //   `activity_name` shows the real name instead of "Untitled".
       if (!resolvedTitle) {
-        for (const field of TITLE_FALLBACK_FIELDS) {
-          const v = item[field];
-          const s = typeof v === 'string' ? v.trim() : v;
-          if (s) {
-            resolvedTitle = s;
-            break;
-          }
-        }
+        const unified = getRecordDisplayName(objectDef, item);
+        const id = item.id ?? item._id;
+        const isFloor =
+          unified === 'Untitled' ||
+          (id !== null && id !== undefined && unified === `Record #${id}`);
+        if (!isFloor) resolvedTitle = unified;
       }
 
       // Derive a short description and badges from common semantic fields so
@@ -399,8 +347,10 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
         ...item,
         // Ensure id exists
         id: item.id || item._id,
-        // Map title
-        title: resolvedTitle || 'Untitled',
+        // Map title. When neither the explicit field nor the unified resolver
+        // produced a name, fall back to the resolver's floor (`Record #<id>`,
+        // or 'Untitled' only for a truly id-less record) — ADR-0079.
+        title: resolvedTitle || getRecordDisplayName(objectDef, item),
         ...(synthesizedSubtitle ? { cardSubtitle: synthesizedSubtitle } : {}),
         ...(cardFieldCells.length > 0 ? { cardFieldCells } : {}),
         ...(!Array.isArray(item.badges) && cardBadges.length > 0

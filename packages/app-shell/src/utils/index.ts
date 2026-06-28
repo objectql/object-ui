@@ -2,6 +2,20 @@
  * Utility functions for ObjectStack Console
  */
 
+// Re-export the unified record display-name resolver (ADR-0079) so existing
+// importers of `@object-ui/app-shell`'s `getRecordDisplayName` /
+// `formatRecordTitle` keep working unchanged. The implementation now lives in
+// `@object-ui/core` (pure util, shared by every view plugin and field widget).
+export {
+  getRecordDisplayName,
+  deriveTitleField,
+  isTitleEligibleField,
+  // `formatTitleTemplate` is the new canonical name; alias it to the legacy
+  // `formatRecordTitle` export this module has always provided.
+  formatTitleTemplate as formatRecordTitle,
+} from '@object-ui/core';
+export type { RecordDisplayNameOptions } from '@object-ui/core';
+
 export {
   resolveRecordFormTarget,
   resolveFormViewLayout,
@@ -48,110 +62,9 @@ export function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-// Sentinel used to mark empty-placeholder positions inside formatRecordTitle
-// so adjacent separators can be stripped in a second pass.
-const EMPTY_TOKEN = '\u0000';
-// Separator characters commonly placed between {fields} in titleFormat patterns
-// (hyphen, em/en dashes, pipes, slashes, middle dot, comma, colon).
-const SEPARATOR_CLASS = '[-\\u2013\\u2014|/·,:]';
-
-/**
- * Format a record title using the titleFormat pattern.
- *
- * Accepts either a legacy string template or an Expression envelope
- * (`{ dialect: 'template', source: string }`) emitted by `@objectstack/spec`'s
- * normalized templates. The placeholder syntax (`{field}`) is identical in both
- * shapes; only the wrapping object is new.
- *
- * Empty placeholders (missing or null/empty fields) are stripped along with
- * any orphan separator they leave behind, so a template like
- *   "{full_name} - {company}"
- * evaluated against `{ company: "Acme" }` resolves to `"Acme"` rather than
- * `" - Acme"`. Returns an empty string when no placeholder resolved.
- */
-export function formatRecordTitle(titleFormat: string | { source?: string } | undefined, record: any): string {
-  // Normalize Expression envelope ({ dialect, source }) → raw template string.
-  const template: string | undefined =
-    typeof titleFormat === 'string'
-      ? titleFormat
-      : (titleFormat && typeof titleFormat === 'object' && typeof titleFormat.source === 'string')
-        ? titleFormat.source
-        : undefined;
-
-  if (!template || !record) {
-    return record?.id || record?._id || 'Record';
-  }
-
-  let anyResolved = false;
-  let out = template.replace(/\{([^{}]+)\}/g, (_match, fieldName) => {
-    // Support dotted paths (e.g. `{account.name}`) for $expanded lookups.
-    const parts = String(fieldName).trim().split('.');
-    let value: any = record;
-    for (const p of parts) {
-      if (value == null) break;
-      value = (value as any)[p];
-    }
-    // Auto-extract display name from expanded reference objects, with a
-    // Salesforce-style fallback chain.
-    if (value && typeof value === 'object') {
-      const o = value as any;
-      let display: any =
-        o.name ?? o.full_name ?? o.display_name ?? o.label ?? o.title ?? o.subject ?? null;
-      if (display == null || (typeof display === 'string' && !display.trim())) {
-        const composite = [o.salutation, o.first_name, o.last_name]
-          .filter((p: any) => typeof p === 'string' && p.trim())
-          .map((p: string) => p.trim())
-          .join(' ');
-        if (composite) display = composite;
-        else if (typeof o.email === 'string' && o.email.trim()) display = o.email.trim();
-        else display = null;
-      }
-      value = display;
-    }
-    if (value === null || value === undefined || value === '') {
-      return EMPTY_TOKEN;
-    }
-    anyResolved = true;
-    return String(value);
-  });
-
-  if (!anyResolved) return '';
-
-  // Drop separators on either side of an empty token, then any leftover
-  // tokens, then collapse runs of whitespace.
-  const sepBefore = new RegExp(`\\s*${SEPARATOR_CLASS}\\s*${EMPTY_TOKEN}`, 'g');
-  const sepAfter = new RegExp(`${EMPTY_TOKEN}\\s*${SEPARATOR_CLASS}\\s*`, 'g');
-  out = out
-    .replace(sepBefore, '')
-    .replace(sepAfter, '')
-    .replace(new RegExp(EMPTY_TOKEN, 'g'), '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  return out;
-}
-
-/**
- * Get display name for a record using titleFormat or fallback
- * @param objectDef Object definition with optional titleFormat
- * @param record The record data
- * @returns Display name for the record
- */
-export function getRecordDisplayName(objectDef: any, record: any): string {
-  if (objectDef?.titleFormat) {
-    const formatted = formatRecordTitle(objectDef.titleFormat, record);
-    if (formatted) return formatted;
-  }
-
-  return (
-    record?.name ||
-    record?.full_name ||
-    record?.fullName ||
-    record?.title ||
-    record?.label ||
-    record?.subject ||
-    record?.id ||
-    record?._id ||
-    'Untitled'
-  );
-}
+// NOTE (ADR-0079): `formatRecordTitle` (now canonically `formatTitleTemplate`)
+// and `getRecordDisplayName` moved to `@object-ui/core` and are re-exported
+// from the top of this module. The previous local copies — a titleFormat-only
+// resolver that fell back to a hard-coded `name`/`title`/… list and bottomed
+// out at the literal 'Untitled' — are gone, so every surface now also honors
+// the object's `displayNameField` + type-aware derivation + `Record #<id>`.

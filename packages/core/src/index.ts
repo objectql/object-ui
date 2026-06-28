@@ -42,3 +42,4 @@ export * from './utils/date-macros.js';
 export * from './utils/compare-to.js';
 export * from './utils/chart-series.js';
 export * from './utils/dataset-format.js';
+export * from './utils/record-title.js';
