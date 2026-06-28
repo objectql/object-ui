@@ -40,6 +40,28 @@ describe('getRecordDisplayName — ADR-0079 repro', () => {
   });
 });
 
+describe('getRecordDisplayName — *_name on the RECORD when objectDef is unusable (live gallery repro)', () => {
+  // Browser test caught this: ObjectGallery calls getRecordDisplayName with an
+  // objectDef whose `.fields` did NOT drive type-aware derivation (async-null,
+  // a different fetched shape, …) AND a record without an obvious name-ish key,
+  // so the resolver fell straight to bare "Untitled" — the `*_name` value was
+  // sitting right there on the record. The record-key affix fallback fixes it.
+  it('finds `activity_name` from the record when objectDef has no usable fields', () => {
+    expect(getRecordDisplayName({}, { id: '1', activity_name: '夏日城市骑行夜', city: '上海' })).toBe('夏日城市骑行夜');
+  });
+  it('works with no objectDef at all (null) and even a record with no id', () => {
+    expect(getRecordDisplayName(null, { activity_name: '西湖晨跑团' })).toBe('西湖晨跑团');
+  });
+  it('never lets a `*_id` / system key win the affix scan', () => {
+    expect(
+      getRecordDisplayName(null, { id: '1', owner_id: 'u1', organization_id: 'o1', activity_name: '外滩摄影漫步' }),
+    ).toBe('外滩摄影漫步');
+  });
+  it('still floors to `Record #<id>` when the record has no name-ish key at all', () => {
+    expect(getRecordDisplayName({}, { id: '7', amount: 100, created_at: '2026-01-01' })).toBe('Record #7');
+  });
+});
+
 describe('getRecordDisplayName — precedence', () => {
   it('1. titleFormat wins over everything', () => {
     const obj = {
