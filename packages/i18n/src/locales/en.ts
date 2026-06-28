@@ -1122,6 +1122,10 @@ const en = {
       conversationReady: 'Conversation ready',
       preparingConversation: 'Preparing a new conversation',
       offlineDemoMode: 'Offline demo mode — agent list unavailable',
+      sendFailedRateLimited:
+        "You're sending messages too quickly. Your message is kept below — wait a moment and try again.",
+      sendFailedGeneric:
+        "Couldn't send your message. It's kept below — please try again.",
       askAgent: 'Ask {{agent}}...',
       assistant: 'Assistant',
       loadingAgents: 'Loading agents...',

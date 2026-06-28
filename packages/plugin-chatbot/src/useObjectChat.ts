@@ -13,6 +13,59 @@ import { DefaultChatTransport } from 'ai';
 import { generateUniqueId } from './utils';
 import { uiMessagesToChatMessages } from './mapMessages';
 
+/** An error from {@link sendAwareFetch}: a chat POST rejected before streaming. */
+export interface SendFailure extends Error {
+  /** HTTP status when a response was received (e.g. 429); absent on network errors. */
+  status?: number;
+  /** Always true — the request never produced a reply, so nothing was sent. */
+  notSent?: boolean;
+}
+
+/**
+ * `fetch` for the chat transport that turns a REJECTED request into a tagged
+ * error. The Vercel AI SDK otherwise hands `onError` a bare Error whose message
+ * is the response body and DROPS the HTTP status — so the UI can't tell a 429
+ * rate-limit (nothing streamed: restore the input, say "slow down") apart from a
+ * mid-stream transport drop (the turn may have completed server-side: reconcile
+ * it, don't re-run). We tag:
+ *   - `notSent: true` whenever the POST was rejected (non-2xx) or the network
+ *     failed, i.e. no assistant tokens ever arrived;
+ *   - `status` with the HTTP code when there was a response.
+ * The body text is preserved as the Error message so `parseAiQuotaError` (the
+ * cloud quota guardrail's friendly JSON) keeps working. Exported for tests.
+ */
+export async function sendAwareFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetch(input, init);
+  } catch (err) {
+    // Network failure: the request never reached the server (or no response came
+    // back), so the message was not sent.
+    const e: SendFailure = err instanceof Error ? err : new Error(String(err));
+    e.notSent = true;
+    throw e;
+  }
+  if (!response.ok) {
+    // Non-2xx (429 rate-limit, 5xx, …): rejected before any reply streamed.
+    let body = '';
+    try {
+      body = await response.text();
+    } catch {
+      /* body unavailable — fall back to status text */
+    }
+    const e: SendFailure = new Error(
+      body || response.statusText || `Request failed with status ${response.status}`,
+    );
+    e.status = response.status;
+    e.notSent = true;
+    throw e;
+  }
+  return response;
+}
+
 /**
  * Stamp a stable per-turn idempotency key (ADR-0013 D1) onto the outgoing
  * request body, derived from the id of the user message that triggered the
@@ -269,6 +322,10 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     if (!isApiMode) return undefined;
     return new DefaultChatTransport({
       api: api!,
+      // Tag rejected requests (429 rate-limit / 5xx / network) with status +
+      // `notSent` so the composer can restore the input and show a clear error
+      // instead of silently dropping the message (see sendAwareFetch).
+      fetch: sendAwareFetch,
       headers: { ...headers },
       body: {
         ...body,
@@ -290,11 +347,35 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
   }, [isApiMode, api, headers, body, model, systemPrompt, streamingEnabled, conversationId]);
 
   // --- @ai-sdk/react useChat (always called to satisfy Rules of Hooks, but only active in API mode) ---
+  // Ref so `onError` (fired later, async) can reach the live setMessages/messages
+  // without re-creating useChat — needed to roll back the optimistic user bubble.
+  const chatRef = useRef<any>(null);
   const chatResult = useChat({
     transport,
     messages: isApiMode && aiInitialMessages.length > 0 ? (aiInitialMessages as any) : undefined,
-    onError: isApiMode ? (err: Error) => { onError?.(err); } : undefined,
+    onError: isApiMode
+      ? (err: Error) => {
+          // The POST was rejected before any reply streamed (see sendAwareFetch).
+          // The AI SDK keeps the optimistic user message; drop it so a never-sent
+          // turn isn't left looking "sent". The composer restores the text and
+          // surfaces the error; reconcile-on-error leaves it unsuppressed.
+          if ((err as { notSent?: boolean }).notSent) {
+            const chat = chatRef.current;
+            const cur = chat?.messages as Array<{ role?: string }> | undefined;
+            if (
+              chat?.setMessages &&
+              cur &&
+              cur.length > 0 &&
+              cur[cur.length - 1]?.role === 'user'
+            ) {
+              chat.setMessages(cur.slice(0, -1));
+            }
+          }
+          onError?.(err);
+        }
+      : undefined,
   } as any);
+  chatRef.current = chatResult;
 
   // --- Local/legacy mode state ---
   const [localMessages, setLocalMessages] = useState<OuiChatMessage[]>(

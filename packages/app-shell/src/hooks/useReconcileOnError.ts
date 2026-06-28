@@ -50,6 +50,18 @@ export function useReconcileOnError(opts: {
 
   const handleChatError = useCallback(
     async (_err: Error) => {
+      // A request rejected BEFORE any reply streamed (429 rate-limit, 5xx, or a
+      // network failure — tagged `notSent` by sendAwareFetch) never reached the
+      // server: there is no completed turn to reconcile and NOTHING to suppress.
+      // Surfacing it is the whole point — the composer shows the error + restores
+      // the input (useObjectChat already rolled back the optimistic user bubble).
+      // Without this guard, a 429 after a few turns looked like a completed turn
+      // (the thread still ends with the PREVIOUS assistant reply) and got
+      // silently reconciled away — the reported "message vanished, no error".
+      if ((_err as { notSent?: boolean })?.notSent) {
+        setErrorSuppressed(false);
+        return;
+      }
       const aiBase = chatApi?.replace(/\/agents\/[^/]+\/chat$/, '');
       if (!conversationId || !aiBase) {
         setErrorSuppressed(false);

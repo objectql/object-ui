@@ -24,6 +24,8 @@ import { AlertCircle, ArrowRight, Copy, Check, RefreshCw, CornerDownLeft, Bot, E
 import type { ChatStatus } from 'ai';
 import {
   humanizeToolName,
+  isRateLimitError,
+  isUnsentSendError,
   parseAiQuotaError,
   summarizeChatError,
   unwrapToolResult,
@@ -351,6 +353,18 @@ export interface ChatbotLabels {
   uploadFiles?: string;
   /** Accessible label for the stop-streaming button. */
   stopResponse?: string;
+  /**
+   * Inline notice shown when a message couldn't be sent because of rate-limiting
+   * (HTTP 429). The user's text is restored to the composer, so the copy should
+   * reassure them it isn't lost — e.g. "You're sending too quickly — your message
+   * is kept below, wait a moment and try again."
+   */
+  sendFailedRateLimited?: string;
+  /**
+   * Inline notice for any other send failure (network / 5xx). Like
+   * {@link sendFailedRateLimited}, the text is restored, so reassure the user.
+   */
+  sendFailedGeneric?: string;
   /** Trace link label in debug mode. */
   trace?: string;
   /** Trace link tooltip in debug mode. */
@@ -1118,6 +1132,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     const promptStatus: ChatStatus = isLoading ? 'streaming' : 'ready';
     const isPlainSurface = surface === 'plain';
     const [copiedId, setCopiedId] = React.useState<string | null>(null);
+    // Last text submitted from the composer — used to RESTORE it when a send is
+    // rejected before it reaches the model (rate-limit / network), so the user
+    // never loses what they typed. Set on submit, read by the restore effect.
+    const lastSubmittedRef = React.useRef<string>('');
+    // Guards the restore effect so it fires once per failure (not on every
+    // re-render while the error sits in state).
+    const restoredErrorRef = React.useRef<unknown>(null);
 
     // Resolve localizable strings once, English defaults preserved.
     const L = React.useMemo(
@@ -1143,6 +1164,12 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         submit: labels?.submit ?? 'Submit',
         uploadFiles: labels?.uploadFiles ?? 'Upload files',
         stopResponse: labels?.stopResponse ?? 'Stop response',
+        sendFailedRateLimited:
+          labels?.sendFailedRateLimited ??
+          "You're sending messages too quickly. Your message is kept below — wait a moment and try again.",
+        sendFailedGeneric:
+          labels?.sendFailedGeneric ??
+          "Couldn't send your message. It's kept below — please try again.",
         trace: labels?.trace ?? 'trace',
         viewTrace: labels?.viewTrace ?? 'View trace',
         connectionWaiting: labels?.connectionWaiting ?? 'Waiting for server…',
@@ -1371,7 +1398,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
           .filter(Boolean) as File[] | undefined;
         const hasFiles = Boolean(files && files.length > 0);
         if (!(hasText || hasFiles)) return;
-        onSendMessage?.(payload.text?.trim() ?? '', files);
+        const text = payload.text?.trim() ?? '';
+        // Remember the text so a rejected send can restore it (the composer's
+        // own form.reset clears the box optimistically). A fresh attempt also
+        // clears any prior send-failure restore guard.
+        lastSubmittedRef.current = text;
+        restoredErrorRef.current = null;
+        onSendMessage?.(text, files);
       },
       [onSendMessage]
     );
@@ -1404,6 +1437,26 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         textarea.scrollIntoView({ block: 'nearest' });
       }
     }, []);
+
+    // Restore the composer text when a send was REJECTED before reaching the
+    // model (rate-limit / network — `notSent`). The composer's own form.reset
+    // clears the box optimistically and the optimistic user bubble was rolled
+    // back (useObjectChat), so without this the typed message would just vanish.
+    // Runs once per failure and never clobbers text the user has since typed.
+    React.useEffect(() => {
+      if (!error || !isUnsentSendError(error)) return;
+      if (restoredErrorRef.current === error) return;
+      restoredErrorRef.current = error;
+      const text = lastSubmittedRef.current;
+      if (!text) return;
+      const textarea = promptInputWrapRef.current?.querySelector('textarea');
+      if (textarea && textarea.value.trim() === '') {
+        textarea.value = text;
+        // Nudge the auto-grow sizing + any onInputChange listener.
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.focus();
+      }
+    }, [error]);
 
     const handleCopy = React.useCallback((message: ChatMessage) => {
       void navigator.clipboard?.writeText(message.content);
@@ -2406,7 +2459,20 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         </Conversation>
 
         {error ? (
-          <ErrorBanner error={error} onReload={onReload} onUpgrade={onUpgrade} />
+          // A never-sent failure (rate-limit / network) gets a friendly "your
+          // message is kept" notice — the input was restored above, so a
+          // "Response failed / Retry" banner (which regenerates the wrong turn
+          // after rollback) would mislead. Quota 429s still use ErrorBanner so
+          // its upgrade / top-up CTA shows; mid-stream failures keep Retry.
+          isUnsentSendError(error) && !parseAiQuotaError(error) ? (
+            <SendErrorNotice
+              error={error}
+              rateLimitedLabel={L.sendFailedRateLimited}
+              genericLabel={L.sendFailedGeneric}
+            />
+          ) : (
+            <ErrorBanner error={error} onReload={onReload} onUpgrade={onUpgrade} />
+          )
         ) : null}
 
         {readOnly ? null : (
@@ -3296,6 +3362,40 @@ function getToolSummaryStatus(
     case 'completed':
       return labels.toolCompleted;
   }
+}
+
+/**
+ * Inline notice for a message that couldn't be SENT (rejected before reaching
+ * the model — rate-limit 429 / network / 5xx). Distinct from {@link ErrorBanner}
+ * (a streamed response that failed): here the typed text has been restored to
+ * the composer, so the copy reassures the user it isn't lost rather than
+ * offering a Retry that would regenerate the wrong (rolled-back) turn. A
+ * rate-limit gets the "you're sending too quickly" wording; anything else the
+ * generic one.
+ */
+function SendErrorNotice({
+  error,
+  rateLimitedLabel,
+  genericLabel,
+}: {
+  error: Error;
+  rateLimitedLabel: string;
+  genericLabel: string;
+}) {
+  const text = React.useMemo(
+    () => (isRateLimitError(error) ? rateLimitedLabel : genericLabel),
+    [error, rateLimitedLabel, genericLabel],
+  );
+  return (
+    <div className="border-t bg-background px-3 py-2 text-sm" role="alert" data-testid="chat-send-error">
+      <div className="rounded-md border border-amber-300/40 bg-amber-50/60 px-3 py-2 text-foreground dark:bg-amber-950/20">
+        <div className="flex items-start gap-2">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <div className="min-w-0 flex-1 break-words leading-snug">{text}</div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ErrorBanner({

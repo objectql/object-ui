@@ -1121,6 +1121,8 @@ const zh = {
       conversationReady: '对话已就绪',
       preparingConversation: '正在准备新对话',
       offlineDemoMode: '离线演示模式 — 无法获取助手列表',
+      sendFailedRateLimited: '发送过于频繁，请稍候再试。你的消息已保留在输入框中。',
+      sendFailedGeneric: '消息发送失败，请重试。你的消息已保留在输入框中。',
       askAgent: '向 {{agent}} 提问...',
       assistant: '助手',
       loadingAgents: '正在加载助手...',

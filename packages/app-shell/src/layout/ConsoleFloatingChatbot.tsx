@@ -135,6 +135,8 @@ function buildChatLocale(
         submit: '发送',
         uploadFiles: '上传文件',
         stopResponse: '停止生成',
+        sendFailedRateLimited: '发送过于频繁，请稍候再试。你的消息已保留在输入框中。',
+        sendFailedGeneric: '消息发送失败，请重试。你的消息已保留在输入框中。',
         trace: '调试 trace',
         viewTrace: '查看调试 trace',
       },
@@ -214,6 +216,9 @@ function buildChatLocale(
       submit: 'Submit',
       uploadFiles: 'Upload files',
       stopResponse: 'Stop response',
+      sendFailedRateLimited:
+        "You're sending messages too quickly. Your message is kept below — wait a moment and try again.",
+      sendFailedGeneric: "Couldn't send your message. It's kept below — please try again.",
       trace: 'trace',
       viewTrace: 'View trace',
     },

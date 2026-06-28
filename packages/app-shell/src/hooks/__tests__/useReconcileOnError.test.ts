@@ -62,6 +62,28 @@ describe('useReconcileOnError', () => {
     expect(result.current.errorSuppressed).toBe(false);
   });
 
+  it('notSent failure (429/network) → never suppresses and never re-fetches', async () => {
+    // A request rejected before any reply streamed must SURFACE (composer shows
+    // the error + restores the input). Without the guard a 429 looked like a
+    // completed turn (the thread still ends with the prior assistant reply) and
+    // got silently reconciled away — the reported "message vanished" bug.
+    (isReconcilableCompletedTurn as any).mockReturnValue(true);
+    const setMessages = vi.fn();
+    const { result } = renderHook(() =>
+      useReconcileOnError({ chatApi: API, conversationId: 'c1' }),
+    );
+    result.current.setMessagesRef.current = setMessages;
+
+    const err = Object.assign(new Error('Too Many Requests'), { notSent: true, status: 429 });
+    await act(async () => {
+      await result.current.handleChatError(err);
+    });
+
+    expect(fetchConversation).not.toHaveBeenCalled();
+    expect(setMessages).not.toHaveBeenCalled();
+    expect(result.current.errorSuppressed).toBe(false);
+  });
+
   it('no conversationId → no fetch, never suppresses', async () => {
     const { result } = renderHook(() =>
       useReconcileOnError({ chatApi: API, conversationId: undefined }),

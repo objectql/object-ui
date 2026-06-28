@@ -206,3 +206,39 @@ export function parseAiQuotaError(err: unknown): AiQuotaError | null {
   };
 }
 
+/**
+ * The chat POST was rejected BEFORE any assistant tokens streamed — an HTTP
+ * error (429 rate-limit, 5xx, …) or an outright network failure. `sendAwareFetch`
+ * (useObjectChat) tags these with `notSent: true` because the AI SDK otherwise
+ * surfaces a bare Error that can't be told apart from a mid-stream drop (which
+ * may have completed server-side and is *reconciled*, not retried).
+ *
+ * A "not sent" failure means the user's message never reached the model: the
+ * composer must RESTORE the text and show a clear error instead of silently
+ * dropping it (the rate-limit incident this fixes).
+ */
+export function isUnsentSendError(err: unknown): boolean {
+  return Boolean(
+    err && typeof err === 'object' && (err as { notSent?: unknown }).notSent === true,
+  );
+}
+
+/** HTTP status tagged onto an unsent send failure (e.g. 429), when one was received. */
+export function sendErrorStatus(err: unknown): number | undefined {
+  const status =
+    err && typeof err === 'object' ? (err as { status?: unknown }).status : undefined;
+  return typeof status === 'number' ? status : undefined;
+}
+
+/**
+ * True when a send failure was a rate-limit (HTTP 429), so the composer can show
+ * "you're sending too quickly — wait a moment" rather than a generic failure.
+ * Prefers the tagged status; falls back to a message probe (the AI SDK drops the
+ * status, and older runtimes / proxies phrase 429s in the body).
+ */
+export function isRateLimitError(err: unknown): boolean {
+  if (sendErrorStatus(err) === 429) return true;
+  const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+  return /\b429\b|too many requests|rate[\s_-]?limit/i.test(raw);
+}
+

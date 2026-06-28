@@ -1264,6 +1264,13 @@ function ChatPane({
           submit: t('console.ai.submit'),
           uploadFiles: t('console.ai.uploadFiles'),
           stopResponse: t('console.ai.stopResponse'),
+          sendFailedRateLimited: t('console.ai.sendFailedRateLimited', {
+            defaultValue:
+              "You're sending messages too quickly. Your message is kept below — wait a moment and try again.",
+          }),
+          sendFailedGeneric: t('console.ai.sendFailedGeneric', {
+            defaultValue: "Couldn't send your message. It's kept below — please try again.",
+          }),
           trace: t('console.ai.trace'),
           viewTrace: t('console.ai.viewTrace'),
         }}
