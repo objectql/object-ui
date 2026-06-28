@@ -211,6 +211,8 @@ import './services/builtinComponents';
 // SDUI widget for the metadata-driven Cloud Connection page (cloud ADR-0008).
 import './console/cloud-connection/CloudConnectionPanel';
 import './console/marketplace/InstalledListWidget';
+// SDUI widget for the Cloud Welcome page's state-aware onboarding next-step.
+import './console/home/CloudOnboardingNext';
 
 // Phase 3c — generic metadata admin engine. Re-exported so plugins
 // can call `registerMetadataResource()` to override the per-type
