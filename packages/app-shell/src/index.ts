@@ -256,6 +256,13 @@ export type {
   MetadataInspectorProps,
 } from './views/metadata-admin';
 
+// Studio WYSIWYG design surface (ADR-0080) — the open-source design surface.
+// The left AI copilot is an injected `aiSlot`; OSS renders three zones.
+export {
+  StudioDesignSurface,
+  type StudioDesignSurfaceProps,
+} from './views/studio-design/StudioDesignSurface';
+
 // AI assistant bus — connects the metadata designers to the global chat.
 export {
   assistantBus,

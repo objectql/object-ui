@@ -19,7 +19,6 @@ import { DevMasterDetail } from './dev/DevMasterDetail';
 import { DevLists } from './dev/DevLists';
 import { DevModal } from './dev/DevModal';
 import { DevLookup } from './dev/DevLookup';
-import { DevStudioDesign } from './dev/DevStudioDesign';
 import {
   ConsoleShell,
   ConnectedShell,
@@ -37,6 +36,7 @@ import {
   DefaultInvitationsPage,
   DefaultSettingsPage,
   DefaultAiChatPage,
+  StudioDesignSurface,
 } from '@object-ui/app-shell';
 
 import { AppContent } from './AppContent';
@@ -181,7 +181,7 @@ export function App() {
             {/* Dev-only (ADR-0080 slice-1): Studio WYSIWYG design surface
               * harness. Public + backend-free so it renders from a fixture.
               * Purely additive — touches no existing surface. Not product nav. */}
-            <Route path="/dev/studio-design" element={<DevStudioDesign />} />
+            <Route path="/dev/studio-design" element={<StudioDesignSurface />} />
             {/* Internal authed form — same renderer, different submit path. */}
             <Route path="/forms/:name" element={
               <ProtectedRoute>

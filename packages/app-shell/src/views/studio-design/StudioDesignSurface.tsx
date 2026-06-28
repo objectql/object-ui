@@ -1,45 +1,39 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 /**
- * Dev-only harness — Studio WYSIWYG design surface, slice-1 (ADR-0080).
+ * StudioDesignSurface — the open-source WYSIWYG design surface (ADR-0080).
  *
- * Proves the four-zone shell with ZERO new editor code: it REUSES the
- * existing metadata-admin registry (`getMetadataPreview` / `getMetadataInspector`)
- * and the runtime `SchemaRenderer`, so design-time === run-time (same renderer).
+ * Three zones — single-App nav · live canvas · property inspector — composed
+ * AROUND the existing metadata-admin registry (`getMetadataPreview` /
+ * `getMetadataInspector`) and the runtime `SchemaRenderer`, so design-time is
+ * literally run-time (same renderer, same metadata).
  *
- *   ┌────────┬────────┬─────────────────┬──────────┐
- *   │ AI 副驾 │ 单 App │ 预览即运行画布   │ inspector │
- *   │(可折叠) │ 导航   │ (选中→改→重渲)   │ (选中积木)│
- *   └────────┴────────┴─────────────────┴──────────┘
+ * Open-core boundary: the left AI copilot is NOT part of the open-source
+ * surface. It is an injected slot (`aiSlot`) that the cloud edition fills; the
+ * OSS build renders three zones. Everything else — nav, canvas, inspector,
+ * the select→edit→re-render loop — lives here, in the open package.
  *
- * Purely additive: touches NO existing surface (ResourceEditPage, registries,
- * previews all untouched). Mounted at a public dev route /dev/studio-design so
- * it renders standalone from a fixture — no backend required. Not product nav.
+ * slice-1 drives a fixture page with no backend so the surface is demoable
+ * standalone. Real metadata load/save (useMetadataClient) and nav-driven
+ * surface switching land in follow-up slices.
  */
 
 import * as React from 'react';
-import {
-  getMetadataPreview,
-  getMetadataInspector,
-  type MetadataSelection,
-} from '@object-ui/app-shell';
 import { SchemaRenderer } from '@object-ui/react';
 import {
-  Zap,
-  Send,
-  ChevronLeft,
-  ChevronRight,
-  Lock,
-  Eye,
   Boxes,
   Layers3,
   ShieldCheck,
   SlidersHorizontal,
   MousePointer2,
+  Eye,
+  Lock,
 } from 'lucide-react';
+import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
+import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 
 // ── Fixture: one "Interface" page draft. Built from element blocks that
-//    render with no backend (same family the /dev/lists harness uses). ──
+//    render with no backend. Replaced by real metadata in a later slice. ──
 const FIXTURE_PAGE: Record<string, unknown> = {
   type: 'page',
   name: 'projects_overview',
@@ -77,8 +71,8 @@ const FIXTURE_PAGE: Record<string, unknown> = {
   ],
 };
 
-// ── Mock single-App nav. slice-1 keeps it static; the permission chips
-//    illustrate the role-projection model (ADR-0080 D4). ──
+// ── Mock single-App nav. The permission chips illustrate the role-projection
+//    model (ADR-0080 D4). Replaced by a real App nav model in a later slice. ──
 const NAV: Array<{
   group: string;
   locked?: boolean;
@@ -104,14 +98,21 @@ const NAV: Array<{
 
 const PILLARS = ['Data', 'Automations', 'Interfaces'] as const;
 
-export function DevStudioDesign(): React.ReactElement {
+export interface StudioDesignSurfaceProps {
+  /**
+   * Open-core slot. The cloud edition injects its AI copilot panel here
+   * (rendered as the far-left zone). The open-source build leaves it
+   * undefined, so the surface renders three zones.
+   */
+  aiSlot?: React.ReactNode;
+}
+
+export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React.ReactElement {
   const [draft, setDraft] = React.useState<Record<string, unknown>>(FIXTURE_PAGE);
   const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
-  const [aiCollapsed, setAiCollapsed] = React.useState(false);
   const locale = 'zh-CN';
 
-  // Reuse the REAL registered surfaces. Fallback to the bare renderer if the
-  // registry side-effect hasn't run (keeps the harness from white-screening).
+  // Reuse the REAL registered surfaces — no new editor code.
   const Preview = getMetadataPreview('page');
   const Inspector = getMetadataInspector('page');
 
@@ -122,53 +123,11 @@ export function DevStudioDesign(): React.ReactElement {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* ── Zone 1 · AI copilot (far left, collapsible, recessed = auxiliary) ── */}
-      {aiCollapsed ? (
-        <button
-          type="button"
-          onClick={() => setAiCollapsed(false)}
-          aria-label="展开搭建助手"
-          className="flex w-10 shrink-0 flex-col items-center gap-2 border-r bg-muted/40 py-3 text-muted-foreground hover:text-foreground"
-        >
-          <Zap className="h-4 w-4" />
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      ) : (
-        <aside className="flex w-56 shrink-0 flex-col border-r bg-muted/40">
-          <header className="flex items-center justify-between border-b px-3 py-2.5">
-            <span className="flex items-center gap-1.5 text-[13px] font-medium">
-              <Zap className="h-4 w-4" /> 搭建助手
-            </span>
-            <button
-              type="button"
-              onClick={() => setAiCollapsed(true)}
-              aria-label="收起"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-          </header>
-          <div className="flex flex-1 flex-col gap-2 overflow-auto p-3">
-            <div className="self-end max-w-[88%] rounded-md bg-primary/10 px-2.5 py-1.5 text-[11px] text-primary">
-              状态做成看板视图
-            </div>
-            <div className="text-[11px] leading-relaxed text-muted-foreground">
-              已在 Interfaces 加「看板」页,绑定 Tasks。要我顺手加筛选吗?
-            </div>
-          </div>
-          <footer className="border-t p-3">
-            <div className="flex items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-[11px] text-muted-foreground">
-              <span className="flex-1">描述要改的地方…</span>
-              <Send className="h-3.5 w-3.5" />
-            </div>
-            <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-              辅助 · 不挡你直接改
-            </p>
-          </footer>
-        </aside>
-      )}
+      {/* ── Zone 0 · AI copilot — OPEN-CORE SLOT (cloud-injected; absent in OSS) ── */}
+      {aiSlot ? (
+        <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
+      ) : null}
 
-      {/* ── Studio (tabs + body) ── */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* top bar: three pillars + publish */}
         <header className="flex items-center justify-between border-b px-3 py-2">
@@ -204,11 +163,9 @@ export function DevStudioDesign(): React.ReactElement {
         </header>
 
         <div className="flex min-h-0 flex-1">
-          {/* ── Zone 2 · single-App nav (multi-level + permission chips) ── */}
+          {/* ── Zone 1 · single-App nav (multi-level + permission chips) ── */}
           <nav className="w-44 shrink-0 overflow-auto border-r p-2">
-            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">
-              单一 App
-            </p>
+            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">单一 App</p>
             {NAV.map((g) => (
               <div key={g.group}>
                 <p className="flex items-center gap-1 px-2 pb-1 pt-3 text-[11px] text-muted-foreground">
@@ -237,7 +194,7 @@ export function DevStudioDesign(): React.ReactElement {
             ))}
           </nav>
 
-          {/* ── Zone 3 · canvas (live render = runtime) ── */}
+          {/* ── Zone 2 · canvas (live render = runtime) ── */}
           <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
             <div className="mb-3 flex items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
@@ -274,7 +231,7 @@ export function DevStudioDesign(): React.ReactElement {
             </p>
           </main>
 
-          {/* ── Zone 4 · inspector (selected block's property schema) ── */}
+          {/* ── Zone 3 · inspector (selected block's property schema) ── */}
           <aside className="w-72 shrink-0 overflow-auto border-l">
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
               <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -314,4 +271,4 @@ export function DevStudioDesign(): React.ReactElement {
   );
 }
 
-export default DevStudioDesign;
+export default StudioDesignSurface;
