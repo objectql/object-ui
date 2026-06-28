@@ -133,6 +133,7 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
           type: action.type,
           name: action.name,
           target: action.target,
+          openIn: (action as any).openIn,
           execute: action.execute,
           endpoint: action.endpoint,
           method: action.method,

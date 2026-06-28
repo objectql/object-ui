@@ -227,6 +227,7 @@ function ElementButtonRenderer({ schema }: { schema: any }) {
         label: action.label,
         description: action.description,
         target: action.target,
+        openIn: (action as any).openIn,
         endpoint: action.endpoint,
         method: action.method,
         navigate: action.navigate,

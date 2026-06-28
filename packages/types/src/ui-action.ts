@@ -162,7 +162,28 @@ export interface ActionSchema {
   
   /** Target for the action (URL, script name, etc.) */
   target?: string;
-  
+
+  /**
+   * For `type: 'url'`: where to open `target`.
+   * - `'new-tab'` — open `target` in a new browser tab/window.
+   * - `'self'` — navigate the current page (in-app router when available).
+   *
+   * When omitted, the legacy heuristic applies: absolute/external URLs
+   * (`http(s)://…`) open in a new tab, relative URLs navigate in place.
+   *
+   * This is a **static execution option**, NOT user input — keep it out of
+   * {@link params}, which is exclusively for collecting input before
+   * execution. Putting `newTab` inside `params` is rejected at build (an
+   * object where an `ActionParam[]` is expected) and, as an array entry,
+   * is mis-rendered as a checkbox in the param-collection dialog.
+   *
+   * Note: this is distinct from the runner-internal `opensInNewTab` /
+   * `newTabUrl` pair, which pre-opens `about:blank` synchronously for async
+   * handlers that resolve a redirect URL after a fetch (SSO flows). For a
+   * static `target`, prefer `openIn`.
+   */
+  openIn?: 'self' | 'new-tab';
+
   /** Script to execute (for type: 'script') */
   execute?: string;
   
@@ -174,7 +195,15 @@ export interface ActionSchema {
   
   // === Parameters ===
   
-  /** Input parameters to collect before execution */
+  /**
+   * Input parameters to collect from the user before execution (renders a
+   * dialog). This field is **exclusively** for user-input collection — it is
+   * always an `ActionParam[]`. Do NOT use it to carry static execution
+   * options (e.g. new-tab behavior — use {@link openIn}); a non-array value
+   * fails build validation, and an array entry like
+   * `{ name: 'newTab', type: 'checkbox' }` is mis-rendered as a user-facing
+   * checkbox instead of being treated as an instruction.
+   */
   params?: ActionParam[];
   
   // === Feedback ===

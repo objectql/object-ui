@@ -132,6 +132,12 @@ export interface ActionDef {
   execute?: string;
   /** Target URL or identifier (for type: 'url', 'modal', 'flow') */
   target?: string;
+  /** For type: 'url' — where to open `target`. `'new-tab'` forces a new
+   *  browser tab/window, `'self'` forces same-page navigation. When omitted,
+   *  external URLs open in a new tab and relative URLs navigate in place.
+   *  This is the public, static "open in new tab" switch (ActionSchema.openIn),
+   *  distinct from the async-handler `opensInNewTab` pre-open dance. */
+  openIn?: 'self' | 'new-tab';
   /** Modal schema to open (for type: 'modal') */
   modal?: any;
   /** Chained actions to execute after this one */
@@ -728,7 +734,13 @@ export class ActionRunner {
       window.location.href = url;
       return { success: true };
     }
-    const newTab = action.params?.newTab ?? isExternal;
+    // `openIn` is the first-class, declarative switch (ActionSchema.openIn);
+    // it wins over the legacy `params.newTab` escape hatch and the
+    // external-URL heuristic.
+    const newTab =
+      action.openIn === 'new-tab' ? true
+        : action.openIn === 'self' ? false
+          : (action.params?.newTab ?? isExternal);
 
     if (this.navigationHandler) {
       this.navigationHandler(url, { external: isExternal, newTab });

@@ -269,6 +269,38 @@ describe('ActionRunner', () => {
       });
     });
 
+    it('should force a new tab for a relative URL when openIn is "new-tab"', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+
+      await runner.execute({
+        type: 'url',
+        target: '/print/a3',
+        openIn: 'new-tab',
+      });
+
+      expect(navHandler).toHaveBeenCalledWith('/print/a3', {
+        external: false,
+        newTab: true,
+      });
+    });
+
+    it('should force same-page navigation for an external URL when openIn is "self"', async () => {
+      const navHandler = vi.fn();
+      runner.setNavigationHandler(navHandler);
+
+      await runner.execute({
+        type: 'url',
+        target: 'https://example.com',
+        openIn: 'self',
+      });
+
+      expect(navHandler).toHaveBeenCalledWith('https://example.com', {
+        external: true,
+        newTab: false,
+      });
+    });
+
     it('should reject javascript: URLs', async () => {
       const result = await runner.execute({
         type: 'url',
