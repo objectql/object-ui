@@ -8,7 +8,7 @@
       "@object-ui/core",
       "@object-ui/i18n",
       "@object-ui/react",
-      "@object-ui/components",
+      "@object-ui/components", "@object-ui/sdui-parser",
       "@object-ui/fields",
       "@object-ui/layout",
       "@object-ui/data-objectstack",
