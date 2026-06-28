@@ -24,6 +24,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tabs,
+  TabsList,
+  TabsTrigger,
   Button,
   ShareDialog,
   Sheet,
@@ -1217,33 +1220,62 @@ function ChatPane({
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-4 pb-2 pt-3 sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         {showAgentLauncher ? (
-          <Select
-            value={activeAgent}
-            onValueChange={(name) => navigate(`/ai/${agentRouteName(name)}`)}
-            disabled={agentsLoading}
-          >
-            <SelectTrigger
-              className="h-7 w-auto min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none hover:bg-accent focus:ring-0 focus:ring-offset-0 focus-visible:ring-1 focus-visible:ring-border/80 focus-visible:ring-offset-0 sm:min-w-[160px]"
-              data-testid="ai-chat-agent-picker"
-              aria-label={t('console.ai.switchAssistant', { defaultValue: 'Switch assistant' })}
+          agents.length <= 3 ? (
+            // Claude-Code-style segmented switcher (mirrors the floating
+            // assistant) so Ask/Build read as visible peer modes, not a hidden
+            // dropdown. Each tab navigates to that agent's surface. Falls back
+            // to the Select when many custom agents would overflow the header.
+            <Tabs
+              value={activeAgent}
+              onValueChange={(name) => navigate(`/ai/${agentRouteName(name)}`)}
             >
-              <SelectValue placeholder={t('console.ai.chooseAgent', { defaultValue: 'Choose assistant…' })} />
-            </SelectTrigger>
-            <SelectContent align="start">
-              {agents.map((agent) => (
-                <SelectItem key={agent.name} value={agent.name} className="text-xs">
-                  <span className="font-medium">
+              <TabsList
+                className="h-7 gap-0.5 p-0.5"
+                data-testid="ai-chat-agent-picker"
+                aria-label={t('console.ai.switchAssistant', { defaultValue: 'Switch assistant' })}
+              >
+                {agents.map((agent) => (
+                  <TabsTrigger
+                    key={agent.name}
+                    value={agent.name}
+                    disabled={agentsLoading}
+                    title={agent.description || undefined}
+                    className="h-6 px-2.5 text-xs"
+                  >
                     {localizeAgentLabel(t, agent.name, agent.label)}
-                  </span>
-                  {agent.description ? (
-                    <span className="block text-muted-foreground text-[10px] truncate max-w-[260px]">
-                      {agent.description}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          ) : (
+            <Select
+              value={activeAgent}
+              onValueChange={(name) => navigate(`/ai/${agentRouteName(name)}`)}
+              disabled={agentsLoading}
+            >
+              <SelectTrigger
+                className="h-7 w-auto min-w-0 border-0 bg-transparent px-1.5 text-xs shadow-none hover:bg-accent focus:ring-0 focus:ring-offset-0 focus-visible:ring-1 focus-visible:ring-border/80 focus-visible:ring-offset-0 sm:min-w-[160px]"
+                data-testid="ai-chat-agent-picker"
+                aria-label={t('console.ai.switchAssistant', { defaultValue: 'Switch assistant' })}
+              >
+                <SelectValue placeholder={t('console.ai.chooseAgent', { defaultValue: 'Choose assistant…' })} />
+              </SelectTrigger>
+              <SelectContent align="start">
+                {agents.map((agent) => (
+                  <SelectItem key={agent.name} value={agent.name} className="text-xs">
+                    <span className="font-medium">
+                      {localizeAgentLabel(t, agent.name, agent.label)}
                     </span>
-                  ) : null}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                    {agent.description ? (
+                      <span className="block text-muted-foreground text-[10px] truncate max-w-[260px]">
+                        {agent.description}
+                      </span>
+                    ) : null}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )
         ) : (
           <span className="truncate text-xs font-medium text-foreground/85">
             {activeAgentLabel}
