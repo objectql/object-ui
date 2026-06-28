@@ -552,48 +552,22 @@ function DataPillar(): React.ReactElement {
           </button>
         ))}
       </nav>
-      <main className="min-w-0 flex-1 overflow-auto p-4">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-4">
         {!current ? (
           <div className="py-16 text-center text-sm text-muted-foreground">选择一个对象</div>
         ) : (
           <>
-            <div className="mb-3 flex items-center gap-2">
+            <div className="mb-3 flex shrink-0 items-center gap-2">
               <span className="text-[13px] font-medium">{current.label}</span>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 object · {current.name}
               </span>
               <span className="text-[11px] text-muted-foreground">{fields.length} 字段</span>
             </div>
-            <div className="mb-4 rounded-lg border bg-background p-2">
+            {/* Data mode = the records themselves, as a directly-viewable grid
+              * (Airtable parity). Fields are the columns — no separate table. */}
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
               <SchemaRenderer schema={{ type: 'object-grid', objectName: current.name } as never} />
-            </div>
-            <div className="rounded-lg border bg-background">
-              <table className="w-full text-xs">
-                <thead className="border-b text-left text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">字段</th>
-                    <th className="px-3 py-2 font-medium">类型</th>
-                    <th className="px-3 py-2 font-medium">名称</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
-                        加载中…
-                      </td>
-                    </tr>
-                  ) : (
-                    fields.map((f) => (
-                      <tr key={f.name} className="border-b last:border-0">
-                        <td className="px-3 py-1.5">{f.label ?? f.name}</td>
-                        <td className="px-3 py-1.5 text-muted-foreground">{f.type ?? '—'}</td>
-                        <td className="px-3 py-1.5 font-mono text-[11px] text-muted-foreground">{f.name}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
             </div>
           </>
         )}
