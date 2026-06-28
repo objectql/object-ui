@@ -112,3 +112,27 @@ export function propsName(type: string): string {
     .join('');
   return `${pascal}Props`;
 }
+
+/**
+ * Generate the human-facing PUBLIC block list (the curated "清单") from a
+ * manifest — a Markdown table. Derived, never hand-maintained (ADR-0046).
+ */
+export function generateBlockList(manifest: Manifest): string {
+  const rows = Object.values(manifest.components)
+    .sort((a, b) => a.type.localeCompare(b.type))
+    .map((c) => {
+      const req = c.inputs.filter((i) => i.required).map((i) => i.name);
+      const binds = c.inputs.filter((i) => i.binding).map((i) => `${i.name}:${i.binding}`);
+      return `| \`${c.type}\` | ${c.namespace ?? '—'} | ${c.isContainer ? '✓' : ''} | ${req.join(', ') || '—'} | ${binds.join(', ') || '—'} |`;
+    });
+  return [
+    `# SDUI public blocks (${Object.keys(manifest.components).length})`,
+    '',
+    '> Auto-generated from the registry `tier:\'public\'` set (ADR-0080). Do not edit by hand.',
+    '',
+    '| block | plugin | container | required props | bindings |',
+    '|---|---|---|---|---|',
+    ...rows,
+    '',
+  ].join('\n');
+}

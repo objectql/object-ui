@@ -26,6 +26,13 @@ export type ComponentMeta = {
   label?: string; // Display name in designer
   icon?: string; // Icon name or svg string
   category?: string; // Grouping category
+  /**
+   * Public contract tier (ADR-0080). `'public'` = part of the curated,
+   * type-checked, AI-facing block set (gets a strengthened contract, the
+   * JSX type surface, the api-surface ratchet, and customer docs). Undefined
+   * or `'internal'` = rendering capability only, not part of the contract.
+   */
+  tier?: 'public' | 'internal';
   namespace?: string; // Component namespace (e.g., 'ui', 'plugin-grid', 'field')
   /**
    * When true, prevents the component from being registered with a non-namespaced fallback.
@@ -339,6 +346,15 @@ export class Registry<T = any> {
    */
   getAllConfigs(): ComponentConfig<T>[] {
     return Array.from(this.components.values());
+  }
+
+  /**
+   * Get the curated PUBLIC-tier component configs (ADR-0080) — those registered
+   * with `tier: 'public'`. This is the contract/AI-vocabulary surface, a subset
+   * of the full rendering capability returned by {@link getAllConfigs}.
+   */
+  getPublicConfigs(): ComponentConfig<T>[] {
+    return Array.from(this.components.values()).filter((c) => c.tier === 'public');
   }
   
   /**

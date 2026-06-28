@@ -9,7 +9,7 @@
 export * from './types.js';
 export { parseJsx, interpretBrace } from './parse.js';
 export { validateTree } from './validate.js';
-export { generateDts, propsName } from './codegen.js';
+export { generateDts, propsName, generateBlockList } from './codegen.js';
 export type { CodegenOptions } from './codegen.js';
 
 import { parseJsx } from './parse.js';
@@ -54,6 +54,10 @@ export interface RegistryConfigLike {
   type: string;
   namespace?: string;
   isContainer?: boolean;
+  /** ADR-0080 contract tier — only 'public' configs form the AI/contract surface. */
+  tier?: 'public' | 'internal';
+  label?: string;
+  category?: string;
   inputs?: Array<{
     name: string;
     type: string;
@@ -80,11 +84,12 @@ const INPUT_TYPES = new Set([
 
 export function manifestFromConfigs(
   configs: RegistryConfigLike[],
-  opts: { only?: Set<string> } = {},
+  opts: { only?: Set<string>; publicOnly?: boolean } = {},
 ): Manifest {
   const components: Manifest['components'] = {};
   for (const c of configs) {
     if (opts.only && !opts.only.has(c.type)) continue;
+    if (opts.publicOnly && c.tier !== 'public') continue;
     components[c.type] = {
       type: c.type,
       namespace: c.namespace,
