@@ -469,6 +469,74 @@ export function matchAiChatShortcut(e: {
   }
 }
 
+/** A composer submission held until the conversation id that will carry it exists. */
+export interface PendingFirstMessage {
+  content: string;
+  files?: File[];
+}
+
+/**
+ * Guards the empty-state FIRST send against the conversation-id remount race.
+ *
+ * On a fresh `/ai/:agent` the composer (and its suggestion chips) go live the
+ * instant the agent resolves — BEFORE `POST /conversations` has minted the id.
+ * `<ChatPane>` is keyed on that id (`…:pending` → `…:<id>`), so the moment it
+ * resolves React UNMOUNTS the pane and mounts a fresh one. A first message
+ * submitted in that window lives inside the doomed pane: its optimistic bubble
+ * is discarded and the just-started `…/chat` request is aborted before it
+ * reaches the wire — so it vanishes silently (input cleared, no bubble, no
+ * error). Distinct from the #2047 path, where `…/chat` WAS sent and failed.
+ *
+ * The fix: when we have a server endpoint but no id yet, stash the send in a ref
+ * the PAGE owns (so it outlives the pane remount) and replay it the moment an id
+ * exists — in the freshly-mounted pane (or in place if no remount happened). A
+ * send made once the id is present (the normal path, and every send after the
+ * first) goes straight through. Local/echo mode (no `chatApi`) also sends
+ * immediately, so the offline-demo bot keeps responding.
+ *
+ * Exported for unit testing.
+ */
+export function useDeferredFirstSend(opts: {
+  /** The chat endpoint — defined once an agent is resolved (server-backed mode). */
+  chatApi: string | undefined;
+  /** The conversation id; undefined while `POST /conversations` is in flight. */
+  conversationId: string | undefined;
+  /** Page-owned stash that OUTLIVES the keyed `<ChatPane>` remount. */
+  pendingRef: React.MutableRefObject<PendingFirstMessage | null>;
+  /** The real send (resetSuppression + sendMessage + onSent). */
+  doSend: (content: string, files?: File[]) => void;
+}): (content: string, files?: File[]) => void {
+  const { chatApi, conversationId, pendingRef, doSend } = opts;
+  const apiMode = Boolean(chatApi);
+
+  // Replay a deferred first message the instant a conversation id exists — in
+  // the freshly-mounted pane after the remount, or in place if none happened.
+  // Clearing the ref before sending makes the replay fire at most once even
+  // though `doSend` (and StrictMode's double-invoke) re-run this effect.
+  useEffect(() => {
+    if (!apiMode || !conversationId) return;
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    doSend(pending.content, pending.files);
+  }, [apiMode, conversationId, pendingRef, doSend]);
+
+  return useCallback(
+    (content: string, files?: File[]) => {
+      // Server-backed, but the id is still being minted: sending now would be
+      // lost — a convId-less `/chat` the server won't persist, or a request torn
+      // down when the pane remounts as the id resolves. Stash it; the effect
+      // above replays it once the id lands.
+      if (apiMode && !conversationId) {
+        pendingRef.current = { content, files };
+        return;
+      }
+      doSend(content, files);
+    },
+    [apiMode, conversationId, pendingRef, doSend],
+  );
+}
+
 export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentProp }: AiChatPageProps = {}) {
   const { user } = useAuth();
   const { t } = useObjectTranslation();
@@ -727,6 +795,12 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     );
   }, [conversationId, initialMessages]);
 
+  // Holds an empty-state first message submitted before the conversation id was
+  // minted. Owned by the PAGE (not the keyed <ChatPane>) so it survives the
+  // remount that the id-resolution triggers; the freshly-mounted pane replays it
+  // via useDeferredFirstSend. See that hook for the full race.
+  const pendingFirstMessageRef = useRef<PendingFirstMessage | null>(null);
+
   const handleSent = useCallback(
     (firstUserMessage?: string) => {
       // New user turn → bump sidebar list so the row's preview/timestamp refreshes.
@@ -866,6 +940,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             conversationId={conversationId}
             editPackageId={editPackageId}
             initialMessages={initialMessages}
+            pendingFirstMessageRef={pendingFirstMessageRef}
             onSent={handleSent}
             onShare={() => setShareOpen(true)}
             onDebug={() => setDebugOpen(true)}
@@ -942,6 +1017,9 @@ interface ChatPaneProps {
    *  forwarded to the build agent as `context.packageId` to scope it to that app. */
   editPackageId?: string;
   initialMessages: HydratedUIMessage[];
+  /** Page-owned stash for a first message sent before the conversation id resolved
+   *  (survives this pane's id-keyed remount). See {@link useDeferredFirstSend}. */
+  pendingFirstMessageRef: React.MutableRefObject<PendingFirstMessage | null>;
   onSent: (firstUserMessage?: string) => void;
   onShare: () => void;
   /** Opens the Build Doctor drawer (build agent only). */
@@ -962,6 +1040,7 @@ function ChatPane({
   conversationId,
   editPackageId,
   initialMessages,
+  pendingFirstMessageRef,
   onSent,
   onShare,
   onDebug,
@@ -1112,14 +1191,27 @@ function ChatPane({
     },
   });
 
-  const handleSend = useCallback(
+  // The real send, shared by a normal submit and by the deferred-first-message
+  // replay below (resetSuppression → send → onSent, in that order).
+  const doSend = useCallback(
     (content: string, files?: File[]) => {
       resetSuppression();
       sendMessage(content, files);
       onSent(content);
     },
-    [sendMessage, onSent],
+    [resetSuppression, sendMessage, onSent],
   );
+
+  // Guards the empty-state first send against the conversation-id remount race:
+  // a send made before the id is minted is stashed in the page-owned ref and
+  // replayed once the id lands, so the magic-moment first message reliably
+  // reaches `…/chat` instead of being dropped. See useDeferredFirstSend.
+  const handleSend = useDeferredFirstSend({
+    chatApi,
+    conversationId,
+    pendingRef: pendingFirstMessageRef,
+    doSend,
+  });
 
   const headerSlot = (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-4 pb-2 pt-3 sm:px-6">
