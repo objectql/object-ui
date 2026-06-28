@@ -4,8 +4,10 @@
  * Header-left organization (workspace) switcher — the standard place users
  * expect "which org am I in / switch org" to live (Linear/Vercel/GitHub style).
  *
- * - Single-org users (the vast majority): just the org name, NO dropdown. There
- *   is nothing to switch to, so a one-item menu would be pure friction.
+ * - Single-org users (the vast majority): render NOTHING. With one org there is
+ *   nothing to switch to and the name isn't actionable, so it's pure chrome —
+ *   the product logo already carries branding / "go home". The switcher is a
+ *   multi-org affordance.
  * - Multi-org users: the active org name + a dropdown to switch orgs inline
  *   (full-page reload so the active-org context refreshes app-wide, mirroring
  *   OrganizationsPage), plus shortcuts to manage members / create a workspace.
@@ -72,18 +74,10 @@ export function WorkspaceSwitcher() {
   // nothing rather than an empty switcher.
   if (!current) return null;
 
-  // Single-org: static label, no dropdown.
-  if (orgList.length <= 1) {
-    return (
-      <span
-        className="ml-2 hidden max-w-[12rem] items-center gap-1.5 sm:inline-flex"
-        data-testid="workspace-name"
-      >
-        <OrgBadge name={current.name} />
-        <span className="truncate text-sm font-medium text-foreground/80">{current.name}</span>
-      </span>
-    );
-  }
+  // Single-org: render nothing. With only one org there's nothing to switch to
+  // and the name carries no actionable meaning, so it's just noise next to the
+  // product logo. The switcher appears only once a second org exists.
+  if (orgList.length <= 1) return null;
 
   const handleSwitch = async (org: AuthOrganization) => {
     if (org.id === current.id) return;
