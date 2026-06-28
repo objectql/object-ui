@@ -31,6 +31,8 @@ import { SchemaRenderer } from '@object-ui/react';
 import {
   buildChartSeries,
   buildOptionColorMap,
+  buildDimensionLabelMap,
+  relabelDimensions,
   findChartSeriesRow,
   formatMeasure,
   formatDimensionValue,
@@ -200,6 +202,12 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // view uses (ObjectChart). The renderer's `categoryColors` map wins over the
   // positional palette and falls back to it for categories without a color.
   const [categoryColors, setCategoryColors] = useState<Record<string, string> | null>(null);
+  // Per-dimension {value → label} maps. The dataset groups by a select field's
+  // stored value (e.g. `active`); the chart axis must read the option label
+  // (e.g. `合作中`). The server resolves this when it can, but an AI-built
+  // select whose options the analytics layer can't see comes back value-keyed,
+  // so we resolve it here from the object field options (see relabelDimensions).
+  const [dimensionLabels, setDimensionLabels] = useState<Record<string, Record<string, string>> | null>(null);
 
   // Signature uses the RAW filter (stable) — the resolved one carries a
   // render-time `now` and would otherwise force a refetch loop.
@@ -226,26 +234,35 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signature]);
 
-  // Resolve the first dimension's select/lookup option colors (charts only;
-  // metric/table/pivot don't use per-category colors). The dataset query gives
-  // us the base `object` and the dimension→field map, so we fetch the object
-  // schema and build a {value|label → color} map. Best-effort: any failure
-  // leaves it null and the chart keeps the positional palette.
+  // Resolve the dimensions' select/lookup field options (charts only;
+  // metric/table don't use per-category colors or axis relabeling). The dataset
+  // query gives us the base `object` + the dimension→field map, so ONE object
+  // schema fetch yields both: a {value|label → color} map for the first
+  // dimension's per-category colors, and a {value → label} map per dimension so
+  // the axis/series display labels even when the server returned raw values.
+  // Best-effort: any failure leaves both null (positional palette + raw values).
   useEffect(() => {
-    if (isMetric || isTable) { setCategoryColors(null); return; }
+    if (isMetric || isTable) { setCategoryColors(null); setDimensionLabels(null); return; }
     const object = state.object;
-    const dim0 = dimensions[0];
-    const field = (state.dimensionFields && state.dimensionFields[dim0]) || dim0;
-    if (!object || !field) { setCategoryColors(null); return; }
+    if (!object || dimensions.length === 0) { setCategoryColors(null); setDimensionLabels(null); return; }
+    const fieldOf = (dim: string) => (state.dimensionFields && state.dimensionFields[dim]) || dim;
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch(`/api/v1/meta/object/${encodeURIComponent(object)}`, { headers: { accept: 'application/json' }, credentials: 'include' });
         const j = await res.json().catch(() => null);
         const objSchema = j?.item ?? j?.data ?? j;
-        const map = buildOptionColorMap(objSchema?.fields?.[field]?.options);
-        if (!cancelled) setCategoryColors(map);
-      } catch { if (!cancelled) setCategoryColors(null); }
+        const colorMap = buildOptionColorMap(objSchema?.fields?.[fieldOf(dimensions[0])]?.options);
+        const labels: Record<string, Record<string, string>> = {};
+        for (const dim of dimensions) {
+          const m = buildDimensionLabelMap(objSchema?.fields?.[fieldOf(dim)]?.options);
+          if (m) labels[dim] = m;
+        }
+        if (!cancelled) {
+          setCategoryColors(colorMap);
+          setDimensionLabels(Object.keys(labels).length > 0 ? labels : null);
+        }
+      } catch { if (!cancelled) { setCategoryColors(null); setDimensionLabels(null); } }
     })();
     return () => { cancelled = true; };
   }, [state.object, state.dimensionFields, dimensions, isMetric, isTable]);
@@ -474,14 +491,19 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // and one series per measure. Series carry the measure display label so the
   // legend reads "Tasks" rather than "task_count".
   const chartType = CHART_TYPE_MAP[widgetType] ?? 'bar';
+  // Resolve select/enum dimension values → display labels before charting, so a
+  // value-keyed group (e.g. status=`active`) shows its label (`合作中`) on the
+  // axis with its count intact (cloud#667). `chartRows` stays index-aligned with
+  // `state.rows`/`drillRawRows`, so drill-through still maps to the raw value.
+  const chartRows = relabelDimensions(state.rows, dimensionLabels);
   // ADR-0021 (#1759): shared helper — pivots a second dimension into grouped
   // series so multi-dimension dataset widgets match the chart-view renderer.
-  const { data: chartData, xAxisKey, series } = buildChartSeries(state.rows, dimensions, values, state.fields);
+  const { data: chartData, xAxisKey, series } = buildChartSeries(chartRows, dimensions, values, state.fields);
 
   // Map a clicked chart segment back to its dataset row, then drill through to
   // the underlying records — same governed path the table/pivot rows use.
   const handleChartDrill = (ev: { category?: string; series?: string; value?: number }) => {
-    const idx = findChartSeriesRow(state.rows, dimensions, values, ev?.category, ev?.series);
+    const idx = findChartSeriesRow(chartRows, dimensions, values, ev?.category, ev?.series);
     if (idx < 0) return;
     // `series` is a real (second) dimension value only when pivoted; otherwise
     // it's the measure name — omit it from the drawer title.

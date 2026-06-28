@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, type CompareToConfig, type DrillEvent } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, type CompareToConfig, type DrillEvent } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -262,6 +262,11 @@ export const ObjectChart = (props: any) => {
   // layer can use them. Keyed by BOTH value and label since the row category
   // may be either (server resolves dataset dimension labels).
   const [fieldOptionColors, setFieldOptionColors] = useState<Record<string, string> | null>(null);
+  // Dataset path: {value → label} per dimension, so a value-keyed group (e.g.
+  // status=`active`) shows its option label (`合作中`) on the axis/legend with
+  // its count intact when the server returned raw values (cloud#667). The legacy
+  // objectName path already resolves labels via resolveGroupByLabels below.
+  const [dimensionLabels, setDimensionLabels] = useState<Record<string, Record<string, string>> | null>(null);
   // Host-provided "open in list" navigation for the drill escape hatch.
   const { openRecordList } = useDrillNavigation();
   const tt = useSafeTranslate();
@@ -304,6 +309,7 @@ export const ObjectChart = (props: any) => {
         const reqOpts = { headers: { accept: 'application/json' }, credentials: 'include' as const };
         let objectName: string | undefined = schema.objectName;
         let fieldName: string | undefined;
+        let datasetDef: any = null;
         const gb = schema.aggregate?.groupBy as any;
         if (objectName) {
           fieldName = (gb && typeof gb === 'object' && !Array.isArray(gb)) ? gb.field
@@ -313,18 +319,31 @@ export const ObjectChart = (props: any) => {
           const dim0 = Array.isArray(schema.dimensions) && schema.dimensions.length ? schema.dimensions[0] : undefined;
           const defRes = await fetch(`/api/v1/meta/dataset/${encodeURIComponent(schema.dataset)}`, reqOpts);
           const defJson = await defRes.json().catch(() => null);
-          const def = defJson?.item ?? defJson?.data ?? defJson;
-          objectName = def?.object;
-          const dim = (def?.dimensions || []).find((d: any) => d?.name === dim0) ?? (def?.dimensions || [])[0];
+          datasetDef = defJson?.item ?? defJson?.data ?? defJson;
+          objectName = datasetDef?.object;
+          const dim = (datasetDef?.dimensions || []).find((d: any) => d?.name === dim0) ?? (datasetDef?.dimensions || [])[0];
           fieldName = dim?.field ?? dim0;
         }
-        if (!objectName || !fieldName) { if (!cancelled) setFieldOptionColors(null); return; }
+        if (!objectName || !fieldName) { if (!cancelled) { setFieldOptionColors(null); setDimensionLabels(null); } return; }
         const schemaRes = await fetch(`/api/v1/meta/object/${encodeURIComponent(objectName)}`, reqOpts);
         const sj = await schemaRes.json().catch(() => null);
         const objSchema = sj?.item ?? sj?.data ?? sj;
         const map = buildOptionColorMap(objSchema?.fields?.[fieldName]?.options);
-        if (!cancelled) setFieldOptionColors(map);
-      } catch { if (!cancelled) setFieldOptionColors(null); }
+        // dataset path: build a {value → label} map for EVERY select dimension
+        // (the objectName path resolves labels via resolveGroupByLabels instead).
+        let labels: Record<string, Record<string, string>> | null = null;
+        if (schema.dataset && Array.isArray(schema.dimensions)) {
+          const acc: Record<string, Record<string, string>> = {};
+          for (const dimName of schema.dimensions) {
+            const dimDef = (datasetDef?.dimensions || []).find((d: any) => d?.name === dimName);
+            const f = dimDef?.field ?? dimName;
+            const m = buildDimensionLabelMap(objSchema?.fields?.[f]?.options);
+            if (m) acc[dimName] = m;
+          }
+          if (Object.keys(acc).length > 0) labels = acc;
+        }
+        if (!cancelled) { setFieldOptionColors(map); setDimensionLabels(labels); }
+      } catch { if (!cancelled) { setFieldOptionColors(null); setDimensionLabels(null); } }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -602,7 +621,7 @@ export const ObjectChart = (props: any) => {
   // series from its dimensions/measures via the shared buildChartSeries helper —
   // this pivots a second dimension into grouped series, matching DatasetWidget.
   const datasetChart = schema.dataset
-    ? buildChartSeries(finalData, schema.dimensions, schema.values)
+    ? buildChartSeries(relabelDimensions(finalData, dimensionLabels), schema.dimensions, schema.values)
     : null;
 
   const finalSchema = datasetChart
