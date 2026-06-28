@@ -1,5 +1,47 @@
 # @object-ui/app-shell — Changelog
 
+## 11.1.0
+
+### Minor Changes
+
+- 6fb6738: Auth: remediation overlay for the ADR-0069 session gate (enforced MFA / password expiry)
+
+  The ObjectStack backend now blocks logged-in users from protected resources with `403 { error: { code: 'MFA_REQUIRED' | 'PASSWORD_EXPIRED' } }`. The Console now detects this on every API response and raises a full-screen, guided remediation flow instead of leaving the user on failing requests.
+
+  - `@object-ui/auth`: the authenticated fetch wrapper detects the gate and broadcasts it via a tiny module-level emitter; `AuthProvider` exposes `remediationRequired` + `setRemediationRequired`; the `twoFactorClient` plugin is enabled and `enrollTotp` / `verifyTotp` are added to the auth client (`changePassword` already existed).
+  - `@object-ui/app-shell`: a `RemediationOverlay` (mounted in `ConsoleShell`) renders the guided flow — change an expired password, or enrol an authenticator (password confirm → QR + backup codes → verify TOTP) — then reloads so the app re-fetches cleanly. Auth + metadata + `me/*` reads stay reachable (server allow-list), so the overlay renders above a normally-loading shell.
+
+### Patch Changes
+
+- e2c9b0d: fix(first-run): two first-time-user friction fixes found via a full ObjectOS Cloud signup walkthrough.
+
+  - **Page-load race**: an app whose landing is a `type:'page'` (SDUI page) flashed a false "page not found" / blank body on the very first render — `PageView` treated the lazily-loading (empty) `pages` array as "page doesn't exist". It now shows a loading state until the `page` metadata type is actually resolved (`getTypeStatus('page')`), then trusts the not-found. This is exactly the post-signup landing, where the app's home page is the first thing rendered.
+  - **Redundant launcher hop**: after creating/switching a workspace, the user was hard-reloaded to `/home` (the workspace launcher) even when the workspace has a single app — an extra, contentless layer. `OrganizationsPage` and `WorkspaceSwitcher` now reload to the console ROOT (`resolveRootUrl`), so `RootLandingRedirect` resolves the right landing: a single-app workspace lands straight IN that app; multi-app workspaces still fall back to `/home`.
+
+- 6726a2b: First-run UX polish (objectstack-ai/objectui#2038) — copy improvements found via the ObjectOS Cloud signup walkthrough:
+
+  - **"Organization" → "Workspace"** across the org picker (`organizations.*` strings, en + zh). The create flow + WorkspaceSwitcher already say "workspace"; the picker ("Your Organizations / No organizations yet") was the lone holdout. Now consistent.
+  - **Non-admin empty state** — "There are no applications available to you yet. Please contact your workspace administrator." → "Your workspace is being set up — apps your admin shares with you will show up here." (less dead-end, en + zh).
+  - **Cold-start reassurance** — new `console.loadingHint` line under the LoadingScreen steps: "Setting up a new environment can take a few moments." (en + zh).
+  - **Signup value-prop** — register subtitle "Enter your information to get started" → "Create your account to start building." (en + zh).
+
+- 8e2223c: fix(home): the workspace empty-state title hardcoded "Welcome to ObjectUI" — a stale brand a first-time user sees on their empty `/home`. Read the product name from the runtime-config branding (`getRuntimeConfig().branding.productName`, server-pushed, fallback "ObjectOS") like LoadingScreen does, so it shows the deployment's real product (e.g. "Welcome to ObjectOS Cloud").
+- Updated dependencies [6fb6738]
+- Updated dependencies [6726a2b]
+  - @object-ui/auth@11.1.0
+  - @object-ui/i18n@11.1.0
+  - @object-ui/components@11.1.0
+  - @object-ui/fields@11.1.0
+  - @object-ui/react@11.1.0
+  - @object-ui/layout@11.1.0
+  - @object-ui/plugin-editor@11.1.0
+  - @object-ui/types@11.1.0
+  - @object-ui/core@11.1.0
+  - @object-ui/data-objectstack@11.1.0
+  - @object-ui/permissions@11.1.0
+  - @object-ui/collaboration@11.1.0
+  - @object-ui/providers@11.1.0
+
 ## 7.3.0
 
 ### Patch Changes
