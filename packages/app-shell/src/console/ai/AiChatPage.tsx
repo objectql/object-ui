@@ -835,41 +835,21 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   return (
     <div className="flex h-svh w-full flex-col bg-background" data-testid="ai-chat-page">
       <header className="sticky top-0 z-30 flex h-14 w-full shrink-0 items-center gap-2 border-b bg-background/95 px-2 backdrop-blur sm:px-4">
-        {/* Chat-list toggles are meaningless with no agent/conversations, so
-            hide them in the graceful no-agents state. */}
+        {/* Mobile: open the chats list as a sheet. The DESKTOP collapse toggle
+            is NOT in the top nav — it lives at the bottom-left of the chats
+            column (see below), mirroring the app shell's sidebar toggle. Chat
+            controls are meaningless with no agent, so hide in that state. */}
         {!noAgents && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 shrink-0 md:hidden"
-              onClick={() => setMobileChatsOpen(true)}
-              aria-label={t('console.ai.openChats')}
-              data-testid="ai-chat-mobile-sidebar-trigger"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="hidden h-8 w-8 shrink-0 md:inline-flex"
-              onClick={toggleChatsCollapsed}
-              aria-label={
-                chatsCollapsed
-                  ? t('console.ai.showChats', { defaultValue: 'Show chats' })
-                  : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
-              }
-              title={
-                chatsCollapsed
-                  ? t('console.ai.showChats', { defaultValue: 'Show chats' })
-                  : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
-              }
-              data-testid="ai-chat-collapse-sidebar-trigger"
-              aria-pressed={chatsCollapsed}
-            >
-              {chatsCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            </Button>
-          </>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 md:hidden"
+            onClick={() => setMobileChatsOpen(true)}
+            aria-label={t('console.ai.openChats')}
+            data-testid="ai-chat-mobile-sidebar-trigger"
+          >
+            <PanelLeft className="h-4 w-4" />
+          </Button>
         )}
         <div className="min-w-0 flex-1">
           <AppHeader variant="home" />
@@ -921,16 +901,45 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
         />
       )}
       <div className="flex min-h-0 flex-1 w-full bg-muted/20">
-        {!chatsCollapsed && (
-          <ConversationsSidebar
-            userId={userId}
-            apiBase={apiBase}
-            activeAgent={activeAgent}
-            refreshKey={refreshKey}
-            titleHints={titleHints}
-            className="hidden w-72 shrink-0 border-r md:flex"
-          />
-        )}
+        {/* Desktop chats column. The collapse/expand control sits at the
+            BOTTOM-LEFT (mirroring the app shell's sidebar toggle) rather than
+            intruding into the top navigation bar. Collapsed → a slim rail with
+            just the expand button; expanded → the list with the toggle in a
+            footer. */}
+        <div className="hidden shrink-0 flex-col border-r md:flex">
+          {!chatsCollapsed && (
+            <ConversationsSidebar
+              userId={userId}
+              apiBase={apiBase}
+              activeAgent={activeAgent}
+              refreshKey={refreshKey}
+              titleHints={titleHints}
+              className="w-72 min-h-0 flex-1 border-r-0"
+            />
+          )}
+          <div className={cn('mt-auto p-2', chatsCollapsed ? 'w-12' : 'w-72 border-t')}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={toggleChatsCollapsed}
+              aria-label={
+                chatsCollapsed
+                  ? t('console.ai.showChats', { defaultValue: 'Show chats' })
+                  : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
+              }
+              title={
+                chatsCollapsed
+                  ? t('console.ai.showChats', { defaultValue: 'Show chats' })
+                  : t('console.ai.hideChats', { defaultValue: 'Hide chats' })
+              }
+              data-testid="ai-chat-collapse-sidebar-trigger"
+              aria-pressed={chatsCollapsed}
+            >
+              {chatsCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
         <main className="flex min-w-0 flex-1 flex-col">
           <ChatPane
             key={`${chatApi ?? 'local'}:${conversationId ?? 'pending'}`}
