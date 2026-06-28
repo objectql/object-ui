@@ -419,7 +419,7 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
                 locale={locale}
               />
             ) : current.type === 'object' ? (
-              <SchemaRenderer schema={{ type: 'object-grid', objectName: current.name } as never} />
+              <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
             ) : (
               <div className="py-12 text-center text-xs text-muted-foreground">
                 {current.type} 暂用只读预览,设计能力建设中。
@@ -567,7 +567,7 @@ function DataPillar(): React.ReactElement {
             {/* Data mode = the records themselves, as a directly-viewable grid
               * (Airtable parity). Fields are the columns — no separate table. */}
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
-              <SchemaRenderer schema={{ type: 'object-grid', objectName: current.name } as never} />
+              <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
             </div>
           </>
         )}
