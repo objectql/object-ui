@@ -1,5 +1,7 @@
 # @object-ui/create-plugin
 
+## 11.2.0
+
 ## 11.1.0
 
 ## 7.3.0
