@@ -154,9 +154,9 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
         <div className="min-h-0 flex-1">
           {tab === 'data' ? (
-            <DataPillar />
+            <DataPillar packageId={packageId} />
           ) : tab === 'automations' ? (
-            <AutomationsPillar />
+            <AutomationsPillar packageId={packageId} />
           ) : (
             <InterfacesPillar packageId={packageId} />
           )}
@@ -473,7 +473,7 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
 }
 
 /** Data pillar — the package's objects: list → fields + record grid. */
-function DataPillar(): React.ReactElement {
+function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
   const [objects, setObjects] = React.useState<Surface[]>([]);
   const [current, setCurrent] = React.useState<Surface | null>(null);
@@ -485,7 +485,7 @@ function DataPillar(): React.ReactElement {
     let cancelled = false;
     (async () => {
       try {
-        const list = (await client.list('object')) as Array<Record<string, unknown>>;
+        const list = (await client.list('object', { packageId })) as Array<Record<string, unknown>>;
         if (cancelled) return;
         const items = (list || [])
           .map((o) => ({ type: 'object', name: String(o.name ?? ''), label: String(o.label ?? o.name ?? '') }))
@@ -577,7 +577,7 @@ function DataPillar(): React.ReactElement {
 }
 
 /** Automations pillar — flows: list → FlowPreview (default OFF / review-then-enable). */
-function AutomationsPillar(): React.ReactElement {
+function AutomationsPillar({ packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
   const locale = 'zh-CN';
   const [flows, setFlows] = React.useState<Surface[]>([]);
@@ -592,7 +592,7 @@ function AutomationsPillar(): React.ReactElement {
     let cancelled = false;
     (async () => {
       try {
-        const list = (await client.list('flow')) as Array<Record<string, unknown>>;
+        const list = (await client.list('flow', { packageId })) as Array<Record<string, unknown>>;
         if (cancelled) return;
         const items = (list || [])
           .map((f) => ({ type: 'flow', name: String(f.name ?? ''), label: String(f.label ?? f.name ?? '') }))
