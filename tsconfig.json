@@ -26,6 +26,8 @@
       "@object-ui/types/*": ["packages/types/src/*"],
       "@object-ui/core": ["packages/core/src"],
       "@object-ui/core/*": ["packages/core/src/*"],
+      "@object-ui/sdui-parser": ["packages/sdui-parser/src"],
+      "@object-ui/sdui-parser/*": ["packages/sdui-parser/src/*"],
       "@object-ui/protocol": ["packages/core/src"],
       "@object-ui/protocol/*": ["packages/core/src/*"],
       "@object-ui/engine": ["packages/engine/src"],
