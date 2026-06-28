@@ -900,7 +900,11 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
           onOpenChange={setDebugOpen}
         />
       )}
-      <div className="flex min-h-0 flex-1 w-full bg-muted/20">
+      {/* Uniform `bg-background` across the chat area: the centered chat column
+          is `bg-background`, so a `bg-muted` backdrop here produced a hard
+          seam between the column and its side gutters (read as accidental). The
+          conversations sidebar keeps its own `bg-muted/30` for hierarchy. */}
+      <div className="flex min-h-0 flex-1 w-full bg-background">
         {/* Desktop chats column. The collapse/expand control sits at the
             BOTTOM-LEFT (mirroring the app shell's sidebar toggle) rather than
             intruding into the top navigation bar. Collapsed → a slim rail with
