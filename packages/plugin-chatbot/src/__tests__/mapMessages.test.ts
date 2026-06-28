@@ -189,6 +189,131 @@ describe('uiMessageToChatMessage', () => {
     expect(out.buildProgress).toBeUndefined();
   });
 
+  it('lifts a reconciled data-blueprint-progress part into blueprintProgress', () => {
+    const out = uiMessageToChatMessage({
+      id: 'mbp1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'data-blueprint-progress',
+          id: 'blueprint-progress',
+          data: {
+            phase: 'designing',
+            summary: '招聘管理系统',
+            appLabel: '招聘管理',
+            objects: [
+              { name: 'candidate', label: '候选人', fields: 5 },
+              { name: 'job', label: '职位', fields: 4 },
+            ],
+            counts: { objects: 2, views: 2, dashboards: 1 },
+            seq: 7,
+          },
+        },
+      ],
+    });
+    expect(out.blueprintProgress).toEqual({
+      phase: 'designing',
+      summary: '招聘管理系统',
+      appLabel: '招聘管理',
+      objects: [
+        { name: 'candidate', label: '候选人', fields: 5 },
+        { name: 'job', label: '职位', fields: 4 },
+      ],
+      counts: { objects: 2, views: 2, dashboards: 1 },
+      seq: 7,
+    });
+  });
+
+  it('reconciles to the latest data-blueprint-progress frame (objects appear one by one)', () => {
+    // The SDK keeps a single reconciled part per stable id; given two frames we
+    // take the most recent — the one with more objects revealed + higher seq.
+    const out = uiMessageToChatMessage({
+      id: 'mbp2',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'data-blueprint-progress',
+          id: 'blueprint-progress',
+          data: { phase: 'designing', objects: [{ name: 'candidate' }], seq: 1 },
+        },
+        {
+          type: 'data-blueprint-progress',
+          id: 'blueprint-progress',
+          data: {
+            phase: 'designing',
+            objects: [{ name: 'candidate' }, { name: 'job' }],
+            seq: 2,
+          },
+        },
+      ],
+    });
+    expect(out.blueprintProgress?.objects).toHaveLength(2);
+    expect(out.blueprintProgress?.seq).toBe(2);
+  });
+
+  it('maps phase:done with the extend target and drops malformed objects/fields', () => {
+    const out = uiMessageToChatMessage({
+      id: 'mbp3',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'data-blueprint-progress',
+          id: 'blueprint-progress',
+          data: {
+            phase: 'done',
+            targetApp: 'recruiting',
+            objects: [
+              { name: 'candidate' },
+              { label: 'no name — dropped' },
+              { name: 'job', fields: 'not-a-number' },
+            ],
+          },
+        },
+      ],
+    });
+    expect(out.blueprintProgress?.phase).toBe('done');
+    expect(out.blueprintProgress?.targetApp).toBe('recruiting');
+    // Nameless object dropped; non-numeric `fields` omitted (chip shows no "· N").
+    expect(out.blueprintProgress?.objects).toEqual([{ name: 'candidate' }, { name: 'job' }]);
+  });
+
+  it('defaults an unknown/absent phase to designing and tolerates a missing objects array', () => {
+    const out = uiMessageToChatMessage({
+      id: 'mbp4',
+      role: 'assistant',
+      parts: [
+        { type: 'data-blueprint-progress', id: 'blueprint-progress', data: { summary: 'CRM' } },
+      ],
+    });
+    expect(out.blueprintProgress?.phase).toBe('designing');
+    expect(out.blueprintProgress?.objects).toEqual([]);
+    expect(out.blueprintProgress?.summary).toBe('CRM');
+  });
+
+  it('drops counts entirely when none of its numeric fields are present', () => {
+    const out = uiMessageToChatMessage({
+      id: 'mbp5',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'data-blueprint-progress',
+          id: 'blueprint-progress',
+          data: { phase: 'designing', objects: [], counts: { objects: 'x' } },
+        },
+      ],
+    });
+    expect(out.blueprintProgress?.counts).toBeUndefined();
+  });
+
+  it('leaves blueprintProgress undefined when there is no blueprint-progress part', () => {
+    const out = uiMessageToChatMessage({
+      id: 'mbp6',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'hi' }],
+    });
+    expect(out.blueprintProgress).toBeUndefined();
+  });
+
   it('lifts data-chart parts into charts[] (visualize_data)', () => {
     const out = uiMessageToChatMessage({
       id: 'm8',

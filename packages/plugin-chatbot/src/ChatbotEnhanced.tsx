@@ -106,6 +106,15 @@ export interface ChatMessage {
    */
   buildProgress?: ChatBuildProgress;
   /**
+   * Live blueprint-DESIGN progress from the long, atomic `propose_blueprint`
+   * call, lifted from the stream's reconciled `data-blueprint-progress` part.
+   * When present, the chat renders a "Designing…" panel whose object chips
+   * appear one-by-one — upgrading the purely-presentational rotating-hint
+   * placeholder to real, event-driven progress. Transient (never persisted):
+   * on reload the authoritative "Proposed plan" card is the record instead.
+   */
+  blueprintProgress?: ChatBlueprintProgress;
+  /**
    * Charts to render inline in the assistant bubble, lifted from the stream's
    * `data-chart` parts (emitted by the `visualize_data` tool via
    * `ctx.onProgress`). Each renders through the platform's SDUI `<chart>`
@@ -158,6 +167,43 @@ export interface ChatBuildProgress {
    * awaits — so it's the reliable "a fresh byte just arrived" signal the build
    * panel keys its liveness off (content fields stay identical across a
    * heartbeat). Absent from older runtimes.
+   */
+  seq?: number;
+}
+
+/**
+ * A reconciled snapshot of an in-flight blueprint DESIGN (`propose_blueprint`).
+ * The plan-design step is a long, atomic LLM request; the server now streams a
+ * reconciled `data-blueprint-progress` part as the schema takes shape, so the
+ * chat can show objects appearing one-by-one instead of a static spinner.
+ * Mirrors `ChatBuildProgress` (apply_blueprint's BUILD progress) but for the
+ * pre-build PLAN — it is superseded by the authoritative "Proposed plan" card
+ * the instant the tool result lands.
+ */
+export interface ChatBlueprintProgress {
+  /**
+   * Coarse phase. `designing` while the plan is being drafted; `done` once the
+   * authoritative blueprint has arrived (on the `propose_blueprint` tool
+   * result). Anything unrecognised — including absent — is treated as designing.
+   */
+  phase: 'designing' | 'done';
+  /** Human one-liner for the app being designed (revealed progressively). */
+  summary?: string;
+  /** Human label for the new app (absent in extend mode). */
+  appLabel?: string;
+  /** Extend mode: the existing app the new objects would be added into. */
+  targetApp?: string;
+  /**
+   * Objects surfaced so far, cumulative — they appear one-by-one as the design
+   * streams. `fields` is the field count for the chip's "· N" suffix.
+   */
+  objects: Array<{ name: string; label?: string; fields?: number }>;
+  /** Running totals for a compact "N objects · N views · …" line. */
+  counts?: { objects?: number; views?: number; dashboards?: number };
+  /**
+   * Monotonic emit counter from the server — the reliable "a fresh byte just
+   * arrived" liveness signal (advances on keep-alive heartbeats too, where the
+   * content fields are identical). Absent from older runtimes.
    */
   seq?: number;
 }
@@ -2133,16 +2179,36 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                 const reasoning = message.reasoning?.trim();
                 const sources = message.sources ?? [];
                 const buildProgress = !isUser ? message.buildProgress : undefined;
+                // The live "Designing…" panel is a hand-off affordance: it
+                // yields to the authoritative "Proposed plan" card the instant
+                // the propose_blueprint result lands. Suppress it once any tool
+                // on this turn carries a structured plan — which also makes it a
+                // no-op on reload (only the persisted plan card exists then).
+                const blueprintProgress =
+                  !isUser && !tools.some((t) => Boolean(t.proposedPlan))
+                    ? message.blueprintProgress
+                    : undefined;
                 const isEmptyAssistantStreaming =
                   !isUser &&
                   Boolean(message.streaming) &&
                   !message.content &&
                   tools.length === 0 &&
                   !reasoning &&
-                  !buildProgress; // a streaming build shows its tree, not the dots
+                  !buildProgress &&
+                  !blueprintProgress; // a streaming design/build shows its panel, not the dots
                 const summaryTools =
                   !isUser && processVisibility === 'summary'
-                    ? tools.filter((tool) => !shouldRenderDetailedTool(tool))
+                    ? tools.filter(
+                        (tool) =>
+                          !shouldRenderDetailedTool(tool) &&
+                          // While the live design panel is up it already
+                          // represents the running propose_blueprint, so don't
+                          // also surface that tool's rotating-hint row in the
+                          // activity strip (the panel supersedes the
+                          // placeholder). With no events the row stays and shows
+                          // the placeholder as before.
+                          !(blueprintProgress && tool.toolName === 'propose_blueprint'),
+                      )
                     : [];
                 const detailedTools =
                   !isUser && processVisibility === 'debug'
@@ -2176,6 +2242,16 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         )}
                       >
                     <MessageContent>
+                      {blueprintProgress ? (
+                        <BlueprintProgressPanel
+                          progress={blueprintProgress}
+                          designingLabel={L.designingPlanLabel}
+                          extendLabel={planExtendLabel}
+                          waitingLabel={L.connectionWaiting}
+                          stalledLabel={L.connectionStalledLabel}
+                          offlineLabel={L.connectionOfflineLabel}
+                        />
+                      ) : null}
                       {buildProgress ? (
                         <BuildProgressPanel
                           progress={buildProgress}
@@ -2888,6 +2964,115 @@ const BUILD_GROUP_LABEL: Record<string, string> = {
   app: 'App',
   seed: 'Sample data',
 };
+
+/**
+ * Live "Designing…" panel for an in-flight blueprint DESIGN (`propose_blueprint`).
+ * The plan-design call is a long, atomic LLM request; the server now streams a
+ * reconciled `data-blueprint-progress` part as the schema takes shape, so this
+ * panel shows objects appearing one-by-one (label + field count) with the
+ * summary / extend target revealed progressively — replacing the purely
+ * presentational rotating-hint placeholder with real, event-driven progress.
+ *
+ * It is a LIVE affordance only: the caller stops rendering it the instant the
+ * `propose_blueprint` result lands (a structured `proposedPlan` exists on the
+ * turn), so the authoritative "Proposed plan" card takes over cleanly. With no
+ * progress events (older runtimes / non-streaming turns) this never renders and
+ * the rotating-hint placeholder remains — zero regression.
+ */
+function BlueprintProgressPanel({
+  progress,
+  designingLabel = 'Designing your app…',
+  extendLabel = 'Adding to existing app',
+  waitingLabel = 'Waiting for server…',
+  stalledLabel = 'Still working…',
+  offlineLabel = 'Connection lost — reconnecting…',
+}: {
+  progress: ChatBlueprintProgress;
+  designingLabel?: string;
+  extendLabel?: string;
+  waitingLabel?: string;
+  stalledLabel?: string;
+  offlineLabel?: string;
+}) {
+  const { phase, summary, appLabel, targetApp, objects, counts, seq } = progress;
+  const isDone = phase === 'done';
+  // Real activity key, mirroring BuildProgressPanel: prefer the server's
+  // monotonic `seq` (it also advances on keep-alive heartbeats, where the
+  // content fields don't change), else a content signature for older runtimes.
+  // Drives the liveness indicator off observed bytes so the wait reads as
+  // "designing" rather than a hang.
+  const activityKey = seq ?? `${phase}:${objects.length}`;
+  // At `done` the app's own summary/label is the most informative header; while
+  // designing, the localized "Designing your app…" lead-in pairs with the
+  // summary shown on its own line below.
+  const headerText = isDone ? summary || appLabel || designingLabel : designingLabel;
+  const countBits: string[] = [];
+  if (counts?.objects)
+    countBits.push(`${counts.objects} object${counts.objects === 1 ? '' : 's'}`);
+  if (counts?.views) countBits.push(`${counts.views} view${counts.views === 1 ? '' : 's'}`);
+  if (counts?.dashboards)
+    countBits.push(`${counts.dashboards} dashboard${counts.dashboards === 1 ? '' : 's'}`);
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 text-sm" data-testid="blueprint-progress">
+      <div className="mb-2 flex items-center gap-2 font-medium">
+        {isDone ? (
+          <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+        ) : (
+          <Loader2 className="size-4 shrink-0 animate-spin text-primary" />
+        )}
+        <span className="min-w-0 truncate">{headerText}</span>
+        {targetApp ? (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300"
+            data-testid="blueprint-progress-extend"
+          >
+            + {extendLabel} 「{targetApp}」
+          </span>
+        ) : null}
+        {!isDone ? (
+          <span className="ml-auto shrink-0">
+            <LivenessIndicator
+              active
+              activityKey={activityKey}
+              waitingLabel={waitingLabel}
+              stalledLabel={stalledLabel}
+              offlineLabel={offlineLabel}
+            />
+          </span>
+        ) : null}
+      </div>
+      {/* Summary one-liner — revealed progressively as the design streams. At
+          `done` it's already promoted into the header, so only show it here
+          while designing. */}
+      {!isDone && (summary || appLabel) ? (
+        <p className="mb-2 text-xs text-muted-foreground">{summary || appLabel}</p>
+      ) : null}
+      {objects.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5" data-testid="blueprint-progress-objects">
+          {objects.map((o) => (
+            // `key` on the stable object name fades each chip in exactly once as
+            // it first appears, so the panel reads as objects materialising one
+            // by one rather than a list snapping into place.
+            <span
+              key={o.name}
+              className="inline-flex animate-in fade-in items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-[11px] text-foreground/80 duration-500"
+              title={o.name}
+            >
+              <Table2 className="size-3 text-foreground/40" />
+              {o.label || o.name}
+              {o.fields ? <span className="text-foreground/40">· {o.fields}</span> : null}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {countBits.length > 0 ? (
+        <span className="mt-2 block text-[11px] text-muted-foreground">
+          {countBits.join(' · ')}
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 /**
  * Live "build tree" for an in-flight app build (apply_blueprint). Renders the

@@ -1492,3 +1492,201 @@ describe('ChatbotEnhanced — design-wait staging (dots + forward progress)', ()
     expect(container.querySelector('[data-testid="build-proposal-progress-dots"]')).toBeNull();
   });
 });
+
+describe('ChatbotEnhanced — propose_blueprint live design progress (data-blueprint-progress)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  // A running propose_blueprint whose stream has begun emitting the reconciled
+  // `data-blueprint-progress` part — lifted onto the message as blueprintProgress
+  // by uiMessageToChatMessage (see mapMessages.test.ts for the event→data half).
+  const designing = (
+    blueprintProgress: NonNullable<ChatMessage['blueprintProgress']>,
+  ): ChatMessage[] => [
+    { id: 'u1', role: 'user', content: 'build me a recruiting app' },
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      streaming: true,
+      toolInvocations: [
+        { toolCallId: 't1', toolName: 'propose_blueprint', state: 'input-available' },
+      ],
+      blueprintProgress,
+    },
+  ];
+
+  it('renders the live design panel with object chips (label + field count) and the summary', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={designing({
+          phase: 'designing',
+          summary: '招聘管理系统',
+          appLabel: '招聘管理',
+          objects: [
+            { name: 'candidate', label: '候选人', fields: 5 },
+            { name: 'job', label: '职位', fields: 4 },
+          ],
+          counts: { objects: 2, views: 2, dashboards: 1 },
+          seq: 3,
+        })}
+        labels={{ designingPlanLabel: 'Designing your app…' }}
+      />,
+    );
+    const panel = container.querySelector('[data-testid="blueprint-progress"]');
+    expect(panel).not.toBeNull();
+    expect(panel?.textContent).toContain('Designing your app…');
+    // Summary one-liner revealed progressively.
+    expect(panel?.textContent).toContain('招聘管理系统');
+    const chips = container.querySelector('[data-testid="blueprint-progress-objects"]');
+    expect(chips).not.toBeNull();
+    expect(chips?.textContent).toContain('候选人');
+    expect(chips?.textContent).toContain('职位');
+    // Field-count suffix on the chips.
+    expect(chips?.textContent).toContain('5');
+    expect(chips?.textContent).toContain('4');
+    // Compact counts line.
+    expect(panel?.textContent).toContain('2 objects');
+  });
+
+  it('object chips reflect the latest streamed frame as objects accrue one by one', () => {
+    const { container, rerender } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={designing({
+          phase: 'designing',
+          objects: [{ name: 'candidate', label: '候选人', fields: 5 }],
+          seq: 1,
+        })}
+      />,
+    );
+    let chips = container.querySelector('[data-testid="blueprint-progress-objects"]');
+    expect(chips?.querySelectorAll('span[title]').length).toBe(1);
+    // The next reconciled frame reveals a second object — in place.
+    rerender(
+      <ChatbotEnhanced
+        isLoading
+        messages={designing({
+          phase: 'designing',
+          objects: [
+            { name: 'candidate', label: '候选人', fields: 5 },
+            { name: 'job', label: '职位', fields: 4 },
+          ],
+          seq: 2,
+        })}
+      />,
+    );
+    chips = container.querySelector('[data-testid="blueprint-progress-objects"]');
+    expect(chips?.querySelectorAll('span[title]').length).toBe(2);
+    expect(chips?.textContent).toContain('职位');
+  });
+
+  it('supersedes the rotating-hint placeholder once real progress events arrive', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={designing({
+          phase: 'designing',
+          objects: [{ name: 'candidate', label: '候选人', fields: 5 }],
+          seq: 1,
+        })}
+        labels={{ designingPlanLabel: 'Designing your app…', designingPlanHints: ['HINT_A'] }}
+      />,
+    );
+    // The event-driven panel is up…
+    expect(container.querySelector('[data-testid="blueprint-progress"]')).not.toBeNull();
+    // …and the purely-presentational rotating hint is NOT also shown in the
+    // activity strip (no duplicate "designing" affordance).
+    expect(container.querySelector('[data-testid="build-proposal-progress"]')).toBeNull();
+  });
+
+  it('falls back to the rotating-hint placeholder when NO progress events arrive (older runtimes)', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={[
+          { id: 'u1', role: 'user', content: 'build me a CRM' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: '',
+            streaming: true,
+            toolInvocations: [
+              { toolCallId: 't1', toolName: 'propose_blueprint', state: 'input-available' },
+            ],
+          },
+        ]}
+        labels={{ designingPlanLabel: 'Designing your app…', designingPlanHints: ['HINT_A'] }}
+      />,
+    );
+    // No blueprintProgress → no panel, and the placeholder behaves exactly as before.
+    expect(container.querySelector('[data-testid="blueprint-progress"]')).toBeNull();
+    expect(container.querySelector('[data-testid="build-proposal-progress"]')).not.toBeNull();
+  });
+
+  it('hands off to the authoritative "Proposed plan" card once the result lands (panel goes away)', () => {
+    render(
+      <ChatbotEnhanced
+        messages={[
+          { id: 'u1', role: 'user', content: 'build me a recruiting app' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: '',
+            // A late 'done' progress frame can momentarily co-exist with the
+            // tool result; the authoritative plan card must win, the panel must go.
+            blueprintProgress: {
+              phase: 'done',
+              summary: '招聘管理系统',
+              objects: [{ name: 'candidate', label: '候选人', fields: 5 }],
+            },
+            toolInvocations: [
+              {
+                toolCallId: 't1',
+                toolName: 'propose_blueprint',
+                state: 'output-available',
+                proposedPlan: {
+                  summary: '招聘管理系统',
+                  objects: [{ name: 'candidate', label: '候选人', fieldCount: 5 }],
+                  counts: { objects: 1, views: 0, dashboards: 0, seedData: 0 },
+                  questions: [],
+                  assumptions: [],
+                },
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(document.querySelector('[data-testid="blueprint-progress"]')).toBeNull();
+    expect(screen.getByTestId('proposed-plan')).toBeInTheDocument();
+  });
+
+  it('shows the extend-mode badge with the target app when extending', () => {
+    const { container } = render(
+      <ChatbotEnhanced
+        isLoading
+        messages={designing({
+          phase: 'designing',
+          targetApp: 'recruiting',
+          objects: [{ name: 'interview', label: '面试', fields: 3 }],
+        })}
+        labels={{ planExtendLabel: 'Adding to' }}
+      />,
+    );
+    const badge = container.querySelector('[data-testid="blueprint-progress-extend"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toContain('Adding to');
+    expect(badge?.textContent).toContain('recruiting');
+  });
+});

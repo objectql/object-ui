@@ -14,7 +14,7 @@
  * apps that drive `useChat` themselves (e.g. Studio, which needs a custom
  * `prepareSendMessagesRequest` transport).
  */
-import type { ChatMessage, ChatToolInvocation, ChatSource, ChatBuildProgress, ChatChart } from './ChatbotEnhanced';
+import type { ChatMessage, ChatToolInvocation, ChatSource, ChatBuildProgress, ChatBlueprintProgress, ChatChart } from './ChatbotEnhanced';
 
 interface AnyPart {
   type?: string;
@@ -511,6 +511,54 @@ function extractBuildProgress(parts: AnyPart[]): ChatBuildProgress | undefined {
 }
 
 /**
+ * Lift the live blueprint-DESIGN progress from the stream's reconciled
+ * `data-blueprint-progress` part (emitted by `propose_blueprint` via
+ * `ctx.onProgress` while it drafts the plan). Same single-reconciled-part
+ * mechanism as `data-build-progress` — a stable id keeps one in-place-updated
+ * part, so we read the latest frame (objects accrue across frames). Transient:
+ * never persisted, so on reload the authoritative `proposedPlan` card (lifted
+ * from the persisted tool result) is the record instead of this panel.
+ */
+function extractBlueprintProgress(parts: AnyPart[]): ChatBlueprintProgress | undefined {
+  const part = parts.filter((p) => p.type === 'data-blueprint-progress').pop();
+  const data = part?.data;
+  if (!data || typeof data !== 'object') return undefined;
+  const d = data as Record<string, unknown>;
+  const objects = Array.isArray(d.objects)
+    ? (d.objects as Array<Record<string, unknown>>)
+        .filter((o) => typeof o?.name === 'string')
+        .map((o) => ({
+          name: o.name as string,
+          ...(typeof o.label === 'string' ? { label: o.label } : {}),
+          ...(typeof o.fields === 'number' ? { fields: o.fields } : {}),
+        }))
+    : [];
+  // Only `done` is authoritative; anything else (incl. absent) is still designing.
+  const phase: ChatBlueprintProgress['phase'] = d.phase === 'done' ? 'done' : 'designing';
+  let counts: ChatBlueprintProgress['counts'];
+  if (d.counts && typeof d.counts === 'object') {
+    const c = d.counts as Record<string, unknown>;
+    const out: { objects?: number; views?: number; dashboards?: number } = {};
+    if (typeof c.objects === 'number') out.objects = c.objects;
+    if (typeof c.views === 'number') out.views = c.views;
+    if (typeof c.dashboards === 'number') out.dashboards = c.dashboards;
+    if (Object.keys(out).length > 0) counts = out;
+  }
+  return {
+    phase,
+    ...(typeof d.summary === 'string' ? { summary: d.summary } : {}),
+    ...(typeof d.appLabel === 'string' ? { appLabel: d.appLabel } : {}),
+    ...(typeof d.targetApp === 'string' ? { targetApp: d.targetApp } : {}),
+    objects,
+    ...(counts ? { counts } : {}),
+    // Monotonic emit counter — advances even on keep-alive heartbeats (identical
+    // content), so the design panel keeps its liveness "live" during the long,
+    // quiet plan-design await. Absent on older runtimes.
+    ...(typeof d.seq === 'number' ? { seq: d.seq } : {}),
+  };
+}
+
+/**
  * Lift charts from the stream's `data-chart` parts (emitted by the
  * `visualize_data` tool via `ctx.onProgress`). Unlike `data-build-progress`
  * (one reconciled part), each chart is emitted with its OWN id, so a single
@@ -584,6 +632,10 @@ export function uiMessageToChatMessage(
     toolInvocations: resolvedTools,
     sources: extractSources(parts),
     buildProgress,
+    // Live blueprint-DESIGN progress (propose_blueprint) — a transient stream
+    // part like buildProgress. No persisted fallback needed: the `proposedPlan`
+    // card (from the persisted tool result) is the post-reload record.
+    blueprintProgress: extractBlueprintProgress(parts),
     charts: extractCharts(parts),
     streaming: opts.streaming,
   };
