@@ -7,6 +7,7 @@
  */
 
 import type { SchemaNode } from '../types/index.js';
+import { PUBLIC_BLOCKS } from './public-blocks.js';
 
 export type ComponentRenderer<T = any> = T;
 
@@ -354,7 +355,25 @@ export class Registry<T = any> {
    * of the full rendering capability returned by {@link getAllConfigs}.
    */
   getPublicConfigs(): ComponentConfig<T>[] {
-    return Array.from(this.components.values()).filter((c) => c.tier === 'public');
+    // Dedupe by the config's canonical (namespaced) `type` — a component is
+    // registered under both a bare and a namespaced key pointing at the same
+    // canonical type, and we want one contract entry per component.
+    const seenCanonical = new Set<string>();
+    const out: ComponentConfig<T>[] = [];
+    const add = (tag: string, cfg: ComponentConfig<T> | undefined): void => {
+      if (!cfg || seenCanonical.has(cfg.type)) return;
+      seenCanonical.add(cfg.type);
+      // The contract surface is keyed by the bare/curated tag authors write,
+      // not the namespaced canonical stored on the config.
+      out.push({ ...cfg, type: tag });
+    };
+    // Curated contract list first (stable, reviewable order) …
+    for (const tag of PUBLIC_BLOCKS) add(tag, this.getConfig(tag));
+    // … plus any bare registration that opted in explicitly via `tier: 'public'`.
+    for (const [key, cfg] of this.components.entries()) {
+      if (cfg.tier === 'public' && !key.includes(':')) add(key, cfg);
+    }
+    return out;
   }
   
   /**
