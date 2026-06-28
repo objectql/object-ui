@@ -5,98 +5,52 @@
  *
  * Three zones — single-App nav · live canvas · property inspector — composed
  * AROUND the existing metadata-admin registry (`getMetadataPreview` /
- * `getMetadataInspector`) and the runtime `SchemaRenderer`, so design-time is
- * literally run-time (same renderer, same metadata).
+ * `getMetadataInspector`), the runtime `SchemaRenderer`, and the shared
+ * `MetadataClient`. Design-time is literally run-time (same renderer, same
+ * metadata), and edits persist through the real draft → publish pipeline.
  *
  * Open-core boundary: the left AI copilot is NOT part of the open-source
- * surface. It is an injected slot (`aiSlot`) that the cloud edition fills; the
- * OSS build renders three zones. Everything else — nav, canvas, inspector,
- * the select→edit→re-render loop — lives here, in the open package.
- *
- * slice-1 drives a fixture page with no backend so the surface is demoable
- * standalone. Real metadata load/save (useMetadataClient) and nav-driven
- * surface switching land in follow-up slices.
+ * surface. It is an injected slot (`aiSlot`) the cloud edition fills; the OSS
+ * build renders three zones.
  */
 
 import * as React from 'react';
 import { SchemaRenderer } from '@object-ui/react';
 import {
   Boxes,
-  Layers3,
-  ShieldCheck,
+  FileText,
   SlidersHorizontal,
   MousePointer2,
   Eye,
-  Lock,
+  Loader2,
+  Save,
+  Send,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
-
-// ── Fixture: one "Interface" page draft. Built from element blocks that
-//    render with no backend. Replaced by real metadata in a later slice. ──
-const FIXTURE_PAGE: Record<string, unknown> = {
-  type: 'page',
-  name: 'projects_overview',
-  label: '项目与任务',
-  regions: [
-    {
-      name: 'main',
-      components: [
-        {
-          type: 'element:definition-list',
-          id: 'summary',
-          properties: {
-            columns: 2,
-            items: [
-              { term: '负责人', description: 'Sophia Rodriguez' },
-              { term: '状态', description: '进行中' },
-              { term: '截止', description: '2026-07-15' },
-              { term: '进度', description: '60%' },
-            ],
-          },
-        },
-        {
-          type: 'element:definition-list',
-          id: 'meta',
-          properties: {
-            columns: 1,
-            items: [
-              { term: '团队', description: '平台组' },
-              { term: '优先级', description: '高' },
-            ],
-          },
-        },
-      ],
-    },
-  ],
-};
-
-// ── Mock single-App nav. The permission chips illustrate the role-projection
-//    model (ADR-0080 D4). Replaced by a real App nav model in a later slice. ──
-const NAV: Array<{
-  group: string;
-  locked?: boolean;
-  items: Array<{ icon: React.ComponentType<{ className?: string }>; label: string; perm?: string; active?: boolean }>;
-}> = [
-  {
-    group: '工作区',
-    items: [
-      { icon: Layers3, label: '我的任务', perm: '所有人' },
-      { icon: Boxes, label: '项目与任务', perm: '项目成员', active: true },
-      { icon: SlidersHorizontal, label: '看板', perm: '项目成员' },
-    ],
-  },
-  {
-    group: '管理',
-    locked: true,
-    items: [
-      { icon: ShieldCheck, label: '团队', perm: '管理员' },
-      { icon: Eye, label: '洞察看板', perm: '管理员' },
-    ],
-  },
-];
+import { useMetadataClient } from '../metadata-admin/useMetadata';
 
 const PILLARS = ['Data', 'Automations', 'Interfaces'] as const;
+
+interface NavItem {
+  type: string;
+  name: string;
+  label: string;
+}
+
+/**
+ * Normalize the framework draft envelope `{ type, name, item }` into the draft
+ * body or null (mirrors ResourceEditPage.extractDraftBody — a "no draft" stub
+ * still carries type/name/label keys, so the `item` key is the only signal).
+ */
+function extractDraftBody(resp: unknown): Record<string, unknown> | null {
+  if (!resp || typeof resp !== 'object') return null;
+  const env = resp as Record<string, unknown>;
+  if (!('item' in env)) return null;
+  const body = env.item;
+  if (!body || typeof body !== 'object') return null;
+  return Object.keys(body as object).length > 0 ? (body as Record<string, unknown>) : null;
+}
 
 export interface StudioDesignSurfaceProps {
   /**
@@ -108,18 +62,108 @@ export interface StudioDesignSurfaceProps {
 }
 
 export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React.ReactElement {
-  const [draft, setDraft] = React.useState<Record<string, unknown>>(FIXTURE_PAGE);
-  const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
+  const client = useMetadataClient();
   const locale = 'zh-CN';
 
-  // Reuse the REAL registered surfaces — no new editor code.
-  const Preview = getMetadataPreview('page');
-  const Inspector = getMetadataInspector('page');
+  const [nav, setNav] = React.useState<NavItem[]>([]);
+  const [current, setCurrent] = React.useState<NavItem | null>(null);
+  const [draft, setDraft] = React.useState<Record<string, unknown>>({});
+  const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
+  const [hasDraft, setHasDraft] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // Load the single-App nav: the env's pages become the menu items (a later
+  // slice resolves the real App.navigation tree; pages are the demonstrable
+  // Interface surfaces today). First item auto-opens.
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = (await client.list('page')) as Array<Record<string, unknown>>;
+        if (cancelled) return;
+        const items: NavItem[] = (list || [])
+          .map((p) => ({ type: 'page', name: String(p.name ?? ''), label: String(p.label ?? p.name ?? '') }))
+          .filter((p) => !!p.name);
+        setNav(items);
+        setCurrent((cur) => cur ?? items[0] ?? null);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  // Load the selected surface's draft (effective baseline + pending overlay),
+  // mirroring ResourceEditPage's load.
+  React.useEffect(() => {
+    if (!current) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setSelection(null);
+    (async () => {
+      try {
+        const [lay, draftResp] = await Promise.all([
+          client.layered<Record<string, unknown>>(current.type, current.name),
+          client.getDraft<Record<string, unknown>>(current.type, current.name).catch(() => null),
+        ]);
+        if (cancelled) return;
+        const baseline = ((lay as { effective?: unknown; code?: unknown }).effective ??
+          (lay as { code?: unknown }).code ??
+          {}) as Record<string, unknown>;
+        const draftBody = extractDraftBody(draftResp);
+        setDraft(draftBody ? { ...baseline, ...draftBody } : baseline);
+        setHasDraft(!!draftBody);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, current]);
 
   const onPatch = React.useCallback(
     (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
     [],
   );
+
+  const doSave = React.useCallback(async () => {
+    if (!current) return;
+    setSaving('draft');
+    setError(null);
+    try {
+      await client.save(current.type, current.name, draft, { mode: 'draft' });
+      setHasDraft(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [client, current, draft]);
+
+  const doPublish = React.useCallback(async () => {
+    if (!current) return;
+    setSaving('publish');
+    setError(null);
+    try {
+      await client.publish(current.type, current.name);
+      setHasDraft(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [client, current]);
+
+  const Preview = getMetadataPreview(current?.type ?? 'page');
+  const Inspector = getMetadataInspector(current?.type ?? 'page');
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
@@ -129,11 +173,11 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* top bar: three pillars + publish */}
+        {/* top bar: three pillars + draft/publish */}
         <header className="flex items-center justify-between border-b px-3 py-2">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex items-center gap-1.5 whitespace-nowrap text-[13px] font-medium">
-              <Boxes className="h-4 w-4" /> 项目管理包
+              <Boxes className="h-4 w-4" /> Showcase
             </span>
             <span className="text-muted-foreground">·</span>
             <nav className="flex gap-1">
@@ -153,68 +197,80 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
             </nav>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button className="rounded-md border px-2.5 py-1 text-xs hover:bg-muted">
-              <Eye className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />预览
+            {hasDraft && (
+              <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+                未发布草稿
+              </span>
+            )}
+            <button
+              onClick={doSave}
+              disabled={!current || !!saving}
+              className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+            >
+              {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              保存草稿
             </button>
-            <button className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground">
+            <button
+              onClick={doPublish}
+              disabled={!current || !hasDraft || !!saving}
+              className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+            >
+              {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
               发布
             </button>
           </div>
         </header>
 
         <div className="flex min-h-0 flex-1">
-          {/* ── Zone 1 · single-App nav (multi-level + permission chips) ── */}
-          <nav className="w-44 shrink-0 overflow-auto border-r p-2">
-            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">单一 App</p>
-            {NAV.map((g) => (
-              <div key={g.group}>
-                <p className="flex items-center gap-1 px-2 pb-1 pt-3 text-[11px] text-muted-foreground">
-                  {g.group}
-                  {g.locked && <Lock className="h-3 w-3" />}
-                </p>
-                {g.items.map((it) => (
-                  <div
-                    key={it.label}
-                    className={
-                      'flex items-center gap-2 rounded-md px-2 py-1.5 text-xs ' +
-                      (it.active ? 'bg-muted font-medium' : 'text-foreground/90')
-                    }
-                  >
-                    <it.icon className="h-3.5 w-3.5 shrink-0" />
-                    <span className="flex-1 truncate">{it.label}</span>
-                    {it.perm && (
-                      <span className="flex items-center gap-0.5 whitespace-nowrap rounded bg-muted px-1.5 py-px text-[10px] text-muted-foreground">
-                        <Lock className="h-2.5 w-2.5" />
-                        {it.perm}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
+          {/* ── Zone 1 · single-App nav (real pages; click switches the canvas) ── */}
+          <nav className="w-48 shrink-0 overflow-auto border-r p-2">
+            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">单一 App · 页面</p>
+            {nav.length === 0 && (
+              <p className="px-2 py-3 text-[11px] text-muted-foreground">
+                {error ? '加载失败' : '加载中…'}
+              </p>
+            )}
+            {nav.map((it) => (
+              <button
+                key={it.name}
+                onClick={() => setCurrent(it)}
+                className={
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                  (current?.name === it.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+                }
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1 truncate">{it.label}</span>
+              </button>
             ))}
           </nav>
 
-          {/* ── Zone 2 · canvas (live render = runtime) ── */}
+          {/* ── Zone 2 · canvas (live render of the real surface = runtime) ── */}
           <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
             <div className="mb-3 flex items-center gap-2">
               <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
                 <Eye className="h-3 w-3" /> 预览即运行 · 同一渲染器
               </span>
-              <span className="text-[11px] text-muted-foreground">草稿</span>
+              {current && (
+                <span className="text-[11px] text-muted-foreground">
+                  {current.type} · {current.name}
+                </span>
+              )}
             </div>
-            <div className="rounded-lg border bg-background p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-[13px] font-medium">
-                  {String((draft as { label?: string }).label ?? '项目与任务')}
-                </span>
-                <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                  对象视图 / page
-                </span>
+            {error && (
+              <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {error}
               </div>
-              {Preview ? (
+            )}
+            <div className="rounded-lg border bg-background p-4">
+              {loading || !current ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
+                </div>
+              ) : Preview ? (
                 <Preview
-                  type="page"
-                  name="projects_overview"
+                  type={current.type}
+                  name={current.name}
                   draft={draft}
                   editing
                   selection={selection}
@@ -223,11 +279,11 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                   locale={locale}
                 />
               ) : (
-                <SchemaRenderer schema={{ ...draft, type: 'page' } as never} />
+                <SchemaRenderer schema={{ ...draft, type: current.type } as never} />
               )}
             </div>
             <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <MousePointer2 className="h-3 w-3" /> 点选积木 → 右侧直接改
+              <MousePointer2 className="h-3 w-3" /> 点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」
             </p>
           </main>
 
@@ -243,10 +299,10 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               )}
             </header>
             <div className="p-3">
-              {selection && Inspector ? (
+              {selection && Inspector && current ? (
                 <Inspector
-                  type="page"
-                  name="projects_overview"
+                  type={current.type}
+                  name={current.name}
                   draft={draft}
                   selection={selection}
                   onPatch={onPatch}

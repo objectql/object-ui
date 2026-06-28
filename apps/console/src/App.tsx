@@ -181,7 +181,11 @@ export function App() {
             {/* Dev-only (ADR-0080 slice-1): Studio WYSIWYG design surface
               * harness. Public + backend-free so it renders from a fixture.
               * Purely additive — touches no existing surface. Not product nav. */}
-            <Route path="/dev/studio-design" element={<StudioDesignSurface />} />
+            <Route path="/dev/studio-design" element={
+              <ProtectedRoute>
+                <StudioDesignSurface />
+              </ProtectedRoute>
+            } />
             {/* Internal authed form — same renderer, different submit path. */}
             <Route path="/forms/:name" element={
               <ProtectedRoute>
