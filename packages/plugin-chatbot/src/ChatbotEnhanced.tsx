@@ -2524,7 +2524,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     </PromptInputActionMenuContent>
                   </PromptInputActionMenu>
                 ) : null}
-                {models && models.length > 0 ? (
+                {/* Only a real CHOICE warrants a picker: free / single-model
+                    envs (the backend returns one entry) get no dropdown — the
+                    lone model is still sent via `selectedModelId`. */}
+                {models && models.length > 1 ? (
                   <select
                     aria-label={L.model}
                     value={selectedModelId ?? models[0].id}

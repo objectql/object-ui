@@ -495,6 +495,19 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(onModelChange).toHaveBeenCalledWith('claude-3-5-sonnet');
   });
 
+  it('hides the model picker when only one model is offered (no real choice)', () => {
+    // Free / single-model envs return one model — a dropdown with a single
+    // option is pure noise. The lone model is still sent via selectedModelId.
+    render(
+      <ChatbotEnhanced
+        models={[{ id: 'gpt-4o-mini', label: 'GPT-4o mini', provider: 'openai' }]}
+        selectedModelId="gpt-4o-mini"
+        onModelChange={vi.fn()}
+      />
+    );
+    expect(screen.queryByLabelText(/Model/i)).toBeNull();
+  });
+
   // Improvement 1: a propose_blueprint can FINISH without its result parsing
   // into a structured `proposedPlan` (a thin/odd envelope, or a prose proposal).
   // Before, that collapsed into a "Completed" chip and the user was left with

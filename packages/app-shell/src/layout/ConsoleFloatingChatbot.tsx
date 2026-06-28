@@ -31,6 +31,9 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Tabs,
+  TabsList,
+  TabsTrigger,
   Button,
   ShareDialog,
 } from '@object-ui/components';
@@ -564,33 +567,57 @@ function ChatbotInner({
   // design: end users bound to a single agent never see it. `showAgentPicker`
   // is true when AI development is unlocked (catalog serves both ask & build)
   // or forced on; it still needs more than one agent to be a real choice.
-  const headerExtra =
-    showAgentPicker && agents.length > 1 ? (
-      <Select
-        value={activeAgent}
-        onValueChange={onAgentChange}
-        disabled={agentsLoading}
+  //
+  // For the common 2–3 agent case (Ask/Build) render a Claude-Code-style
+  // segmented switcher so BOTH modes are visible at a glance — a dropdown hid
+  // the distinction. Fall back to the compact Select when an env exposes many
+  // custom agents and the inline pills would overflow the header.
+  const isZh = (language ?? '').toLowerCase().startsWith('zh');
+  const headerExtra = !(showAgentPicker && agents.length > 1) ? null : agents.length <= 3 ? (
+    <Tabs value={activeAgent} onValueChange={onAgentChange}>
+      <TabsList
+        className="h-7 gap-0.5 p-0.5"
+        data-testid="floating-chatbot-agent-picker"
       >
-        <SelectTrigger
-          className="h-7 w-[180px] text-xs"
-          data-testid="floating-chatbot-agent-picker"
-        >
-          <SelectValue placeholder="Choose agent..." />
-        </SelectTrigger>
-        <SelectContent align="end">
-          {agents.map((agent: AgentDescriptor) => (
-            <SelectItem key={agent.name} value={agent.name} className="text-xs">
-              <span className="font-medium">{agent.label}</span>
-              {agent.description ? (
-                <span className="block text-muted-foreground text-[10px] truncate max-w-[220px]">
-                  {agent.description}
-                </span>
-              ) : null}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    ) : null;
+        {agents.map((agent: AgentDescriptor) => (
+          <TabsTrigger
+            key={agent.name}
+            value={agent.name}
+            disabled={agentsLoading}
+            title={agent.description || undefined}
+            className="h-6 px-2.5 text-xs"
+          >
+            {localizeAgentLabel(isZh, agent.name, agent.label)}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
+  ) : (
+    <Select
+      value={activeAgent}
+      onValueChange={onAgentChange}
+      disabled={agentsLoading}
+    >
+      <SelectTrigger
+        className="h-7 w-[180px] text-xs"
+        data-testid="floating-chatbot-agent-picker"
+      >
+        <SelectValue placeholder="Choose agent..." />
+      </SelectTrigger>
+      <SelectContent align="end">
+        {agents.map((agent: AgentDescriptor) => (
+          <SelectItem key={agent.name} value={agent.name} className="text-xs">
+            <span className="font-medium">{agent.label}</span>
+            {agent.description ? (
+              <span className="block text-muted-foreground text-[10px] truncate max-w-[220px]">
+                {agent.description}
+              </span>
+            ) : null}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
 
   // Share-link control. Sits to the left of the panel's built-in
   // fullscreen / close buttons so users can mint a public link without
