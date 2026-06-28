@@ -3,12 +3,12 @@
 /**
  * StudioDesignSurface — the open-source WYSIWYG design surface (ADR-0080).
  *
- * Routed as /studio/:packageId/{data|automations|interfaces} — the three
- * pillars are real routes, scoped to the package being designed. Each pillar
- * is composed AROUND existing renderers (no new editor code):
- *   - Interfaces: the App nav + live canvas (getMetadataPreview) + inspector
- *     (getMetadataInspector), edits persisting through draft → publish.
- *   - Data / Automations: object + flow surfaces (in progress).
+ * Routed as /studio/:packageId/{data|automations|interfaces} — three pillars,
+ * each composed AROUND existing renderers (no new editor code):
+ *   - Interfaces: the real App navigation tree → live canvas (getMetadataPreview)
+ *     + inspector (getMetadataInspector), edits persisting via draft → publish.
+ *   - Data: the package's objects → fields + record grid.
+ *   - Automations: flows → FlowPreview (default OFF / review-then-enable).
  *
  * Open-core boundary: the left AI copilot is NOT part of the open-source
  * surface — it is an injected slot (`aiSlot`) the cloud edition fills.
@@ -20,13 +20,19 @@ import { SchemaRenderer } from '@object-ui/react';
 import {
   Boxes,
   FileText,
+  Database,
+  LayoutDashboard,
+  BarChart3,
+  Table2,
+  Folder,
+  Compass,
+  Workflow,
   SlidersHorizontal,
   MousePointer2,
   Eye,
   Loader2,
   Save,
-  Database,
-  Workflow,
+  type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
@@ -38,10 +44,64 @@ const PILLARS = [
   { key: 'interfaces', label: 'Interfaces' },
 ] as const;
 
-interface NavItem {
+interface Surface {
   type: string;
   name: string;
   label: string;
+}
+
+interface NavNode {
+  id?: string;
+  label?: string;
+  type?: string;
+  icon?: string;
+  children?: NavNode[];
+  pageName?: string;
+  page?: string;
+  objectName?: string;
+  object?: string;
+  dashboardName?: string;
+  dashboard?: string;
+  reportName?: string;
+  report?: string;
+  viewName?: string;
+  view?: string;
+  [k: string]: unknown;
+}
+
+const KIND_ICON: Record<string, LucideIcon> = {
+  group: Folder,
+  page: FileText,
+  object: Database,
+  dashboard: LayoutDashboard,
+  report: BarChart3,
+  view: Table2,
+};
+const navIcon = (type?: string): LucideIcon => KIND_ICON[type ?? ''] ?? Compass;
+
+/** Resolve a leaf nav node → the surface {type,name} it binds to. */
+function resolveSurface(node: NavNode): Surface | null {
+  const label = String(node.label ?? '');
+  switch (node.type) {
+    case 'page':
+      return node.pageName || node.page ? { type: 'page', name: String(node.pageName || node.page), label } : null;
+    case 'object':
+      return node.objectName || node.object
+        ? { type: 'object', name: String(node.objectName || node.object), label }
+        : null;
+    case 'dashboard':
+      return node.dashboardName || node.dashboard
+        ? { type: 'dashboard', name: String(node.dashboardName || node.dashboard), label }
+        : null;
+    case 'report':
+      return node.reportName || node.report
+        ? { type: 'report', name: String(node.reportName || node.report), label }
+        : null;
+    case 'view':
+      return node.viewName || node.view ? { type: 'view', name: String(node.viewName || node.view), label } : null;
+    default:
+      return null;
+  }
 }
 
 /** Normalize the framework draft envelope `{ type, name, item }` → body | null. */
@@ -66,13 +126,9 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* ── AI copilot — OPEN-CORE SLOT (cloud-injected; absent in OSS) ── */}
-      {aiSlot ? (
-        <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
-      ) : null}
+      {aiSlot ? <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside> : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* shell header: package + three pillar routes */}
         <header className="flex items-center gap-3 border-b px-3 py-2">
           <span className="flex items-center gap-1.5 whitespace-nowrap text-[13px] font-medium">
             <Boxes className="h-4 w-4" /> {packageId}
@@ -98,17 +154,9 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
         <div className="min-h-0 flex-1">
           {tab === 'data' ? (
-            <PillarPlaceholder
-              icon={<Database className="h-6 w-6" />}
-              title="Data — 对象 / 字段 / 记录"
-              detail="数据层:列出包内对象,查看字段与记录网格。建设中。"
-            />
+            <DataPillar />
           ) : tab === 'automations' ? (
-            <PillarPlaceholder
-              icon={<Workflow className="h-6 w-6" />}
-              title="Automations — flow / 触发器 / 审批"
-              detail="自动化:列出 flow,默认 OFF / 审阅再启用(ADR-0080)。建设中。"
-            />
+            <AutomationsPillar />
           ) : (
             <InterfacesPillar packageId={packageId} />
           )}
@@ -118,36 +166,67 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   );
 }
 
-function PillarPlaceholder({
-  icon,
-  title,
-  detail,
+/** Recursive App-navigation tree (groups + typed leaves). */
+function NavTree({
+  nodes,
+  active,
+  onPick,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  detail: string;
+  nodes: NavNode[];
+  active: Surface | null;
+  onPick: (s: Surface) => void;
 }): React.ReactElement {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-      <div className="opacity-60">{icon}</div>
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="max-w-sm text-xs">{detail}</p>
-    </div>
+    <>
+      {nodes.map((node, i) => {
+        if (node.type === 'group' || (Array.isArray(node.children) && node.children.length)) {
+          return (
+            <div key={node.id ?? i} className="mb-1">
+              <p className="flex items-center gap-1 px-2 pb-1 pt-3 text-[11px] text-muted-foreground">
+                <Folder className="h-3 w-3" /> {node.label}
+              </p>
+              <div className="pl-1.5">
+                <NavTree nodes={node.children ?? []} active={active} onPick={onPick} />
+              </div>
+            </div>
+          );
+        }
+        const surface = resolveSurface(node);
+        const Icon = navIcon(node.type);
+        const isActive = !!surface && active?.type === surface.type && active?.name === surface.name;
+        return (
+          <button
+            key={node.id ?? i}
+            onClick={() => surface && onPick(surface)}
+            disabled={!surface}
+            title={surface ? `${surface.type} · ${surface.name}` : node.label}
+            className={
+              'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs disabled:opacity-40 ' +
+              (isActive ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+            }
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 truncate">{node.label}</span>
+            {surface && surface.type !== 'page' && (
+              <span className="rounded bg-muted px-1 py-px text-[9px] uppercase text-muted-foreground">
+                {surface.type}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </>
   );
 }
 
-/**
- * The Interfaces pillar — single-App nav · live canvas · inspector. Drives the
- * real MetadataClient: pages become menu items, clicking loads that surface,
- * the toolbar saves drafts / publishes. (A later slice swaps the page list for
- * the real App.navigation tree with view/dashboard/object items.)
- */
-function InterfacesPillar({ packageId: _packageId }: { packageId: string }): React.ReactElement {
+/** Interfaces pillar — real App nav · live canvas · inspector. */
+function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
   const locale = 'zh-CN';
 
-  const [nav, setNav] = React.useState<NavItem[]>([]);
-  const [current, setCurrent] = React.useState<NavItem | null>(null);
+  const [appLabel, setAppLabel] = React.useState<string>(packageId);
+  const [navTree, setNavTree] = React.useState<NavNode[]>([]);
+  const [current, setCurrent] = React.useState<Surface | null>(null);
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
   const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -155,17 +234,41 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
   const [hasDraft, setHasDraft] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Resolve the App by package id → load its navigation tree.
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const list = (await client.list('page')) as Array<Record<string, unknown>>;
+        const apps = (await client.list('app')) as Array<Record<string, unknown>>;
         if (cancelled) return;
-        const items: NavItem[] = (list || [])
-          .map((p) => ({ type: 'page', name: String(p.name ?? ''), label: String(p.label ?? p.name ?? '') }))
-          .filter((p) => !!p.name);
-        setNav(items);
-        setCurrent((cur) => cur ?? items[0] ?? null);
+        const app =
+          (apps || []).find(
+            (a) => a._packageId === packageId || a.packageId === packageId || a.name === packageId,
+          ) ?? (apps || [])[0];
+        if (!app) return;
+        setAppLabel(String(app.label ?? app.name ?? packageId));
+        const lay = (await client.layered<Record<string, unknown>>('app', String(app.name))) as {
+          effective?: Record<string, unknown>;
+          code?: Record<string, unknown>;
+        };
+        if (cancelled) return;
+        const eff = lay.effective ?? lay.code ?? {};
+        const tree = Array.isArray(eff.navigation) ? (eff.navigation as NavNode[]) : [];
+        setNavTree(tree);
+        // auto-open the first resolvable leaf
+        const firstLeaf = (function find(nodes: NavNode[]): Surface | null {
+          for (const n of nodes) {
+            if (n.type === 'group' || n.children?.length) {
+              const r = find(n.children ?? []);
+              if (r) return r;
+            } else {
+              const s = resolveSurface(n);
+              if (s) return s;
+            }
+          }
+          return null;
+        })(tree);
+        setCurrent((cur) => cur ?? firstLeaf);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
@@ -173,10 +276,19 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, packageId]);
 
+  const Preview = getMetadataPreview(current?.type ?? '');
+  const Inspector = getMetadataInspector(current?.type ?? '');
+  const isEditable = !!Preview; // page / dashboard have a design preview + draft
+
+  // Load the selected surface's draft (only for editable preview types).
   React.useEffect(() => {
-    if (!current) return;
+    if (!current || !isEditable) {
+      setDraft({});
+      setHasDraft(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -191,9 +303,9 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
         const baseline = ((lay as { effective?: unknown; code?: unknown }).effective ??
           (lay as { code?: unknown }).code ??
           {}) as Record<string, unknown>;
-        const draftBody = extractDraftBody(draftResp);
-        setDraft(draftBody ? { ...baseline, ...draftBody } : baseline);
-        setHasDraft(!!draftBody);
+        const body = extractDraftBody(draftResp);
+        setDraft(body ? { ...baseline, ...body } : baseline);
+        setHasDraft(!!body);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -203,17 +315,15 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
     return () => {
       cancelled = true;
     };
-  }, [client, current]);
+  }, [client, current, isEditable]);
 
   const onPatch = React.useCallback(
     (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
     [],
   );
-
   const doSave = React.useCallback(async () => {
     if (!current) return;
     setSaving('draft');
-    setError(null);
     try {
       await client.save(current.type, current.name, draft, { mode: 'draft' });
       setHasDraft(true);
@@ -223,11 +333,9 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
       setSaving(false);
     }
   }, [client, current, draft]);
-
   const doPublish = React.useCallback(async () => {
     if (!current) return;
     setSaving('publish');
-    setError(null);
     try {
       await client.publish(current.type, current.name);
       setHasDraft(false);
@@ -238,12 +346,8 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
     }
   }, [client, current]);
 
-  const Preview = getMetadataPreview(current?.type ?? 'page');
-  const Inspector = getMetadataInspector(current?.type ?? 'page');
-
   return (
     <div className="flex h-full flex-col">
-      {/* pillar toolbar: draft / publish */}
       <div className="flex items-center justify-end gap-2 border-b px-3 py-1.5">
         {hasDraft && (
           <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
@@ -252,7 +356,7 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
         )}
         <button
           onClick={doSave}
-          disabled={!current || !!saving}
+          disabled={!current || !isEditable || !!saving}
           className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -260,7 +364,7 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
         </button>
         <button
           onClick={doPublish}
-          disabled={!current || !hasDraft || !!saving}
+          disabled={!current || !isEditable || !hasDraft || !!saving}
           className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
         >
           {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
@@ -269,28 +373,17 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {/* nav (real pages; click switches the canvas) */}
-        <nav className="w-48 shrink-0 overflow-auto border-r p-2">
-          <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">单一 App · 页面</p>
-          {nav.length === 0 && (
+        {/* real App navigation tree */}
+        <nav className="w-52 shrink-0 overflow-auto border-r p-2">
+          <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">{appLabel} · 导航</p>
+          {navTree.length === 0 ? (
             <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+          ) : (
+            <NavTree nodes={navTree} active={current} onPick={setCurrent} />
           )}
-          {nav.map((it) => (
-            <button
-              key={it.name}
-              onClick={() => setCurrent(it)}
-              className={
-                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
-                (current?.name === it.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
-              }
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1 truncate">{it.label}</span>
-            </button>
-          ))}
         </nav>
 
-        {/* canvas (live render = runtime) */}
+        {/* canvas */}
         <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
           <div className="mb-3 flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
@@ -308,7 +401,9 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
             </div>
           )}
           <div className="rounded-lg border bg-background p-4">
-            {loading || !current ? (
+            {!current ? (
+              <div className="py-16 text-center text-sm text-muted-foreground">从左侧选择一个菜单项</div>
+            ) : loading ? (
               <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
               </div>
@@ -323,16 +418,22 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
                 onPatch={onPatch}
                 locale={locale}
               />
+            ) : current.type === 'object' ? (
+              <SchemaRenderer schema={{ type: 'object-grid', objectName: current.name } as never} />
             ) : (
-              <SchemaRenderer schema={{ ...draft, type: current.type } as never} />
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                {current.type} 暂用只读预览,设计能力建设中。
+              </div>
             )}
           </div>
-          <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-            <MousePointer2 className="h-3 w-3" /> 点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」
-          </p>
+          {isEditable && (
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <MousePointer2 className="h-3 w-3" /> 点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」
+            </p>
+          )}
         </main>
 
-        {/* inspector (selected block's property schema) */}
+        {/* inspector */}
         <aside className="w-72 shrink-0 overflow-auto border-l">
           <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
             <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -367,6 +468,252 @@ function InterfacesPillar({ packageId: _packageId }: { packageId: string }): Rea
           </div>
         </aside>
       </div>
+    </div>
+  );
+}
+
+/** Data pillar — the package's objects: list → fields + record grid. */
+function DataPillar(): React.ReactElement {
+  const client = useMetadataClient();
+  const [objects, setObjects] = React.useState<Surface[]>([]);
+  const [current, setCurrent] = React.useState<Surface | null>(null);
+  const [obj, setObj] = React.useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = (await client.list('object')) as Array<Record<string, unknown>>;
+        if (cancelled) return;
+        const items = (list || [])
+          .map((o) => ({ type: 'object', name: String(o.name ?? ''), label: String(o.label ?? o.name ?? '') }))
+          .filter((o) => o.name);
+        setObjects(items);
+        setCurrent((c) => c ?? items[0] ?? null);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  React.useEffect(() => {
+    if (!current) return;
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const lay = (await client.layered<Record<string, unknown>>('object', current.name)) as {
+          effective?: Record<string, unknown>;
+          code?: Record<string, unknown>;
+        };
+        if (!cancelled) setObj(lay.effective ?? lay.code ?? null);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, current]);
+
+  const fields: Array<{ name: string; label?: string; type?: string }> = React.useMemo(() => {
+    const raw = obj?.fields;
+    if (Array.isArray(raw)) return raw as never;
+    if (raw && typeof raw === 'object')
+      return Object.entries(raw).map(([name, f]) => ({ name, ...(f as object) })) as never;
+    return [];
+  }, [obj]);
+
+  return (
+    <div className="flex h-full">
+      <nav className="w-52 shrink-0 overflow-auto border-r p-2">
+        <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">对象</p>
+        {objects.length === 0 && (
+          <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+        )}
+        {objects.map((o) => (
+          <button
+            key={o.name}
+            onClick={() => setCurrent(o)}
+            className={
+              'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+              (current?.name === o.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+            }
+          >
+            <Database className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 truncate">{o.label}</span>
+          </button>
+        ))}
+      </nav>
+      <main className="min-w-0 flex-1 overflow-auto p-4">
+        {!current ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">选择一个对象</div>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-[13px] font-medium">{current.label}</span>
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                object · {current.name}
+              </span>
+              <span className="text-[11px] text-muted-foreground">{fields.length} 字段</span>
+            </div>
+            <div className="mb-4 rounded-lg border bg-background p-2">
+              <SchemaRenderer schema={{ type: 'object-grid', objectName: current.name } as never} />
+            </div>
+            <div className="rounded-lg border bg-background">
+              <table className="w-full text-xs">
+                <thead className="border-b text-left text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">字段</th>
+                    <th className="px-3 py-2 font-medium">类型</th>
+                    <th className="px-3 py-2 font-medium">名称</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-6 text-center text-muted-foreground">
+                        加载中…
+                      </td>
+                    </tr>
+                  ) : (
+                    fields.map((f) => (
+                      <tr key={f.name} className="border-b last:border-0">
+                        <td className="px-3 py-1.5">{f.label ?? f.name}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{f.type ?? '—'}</td>
+                        <td className="px-3 py-1.5 font-mono text-[11px] text-muted-foreground">{f.name}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+/** Automations pillar — flows: list → FlowPreview (default OFF / review-then-enable). */
+function AutomationsPillar(): React.ReactElement {
+  const client = useMetadataClient();
+  const locale = 'zh-CN';
+  const [flows, setFlows] = React.useState<Surface[]>([]);
+  const [current, setCurrent] = React.useState<Surface | null>(null);
+  const [draft, setDraft] = React.useState<Record<string, unknown>>({});
+  const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const Preview = getMetadataPreview('flow');
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = (await client.list('flow')) as Array<Record<string, unknown>>;
+        if (cancelled) return;
+        const items = (list || [])
+          .map((f) => ({ type: 'flow', name: String(f.name ?? ''), label: String(f.label ?? f.name ?? '') }))
+          .filter((f) => f.name);
+        setFlows(items);
+        setCurrent((c) => c ?? items[0] ?? null);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  React.useEffect(() => {
+    if (!current) return;
+    let cancelled = false;
+    setLoading(true);
+    setSelection(null);
+    (async () => {
+      try {
+        const lay = (await client.layered<Record<string, unknown>>('flow', current.name)) as {
+          effective?: Record<string, unknown>;
+          code?: Record<string, unknown>;
+        };
+        if (!cancelled) setDraft(lay.effective ?? lay.code ?? {});
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, current]);
+
+  return (
+    <div className="flex h-full">
+      <nav className="w-52 shrink-0 overflow-auto border-r p-2">
+        <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">自动化 · flow</p>
+        <p className="px-2 pb-2 text-[10px] text-muted-foreground">默认 OFF · 审阅后再启用</p>
+        {flows.length === 0 && (
+          <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+        )}
+        {flows.map((f) => (
+          <button
+            key={f.name}
+            onClick={() => setCurrent(f)}
+            className={
+              'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+              (current?.name === f.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+            }
+          >
+            <Workflow className="h-3.5 w-3.5 shrink-0" />
+            <span className="flex-1 truncate">{f.label}</span>
+          </button>
+        ))}
+      </nav>
+      <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
+        {!current ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">选择一个自动化</div>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-[13px] font-medium">{current.label}</span>
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                flow · {current.name}
+              </span>
+            </div>
+            <div className="rounded-lg border bg-background p-4">
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
+                </div>
+              ) : Preview ? (
+                <Preview
+                  type="flow"
+                  name={current.name}
+                  draft={draft}
+                  editing={false}
+                  selection={selection}
+                  onSelectionChange={setSelection}
+                  locale={locale}
+                />
+              ) : (
+                <pre className="overflow-auto text-[11px] text-muted-foreground">
+                  {JSON.stringify(draft, null, 2)}
+                </pre>
+              )}
+            </div>
+          </>
+        )}
+      </main>
     </div>
   );
 }
