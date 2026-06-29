@@ -45,11 +45,11 @@ import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import { readFields, writeFields, newField } from '../metadata-admin/previews/object-fields-io';
 
-const PILLARS = [
-  { key: 'data', label: 'Data' },
-  { key: 'automations', label: 'Automations' },
-  { key: 'interfaces', label: 'Interfaces' },
-] as const;
+const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
+  { key: 'data', label: 'Data', Icon: Database },
+  { key: 'automations', label: 'Automations', Icon: Workflow },
+  { key: 'interfaces', label: 'Interfaces', Icon: LayoutDashboard },
+];
 
 interface Surface {
   type: string;
@@ -147,12 +147,13 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                 key={p.key}
                 to={`/studio/${packageId}/${p.key}`}
                 className={
-                  'rounded-md px-2.5 py-1 text-xs ' +
+                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
                   (tab === p.key
                     ? 'bg-primary/10 font-medium text-primary'
-                    : 'text-muted-foreground hover:bg-muted')
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground')
                 }
               >
+                <p.Icon className="h-3.5 w-3.5" />
                 {p.label}
               </Link>
             ))}
@@ -404,7 +405,17 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-end gap-2 border-b px-3 py-1.5">
+      <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        {current ? (
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="text-[13px] font-medium text-foreground">{current.label}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5">
+              {current.type} · {current.name}
+            </span>
+          </span>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">从左侧选择一个菜单项</span>
+        )}
         {hasDraft && (
           <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
             未发布草稿
@@ -413,7 +424,7 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
         <button
           onClick={doSave}
           disabled={!current || !isEditable || !!saving}
-          className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+          className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           保存草稿
@@ -566,10 +577,15 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
           <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span className="text-[13px] font-medium">属性</span>
-            {selection?.label && (
-              <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                {selection.label}
-              </span>
+            {selection && (
+              <button
+                type="button"
+                onClick={() => setSelection(null)}
+                className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="取消选择"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             )}
           </header>
           <div className="p-3">
@@ -880,12 +896,9 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
         {/* field inspector — full type list + per-type config (reuses ObjectFieldInspector) */}
         {current && fieldSel && inspector && (
           <aside className="flex w-80 shrink-0 flex-col border-l">
-            <header className="flex items-center gap-2 border-b px-3 py-2">
+            <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
               <SlidersHorizontal className="h-3.5 w-3.5" />
               <span className="text-[13px] font-medium">字段属性</span>
-              <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                {fieldSel.id}
-              </span>
               <button
                 type="button"
                 onClick={() => setFieldSel(null)}
@@ -1107,10 +1120,15 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
           <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span className="text-[13px] font-medium">配置</span>
-            {selection?.label && (
-              <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                {selection.label}
-              </span>
+            {selection && (
+              <button
+                type="button"
+                onClick={() => setSelection(null)}
+                className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="取消选择"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
             )}
           </header>
           <div className="p-3">
