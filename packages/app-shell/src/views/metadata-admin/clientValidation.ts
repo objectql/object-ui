@@ -38,7 +38,12 @@ type SchemaLoader = () => Promise<ZodLikeSchema | undefined>;
 // Types still falling through to server-only validation:
 //   - `validation`: not a top-level metadata file; lives inside object. (DataValidationRuleSchema
 //     exists but has empty shape, so it's not useful for client validation.)
-//   - `profile`: spec ships no top-level ProfileSchema (7.1 confirmed).
+//   - `policy`: spec 11.2.0 (PR #2078) removed the generic `PolicySchema` (the org-wide
+//     password/network/session/audit policy) from `@objectstack/spec/security`, and the
+//     canonical metadata-type→schema registry (spec kernel/metadata-type-schemas.ts) has
+//     no `policy` entry — so there is no client schema. `RowLevelSecurityPolicySchema`
+//     remains on /security but is a different shape (a per-object RLS rule), NOT the
+//     `policy` metadata file, so it must not be substituted.
 //   - `trigger`: no standalone TriggerSchema export at runtime (only
 //     ConnectorTriggerSchema / WebhookEventSchema variants).
 //   - `sharing_rule`: SharingRuleSchema is declared but has empty shape — server-only.
@@ -89,7 +94,8 @@ const LOADERS: Record<string, SchemaLoader> = {
   // packages/spec/src/kernel/metadata-type-schemas.ts for the canonical mapping.
   permission: async () => (await import('@objectstack/spec/security')).PermissionSetSchema as unknown as ZodLikeSchema,
   profile: async () => (await import('@objectstack/spec/security')).PermissionSetSchema as unknown as ZodLikeSchema,
-  policy: async () => (await import('@objectstack/spec/security')).PolicySchema as unknown as ZodLikeSchema,
+  // `policy` intentionally omitted — spec 11.2.0 dropped `PolicySchema` and the metadata-type
+  // registry has no `policy` schema; drafts fall through to server-side validation (see top).
 
   // identity
   role: async () => (await import('@objectstack/spec/identity')).RoleSchema as unknown as ZodLikeSchema,
