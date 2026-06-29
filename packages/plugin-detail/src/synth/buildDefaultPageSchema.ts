@@ -30,8 +30,9 @@ export interface ObjectDefLike {
   name?: string;
   label?: string;
   fields?: Record<string, ObjectFieldLike>;
-  /** Optional stage hints — when present we emit a `record:path`. */
-  stageField?: string;
+  /** Optional stage hints — a field name emits a `record:path`; an explicit
+   *  `false` / `null` opts out of the auto status stepper entirely. */
+  stageField?: string | false | null;
   stages?: Array<{ value: any; label: string }>;
   /** Optional list of fields to surface in the highlight strip. */
   highlightFields?: string[];
@@ -189,12 +190,18 @@ function toNodeArray(slot: any | any[] | undefined): any[] {
  * Detect the canonical "status" / "stage" field on an object definition.
  *
  * Heuristic — same as DetailView's `autoSummaryFields`:
- *   1) prefer an explicit `objectDef.stageField`
+ *   0) `stageField === false | null` → explicit opt-out, never render a path
+ *   1) prefer an explicit `objectDef.stageField` (field name)
  *   2) else first field named status / stage / state / phase
- *   3) else null
+ *   3) else first field whose type is status / stage
+ *   4) else null
  */
 export function detectStatusField(def?: ObjectDefLike): string | null {
   if (!def) return null;
+  // Explicit opt-out: `stageField: false` (or null) declares "this object has
+  // no ordered status pipeline" — suppress the auto `record:path` stepper and
+  // skip name/type-based detection. Lets non-linear `status` picklists hide it.
+  if (def.stageField === false || def.stageField === null) return null;
   if (def.stageField) return def.stageField;
   const fields = def.fields || {};
   const candidates = ['status', 'stage', 'state', 'phase'];

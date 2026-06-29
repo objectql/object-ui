@@ -55,6 +55,20 @@ describe('detectStatusField', () => {
       .toBe('pipeline');
   });
 
+  it('opts out when stageField is false', () => {
+    // A `status` picklist would normally be auto-detected by name; `false`
+    // explicitly suppresses the path stepper and skips detection.
+    expect(
+      detectStatusField({ stageField: false, fields: { status: {} } }),
+    ).toBeNull();
+  });
+
+  it('opts out when stageField is null', () => {
+    expect(
+      detectStatusField({ stageField: null, fields: { status: {} } }),
+    ).toBeNull();
+  });
+
   it('picks status by name', () => {
     expect(detectStatusField(leadDef)).toBe('status');
   });
