@@ -23,14 +23,48 @@ import { X } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { DialogOverlay, DialogPortal } from '../ui/dialog';
 
+/**
+ * Radix Select / Popover / DropdownMenu render their flyout into a portal at
+ * `document.body` — physically OUTSIDE this DialogContent's DOM. So clicking an
+ * empty part of an open dropdown reads as an "interact outside" and would close
+ * the whole dialog. Suppress that: if the interaction's real target sits inside
+ * a Radix popper layer, keep the dialog open (the popper closes itself). A real
+ * backdrop click (target = overlay) is untouched and still closes the dialog.
+ */
+const POPPER_LAYER_SELECTOR =
+  '[data-radix-popper-content-wrapper],[data-radix-select-content],[data-radix-select-viewport]';
+
+/**
+ * True when `target` sits inside a Radix popper flyout (Select / Popover /
+ * DropdownMenu). Such elements are portalled to `document.body`, so an
+ * "interact outside" the dialog whose target is one of them is really an
+ * interaction with the dialog's own dropdown — it must not close the dialog.
+ */
+export function isInsidePopperLayer(target: Element | null | undefined): boolean {
+  return !!target?.closest?.(POPPER_LAYER_SELECTOR);
+}
+
 export const MobileDialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onInteractOutside, ...props }, ref) => {
+  const handleInteractOutside = React.useCallback(
+    (event: Parameters<NonNullable<typeof onInteractOutside>>[0]) => {
+      const target = (event.detail?.originalEvent?.target ?? null) as Element | null;
+      if (isInsidePopperLayer(target)) {
+        event.preventDefault();
+        return;
+      }
+      onInteractOutside?.(event);
+    },
+    [onInteractOutside],
+  );
+  return (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      onInteractOutside={handleInteractOutside}
       className={cn(
         // Mobile-first: full-screen
         'fixed inset-0 z-50 w-full bg-background p-4 shadow-lg duration-200',
@@ -63,5 +97,6 @@ export const MobileDialogContent = React.forwardRef<
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>
-));
+  );
+});
 MobileDialogContent.displayName = 'MobileDialogContent';
