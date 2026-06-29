@@ -586,7 +586,7 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
   const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const Preview = getMetadataPreview('flow');
+  const Preview = getMetadataPreview(current?.type ?? '');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -670,15 +670,15 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
                   <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
                 </div>
               ) : Preview ? (
-                <Preview
-                  type="flow"
-                  name={current.name}
-                  draft={draft}
-                  editing={false}
-                  selection={selection}
-                  onSelectionChange={setSelection}
-                  locale={locale}
-                />
+                React.createElement(Preview, {
+                  type: current.type,
+                  name: current.name,
+                  draft,
+                  editing: false,
+                  selection,
+                  onSelectionChange: setSelection,
+                  locale,
+                })
               ) : (
                 <pre className="overflow-auto text-[11px] text-muted-foreground">
                   {JSON.stringify(draft, null, 2)}
