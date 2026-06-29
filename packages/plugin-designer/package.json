@@ -45,7 +45,7 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.21.0",
+    "lucide-react": "^1.22.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0"
   },
