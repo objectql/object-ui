@@ -909,8 +909,12 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
   const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
   const [loading, setLoading] = React.useState(false);
+  const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
+  const [hasDraft, setHasDraft] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const Preview = getMetadataPreview(current?.type ?? '');
+  const inspector = getMetadataInspector('flow');
+  const isEditable = !!Preview;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -930,20 +934,26 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, packageId]);
 
   React.useEffect(() => {
     if (!current) return;
     let cancelled = false;
     setLoading(true);
+    setError(null);
     setSelection(null);
     (async () => {
       try {
-        const lay = (await client.layered<Record<string, unknown>>('flow', current.name)) as {
-          effective?: Record<string, unknown>;
-          code?: Record<string, unknown>;
-        };
-        if (!cancelled) setDraft(lay.effective ?? lay.code ?? {});
+        const [layRaw, draftResp] = await Promise.all([
+          client.layered<Record<string, unknown>>('flow', current.name),
+          client.getDraft<Record<string, unknown>>('flow', current.name).catch(() => null),
+        ]);
+        if (cancelled) return;
+        const lay = layRaw as { effective?: Record<string, unknown>; code?: Record<string, unknown> };
+        const baseline = (lay.effective ?? lay.code ?? {}) as Record<string, unknown>;
+        const draftBody = extractDraftBody(draftResp);
+        setDraft(draftBody ? { ...baseline, ...draftBody } : baseline);
+        setHasDraft(!!draftBody);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -955,63 +965,163 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
     };
   }, [client, current]);
 
+  const onPatch = React.useCallback(
+    (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
+    [],
+  );
+  const doSave = React.useCallback(async () => {
+    if (!current) return;
+    setSaving('draft');
+    setError(null);
+    try {
+      await client.save('flow', current.name, draft, { mode: 'draft' });
+      setHasDraft(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [client, current, draft]);
+  const doPublish = React.useCallback(async () => {
+    if (!current) return;
+    setSaving('publish');
+    setError(null);
+    try {
+      await client.publish('flow', current.name);
+      setHasDraft(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [client, current]);
+
   return (
-    <div className="flex h-full">
-      <nav className="w-52 shrink-0 overflow-auto border-r p-2">
-        <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">自动化 · flow</p>
-        <p className="px-2 pb-2 text-[10px] text-muted-foreground">默认 OFF · 审阅后再启用</p>
-        {flows.length === 0 && (
-          <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        <span className="text-[11px] text-muted-foreground">默认 OFF · 审阅后再启用</span>
+        {hasDraft && (
+          <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+            未发布草稿
+          </span>
         )}
-        {flows.map((f) => (
-          <button
-            key={f.name}
-            onClick={() => setCurrent(f)}
-            className={
-              'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
-              (current?.name === f.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
-            }
-          >
-            <Workflow className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 truncate">{f.label}</span>
-          </button>
-        ))}
-      </nav>
-      <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
-        {!current ? (
-          <div className="py-16 text-center text-sm text-muted-foreground">选择一个自动化</div>
-        ) : (
-          <>
-            <div className="mb-3 flex items-center gap-2">
-              <span className="text-[13px] font-medium">{current.label}</span>
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                flow · {current.name}
+        <button
+          onClick={doSave}
+          disabled={!current || !isEditable || !!saving}
+          className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+        >
+          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          保存草稿
+        </button>
+        <button
+          onClick={doPublish}
+          disabled={!current || !isEditable || !hasDraft || !!saving}
+          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          发布
+        </button>
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        <nav className="w-52 shrink-0 overflow-auto border-r p-2">
+          <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">自动化 · flow</p>
+          {flows.length === 0 ? (
+            <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+          ) : (
+            flows.map((f) => (
+              <button
+                key={f.name}
+                onClick={() => setCurrent(f)}
+                className={
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                  (current?.name === f.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+                }
+              >
+                <Workflow className="h-3.5 w-3.5 shrink-0" />
+                <span className="flex-1 truncate">{f.label}</span>
+              </button>
+            ))
+          )}
+        </nav>
+
+        <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+              <Workflow className="h-3 w-3" /> 可视化编排 · 点选节点配置
+            </span>
+            {current && <span className="text-[11px] text-muted-foreground">flow · {current.name}</span>}
+          </div>
+          {error && (
+            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+          <div className="rounded-lg border bg-background p-4">
+            {!current ? (
+              <div className="py-16 text-center text-sm text-muted-foreground">选择一个自动化</div>
+            ) : loading ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
+              </div>
+            ) : Preview ? (
+              React.createElement(Preview, {
+                type: current.type,
+                name: current.name,
+                draft,
+                editing: true,
+                selection,
+                onSelectionChange: setSelection,
+                onPatch,
+                locale,
+              })
+            ) : (
+              <pre className="overflow-auto text-[11px] text-muted-foreground">
+                {JSON.stringify(draft, null, 2)}
+              </pre>
+            )}
+          </div>
+          {isEditable && (
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <MousePointer2 className="h-3 w-3" /> 点选节点 → 右侧配置 · 改完「保存草稿」→「发布」
+            </p>
+          )}
+        </main>
+
+        <aside className="w-72 shrink-0 overflow-auto border-l">
+          <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span className="text-[13px] font-medium">配置</span>
+            {selection?.label && (
+              <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                {selection.label}
               </span>
-            </div>
-            <div className="rounded-lg border bg-background p-4">
-              {loading ? (
-                <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
-                </div>
-              ) : Preview ? (
-                React.createElement(Preview, {
-                  type: current.type,
-                  name: current.name,
-                  draft,
-                  editing: false,
-                  selection,
-                  onSelectionChange: setSelection,
-                  locale,
-                })
-              ) : (
-                <pre className="overflow-auto text-[11px] text-muted-foreground">
-                  {JSON.stringify(draft, null, 2)}
-                </pre>
-              )}
-            </div>
-          </>
-        )}
-      </main>
+            )}
+          </header>
+          <div className="p-3">
+            {selection && inspector && current ? (
+              React.createElement(inspector, {
+                type: 'flow',
+                name: current.name,
+                draft,
+                selection,
+                onPatch,
+                onClearSelection: () => setSelection(null),
+                onSelectionChange: setSelection,
+                readOnly: false,
+                locale,
+              })
+            ) : (
+              <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+                <MousePointer2 className="h-5 w-5" />
+                在画布里点选一个节点,
+                <br />
+                它的配置会在这里显示。
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }
