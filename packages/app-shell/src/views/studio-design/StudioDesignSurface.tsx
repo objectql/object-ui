@@ -32,11 +32,14 @@ import {
   Eye,
   Loader2,
   Save,
+  Pencil,
+  Check,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
+import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 
 const PILLARS = [
   { key: 'data', label: 'Data' },
@@ -225,7 +228,18 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
   const locale = 'zh-CN';
 
   const [appLabel, setAppLabel] = React.useState<string>(packageId);
-  const [navTree, setNavTree] = React.useState<NavNode[]>([]);
+  const [appName, setAppName] = React.useState<string | null>(null);
+  const [appDraft, setAppDraft] = React.useState<Record<string, unknown>>({});
+  const navTree = React.useMemo<NavNode[]>(
+    () => (Array.isArray(appDraft.navigation) ? (appDraft.navigation as NavNode[]) : []),
+    [appDraft],
+  );
+  // nav editing — drag-drop reorder / rename / add / remove via AppNavCanvas
+  const [editNav, setEditNav] = React.useState(false);
+  const [navSel, setNavSel] = React.useState<{ kind: string; id: string } | null>(null);
+  const [navDirty, setNavDirty] = React.useState(false);
+  const [navHasDraft, setNavHasDraft] = React.useState(false);
+  const [navSaving, setNavSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
   const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
@@ -247,14 +261,19 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
           ) ?? (apps || [])[0];
         if (!app) return;
         setAppLabel(String(app.label ?? app.name ?? packageId));
-        const lay = (await client.layered<Record<string, unknown>>('app', String(app.name))) as {
-          effective?: Record<string, unknown>;
-          code?: Record<string, unknown>;
-        };
+        setAppName(String(app.name));
+        const [layRaw, appDraftResp] = await Promise.all([
+          client.layered<Record<string, unknown>>('app', String(app.name)),
+          client.getDraft<Record<string, unknown>>('app', String(app.name)).catch(() => null),
+        ]);
         if (cancelled) return;
-        const eff = lay.effective ?? lay.code ?? {};
-        const tree = Array.isArray(eff.navigation) ? (eff.navigation as NavNode[]) : [];
-        setNavTree(tree);
+        const lay = layRaw as { effective?: Record<string, unknown>; code?: Record<string, unknown> };
+        const eff = (lay.effective ?? lay.code ?? {}) as Record<string, unknown>;
+        const appDraftBody = extractDraftBody(appDraftResp);
+        const body = appDraftBody ? { ...eff, ...appDraftBody } : eff;
+        setAppDraft(body);
+        setNavHasDraft(!!appDraftBody);
+        const tree = Array.isArray(body.navigation) ? (body.navigation as NavNode[]) : [];
         // auto-open the first resolvable leaf
         const firstLeaf = (function find(nodes: NavNode[]): Surface | null {
           for (const n of nodes) {
@@ -346,6 +365,37 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
     }
   }, [client, current]);
 
+  // nav editing — patch appDraft.navigation, then save/publish the App overlay
+  const onNavPatch = React.useCallback((patch: Record<string, unknown>) => {
+    setAppDraft((d) => ({ ...d, ...patch }));
+    setNavDirty(true);
+  }, []);
+  const doNavSave = React.useCallback(async () => {
+    if (!appName) return;
+    setNavSaving('draft');
+    try {
+      await client.save('app', appName, appDraft, { mode: 'draft' });
+      setNavHasDraft(true);
+      setNavDirty(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setNavSaving(false);
+    }
+  }, [client, appName, appDraft]);
+  const doNavPublish = React.useCallback(async () => {
+    if (!appName) return;
+    setNavSaving('publish');
+    try {
+      await client.publish('app', appName);
+      setNavHasDraft(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setNavSaving(false);
+    }
+  }, [client, appName]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-end gap-2 border-b px-3 py-1.5">
@@ -374,13 +424,78 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
 
       <div className="flex min-h-0 flex-1">
         {/* real App navigation tree */}
-        <nav className="w-52 shrink-0 overflow-auto border-r p-2">
-          <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">{appLabel} · 导航</p>
-          {navTree.length === 0 ? (
-            <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
-          ) : (
-            <NavTree nodes={navTree} active={current} onPick={setCurrent} />
-          )}
+        <nav className={(editNav ? 'w-72' : 'w-52') + ' flex shrink-0 flex-col border-r'}>
+          <div className="shrink-0 border-b px-2 py-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <p className="truncate text-[11px] font-medium text-muted-foreground">{appLabel} · 导航</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditNav((v) => !v);
+                  setNavSel(null);
+                }}
+                title={editNav ? '完成编辑' : '编辑导航(拖拽排序 / 重命名 / 增删)'}
+                className={
+                  'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ' +
+                  (editNav ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted')
+                }
+              >
+                {editNav ? (
+                  <>
+                    <Check className="h-3 w-3" /> 完成
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="h-3 w-3" /> 编辑
+                  </>
+                )}
+              </button>
+            </div>
+            {editNav && (
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {navHasDraft && (
+                  <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-300">
+                    未发布
+                  </span>
+                )}
+                <button
+                  onClick={doNavSave}
+                  disabled={!navDirty || !!navSaving}
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
+                >
+                  {navSaving === 'draft' ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Save className="h-3 w-3" />
+                  )}
+                  保存草稿
+                </button>
+                <button
+                  onClick={doNavPublish}
+                  disabled={!navHasDraft || !!navSaving}
+                  className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  {navSaving === 'publish' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  发布
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-2">
+            {navTree.length === 0 ? (
+              <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+            ) : editNav ? (
+              <AppNavCanvas
+                draft={appDraft}
+                rootKey="navigation"
+                onPatch={onNavPatch}
+                selection={navSel}
+                onSelectionChange={(s) => setNavSel(s ? { kind: s.kind, id: s.id } : null)}
+              />
+            ) : (
+              <NavTree nodes={navTree} active={current} onPick={setCurrent} />
+            )}
+          </div>
         </nav>
 
         {/* canvas */}
