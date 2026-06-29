@@ -1936,6 +1936,12 @@ export interface ListViewSchema extends BaseSchema {
     filter?: boolean;
     rowHeight?: boolean;
     addRecordForm?: boolean;
+    /**
+     * Allow end users to edit records inline (click a cell → type-aware editor,
+     * the same widgets the form uses). Default off: a list is read-only unless
+     * the author opts in. Read by InterfaceListPage → `inlineEdit`.
+     */
+    editInline?: boolean;
     buttons?: string[];
   };
 
