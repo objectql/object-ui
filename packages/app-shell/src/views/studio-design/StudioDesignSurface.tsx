@@ -768,134 +768,149 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
   const inspector = getMetadataInspector('object');
 
   return (
-    <div className="flex h-full">
-      <nav className="w-52 shrink-0 overflow-auto border-r p-2">
-        <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">对象</p>
-        {objects.length === 0 && (
-          <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
-        )}
-        {objects.map((o) => (
-          <button
-            key={o.name}
-            onClick={() => setCurrent(o)}
-            className={
-              'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
-              (current?.name === o.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
-            }
-          >
-            <Database className="h-3.5 w-3.5 shrink-0" />
-            <span className="flex-1 truncate">{o.label}</span>
-          </button>
-        ))}
-      </nav>
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-4">
-        {!current ? (
-          <div className="py-16 text-center text-sm text-muted-foreground">选择一个对象</div>
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        {current ? (
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="text-[13px] font-medium text-foreground">{current.label}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5">object · {current.name}</span>
+            <span>{fieldCount} 字段</span>
+          </span>
         ) : (
-          <>
-            <div className="mb-3 flex shrink-0 items-center gap-2">
-              <span className="text-[13px] font-medium">{current.label}</span>
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                object · {current.name}
-              </span>
-              <span className="text-[11px] text-muted-foreground">{fieldCount} 字段</span>
-              {hasDraft && (
-                <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-300">
-                  未发布草稿
+          <span className="text-[11px] text-muted-foreground">选择一个对象</span>
+        )}
+        {hasDraft && (
+          <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+            未发布草稿
+          </span>
+        )}
+        <button
+          onClick={doSave}
+          disabled={!current || !dirty || !!saving}
+          className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
+        >
+          {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          保存草稿
+        </button>
+        <button
+          onClick={doPublish}
+          disabled={!current || !hasDraft || !!saving}
+          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+          发布
+        </button>
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        <nav className="w-52 shrink-0 overflow-auto border-r p-2">
+          <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">对象</p>
+          {objects.length === 0 && (
+            <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+          )}
+          {objects.map((o) => (
+            <button
+              key={o.name}
+              onClick={() => setCurrent(o)}
+              className={
+                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                (current?.name === o.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+              }
+            >
+              <Database className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1 truncate">{o.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-4">
+          {!current ? (
+            <div className="py-16 text-center text-sm text-muted-foreground">选择一个对象</div>
+          ) : (
+            <>
+              <div className="mb-3 flex shrink-0 items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+                  <Eye className="h-3 w-3" /> 运行态列表 · 同一渲染器
                 </span>
+                <button
+                  type="button"
+                  onClick={addField}
+                  title="添加一个字段(随后在右侧设置类型与属性)"
+                  className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5" /> 添加字段
+                </button>
+              </div>
+              {error && (
+                <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">
+                  {error}
+                </div>
               )}
+              {/* Records grid — fields are the columns. Header "+" adds a field, the
+                * per-column edit affordance opens the field editor, and dragging a
+                * column header reorders the object's fields (all via the context). */}
+              <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
+                <GridFieldAuthoringProvider
+                  value={{
+                    onAddColumn: addField,
+                    addColumnLabel: '添加字段',
+                    onEditColumn: (fieldName) => {
+                      // ignore non-field columns (e.g. the row-actions column)
+                      if (readFields(objDraft.fields).entries.some((e) => e.name === fieldName)) {
+                        setFieldSel({ kind: 'field', id: fieldName });
+                      }
+                    },
+                    editColumnLabel: '编辑字段属性',
+                    onReorderFields: doReorderFields,
+                  }}
+                >
+                  <SchemaRenderer
+                    key={`${current.name}:${gridVer}`}
+                    schema={{ type: 'object-view', objectName: current.name } as never}
+                  />
+                </GridFieldAuthoringProvider>
+              </div>
+              <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <MousePointer2 className="h-3 w-3" /> 列头「+」加字段 · 笔形改属性 · 拖列头重排 · 改完「保存草稿」→「发布」
+              </p>
+            </>
+          )}
+        </main>
+
+        {/* field inspector — full type list + per-type config (reuses ObjectFieldInspector) */}
+        {current && fieldSel && inspector && (
+          <aside className="flex w-80 shrink-0 flex-col border-l">
+            <header className="flex items-center gap-2 border-b px-3 py-2">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span className="text-[13px] font-medium">字段属性</span>
+              <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                {fieldSel.id}
+              </span>
               <button
                 type="button"
-                onClick={addField}
-                title="添加一个字段(随后在右侧设置类型与属性)"
-                className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={() => setFieldSel(null)}
+                className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="关闭"
               >
-                <Plus className="h-3.5 w-3.5" /> 添加字段
+                <X className="h-3.5 w-3.5" />
               </button>
+            </header>
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              {React.createElement(inspector, {
+                type: 'object',
+                name: current.name,
+                draft: objDraft,
+                selection: fieldSel,
+                onPatch,
+                onClearSelection: () => setFieldSel(null),
+                onSelectionChange: setFieldSel,
+                readOnly: false,
+                locale,
+              })}
             </div>
-            {error && (
-              <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">
-                {error}
-              </div>
-            )}
-            {/* Records grid — fields are the columns. The trailing "+" header adds a
-              * field; each column header's edit affordance opens the field editor
-              * (both via the GridFieldAuthoringProvider context the data-table reads). */}
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
-              <GridFieldAuthoringProvider
-                value={{
-                  onAddColumn: addField,
-                  addColumnLabel: '添加字段',
-                  onEditColumn: (fieldName) => {
-                    // ignore non-field columns (e.g. the row-actions column)
-                    if (readFields(objDraft.fields).entries.some((e) => e.name === fieldName)) {
-                      setFieldSel({ kind: 'field', id: fieldName });
-                    }
-                  },
-                  editColumnLabel: '编辑字段属性',
-                  onReorderFields: doReorderFields,
-                }}
-              >
-                <SchemaRenderer
-                  key={`${current.name}:${gridVer}`}
-                  schema={{ type: 'object-view', objectName: current.name } as never}
-                />
-              </GridFieldAuthoringProvider>
-            </div>
-          </>
+          </aside>
         )}
-      </main>
-      {/* field inspector — full type list + per-type config (reuses ObjectFieldInspector) */}
-      {current && fieldSel && inspector && (
-        <aside className="flex w-80 shrink-0 flex-col border-l">
-          <header className="flex items-center gap-2 border-b px-3 py-2">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="text-[13px] font-medium">字段属性</span>
-            <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-              {fieldSel.id}
-            </span>
-            <button
-              type="button"
-              onClick={() => setFieldSel(null)}
-              className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="关闭"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </header>
-          <div className="flex items-center gap-1.5 border-b px-3 py-1.5">
-            <button
-              onClick={doSave}
-              disabled={!dirty || !!saving}
-              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
-            >
-              {saving === 'draft' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-              保存草稿
-            </button>
-            <button
-              onClick={doPublish}
-              disabled={!hasDraft || !!saving}
-              className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {saving === 'publish' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-              发布
-            </button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            {React.createElement(inspector, {
-              type: 'object',
-              name: current.name,
-              draft: objDraft,
-              selection: fieldSel,
-              onPatch,
-              onClearSelection: () => setFieldSel(null),
-              onSelectionChange: setFieldSel,
-              readOnly: false,
-              locale,
-            })}
-          </div>
-        </aside>
-      )}
+      </div>
     </div>
   );
 }
