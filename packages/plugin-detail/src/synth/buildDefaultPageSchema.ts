@@ -30,8 +30,17 @@ export interface ObjectDefLike {
   name?: string;
   label?: string;
   fields?: Record<string, ObjectFieldLike>;
-  /** Optional stage hints — a field name emits a `record:path`; an explicit
-   *  `false` / `null` opts out of the auto status stepper entirely. */
+  /** Detail-page UI hints — the spec's `detail` block (object.zod.ts), a
+   *  `.passthrough()` object that is the author-reachable home for synth hints.
+   *  `stageField`: a field name selects the `record:path` status field; an
+   *  explicit `false` / `null` opts out of the auto status stepper entirely. */
+  detail?: {
+    stageField?: string | false | null;
+    [k: string]: unknown;
+  };
+  /** @deprecated Back-compat top-level alias of `detail.stageField`, kept for
+   *  raw/duck-typed defs. Spec-authored objects must use `detail.stageField`
+   *  (top-level unknown keys are rejected by `ObjectSchema.create()`). */
   stageField?: string | false | null;
   stages?: Array<{ value: any; label: string }>;
   /** Optional list of fields to surface in the highlight strip. */
@@ -189,20 +198,27 @@ function toNodeArray(slot: any | any[] | undefined): any[] {
 /**
  * Detect the canonical "status" / "stage" field on an object definition.
  *
- * Heuristic — same as DetailView's `autoSummaryFields`:
- *   0) `stageField === false | null` → explicit opt-out, never render a path
- *   1) prefer an explicit `objectDef.stageField` (field name)
+ * The stage hint comes from `def.detail.stageField` (spec's passthrough detail
+ * block — the author-reachable location) and falls back to a top-level
+ * `def.stageField` for raw/duck-typed defs. Heuristic:
+ *   0) stage hint === false | null → explicit opt-out, never render a path
+ *   1) stage hint is a field name → use it
  *   2) else first field named status / stage / state / phase
  *   3) else first field whose type is status / stage
  *   4) else null
  */
 export function detectStatusField(def?: ObjectDefLike): string | null {
   if (!def) return null;
+  // Prefer the spec's `detail` block (author-reachable; top-level unknown keys
+  // are rejected by `ObjectSchema.create()`), fall back to top-level for raw
+  // defs. `?? undefined` so a `detail` without `stageField` defers to top-level.
+  const stageHint =
+    def.detail?.stageField !== undefined ? def.detail.stageField : def.stageField;
   // Explicit opt-out: `stageField: false` (or null) declares "this object has
   // no ordered status pipeline" — suppress the auto `record:path` stepper and
   // skip name/type-based detection. Lets non-linear `status` picklists hide it.
-  if (def.stageField === false || def.stageField === null) return null;
-  if (def.stageField) return def.stageField;
+  if (stageHint === false || stageHint === null) return null;
+  if (stageHint) return stageHint;
   const fields = def.fields || {};
   const candidates = ['status', 'stage', 'state', 'phase'];
   for (const key of candidates) {

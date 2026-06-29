@@ -50,23 +50,48 @@ describe('detectStatusField', () => {
     expect(detectStatusField(undefined)).toBeNull();
   });
 
-  it('honours explicit stageField', () => {
+  it('honours detail.stageField (author-reachable location)', () => {
+    expect(
+      detectStatusField({ detail: { stageField: 'pipeline' }, fields: { pipeline: {} } }),
+    ).toBe('pipeline');
+  });
+
+  it('opts out when detail.stageField is false', () => {
+    // A `status` picklist would normally be auto-detected by name; `false`
+    // explicitly suppresses the path stepper and skips detection.
+    expect(
+      detectStatusField({ detail: { stageField: false }, fields: { status: {} } }),
+    ).toBeNull();
+  });
+
+  it('opts out when detail.stageField is null', () => {
+    expect(
+      detectStatusField({ detail: { stageField: null }, fields: { status: {} } }),
+    ).toBeNull();
+  });
+
+  it('honours top-level stageField (back-compat for raw defs)', () => {
     expect(detectStatusField({ stageField: 'pipeline', fields: { pipeline: {} } }))
       .toBe('pipeline');
   });
 
-  it('opts out when stageField is false', () => {
-    // A `status` picklist would normally be auto-detected by name; `false`
-    // explicitly suppresses the path stepper and skips detection.
+  it('opts out via top-level stageField:false (back-compat)', () => {
     expect(
       detectStatusField({ stageField: false, fields: { status: {} } }),
     ).toBeNull();
   });
 
-  it('opts out when stageField is null', () => {
+  it('detail.stageField takes precedence over top-level', () => {
+    // detail block wins; here it opts out even though top-level names a field.
     expect(
-      detectStatusField({ stageField: null, fields: { status: {} } }),
+      detectStatusField({ detail: { stageField: false }, stageField: 'status', fields: { status: {} } }),
     ).toBeNull();
+  });
+
+  it('detail without stageField defers to top-level / detection', () => {
+    expect(
+      detectStatusField({ detail: { hideRelatedTab: true }, fields: { status: {} } }),
+    ).toBe('status');
   });
 
   it('picks status by name', () => {
