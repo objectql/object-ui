@@ -238,6 +238,9 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const fieldAuthoring = useGridFieldAuthoring();
   const addColumnEnabled = !!fieldAuthoring?.onAddColumn;
   const editColumnEnabled = !!fieldAuthoring?.onEditColumn;
+  // The table already implements column drag-reorder; a design host enables it by
+  // providing onReorderFields (to persist the order to the object's field metadata).
+  const reorderEnabled = reorderableColumns || !!fieldAuthoring?.onReorderFields;
 
   // i18n support for pagination labels
   const { t, language } = useTableTranslation();
@@ -562,22 +565,22 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
 
   // Column reordering handlers
   const handleColumnDragStart = (e: React.DragEvent, index: number) => {
-    if (!reorderableColumns) return;
+    if (!reorderEnabled) return;
     setDraggedColumn(index);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleColumnDragOver = (e: React.DragEvent, index: number) => {
-    if (!reorderableColumns) return;
+    if (!reorderEnabled) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverColumn(index);
   };
 
   const handleColumnDrop = (e: React.DragEvent, dropIndex: number) => {
-    if (!reorderableColumns || draggedColumn === null) return;
+    if (!reorderEnabled || draggedColumn === null) return;
     e.preventDefault();
-    
+
     if (draggedColumn === dropIndex) {
       setDraggedColumn(null);
       setDragOverColumn(null);
@@ -587,15 +590,17 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     const newColumns = [...columns];
     const [removed] = newColumns.splice(draggedColumn, 1);
     newColumns.splice(dropIndex, 0, removed);
-    
+
     setColumns(newColumns);
     setDraggedColumn(null);
     setDragOverColumn(null);
-    
+
     // Call callback if provided
     if (schema.onColumnsReorder) {
       schema.onColumnsReorder(newColumns);
     }
+    // Design host: persist the new order to the object's field metadata.
+    fieldAuthoring?.onReorderFields?.(newColumns.map((c) => c.accessorKey));
   };
 
   const handleColumnDragEnd = () => {
@@ -927,7 +932,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       minWidth: columnWidth,
                       ...(isFrozen && { left: frozenOffset }),
                     }}
-                    draggable={reorderableColumns}
+                    draggable={reorderEnabled}
                     onDragStart={(e) => handleColumnDragStart(e, index)}
                     onDragOver={(e) => handleColumnDragOver(e, index)}
                     onDrop={(e) => handleColumnDrop(e, index)}
@@ -940,7 +945,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       col.align === 'right' ? 'justify-end' : 'justify-between'
                     )}>
                       <div className="flex items-center gap-1">
-                        {reorderableColumns && (
+                        {reorderEnabled && (
                           <GripVertical className="h-4 w-4 opacity-0 group-hover:opacity-50 cursor-grab active:cursor-grabbing shrink-0" />
                         )}
                         {col.headerIcon && (

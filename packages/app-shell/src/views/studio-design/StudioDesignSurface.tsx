@@ -731,6 +731,40 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
     }
   }, [adapter, client, current]);
 
+  // Drag-reorder columns → reorder the object's `fields` metadata (field display
+  // order follows metadata order), then publish so the new order persists.
+  const doReorderFields = React.useCallback(
+    async (orderedNames: string[]) => {
+      if (!current) return;
+      const view = readFields(objDraft.fields);
+      // Reorder only the visible fields among their own slots; keep system /
+      // hidden fields (not shown as columns) in their original positions.
+      const visible = new Set(orderedNames);
+      const visibleInOrder = orderedNames
+        .map((n) => view.entries.find((e) => e.name === n))
+        .filter((e): e is (typeof view.entries)[number] => Boolean(e));
+      let vi = 0;
+      const entries = view.entries.map((e) => (visible.has(e.name) ? visibleInOrder[vi++] : e));
+      const body = { ...objDraft, fields: writeFields({ ...view, entries }) };
+      setObjDraft(body);
+      setSaving('publish');
+      setError(null);
+      try {
+        await client.save('object', current.name, body, { mode: 'draft' });
+        await client.publish('object', current.name);
+        (adapter as { clearCache?: () => void } | null)?.clearCache?.();
+        setHasDraft(false);
+        setDirty(false);
+        setGridVer((v) => v + 1); // remount so the grid reflects the persisted order
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSaving(false);
+      }
+    },
+    [client, current, objDraft, adapter],
+  );
+
   const inspector = getMetadataInspector('object');
 
   return (
@@ -799,6 +833,7 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
                     }
                   },
                   editColumnLabel: '编辑字段属性',
+                  onReorderFields: doReorderFields,
                 }}
               >
                 <SchemaRenderer

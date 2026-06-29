@@ -33,6 +33,14 @@ export interface GridFieldAuthoring {
   onEditColumn?: (fieldName: string) => void;
   /** Optional tooltip/aria-label for the edit-field button (defaults to "Edit field"). */
   editColumnLabel?: string;
+  /**
+   * Invoked when the user drag-reorders columns. Receives the new column order
+   * as accessorKeys (= field names, including any non-field columns). Providing
+   * this also ENABLES the table's built-in column drag-reorder (design mode), so
+   * the host can persist the order to the object's field metadata. Omit to leave
+   * reordering to the table's own `reorderableColumns`/`onColumnsReorder`.
+   */
+  onReorderFields?: (orderedFieldNames: string[]) => void;
 }
 
 const GridFieldAuthoringContext = React.createContext<GridFieldAuthoring | null>(null);
