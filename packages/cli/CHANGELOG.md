@@ -1,5 +1,14 @@
 # @object-ui/cli
 
+## 11.3.0
+
+### Patch Changes
+
+- Updated dependencies [b7237bb]
+  - @object-ui/components@11.3.0
+  - @object-ui/types@11.3.0
+  - @object-ui/react@11.3.0
+
 ## 11.2.0
 
 ### Patch Changes

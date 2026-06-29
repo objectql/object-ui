@@ -1,5 +1,14 @@
 # @object-ui/react
 
+## 11.3.0
+
+### Patch Changes
+
+- @object-ui/types@11.3.0
+- @object-ui/core@11.3.0
+- @object-ui/i18n@11.3.0
+- @object-ui/data-objectstack@11.3.0
+
 ## 11.2.0
 
 ### Patch Changes

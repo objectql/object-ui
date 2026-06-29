@@ -1,5 +1,12 @@
 # @object-ui/console
 
+## 11.3.0
+
+### Patch Changes
+
+- 96b1293: ADR-0080: ship a `manifest-dump.html` build entry + `scripts/dump-public-manifest.mjs` that serialize the registry's public tier (`getPublicConfigs()`) to `sdui.manifest.json` — the artifact the framework `os build` JSX gate consumes for full component/prop validation. Generated in a real browser (the registry pulls browser-only deps); wired into `build-console.sh` framework-side.
+  - @object-ui/sdui-parser@11.3.0
+
 ## 11.2.0
 
 ## 11.1.0
