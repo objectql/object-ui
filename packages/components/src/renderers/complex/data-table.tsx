@@ -9,6 +9,7 @@
 // Enterprise-level DataTable Component (Airtable-like)
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { cn } from '../../lib/utils';
+import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry } from '@object-ui/core';
 import type { DataTableSchema } from '@object-ui/types';
 import { useObjectTranslation } from '@object-ui/react';
@@ -230,6 +231,12 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     borderless = false,
     disableInnerScroll = false,
   } = schema;
+
+  // Ambient design-surface affordance: when a host (Studio) provides it, render
+  // a trailing "+ add field" column header. `null` for every runtime table, so
+  // existing tables render unchanged.
+  const fieldAuthoring = useGridFieldAuthoring();
+  const addColumnEnabled = !!fieldAuthoring?.onAddColumn;
 
   // i18n support for pagination labels
   const { t, language } = useTableTranslation();
@@ -955,13 +962,27 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
               {rowActions && (
                 <TableHead className="w-24 text-right bg-background">{t('common.actions')}</TableHead>
               )}
+              {addColumnEnabled && (
+                <TableHead className="w-10 bg-background px-1 text-center">
+                  <button
+                    type="button"
+                    onClick={fieldAuthoring!.onAddColumn}
+                    title={fieldAuthoring!.addColumnLabel ?? 'Add field'}
+                    aria-label={fieldAuthoring!.addColumnLabel ?? 'Add field'}
+                    data-testid="grid-add-column"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedData.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={columns.length + (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + (rowActions ? 1 : 0)}
+                  colSpan={columns.length + (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + (rowActions ? 1 : 0) + (addColumnEnabled ? 1 : 0)}
                   className="h-48 text-center text-muted-foreground border-0"
                 >
                   <div className="flex flex-col items-center justify-center gap-3">
@@ -1284,6 +1305,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                           </div>
                         </TableCell>
                       )}
+                      {addColumnEnabled && <TableCell aria-hidden className="w-10" />}
                     </TableRow>
                   );
                 })}
@@ -1295,7 +1317,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                     onClick={() => schema.onAddRecord?.()}
                   >
                     <TableCell
-                      colSpan={columns.length + (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + (rowActions ? 1 : 0)}
+                      colSpan={columns.length + (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + (rowActions ? 1 : 0) + (addColumnEnabled ? 1 : 0)}
                       className="h-9 px-3 py-1.5"
                     >
                       <span className="flex items-center gap-1.5 text-muted-foreground text-sm hover:text-foreground transition-colors">

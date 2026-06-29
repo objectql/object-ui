@@ -44,6 +44,14 @@ export { getLazyIcon, LazyIcon, toKebabIconName } from './lib/lazy-icon';
 // Export placeholder registration
 export { registerPlaceholders } from './renderers/placeholders';
 
+// Export grid field-authoring context — a design surface (Studio) opts into the
+// data-table "+ add field" column header by wrapping the table in the provider.
+export {
+  GridFieldAuthoringProvider,
+  useGridFieldAuthoring,
+  type GridFieldAuthoring,
+} from './context/gridFieldAuthoring';
+
 // Export raw Shadcn UI components
 export * from './ui';
 export * from './custom';

@@ -16,7 +16,8 @@
 
 import * as React from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, useAdapter } from '@object-ui/react';
+import { GridFieldAuthoringProvider } from '@object-ui/components';
 import {
   Boxes,
   FileText,
@@ -587,14 +588,54 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
   );
 }
 
+const NEW_FIELD_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'text', label: '文本' },
+  { value: 'textarea', label: '长文本' },
+  { value: 'number', label: '数字' },
+  { value: 'boolean', label: '勾选' },
+  { value: 'date', label: '日期' },
+  { value: 'datetime', label: '日期时间' },
+];
+
+/** Slugify a label into a safe field name, unique against existing names. */
+function toFieldName(label: string, existing: string[]): string {
+  const base =
+    label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || `field_${existing.length + 1}`;
+  let name = base;
+  let i = 2;
+  while (existing.includes(name)) name = `${base}_${i++}`;
+  return name;
+}
+
+/** Append a field to an object body, honoring keyed-map or array `fields`. */
+function appendField(
+  body: Record<string, unknown>,
+  field: { name: string; type: string; label: string },
+): Record<string, unknown> {
+  const raw = body.fields;
+  if (Array.isArray(raw)) return { ...body, fields: [...raw, field] };
+  return { ...body, fields: { ...((raw as object) ?? {}), [field.name]: field } };
+}
+
 /** Data pillar — the package's objects: list → fields + record grid. */
 function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
+  const adapter = useAdapter();
   const [objects, setObjects] = React.useState<Surface[]>([]);
   const [current, setCurrent] = React.useState<Surface | null>(null);
   const [obj, setObj] = React.useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // add-field (Airtable-style "+" on the grid column header)
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [fLabel, setFLabel] = React.useState('');
+  const [fType, setFType] = React.useState('text');
+  const [saving, setSaving] = React.useState(false);
+  const [gridVer, setGridVer] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -646,6 +687,34 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
     return [];
   }, [obj]);
 
+  const doAddField = React.useCallback(async () => {
+    if (!current || !obj || !fLabel.trim()) return;
+    const name = toFieldName(
+      fLabel,
+      fields.map((f) => f.name),
+    );
+    const body = appendField(obj, { name, type: fType, label: fLabel.trim() });
+    setSaving(true);
+    setError(null);
+    try {
+      await client.save('object', current.name, body, { mode: 'draft' });
+      await client.publish('object', current.name);
+      // Bust the data-layer object-schema cache so the remounted grid re-fetches
+      // the new column without a full page reload (the grid reads its columns from
+      // dataSource.getObjectSchema, a separate cache from the metadata client).
+      (adapter as { clearCache?: () => void } | null)?.clearCache?.();
+      setObj(body); // optimistic
+      setGridVer((v) => v + 1);
+      setAddOpen(false);
+      setFLabel('');
+      setFType('text');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [adapter, client, current, obj, fLabel, fType, fields]);
+
   return (
     <div className="flex h-full">
       <nav className="w-52 shrink-0 overflow-auto border-r p-2">
@@ -680,13 +749,80 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
               <span className="text-[11px] text-muted-foreground">{fields.length} 字段</span>
             </div>
             {/* Data mode = the records themselves, as a directly-viewable grid
-              * (Airtable parity). Fields are the columns — no separate table. */}
+              * (Airtable parity). Fields are the columns; the trailing "+" column
+              * header (via GridFieldAuthoringProvider) adds a new field. */}
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
-              <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
+              <GridFieldAuthoringProvider
+                value={{ onAddColumn: () => setAddOpen(true), addColumnLabel: '添加字段' }}
+              >
+                <SchemaRenderer
+                  key={`${current.name}:${gridVer}`}
+                  schema={{ type: 'object-view', objectName: current.name } as never}
+                />
+              </GridFieldAuthoringProvider>
             </div>
           </>
         )}
       </main>
+      {addOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+          onClick={() => !saving && setAddOpen(false)}
+        >
+          <div
+            className="w-80 rounded-lg border bg-background p-4 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-3 text-sm font-medium">添加字段 · {current?.label}</p>
+            {error && (
+              <div className="mb-2 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
+                {error}
+              </div>
+            )}
+            <label className="mb-1 block text-[11px] text-muted-foreground">字段名称</label>
+            <input
+              autoFocus
+              value={fLabel}
+              onChange={(e) => setFLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && fLabel.trim() && !saving) doAddField();
+                if (e.key === 'Escape') setAddOpen(false);
+              }}
+              placeholder="例如 备注"
+              className="mb-3 w-full rounded border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+            />
+            <label className="mb-1 block text-[11px] text-muted-foreground">类型</label>
+            <select
+              value={fType}
+              onChange={(e) => setFType(e.target.value)}
+              className="mb-4 w-full rounded border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+            >
+              {NEW_FIELD_TYPES.map((ft) => (
+                <option key={ft.value} value={ft.value}>
+                  {ft.label}
+                </option>
+              ))}
+            </select>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setAddOpen(false)}
+                disabled={saving}
+                className="rounded-md border px-3 py-1 text-xs hover:bg-muted disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={doAddField}
+                disabled={!fLabel.trim() || saving}
+                className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                添加并发布
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
