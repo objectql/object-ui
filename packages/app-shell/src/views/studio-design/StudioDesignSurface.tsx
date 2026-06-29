@@ -18,6 +18,8 @@ import * as React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter } from '@object-ui/react';
 import { GridFieldAuthoringProvider } from '@object-ui/components';
+import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
+import { ListView } from '@object-ui/plugin-list';
 import {
   Boxes,
   FileText,
@@ -630,6 +632,58 @@ function nextFieldName(existing: string[]): string {
  * affordance, to open ObjectFieldInspector (full type list + per-type config)
  * in the right panel; changes persist via the object draft → publish overlay.
  */
+/**
+ * Framework-managed/audit fields. They lead the raw metadata order but aren't
+ * what a user manages in a data grid, so the Data pillar drops them from the
+ * column set (mirrors ObjectGrid's regular-vs-system split) to open on the
+ * meaningful fields first — the same way Airtable hides system columns.
+ */
+const STUDIO_SYSTEM_FIELD_NAMES = new Set<string>([
+  '_id', 'id', 'organization_id', 'org_id', 'space_id',
+  'created_at', 'created_by', 'updated_at', 'updated_by',
+  'modified_at', 'modified_by', 'created_time', 'modified_time', 'updated_time',
+  'deleted_at', 'deleted_by',
+]);
+
+/**
+ * Render the Data pillar's records grid using the SAME rich list surface as the
+ * runtime list pages — the standard toolbar (view switcher, search, sort, filter,
+ * group, hide-fields) plus Airtable-style inline data management. This is the
+ * plugin ObjectView's `renderListView` slot, so the object-view still owns data
+ * fetching while ListView owns the toolbar + grid. Defined at module scope (not
+ * inline) so it stays a static component reference.
+ */
+function renderStudioGridList(props: {
+  schema: Record<string, unknown>;
+  dataSource: unknown;
+  onEdit?: (record: Record<string, unknown>) => void;
+  className?: string;
+  refreshKey?: number;
+}): React.ReactElement {
+  const { schema: listSchema, dataSource: ds, onEdit, className, refreshKey } = props;
+  return (
+    <ListView
+      schema={
+        {
+          ...listSchema,
+          viewType: 'grid',
+          showSearch: true,
+          showSort: true,
+          showFilters: true,
+          showGroup: true,
+          showHideFields: true,
+          inlineEdit: true,
+          addDeleteRecordsInline: true,
+        } as never
+      }
+      dataSource={ds as never}
+      onEdit={onEdit}
+      className={className}
+      refreshKey={refreshKey}
+    />
+  );
+}
+
 function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
   const adapter = useAdapter();
@@ -880,9 +934,25 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
                     onReorderFields: doReorderFields,
                   }}
                 >
-                  <SchemaRenderer
+                  <PluginObjectView
                     key={`${current.name}:${gridVer}`}
-                    schema={{ type: 'object-view', objectName: current.name } as never}
+                    schema={
+                      {
+                        type: 'object-view',
+                        objectName: current.name,
+                        // No saved view exists in design mode, so show the object's
+                        // own fields as columns (in metadata order), dropping
+                        // framework-managed/audit fields so the grid opens on the
+                        // meaningful columns first — the way Airtable does.
+                        table: {
+                          fields: readFields(objDraft.fields)
+                            .entries.map((e) => e.name)
+                            .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n)),
+                        },
+                      } as never
+                    }
+                    dataSource={adapter as never}
+                    renderListView={renderStudioGridList}
                   />
                 </GridFieldAuthoringProvider>
               </div>
