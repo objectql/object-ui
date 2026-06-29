@@ -1750,6 +1750,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             (objectDef as any)?.detail?.hideRelatedTab === true || undefined,
           relatedLayout:
             (objectDef as any)?.detail?.relatedLayout === 'tabs' ? 'tabs' : undefined,
+          // Suppress the auto-prepended `record:path` stepper for objects whose
+          // status picklist is not a linear pipeline (e.g. a field that folds a
+          // risk gradient into the status). Opt-out only — default keeps the path.
+          hidePath:
+            (objectDef as any)?.detail?.hidePath === true || undefined,
           ...(assignedSlots ? { slots: assignedSlots } : {}),
         });
     return (
