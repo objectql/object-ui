@@ -22,9 +22,17 @@ import React from 'react';
 
 export interface GridFieldAuthoring {
   /** Invoked when the user clicks the trailing "+" add-column header affordance. */
-  onAddColumn: () => void;
+  onAddColumn?: () => void;
   /** Optional tooltip/aria-label for the add-column button (defaults to "Add field"). */
   addColumnLabel?: string;
+  /**
+   * Invoked when the user clicks the per-column "edit field" affordance in a
+   * column header (Airtable-style). Receives the column's accessorKey (= field
+   * name). Omit to hide the edit affordance.
+   */
+  onEditColumn?: (fieldName: string) => void;
+  /** Optional tooltip/aria-label for the edit-field button (defaults to "Edit field"). */
+  editColumnLabel?: string;
 }
 
 const GridFieldAuthoringContext = React.createContext<GridFieldAuthoring | null>(null);

@@ -237,6 +237,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // existing tables render unchanged.
   const fieldAuthoring = useGridFieldAuthoring();
   const addColumnEnabled = !!fieldAuthoring?.onAddColumn;
+  const editColumnEnabled = !!fieldAuthoring?.onEditColumn;
 
   // i18n support for pagination labels
   const { t, language } = useTableTranslation();
@@ -947,6 +948,21 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         )}
                         <span className="text-xs font-medium text-muted-foreground whitespace-nowrap truncate">{col.header}</span>
                         {sortable && col.sortable !== false && getSortIcon(col.accessorKey)}
+                        {editColumnEnabled && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              fieldAuthoring!.onEditColumn!(col.accessorKey);
+                            }}
+                            title={fieldAuthoring!.editColumnLabel ?? 'Edit field'}
+                            aria-label={fieldAuthoring!.editColumnLabel ?? 'Edit field'}
+                            data-testid={`grid-edit-column-${col.accessorKey}`}
+                            className="ml-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded text-muted-foreground/50 opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </button>
+                        )}
                       </div>
                       {resizableColumns && col.resizable !== false && (
                         <div

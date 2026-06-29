@@ -36,12 +36,14 @@ import {
   Pencil,
   Check,
   Plus,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
+import { readFields, writeFields, newField } from '../metadata-admin/previews/object-fields-io';
 
 const PILLARS = [
   { key: 'data', label: 'Data' },
@@ -598,53 +600,34 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
   );
 }
 
-const NEW_FIELD_TYPES: Array<{ value: string; label: string }> = [
-  { value: 'text', label: '文本' },
-  { value: 'textarea', label: '长文本' },
-  { value: 'number', label: '数字' },
-  { value: 'boolean', label: '勾选' },
-  { value: 'date', label: '日期' },
-  { value: 'datetime', label: '日期时间' },
-];
-
-/** Slugify a label into a safe field name, unique against existing names. */
-function toFieldName(label: string, existing: string[]): string {
-  const base =
-    label
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '') || `field_${existing.length + 1}`;
-  let name = base;
-  let i = 2;
-  while (existing.includes(name)) name = `${base}_${i++}`;
+/** Next unused `field_N` name for a freshly-added field. */
+function nextFieldName(existing: string[]): string {
+  let i = existing.length + 1;
+  let name = `field_${i}`;
+  while (existing.includes(name)) name = `field_${++i}`;
   return name;
 }
 
-/** Append a field to an object body, honoring keyed-map or array `fields`. */
-function appendField(
-  body: Record<string, unknown>,
-  field: { name: string; type: string; label: string },
-): Record<string, unknown> {
-  const raw = body.fields;
-  if (Array.isArray(raw)) return { ...body, fields: [...raw, field] };
-  return { ...body, fields: { ...((raw as object) ?? {}), [field.name]: field } };
-}
-
-/** Data pillar — the package's objects: list → fields + record grid. */
+/**
+ * Data pillar — the package's objects: a records grid (Airtable parity) plus
+ * table-based field management. Add a field, or click a column header's edit
+ * affordance, to open ObjectFieldInspector (full type list + per-type config)
+ * in the right panel; changes persist via the object draft → publish overlay.
+ */
 function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
   const adapter = useAdapter();
+  const locale = 'zh-CN';
   const [objects, setObjects] = React.useState<Surface[]>([]);
   const [current, setCurrent] = React.useState<Surface | null>(null);
-  const [obj, setObj] = React.useState<Record<string, unknown> | null>(null);
+  const [objDraft, setObjDraft] = React.useState<Record<string, unknown>>({});
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  // add-field (Airtable-style "+" on the grid column header)
-  const [addOpen, setAddOpen] = React.useState(false);
-  const [fLabel, setFLabel] = React.useState('');
-  const [fType, setFType] = React.useState('text');
-  const [saving, setSaving] = React.useState(false);
+  // field management — a selected field opens ObjectFieldInspector (full type + config)
+  const [fieldSel, setFieldSel] = React.useState<MetadataSelection | null>(null);
+  const [dirty, setDirty] = React.useState(false);
+  const [hasDraft, setHasDraft] = React.useState(false);
+  const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [gridVer, setGridVer] = React.useState(0);
 
   React.useEffect(() => {
@@ -665,19 +648,27 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [client]);
+  }, [client, packageId]);
 
   React.useEffect(() => {
     if (!current) return;
     let cancelled = false;
     setLoading(true);
+    setError(null);
+    setFieldSel(null);
+    setDirty(false);
     (async () => {
       try {
-        const lay = (await client.layered<Record<string, unknown>>('object', current.name)) as {
-          effective?: Record<string, unknown>;
-          code?: Record<string, unknown>;
-        };
-        if (!cancelled) setObj(lay.effective ?? lay.code ?? null);
+        const [layRaw, draftResp] = await Promise.all([
+          client.layered<Record<string, unknown>>('object', current.name),
+          client.getDraft<Record<string, unknown>>('object', current.name).catch(() => null),
+        ]);
+        if (cancelled) return;
+        const lay = layRaw as { effective?: Record<string, unknown>; code?: Record<string, unknown> };
+        const baseline = (lay.effective ?? lay.code ?? {}) as Record<string, unknown>;
+        const draftBody = extractDraftBody(draftResp);
+        setObjDraft(draftBody ? { ...baseline, ...draftBody } : baseline);
+        setHasDraft(!!draftBody);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -689,41 +680,58 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
     };
   }, [client, current]);
 
-  const fields: Array<{ name: string; label?: string; type?: string }> = React.useMemo(() => {
-    const raw = obj?.fields;
-    if (Array.isArray(raw)) return raw as never;
-    if (raw && typeof raw === 'object')
-      return Object.entries(raw).map(([name, f]) => ({ name, ...(f as object) })) as never;
-    return [];
-  }, [obj]);
+  const fieldCount = React.useMemo(() => readFields(objDraft.fields).entries.length, [objDraft]);
 
-  const doAddField = React.useCallback(async () => {
-    if (!current || !obj || !fLabel.trim()) return;
-    const name = toFieldName(
-      fLabel,
-      fields.map((f) => f.name),
-    );
-    const body = appendField(obj, { name, type: fType, label: fLabel.trim() });
-    setSaving(true);
+  const onPatch = React.useCallback((patch: Record<string, unknown>) => {
+    setObjDraft((d) => ({ ...d, ...patch }));
+    setDirty(true);
+  }, []);
+
+  // "+ add field": append a fresh text field and select it for editing in the panel.
+  const addField = React.useCallback(() => {
+    const view = readFields(objDraft.fields);
+    const name = nextFieldName(view.entries.map((e) => e.name));
+    view.entries.push(newField(name, 'text', '新字段'));
+    setObjDraft((d) => ({ ...d, fields: writeFields(view) }));
+    setDirty(true);
+    setFieldSel({ kind: 'field', id: name });
+  }, [objDraft]);
+
+  const doSave = React.useCallback(async () => {
+    if (!current) return;
+    setSaving('draft');
     setError(null);
     try {
-      await client.save('object', current.name, body, { mode: 'draft' });
-      await client.publish('object', current.name);
-      // Bust the data-layer object-schema cache so the remounted grid re-fetches
-      // the new column without a full page reload (the grid reads its columns from
-      // dataSource.getObjectSchema, a separate cache from the metadata client).
-      (adapter as { clearCache?: () => void } | null)?.clearCache?.();
-      setObj(body); // optimistic
-      setGridVer((v) => v + 1);
-      setAddOpen(false);
-      setFLabel('');
-      setFType('text');
+      await client.save('object', current.name, objDraft, { mode: 'draft' });
+      setHasDraft(true);
+      setDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
-  }, [adapter, client, current, obj, fLabel, fType, fields]);
+  }, [client, current, objDraft]);
+
+  const doPublish = React.useCallback(async () => {
+    if (!current) return;
+    setSaving('publish');
+    setError(null);
+    try {
+      await client.publish('object', current.name);
+      // Bust the data-layer object-schema cache (separate from the metadata client)
+      // so the remounted grid re-fetches the new/edited columns without a reload.
+      (adapter as { clearCache?: () => void } | null)?.clearCache?.();
+      setHasDraft(false);
+      setDirty(false);
+      setGridVer((v) => v + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [adapter, client, current]);
+
+  const inspector = getMetadataInspector('object');
 
   return (
     <div className="flex h-full">
@@ -756,22 +764,42 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
               <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 object · {current.name}
               </span>
-              <span className="text-[11px] text-muted-foreground">{fields.length} 字段</span>
+              <span className="text-[11px] text-muted-foreground">{fieldCount} 字段</span>
+              {hasDraft && (
+                <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-300">
+                  未发布草稿
+                </span>
+              )}
               <button
                 type="button"
-                onClick={() => setAddOpen(true)}
-                title="给该对象添加一个字段"
+                onClick={addField}
+                title="添加一个字段(随后在右侧设置类型与属性)"
                 className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Plus className="h-3.5 w-3.5" /> 添加字段
               </button>
             </div>
-            {/* Data mode = the records themselves, as a directly-viewable grid
-              * (Airtable parity). Fields are the columns; the trailing "+" column
-              * header (via GridFieldAuthoringProvider) adds a new field. */}
+            {error && (
+              <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">
+                {error}
+              </div>
+            )}
+            {/* Records grid — fields are the columns. The trailing "+" header adds a
+              * field; each column header's edit affordance opens the field editor
+              * (both via the GridFieldAuthoringProvider context the data-table reads). */}
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
               <GridFieldAuthoringProvider
-                value={{ onAddColumn: () => setAddOpen(true), addColumnLabel: '添加字段' }}
+                value={{
+                  onAddColumn: addField,
+                  addColumnLabel: '添加字段',
+                  onEditColumn: (fieldName) => {
+                    // ignore non-field columns (e.g. the row-actions column)
+                    if (readFields(objDraft.fields).entries.some((e) => e.name === fieldName)) {
+                      setFieldSel({ kind: 'field', id: fieldName });
+                    }
+                  },
+                  editColumnLabel: '编辑字段属性',
+                }}
               >
                 <SchemaRenderer
                   key={`${current.name}:${gridVer}`}
@@ -782,64 +810,56 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
           </>
         )}
       </main>
-      {addOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
-          onClick={() => !saving && setAddOpen(false)}
-        >
-          <div
-            className="w-80 rounded-lg border bg-background p-4 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <p className="mb-3 text-sm font-medium">添加字段 · {current?.label}</p>
-            {error && (
-              <div className="mb-2 rounded border border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive">
-                {error}
-              </div>
-            )}
-            <label className="mb-1 block text-[11px] text-muted-foreground">字段名称</label>
-            <input
-              autoFocus
-              value={fLabel}
-              onChange={(e) => setFLabel(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && fLabel.trim() && !saving) doAddField();
-                if (e.key === 'Escape') setAddOpen(false);
-              }}
-              placeholder="例如 备注"
-              className="mb-3 w-full rounded border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
-            />
-            <label className="mb-1 block text-[11px] text-muted-foreground">类型</label>
-            <select
-              value={fType}
-              onChange={(e) => setFType(e.target.value)}
-              className="mb-4 w-full rounded border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+      {/* field inspector — full type list + per-type config (reuses ObjectFieldInspector) */}
+      {current && fieldSel && inspector && (
+        <aside className="flex w-80 shrink-0 flex-col border-l">
+          <header className="flex items-center gap-2 border-b px-3 py-2">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            <span className="text-[13px] font-medium">字段属性</span>
+            <span className="truncate rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              {fieldSel.id}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFieldSel(null)}
+              className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="关闭"
             >
-              {NEW_FIELD_TYPES.map((ft) => (
-                <option key={ft.value} value={ft.value}>
-                  {ft.label}
-                </option>
-              ))}
-            </select>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setAddOpen(false)}
-                disabled={saving}
-                className="rounded-md border px-3 py-1 text-xs hover:bg-muted disabled:opacity-50"
-              >
-                取消
-              </button>
-              <button
-                onClick={doAddField}
-                disabled={!fLabel.trim() || saving}
-                className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                添加并发布
-              </button>
-            </div>
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </header>
+          <div className="flex items-center gap-1.5 border-b px-3 py-1.5">
+            <button
+              onClick={doSave}
+              disabled={!dirty || !!saving}
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
+            >
+              {saving === 'draft' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              保存草稿
+            </button>
+            <button
+              onClick={doPublish}
+              disabled={!hasDraft || !!saving}
+              className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+            >
+              {saving === 'publish' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              发布
+            </button>
           </div>
-        </div>
+          <div className="min-h-0 flex-1 overflow-auto p-3">
+            {React.createElement(inspector, {
+              type: 'object',
+              name: current.name,
+              draft: objDraft,
+              selection: fieldSel,
+              onPatch,
+              onClearSelection: () => setFieldSel(null),
+              onSelectionChange: setFieldSel,
+              readOnly: false,
+              locale,
+            })}
+          </div>
+        </aside>
       )}
     </div>
   );
