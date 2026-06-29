@@ -35,6 +35,7 @@ import {
   Save,
   Pencil,
   Check,
+  Plus,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
@@ -300,7 +301,9 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
 
   const Preview = getMetadataPreview(current?.type ?? '');
   const Inspector = getMetadataInspector(current?.type ?? '');
-  const isEditable = !!Preview; // page / dashboard have a design preview + draft
+  // Object leaves render as a runtime records grid (preview = runtime); schema
+  // editing is the Data pillar's job, so they are not draft-editable in this canvas.
+  const isEditable = !!Preview && current?.type !== 'object';
 
   // Load the selected surface's draft (only for editable preview types).
   React.useEffect(() => {
@@ -523,6 +526,11 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
               <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
               </div>
+            ) : current.type === 'object' ? (
+              // Object nav leaf = the records list as the running app shows it
+              // (preview = runtime). Schema editing lives in the Data pillar, so
+              // here we render the object-view grid, not the field-form preview.
+              <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
             ) : Preview ? (
               <Preview
                 type={current.type}
@@ -534,19 +542,21 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
                 onPatch={onPatch}
                 locale={locale}
               />
-            ) : current.type === 'object' ? (
-              <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
             ) : (
               <div className="py-12 text-center text-xs text-muted-foreground">
                 {current.type} 暂用只读预览,设计能力建设中。
               </div>
             )}
           </div>
-          {isEditable && (
+          {isEditable ? (
             <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
               <MousePointer2 className="h-3 w-3" /> 点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」
             </p>
-          )}
+          ) : current?.type === 'object' ? (
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Database className="h-3 w-3" /> 运行态列表预览 · 改字段 / 结构请到 <span className="font-medium">Data</span> 支柱
+            </p>
+          ) : null}
         </main>
 
         {/* inspector */}
@@ -747,6 +757,14 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
                 object · {current.name}
               </span>
               <span className="text-[11px] text-muted-foreground">{fields.length} 字段</span>
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                title="给该对象添加一个字段"
+                className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" /> 添加字段
+              </button>
             </div>
             {/* Data mode = the records themselves, as a directly-viewable grid
               * (Airtable parity). Fields are the columns; the trailing "+" column
