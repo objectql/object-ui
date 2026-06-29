@@ -148,6 +148,10 @@ importers:
         version: 9.0.10
 
   apps/console:
+    dependencies:
+      '@object-ui/sdui-parser':
+        specifier: workspace:*
+        version: link:../../packages/sdui-parser
     devDependencies:
       '@dnd-kit/core':
         specifier: ^6.3.1

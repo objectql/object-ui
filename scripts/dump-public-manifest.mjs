@@ -17,7 +17,7 @@ const OUT = process.env.OUT ?? 'sdui.manifest.json';
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
-  await page.goto(`${BASE}/manifest-dump.html`, { waitUntil: 'networkidle', timeout: 120_000 });
+  await page.goto(`${BASE}/dev/manifest-dump.html`, { waitUntil: 'networkidle', timeout: 120_000 });
   const json = await page.waitForFunction(() => globalThis.__MANIFEST, null, { timeout: 120_000 })
     .then((h) => h.jsonValue());
   const manifest = JSON.parse(json);
