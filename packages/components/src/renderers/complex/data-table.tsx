@@ -662,6 +662,23 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     setEditValue('');
   };
 
+  // Stage an in-flight edit into pendingChanges WITHOUT closing the editor —
+  // used by injected widget editors (multi-value pickers, free text) that
+  // commit when the user moves on rather than on each keystroke/toggle. Mirrors
+  // what saveEdit stages, minus the close.
+  const stageEdit = (value: any) => {
+    if (!editingCell) return;
+    const { rowIndex, columnKey } = editingCell;
+    setEditValue(value);
+    setPendingChanges((prev) => {
+      const next = new Map(prev);
+      const rowChanges = { ...(next.get(rowIndex) || {}) };
+      rowChanges[columnKey] = value;
+      next.set(rowIndex, rowChanges);
+      return next;
+    });
+  };
+
   // Commit the in-flight edit when the input loses focus (e.g. the user clicks
   // another cell). Without this, switching cells discards the typed value.
   const handleEditBlur = () => {
@@ -1190,6 +1207,34 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                 // readable switch that's easy to extend.
                                 const editType = (col as any).type as string | undefined;
 
+                                // Host-injected editor: a higher layer (ObjectGrid) renders
+                                // the dedicated @object-ui/fields widget for this field's
+                                // type — the SAME control the form uses — so we don't
+                                // re-implement select/boolean/etc. down here in the
+                                // (fields-free) component layer. Returning null means "no
+                                // widget for this type" → fall through to the built-ins.
+                                const injectEditor = (schema as any).renderCellEditor as
+                                  | ((ctx: {
+                                      column: any;
+                                      row: any;
+                                      value: any;
+                                      stage: (v: any) => void;
+                                      commit: (v?: any) => void;
+                                      cancel: () => void;
+                                    }) => React.ReactNode)
+                                  | undefined;
+                                if (typeof injectEditor === 'function') {
+                                  const node = injectEditor({
+                                    column: col,
+                                    row,
+                                    value: editValue,
+                                    stage: stageEdit,
+                                    commit: (v?: any) => saveEdit(true, v),
+                                    cancel: cancelEdit,
+                                  });
+                                  if (node != null) return node;
+                                }
+
                                 if (editType === 'date') {
                                   return (
                                     <Input
@@ -1241,50 +1286,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                   );
                                 }
 
-                                // Select / single-choice: a dropdown of the field's options
-                                // (forwarded as `col.options` from ObjectGrid), matching the
-                                // form's select control. Opens immediately and commits on pick.
-                                const editOptions = (col as any).options as
-                                  | Array<{ value: unknown; label: string }>
-                                  | undefined;
-                                if (
-                                  (editType === 'select' || editType === 'status') &&
-                                  Array.isArray(editOptions) &&
-                                  editOptions.length > 0
-                                ) {
-                                  return (
-                                    <Select
-                                      defaultOpen
-                                      value={editValue == null ? '' : String(editValue)}
-                                      onValueChange={(v) => saveEdit(true, v)}
-                                    >
-                                      <SelectTrigger className="h-8 px-2 py-1">
-                                        <SelectValue placeholder="—" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {editOptions.map((o) => (
-                                          <SelectItem key={String(o.value)} value={String(o.value)}>
-                                            {o.label}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  );
-                                }
+                                // Select / boolean / multi-select / etc. are NOT hand-rolled
+                                // here — the host (ObjectGrid) provides them via
+                                // `renderCellEditor` using the dedicated @object-ui/fields
+                                // widgets, so they exactly match the form's controls.
 
-                                // Boolean: a checkbox, like the form's boolean control.
-                                if (editType === 'boolean') {
-                                  return (
-                                    <div className="flex h-8 items-center px-2">
-                                      <Checkbox
-                                        checked={editValue === true || editValue === 'true' || editValue === 1}
-                                        onCheckedChange={(c) => saveEdit(true, !!c)}
-                                      />
-                                    </div>
-                                  );
-                                }
-
-                                // Fallback: plain text input (original behavior).
+                                // Fallback: plain text input (when no host editor matched and
+                                // the type isn't date/datetime/number).
                                 return (
                                   <Input
                                     ref={editInputRef}

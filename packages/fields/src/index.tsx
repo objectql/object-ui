@@ -2130,6 +2130,7 @@ export function registerFields() {
 }
 
 export * from './widgets/types';
+export * from './FieldEditWidget';
 export * from './widgets/TextField';
 export * from './widgets/NumberField';
 export * from './widgets/BooleanField';

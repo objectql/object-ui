@@ -25,7 +25,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
-import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES } from '@object-ui/fields';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import {
   Badge, Button, NavigationOverlay, EmptyValue,
@@ -1693,6 +1693,26 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     resizableColumns: schema.resizable ?? schema.resizableColumns ?? true,
     reorderableColumns: schema.reorderableColumns ?? false,
     editable: schema.editable ?? false,
+    // In-place cell editor: render the dedicated @object-ui/fields widget for
+    // the field's type — the SAME control the form uses (select→dropdown,
+    // boolean→checkbox, date→date picker, multi-select, …). Returning null lets
+    // DataTable fall back to its built-in text/number/date inputs. Discrete
+    // pickers commit-and-close on choose; everything else stages and closes when
+    // the user moves on.
+    renderCellEditor: schema.editable
+      ? (ctx: { column: any; value: any; stage: (v: any) => void; commit: (v?: any) => void }) => {
+          const fieldDef = (objectSchema as any)?.fields?.[ctx.column?.accessorKey];
+          if (!fieldDef || !hasFieldEditWidget(fieldDef.type)) return null;
+          const discrete = DISCRETE_EDIT_TYPES.has(fieldDef.type);
+          return (
+            <FieldEditWidget
+              field={{ name: ctx.column.accessorKey, ...fieldDef }}
+              value={ctx.value}
+              onChange={(v: any) => (discrete ? ctx.commit(v) : ctx.stage(v))}
+            />
+          );
+        }
+      : undefined,
     singleClickEdit: schema.singleClickEdit ?? true,
     className: schema.className,
     cellClassName: rowHeightMode === 'compact'
