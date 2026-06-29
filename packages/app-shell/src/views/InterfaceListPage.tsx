@@ -383,7 +383,10 @@ export function InterfaceListPage({ page, className, onConfigChange, reserveEdit
       showGroup: false,
       showColor: false,
       allowExport: false,
-      inlineEdit: false,
+      // Inline record editing is a page-authored property: a list block opts in
+      // via `userActions.editInline` (default off). When on, clicking a cell
+      // edits it with the dedicated field widgets, same as the object views.
+      inlineEdit: userActions.editInline === true,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [objectDefName, viewDefJson, cfg]);

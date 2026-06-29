@@ -1416,6 +1416,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 onHiddenFieldsChange={(hidden: string[]) => {
                     persistViewPatch(viewDef.id, viewDef, { hiddenFields: hidden });
                 }}
+                onInlineEditChange={(next: boolean) => {
+                    persistViewPatch(viewDef.id, viewDef, { inlineEdit: next });
+                }}
                 onColumnStateChange={(state: { order?: string[]; widths?: Record<string, number> }) => {
                     persistViewPatch(viewDef.id, viewDef, { columnState: state });
                 }}

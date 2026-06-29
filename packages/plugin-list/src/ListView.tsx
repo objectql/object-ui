@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, RefreshIndicator, DataEmptyState } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, RotateCw, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, RotateCw, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
@@ -31,6 +31,8 @@ export interface ListViewProps {
   onSearchChange?: (search: string) => void;
   /** Called when the user toggles fields via the Hide Fields popover. */
   onHiddenFieldsChange?: (hidden: string[]) => void;
+  /** Called when the user toggles inline record editing in View settings. */
+  onInlineEditChange?: (next: boolean) => void;
   /** Called when the user resizes/reorders columns in the underlying grid. */
   onColumnStateChange?: (state: { order?: string[]; widths?: Record<string, number> }) => void;
   /** Callback when a row/item is clicked (overrides NavigationConfig) */
@@ -322,6 +324,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   onSortChange,
   onSearchChange,
   onHiddenFieldsChange,
+  onInlineEditChange,
   onColumnStateChange,
   onRowClick,
   showViewSwitcher: showViewSwitcherProp,
@@ -1639,6 +1642,24 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               <div className="h-4 w-px bg-border/60 mx-0.5" />
             </>
           )}
+          {/* Inline edit — toggle record editing for this (grid) view. Persists
+              `inlineEdit` on the view via onInlineEditChange. */}
+          {currentView === 'grid' && onInlineEditChange && !toolbarFlags.compactToolbar && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onInlineEditChange(!schema.inlineEdit)}
+              className={cn(
+                "hidden sm:inline-flex h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
+                schema.inlineEdit && "text-primary"
+              )}
+              title={t('list.inlineEditLabel', { defaultValue: 'Edit records inline (click a cell to edit)' })}
+              data-testid="toolbar-inline-edit-toggle"
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              <span className="hidden sm:inline">{t('list.inlineEditShort', { defaultValue: 'Edit inline' })}</span>
+            </Button>
+          )}
           {/* Hide Fields — hidden on mobile (collapsed into ViewSettingsPopover) */}
           {toolbarFlags.showHideFields && !toolbarFlags.compactToolbar && (
           <Popover open={showHideFields} onOpenChange={setShowHideFields}>
@@ -1982,6 +2003,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               showHideFields={toolbarFlags.showHideFields}
               hiddenFields={hiddenFields}
               updateHiddenFields={updateHiddenFields}
+              showInlineEdit={currentView === 'grid'}
+              inlineEdit={!!schema.inlineEdit}
+              setInlineEdit={(v) => onInlineEditChange?.(v)}
             />
           )}
 

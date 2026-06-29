@@ -70,6 +70,11 @@ export interface ViewSettingsPopoverProps {
   showHideFields?: boolean;
   hiddenFields?: Set<string>;
   updateHiddenFields?: (next: Set<string>) => void;
+
+  /** Record editing — toggle inline cell editing (persists `inlineEdit` on the view). */
+  showInlineEdit?: boolean;
+  inlineEdit?: boolean;
+  setInlineEdit?: (next: boolean) => void;
 }
 
 interface SectionProps {
@@ -131,6 +136,9 @@ export function ViewSettingsPopover(props: ViewSettingsPopoverProps) {
     showHideFields,
     hiddenFields,
     updateHiddenFields,
+    showInlineEdit,
+    inlineEdit,
+    setInlineEdit,
   } = props;
 
   const [open, setOpen] = React.useState(false);
@@ -141,6 +149,7 @@ export function ViewSettingsPopover(props: ViewSettingsPopoverProps) {
     !!rowColorConfig?.field,
     density && density.mode !== 'compact',
     (hiddenFields?.size ?? 0) > 0,
+    !!inlineEdit,
   ].filter(Boolean).length;
 
   const DensityIcon =
@@ -263,6 +272,28 @@ export function ViewSettingsPopover(props: ViewSettingsPopoverProps) {
                 })}
               </span>
             </div>
+          </Section>
+        )}
+
+        {showInlineEdit && setInlineEdit && (
+          <Section
+            title={t('list.recordEditingTitle', { defaultValue: 'Record editing' })}
+            defaultOpen={!!inlineEdit}
+          >
+            <label className="flex items-center gap-2 text-xs py-1 px-1 rounded hover:bg-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!inlineEdit}
+                onChange={() => setInlineEdit(!inlineEdit)}
+                className="rounded border-input"
+                data-testid="view-settings-inline-edit"
+              />
+              <span>
+                {t('list.inlineEditLabel', {
+                  defaultValue: 'Edit records inline (click a cell to edit)',
+                })}
+              </span>
+            </label>
           </Section>
         )}
 
