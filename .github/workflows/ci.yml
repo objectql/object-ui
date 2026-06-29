@@ -142,7 +142,7 @@ jobs:
         run: echo "version=$(pnpm list @playwright/test --depth=0 --json | jq -r '.[0].devDependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -215,7 +215,7 @@ jobs:
 
       - name: Turbo Cache
         if: steps.docs-changes.outputs.should_run == 'true'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: node_modules/.cache/turbo
           key: turbo-${{ runner.os }}-docs-${{ github.sha }}
