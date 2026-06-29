@@ -63,13 +63,26 @@ describe('getRecordDisplayName — *_name on the RECORD when objectDef is unusab
 });
 
 describe('getRecordDisplayName — precedence', () => {
-  it('1. titleFormat wins over everything', () => {
+  // ADR-0079 Phase 2: an explicitly-declared field outranks the legacy
+  // render-only `titleFormat` template. The object declares BOTH a
+  // `displayNameField` and a `titleFormat`; the declared field wins.
+  it('1. declared displayNameField wins over a legacy titleFormat', () => {
     const obj = {
       titleFormat: '{first} {last}',
       displayNameField: 'name',
       fields: { name: { type: 'text' }, first: { type: 'text' }, last: { type: 'text' } },
     };
-    const rec = { id: '1', name: 'Ignored', first: 'Ada', last: 'Lovelace' };
+    const rec = { id: '1', name: 'Declared', first: 'Ada', last: 'Lovelace' };
+    expect(getRecordDisplayName(obj, rec)).toBe('Declared');
+  });
+
+  // titleFormat is still honored when no declared field resolves (back-compat).
+  it('1b. titleFormat still renders when no nameField/displayNameField is declared', () => {
+    const obj = {
+      titleFormat: '{first} {last}',
+      fields: { first: { type: 'text' }, last: { type: 'text' } },
+    };
+    const rec = { id: '1', first: 'Ada', last: 'Lovelace' };
     expect(getRecordDisplayName(obj, rec)).toBe('Ada Lovelace');
   });
 
@@ -140,6 +153,121 @@ describe('getRecordDisplayName — precedence', () => {
     expect(getRecordDisplayName({ name: 'account' }, { id: 'a1', name: 'Acme Corp' })).toBe('Acme Corp');
     expect(getRecordDisplayName({}, { id: 'c1', full_name: 'Ada Lovelace' })).toBe('Ada Lovelace');
     expect(getRecordDisplayName({}, { id: 'x', subject: 'Ticket' })).toBe('Ticket');
+  });
+});
+
+describe('getRecordDisplayName — ADR-0079 Phase 2 (nameField canonical)', () => {
+  // (a) nameField is the NEW canonical pointer and must win even when the object
+  //     also carries a stale render-only titleFormat.
+  it('resolves via nameField even when a stale titleFormat is present (nameField wins)', () => {
+    const obj = {
+      nameField: 'activity_name',
+      titleFormat: '{wrong}',
+      fields: { activity_name: { type: 'text' }, wrong: { type: 'text' } },
+    };
+    const rec = { id: '1', activity_name: '夏日城市骑行夜', wrong: 'STALE TEMPLATE' };
+    expect(getRecordDisplayName(obj, rec)).toBe('夏日城市骑行夜');
+  });
+
+  it('nameField outranks the displayNameField alias', () => {
+    const obj = {
+      nameField: 'activity_name',
+      displayNameField: 'legacy_name',
+      fields: { activity_name: { type: 'text' }, legacy_name: { type: 'text' } },
+    };
+    const rec = { id: '1', activity_name: 'Canonical', legacy_name: 'Alias' };
+    expect(getRecordDisplayName(obj, rec)).toBe('Canonical');
+  });
+
+  it('falls through to displayNameField when nameField is empty on the record', () => {
+    const obj = {
+      nameField: 'activity_name',
+      displayNameField: 'legacy_name',
+      fields: { activity_name: { type: 'text' }, legacy_name: { type: 'text' } },
+    };
+    const rec = { id: '1', activity_name: '   ', legacy_name: 'Alias' };
+    expect(getRecordDisplayName(obj, rec)).toBe('Alias');
+  });
+
+  // (b) An object with ONLY a titleFormat (no nameField/displayNameField) still
+  //     resolves via the template — back-compat preserved.
+  it('back-compat: titleFormat-only object still resolves via the template', () => {
+    const obj = {
+      titleFormat: '{first} · {last}',
+      fields: { first: { type: 'text' }, last: { type: 'text' } },
+    };
+    const rec = { id: '1', first: 'Ada', last: 'Lovelace' };
+    expect(getRecordDisplayName(obj, rec)).toBe('Ada · Lovelace');
+  });
+});
+
+describe('deriveTitleField — memoization (per objectDef, not per record)', () => {
+  it('returns the same derived field across repeated calls for one objectDef', () => {
+    const obj = { fields: { activity_name: { type: 'text' }, start_date: { type: 'date' } } };
+    const first = deriveTitleField(obj);
+    expect(first).toBe('activity_name');
+    // Repeated calls (the per-record hot path) return the identical result.
+    for (let i = 0; i < 5; i++) expect(deriveTitleField(obj)).toBe('activity_name');
+  });
+
+  it('does NOT re-scan objectDef.fields after the first call (cached)', () => {
+    // Lightweight spy: a `fields` map whose property reads are counted. After the
+    // first deriveTitleField the cache must serve subsequent calls WITHOUT
+    // touching `fields` again (zero further reads).
+    let reads = 0;
+    const fields = new Proxy(
+      { activity_name: { type: 'text' }, start_date: { type: 'date' } } as Record<string, any>,
+      {
+        get(target, prop, receiver) {
+          reads++;
+          return Reflect.get(target, prop, receiver);
+        },
+        ownKeys(target) {
+          reads++;
+          return Reflect.ownKeys(target);
+        },
+        getOwnPropertyDescriptor(target, prop) {
+          return Reflect.getOwnPropertyDescriptor(target, prop);
+        },
+      },
+    );
+    const obj = { fields };
+
+    expect(deriveTitleField(obj)).toBe('activity_name');
+    const readsAfterFirst = reads;
+    expect(readsAfterFirst).toBeGreaterThan(0); // the first scan touched fields
+
+    for (let i = 0; i < 10; i++) deriveTitleField(obj);
+    // No additional reads — every later call hit the WeakMap cache.
+    expect(reads).toBe(readsAfterFirst);
+  });
+
+  it('memoizes an undefined result (object with no title-eligible field)', () => {
+    let scans = 0;
+    const obj = {
+      get fields() {
+        scans++;
+        return { when: { type: 'date' }, qty: { type: 'number' } };
+      },
+    };
+    expect(deriveTitleField(obj)).toBeUndefined();
+    expect(deriveTitleField(obj)).toBeUndefined();
+    // `fields` getter invoked exactly once → the cached `undefined` was reused.
+    expect(scans).toBe(1);
+  });
+
+  it('keeps distinct objectDefs independent (no cross-contamination)', () => {
+    const a = { fields: { subject: { type: 'text' } } };
+    const b = { fields: { full_name: { type: 'text' } } };
+    expect(deriveTitleField(a)).toBe('subject');
+    expect(deriveTitleField(b)).toBe('full_name');
+    expect(deriveTitleField(a)).toBe('subject');
+  });
+
+  it('does not cache primitives/null (computes uncached, no throw)', () => {
+    expect(deriveTitleField(null)).toBeUndefined();
+    expect(deriveTitleField(undefined)).toBeUndefined();
+    expect(deriveTitleField('nope' as any)).toBeUndefined();
   });
 });
 
