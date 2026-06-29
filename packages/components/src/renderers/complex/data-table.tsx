@@ -26,7 +26,7 @@ import {
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Checkbox } from '../../ui/checkbox';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -624,30 +624,34 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     setEditValue(valueToEdit);
   };
 
-  const saveEdit = (force: boolean = false) => {
+  const saveEdit = (force: boolean = false, explicitValue?: any) => {
     if (!editingCell) return;
-    
+
     // Don't save if we're in cancelled state (unless forced)
     if (!force && editingCell === null) return;
-    
+
     const { rowIndex, columnKey } = editingCell;
     const globalIndex = (effectivePage - 1) * pageSize + rowIndex;
     // Under manual pagination `sortedData` IS the current page, so address it
     // page-locally; otherwise it's the full in-memory set indexed absolutely.
     const row = sortedData[manualPagination ? rowIndex : globalIndex];
-    
+
+    // Discrete editors (select / checkbox) commit the chosen value synchronously
+    // via `explicitValue` — their `setEditValue` hasn't flushed to state yet.
+    const valueToStage = explicitValue !== undefined ? explicitValue : editValue;
+
     // Update pending changes
     const newPendingChanges = new Map(pendingChanges);
     const rowChanges = newPendingChanges.get(rowIndex) || {};
-    rowChanges[columnKey] = editValue;
+    rowChanges[columnKey] = valueToStage;
     newPendingChanges.set(rowIndex, rowChanges);
     setPendingChanges(newPendingChanges);
-    
+
     // Call the legacy onCellChange callback if provided
     if (schema.onCellChange) {
-      schema.onCellChange(globalIndex, columnKey, editValue, row);
+      schema.onCellChange(globalIndex, columnKey, valueToStage, row);
     }
-    
+
     setEditingCell(null);
     setEditValue('');
   };
@@ -1237,10 +1241,48 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                   );
                                 }
 
-                                // NOTE: `select`/`boolean` editors are intentionally not
-                                // wired here — the data-table column does not currently
-                                // carry option metadata. Extension point: when `col.options`
-                                // is forwarded from ObjectGrid, render a <Select>/checkbox.
+                                // Select / single-choice: a dropdown of the field's options
+                                // (forwarded as `col.options` from ObjectGrid), matching the
+                                // form's select control. Opens immediately and commits on pick.
+                                const editOptions = (col as any).options as
+                                  | Array<{ value: unknown; label: string }>
+                                  | undefined;
+                                if (
+                                  (editType === 'select' || editType === 'status') &&
+                                  Array.isArray(editOptions) &&
+                                  editOptions.length > 0
+                                ) {
+                                  return (
+                                    <Select
+                                      defaultOpen
+                                      value={editValue == null ? '' : String(editValue)}
+                                      onValueChange={(v) => saveEdit(true, v)}
+                                    >
+                                      <SelectTrigger className="h-8 px-2 py-1">
+                                        <SelectValue placeholder="—" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {editOptions.map((o) => (
+                                          <SelectItem key={String(o.value)} value={String(o.value)}>
+                                            {o.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  );
+                                }
+
+                                // Boolean: a checkbox, like the form's boolean control.
+                                if (editType === 'boolean') {
+                                  return (
+                                    <div className="flex h-8 items-center px-2">
+                                      <Checkbox
+                                        checked={editValue === true || editValue === 'true' || editValue === 1}
+                                        onCheckedChange={(c) => saveEdit(true, !!c)}
+                                      />
+                                    </div>
+                                  );
+                                }
 
                                 // Fallback: plain text input (original behavior).
                                 return (

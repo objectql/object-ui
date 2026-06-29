@@ -1320,7 +1320,21 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     );
   }
 
-  const columns = generateColumns();
+  const columns = generateColumns().map((col: any) => {
+    // Enrich each column with its field type + select options so the
+    // data-table's type-aware inline editor can pick the matching control
+    // (dropdown for select, checkbox for boolean) the form uses, instead of a
+    // plain text box. Additive: never overrides a type/options a path already set.
+    if (!col || col.accessorKey === '_actions') return col;
+    const fieldDef = (objectSchema as any)?.fields?.[col.accessorKey];
+    if (!fieldDef) return col;
+    const next: any = { ...col };
+    if (next.type == null && fieldDef.type) next.type = fieldDef.type;
+    if (next.options == null && fieldDef.options) {
+      next.options = translateOptions(schema.objectName, col.accessorKey, fieldDef.options);
+    }
+    return next;
+  });
 
   // Apply persisted column order and widths
   let persistedColumns = [...columns];
