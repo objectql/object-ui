@@ -19,7 +19,7 @@ import { preferLocal } from '../utils/preferLocal';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useMetadataClient } from './metadata-admin/useMetadata';
 import { persistRuntimeMetadata } from './runtime-metadata-persistence';
-import { useAuth } from '@object-ui/auth';
+import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import type { DataSource, ReportViewerSchema } from '@object-ui/types';
 import type { DatasetDrillArgs } from '@object-ui/plugin-report';
 import { DrillDownDrawer } from '@object-ui/plugin-dashboard';
@@ -47,8 +47,7 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
   const metadataClient = useMetadataClient();
   // Editing a report mutates the SHARED definition, so it is an admin-only
   // quick-edit affordance (mirrors ObjectView's view-config gate).
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = useIsWorkspaceAdmin();
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   // Version counter — incremented on save to refresh the stable config reference
   const [configVersion, setConfigVersion] = useState(0);

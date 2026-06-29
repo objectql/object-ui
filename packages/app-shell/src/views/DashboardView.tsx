@@ -13,7 +13,7 @@ import { DrillNavigationProvider } from '@object-ui/react';
 import { useOpenRecordList } from './useOpenRecordList';
 import { ModalForm } from '@object-ui/plugin-form';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
-import { useAuth } from '@object-ui/auth';
+import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import { toast } from 'sonner';
 import type { ModalHandler, ActionDef, ActionContext, ActionResult } from '@object-ui/core';
 import {
@@ -106,8 +106,7 @@ export function DashboardView({ dataSource }: { dataSource?: any }) {
   const { dashboardLabel, dashboardDescription } = useObjectLabel();
   // Editing a dashboard mutates the SHARED definition, so it is an admin-only
   // quick-edit affordance (mirrors ObjectView's view-config gate).
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = useIsWorkspaceAdmin();
   const [isLoading, setIsLoading] = useState(true);
   const [configPanelOpen, setConfigPanelOpen] = useState(false);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);

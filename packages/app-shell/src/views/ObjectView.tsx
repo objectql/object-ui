@@ -51,7 +51,7 @@ import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
-import { useAuth } from '@object-ui/auth';
+import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useRealtimeSubscription, useConflictResolution } from '@object-ui/collaboration';
 import { ActionProvider, useNavigationOverlay, SchemaRenderer } from '@object-ui/react';
 import { toast } from 'sonner';
@@ -299,7 +299,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     
     // Admin users automatically get design tools (no toggle needed)
     const { user, activeOrganization } = useAuth();
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = useIsWorkspaceAdmin();
     const { can } = usePermissions();
     
     // Get Object Definition. The outer ObjectView wrapper already guards the

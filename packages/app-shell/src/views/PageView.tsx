@@ -15,7 +15,7 @@ import { SchemaRenderer, useAdapter } from '@object-ui/react';
 import { Empty, EmptyTitle, EmptyDescription, Spinner } from '@object-ui/components';
 import { FileText, Pencil } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { useAuth } from '@object-ui/auth';
+import { useIsWorkspaceAdmin } from '@object-ui/auth';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useExpressionContext } from '../providers/ExpressionProvider';
@@ -32,8 +32,7 @@ export function PageView() {
   const location = useLocation();
   // Editing a page mutates the shared metadata definition, so the entry point
   // is admin-only (mirrors the view/report/dashboard runtime editors).
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = useIsWorkspaceAdmin();
 
   const { pages, objects, getTypeStatus } = useMetadata();
   // ADR-0048 Phase 2 — prefer the page owned by the current app's package so
