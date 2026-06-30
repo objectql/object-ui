@@ -1,5 +1,22 @@
 # @object-ui/plugin-detail
 
+## 11.3.0
+
+### Minor Changes
+
+- db5ebe4: Declare designer inputs for the `record:*` blocks (details, related_list,
+  highlights, path) so they conform to the spec protocol (RecordDetailsProps /
+  RecordRelatedListProps / RecordHighlightsProps / RecordPathProps in
+  @objectstack/spec component.zod). They previously registered ZERO inputs — the
+  visual designer could not configure them, and the spec↔frontend conformance
+  check flagged 17 spec-only divergences. Now each block's inputs mirror its spec
+  schema (columns/layout/sections/fields, etc.).
+
+### Patch Changes
+
+- Updated dependencies [d88c8ec]
+  - @object-ui/i18n@11.3.0
+
 ## 11.2.0
 
 ### Minor Changes
