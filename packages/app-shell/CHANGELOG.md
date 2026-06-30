@@ -1,5 +1,25 @@
 # @object-ui/app-shell — Changelog
 
+## 11.3.1
+
+### Patch Changes
+
+- Updated dependencies [5160832]
+- Updated dependencies [69d6b94]
+  - @object-ui/fields@11.3.1
+  - @object-ui/types@11.3.1
+  - @object-ui/core@11.3.1
+  - @object-ui/i18n@11.3.1
+  - @object-ui/react@11.3.1
+  - @object-ui/components@11.3.1
+  - @object-ui/layout@11.3.1
+  - @object-ui/data-objectstack@11.3.1
+  - @object-ui/auth@11.3.1
+  - @object-ui/permissions@11.3.1
+  - @object-ui/plugin-editor@11.3.1
+  - @object-ui/collaboration@11.3.1
+  - @object-ui/providers@11.3.1
+
 ## 11.3.0
 
 ### Patch Changes

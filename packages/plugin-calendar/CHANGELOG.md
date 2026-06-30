@@ -1,5 +1,20 @@
 # @object-ui/plugin-calendar
 
+## 11.3.1
+
+### Patch Changes
+
+- Updated dependencies [5160832]
+- Updated dependencies [69d6b94]
+  - @object-ui/fields@11.3.1
+  - @object-ui/plugin-detail@11.3.1
+  - @object-ui/types@11.3.1
+  - @object-ui/core@11.3.1
+  - @object-ui/i18n@11.3.1
+  - @object-ui/react@11.3.1
+  - @object-ui/components@11.3.1
+  - @object-ui/mobile@11.3.1
+
 ## 11.3.0
 
 ### Patch Changes

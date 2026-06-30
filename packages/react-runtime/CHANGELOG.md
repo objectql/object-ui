@@ -1,5 +1,7 @@
 # @object-ui/react-runtime
 
+## 11.3.1
+
 ## 11.3.0
 
 ### Minor Changes
