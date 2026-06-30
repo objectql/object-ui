@@ -23,12 +23,13 @@
  *     left to plain HTML + Tailwind (React's strength); only the data blocks
  *     that can't be expressed in HTML are injected.
  *   - `Block`                — escape hatch: `<Block type="object-table" .../>`.
+ *   - `useAdapter`            — live data hook: query/create/update objects.
  *   - `data` / `variables`   — page data + local variables, for convenience.
  */
 
 import * as React from 'react';
 import { ComponentRegistry, isCapabilityEnabled, CAP_REACT_PAGES } from '@object-ui/core';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, SchemaRendererProvider, useAdapter } from '@object-ui/react';
 
 type RuntimeModule = typeof import('@object-ui/react-runtime');
 
@@ -45,9 +46,12 @@ function toPascal(tag: string): string {
 // data/leaf blocks (non-containers) as prop-driven wrappers; layout containers
 // are intentionally left out — in react mode the author composes layout with
 // real HTML + Tailwind, not our schema-children renderers.
-function buildComponentScope(): Record<string, React.ComponentType<any>> {
+function buildComponentScope(dataSource: unknown): Record<string, React.ComponentType<any>> {
   const scope: Record<string, React.ComponentType<any>> = {};
   const seen = new Set<string>();
+  // Some data blocks read their dataSource from props (e.g. `list-view`), others
+  // from the SchemaRenderer context (e.g. `object-form`). We inject it as a prop
+  // here AND wrap the page in a SchemaRendererProvider below, so both kinds work.
   for (const cfg of ComponentRegistry.getPublicConfigs() as Array<{ type: string; isContainer?: boolean }>) {
     const tag = cfg.type;
     if (!tag || cfg.isContainer) continue;
@@ -55,13 +59,13 @@ function buildComponentScope(): Record<string, React.ComponentType<any>> {
     if (seen.has(name)) continue;
     seen.add(name);
     const Wrapper: React.FC<any> = ({ children: _children, ...props }) =>
-      React.createElement(SchemaRenderer as any, { schema: { type: tag, ...props } });
+      React.createElement(SchemaRenderer as any, { schema: { type: tag, dataSource, ...props } });
     Wrapper.displayName = name;
     scope[name] = Wrapper;
   }
   // Escape hatch: render any registered component by type.
   const Block: React.FC<{ type: string; [k: string]: unknown }> = ({ type, children: _c, ...props }) =>
-    React.createElement(SchemaRenderer as any, { schema: { type, ...props } });
+    React.createElement(SchemaRenderer as any, { schema: { type, dataSource, ...props } });
   Block.displayName = 'Block';
   scope.Block = Block;
   return scope;
@@ -83,6 +87,9 @@ function CapabilityDisabledNotice(): React.ReactElement {
 
 export const ReactKindPage: React.FC<{ schema: any }> = ({ schema }) => {
   const source: string = typeof schema?.source === 'string' ? schema.source : '';
+  // The live data source for the injected data blocks (and the page's own
+  // `useAdapter()` calls). Same object the rest of the app renders against.
+  const adapter = useAdapter();
 
   // Gate: default-closed. Off in OSS / untrusted builds.
   if (!isCapabilityEnabled(CAP_REACT_PAGES)) {
@@ -104,12 +111,16 @@ export const ReactKindPage: React.FC<{ schema: any }> = ({ schema }) => {
 
   const scope = React.useMemo(
     () => ({
-      ...buildComponentScope(),
+      ...buildComponentScope(adapter),
+      // Live data access — `const adapter = useAdapter()` inside the page, then
+      // adapter.find('object', {...}) / .create / .update. Hooks injected as
+      // closure vars; the page calls them from its own component body.
+      useAdapter,
       data: schema?.data ?? schema?.variables ?? {},
       variables: schema?.variables ?? {},
       page: schema ?? {},
     }),
-    [schema],
+    [schema, adapter],
   );
 
   if (loadError) {
@@ -133,15 +144,17 @@ export const ReactKindPage: React.FC<{ schema: any }> = ({ schema }) => {
 
   const { ReactRunner } = runtime;
   return (
-    <ReactRunner
-      code={source}
-      scope={scope}
-      fallback={(error) => (
-        <div className="m-4 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-          <div className="font-semibold">React page error</div>
-          <pre className="mt-1 whitespace-pre-wrap">{String(error)}</pre>
-        </div>
-      )}
-    />
+    <SchemaRendererProvider dataSource={adapter ?? {}}>
+      <ReactRunner
+        code={source}
+        scope={scope}
+        fallback={(error) => (
+          <div className="m-4 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            <div className="font-semibold">React page error</div>
+            <pre className="mt-1 whitespace-pre-wrap">{String(error)}</pre>
+          </div>
+        )}
+      />
+    </SchemaRendererProvider>
   );
 };
