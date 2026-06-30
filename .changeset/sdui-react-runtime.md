@@ -13,9 +13,10 @@ Three-tier AI page authoring: `kind:'html'` and a trusted `kind:'react'` tier.
   in the main React tree with an injected scope (React, the public data blocks,
   page data) and a built-in error boundary.
 - **`@object-ui/core`** — new runtime capability gate (`enableCapability` /
-  `isCapabilityEnabled`, `CAP_REACT_PAGES`). Default-closed: `kind:'react'` only
-  executes when a *host* opts in (enterprise / private deployment); never from
-  authored metadata.
+  `disableCapability` / `isCapabilityEnabled`, `CAP_REACT_PAGES`). `react-pages`
+  defaults **ON** (the platform trusts reviewed, draft-gated authors); a
+  deployment turns it OFF server-side (the runtime injects the disable global
+  when `OS_DISABLE_REACT_PAGES` is set). Never controlled from authored metadata.
 - **`@object-ui/components`** — PageRenderer now routes `kind:'react'`
   (capability-gated, lazy-loads the runtime) and renders `kind:'html'` (the
   former `kind:'jsx'`, still accepted as a deprecated alias). The `html` tier

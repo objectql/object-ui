@@ -10,11 +10,12 @@
  * Unlike `kind:'html'` (constrained JSX parsed, never executed), a react page's
  * `source` is real JavaScript/JSX: hooks, event handlers, `.map`, arbitrary
  * expressions. It is transpiled (Sucrase) and evaluated directly in the main
- * React tree by `@object-ui/react-runtime` — NO sandbox. That is only safe under
- * trust, so it is gated behind the host capability `CAP_REACT_PAGES` (default
- * OFF; enterprise / private deployments opt in). The runtime is lazy-loaded so
- * the transpiler ships in a separate chunk fetched only when a react page
- * actually renders with the capability on.
+ * React tree by `@object-ui/react-runtime` — NO sandbox. The platform trusts
+ * its (reviewed, draft-gated) page authors, so the host capability
+ * `CAP_REACT_PAGES` defaults ON; a deployment that does not trust its authors
+ * turns it OFF server-side (the runtime injects the disable global when
+ * `OS_DISABLE_REACT_PAGES` is set). The transpiler is lazy-loaded — fetched in a
+ * separate chunk only when a react page actually renders with the capability on.
  *
  * Scope injected into the source:
  *   - `React`                — so authors can call hooks.
@@ -74,12 +75,12 @@ function buildComponentScope(dataSource: unknown): Record<string, React.Componen
 function CapabilityDisabledNotice(): React.ReactElement {
   return (
     <div className="m-4 rounded-md border border-amber-400/40 bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-      <div className="font-semibold">This page requires the “React pages” capability</div>
+      <div className="font-semibold">React pages are disabled on this deployment</div>
       <p className="mt-1 leading-relaxed">
         <code>kind:&apos;react&apos;</code> pages execute author JavaScript directly in the
-        application. For safety this runs only on trusted (enterprise / private)
-        deployments. A host enables it with{' '}
-        <code>enableCapability(&apos;react-pages&apos;)</code>.
+        application. This deployment has turned the capability off
+        (<code>OS_DISABLE_REACT_PAGES</code> / <code>disableCapability(&apos;react-pages&apos;)</code>).
+        It is ON by default; re-enable it if your page authors are trusted.
       </p>
     </div>
   );
