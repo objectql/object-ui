@@ -137,6 +137,7 @@ const ar = {
     open: "فتح",
     search: "بحث...",
     modified: "{{count}} صف(صفوف) معدّل(ة)",
+    saveFailed: 'فشل الحفظ',
     selected: "{{count}} محدد(ة)",
     edit: "تعديل",
     delete: "حذف",

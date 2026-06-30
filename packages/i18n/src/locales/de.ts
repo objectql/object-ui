@@ -137,6 +137,7 @@ const de = {
     open: "Öffnen",
     search: "Suchen...",
     modified: "{{count}} Zeile geändert",
+    saveFailed: 'Speichern fehlgeschlagen',
     selected: "{{count}} ausgewählt",
     edit: "Bearbeiten",
     delete: "Löschen",

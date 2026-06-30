@@ -137,6 +137,7 @@ const ko = {
     open: "열기",
     search: "검색...",
     modified: "{{count}}개 행 수정됨",
+    saveFailed: '저장 실패',
     selected: "{{count}}개 선택됨",
     edit: "편집",
     delete: "삭제",

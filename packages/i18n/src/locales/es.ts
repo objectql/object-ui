@@ -137,6 +137,7 @@ const es = {
     open: "Abrir",
     search: "Buscar...",
     modified: "{{count}} filas modificadas",
+    saveFailed: 'Error al guardar',
     selected: "{{count}} seleccionados",
     edit: "Editar",
     delete: "Eliminar",

@@ -51,6 +51,7 @@ import {
   Plus,
   Expand,
   MoreHorizontal,
+  AlertCircle,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -118,6 +119,7 @@ const TABLE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'table.open': 'Open',
   'table.search': 'Search...',
   'table.modified': '{{count}} row modified',
+  'table.saveFailed': 'Save failed',
   'table.selected': '{{count}} selected',
   'table.edit': 'Edit',
   'table.delete': 'Delete',
@@ -161,6 +163,23 @@ function useTableTranslation() {
       language: 'en',
     };
   }
+}
+
+/**
+ * Pull the most useful human-readable message out of whatever the save path
+ * threw. The ObjectStack adapter decorates thrown errors with the parsed
+ * response body on `details` (e.g. a `{ message, error }` from a validation
+ * failure), so prefer that; fall back to `error.message`, then a raw string.
+ * Never returns empty — callers render it as the save-failure reason.
+ */
+function extractSaveErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const e = error as { message?: unknown; details?: { message?: unknown; error?: unknown } };
+    const detail = e.details && (e.details.message ?? e.details.error);
+    if (typeof detail === 'string' && detail.trim()) return detail.trim();
+    if (typeof e.message === 'string' && e.message.trim()) return e.message.trim();
+  }
+  return typeof error === 'string' && error.trim() ? error.trim() : 'Unknown error';
 }
 
 /**
@@ -322,6 +341,12 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // Track pending changes for multi-cell editing: rowIndex -> { columnKey -> newValue }
   const [pendingChanges, setPendingChanges] = useState<Map<number, Record<string, any>>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
+  // Last save failure message (server validation text, etc.) shown in the
+  // toolbar; null when the last save attempt succeeded or nothing's been saved.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Row indices whose last save attempt failed — tinted destructive so the
+  // author sees exactly which rows didn't persist (no silent "phantom save").
+  const [erroredRows, setErroredRows] = useState<Set<number>>(new Set());
   // Column header context menu state
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; columnKey: string } | null>(null);
   
@@ -706,8 +731,21 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       const newPendingChanges = new Map(pendingChanges);
       newPendingChanges.delete(rowIndex);
       setPendingChanges(newPendingChanges);
+      // Saved — drop any prior error for this row, and clear the banner once
+      // no errored rows remain.
+      setErroredRows((prev) => {
+        if (!prev.has(rowIndex)) return prev;
+        const next = new Set(prev);
+        next.delete(rowIndex);
+        if (next.size === 0) setSaveError(null);
+        return next;
+      });
     } catch (error) {
+      // Keep the pending change so the author can fix and retry; surface the
+      // reason instead of failing silently, and flag the row.
       console.error('Failed to save row:', error);
+      setSaveError(extractSaveErrorMessage(error));
+      setErroredRows((prev) => new Set(prev).add(rowIndex));
     } finally {
       setIsSaving(false);
     }
@@ -717,6 +755,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     const newPendingChanges = new Map(pendingChanges);
     newPendingChanges.delete(rowIndex);
     setPendingChanges(newPendingChanges);
+    setErroredRows((prev) => {
+      if (!prev.has(rowIndex)) return prev;
+      const next = new Set(prev);
+      next.delete(rowIndex);
+      if (next.size === 0) setSaveError(null);
+      return next;
+    });
   };
 
   const saveBatch = async () => {
@@ -736,8 +781,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       
       // Clear all pending changes
       setPendingChanges(new Map());
+      // Saved — clear any prior errors.
+      setErroredRows(new Set());
+      setSaveError(null);
     } catch (error) {
+      // Batch is all-or-nothing here: keep every pending row, flag them all,
+      // and surface the reason instead of failing silently.
       console.error('Failed to save batch:', error);
+      setSaveError(extractSaveErrorMessage(error));
+      setErroredRows(new Set(pendingChanges.keys()));
     } finally {
       setIsSaving(false);
     }
@@ -745,6 +797,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
 
   const cancelAllChanges = () => {
     setPendingChanges(new Map());
+    setErroredRows(new Set());
+    setSaveError(null);
   };
 
   const handleCellKeyDown = (e: React.KeyboardEvent, rowIndex: number, columnKey: string) => {
@@ -843,6 +897,17 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
           <div className="flex flex-wrap items-center gap-2">
             {hasPendingChanges && (
               <>
+                {saveError && (
+                  <div
+                    role="alert"
+                    className="flex items-center gap-1.5 text-sm text-destructive max-w-[16rem] sm:max-w-sm"
+                  >
+                    <AlertCircle className="h-4 w-4 flex-none" />
+                    <span className="truncate" title={`${t('table.saveFailed')}: ${saveError}`}>
+                      {t('table.saveFailed')}: {saveError}
+                    </span>
+                  </div>
+                )}
                 <div className="text-sm text-muted-foreground">
                   {t('table.modified', { count: pendingChanges.size })}
                 </div>
@@ -1071,7 +1136,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         "data-[state=selected]:bg-primary/5 data-[state=selected]:hover:bg-primary/10",
                         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
                         schema.onRowClick && "cursor-pointer",
-                        rowHasChanges && "bg-amber-50 dark:bg-amber-950/20",
+                        rowHasChanges && !erroredRows.has(rowIndex) && "bg-amber-50 dark:bg-amber-950/20",
+                        erroredRows.has(rowIndex) && "bg-destructive/10 dark:bg-destructive/15 ring-1 ring-inset ring-destructive/40",
                         rowClassName && rowClassName(row, rowIndex)
                       )}
                       style={rowStyle ? rowStyle(row, rowIndex) : undefined}

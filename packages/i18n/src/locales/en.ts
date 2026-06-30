@@ -144,6 +144,7 @@ const en = {
     open: 'Open',
     search: 'Search...',
     modified: '{{count}} row modified',
+    saveFailed: 'Save failed',
     selected: '{{count}} selected',
     edit: 'Edit',
     delete: 'Delete',

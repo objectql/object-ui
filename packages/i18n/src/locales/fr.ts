@@ -137,6 +137,7 @@ const fr = {
     open: "Ouvrir",
     search: "Rechercher...",
     modified: "{{count}} ligne(s) modifiée(s)",
+    saveFailed: 'Échec de l’enregistrement',
     selected: "{{count}} sélectionné(s)",
     edit: "Modifier",
     delete: "Supprimer",

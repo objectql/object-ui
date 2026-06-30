@@ -137,6 +137,7 @@ const ru = {
     open: "Открыть",
     search: "Поиск...",
     modified: "{{count}} строк изменено",
+    saveFailed: 'Не удалось сохранить',
     selected: "{{count}} выбрано",
     edit: "Редактировать",
     delete: "Удалить",

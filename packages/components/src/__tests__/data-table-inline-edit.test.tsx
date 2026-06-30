@@ -19,7 +19,7 @@
  *      render a native date picker (<input type="date">).
  */
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { fireEvent } from '@testing-library/react';
+import { fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { renderComponent } from './test-utils';
@@ -130,5 +130,53 @@ describe('data-table — inline edit is per-row usable', () => {
     fireEvent.blur(input);
 
     expect(onCellChange).not.toHaveBeenCalled();
+  });
+
+  it('D) a failed save surfaces the server error and keeps the pending change', async () => {
+    // Regression: a rejected save (e.g. a 400 validation failure) was swallowed
+    // with only console.error — the toolbar stayed stuck, the cell kept the
+    // unsaved value, and the author got no feedback. The reason must surface.
+    const onBatchSave = vi.fn().mockRejectedValue({
+      // Shape the ObjectStack adapter decorates onto thrown errors.
+      details: { message: 'Invalid task status transition.' },
+    });
+    const { container, getByText } = renderComponent({ ...editableSchema, onBatchSave });
+
+    // Stage an edit.
+    const cells = container.querySelectorAll('tbody td');
+    const qtyCell = cells[2] as HTMLElement; // 报工数量
+    fireEvent.click(qtyCell);
+    const input = qtyCell.querySelector('input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '42' } });
+    fireEvent.blur(input);
+
+    // Save All → saveBatch → onBatchSave rejects.
+    fireEvent.click(getByText(/Save All/i));
+    expect(onBatchSave).toHaveBeenCalledTimes(1);
+
+    // The server's reason is surfaced, not swallowed.
+    await waitFor(() =>
+      expect(container.textContent).toContain('Invalid task status transition'),
+    );
+    // And the pending change is kept (Save All still offered) — no silent drop
+    // and no phantom "saved" state.
+    expect(getByText(/Save All/i)).toBeInTheDocument();
+  });
+
+  it('D2) a successful save does NOT show a save-failure message', async () => {
+    const onBatchSave = vi.fn().mockResolvedValue(undefined);
+    const { container, getByText } = renderComponent({ ...editableSchema, onBatchSave });
+
+    const cells = container.querySelectorAll('tbody td');
+    const qtyCell = cells[2] as HTMLElement;
+    fireEvent.click(qtyCell);
+    const input = qtyCell.querySelector('input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '7' } });
+    fireEvent.blur(input);
+
+    fireEvent.click(getByText(/Save All/i));
+    await waitFor(() => expect(onBatchSave).toHaveBeenCalledTimes(1));
+
+    expect(container.textContent).not.toContain('Save failed');
   });
 });

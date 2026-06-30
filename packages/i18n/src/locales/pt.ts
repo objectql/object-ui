@@ -137,6 +137,7 @@ const pt = {
     open: "Abrir",
     search: "Pesquisar...",
     modified: "{{count}} linha(s) modificada(s)",
+    saveFailed: 'Falha ao salvar',
     selected: "{{count}} selecionado(s)",
     edit: "Editar",
     delete: "Excluir",

@@ -144,6 +144,7 @@ const zh = {
     open: '打开',
     search: '搜索...',
     modified: '{{count}} 行已修改',
+    saveFailed: '保存失败',
     selected: '已选择 {{count}} 项',
     edit: '编辑',
     delete: '删除',

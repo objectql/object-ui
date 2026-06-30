@@ -137,6 +137,7 @@ const ja = {
     open: "開く",
     search: "検索...",
     modified: "{{count}} 行が変更されました",
+    saveFailed: '保存に失敗しました',
     selected: "{{count}} 件選択中",
     edit: "編集",
     delete: "削除",
