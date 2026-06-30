@@ -15,7 +15,7 @@
  * authors and pass human review (draft-gating, ADR-0033), so the platform
  * trusts them by default. A deployment that does NOT trust its page authors
  * turns it off server-side — the ObjectStack runtime injects the disable global
- * when `OS_DISABLE_REACT_PAGES` is set (see framework cli/utils/console.ts).
+ * when `OS_PAGE_REACT=off` (see framework cli/utils/console.ts).
  *
  * Globals a host/server can set in the page before the bundle runs:
  *   - `globalThis.__OBJECTUI_CAPABILITIES__`          — string[] to force ON
@@ -71,6 +71,6 @@ export function isCapabilityEnabled(name: string): boolean {
 /**
  * `kind:'react'` — execute trusted author JavaScript (full React: hooks, event
  * handlers, arbitrary JS) directly in the main React tree. Default ON; a
- * deployment disables it server-side with `OS_DISABLE_REACT_PAGES`.
+ * deployment disables it server-side with `OS_PAGE_REACT=off`.
  */
 export const CAP_REACT_PAGES = 'react-pages';

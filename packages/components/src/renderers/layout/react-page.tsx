@@ -14,7 +14,7 @@
  * its (reviewed, draft-gated) page authors, so the host capability
  * `CAP_REACT_PAGES` defaults ON; a deployment that does not trust its authors
  * turns it OFF server-side (the runtime injects the disable global when
- * `OS_DISABLE_REACT_PAGES` is set). The transpiler is lazy-loaded — fetched in a
+ * `OS_PAGE_REACT=off`). The transpiler is lazy-loaded — fetched in a
  * separate chunk only when a react page actually renders with the capability on.
  *
  * Scope injected into the source:
@@ -79,7 +79,7 @@ function CapabilityDisabledNotice(): React.ReactElement {
       <p className="mt-1 leading-relaxed">
         <code>kind:&apos;react&apos;</code> pages execute author JavaScript directly in the
         application. This deployment has turned the capability off
-        (<code>OS_DISABLE_REACT_PAGES</code> / <code>disableCapability(&apos;react-pages&apos;)</code>).
+        (<code>OS_PAGE_REACT=off</code> / <code>disableCapability(&apos;react-pages&apos;)</code>).
         It is ON by default; re-enable it if your page authors are trusted.
       </p>
     </div>
