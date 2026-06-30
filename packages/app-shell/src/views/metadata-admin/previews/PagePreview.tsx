@@ -16,6 +16,7 @@ import { buildDefaultPageSchema } from '@object-ui/plugin-detail';
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewErrorBoundary, PreviewMessage } from './PreviewShell';
 import { OutlineStrip } from './OutlineStrip';
+import { SourcePageEditor } from './SourcePageEditor';
 import { PageBlockCanvas } from './PageBlockCanvas';
 import { InterfaceListPage } from '../../InterfaceListPage';
 import { t as tr } from '../i18n';
@@ -231,6 +232,21 @@ export function PagePreview({ draft, editing, selection, onSelectionChange, onPa
           />
         </PreviewErrorBoundary>
       </PreviewShell>
+    );
+  }
+
+  // Source page (ADR-0080/0081) → `kind:'html'`/`'react'` pages are a `source`
+  // string, not a region tree. The design canvas does not apply (and would
+  // choke on the absent regions/children), so edit the source directly with a
+  // live preview. This is the fix for the editor crashing on these pages.
+  const pageKind = (draft as { kind?: string }).kind;
+  if (pageKind === 'react' || pageKind === 'html') {
+    return (
+      <SourcePageEditor
+        draft={draft as Record<string, unknown>}
+        onPatch={canEdit ? onPatch : undefined}
+        readOnly={!canEdit}
+      />
     );
   }
 
