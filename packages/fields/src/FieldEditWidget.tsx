@@ -36,6 +36,14 @@ import { UrlField } from './widgets/UrlField';
 // provides), so they drop straight into an inline cell.
 import { LookupField } from './widgets/LookupField';
 import { UserField } from './widgets/UserField';
+// Structured-value editors — lightweight (no map/code-editor deps), same
+// widgets the form uses. Drop into a cell like the rest.
+import { ColorField } from './widgets/ColorField';
+import { AddressField } from './widgets/AddressField';
+import { LocationField } from './widgets/LocationField';
+import { GeolocationField } from './widgets/GeolocationField';
+import { CodeField } from './widgets/CodeField';
+import { QRCodeField } from './widgets/QRCodeField';
 
 /**
  * Field types that edit in place with a dedicated widget. Keyed by the raw
@@ -72,6 +80,13 @@ const EDIT_WIDGETS: Record<string, React.ComponentType<FieldWidgetProps<any>>> =
   master_detail: LookupField,
   user: UserField,
   owner: UserField,
+  // Structured-value editors — same widgets the form uses.
+  color: ColorField,
+  address: AddressField,
+  location: LocationField,
+  geolocation: GeolocationField,
+  code: CodeField,
+  qrcode: QRCodeField,
 };
 
 /**
@@ -91,9 +106,6 @@ export const INLINE_EXCLUDED_FIELD_TYPES = new Set<string>([
   // Containers / non-authorable — a sub-form / sub-grid / embedding vector
   // doesn't belong in a single cell.
   'object', 'grid', 'vector',
-  // Structured editors that DO have a form widget — deferred, not blocked.
-  // Move into EDIT_WIDGETS when wired + verified inline.
-  'location', 'geolocation', 'address', 'color', 'code', 'qrcode',
 ]);
 
 /** Field types whose value is chosen in one discrete gesture (no free typing). */

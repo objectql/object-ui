@@ -51,4 +51,11 @@ describe('inline editor ↔ form widget parity', () => {
       expect(INLINE_EXCLUDED_FIELD_TYPES.has(t)).toBe(true);
     }
   });
+
+  it('structured-value types edit inline with their form widget (color/address/location/code/…)', () => {
+    for (const t of ['color', 'address', 'location', 'geolocation', 'code', 'qrcode']) {
+      expect(hasFieldEditWidget(t)).toBe(true);
+      expect(INLINE_EXCLUDED_FIELD_TYPES.has(t)).toBe(false);
+    }
+  });
 });
