@@ -1977,6 +1977,14 @@ const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentTyp
 };
 
 /**
+ * Every field type the form can render (the canonical list of supported types).
+ * Exported so inline editing can be checked against it — a form type must
+ * either have an inline editor or be explicitly excluded, see
+ * `INLINE_EXCLUDED_FIELD_TYPES` and its drift-guard test.
+ */
+export const FORM_FIELD_TYPES: readonly string[] = Object.freeze(Object.keys(fieldWidgetMap));
+
+/**
  * Register a specific field type lazily
  * @param fieldType - The field type to register (e.g., 'text', 'number')
  * 

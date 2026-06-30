@@ -31,6 +31,11 @@ import { TimeField } from './widgets/TimeField';
 import { EmailField } from './widgets/EmailField';
 import { PhoneField } from './widgets/PhoneField';
 import { UrlField } from './widgets/UrlField';
+// Relational pickers — the SAME standard widgets the form uses. They read the
+// related-object dataSource from SchemaRendererContext (which the grid already
+// provides), so they drop straight into an inline cell.
+import { LookupField } from './widgets/LookupField';
+import { UserField } from './widgets/UserField';
 
 /**
  * Field types that edit in place with a dedicated widget. Keyed by the raw
@@ -61,7 +66,35 @@ const EDIT_WIDGETS: Record<string, React.ComponentType<FieldWidgetProps<any>>> =
   email: EmailField,
   phone: PhoneField,
   url: UrlField,
+  // Relational — the record/user pickers, same as the form (the form maps
+  // master_detail to the single-value LookupField too, see fieldWidgetMap).
+  lookup: LookupField,
+  master_detail: LookupField,
+  user: UserField,
+  owner: UserField,
 };
+
+/**
+ * Form field types that are deliberately NOT given an inline editor — every
+ * other form widget type must be in {@link EDIT_WIDGETS}. This pairing is
+ * enforced by a test against the form's widget map (`FORM_FIELD_TYPES`) so the
+ * two can't silently drift again (which is how `lookup` was missed). To add a
+ * type to inline editing, move it from here into EDIT_WIDGETS.
+ */
+export const INLINE_EXCLUDED_FIELD_TYPES = new Set<string>([
+  // Computed / read-only — the grid keeps these non-editable (no value to author).
+  'formula', 'summary', 'auto_number',
+  // Binary / attachment — edited from the record form, shown read-only in the grid.
+  'file', 'image', 'avatar', 'signature',
+  // Heavy / full editors — better in the record form than a cell.
+  'markdown', 'html', 'richtext', 'password',
+  // Containers / non-authorable — a sub-form / sub-grid / embedding vector
+  // doesn't belong in a single cell.
+  'object', 'grid', 'vector',
+  // Structured editors that DO have a form widget — deferred, not blocked.
+  // Move into EDIT_WIDGETS when wired + verified inline.
+  'location', 'geolocation', 'address', 'color', 'code', 'qrcode',
+]);
 
 /** Field types whose value is chosen in one discrete gesture (no free typing). */
 export const DISCRETE_EDIT_TYPES = new Set<string>([
