@@ -64,6 +64,7 @@ const isCI = !!(process.env.VERCEL || process.env.CI);
 const workspaceAliases: Record<string, string> = {
   '@object-ui/components': path.resolve(__dirname, '../../packages/components/src'),
   '@object-ui/core': path.resolve(__dirname, '../../packages/core/src'),
+  '@object-ui/react-runtime': path.resolve(__dirname, '../../packages/react-runtime/src'),
   '@object-ui/sdui-parser': path.resolve(__dirname, '../../packages/sdui-parser/src'),
   '@object-ui/fields': path.resolve(__dirname, '../../packages/fields/src'),
   '@object-ui/layout': path.resolve(__dirname, '../../packages/layout/src'),

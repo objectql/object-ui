@@ -149,9 +149,15 @@ importers:
 
   apps/console:
     dependencies:
+      '@object-ui/react-runtime':
+        specifier: workspace:*
+        version: link:../../packages/react-runtime
       '@object-ui/sdui-parser':
         specifier: workspace:*
         version: link:../../packages/sdui-parser
+      sucrase:
+        specifier: ^3.35.0
+        version: 3.35.1
     devDependencies:
       '@dnd-kit/core':
         specifier: ^6.3.1
@@ -2477,6 +2483,15 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+
+  packages/react-runtime:
+    dependencies:
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      sucrase:
+        specifier: ^3.35.0
+        version: 3.35.1
 
   packages/runner:
     dependencies:
