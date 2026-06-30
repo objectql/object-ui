@@ -11,7 +11,6 @@
  * field looks and behaves the same.
  */
 
-import * as React from 'react';
 import { cn } from '@object-ui/components';
 
 export interface ColorVariant { value: string; label: string; css: string }

@@ -11,7 +11,6 @@
  */
 
 import {
-  Heading1,
   PanelTop,
   PanelBottom,
   PanelLeft,
