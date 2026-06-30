@@ -14,7 +14,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { SchemaRenderer, SchemaRendererProvider, AdapterCtx } from '@object-ui/react';
 import { I18nProvider } from '@object-ui/i18n';
-import { triageSource, cockpitSource, invoiceSource } from './scenario-sources';
+import { triageSource, cockpitSource, invoiceSource, taskdeskSource } from './scenario-sources';
 
 // ---------------------------------------------------------------------------
 // In-memory multi-object adapter (just enough for ListView + ObjectForm)
@@ -45,6 +45,12 @@ const SCHEMAS: Record<string, any> = {
     health: { ...SELECT([['green', 'Green'], ['yellow', 'Yellow'], ['red', 'Red']]), label: 'Health' },
     budget: { type: 'currency', label: 'Budget' }, owner: { type: 'text', label: 'Owner' },
   } },
+  showcase_task: { name: 'showcase_task', label: 'Task', fields: {
+    title: { type: 'text', label: 'Title', required: true }, assignee: { type: 'text', label: 'Assignee' },
+    status: { ...SELECT([['backlog', 'Backlog'], ['todo', 'To Do'], ['in_progress', 'In Progress'], ['in_review', 'In Review'], ['done', 'Done']]), label: 'Status' },
+    priority: { ...SELECT([['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['urgent', 'Urgent']]), label: 'Priority' },
+    estimate_hours: { type: 'number', label: 'Estimate (h)' },
+  } },
 };
 const store: Record<string, any[]> = {
   showcase_account: [
@@ -71,6 +77,11 @@ const store: Record<string, any[]> = {
     { id: 'p1', name: 'Apollo Migration', account: 'a1', status: 'active', health: 'green', budget: 120000, owner: 'Dana Lee' },
     { id: 'p2', name: 'Billing Revamp', account: 'a1', status: 'planned', health: 'yellow', budget: 80000, owner: 'Sam Ortiz' },
     { id: 'p3', name: 'Mobile App v2', account: 'a3', status: 'active', health: 'red', budget: 210000, owner: 'Priya N.' },
+  ],
+  showcase_task: [
+    { id: 't1', title: 'Wire up SSO', assignee: 'Dana Lee', status: 'in_progress', priority: 'high', estimate_hours: 8 },
+    { id: 't2', title: 'Migrate billing schema', assignee: 'Sam Ortiz', status: 'todo', priority: 'urgent', estimate_hours: 13 },
+    { id: 't3', title: 'Polish onboarding', assignee: 'Priya N.', status: 'backlog', priority: 'medium', estimate_hours: 5 },
   ],
 };
 let nextId = 100;
@@ -99,6 +110,7 @@ const SCENARIOS: { key: string; label: string; source: string }[] = [
   { key: 'triage', label: 'Inquiry Triage', source: triageSource },
   { key: 'cockpit', label: 'Account Cockpit', source: cockpitSource },
   { key: 'invoice', label: 'Invoice Console', source: invoiceSource },
+  { key: 'taskdesk', label: 'Task Desk', source: taskdeskSource },
 ];
 
 function Harness() {
