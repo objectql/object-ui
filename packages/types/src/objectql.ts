@@ -81,6 +81,7 @@ import type {
   GalleryConfig,
   TimelineConfig,
   UserActionsConfig,
+  AppearanceConfig,
 } from '@objectstack/spec/ui';
 
 /**
@@ -1405,10 +1406,10 @@ export interface NamedListView {
   navigation?: ViewNavigationConfig;
 
   /** Row selection mode */
-  selection?: { type: 'none' | 'single' | 'multiple' };
+  selection?: SelectionConfig;
 
   /** Pagination configuration */
-  pagination?: { pageSize: number; pageSizeOptions?: number[] };
+  pagination?: PaginationConfig;
 
   /** Fields that support text search */
   searchableFields?: string[];
@@ -1608,10 +1609,10 @@ export interface ListViewSchema extends BaseSchema {
   filterableFields?: string[];
   
   /** Row selection mode */
-  selection?: { type: 'none' | 'single' | 'multiple' };
+  selection?: SelectionConfig;
   
   /** Pagination configuration */
-  pagination?: { pageSize: number; pageSizeOptions?: number[] };
+  pagination?: PaginationConfig;
   
   /** Allow column resizing @default false */
   resizable?: boolean;
@@ -1965,13 +1966,12 @@ export interface ListViewSchema extends BaseSchema {
   };
 
   /**
-   * Appearance configuration.
-   * Aligned with @objectstack/spec ListViewSchema.appearance.
+   * Appearance configuration — derived from the spec's `AppearanceConfig`
+   * (per the "never redefine types" rule). `Partial<>` because authoring is
+   * opt-in. Note: `allowedVisualizations` is the spec's visualization enum, not
+   * a free `string[]`.
    */
-  appearance?: {
-    showDescription?: boolean;
-    allowedVisualizations?: string[];
-  };
+  appearance?: Partial<AppearanceConfig>;
 
   /**
    * Add record configuration.
