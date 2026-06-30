@@ -218,6 +218,13 @@ ComponentRegistry.register('record:details', RecordDetailsRenderer, {
   category: 'record',
   label: 'Record Details',
   icon: 'FileText',
+  // Designer inputs mirror @objectstack/spec RecordDetailsProps (component.zod).
+  inputs: [
+    { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2', '3', '4'], defaultValue: '2', description: 'Number of columns for field layout (1-4)' },
+    { name: 'layout', type: 'enum', label: 'Layout', enum: ['auto', 'custom'], defaultValue: 'auto', description: 'auto uses the object compactLayout; custom uses explicit sections' },
+    { name: 'sections', type: 'array', label: 'Sections', description: 'Section IDs to show (required when layout is "custom")' },
+    { name: 'fields', type: 'array', label: 'Fields', description: 'Explicit field list (overrides compactLayout)' },
+  ],
 });
 
 ComponentRegistry.register('record:related_list', RecordRelatedListRenderer, {
@@ -225,6 +232,18 @@ ComponentRegistry.register('record:related_list', RecordRelatedListRenderer, {
   category: 'record',
   label: 'Related List',
   icon: 'List',
+  // Mirrors @objectstack/spec RecordRelatedListProps.
+  inputs: [
+    { name: 'objectName', type: 'string', label: 'Related Object', required: true, description: 'Related object name (e.g. "task")' },
+    { name: 'relationshipField', type: 'string', label: 'Relationship Field', required: true, description: 'Field on the related object pointing back to this record' },
+    { name: 'columns', type: 'array', label: 'Columns', required: true, description: 'Fields to display in the related list' },
+    { name: 'sort', type: 'array', label: 'Sort' },
+    { name: 'limit', type: 'number', label: 'Limit', defaultValue: 5, description: 'Records to display initially' },
+    { name: 'filter', type: 'array', label: 'Filter', description: 'Additional filter criteria' },
+    { name: 'title', type: 'string', label: 'Title' },
+    { name: 'showViewAll', type: 'boolean', label: 'Show "View All"', defaultValue: true },
+    { name: 'actions', type: 'array', label: 'Actions', description: 'Action IDs available for related records' },
+  ],
 });
 
 ComponentRegistry.register('record:highlights', RecordHighlightsRenderer, {
@@ -232,6 +251,11 @@ ComponentRegistry.register('record:highlights', RecordHighlightsRenderer, {
   category: 'record',
   label: 'Highlights Panel',
   icon: 'Star',
+  // Mirrors @objectstack/spec RecordHighlightsProps.
+  inputs: [
+    { name: 'fields', type: 'array', label: 'Fields', required: true, description: 'Key fields to highlight (1-7), bare names or {name,label?,icon?,type?}' },
+    { name: 'layout', type: 'enum', label: 'Layout', enum: ['horizontal', 'vertical'], defaultValue: 'horizontal', description: 'Layout orientation for highlight fields' },
+  ],
 });
 
 ComponentRegistry.register('record:activity', RecordActivityRenderer, {
@@ -265,6 +289,11 @@ ComponentRegistry.register('record:path', RecordPathRenderer, {
   category: 'record',
   label: 'Path / Stepper',
   icon: 'GitBranch',
+  // Mirrors @objectstack/spec RecordPathProps.
+  inputs: [
+    { name: 'statusField', type: 'string', label: 'Status Field', required: true, description: 'Field representing the current status/stage' },
+    { name: 'stages', type: 'array', label: 'Stages', description: 'Explicit stage definitions [{ value, label }] (else derived from field metadata)' },
+  ],
 });
 
 ComponentRegistry.register('record:quick_actions', RecordQuickActionsRenderer, {
