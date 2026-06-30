@@ -29,6 +29,8 @@ function Harness() {
       <div className="border-b bg-white px-4 py-2 text-sm font-semibold">Studio · editing a kind:'react' page</div>
       <div className="min-h-0 flex-1">
         <PagePreview
+          type="page"
+          name="demo_source_page"
           draft={draft as never}
           editing
           selection={null as never}
