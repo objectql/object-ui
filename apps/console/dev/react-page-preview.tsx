@@ -1,7 +1,6 @@
 /* ADR: kind:'react' PoC — inlined react-runner (transpile + scope-eval, no sandbox).
  * Renders REAL JSX with useState/map/onClick + an injected component + data. */
 import '../src/index.css';
-import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ReactRunner } from '@object-ui/react-runtime';
 
