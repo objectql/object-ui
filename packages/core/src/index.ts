@@ -30,6 +30,7 @@ export * from './utils/merge-views-into-objects.js';
 export * from './utils/freeze-schema.js';
 export * from './protocols/index.js';
 export * from './styling/scoped-styles.js';
+export * from './runtime/capabilities.js';
 
 /**
  * @deprecated Import `composeStacks` from `@objectstack/spec` instead.

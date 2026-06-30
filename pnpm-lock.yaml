@@ -872,6 +872,9 @@ importers:
       '@object-ui/react':
         specifier: workspace:*
         version: link:../react
+      '@object-ui/react-runtime':
+        specifier: workspace:*
+        version: link:../react-runtime
       '@object-ui/sdui-parser':
         specifier: workspace:*
         version: link:../sdui-parser

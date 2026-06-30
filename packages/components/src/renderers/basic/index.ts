@@ -13,6 +13,7 @@ import './separator';
 import './image';
 import './icon';
 import './html';
+import './html-elements';
 import './button-group';
 import './pagination';
 import './navigation-menu';

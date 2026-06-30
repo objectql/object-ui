@@ -17,6 +17,7 @@ import type { PageSchema, PageRegion, SchemaNode } from '@object-ui/types';
 import { SchemaRenderer, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 import { ComponentRegistry } from '@object-ui/core';
 import { compile, manifestFromConfigs } from '@object-ui/sdui-parser';
+import { ReactKindPage } from './react-page';
 import { cn } from '../../lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -429,15 +430,23 @@ export const PageRenderer: React.FC<{
 
   // Select the layout variant based on template or page type
   const layoutElement = useMemo(() => {
-    // ADR-0080 JSX-source page: compile the source to a tree and render it.
-    if ((schema as { kind?: string }).kind === 'jsx') {
+    const kind = (schema as { kind?: string }).kind;
+    // `kind:'react'` — TRUSTED execution tier: real React, run (not parsed) by
+    // @object-ui/react-runtime, gated behind the host CAP_REACT_PAGES flag.
+    if (kind === 'react') {
+      return <ReactKindPage schema={schema} />;
+    }
+    // `kind:'html'` (formerly 'jsx') — author-written constrained JSX/HTML+Tailwind
+    // compiled (parsed, never executed) to a SchemaNode tree and rendered. The
+    // legacy 'jsx' value is still accepted as a deprecated alias.
+    if (kind === 'html' || kind === 'jsx') {
       const src = (schema as { source?: string }).source ?? '';
       const { tree, diagnostics } = compile(src, getJsxManifest());
       const errors = diagnostics.filter((d) => d.severity === 'error');
       if (errors.length) {
         return (
           <div className="m-4 rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
-            <div className="font-semibold">JSX page failed to compile ({errors.length})</div>
+            <div className="font-semibold">HTML page failed to compile ({errors.length})</div>
             <ul className="mt-1 list-disc space-y-0.5 pl-5">
               {errors.slice(0, 8).map((e, i) => (
                 <li key={i}>{e.message}</li>

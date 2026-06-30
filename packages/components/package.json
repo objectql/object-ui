@@ -37,6 +37,7 @@
     "@object-ui/core": "workspace:*",
     "@object-ui/i18n": "workspace:*",
     "@object-ui/react": "workspace:*",
+    "@object-ui/react-runtime": "workspace:*",
     "@object-ui/sdui-parser": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@radix-ui/react-accordion": "^1.2.14",
