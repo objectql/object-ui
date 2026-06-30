@@ -27,7 +27,7 @@ import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES } from '@object-ui/fields';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
-import { stateMachineNextValues } from './inline-edit-options';
+import { stateMachineNextValues, isFieldInlineEditable } from './inline-edit-options';
 import {
   Badge, Button, NavigationOverlay, EmptyValue,
   Popover, PopoverContent, PopoverTrigger,
@@ -1368,6 +1368,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     if (next.type == null && fieldDef.type) next.type = fieldDef.type;
     if (next.options == null && fieldDef.options) {
       next.options = translateOptions(schema.objectName, col.accessorKey, fieldDef.options);
+    }
+    // Read-only / computed / binary fields are not value-editable in place —
+    // mark the column so the data-table never opens an editor (otherwise it
+    // falls back to a plain text box for e.g. a Formula or File cell). Only
+    // force `false`; leave editable unset otherwise so the grid-level flag wins.
+    if (next.editable !== false && !isFieldInlineEditable(fieldDef)) {
+      next.editable = false;
     }
     return next;
   });
