@@ -80,6 +80,7 @@ import type {
   RowColorConfig,
   GalleryConfig,
   TimelineConfig,
+  UserActionsConfig,
 } from '@objectstack/spec/ui';
 
 /**
@@ -1942,23 +1943,25 @@ export interface ListViewSchema extends BaseSchema {
   virtualScroll?: boolean;
 
   /**
-   * User actions configuration.
-   * Controls what UI actions are available to end users.
-   * Aligned with @objectstack/spec ListViewSchema.userActions.
+   * User actions configuration — which toolbar affordances end users get.
+   *
+   * Derived from the spec's `UserActionsConfig` per this file's "never redefine
+   * types, always import them" rule (this field used to be a hand-maintained
+   * mirror — a drift hazard). `Partial<>` because authoring is opt-in: you write
+   * only the toggles you want, the rest fall back to the spec's defaults.
+   *
+   * `editInline` is carried as a transitional extension only because the pinned
+   * @objectstack/spec release predates it (added at the source in
+   * framework#2468). Once the spec dep is bumped, `Partial<UserActionsConfig>`
+   * supplies `editInline` itself and this `&`-extension becomes redundant.
    */
-  userActions?: {
-    sort?: boolean;
-    search?: boolean;
-    filter?: boolean;
-    rowHeight?: boolean;
-    addRecordForm?: boolean;
+  userActions?: Partial<UserActionsConfig> & {
     /**
      * Allow end users to edit records inline (click a cell → type-aware editor,
      * the same widgets the form uses). Default off: a list is read-only unless
      * the author opts in. Read by InterfaceListPage → `inlineEdit`.
      */
     editInline?: boolean;
-    buttons?: string[];
   };
 
   /**
