@@ -1,5 +1,13 @@
 # Changelog
 
+## 11.3.0
+
+### Patch Changes
+
+- Updated dependencies [d23d6eb]
+  - @object-ui/core@11.3.0
+  - @object-ui/types@11.3.0
+
 ## 11.2.0
 
 ### Patch Changes

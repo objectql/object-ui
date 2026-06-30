@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/react-runtime",
-  "version": "11.2.0",
+  "version": "11.3.0",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",
@@ -8,10 +8,27 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" } },
-  "files": ["dist"],
-  "scripts": { "build": "tsc", "test": "vitest run", "type-check": "tsc --noEmit", "lint": "eslint ." },
-  "dependencies": { "sucrase": "^3.35.0" },
-  "peerDependencies": { "react": ">=18" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "sucrase": "^3.35.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
   "devDependencies": {}
 }
