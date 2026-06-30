@@ -27,6 +27,7 @@ import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES } from '@object-ui/fields';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
+import { stateMachineNextValues } from './inline-edit-options';
 import {
   Badge, Button, NavigationOverlay, EmptyValue,
   Popover, PopoverContent, PopoverTrigger,
@@ -1704,9 +1705,20 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           const fieldDef = (objectSchema as any)?.fields?.[ctx.column?.accessorKey];
           if (!fieldDef || !hasFieldEditWidget(fieldDef.type)) return null;
           const discrete = DISCRETE_EDIT_TYPES.has(fieldDef.type);
+          let field: any = { name: ctx.column.accessorKey, ...fieldDef };
+          // State-machine-aware: a field bound to a `state_machine` validation
+          // only offers transitions valid from the current value, so the editor
+          // can't stage an edit the server would reject (e.g. done → in_review).
+          const reachable = stateMachineNextValues(objectSchema, ctx.column.accessorKey, ctx.value);
+          if (reachable && Array.isArray(field.options)) {
+            field = {
+              ...field,
+              options: field.options.filter((o: any) => reachable.has(String(o?.value ?? o))),
+            };
+          }
           return (
             <FieldEditWidget
-              field={{ name: ctx.column.accessorKey, ...fieldDef }}
+              field={field}
               value={ctx.value}
               onChange={(v: any) => (discrete ? ctx.commit(v) : ctx.stage(v))}
             />
