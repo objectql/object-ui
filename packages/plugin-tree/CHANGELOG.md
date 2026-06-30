@@ -1,5 +1,17 @@
 # @object-ui/plugin-tree
 
+## 11.3.0
+
+### Patch Changes
+
+- Updated dependencies [d88c8ec]
+- Updated dependencies [b7237bb]
+- Updated dependencies [d23d6eb]
+  - @object-ui/components@11.3.0
+  - @object-ui/core@11.3.0
+  - @object-ui/react@11.3.0
+  - @object-ui/types@11.3.0
+
 ## 11.2.0
 
 ### Patch Changes

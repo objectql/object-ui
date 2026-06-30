@@ -1,7 +1,7 @@
 {
   "name": "@object-ui/console",
-  "version": "11.2.0",
-  "description": "ObjectStack Console \u2014 opinionated, fork-ready runtime console built on @object-ui/app-shell with the full plugin set wired up. Ships as a Hono UI plugin serving a pre-built SPA.",
+  "version": "11.3.0",
+  "description": "ObjectStack Console — opinionated, fork-ready runtime console built on @object-ui/app-shell with the full plugin set wired up. Ships as a Hono UI plugin serving a pre-built SPA.",
   "license": "MIT",
   "type": "module",
   "homepage": "https://www.objectui.org/docs/guide/console",

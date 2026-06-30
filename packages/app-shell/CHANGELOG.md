@@ -1,5 +1,45 @@
 # @object-ui/app-shell — Changelog
 
+## 11.3.0
+
+### Patch Changes
+
+- ca4a795: fix(app-shell): restore admin design surface gated on the removed `user.role='admin'` overwrite
+
+  ADR-0068 (a3a5abff8) stopped the server `customSession` from overwriting
+  `user.role = 'admin'` for workspace owners/admins — canonical roles now arrive
+  in `user.roles[]` (`org_owner` / `org_admin`) with `user.isPlatformAdmin` as a
+  derived alias, and `useIsWorkspaceAdmin()` was introduced to read them. Four
+  runtime views were missed in that migration and still gated their admin design
+  tools on the now-defunct `user?.role === 'admin'`, so workspace owners/admins
+  silently lost:
+
+  - **ObjectView** — the list "+ New view" button plus rename/delete/pin/
+    set-default/config/manage-views and the view config panel.
+  - **PageView / DashboardView / ReportView** — the inline "Edit"/config entry
+    points for the shared page / dashboard / report definitions.
+
+  All four now call `useIsWorkspaceAdmin()` (same helper already adopted by
+  AppSidebar, UnifiedSidebar, HomePage, Marketplace…). No behavior change for
+  genuine platform admins; restores the surface for org owners/admins.
+
+- Updated dependencies [d88c8ec]
+- Updated dependencies [b7237bb]
+- Updated dependencies [d23d6eb]
+  - @object-ui/components@11.3.0
+  - @object-ui/i18n@11.3.0
+  - @object-ui/core@11.3.0
+  - @object-ui/fields@11.3.0
+  - @object-ui/layout@11.3.0
+  - @object-ui/plugin-editor@11.3.0
+  - @object-ui/react@11.3.0
+  - @object-ui/data-objectstack@11.3.0
+  - @object-ui/types@11.3.0
+  - @object-ui/auth@11.3.0
+  - @object-ui/permissions@11.3.0
+  - @object-ui/collaboration@11.3.0
+  - @object-ui/providers@11.3.0
+
 ## 11.2.0
 
 ### Minor Changes
