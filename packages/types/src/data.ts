@@ -527,6 +527,51 @@ export interface DataSource<T = any> {
    * @returns Promise resolving to a downloadable URL (may be short-lived).
    */
   getExportJobDownloadUrl?(jobId: string): Promise<string>;
+
+  /**
+   * Synchronously download a server-streamed export of a resource.
+   *
+   * Unlike the async `createExportJob` family, this resolves directly to the
+   * exported file as a `Blob`: the server streams matching rows in the chosen
+   * format (`csv` / `json` / `xlsx`), applies type-aware value formatting
+   * (lookup → name, select → label, boolean → 是/否, dates formatted) and
+   * enforces object / field / row permissions. Suited to interactive
+   * "click Export → file downloads" flows up to the server's row cap (tens of
+   * thousands of rows), with no client-side buffering of the full dataset
+   * during generation.
+   *
+   * Optional — when not implemented, callers fall back to the client-side
+   * export path (csv / json only, raw values, no type-aware formatting).
+   *
+   * @param resource - Resource name (e.g., 'account', 'opportunity')
+   * @param request - Export request (format, fields, filter, sort, limit, …)
+   * @returns Promise resolving to the exported file as a Blob.
+   */
+  exportDownload?(
+    resource: string,
+    request: ExportDownloadRequest,
+  ): Promise<Blob>;
+}
+
+/**
+ * Request payload for `DataSource.exportDownload` (synchronous streamed export).
+ *
+ * Mirrors the active list view: pass the same `filter` / `sort` the list is
+ * showing so the exported file matches what the user sees.
+ */
+export interface ExportDownloadRequest {
+  /** Output file format. Defaults to 'csv'. */
+  format?: 'csv' | 'json' | 'xlsx';
+  /** Subset of fields to include (defaults to all readable columns). */
+  fields?: string[];
+  /** Server-side filter (engine-specific shape, often the active view filter). */
+  filter?: unknown;
+  /** Sort instructions; multiple keys allowed, order preserved. */
+  sort?: Array<{ field: string; direction?: 'asc' | 'desc' }>;
+  /** Hard cap on records exported (server enforces its own ceiling too). */
+  limit?: number;
+  /** Whether to write a header row (csv / xlsx). Default true. */
+  includeHeaders?: boolean;
 }
 
 /**

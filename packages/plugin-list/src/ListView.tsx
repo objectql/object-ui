@@ -9,7 +9,7 @@
 import * as React from 'react';
 import { cn, Button, Input, Popover, PopoverContent, PopoverTrigger, FilterBuilder, SortBuilder, NavigationOverlay, GroupingEditor, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, RefreshIndicator, DataEmptyState } from '@object-ui/components';
 import type { SortItem } from '@object-ui/components';
-import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, RotateCw, icons, type LucideIcon } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, X, EyeOff, Pencil, Group, Paintbrush, Ruler, Inbox, Download, AlignJustify, Rows4, Rows3, Rows2, Share2, Printer, Plus, Trash2, CheckSquare, AlertTriangle, RotateCw, Loader2, icons, type LucideIcon } from 'lucide-react';
 import type { FilterGroup } from '@object-ui/components';
 import { ViewSwitcherDropdown, ViewType } from './ViewSwitcher';
 import { ViewSettingsPopover } from './components/ViewSettingsPopover';
@@ -639,6 +639,13 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   // Export State
   const [showExport, setShowExport] = React.useState(false);
+  // Server-streamed export (xlsx / type-aware csv|json) in-flight + last error.
+  const [exportBusy, setExportBusy] = React.useState(false);
+  const [exportError, setExportError] = React.useState<string | null>(null);
+
+  // Object-level export permission gate. Default-allow: export stays enabled
+  // unless `allowExport === false` or `operations.export === false`.
+  const exportPermitted = schema.allowExport !== false && schema.operations?.export !== false;
 
   // Normalize exportOptions: support both ObjectUI object format and spec string[] format
   const resolvedExportOptions = React.useMemo(() => {
@@ -1511,10 +1518,80 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   // Export handler
   const handleExport = React.useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
+    // Object-level export permission gate. Default-allow.
+    if (!exportPermitted) return;
     const exportConfig = resolvedExportOptions;
     const maxRecords = exportConfig?.maxRecords || 0;
     const includeHeaders = exportConfig?.includeHeaders !== false;
     const prefix = exportConfig?.fileNamePrefix || schema.objectName || 'export';
+
+    // Server-streamed path: csv / xlsx / json via dataSource.exportDownload.
+    // XLSX is server-only; type-aware value formatting, field resolution and
+    // permission enforcement all happen server-side. Mirrors the active view's
+    // filter + sort so the exported file matches what the user sees.
+    const serverEligible = (format === 'csv' || format === 'xlsx' || format === 'json')
+      && typeof dataSource?.exportDownload === 'function'
+      && !!schema.objectName
+      && (exportConfig as any)?.streaming !== false;
+    if (serverEligible) {
+      const fields = effectiveFields
+        .map((f: any) => typeof f === 'string' ? f : (f.name || f.fieldName || f.field))
+        .filter(Boolean);
+
+      // Merge the same filter sources as the data fetch (base + user + conditions).
+      const baseFilter = schema.filters || [];
+      const userFilter = convertFilterGroupToAST(currentFilters);
+      const normalizedUserFilterConditions = normalizeFilters(userFilterConditions);
+      const allFilters = [
+        ...(baseFilter.length > 0 ? [baseFilter] : []),
+        ...(userFilter.length > 0 ? [userFilter] : []),
+        ...normalizedUserFilterConditions,
+      ].filter((f: any) => Array.isArray(f) && f.length > 0);
+      const finalFilter = allFilters.length > 1
+        ? ['and', ...allFilters]
+        : allFilters.length === 1 ? allFilters[0] : undefined;
+
+      const sort = currentSort.length > 0
+        ? currentSort
+            .filter(item => item.field)
+            .map(item => ({ field: item.field, direction: item.order as 'asc' | 'desc' }))
+        : undefined;
+
+      setExportError(null);
+      setExportBusy(true);
+      void (async () => {
+        try {
+          const blob = await dataSource!.exportDownload!(schema.objectName!, {
+            format: format as 'csv' | 'xlsx' | 'json',
+            fields: fields.length ? fields : undefined,
+            filter: finalFilter,
+            sort,
+            includeHeaders,
+            limit: maxRecords > 0 ? maxRecords : undefined,
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${prefix}.${format}`;
+          a.rel = 'noopener';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          setShowExport(false);
+        } catch (err) {
+          // Surface the failure instead of swallowing it (e.g. permission denied
+          // or a server error) — the toolbar shows the message.
+          console.error('ListView export failed:', err);
+          setExportError(err instanceof Error ? err.message : String(err));
+        } finally {
+          setExportBusy(false);
+        }
+      })();
+      return;
+    }
+
+    // Client-side fallback (csv / json only).
     const exportData = maxRecords > 0 ? data.slice(0, maxRecords) : data;
 
     if (format === 'csv') {
@@ -1562,7 +1639,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       URL.revokeObjectURL(url);
     }
     setShowExport(false);
-  }, [data, effectiveFields, resolvedExportOptions, schema.objectName]);
+  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filters, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort]);
 
   // All available fields for hide/show (with i18n)
   const allFields = React.useMemo(() => {
@@ -2010,12 +2087,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           )}
 
           {/* --- Separator: Appearance | Export --- */}
-          {(toolbarFlags.showColor || toolbarFlags.showDensity || toolbarFlags.compactToolbar) && resolvedExportOptions && schema.allowExport !== false && (
+          {(toolbarFlags.showColor || toolbarFlags.showDensity || toolbarFlags.compactToolbar) && resolvedExportOptions && exportPermitted && (
             <div className="h-5 w-px bg-border/50 mx-1 shrink-0" />
           )}
 
           {/* Export */}
-          {resolvedExportOptions && schema.allowExport !== false && (
+          {resolvedExportOptions && exportPermitted && (
             <Popover open={showExport} onOpenChange={setShowExport}>
               <PopoverTrigger asChild>
                 <Button
@@ -2035,12 +2112,24 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                       variant="ghost"
                       size="sm"
                       className="w-full justify-start h-8 text-xs"
+                      disabled={exportBusy}
                       onClick={() => handleExport(format)}
                     >
-                      <Download className="h-3.5 w-3.5 mr-2" />
+                      {exportBusy
+                        ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                        : <Download className="h-3.5 w-3.5 mr-2" />}
                       {t('list.exportAs', { format: format.toUpperCase() })}
                     </Button>
                   ))}
+                  {exportError && (
+                    <div
+                      className="px-2 py-1 text-xs"
+                      style={{ color: 'var(--destructive, #ef4444)' }}
+                      role="alert"
+                    >
+                      {exportError}
+                    </div>
+                  )}
                 </div>
               </PopoverContent>
             </Popover>
@@ -2076,7 +2165,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
           {/* --- Separator: Print/Share/Export | Search --- */}
           {(() => {
-            const hasLeftSideItems = schema.allowPrinting || (schema.sharing?.enabled || schema.sharing?.type) || (resolvedExportOptions && schema.allowExport !== false);
+            const hasLeftSideItems = schema.allowPrinting || (schema.sharing?.enabled || schema.sharing?.type) || (resolvedExportOptions && exportPermitted);
             return toolbarFlags.showSearch && hasLeftSideItems ? (
               <div className="h-5 w-px bg-border/50 mx-1 shrink-0" />
             ) : null;

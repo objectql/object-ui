@@ -1653,6 +1653,22 @@ export interface ListViewSchema extends BaseSchema {
   /** Allow data export @default undefined */
   allowExport?: boolean;
 
+  /**
+   * Enable/disable built-in operations. The toolbar honors `export` as a hard
+   * gate: when `operations.export === false` the export button is hidden and
+   * any export request is blocked, regardless of `exportOptions`. Other keys
+   * are accepted for parity with grid schemas. Default-allow: an omitted
+   * `export` key (or `undefined`) leaves export enabled.
+   */
+  operations?: {
+    create?: boolean;
+    read?: boolean;
+    update?: boolean;
+    delete?: boolean;
+    export?: boolean;
+    import?: boolean;
+  };
+
   /** Color field for row/card coloring */
   color?: string;
   

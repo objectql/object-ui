@@ -7,7 +7,7 @@
  */
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
-import type { DataSource, QueryParams, QueryResult, FileUploadResult } from '@object-ui/types';
+import type { DataSource, QueryParams, QueryResult, FileUploadResult, ExportDownloadRequest } from '@object-ui/types';
 import { convertFiltersToAST } from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
 import {
@@ -1180,6 +1180,66 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       return body.data;
     }
     return body;
+  }
+
+  /**
+   * Synchronously download a server-streamed export (csv / json / xlsx).
+   *
+   * Hits `GET /api/v1/data/:object/export`, which streams matching rows in the
+   * requested format, formats values for readability (lookup → name, select →
+   * label, boolean → 是/否, dates formatted) and enforces permissions. The
+   * filter / sort are translated the same way as `rawFindWithPopulate` so the
+   * exported file mirrors the active list view. Returns the file as a Blob;
+   * the caller triggers the browser download.
+   */
+  async exportDownload(resource: string, request: ExportDownloadRequest = {}): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+
+    const format = request.format === 'xlsx' ? 'xlsx' : request.format === 'json' ? 'json' : 'csv';
+    queryParams.set('format', format);
+
+    if (request.fields && request.fields.length > 0) {
+      queryParams.set('fields', request.fields.join(','));
+    }
+    if (request.limit && request.limit > 0) {
+      queryParams.set('limit', String(request.limit));
+    }
+    if (request.includeHeaders === false) {
+      queryParams.set('header', 'false');
+    }
+    // Sort → server `orderby` shorthand: "field:dir,field2:dir".
+    if (request.sort && request.sort.length > 0) {
+      const orderby = request.sort
+        .filter(s => s && s.field)
+        .map(s => `${s.field}:${s.direction === 'desc' ? 'desc' : 'asc'}`)
+        .join(',');
+      if (orderby) queryParams.set('orderby', orderby);
+    }
+    // Filter → AST tuples, same translation the list GET path uses.
+    if (request.filter !== undefined && request.filter !== null) {
+      const translated = translateFilterToAST(request.filter);
+      if (translated !== undefined) {
+        queryParams.set('filter', JSON.stringify(translated));
+      }
+    }
+
+    const baseUrl = this.baseUrl.replace(/\/$/, '');
+    // Avoid doubling /api/v1 if baseUrl already includes the version suffix.
+    const hasApiVersionSuffix = /\/api\/v\d+$/i.test(baseUrl);
+    const dataPath = hasApiVersionSuffix ? '/data' : '/api/v1/data';
+    const url = `${baseUrl}${dataPath}/${encodeURIComponent(resource)}/export?${queryParams.toString()}`;
+
+    const headers: Record<string, string> = { ...this.getAuthHeaders() };
+    // `credentials: 'include'` carries the session cookie for the browser
+    // console (which authenticates by cookie, not a bearer token).
+    const res = await this.fetchImpl(url, { method: 'GET', headers, credentials: 'include' });
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({ message: res.statusText }));
+      const err = new Error(errorBody?.error?.message || errorBody?.message || res.statusText) as any;
+      err.status = res.status;
+      throw err;
+    }
+    return await res.blob();
   }
 
   /**

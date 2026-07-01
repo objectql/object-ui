@@ -279,6 +279,7 @@ export type {
   CreateExportJobRequest,
   CreateExportJobResult,
   ExportJobProgressInfo,
+  ExportDownloadRequest,
 } from './data';
 
 // ============================================================================
