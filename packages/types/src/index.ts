@@ -291,6 +291,7 @@ export type {
   ImportJobSummaryInfo,
   ImportJobUndoResult,
   ListImportJobsOptions,
+  ExportDownloadRequest,
 } from './data';
 
 // ============================================================================

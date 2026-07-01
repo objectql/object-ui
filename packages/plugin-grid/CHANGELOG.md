@@ -1,5 +1,51 @@
 # @object-ui/plugin-grid
 
+## 11.3.0
+
+### Patch Changes
+
+- c55a52a: fix(grid): don't open an inline editor for read-only / computed / binary fields
+
+  Inline editing fell back to a plain text box for every field without a
+  dedicated widget — including ones you can never author a value for. Found by
+  browser-testing the field-zoo: a **Formula**, **Roll-up**, or **Auto Number**
+  cell (system-computed) opened an editable text input, as did **File / Image /
+  Avatar / Video / Audio / Signature** (binary). Typing into a computed cell is
+  meaningless and, if the server accepted it, would clobber the derived value.
+
+  Gate it: a column is marked `editable: false` (which the data-table already
+  honors — it won't enter edit mode) when the field is `readonly` or an
+  inherently non-authorable type (`formula`, `summary`/`rollup`, `autonumber`,
+  `file`, `image`, `avatar`, `video`, `audio`, `signature`). Ordinary types
+  (text, number, date, select, boolean, …) are unaffected. Relational/structured
+  types (lookup, master-detail, json, …) intentionally keep their text fallback
+  for now — they want a proper picker, not a hard read-only lock.
+
+- 2e3e058: feat(grid): inline select editor only offers valid state-machine transitions
+
+  When a field is governed by a `state_machine` validation, the inline cell
+  editor now filters its dropdown to the values reachable from the current state
+  (the current value plus its declared transitions) — so you can't stage an edit
+  the server is bound to reject. Example: a task already `Done` only offers
+  `Done` and `In Progress`, not `In Review`.
+
+  This reads the same `validations` metadata the server enforces (already served
+  on the object schema), and falls back to showing all options when the field has
+  no state machine or its current state is undeclared (mirroring the validation
+  engine's lenient allow). Complements the save-failure surfacing — prevent the
+  invalid edit at the source, and still report it if one slips through.
+
+- Updated dependencies [d88c8ec]
+- Updated dependencies [b7237bb]
+- Updated dependencies [d23d6eb]
+  - @object-ui/components@11.3.0
+  - @object-ui/i18n@11.3.0
+  - @object-ui/core@11.3.0
+  - @object-ui/fields@11.3.0
+  - @object-ui/react@11.3.0
+  - @object-ui/types@11.3.0
+  - @object-ui/mobile@11.3.0
+
 ## 11.2.0
 
 ### Patch Changes

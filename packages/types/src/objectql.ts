@@ -80,6 +80,8 @@ import type {
   RowColorConfig,
   GalleryConfig,
   TimelineConfig,
+  UserActionsConfig,
+  AppearanceConfig,
 } from '@objectstack/spec/ui';
 
 /**
@@ -1404,10 +1406,10 @@ export interface NamedListView {
   navigation?: ViewNavigationConfig;
 
   /** Row selection mode */
-  selection?: { type: 'none' | 'single' | 'multiple' };
+  selection?: SelectionConfig;
 
   /** Pagination configuration */
-  pagination?: { pageSize: number; pageSizeOptions?: number[] };
+  pagination?: PaginationConfig;
 
   /** Fields that support text search */
   searchableFields?: string[];
@@ -1607,10 +1609,10 @@ export interface ListViewSchema extends BaseSchema {
   filterableFields?: string[];
   
   /** Row selection mode */
-  selection?: { type: 'none' | 'single' | 'multiple' };
+  selection?: SelectionConfig;
   
   /** Pagination configuration */
-  pagination?: { pageSize: number; pageSizeOptions?: number[] };
+  pagination?: PaginationConfig;
   
   /** Allow column resizing @default false */
   resizable?: boolean;
@@ -1652,6 +1654,22 @@ export interface ListViewSchema extends BaseSchema {
 
   /** Allow data export @default undefined */
   allowExport?: boolean;
+
+  /**
+   * Enable/disable built-in operations. The toolbar honors `export` as a hard
+   * gate: when `operations.export === false` the export button is hidden and
+   * any export request is blocked, regardless of `exportOptions`. Other keys
+   * are accepted for parity with grid schemas. Default-allow: an omitted
+   * `export` key (or `undefined`) leaves export enabled.
+   */
+  operations?: {
+    create?: boolean;
+    read?: boolean;
+    update?: boolean;
+    delete?: boolean;
+    export?: boolean;
+    import?: boolean;
+  };
 
   /** Color field for row/card coloring */
   color?: string;
@@ -1926,33 +1944,34 @@ export interface ListViewSchema extends BaseSchema {
   virtualScroll?: boolean;
 
   /**
-   * User actions configuration.
-   * Controls what UI actions are available to end users.
-   * Aligned with @objectstack/spec ListViewSchema.userActions.
+   * User actions configuration — which toolbar affordances end users get.
+   *
+   * Derived from the spec's `UserActionsConfig` per this file's "never redefine
+   * types, always import them" rule (this field used to be a hand-maintained
+   * mirror — a drift hazard). `Partial<>` because authoring is opt-in: you write
+   * only the toggles you want, the rest fall back to the spec's defaults.
+   *
+   * `editInline` is carried as a transitional extension only because the pinned
+   * @objectstack/spec release predates it (added at the source in
+   * framework#2468). Once the spec dep is bumped, `Partial<UserActionsConfig>`
+   * supplies `editInline` itself and this `&`-extension becomes redundant.
    */
-  userActions?: {
-    sort?: boolean;
-    search?: boolean;
-    filter?: boolean;
-    rowHeight?: boolean;
-    addRecordForm?: boolean;
+  userActions?: Partial<UserActionsConfig> & {
     /**
      * Allow end users to edit records inline (click a cell → type-aware editor,
      * the same widgets the form uses). Default off: a list is read-only unless
      * the author opts in. Read by InterfaceListPage → `inlineEdit`.
      */
     editInline?: boolean;
-    buttons?: string[];
   };
 
   /**
-   * Appearance configuration.
-   * Aligned with @objectstack/spec ListViewSchema.appearance.
+   * Appearance configuration — derived from the spec's `AppearanceConfig`
+   * (per the "never redefine types" rule). `Partial<>` because authoring is
+   * opt-in. Note: `allowedVisualizations` is the spec's visualization enum, not
+   * a free `string[]`.
    */
-  appearance?: {
-    showDescription?: boolean;
-    allowedVisualizations?: string[];
-  };
+  appearance?: Partial<AppearanceConfig>;
 
   /**
    * Add record configuration.

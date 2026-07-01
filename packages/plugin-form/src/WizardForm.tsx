@@ -20,6 +20,7 @@ import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
+import { sectionFormLayout } from './autoLayout';
 import { resolveSuccessNavigate } from './successBehavior';
 import type { FormSectionConfig } from './TabbedForm';
 
@@ -457,7 +458,7 @@ export const WizardForm: React.FC<WizardFormProps> = ({
           <FormSection
             label={currentSection.label}
             description={currentSection.description}
-            columns={currentSection.columns || 1}
+            columns={1}
           >
             {currentSectionFields.length > 0 ? (
               <SchemaRenderer
@@ -466,7 +467,9 @@ export const WizardForm: React.FC<WizardFormProps> = ({
                   type: 'form' as const,
                   objectName: schema.objectName,
                   id: stepFormId,
-                  fields: currentSectionFields,
+                  // Multi-column on the field container inside the form, not a
+                  // grid around the whole form (which leaves columns empty).
+                  ...sectionFormLayout(currentSectionFields, currentSection.columns || 1),
                   layout: 'vertical' as const,
                   defaultValues: formData,
                   showSubmit: false,

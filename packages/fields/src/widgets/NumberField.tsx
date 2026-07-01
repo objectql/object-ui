@@ -13,7 +13,9 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
   }
 
   const numberField = (field || (props as any).schema) as NumberFieldMetadata;
-  const precision = numberField?.precision;
+  // Step follows `scale` (decimal places), not `precision` (total digit count):
+  // a decimal(10, 0) column has 0 decimal places, so the input should step by 1.
+  const scale = numberField?.scale;
 
   // Filter out non-DOM props
   const { inputType, ...domProps } = props as any;
@@ -29,7 +31,7 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
       }}
       placeholder={numberField?.placeholder}
       disabled={readonly || domProps.disabled}
-      step={precision ? Math.pow(10, -precision) : 'any'}
+      step={scale ? Math.pow(10, -scale) : 'any'}
     />
   );
 }

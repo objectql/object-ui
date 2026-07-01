@@ -44,7 +44,7 @@ import { SchemaRenderer, useSafeFieldLabel, usePreviewMode } from '@object-ui/re
 import { createSafeTranslation } from '@object-ui/i18n';
 import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
-import { applyAutoLayout, inferModalSize } from './autoLayout';
+import { applyAutoLayout, inferModalSize, sectionFormLayout, CONTAINER_GRID_COLS } from './autoLayout';
 import { sanitizeFormData } from './sanitize';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -164,19 +164,6 @@ const modalSizeClasses: Record<string, string> = {
   lg: 'sm:max-w-2xl',
   xl: 'sm:max-w-5xl',
   full: 'sm:max-w-[95vw] sm:w-full',
-};
-
-/**
- * Container-query-based grid classes for form field layout.
- * Uses @container / @md: / @2xl: / @4xl: variants so that the grid
- * responds to the modal's actual width instead of the viewport,
- * ensuring single-column on narrow mobile modals regardless of viewport size.
- */
-const CONTAINER_GRID_COLS: Record<number, string | undefined> = {
-  1: undefined, // let the form renderer use its default (space-y-4)
-  2: 'grid gap-4 grid-cols-1 @md:grid-cols-2',
-  3: 'grid gap-4 grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3',
-  4: 'grid gap-4 grid-cols-1 @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4',
 };
 
 export const ModalForm: React.FC<ModalFormProps> = ({
@@ -490,12 +477,16 @@ export const ModalForm: React.FC<ModalFormProps> = ({
     if (schema.sections?.length) {
       const sections = schema.sections;
       const sectionKey = (sec: ModalFormSectionConfig, i: number) => sec.name || sec.label || String(i);
+      // Lay the section's fields out in `section.columns` columns INSIDE the
+      // form (columns + fieldContainerClass), not by wrapping the whole form in
+      // a grid — otherwise the single <form> fills only the first grid cell and
+      // the remaining columns stay permanently empty. Actions live in the
+      // sticky footer, not inside sections.
       const renderBody = (section: ModalFormSectionConfig) => (
         <SchemaRenderer
           schema={{
             ...baseFormSchema,
-            fields: applyFieldPerms(buildSectionFields(section)),
-            // Actions are in the sticky footer, not inside sections
+            ...sectionFormLayout(applyFieldPerms(buildSectionFields(section)), section.columns || 1),
           }}
         />
       );
@@ -515,11 +506,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             </TabsList>
             {sections.map((section, index) => (
               <TabsContent key={sectionKey(section, index)} value={sectionKey(section, index)}>
-                <FormSection
-                  description={section.description}
-                  columns={section.columns || 1}
-                  gridClassName={CONTAINER_GRID_COLS[section.columns || 1]}
-                >
+                <FormSection description={section.description} columns={1}>
                   {renderBody(section)}
                 </FormSection>
               </TabsContent>
@@ -535,8 +522,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
               key={sectionKey(section, index)}
               label={section.label}
               description={section.description}
-              columns={section.columns || 1}
-              gridClassName={CONTAINER_GRID_COLS[section.columns || 1]}
+              columns={1}
             >
               {renderBody(section)}
             </FormSection>

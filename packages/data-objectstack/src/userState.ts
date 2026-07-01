@@ -104,6 +104,14 @@ export function createObjectStackUserStateAdapter<T = unknown>(
   // without re-querying. Reset on every successful load.
   let cachedRowId: string | number | null = null;
 
+  // Serializes overlapping save() calls. A fresh adapter is created whenever
+  // the data source / user changes (see UserStateBridge), so its cachedRowId
+  // starts null; rapid navigations then fire debounced flushes that can race —
+  // two saves each findExisting()→null→create() and the second trips the
+  // UNIQUE(user_id, key) constraint. Chaining writes means the second save
+  // sees the cachedRowId the first one set and updates instead of inserting.
+  let saveChain: Promise<void> = Promise.resolve();
+
   const findExisting = async (): Promise<UserPreferenceRecord | null> => {
     // NOTE: `QueryParams` uses OData-style `$`-prefixed keys. Using the bare
     // names (`filter`, `limit`) silently drops the predicate at the
@@ -146,6 +154,55 @@ export function createObjectStackUserStateAdapter<T = unknown>(
     return [];
   };
 
+  // Upsert by (user_id, key): update in place when the row is known/found,
+  // otherwise insert — and if the insert loses a UNIQUE(user_id, key) race
+  // (a concurrent writer created the row, or the backend dropped our find
+  // predicate), recover by re-finding and updating rather than surfacing the
+  // failed insert.
+  const upsert = async (items: T[]): Promise<void> => {
+    const now = new Date().toISOString();
+
+    // Fast path: we already know the row id from a previous load/save.
+    if (cachedRowId !== null) {
+      try {
+        await dataSource.update(resource, cachedRowId, { value: items, updated_at: now });
+        return;
+      } catch (updateError) {
+        // Row may have been deleted server-side — fall through to find/insert.
+        cachedRowId = null;
+        onError('save', updateError);
+      }
+    }
+
+    const existing = await findExisting();
+    if (existing && existing.id !== undefined && existing.id !== null) {
+      cachedRowId = existing.id;
+      await dataSource.update(resource, existing.id, { value: items, updated_at: now });
+      return;
+    }
+
+    try {
+      const created = await dataSource.create(resource, {
+        user_id: userId,
+        key,
+        value: items,
+        updated_at: now,
+      });
+      const newId = (created as UserPreferenceRecord | undefined)?.id;
+      if (newId !== undefined && newId !== null) cachedRowId = newId;
+    } catch (createError) {
+      // The row already exists (UNIQUE(user_id, key) violation) — re-find and
+      // update in place. This turns the insert into a real upsert.
+      const recovered = await findExisting();
+      if (recovered && recovered.id !== undefined && recovered.id !== null) {
+        cachedRowId = recovered.id;
+        await dataSource.update(resource, recovered.id, { value: items, updated_at: now });
+        return;
+      }
+      throw createError;
+    }
+  };
+
   return {
     async load(): Promise<T[]> {
       try {
@@ -163,45 +220,15 @@ export function createObjectStackUserStateAdapter<T = unknown>(
     },
 
     async save(items: T[]): Promise<void> {
-      try {
-        const now = new Date().toISOString();
-        // Fast path: we already know the row id from a previous load/save.
-        if (cachedRowId !== null) {
-          try {
-            await dataSource.update(resource, cachedRowId, {
-              value: items,
-              updated_at: now,
-            });
-            return;
-          } catch (updateError) {
-            // Row may have been deleted server-side — fall through to insert.
-            cachedRowId = null;
-            onError('save', updateError);
-          }
-        }
-
-        const existing = await findExisting();
-        if (existing && existing.id !== undefined && existing.id !== null) {
-          cachedRowId = existing.id;
-          await dataSource.update(resource, existing.id, {
-            value: items,
-            updated_at: now,
-          });
-          return;
-        }
-
-        const created = await dataSource.create(resource, {
-          user_id: userId,
-          key,
-          value: items,
-          updated_at: now,
-        });
-        const newId = (created as UserPreferenceRecord | undefined)?.id;
-        if (newId !== undefined && newId !== null) cachedRowId = newId;
-      } catch (error) {
+      // Chain onto any in-flight save so concurrent flushes upsert serially
+      // rather than racing into two inserts (see `saveChain` above). Each link
+      // catches its own errors so one failure never poisons the chain.
+      const run = saveChain.then(() => upsert(items)).catch(error => {
         onError('save', error);
         // Swallow — provider falls back to localStorage as source of truth.
-      }
+      });
+      saveChain = run;
+      return run;
     },
   };
 }

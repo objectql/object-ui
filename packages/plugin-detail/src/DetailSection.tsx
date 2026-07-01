@@ -200,6 +200,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       if (objectDefField.options && !enrichedField.options) enrichedField.options = objectDefField.options;
       if (objectDefField.currency && !enrichedField.currency) enrichedField.currency = objectDefField.currency;
       if (objectDefField.precision !== undefined && enrichedField.precision === undefined) enrichedField.precision = objectDefField.precision;
+      if ((objectDefField as any).scale !== undefined && (enrichedField as any).scale === undefined) (enrichedField as any).scale = (objectDefField as any).scale;
       if (objectDefField.format && !enrichedField.format) enrichedField.format = objectDefField.format;
       const refTarget = objectDefField.reference_to || objectDefField.reference;
       if (refTarget && !enrichedField.reference_to) enrichedField.reference_to = refTarget;

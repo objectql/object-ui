@@ -44,4 +44,17 @@ export default tseslint.config({ ignores: ['**/dist', '**/.next', '**/node_modul
     // idempotent commands first, so this lints clean today.
     'object-ui/no-synthetic-event-trigger': 'error',
   },
+}, {
+  // Type-discipline ratchet, scoped to the canonical view-schema file: a
+  // spec-backed view-config field must reference its @objectstack/spec type,
+  // never redefine it inline (a hand mirror silently drifts from the spec →
+  // "shipped-but-inert" metadata). Scoped here to avoid false positives on
+  // unrelated `selection`/`pagination`/… fields elsewhere. Error so a new
+  // inline mirror fails CI; the covered fields were converted first, so this
+  // lints clean today.
+  files: ['packages/types/src/objectql.ts'],
+  plugins: { 'object-ui': objectUi },
+  rules: {
+    'object-ui/no-inline-spec-config': 'error',
+  },
 });

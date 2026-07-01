@@ -49,4 +49,26 @@ describe('useColumnSummary tenant-default currency', () => {
     const label = result.current.summaries.get('amount')?.label ?? '';
     expect(label).toMatch(/\$|US\$/);
   });
+
+  // Regression (#2134): `precision` is the total digit count of a decimal(p, s)
+  // column, NOT the decimal places. It must not drive fraction digits, or a
+  // decimal(10, 0) sum renders as "…0000000000".
+  it('does not pad a currency sum using precision (total digits)', () => {
+    const cols: any[] = [{ field: 'amount', summary: 'sum', type: 'currency', currency: 'USD', precision: 10, scale: 0 }];
+    const { result } = renderHook(() => useColumnSummary(cols, [{ amount: 1000 }, { amount: 234 }]), {
+      wrapper: wrapper('USD'),
+    });
+    const label = result.current.summaries.get('amount')?.label ?? '';
+    expect(label).not.toMatch(/\.0{3,}/);
+    expect(label).toMatch(/1,234/);
+  });
+
+  it('honours a currency column scale for fraction digits', () => {
+    const cols: any[] = [{ field: 'amount', summary: 'sum', type: 'currency', currency: 'USD', precision: 12, scale: 2 }];
+    const { result } = renderHook(() => useColumnSummary(cols, [{ amount: 1000 }, { amount: 234 }]), {
+      wrapper: wrapper('USD'),
+    });
+    const label = result.current.summaries.get('amount')?.label ?? '';
+    expect(label).toMatch(/1,234\.00/);
+  });
 });

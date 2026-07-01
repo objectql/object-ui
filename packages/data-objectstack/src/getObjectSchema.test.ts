@@ -74,4 +74,40 @@ describe('ObjectStackAdapter.getObjectSchema', () => {
     expect(schema.name).toBe('account');
     expect(Object.keys(schema.fields)).toEqual(['x']);
   });
+
+  it('preserves `validations` (incl. state_machine transitions) — the seam the inline editor depends on', async () => {
+    // Inert-metadata regression guard. The inline select editor filters its
+    // options by the object's `state_machine` validation (objectui#2110). That
+    // feature only works because `getObjectSchema` passes the served
+    // `validations` through untouched — the server enforces the same rule. If a
+    // future change here started stripping or reshaping top-level metadata, the
+    // filter would silently no-op (valid-but-inert) with no error. Pin the
+    // pass-through so the data path can't go dark unnoticed.
+    const { fetchImpl } = makeFetch({
+      name: 'showcase_task',
+      fields: { status: { type: 'select', options: [{ value: 'done', label: 'Done' }] } },
+      validations: [
+        {
+          type: 'state_machine',
+          field: 'status',
+          transitions: { in_review: ['done', 'in_progress'], done: ['in_progress'] },
+        },
+      ],
+    });
+    const adapter = new ObjectStackAdapter({
+      baseUrl: 'http://localhost:3000',
+      autoReconnect: false,
+      fetch: fetchImpl as any,
+    });
+
+    const schema: any = await adapter.getObjectSchema('showcase_task');
+
+    const sm = (schema.validations ?? []).find((v: any) => v?.type === 'state_machine');
+    expect(sm).toBeTruthy();
+    expect(sm.field).toBe('status');
+    // The exact map the consumer filters on — `done` only transitions to
+    // `in_progress` (so the editor must not offer `in_review`).
+    expect(sm.transitions.done).toEqual(['in_progress']);
+    expect(sm.transitions.in_review).toEqual(['done', 'in_progress']);
+  });
 });

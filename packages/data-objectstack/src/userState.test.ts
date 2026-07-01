@@ -221,6 +221,59 @@ describe('createObjectStackUserStateAdapter', () => {
       }));
     });
 
+    it('recovers from a UNIQUE(user_id, key) insert failure by updating in place', async () => {
+      // First findExisting() (no cached id) misses; create() loses the race and
+      // throws; the recovery findExisting() now sees the row → update.
+      const ds = mockDataSource({
+        find: vi.fn()
+          .mockResolvedValueOnce({ data: [] })
+          .mockResolvedValueOnce({ data: [{ id: 'row-7', user_id: 'u', key: 'k', value: [] }] }) as any,
+        create: vi.fn().mockRejectedValue(new Error('UNIQUE constraint failed')) as any,
+      });
+
+      const adapter = createObjectStackUserStateAdapter({
+        dataSource: ds,
+        userId: 'u',
+        key: 'k',
+      });
+
+      await adapter.save([{ id: 'q' } as any]);
+
+      expect(ds.create).toHaveBeenCalledTimes(1);
+      expect(ds.update).toHaveBeenCalledWith('sys_user_preference', 'row-7', {
+        value: [{ id: 'q' }],
+        updated_at: expect.any(String),
+      });
+    });
+
+    it('serializes concurrent saves so only one insert happens', async () => {
+      // Both saves start before either resolves. Without serialization both
+      // would findExisting()→[]→create() and the second would trip the
+      // UNIQUE constraint. With the save chain, the second waits, sees the
+      // cached row id from the first, and updates.
+      const ds = mockDataSource({
+        find: vi.fn().mockResolvedValue({ data: [] }) as any,
+        create: vi.fn().mockResolvedValue({ id: 'row-1' }) as any,
+      });
+
+      const adapter = createObjectStackUserStateAdapter({
+        dataSource: ds,
+        userId: 'u',
+        key: 'ui.recent',
+      });
+
+      await Promise.all([
+        adapter.save([{ id: 'a' } as any]),
+        adapter.save([{ id: 'a' }, { id: 'b' }] as any),
+      ]);
+
+      expect(ds.create).toHaveBeenCalledTimes(1);
+      expect(ds.update).toHaveBeenCalledWith('sys_user_preference', 'row-1', {
+        value: [{ id: 'a' }, { id: 'b' }],
+        updated_at: expect.any(String),
+      });
+    });
+
     it('swallows errors when save() throws', async () => {
       const onError = vi.fn();
       const ds = mockDataSource({

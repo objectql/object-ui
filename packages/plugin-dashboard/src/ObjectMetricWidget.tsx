@@ -166,7 +166,9 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
     if (format) return format;
     if (!valueFieldDef) return undefined;
     if (valueFieldDef.type === 'currency') {
-      const decimals = valueFieldDef.precision ?? valueFieldDef.scale ?? 0;
+      // Decimal places come from `scale`, not `precision` (the total digit
+      // count of a decimal(p, s) column) — see #2131.
+      const decimals = valueFieldDef.scale ?? 0;
       return decimals > 0 ? `0,0.${'0'.repeat(decimals)}` : '0,0';
     }
     if (valueFieldDef.type === 'percent') return '0,0%';

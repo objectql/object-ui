@@ -143,7 +143,8 @@ export function buildFieldMeta(params: BuildFieldMetaParams): FieldMeta {
     referenceTo,
     format: overrides.format ?? meta?.format,
     currency: overrides.currency ?? meta?.currency ?? meta?.defaultCurrency,
-    decimals: overrides.decimals ?? meta?.decimals ?? meta?.precision ?? meta?.scale,
+    // `scale` (decimal places), not `precision` (total digit count) — see #2131.
+    decimals: overrides.decimals ?? meta?.decimals ?? meta?.scale,
   };
 }
 

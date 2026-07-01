@@ -185,7 +185,10 @@ export interface NumberFieldMetadata extends BaseFieldMetadata {
   type: 'number';
   min?: number;
   max?: number;
+  /** Total number of digits (the `p` in a `decimal(p, s)` column). Not a display setting. */
   precision?: number;
+  /** Number of decimal places to display (the `s` in a `decimal(p, s)` column). */
+  scale?: number;
   step?: number;
 }
 

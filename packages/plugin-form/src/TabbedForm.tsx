@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger, cn } from '@object-ui/compone
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
+import { sectionFormLayout } from './autoLayout';
 
 export interface FormSectionConfig {
   /**
@@ -345,13 +346,16 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
             >
               <FormSection
                 description={section.description}
-                columns={section.columns || 1}
+                columns={1}
               >
-                {/* Render fields for this section */}
-                <SchemaRenderer 
+                {/* Render fields for this section. Multi-column is applied to
+                    the field container inside the form (sectionFormLayout), not
+                    by wrapping the form in a grid — which would leave the extra
+                    columns empty. */}
+                <SchemaRenderer
                   schema={{
                     ...formSchema,
-                    fields: buildSectionFields(section),
+                    ...sectionFormLayout(buildSectionFields(section), section.columns || 1),
                     // Only show buttons on the last tab or always visible
                     showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
                     showCancel: schema.showCancel !== false,

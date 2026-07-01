@@ -27,14 +27,15 @@ import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES } from '@object-ui/fields';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
+import { stateMachineNextValues, isFieldInlineEditable } from './inline-edit-options';
 import {
   Badge, Button, NavigationOverlay, EmptyValue,
   Popover, PopoverContent, PopoverTrigger,
-  ExportProgressDialog, useExportJob, RefreshIndicator,
+  RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { evaluatePlainCondition, buildExpandFields } from '@object-ui/core';
-import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
 import { GroupRow } from './GroupRow';
@@ -237,8 +238,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [useCardView, setUseCardView] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showExport, setShowExport] = useState(false);
-  const [exportDialogOpen, setExportDialogOpen] = useState(false);
-  const exportJob = useExportJob({ dataSource });
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'short' | 'medium' | 'tall' | 'extra_tall'>(schema.rowHeight ?? 'compact');
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
   const [selectAllMatching, setSelectAllMatching] = useState(false);
@@ -893,6 +894,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 if (objectDefField.label) fieldMeta.label = objectDefField.label;
                 if (objectDefField.currency) fieldMeta.currency = objectDefField.currency;
                 if (objectDefField.precision !== undefined) fieldMeta.precision = objectDefField.precision;
+                if ((objectDefField as any).scale !== undefined) (fieldMeta as any).scale = (objectDefField as any).scale;
                 if (objectDefField.format) fieldMeta.format = objectDefField.format;
                 if (objectDefField.options) fieldMeta.options = translateOptions(schema.objectName, col.field, objectDefField.options);
               }
@@ -1050,6 +1052,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             if (fieldDef.label) fieldMeta.label = fieldDef.label;
             if (fieldDef.currency) fieldMeta.currency = fieldDef.currency;
             if (fieldDef.precision !== undefined) fieldMeta.precision = fieldDef.precision;
+            if ((fieldDef as any).scale !== undefined) fieldMeta.scale = (fieldDef as any).scale;
             if (fieldDef.format) fieldMeta.format = fieldDef.format;
             if (fieldDef.options) fieldMeta.options = translateOptions(schema.objectName, fieldName, fieldDef.options);
           }
@@ -1124,6 +1127,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             if (fieldDef.label) fieldMeta.label = fieldDef.label;
             if (fieldDef.currency) fieldMeta.currency = fieldDef.currency;
             if (fieldDef.precision !== undefined) fieldMeta.precision = fieldDef.precision;
+            if ((fieldDef as any).scale !== undefined) fieldMeta.scale = (fieldDef as any).scale;
             if (fieldDef.format) fieldMeta.format = fieldDef.format;
             if (fieldDef.options) fieldMeta.options = translateOptions(schema.objectName, fieldName, fieldDef.options);
           }
@@ -1220,32 +1224,67 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   }, [objectSchema, schemaFields, schemaColumns, dataConfig, hasInlineData, navigation.handleClick, executeAction, data, resolveFieldLabel, translateOptions, schema.objectName]);
 
   const handleExport = useCallback((format: 'csv' | 'xlsx' | 'json' | 'pdf') => {
+    // Object-level export permission gate. Default-allow: only an explicit
+    // `operations.export === false` blocks the export.
+    if (schema.operations?.export === false) return;
     const exportConfig = schema.exportOptions;
     const maxRecords = exportConfig?.maxRecords || 0;
     const includeHeaders = exportConfig?.includeHeaders !== false;
     const prefix = exportConfig?.fileNamePrefix || schema.objectName || 'export';
 
-    // Async streaming path — use spec v4 createExportJob when the data source
-    // supports it (and the format is something the server can stream).
-    const asyncEligible = format === 'csv' || format === 'xlsx' || format === 'json';
-    const useAsync = asyncEligible
-      && exportJob.isSupported
-      && schema.objectName
+    // Server-streamed path: csv / xlsx / json via dataSource.exportDownload.
+    // XLSX is server-only; type-aware value formatting, field resolution and
+    // permission enforcement all happen server-side. Mirrors the grid's
+    // configured filter + sort so the exported file matches what's shown.
+    const serverEligible = (format === 'csv' || format === 'xlsx' || format === 'json')
+      && typeof dataSource?.exportDownload === 'function'
+      && !!objectName
       && !hasInlineData
       // Honor an opt-out: schema.exportOptions.streaming === false forces client-side.
       && (exportConfig as any)?.streaming !== false;
 
-    if (useAsync) {
+    if (serverEligible) {
       const cols = generateColumns().filter((c: any) => c.accessorKey !== '_actions');
       const fields = cols.map((c: any) => c.accessorKey).filter(Boolean);
-      setShowExport(false);
-      setExportDialogOpen(true);
-      void exportJob.start(schema.objectName!, {
-        format: format === 'json' ? 'json' : (format as 'csv' | 'xlsx'),
-        fields: fields.length ? fields : undefined,
-        includeHeaders,
-        limit: maxRecords > 0 ? maxRecords : undefined,
-      });
+
+      const filter = Array.isArray(schemaFilter) ? schemaFilter : undefined;
+      const sort = Array.isArray(schemaSort)
+        ? schemaSort
+            .filter((s: any) => s && s.field)
+            .map((s: any) => ({ field: s.field, direction: (s.order as 'asc' | 'desc') ?? 'asc' }))
+        : undefined;
+
+      setExportError(null);
+      setExportBusy(true);
+      void (async () => {
+        try {
+          const blob = await dataSource!.exportDownload!(objectName!, {
+            format: format as 'csv' | 'xlsx' | 'json',
+            fields: fields.length ? fields : undefined,
+            filter,
+            sort,
+            includeHeaders,
+            limit: maxRecords > 0 ? maxRecords : undefined,
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${prefix}.${format}`;
+          a.rel = 'noopener';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          setShowExport(false);
+        } catch (err) {
+          // Surface the failure instead of swallowing it (e.g. permission denied
+          // or a server error) — the toolbar shows the message.
+          console.error('ObjectGrid export failed:', err);
+          setExportError(err instanceof Error ? err.message : String(err));
+        } finally {
+          setExportBusy(false);
+        }
+      })();
       return;
     }
 
@@ -1284,7 +1323,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       downloadFile(new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' }), `${prefix}.json`);
     }
     setShowExport(false);
-  }, [data, schema.exportOptions, schema.objectName, generateColumns, exportJob, hasInlineData]);
+  }, [data, schema.exportOptions, schema.operations?.export, schema.objectName, objectName, generateColumns, dataSource, hasInlineData, schemaFilter, schemaSort]);
 
   if (error) {
     return (
@@ -1332,6 +1371,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     if (next.type == null && fieldDef.type) next.type = fieldDef.type;
     if (next.options == null && fieldDef.options) {
       next.options = translateOptions(schema.objectName, col.accessorKey, fieldDef.options);
+    }
+    // Read-only / computed / binary fields are not value-editable in place —
+    // mark the column so the data-table never opens an editor (otherwise it
+    // falls back to a plain text box for e.g. a Formula or File cell). Only
+    // force `false`; leave editable unset otherwise so the grid-level flag wins.
+    if (next.editable !== false && !isFieldInlineEditable(fieldDef)) {
+      next.editable = false;
     }
     return next;
   });
@@ -1704,9 +1750,20 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           const fieldDef = (objectSchema as any)?.fields?.[ctx.column?.accessorKey];
           if (!fieldDef || !hasFieldEditWidget(fieldDef.type)) return null;
           const discrete = DISCRETE_EDIT_TYPES.has(fieldDef.type);
+          let field: any = { name: ctx.column.accessorKey, ...fieldDef };
+          // State-machine-aware: a field bound to a `state_machine` validation
+          // only offers transitions valid from the current value, so the editor
+          // can't stage an edit the server would reject (e.g. done → in_review).
+          const reachable = stateMachineNextValues(objectSchema, ctx.column.accessorKey, ctx.value);
+          if (reachable && Array.isArray(field.options)) {
+            field = {
+              ...field,
+              options: field.options.filter((o: any) => reachable.has(String(o?.value ?? o))),
+            };
+          }
           return (
             <FieldEditWidget
-              field={{ name: ctx.column.accessorKey, ...fieldDef }}
+              field={field}
               value={ctx.value}
               onChange={(v: any) => (discrete ? ctx.commit(v) : ctx.stage(v))}
             />
@@ -2044,7 +2101,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // Hide row-height toggle when parent (e.g., ListView) controls density externally,
   // signaled by `hideRowHeightToggle` prop on schema.
   const showRowHeightToggle = schema.rowHeight !== undefined && !(schema as any).hideRowHeightToggle;
-  const hasToolbar = schema.exportOptions || showRowHeightToggle;
+  // Export is offered only when configured AND not blocked by object-level perms.
+  const exportEnabled = !!schema.exportOptions && schema.operations?.export !== false;
+  const hasToolbar = exportEnabled || showRowHeightToggle;
   const gridToolbar = hasToolbar ? (
     <div className="flex items-center justify-end gap-1 px-2 py-1">
       {/* Row height toggle */}
@@ -2062,7 +2121,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       )}
 
       {/* Export */}
-      {schema.exportOptions && (
+      {exportEnabled && (
         <Popover open={showExport} onOpenChange={setShowExport}>
           <PopoverTrigger asChild>
             <Button
@@ -2076,18 +2135,30 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           </PopoverTrigger>
           <PopoverContent align="end" className="w-48 p-2">
             <div className="space-y-1">
-              {(schema.exportOptions.formats || ['csv', 'json']).map(format => (
+              {(schema.exportOptions?.formats || ['csv', 'json']).map(format => (
                 <Button
                   key={format}
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start h-8 text-xs"
+                  disabled={exportBusy}
                   onClick={() => handleExport(format)}
                 >
-                  <Download className="h-3.5 w-3.5 mr-2" />
+                  {exportBusy
+                    ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                    : <Download className="h-3.5 w-3.5 mr-2" />}
                   {t('grid.exportAs', { format: format.toUpperCase() })}
                 </Button>
               ))}
+              {exportError && (
+                <div
+                  className="px-2 py-1 text-xs"
+                  style={{ color: 'var(--destructive, #ef4444)' }}
+                  role="alert"
+                >
+                  {exportError}
+                </div>
+              )}
             </div>
           </PopoverContent>
         </Popover>
@@ -2313,17 +2384,6 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     </>
   );
 
-  // Shared async-export progress dialog (used by both render paths).
-  const exportProgressDialog = (
-    <ExportProgressDialog
-      open={exportDialogOpen}
-      onOpenChange={setExportDialogOpen}
-      job={exportJob}
-      filename={`${schema.exportOptions?.fileNamePrefix || schema.objectName || 'export'}.${exportJob.progress?.format || 'csv'}`}
-      closeAfterDownloadMs={400}
-    />
-  );
-
   // Rendered BulkActionDialog (shared across both render branches).
   const bulkDialog = (
     <BulkActionDialog
@@ -2364,7 +2424,6 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         >
           {(record) => renderRecordDetail(record)}
         </NavigationOverlay>
-        {exportProgressDialog}
         {bulkDialog}
       </>
     );
@@ -2405,7 +2464,6 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           {(record) => renderRecordDetail(record)}
         </NavigationOverlay>
       )}
-      {exportProgressDialog}
       {bulkDialog}
     </div>
   );

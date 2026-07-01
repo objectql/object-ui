@@ -347,6 +347,148 @@ describe('ListView', () => {
     expect(exportButtons.length).toBe(0);
   });
 
+  it('hides export button when operations.export is false', () => {
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      exportOptions: { formats: ['csv', 'json'] },
+      operations: { export: false },
+    };
+
+    renderWithProvider(<ListView schema={schema} />);
+
+    const exportButtons = screen.queryAllByRole('button', { name: /export/i });
+    expect(exportButtons.length).toBe(0);
+  });
+
+  it('keeps export button when operations is set but export is omitted (default-allow)', () => {
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      exportOptions: { formats: ['csv', 'json'] },
+      operations: { create: false },
+    };
+
+    renderWithProvider(<ListView schema={schema} />);
+
+    expect(screen.getByRole('button', { name: /export/i })).toBeInTheDocument();
+  });
+
+  it('routes export to the server exportDownload stream when the data source supports it', async () => {
+    const exportDownload = vi.fn().mockResolvedValue(
+      new Blob(['ID,Name\n1,Acme'], { type: 'text/csv' }),
+    );
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:export');
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const ds: any = {
+      find: vi.fn().mockResolvedValue([]),
+      findOne: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      exportDownload,
+    };
+
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      exportOptions: { formats: ['csv', 'xlsx'] },
+    };
+
+    render(
+      <SchemaRendererProvider dataSource={ds}>
+        <ListView schema={schema} dataSource={ds} />
+      </SchemaRendererProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /export as xlsx/i }));
+
+    await vi.waitFor(() => {
+      expect(exportDownload).toHaveBeenCalledTimes(1);
+    });
+    const [resource, request] = exportDownload.mock.calls[0];
+    expect(resource).toBe('contacts');
+    expect(request).toMatchObject({ format: 'xlsx', fields: ['name', 'email'] });
+    // The returned Blob is handed to the browser download path.
+    await vi.waitFor(() => {
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+    });
+
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  });
+
+  it('surfaces export failures instead of swallowing them', async () => {
+    const exportDownload = vi.fn().mockRejectedValue(new Error('Permission denied'));
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:export');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const ds: any = {
+      find: vi.fn().mockResolvedValue([]),
+      findOne: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      exportDownload,
+    };
+
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      exportOptions: { formats: ['csv', 'xlsx'] },
+    };
+
+    render(
+      <SchemaRendererProvider dataSource={ds}>
+        <ListView schema={schema} dataSource={ds} />
+      </SchemaRendererProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /export as csv/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Permission denied');
+  });
+
+  it('does not call exportDownload when operations.export is false (programmatic guard)', () => {
+    const exportDownload = vi.fn();
+    const ds: any = {
+      find: vi.fn().mockResolvedValue([]),
+      findOne: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      exportDownload,
+    };
+
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+      exportOptions: { formats: ['csv', 'xlsx'] },
+      operations: { export: false },
+    };
+
+    render(
+      <SchemaRendererProvider dataSource={ds}>
+        <ListView schema={schema} dataSource={ds} />
+      </SchemaRendererProvider>
+    );
+
+    // Button is gated out, so there is no entry point to trigger an export.
+    expect(screen.queryAllByRole('button', { name: /export/i }).length).toBe(0);
+    expect(exportDownload).not.toHaveBeenCalled();
+  });
+
   it('should apply hiddenFields to effective fields', () => {
     const schema: ListViewSchema = {
       type: 'list-view',

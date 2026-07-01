@@ -102,6 +102,31 @@ function toDateTimeInputValue(value: unknown): string {
 // Field types that should edit as a numeric `<Input type="number">`.
 const NUMERIC_EDIT_TYPES = new Set(['number', 'currency', 'percent', 'int', 'integer', 'float', 'double']);
 
+/**
+ * Human label for an object/array cell value (e.g. an expanded reference like
+ * `{ id, name: 'Dev Admin' }`) shown in the read-only inline editor so we never
+ * render "[object Object]". Mirrors @object-ui/fields' `coerceToSafeValue`
+ * (which @object-ui/components can't import — it would be a circular dep).
+ */
+function safeObjectLabel(value: unknown): string {
+  if (value == null) return '';
+  if (Array.isArray(value)) {
+    return value
+      .map((v) =>
+        v != null && typeof v === 'object'
+          ? safeObjectLabel(v)
+          : String(v),
+      )
+      .filter(Boolean)
+      .join(', ');
+  }
+  if (typeof value === 'object') {
+    const o = value as Record<string, unknown>;
+    return String(o.name ?? o.label ?? o.externalId ?? o.id ?? o._id ?? '');
+  }
+  return String(value);
+}
+
 // Default English fallback translations for the data table
 const TABLE_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'table.rowsPerPage': 'Rows per page',
@@ -1356,6 +1381,27 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                 // here — the host (ObjectGrid) provides them via
                                 // `renderCellEditor` using the dedicated @object-ui/fields
                                 // widgets, so they exactly match the form's controls.
+
+                                // Object/array values (e.g. an expanded reference like
+                                // `{ id, name }`) have no safe free-text editor: a plain
+                                // <input> renders them as "[object Object]", and blur
+                                // auto-saves (saveEdit) would clobber the object with that
+                                // string. Show the coerced label read-only and cancel (not
+                                // save) on blur so the value is never corrupted — such
+                                // fields are edited from the record form / a dedicated picker.
+                                if (editValue != null && typeof editValue === 'object') {
+                                  return (
+                                    <Input
+                                      ref={editInputRef}
+                                      value={safeObjectLabel(editValue)}
+                                      readOnly
+                                      onKeyDown={handleEditKeyDown}
+                                      onBlur={cancelEdit}
+                                      className="h-8 px-2 py-1 text-muted-foreground cursor-default"
+                                      title={safeObjectLabel(editValue)}
+                                    />
+                                  );
+                                }
 
                                 // Fallback: plain text input (when no host editor matched and
                                 // the type isn't date/datetime/number).
