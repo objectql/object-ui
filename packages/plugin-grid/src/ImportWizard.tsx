@@ -194,11 +194,19 @@ type WizardStep = 'upload' | 'mapping' | 'preview';
 /** Maximum number of rows to show in the preview step */
 const PREVIEW_ROW_COUNT = 10;
 
+/** Boolean tokens the server's import coercion accepts (import-coerce.ts).
+ *  Kept in sync so the preview step doesn't flag a cell the server would take
+ *  (e.g. Chinese 是/否, on/off, ✓/×). Compared case-insensitively. */
+const BOOLEAN_IMPORT_TOKENS = new Set([
+  'true', 't', 'yes', 'y', '1', 'on', '是', '对', '✓', '√',
+  'false', 'f', 'no', 'n', '0', 'off', '否', '错', '✗', '×',
+]);
+
 function validateValue(value: string, type: string): boolean {
   if (!value) return true;
   switch (type) {
     case 'number': case 'currency': case 'percent': return !isNaN(Number(value));
-    case 'boolean': return ['true', 'false', '1', '0', 'yes', 'no'].includes(value.toLowerCase());
+    case 'boolean': return BOOLEAN_IMPORT_TOKENS.has(value.trim().toLowerCase());
     case 'date': case 'datetime': return !isNaN(Date.parse(value));
     default: return true;
   }
