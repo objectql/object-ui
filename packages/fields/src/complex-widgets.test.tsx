@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LookupField } from './widgets/LookupField';
+import { FieldEditWidget } from './FieldEditWidget';
 import { MasterDetailField } from './widgets/MasterDetailField';
 import { GridField } from './widgets/GridField';
 import { FileField } from './widgets/FileField';
@@ -529,6 +530,93 @@ describe('Complex & Relationship Widgets', () => {
             await waitFor(() => {
                 expect(screen.getByText('Product A')).toBeInTheDocument();
             });
+        });
+    });
+
+    describe('LookupField — expanded-reference ($expand) value resolution (#2125)', () => {
+        // The data grid requests `$expand` for visible reference columns, so a
+        // lookup cell's value arrives as the related record OBJECT ({ id, name }),
+        // not a bare id. The inline editor must resolve that to the record's name —
+        // like the read cell (LookupCellRenderer) — instead of the "Select…"
+        // placeholder. Regression test for #2125.
+        const mockDataSource = {
+            find: vi.fn(),
+            findOne: vi.fn(),
+            create: vi.fn(),
+            update: vi.fn(),
+            delete: vi.fn(),
+        };
+
+        beforeEach(() => {
+            vi.clearAllMocks();
+            try { localStorage.clear(); } catch { /* jsdom */ }
+        });
+
+        it('resolves an expanded-object value into the record name (compact trigger) without a bogus fetch', () => {
+            render(
+                <LookupField
+                    value={{ id: 'Z63', name: 'Northwind' }}
+                    onChange={vi.fn()}
+                    field={{ name: 'account', type: 'lookup', reference: 'showcase_account' } as any}
+                    readonly={false}
+                    dataSource={mockDataSource}
+                    compact
+                />
+            );
+
+            // The name resolves directly from the expanded object — shown in the
+            // compact trigger, never the placeholder.
+            expect(screen.getByText('Northwind')).toBeInTheDocument();
+
+            // Must never fetch by passing the whole object as an id.
+            expect(mockDataSource.findOne).not.toHaveBeenCalled();
+            expect(mockDataSource.find).not.toHaveBeenCalled();
+        });
+
+        it('resolves an expanded-object value in full (badge) mode', () => {
+            render(
+                <LookupField
+                    value={{ id: 'Z63', name: 'Northwind' }}
+                    onChange={vi.fn()}
+                    field={{ name: 'account', type: 'lookup', reference: 'showcase_account' } as any}
+                    readonly={false}
+                    dataSource={mockDataSource}
+                />
+            );
+            expect(screen.getByText('Northwind')).toBeInTheDocument();
+        });
+
+        it('still hydrates a bare-id value via findOne (existing path preserved)', async () => {
+            mockDataSource.findOne.mockResolvedValue({ id: 'a1', name: 'Acme Corp' });
+            render(
+                <LookupField
+                    value="a1"
+                    onChange={vi.fn()}
+                    field={{ name: 'account', type: 'lookup', reference: 'showcase_account' } as any}
+                    readonly={false}
+                    dataSource={mockDataSource}
+                    compact
+                />
+            );
+            await waitFor(() => {
+                expect(mockDataSource.findOne).toHaveBeenCalledWith('showcase_account', 'a1');
+            });
+            await waitFor(() => {
+                expect(screen.getByText('Acme Corp')).toBeInTheDocument();
+            });
+        });
+
+        it('FieldEditWidget renders a lookup cell compact and resolves the expanded object', () => {
+            // Proves FieldEditWidget forwards `compact` to the relational widget, so
+            // the grid cell shows the record name in the trigger (single line).
+            render(
+                <FieldEditWidget
+                    field={{ name: 'account', type: 'lookup', reference: 'showcase_account' } as any}
+                    value={{ id: 'Z63', name: 'Northwind' }}
+                    onChange={vi.fn()}
+                />
+            );
+            expect(screen.getByText('Northwind')).toBeInTheDocument();
         });
     });
 

@@ -463,9 +463,14 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
    */
   useEffect(() => {
     if (!hasDataSource || !dataSource || !referenceTo) return;
-    const ids: any[] = multiple
+    const raw: any[] = multiple
       ? Array.isArray(value) ? value : []
       : value != null && value !== '' ? [value] : [];
+    // Expanded-reference values (server `$expand`) already arrive as the related
+    // record object and resolve directly in `resolveSelectedOption` — only bare
+    // ids need a fetch. Passing an object to `findOne` would query for a bogus
+    // id and leave the trigger stuck on the placeholder.
+    const ids = raw.filter((v) => v != null && v !== '' && typeof v !== 'object');
     if (!ids.length) return;
     // Only fetch records we haven't resolved yet.
     const unresolved = ids.filter((v) => !findOption(v));
@@ -517,9 +522,32 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     [staticOptions, fetchedOptions, pickerResolvedRecords],
   );
 
+  // Collapse an expanded-reference value (the related record object returned by
+  // server `$expand`) to its bare id — used for option matching / highlighting.
+  const normalizeId = useCallback(
+    (raw: any): any =>
+      raw != null && typeof raw === 'object' ? (raw[idField] ?? raw.id ?? raw._id) : raw,
+    [idField],
+  );
+
+  // Resolve a raw field value into its display option. An expanded-reference
+  // object is mapped directly (mirroring the read cell's display-name path) so
+  // the inline editor shows the record's name instead of the placeholder; a bare
+  // id resolves through the static / fetched / picker-hydrated option lists.
+  const resolveSelectedOption = useCallback(
+    (raw: any): LookupOption | undefined => {
+      if (raw == null || raw === '') return undefined;
+      if (typeof raw === 'object') {
+        return recordToOption(raw, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema);
+      }
+      return findOption(raw);
+    },
+    [findOption, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema],
+  );
+
   const selectedOptions = multiple
-    ? (Array.isArray(value) ? value : []).map(findOption).filter(Boolean)
-    : value ? [findOption(value)].filter(Boolean) : [];
+    ? (Array.isArray(value) ? value : []).map(resolveSelectedOption).filter(Boolean)
+    : value ? [resolveSelectedOption(value)].filter(Boolean) : [];
 
   // Optional: receive the FULL selected record (not just its id) so a host can
   // auto-fill sibling fields from it — e.g. a line-item grid copying a product's
@@ -530,7 +558,9 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const handleSelect = useCallback(
     (option: LookupOption) => {
       if (multiple) {
-        const currentValues = Array.isArray(value) ? value : [];
+        // Normalise any expanded-reference objects to bare ids so toggling
+        // compares like-for-like and always persists ids (never mixed shapes).
+        const currentValues = (Array.isArray(value) ? value : []).map(normalizeId);
         const isSelected = currentValues.includes(option.value);
 
         if (isSelected) {
@@ -546,12 +576,12 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         setIsOpen(false);
       }
     },
-    [multiple, value, onChange, onSelectRecord, referenceTo],
+    [multiple, value, onChange, onSelectRecord, referenceTo, normalizeId],
   );
 
   const handleRemove = (optionValue: any) => {
     if (multiple) {
-      const currentValues = Array.isArray(value) ? value : [];
+      const currentValues = (Array.isArray(value) ? value : []).map(normalizeId);
       onChange(currentValues.filter((v: any) => v !== optionValue));
     } else {
       onChange(null);
@@ -841,8 +871,8 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
                 <>
                   {visibleOptions.map((option, idx) => {
                     const isSelected = multiple
-                      ? (Array.isArray(value) ? value : []).includes(option.value)
-                      : value === option.value;
+                      ? (Array.isArray(value) ? value : []).map(normalizeId).includes(option.value)
+                      : normalizeId(value) === option.value;
                     const isActive = idx === activeIndex;
                     const showRecentHeader = recentCount > 0 && idx === 0;
                     const showResultsHeader = recentCount > 0 && idx === recentCount;

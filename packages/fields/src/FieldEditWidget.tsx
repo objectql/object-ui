@@ -119,6 +119,15 @@ export function hasFieldEditWidget(type: string | undefined): boolean {
 }
 
 /**
+ * Relational picker widgets (lookup / master_detail / user / owner) render best
+ * in a grid cell as a single-line, borderless trigger — so the selected
+ * record's NAME shows inside the trigger instead of a chip stacked above a
+ * separate "Select…" button (which double-stacks and wastes the row height).
+ * This mirrors how the line-item grid (`GridField`) renders its lookup cells.
+ */
+const COMPACT_EDIT_TYPES = new Set<string>(['lookup', 'master_detail', 'user', 'owner']);
+
+/**
  * Render the dedicated edit widget for a field's type — the SAME control the
  * form uses — as a controlled `{ value, onChange, field }` input. Returns
  * `null` for types without a registered widget so the caller can fall back to
@@ -132,5 +141,6 @@ export function FieldEditWidget({
 }: FieldWidgetProps<any>): React.ReactElement | null {
   const Widget = field?.type ? EDIT_WIDGETS[field.type] : undefined;
   if (!Widget) return null;
-  return <Widget field={field} value={value} onChange={onChange} readonly={readonly} />;
+  const compactProps = field?.type && COMPACT_EDIT_TYPES.has(field.type) ? { compact: true } : {};
+  return <Widget field={field} value={value} onChange={onChange} readonly={readonly} {...(compactProps as any)} />;
 }
