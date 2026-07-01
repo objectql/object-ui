@@ -20,6 +20,8 @@ import type {
   CreateImportJobResult,
   ImportJobProgressInfo,
   ImportJobResultsInfo,
+  ImportJobStatus,
+  ImportJobSummaryInfo,
 } from '@object-ui/types';
 import {
   parseSpreadsheetFile, parseClipboardTable, inferColumnType, isTypeCompatible,
@@ -112,6 +114,25 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.validatePassed': 'All {{ok}} rows are valid.',
   'grid.import.validateFailed': '{{ok}} valid, {{errors}} with errors.',
   'grid.import.errorRowPrefix': 'Row {{row}}: ',
+  // Import-job history
+  'grid.import.history': 'History',
+  'grid.import.historyBack': 'Back to import',
+  'grid.import.historyDescription': 'Recent imports for this object.',
+  'grid.import.historyHint': 'Background import jobs, newest first.',
+  'grid.import.historyRefresh': 'Refresh',
+  'grid.import.historyLoading': 'Loading…',
+  'grid.import.historyEmpty': 'No imports yet.',
+  'grid.import.historyUnsupported': 'Import history isn’t available for this data source.',
+  'grid.import.historyColStatus': 'Status',
+  'grid.import.historyColRows': 'Rows',
+  'grid.import.historyColResult': 'Result',
+  'grid.import.historyColTime': 'When',
+  'grid.import.errorCount': '{{count}} errors',
+  'grid.import.status.pending': 'Pending',
+  'grid.import.status.running': 'Running',
+  'grid.import.status.succeeded': 'Succeeded',
+  'grid.import.status.failed': 'Failed',
+  'grid.import.status.cancelled': 'Cancelled',
   'grid.import.cancel': 'Cancel',
   'grid.import.back': 'Back',
   'grid.import.next': 'Next',
@@ -167,6 +188,7 @@ export const __testables = {
   get buildFailedRowsCsv() { return buildFailedRowsCsv; },
   get buildImportTemplateCsv() { return buildImportTemplateCsv; },
   get assembleImportRequest() { return assembleImportRequest; },
+  get isImportJobActive() { return isImportJobActive; },
 };
 
 /** A reusable column-mapping template, persisted across sessions. Keys are
@@ -419,6 +441,12 @@ function jobResultToImportResult(res: ImportJobResultsInfo): ImportResult {
       .map((r) => ({ row: r.row, field: r.field ?? '', message: r.error ?? r.code ?? 'Import failed' })),
     resultsTruncated: res.resultsTruncated,
   };
+}
+
+/** True while an import job is still in flight — it can be cancelled and the
+ *  history list should keep polling it. Terminal states are the rest. */
+function isImportJobActive(status: ImportJobStatus): boolean {
+  return status === 'pending' || status === 'running';
 }
 
 /** Build a CSV blob of failed rows for re-export: the original mapped columns
@@ -1010,6 +1038,133 @@ const ImportOptions: React.FC<{
   );
 };
 
+/** Colour intent for each import-job status badge. */
+const IMPORT_JOB_STATUS_VARIANT: Record<ImportJobStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  pending: 'outline',
+  running: 'secondary',
+  succeeded: 'default',
+  failed: 'destructive',
+  cancelled: 'outline',
+};
+
+/** Format an ISO timestamp compactly for the history table; falls back to the
+ *  raw string (or a dash) when it isn't a parseable date. */
+function formatImportJobTime(iso?: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
+/**
+ * Import-job history for one object: lists prior async jobs (status, counts,
+ * time), lets the user cancel an in-flight job, and refresh. Degrades to an
+ * empty state when the data source lacks `listImportJobs` (older adapter).
+ */
+const ImportHistoryPanel: React.FC<{
+  objectName: string;
+  dataSource: unknown;
+  t: (key: string, vars?: Record<string, unknown>) => string;
+}> = ({ objectName, dataSource, t }) => {
+  const [jobs, setJobs] = useState<ImportJobSummaryInfo[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const ds = dataSource as Partial<DataSource> | undefined;
+  const supported = typeof ds?.listImportJobs === 'function';
+
+  const load = useCallback(async () => {
+    if (typeof ds?.listImportJobs !== 'function') return;
+    setLoading(true); setError(null);
+    try {
+      const list = await ds.listImportJobs({ object: objectName, limit: 50 });
+      setJobs(list);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setJobs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [ds, objectName]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleCancel = useCallback(async (jobId: string) => {
+    if (typeof ds?.cancelImportJob !== 'function') return;
+    try { await ds.cancelImportJob(jobId); } catch { /* best-effort */ }
+    void load();
+  }, [ds, load]);
+
+  if (!supported) {
+    return (
+      <div className="p-6 text-center text-sm text-muted-foreground" data-testid="import-history-unsupported">
+        {t('grid.import.historyUnsupported')}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="import-history">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">{t('grid.import.historyHint')}</p>
+        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} data-testid="import-history-refresh">
+          {loading ? t('grid.import.historyLoading') : t('grid.import.historyRefresh')}
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive" data-testid="import-history-error">{error}</p>}
+      {jobs && jobs.length === 0 && !loading && (
+        <p className="p-6 text-center text-sm text-muted-foreground" data-testid="import-history-empty">
+          {t('grid.import.historyEmpty')}
+        </p>
+      )}
+      {jobs && jobs.length > 0 && (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('grid.import.historyColStatus')}</TableHead>
+              <TableHead className="text-right">{t('grid.import.historyColRows')}</TableHead>
+              <TableHead className="text-right">{t('grid.import.historyColResult')}</TableHead>
+              <TableHead>{t('grid.import.historyColTime')}</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {jobs.map((job) => (
+              <TableRow key={job.jobId} data-testid={`import-history-row-${job.jobId}`}>
+                <TableCell>
+                  <Badge variant={IMPORT_JOB_STATUS_VARIANT[job.status]}>
+                    {t(`grid.import.status.${job.status}`)}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{job.processed}/{job.total}</TableCell>
+                <TableCell className="text-right tabular-nums text-xs">
+                  <span className="text-emerald-600">{t('grid.import.createdCount', { count: job.created })}</span>
+                  {job.updated > 0 && <span className="text-muted-foreground"> · {t('grid.import.updatedCount', { count: job.updated })}</span>}
+                  {job.skipped > 0 && <span className="text-muted-foreground"> · {t('grid.import.skippedCount', { count: job.skipped })}</span>}
+                  {job.errors > 0 && <span className="text-destructive"> · {t('grid.import.errorCount', { count: job.errors })}</span>}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{formatImportJobTime(job.completedAt ?? job.createdAt)}</TableCell>
+                <TableCell className="text-right">
+                  {isImportJobActive(job.status) && typeof ds?.cancelImportJob === 'function' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void handleCancel(job.jobId)}
+                      data-testid={`import-history-cancel-${job.jobId}`}
+                    >
+                      <X className="mr-1 h-3.5 w-3.5" /> {t('grid.import.cancelImport')}
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
+  );
+};
+
 // Main wizard component
 export const ImportWizard: React.FC<ImportWizardProps> = ({
   objectName, objectLabel, fields, dataSource, onComplete, onCancel, open, onOpenChange, onErrorMode = 'skip',
@@ -1023,6 +1178,8 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [corrections, setCorrections] = useState<Record<number, Record<number, string>>>({});
+  // Import-job history view (swaps the wizard body for a list of prior jobs).
+  const [showHistory, setShowHistory] = useState(false);
   // Async (large-file) import job — jobId + live processed/total, plus a ref the
   // poll loop reads so a mid-flight Cancel stops polling without a re-render race.
   const [jobId, setJobId] = useState<string | null>(null);
@@ -1405,6 +1562,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setCreateMissingOptions(false); setRunAutomations(false); setSkipBlankMatchKey(false);
     setJobId(null); setAsyncCounts(null);
     setValidating(false); setDryRunResult(null);
+    setShowHistory(false);
   }, []);
 
   /** Download a CSV of just the failed rows (original values + `_error`). */
@@ -1439,30 +1597,49 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else onOpenChange?.(v); }}>
       <DialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-hidden sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" /> {t('grid.import.title', { object: label })}
-          </DialogTitle>
+          <div className="flex items-center justify-between gap-2 pr-6">
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" /> {t('grid.import.title', { object: label })}
+            </DialogTitle>
+            {step === 'upload' && !result && !importing
+              && typeof (dataSource as Partial<DataSource> | undefined)?.listImportJobs === 'function' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowHistory((v) => !v)}
+                data-testid="import-history-toggle"
+              >
+                {showHistory ? t('grid.import.historyBack') : t('grid.import.history')}
+              </Button>
+            )}
+          </div>
           <DialogDescription>
-            {step === 'upload' && t('grid.import.uploadDescription')}
-            {step === 'mapping' && t('grid.import.mappingDescription')}
-            {step === 'preview' && t('grid.import.previewDescription')}
+            {showHistory
+              ? t('grid.import.historyDescription')
+              : step === 'upload' ? t('grid.import.uploadDescription')
+              : step === 'mapping' ? t('grid.import.mappingDescription')
+              : t('grid.import.previewDescription')}
           </DialogDescription>
         </DialogHeader>
 
         {/* Step indicators */}
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          {(['upload', 'mapping', 'preview'] as WizardStep[]).map((s, i) => (
-            <React.Fragment key={s}>
-              {i > 0 && <ArrowRight className="h-3 w-3" />}
-              <span className={cn('rounded-full px-3 py-1', step === s ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
-                {i + 1}. {s === 'upload' ? t('grid.import.stepUpload') : s === 'mapping' ? t('grid.import.stepMapping') : t('grid.import.stepPreview')}
-              </span>
-            </React.Fragment>
-          ))}
-        </div>
+        {!showHistory && (
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            {(['upload', 'mapping', 'preview'] as WizardStep[]).map((s, i) => (
+              <React.Fragment key={s}>
+                {i > 0 && <ArrowRight className="h-3 w-3" />}
+                <span className={cn('rounded-full px-3 py-1', step === s ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                  {i + 1}. {s === 'upload' ? t('grid.import.stepUpload') : s === 'mapping' ? t('grid.import.stepMapping') : t('grid.import.stepPreview')}
+                </span>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
 
         <div className="min-h-0 flex-1 overflow-auto">
-        {!result ? (
+        {showHistory ? (
+          <ImportHistoryPanel objectName={objectName} dataSource={dataSource} t={t} />
+        ) : !result ? (
           <>
             {step === 'upload' && <StepUpload onFileLoaded={handleFileLoaded} fields={fields} objectName={objectName} />}
             {step === 'mapping' && (
@@ -1614,7 +1791,11 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          {result ? (
+          {showHistory ? (
+            <Button variant="outline" onClick={() => setShowHistory(false)}>
+              <ArrowLeft className="mr-1 h-4 w-4" /> {t('grid.import.historyBack')}
+            </Button>
+          ) : result ? (
             <Button onClick={handleClose}>{t('grid.import.close')}</Button>
           ) : (
             <>
