@@ -90,7 +90,7 @@ function recordToOption(
   titleFormat?: string | null,
   objectDef?: any,
 ): LookupOption {
-  const val = record[idField] ?? record.id ?? record._id;
+  const val = record[idField] ?? record.id ?? record._id ?? record.externalId;
   const templated = titleFormat ? formatRecordTitle(record, titleFormat) : null;
 
   // Object-level resolver fallback (displayNameField + derivation), excluding
@@ -114,9 +114,29 @@ function recordToOption(
     record.full_name ??
     record.title ??
     record.subject ??
+    record.externalId ??
     String(val);
   const description = descriptionField ? record[descriptionField] : undefined;
   return { value: val, label: String(label), description, ...record };
+}
+
+/**
+ * A reference value can arrive JSON-encoded — e.g. an unresolved external-id
+ * reference `'{"externalId":"Website Relaunch"}'`. Parse such a string into its
+ * object form so the inline editor resolves it through the same path as a
+ * server-`$expand`ed record. Returns null for anything that isn't a JSON object
+ * string. Mirrors the read cell (`LookupCellRenderer`) so the two stay aligned.
+ */
+function parseReferenceObjectString(v: any): Record<string, any> | null {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s.startsWith('{') || !s.endsWith('}')) return null;
+  try {
+    const parsed = JSON.parse(s);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -466,11 +486,14 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     const raw: any[] = multiple
       ? Array.isArray(value) ? value : []
       : value != null && value !== '' ? [value] : [];
-    // Expanded-reference values (server `$expand`) already arrive as the related
-    // record object and resolve directly in `resolveSelectedOption` — only bare
-    // ids need a fetch. Passing an object to `findOne` would query for a bogus
-    // id and leave the trigger stuck on the placeholder.
-    const ids = raw.filter((v) => v != null && v !== '' && typeof v !== 'object');
+    // Expanded-reference values (server `$expand`, or their JSON-encoded string
+    // form) already carry their display fields and resolve directly in
+    // `resolveSelectedOption` — only bare ids need a fetch. Passing an object (or
+    // a JSON string) to `findOne` would query for a bogus id and leave the
+    // trigger stuck on the placeholder.
+    const ids = raw.filter(
+      (v) => v != null && v !== '' && typeof v !== 'object' && !parseReferenceObjectString(v),
+    );
     if (!ids.length) return;
     // Only fetch records we haven't resolved yet.
     const unresolved = ids.filter((v) => !findOption(v));
@@ -522,11 +545,29 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     [staticOptions, fetchedOptions, pickerResolvedRecords],
   );
 
+  // String-coerced fallback for `findOption` — matches the read cell's tolerant
+  // `String(a) === String(b)` comparison so a numeric cell value still resolves
+  // against a string-keyed option (and vice versa). Only consulted when the
+  // strict match misses, so homogeneous option lists are unaffected.
+  const findOptionLoose = useCallback(
+    (v: any): LookupOption | undefined => {
+      const key = String(v);
+      return (
+        staticOptions.find(opt => String(opt.value) === key) ??
+        fetchedOptions.find(opt => String(opt.value) === key) ??
+        pickerResolvedRecords.find(opt => String(opt.value) === key)
+      );
+    },
+    [staticOptions, fetchedOptions, pickerResolvedRecords],
+  );
+
   // Collapse an expanded-reference value (the related record object returned by
   // server `$expand`) to its bare id — used for option matching / highlighting.
   const normalizeId = useCallback(
-    (raw: any): any =>
-      raw != null && typeof raw === 'object' ? (raw[idField] ?? raw.id ?? raw._id) : raw,
+    (raw: any): any => {
+      const obj = raw != null && typeof raw === 'object' ? raw : parseReferenceObjectString(raw);
+      return obj ? (obj[idField] ?? obj.id ?? obj._id ?? obj.externalId) : raw;
+    },
     [idField],
   );
 
@@ -537,12 +578,19 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const resolveSelectedOption = useCallback(
     (raw: any): LookupOption | undefined => {
       if (raw == null || raw === '') return undefined;
-      if (typeof raw === 'object') {
-        return recordToOption(raw, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema);
+      // An expanded-reference object (server `$expand`) — or its JSON-encoded
+      // string form, e.g. an external-id reference `'{"externalId":"…"}'` — is
+      // mapped directly, mirroring the read cell (`LookupCellRenderer`).
+      const asObject = typeof raw === 'object' ? raw : parseReferenceObjectString(raw);
+      if (asObject) {
+        return recordToOption(asObject, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema);
       }
-      return findOption(raw);
+      // Bare id: strict match first, then a String()-coerced fallback so a
+      // numeric cell value still resolves against a string-keyed option (and
+      // vice versa) — matching the read cell's tolerant comparison.
+      return findOption(raw) ?? findOptionLoose(raw);
     },
-    [findOption, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema],
+    [findOption, findOptionLoose, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema],
   );
 
   const selectedOptions = multiple

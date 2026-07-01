@@ -620,6 +620,79 @@ describe('Complex & Relationship Widgets', () => {
         });
     });
 
+    describe('LookupField — inline value-shape alignment with the read cell', () => {
+        // Rounds out #2125: user/owner inline editing, JSON-encoded external-id
+        // reference values, and String()-tolerant id matching — so the inline
+        // editor resolves every value shape the read cell (LookupCellRenderer)
+        // does, instead of falling back to the "Select…" placeholder.
+        const mockDataSource = {
+            find: vi.fn(),
+            findOne: vi.fn(),
+            create: vi.fn(),
+            update: vi.fn(),
+            delete: vi.fn(),
+        };
+
+        beforeEach(() => {
+            vi.clearAllMocks();
+            try { localStorage.clear(); } catch { /* jsdom */ }
+        });
+
+        it('user field resolves an expanded-object value inline (via UserField → LookupField)', () => {
+            render(
+                <FieldEditWidget
+                    field={{ name: 'assignee', type: 'user' } as any}
+                    value={{ id: 'u1', name: 'Ada Lovelace' }}
+                    onChange={vi.fn()}
+                />
+            );
+            expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+        });
+
+        it('owner field resolves an expanded-object value inline', () => {
+            render(
+                <FieldEditWidget
+                    field={{ name: 'owner', type: 'owner' } as any}
+                    value={{ id: 'u2', name: 'Grace Hopper' }}
+                    onChange={vi.fn()}
+                />
+            );
+            expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+        });
+
+        it('resolves a JSON-encoded external-id reference string without a bogus fetch', () => {
+            render(
+                <LookupField
+                    value={'{"externalId":"Website Relaunch"}'}
+                    onChange={vi.fn()}
+                    field={{ name: 'project', type: 'lookup', reference: 'projects' } as any}
+                    readonly={false}
+                    dataSource={mockDataSource}
+                    compact
+                />
+            );
+            // The external id is used as the display label (mirrors the read cell).
+            expect(screen.getByText('Website Relaunch')).toBeInTheDocument();
+            // Never fetch by passing the raw JSON string as an id.
+            expect(mockDataSource.findOne).not.toHaveBeenCalled();
+            expect(mockDataSource.find).not.toHaveBeenCalled();
+        });
+
+        it('resolves a numeric cell value against a string-keyed option (tolerant match)', () => {
+            render(
+                <LookupField
+                    value={1}
+                    onChange={vi.fn()}
+                    field={{ name: 'category', type: 'lookup', options: [{ value: '1', label: 'One' }, { value: '2', label: 'Two' }] } as any}
+                    readonly={false}
+                    compact
+                />
+            );
+            // Strict === misses (number 1 vs string '1'); the loose fallback resolves it.
+            expect(screen.getByText('One')).toBeInTheDocument();
+        });
+    });
+
     describe('MasterDetailField', () => {
         const items = [
             { id: '1', label: 'Item 1' },
