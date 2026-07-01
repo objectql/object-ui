@@ -25,6 +25,7 @@ import {
 import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
+import { sectionFormLayout } from './autoLayout';
 
 export interface SplitFormSectionConfig {
   name?: string;
@@ -235,12 +236,15 @@ export const SplitForm: React.FC<SplitFormProps> = ({
           key={section.name || section.label || index}
           label={section.label}
           description={section.description}
-          columns={section.columns || 1}
+          columns={1}
         >
           <SchemaRenderer
             schema={{
               ...baseFormSchema,
-              fields: buildSectionFields(section),
+              // Multi-column lives on the field container inside the form, not
+              // as a grid wrapped around the whole form (which leaves the extra
+              // columns empty). See sectionFormLayout.
+              ...sectionFormLayout(buildSectionFields(section), section.columns || 1),
               showSubmit: showButtons && schema.showSubmit !== false && schema.mode !== 'view',
               showCancel: showButtons && schema.showCancel !== false,
               submitLabel: schema.submitText || (schema.mode === 'create' ? 'Create' : 'Update'),
