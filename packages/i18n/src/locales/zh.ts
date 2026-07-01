@@ -309,6 +309,9 @@ const zh = {
     addGroup: '添加分组字段',
     collapsedByDefault: '默认折叠',
     removeGroup: '删除',
+    inlineEditShort: '行内编辑',
+    inlineEditLabel: '行内编辑记录(点击单元格进行编辑)',
+    recordEditingTitle: '记录编辑',
   },
   kanban: {
     addCard: '添加卡片',

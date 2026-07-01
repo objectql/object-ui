@@ -309,6 +309,9 @@ const en = {
     addGroup: 'Add group field',
     collapsedByDefault: 'Collapsed by default',
     removeGroup: 'Remove',
+    inlineEditShort: 'Edit inline',
+    inlineEditLabel: 'Edit records inline (click a cell to edit)',
+    recordEditingTitle: 'Record editing',
   },
   kanban: {
     addCard: 'Add card',

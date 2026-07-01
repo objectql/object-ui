@@ -637,6 +637,24 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   );
   const [showHideFields, setShowHideFields] = React.useState(false);
 
+  // Inline-edit State (initialized from schema). Kept local — like hiddenFields
+  // — so the toolbar toggle flips the grid immediately. The parent persists via
+  // onInlineEditChange (debounced) and doesn't update the `inlineEdit` prop
+  // synchronously, so reading `schema.inlineEdit` directly would make the button
+  // appear dead until a full reload.
+  const [inlineEdit, setInlineEdit] = React.useState<boolean>(() => !!schema.inlineEdit);
+  React.useEffect(() => {
+    setInlineEdit(!!schema.inlineEdit);
+  }, [schema.inlineEdit]);
+  // Setter that also notifies parent for persistence (debounced upstream).
+  const updateInlineEdit = React.useCallback(
+    (next: boolean) => {
+      setInlineEdit(next);
+      onInlineEditChange?.(next);
+    },
+    [onInlineEditChange]
+  );
+
   // Export State
   const [showExport, setShowExport] = React.useState(false);
   // Server-streamed export (xlsx / type-aware csv|json) in-flight + last error.
@@ -1294,7 +1312,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           ...baseProps,
           columns: effectiveFields,
           ...(schema.conditionalFormatting ? { conditionalFormatting: schema.conditionalFormatting } : {}),
-          ...(schema.inlineEdit != null ? { editable: schema.inlineEdit } : {}),
+          editable: inlineEdit,
           ...(schema.wrapHeaders != null ? { wrapHeaders: schema.wrapHeaders } : {}),
           ...(schema.virtualScroll != null ? { virtualScroll: schema.virtualScroll } : {}),
           ...(schema.resizable != null ? { resizable: schema.resizable } : {}),
@@ -1725,10 +1743,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onInlineEditChange(!schema.inlineEdit)}
+              onClick={() => updateInlineEdit(!inlineEdit)}
               className={cn(
                 "hidden sm:inline-flex h-7 px-2 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
-                schema.inlineEdit && "text-primary"
+                inlineEdit && "text-primary"
               )}
               title={t('list.inlineEditLabel', { defaultValue: 'Edit records inline (click a cell to edit)' })}
               data-testid="toolbar-inline-edit-toggle"
@@ -2081,8 +2099,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
               hiddenFields={hiddenFields}
               updateHiddenFields={updateHiddenFields}
               showInlineEdit={currentView === 'grid'}
-              inlineEdit={!!schema.inlineEdit}
-              setInlineEdit={(v) => onInlineEditChange?.(v)}
+              inlineEdit={inlineEdit}
+              setInlineEdit={updateInlineEdit}
             />
           )}
 
