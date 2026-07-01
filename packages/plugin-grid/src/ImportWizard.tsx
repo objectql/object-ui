@@ -13,9 +13,13 @@ import {
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2, ClipboardPaste, Download } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import type {
+  DataSource,
   ImportRequestOptions,
   ImportRecordsResult,
   ImportWriteMode,
+  CreateImportJobResult,
+  ImportJobProgressInfo,
+  ImportJobResultsInfo,
 } from '@object-ui/types';
 import {
   parseSpreadsheetFile, parseClipboardTable, inferColumnType, isTypeCompatible,
@@ -72,6 +76,13 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.clickToFix': '— click a highlighted cell to fix it inline.',
   'grid.import.showingRows': 'Showing {{shown}} of {{total}} rows',
   'grid.import.importing': 'Importing… {{progress}}%',
+  // Async (large-file) import — job queued + processed server-side.
+  'grid.import.asyncQueued': 'Queued — preparing to import…',
+  'grid.import.asyncProcessing': 'Importing {{processed}} of {{total}} rows… {{progress}}%',
+  'grid.import.asyncLargeHint': 'This file is large, so it will be imported in the background.',
+  'grid.import.cancelImport': 'Cancel import',
+  'grid.import.importCancelled': 'Import cancelled',
+  'grid.import.resultsTruncated': 'Showing the first {{count}} row results (of {{total}}).',
   'grid.import.importComplete': 'Import Complete',
   'grid.import.imported': '{{count}} imported',
   'grid.import.createdCount': '{{count}} created',
@@ -142,6 +153,8 @@ export const __testables = {
   get saveTemplates() { return saveTemplates; },
   get autoMapColumns() { return autoMapColumns; },
   get isUnsupportedImport() { return isUnsupportedImport; },
+  get isUnsupportedImportJob() { return isUnsupportedImportJob; },
+  get jobResultToImportResult() { return jobResultToImportResult; },
   get buildFailedRowsCsv() { return buildFailedRowsCsv; },
 };
 
@@ -193,12 +206,27 @@ export interface ImportResult {
   updatedRows?: number;
   /** The raw per-row server result, when the server `/import` path was used. */
   serverResult?: ImportRecordsResult;
+  /** True when an async job's per-row `errors` were capped by the server. */
+  resultsTruncated?: boolean;
+  /** True when the user cancelled an in-flight async import job. */
+  cancelled?: boolean;
 }
 
 type WizardStep = 'upload' | 'mapping' | 'preview';
 
 /** Maximum number of rows to show in the preview step */
 const PREVIEW_ROW_COUNT = 10;
+
+/**
+ * Row count above which the wizard prefers an asynchronous import job (when the
+ * data source supports it) instead of the synchronous single-call import. Kept
+ * in step with the server's synchronous `/import` ceiling (`maxRows: 5000`), so
+ * files the sync route would reject with 413 are routed to a background job.
+ */
+const ASYNC_IMPORT_THRESHOLD = 5000;
+
+/** How often (ms) to poll an in-flight import job for progress. */
+const IMPORT_JOB_POLL_INTERVAL = 800;
 
 /** Text colour for the auto-match confidence hint, keyed by confidence bucket. */
 const CONFIDENCE_CLASS: Record<MappingConfidence, string> = {
@@ -319,6 +347,32 @@ function isUnsupportedImport(err: unknown): boolean {
   if (code === 'UNSUPPORTED_OPERATION') return true;
   const msg = err instanceof Error ? err.message : '';
   return /does not support data\.import|importRecords is not a function|\.import is not a function/i.test(msg);
+}
+
+/** True when the data source lacks the async import-job API (older
+ *  adapter/client/server), so the wizard should fall back to the sync path. */
+function isUnsupportedImportJob(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code;
+  if (code === 'UNSUPPORTED_OPERATION') return true;
+  const msg = err instanceof Error ? err.message : '';
+  return /does not support async import|createImportJob is not a function|import\/jobs|404/i.test(msg);
+}
+
+/** Map an async import-job's final results payload onto the wizard's
+ *  {@link ImportResult} shape — identical to the synchronous mapping so the
+ *  completion screen renders the same regardless of which path ran. */
+function jobResultToImportResult(res: ImportJobResultsInfo): ImportResult {
+  return {
+    totalRows: res.total,
+    importedRows: res.created + res.updated,
+    skippedRows: res.skipped + res.errors,
+    createdRows: res.created,
+    updatedRows: res.updated,
+    errors: (res.results ?? [])
+      .filter((r) => !r.ok)
+      .map((r) => ({ row: r.row, field: r.field ?? '', message: r.error ?? r.code ?? 'Import failed' })),
+    resultsTruncated: res.resultsTruncated,
+  };
 }
 
 /** Build a CSV blob of failed rows for re-export: the original mapped columns
@@ -838,6 +892,11 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [corrections, setCorrections] = useState<Record<number, Record<number, string>>>({});
+  // Async (large-file) import job — jobId + live processed/total, plus a ref the
+  // poll loop reads so a mid-flight Cancel stops polling without a re-render race.
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [asyncCounts, setAsyncCounts] = useState<{ processed: number; total: number } | null>(null);
+  const cancelPollRef = React.useRef(false);
   // Write-mode + coercion options (drive the server-side /import request).
   const [writeMode, setWriteMode] = useState<ImportWriteMode>('insert');
   const [matchFields, setMatchFields] = useState<string[]>([]);
@@ -992,8 +1051,116 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setResult(importResult); setImporting(false); onComplete?.(importResult);
   }, [rows, mapping, fields, dataSource, objectName, onComplete, onErrorMode, corrections]);
 
+  // Large-file path: hand the rows to a server-side background job and poll it
+  // to completion. Returns `true` when the async path handled the import
+  // (success / failure / cancel) and `false` when the data source can't run
+  // jobs, signalling the caller to fall back to the synchronous route.
+  const runAsyncImport = useCallback(async (request: ImportRequestOptions): Promise<boolean> => {
+    const ds = dataSource as Partial<DataSource> | undefined;
+    if (
+      typeof ds?.createImportJob !== 'function' ||
+      typeof ds?.getImportJobProgress !== 'function' ||
+      typeof ds?.getImportJobResults !== 'function'
+    ) {
+      return false;
+    }
+
+    cancelPollRef.current = false;
+    let created: CreateImportJobResult;
+    try {
+      created = await ds.createImportJob(objectName, request);
+    } catch (err) {
+      if (isUnsupportedImportJob(err)) return false;
+      throw err;
+    }
+    setJobId(created.jobId);
+    setAsyncCounts({ processed: 0, total: created.total });
+
+    const terminal = new Set(['succeeded', 'failed', 'cancelled']);
+    let consecutivePollErrors = 0;
+    // Poll until the job reaches a terminal state (or the user cancels, in
+    // which case the cancel handler owns producing the result).
+    for (;;) {
+      if (cancelPollRef.current) return true;
+      await new Promise((resolve) => setTimeout(resolve, IMPORT_JOB_POLL_INTERVAL));
+      if (cancelPollRef.current) return true;
+
+      let prog: ImportJobProgressInfo;
+      try {
+        prog = await ds.getImportJobProgress(created.jobId);
+        consecutivePollErrors = 0;
+      } catch (err) {
+        // Tolerate transient poll blips; give up only after several in a row so
+        // a network hiccup doesn't abort an import that's still running server-side.
+        if (++consecutivePollErrors >= 5) throw err;
+        continue;
+      }
+
+      setAsyncCounts({ processed: prog.processed, total: prog.total });
+      setProgress(prog.percentComplete);
+
+      if (!terminal.has(prog.status)) continue;
+
+      if (prog.status === 'cancelled') {
+        const importResult: ImportResult = {
+          totalRows: prog.total,
+          importedRows: prog.created + prog.updated,
+          skippedRows: prog.skipped + prog.errors,
+          createdRows: prog.created,
+          updatedRows: prog.updated,
+          errors: [],
+          cancelled: true,
+        };
+        setResult(importResult); setImporting(false); onComplete?.(importResult);
+        return true;
+      }
+
+      const results = await ds.getImportJobResults(created.jobId);
+      const importResult = jobResultToImportResult(results);
+      if (prog.status === 'failed' && importResult.errors.length === 0) {
+        importResult.errors.push({ row: 0, field: '', message: prog.error ?? 'Import failed' });
+      }
+      setProgress(100);
+      setResult(importResult); setImporting(false); onComplete?.(importResult);
+      return true;
+    }
+  }, [dataSource, objectName, onComplete]);
+
   const handleImport = useCallback(async () => {
     setImporting(true); setProgress(0);
+    cancelPollRef.current = false;
+    setJobId(null); setAsyncCounts(null);
+
+    const request: ImportRequestOptions = {
+      format: 'json',
+      rows: buildRawRows(),
+      writeMode,
+      ...(writeMode !== 'insert' ? { matchFields } : {}),
+      createMissingOptions,
+      runAutomations,
+      skipBlankMatchKey,
+    };
+
+    // Route large files through a background job so they neither block the UI
+    // nor trip the sync route's row ceiling. Any unsupported signal (older
+    // adapter / client / server) falls through to the synchronous path.
+    if (rows.length > ASYNC_IMPORT_THRESHOLD) {
+      try {
+        const handled = await runAsyncImport(request);
+        if (handled) return;
+      } catch (err) {
+        if (!isUnsupportedImportJob(err)) {
+          const msg = err instanceof Error ? err.message : 'Import failed';
+          const importResult: ImportResult = {
+            totalRows: rows.length, importedRows: 0, skippedRows: rows.length,
+            errors: [{ row: 0, field: '', message: msg }],
+          };
+          setResult(importResult); setImporting(false); onComplete?.(importResult);
+          return;
+        }
+        // Unsupported — fall through to the synchronous path below.
+      }
+    }
 
     // Prefer the single-call server import: it coerces special values and
     // routes each row to insert / update / upsert. Fall back to the per-row
@@ -1003,15 +1170,6 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     } | undefined)?.importRecords;
 
     if (typeof serverImport === 'function') {
-      const request: ImportRequestOptions = {
-        format: 'json',
-        rows: buildRawRows(),
-        writeMode,
-        ...(writeMode !== 'insert' ? { matchFields } : {}),
-        createMissingOptions,
-        runAutomations,
-        skipBlankMatchKey,
-      };
       try {
         const res = await serverImport.call(dataSource, objectName, request);
         const importResult: ImportResult = {
@@ -1047,14 +1205,35 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     await legacyImport();
   }, [
     dataSource, objectName, buildRawRows, writeMode, matchFields, createMissingOptions,
-    runAutomations, skipBlankMatchKey, onComplete, rows.length, legacyImport,
+    runAutomations, skipBlankMatchKey, onComplete, rows.length, legacyImport, runAsyncImport,
   ]);
 
+  // User-initiated cancel of an in-flight async job. Stops the poll loop, asks
+  // the server to cancel (best-effort), and shows a cancelled result.
+  const handleCancelImport = useCallback(async () => {
+    cancelPollRef.current = true;
+    const id = jobId;
+    const ds = dataSource as Partial<DataSource> | undefined;
+    if (id && typeof ds?.cancelImportJob === 'function') {
+      try { await ds.cancelImportJob(id); } catch { /* best-effort — the poll loop already stopped */ }
+    }
+    const importResult: ImportResult = {
+      totalRows: asyncCounts?.total ?? rows.length,
+      importedRows: 0,
+      skippedRows: 0,
+      errors: [],
+      cancelled: true,
+    };
+    setResult(importResult); setImporting(false);
+  }, [jobId, dataSource, asyncCounts, rows.length]);
+
   const reset = useCallback(() => {
+    cancelPollRef.current = false;
     setStep('upload'); setHeaders([]); setRows([]); setMapping({}); setProgress(0); setResult(null);
     setCorrections({}); setSelectedTemplateId(null);
     setWriteMode('insert'); setMatchFields([]);
     setCreateMissingOptions(false); setRunAutomations(false); setSkipBlankMatchKey(false);
+    setJobId(null); setAsyncCounts(null);
   }, []);
 
   /** Download a CSV of just the failed rows (original values + `_error`). */
@@ -1157,16 +1336,36 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               </>
             )}
             {importing && (
-              <div className="flex flex-col gap-1">
-                <Progress value={progress} className="h-2" />
-                <p className="text-center text-xs text-muted-foreground">{t('grid.import.importing', { progress })}</p>
+              <div className="flex flex-col items-center gap-2">
+                <Progress value={progress} className="h-2 w-full" />
+                <p className="text-center text-xs text-muted-foreground">
+                  {jobId
+                    ? asyncCounts
+                      ? t('grid.import.asyncProcessing', { processed: asyncCounts.processed, total: asyncCounts.total, progress })
+                      : t('grid.import.asyncQueued')
+                    : t('grid.import.importing', { progress })}
+                </p>
+                {jobId && typeof (dataSource as Partial<DataSource> | undefined)?.cancelImportJob === 'function' && (
+                  <Button variant="outline" size="sm" onClick={handleCancelImport} data-testid="import-cancel-async">
+                    <X className="mr-1 h-4 w-4" /> {t('grid.import.cancelImport')}
+                  </Button>
+                )}
               </div>
             )}
           </>
         ) : (
           <div className="flex flex-col items-center gap-3 py-4">
-            <CheckCircle2 className="h-10 w-10 text-green-500" />
-            <p className="text-lg font-semibold">{t('grid.import.importComplete')}</p>
+            {result.cancelled ? (
+              <>
+                <X className="h-10 w-10 text-muted-foreground" />
+                <p className="text-lg font-semibold">{t('grid.import.importCancelled')}</p>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-10 w-10 text-green-500" />
+                <p className="text-lg font-semibold">{t('grid.import.importComplete')}</p>
+              </>
+            )}
             <div className="flex flex-wrap justify-center gap-2">
               {/* Prefer the finer created/updated breakdown when the server
                   reports it; otherwise fall back to a single "imported" count. */}
@@ -1197,6 +1396,11 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                   </Button>
                 )}
               </>
+            )}
+            {result.resultsTruncated && (
+              <p className="text-center text-xs text-muted-foreground">
+                {t('grid.import.resultsTruncated', { count: result.errors.length, total: result.skippedRows })}
+              </p>
             )}
           </div>
         )}
