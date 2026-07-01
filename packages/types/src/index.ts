@@ -289,6 +289,7 @@ export type {
   ImportJobProgressInfo,
   ImportJobResultsInfo,
   ImportJobSummaryInfo,
+  ImportJobUndoResult,
   ListImportJobsOptions,
 } from './data';
 

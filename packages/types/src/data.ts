@@ -606,6 +606,18 @@ export interface DataSource<T = any> {
    * @param jobId - The job identifier to cancel.
    */
   cancelImportJob?(jobId: string): Promise<void>;
+
+  /**
+   * Logically roll back a finished import job: delete the records it created
+   * and restore the records it updated to their pre-import field values.
+   * Optional — only jobs the server captured an undo log for are undoable
+   * (see {@link ImportJobProgressInfo.undoable}). The UI hides Undo when this
+   * is omitted or the job reports `undoable: false`.
+   *
+   * @param jobId - The job identifier to undo.
+   * @returns Counts of deleted / restored / failed reversal operations.
+   */
+  undoImportJob?(jobId: string): Promise<ImportJobUndoResult>;
 }
 
 /**
@@ -746,6 +758,10 @@ export interface ImportJobProgressInfo {
   errors: number;
   /** 0–100 completion. */
   percentComplete: number;
+  /** Whether this job can still be logically rolled back (see {@link DataSource.undoImportJob}). */
+  undoable?: boolean;
+  /** ISO-8601 timestamp of when the job was undone / rolled back. */
+  revertedAt?: string;
   /** Failure detail when `status === 'failed'`. */
   error?: string;
   /** ISO-8601 start timestamp. */
@@ -784,6 +800,27 @@ export interface ImportJobSummaryInfo {
   errors: number;
   createdAt?: string;
   completedAt?: string;
+  /** Whether this job can still be logically rolled back. */
+  undoable?: boolean;
+  /** ISO-8601 timestamp of when the job was undone / rolled back. */
+  revertedAt?: string;
+}
+
+/**
+ * Outcome of {@link DataSource.undoImportJob} — a logical rollback. Mirrors the
+ * server's `UndoImportJobResponse`.
+ */
+export interface ImportJobUndoResult {
+  /** Whether the undo completed. */
+  success: boolean;
+  jobId: string;
+  object: string;
+  /** Created records deleted. */
+  deleted: number;
+  /** Updated records restored to their pre-import values. */
+  restored: number;
+  /** Reversal operations that failed. */
+  failed: number;
 }
 
 /**

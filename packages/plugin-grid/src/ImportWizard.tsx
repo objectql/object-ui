@@ -10,7 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@object-ui/components';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2, ClipboardPaste, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2, ClipboardPaste, Download, Undo2 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import type {
   DataSource,
@@ -129,6 +129,11 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.historyColResult': 'Result',
   'grid.import.historyColTime': 'When',
   'grid.import.errorCount': '{{count}} errors',
+  // Undo / logical rollback
+  'grid.import.undoImport': 'Undo import',
+  'grid.import.undoing': 'Undoing…',
+  'grid.import.undoConfirm': 'Undo this import? Records it created will be deleted and records it updated will be restored to their previous values.',
+  'grid.import.reverted': 'Undone',
   'grid.import.status.pending': 'Pending',
   'grid.import.status.running': 'Running',
   'grid.import.status.succeeded': 'Succeeded',
@@ -190,6 +195,7 @@ export const __testables = {
   get buildImportTemplateCsv() { return buildImportTemplateCsv; },
   get assembleImportRequest() { return assembleImportRequest; },
   get isImportJobActive() { return isImportJobActive; },
+  get isImportJobUndoable() { return isImportJobUndoable; },
 };
 
 /** A reusable column-mapping template, persisted across sessions. Keys are
@@ -448,6 +454,13 @@ function jobResultToImportResult(res: ImportJobResultsInfo): ImportResult {
  *  history list should keep polling it. Terminal states are the rest. */
 function isImportJobActive(status: ImportJobStatus): boolean {
   return status === 'pending' || status === 'running';
+}
+
+/** Whether to show the "Undo import" button for a history row: the adapter must
+ *  support undo, the job must be terminal, still undoable, and not already
+ *  reverted. Mirrors the server's `importJobUndoable`. */
+function isImportJobUndoable(job: Pick<ImportJobSummaryInfo, 'status' | 'undoable' | 'revertedAt'>, canUndo: boolean): boolean {
+  return canUndo && !!job.undoable && !job.revertedAt && !isImportJobActive(job.status);
 }
 
 /** Build a CSV blob of failed rows for re-export: the original mapped columns
@@ -1070,9 +1083,12 @@ const ImportHistoryPanel: React.FC<{
   const [jobs, setJobs] = useState<ImportJobSummaryInfo[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Job id currently being undone (disables its row's Undo button + confirm).
+  const [undoingId, setUndoingId] = useState<string | null>(null);
 
   const ds = dataSource as Partial<DataSource> | undefined;
   const supported = typeof ds?.listImportJobs === 'function';
+  const canUndo = typeof ds?.undoImportJob === 'function';
 
   const load = useCallback(async () => {
     if (typeof ds?.listImportJobs !== 'function') return;
@@ -1095,6 +1111,24 @@ const ImportHistoryPanel: React.FC<{
     try { await ds.cancelImportJob(jobId); } catch { /* best-effort */ }
     void load();
   }, [ds, load]);
+
+  // Logical rollback: delete created records + restore updated ones. Confirms
+  // first (destructive + irreversible), then reloads so the row flips to
+  // "reverted" and its Undo button disappears.
+  const handleUndo = useCallback(async (jobId: string) => {
+    if (typeof ds?.undoImportJob !== 'function') return;
+    // eslint-disable-next-line no-alert
+    if (typeof window !== 'undefined' && !window.confirm(t('grid.import.undoConfirm'))) return;
+    setUndoingId(jobId); setError(null);
+    try {
+      await ds.undoImportJob(jobId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUndoingId(null);
+      void load();
+    }
+  }, [ds, load, t]);
 
   if (!supported) {
     return (
@@ -1154,6 +1188,23 @@ const ImportHistoryPanel: React.FC<{
                       data-testid={`import-history-cancel-${job.jobId}`}
                     >
                       <X className="mr-1 h-3.5 w-3.5" /> {t('grid.import.cancelImport')}
+                    </Button>
+                  )}
+                  {job.revertedAt && (
+                    <span className="text-xs text-muted-foreground" data-testid={`import-history-reverted-${job.jobId}`}>
+                      {t('grid.import.reverted')}
+                    </span>
+                  )}
+                  {isImportJobUndoable(job, canUndo) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void handleUndo(job.jobId)}
+                      disabled={undoingId === job.jobId}
+                      data-testid={`import-history-undo-${job.jobId}`}
+                    >
+                      <Undo2 className="mr-1 h-3.5 w-3.5" />
+                      {undoingId === job.jobId ? t('grid.import.undoing') : t('grid.import.undoImport')}
                     </Button>
                   )}
                 </TableCell>

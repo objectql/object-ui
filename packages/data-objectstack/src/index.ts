@@ -18,6 +18,7 @@ import type {
   ImportJobProgressInfo,
   ImportJobResultsInfo,
   ImportJobSummaryInfo,
+  ImportJobUndoResult,
   ListImportJobsOptions,
 } from '@object-ui/types';
 import { convertFiltersToAST } from '@object-ui/core';
@@ -1105,6 +1106,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     getImportJobResults: (jobId: string) => Promise<ImportJobResultsInfo>;
     listImportJobs: (query: ListImportJobsOptions) => Promise<ImportJobSummaryInfo[]>;
     cancelImportJob: (jobId: string) => Promise<{ success: boolean }>;
+    undoImportJob: (jobId: string) => Promise<ImportJobUndoResult>;
   } | undefined {
     const d = this.client.data as Record<string, unknown>;
     if (typeof d.createImportJob !== 'function') return undefined;
@@ -1207,6 +1209,29 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     }
     try {
       await api.cancelImportJob.call(this.client.data, jobId);
+    } catch (err) {
+      throw normaliseClientError(err);
+    }
+  }
+
+  /**
+   * Logically roll back a finished import job — delete the records it created
+   * and restore the records it updated to their pre-import values. Requires an
+   * `@objectstack/client` new enough to expose `data.undoImportJob`, and a job
+   * the server captured an undo log for (see {@link ImportJobProgressInfo.undoable}).
+   */
+  async undoImportJob(jobId: string): Promise<ImportJobUndoResult> {
+    await this.connect();
+    const api = this.importJobApi();
+    if (!api || typeof (api as { undoImportJob?: unknown }).undoImportJob !== 'function') {
+      throw new ObjectStackError(
+        'The connected @objectstack/client does not support undoing import jobs (data.undoImportJob).',
+        'UNSUPPORTED_OPERATION',
+        400,
+      );
+    }
+    try {
+      return await api.undoImportJob.call(this.client.data, jobId);
     } catch (err) {
       throw normaliseClientError(err);
     }
