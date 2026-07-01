@@ -241,6 +241,7 @@ export function RecordDetailDrawer({
         options: def.options,
         currency: def.currency,
         precision: def.precision,
+        scale: (def as any).scale,
         format: def.format,
         reference_to: def.reference_to ?? def.referenceTo ?? def.target,
         reference_field: def.reference_field ?? def.referenceField,

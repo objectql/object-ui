@@ -453,10 +453,21 @@ export function NumberCellRenderer({ value, field }: CellRendererProps): React.R
   
   const safe = coerceToSafeValue(value);
   const numField = field as any;
-  const precision = numField.precision ?? 0;
+  // Decimal places come from `scale` (the `s` in a `decimal(p, s)` column),
+  // NOT `precision` — `precision` is the TOTAL digit count (`p`), and reading
+  // it here padded every value out to that width (e.g. `1` from a
+  // decimal(10, 0) column rendered as "1.0000000000"). When `scale` is
+  // declared we pad to it so a fixed display is honoured (e.g. an amount with
+  // scale 2 → "16.00", a field with scale 3 → "3.140"); when it is absent we
+  // keep the minimum at 0 so trailing zeros are trimmed and only cap the
+  // maximum (20 = Intl max) to preserve the value's natural precision.
+  const scale = typeof numField.scale === 'number' ? numField.scale : undefined;
   const num = Number(safe);
   const formatted = !isNaN(num)
-    ? new Intl.NumberFormat('en-US', { minimumFractionDigits: precision, maximumFractionDigits: precision }).format(num)
+    ? new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: scale ?? 0,
+        maximumFractionDigits: scale ?? 20,
+      }).format(num)
     : String(safe);
   
   return <span className="tabular-nums">{formatted}</span>;

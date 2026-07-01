@@ -484,6 +484,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         ...((lookupOptions || def.options) && { options: lookupOptions || def.options }),
         ...(def.currency && { currency: def.currency }),
         ...(def.precision !== undefined && { precision: def.precision }),
+        ...((def as any).scale !== undefined && { scale: (def as any).scale }),
         ...(def.format && { format: def.format }),
         ...((def.reference_to || def.reference) && { reference_to: def.reference_to || def.reference }),
         ...(def.reference_field && { reference_field: def.reference_field }),

@@ -65,6 +65,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
             ...(objectDefField?.options && { options: objectDefField.options }),
             ...(objectDefField?.currency && { currency: objectDefField.currency }),
             ...(objectDefField?.precision !== undefined && { precision: objectDefField.precision }),
+            ...((objectDefField as any)?.scale !== undefined && { scale: (objectDefField as any).scale }),
             ...(objectDefField?.format && { format: objectDefField.format }),
           };
 

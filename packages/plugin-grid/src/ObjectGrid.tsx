@@ -894,6 +894,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 if (objectDefField.label) fieldMeta.label = objectDefField.label;
                 if (objectDefField.currency) fieldMeta.currency = objectDefField.currency;
                 if (objectDefField.precision !== undefined) fieldMeta.precision = objectDefField.precision;
+                if ((objectDefField as any).scale !== undefined) (fieldMeta as any).scale = (objectDefField as any).scale;
                 if (objectDefField.format) fieldMeta.format = objectDefField.format;
                 if (objectDefField.options) fieldMeta.options = translateOptions(schema.objectName, col.field, objectDefField.options);
               }
@@ -1051,6 +1052,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             if (fieldDef.label) fieldMeta.label = fieldDef.label;
             if (fieldDef.currency) fieldMeta.currency = fieldDef.currency;
             if (fieldDef.precision !== undefined) fieldMeta.precision = fieldDef.precision;
+            if ((fieldDef as any).scale !== undefined) fieldMeta.scale = (fieldDef as any).scale;
             if (fieldDef.format) fieldMeta.format = fieldDef.format;
             if (fieldDef.options) fieldMeta.options = translateOptions(schema.objectName, fieldName, fieldDef.options);
           }
@@ -1125,6 +1127,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
             if (fieldDef.label) fieldMeta.label = fieldDef.label;
             if (fieldDef.currency) fieldMeta.currency = fieldDef.currency;
             if (fieldDef.precision !== undefined) fieldMeta.precision = fieldDef.precision;
+            if ((fieldDef as any).scale !== undefined) fieldMeta.scale = (fieldDef as any).scale;
             if (fieldDef.format) fieldMeta.format = fieldDef.format;
             if (fieldDef.options) fieldMeta.options = translateOptions(schema.objectName, fieldName, fieldDef.options);
           }
