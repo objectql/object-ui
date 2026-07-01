@@ -527,6 +527,119 @@ export interface DataSource<T = any> {
    * @returns Promise resolving to a downloadable URL (may be short-lived).
    */
   getExportJobDownloadUrl?(jobId: string): Promise<string>;
+
+  /**
+   * Bulk-import rows into an object in a single server call.
+   *
+   * Callers send **raw** spreadsheet values (CSV text or JSON row objects) plus
+   * an optional `mapping` from source column → target field. The server coerces
+   * every cell to its storage value from the object's field metadata (booleans,
+   * numbers, dates→ISO, select label→code, lookup name→id), so the client does
+   * NOT pre-convert special values. `writeMode` selects insert / update /
+   * upsert (the latter two require `matchFields`); `dryRun` validates + previews
+   * without persisting. The result carries per-row outcomes for an import
+   * report + failed-row re-export.
+   *
+   * Optional — adapters without a server-side `/import` primitive may omit this
+   * (the wizard falls back to a per-row `create` loop).
+   *
+   * @param resource - Object/table name
+   * @param request - Import payload + options (see {@link ImportRequestOptions})
+   * @returns Promise resolving to the aggregate + per-row import result
+   */
+  importRecords?(
+    resource: string,
+    request: ImportRequestOptions,
+  ): Promise<ImportRecordsResult>;
+}
+
+/**
+ * How each incoming import row is committed against existing data. Mirrors the
+ * server's `ImportWriteMode` (`@objectstack/spec`).
+ * - `insert` — always create a new record (default; ignores `matchFields`)
+ * - `update` — update the record matched by `matchFields`; skip when none match
+ * - `upsert` — update when matched, else create
+ */
+export type ImportWriteMode = 'insert' | 'update' | 'upsert';
+
+/**
+ * A single source-column → target-field mapping with optional per-column
+ * transform metadata. Mirrors the server's `FieldMappingEntry`.
+ */
+export interface ImportFieldMappingEntry {
+  sourceField: string;
+  targetField: string;
+  transform?: 'none' | 'uppercase' | 'lowercase' | 'trim' | 'date_format' | 'lookup';
+  defaultValue?: unknown;
+  required?: boolean;
+}
+
+/**
+ * Options + payload for {@link DataSource.importRecords}. Mirrors the server's
+ * `ImportRequest` (`POST /api/v1/data/:object/import`).
+ */
+export interface ImportRequestOptions {
+  /** Payload shape — inferred from `csv`/`rows` when omitted. */
+  format?: 'csv' | 'json';
+  /** CSV text (when `format = 'csv'`). */
+  csv?: string;
+  /** Row objects (when `format = 'json'`). */
+  rows?: Array<Record<string, unknown>>;
+  /** Source column → target field mapping (compact record or entry array). */
+  mapping?: Record<string, string> | ImportFieldMappingEntry[];
+  /** Validate + coerce every row without persisting. @default false */
+  dryRun?: boolean;
+  /** insert / update / upsert semantics. @default 'insert' */
+  writeMode?: ImportWriteMode;
+  /** Fields that identify an existing record (required for update/upsert). */
+  matchFields?: string[];
+  /** Fire triggers/hooks for each imported row (off by default for bulk). */
+  runAutomations?: boolean;
+  /** Trim leading/trailing whitespace from string cells. @default true */
+  trimWhitespace?: boolean;
+  /** Strings treated as null/blank besides the empty string. */
+  nullValues?: string[];
+  /** Keep unmatched select values instead of failing the row. @default false */
+  createMissingOptions?: boolean;
+  /** Skip rows whose `matchFields` are blank. @default false */
+  skipBlankMatchKey?: boolean;
+}
+
+/**
+ * Outcome of one imported row. Mirrors the server's `ImportRowResult`.
+ */
+export interface ImportRowResult {
+  /** 1-based row number in the source data. */
+  row: number;
+  /** Whether the row succeeded. */
+  ok: boolean;
+  /** What happened to the row. */
+  action?: 'created' | 'updated' | 'skipped' | 'failed';
+  /** Record id (created/updated rows). */
+  id?: string;
+  /** Field that caused a coercion/validation error (failed rows). */
+  field?: string;
+  /** Error code (failed rows). */
+  code?: string;
+  /** Human-readable error message (failed rows). */
+  error?: string;
+}
+
+/**
+ * Aggregate summary + per-row results from {@link DataSource.importRecords}.
+ * Mirrors the server's `ImportResponse`.
+ */
+export interface ImportRecordsResult {
+  object: string;
+  dryRun: boolean;
+  writeMode: ImportWriteMode;
+  total: number;
+  ok: number;
+  errors: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  results: ImportRowResult[];
 }
 
 /**

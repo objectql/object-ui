@@ -1616,12 +1616,23 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                    onOpenChange={setShowImport}
                    objectName={objectDef.name}
                    objectLabel={objectLabel(objectDef)}
-                   fields={Object.entries(objectDef.fields || {}).map(([name, def]: [string, any]) => ({
-                     name,
-                     label: def?.label || name,
-                     type: def?.type || 'text',
-                     required: !!def?.required,
-                   }))}
+                   fields={Object.entries(objectDef.fields || {})
+                     // Only writable fields are importable targets. Computed
+                     // types (formula/summary/autonumber) and fields flagged
+                     // readonly / write:false are server-rejected, so we omit
+                     // them from the mapping step rather than let a user map to
+                     // a column the import will silently drop.
+                     .filter(([, def]: [string, any]) =>
+                       !['formula', 'summary', 'autonumber'].includes(def?.type) &&
+                       !def?.readonly &&
+                       def?.permissions?.write !== false,
+                     )
+                     .map(([name, def]: [string, any]) => ({
+                       name,
+                       label: def?.label || name,
+                       type: def?.type || 'text',
+                       required: !!def?.required,
+                     }))}
                    dataSource={dataSource}
                    onComplete={(result) => {
                      setRefreshKey(k => k + 1);

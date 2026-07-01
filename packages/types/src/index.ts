@@ -279,6 +279,11 @@ export type {
   CreateExportJobRequest,
   CreateExportJobResult,
   ExportJobProgressInfo,
+  ImportWriteMode,
+  ImportFieldMappingEntry,
+  ImportRequestOptions,
+  ImportRowResult,
+  ImportRecordsResult,
 } from './data';
 
 // ============================================================================

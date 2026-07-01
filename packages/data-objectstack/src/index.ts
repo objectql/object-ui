@@ -7,7 +7,14 @@
  */
 
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
-import type { DataSource, QueryParams, QueryResult, FileUploadResult } from '@object-ui/types';
+import type {
+  DataSource,
+  QueryParams,
+  QueryResult,
+  FileUploadResult,
+  ImportRequestOptions,
+  ImportRecordsResult,
+} from '@object-ui/types';
 import { convertFiltersToAST } from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
 import {
@@ -1044,6 +1051,42 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         errors,
         { resource, originalError: error }
       );
+    }
+  }
+
+  /**
+   * Bulk-import raw spreadsheet rows in a single server round-trip via
+   * `POST /api/v1/data/:object/import`. The server performs all value coercion
+   * (booleans, numbers, dates→ISO, select label→code, lookup name→id) from the
+   * object's field metadata, so this method forwards the request verbatim and
+   * returns the aggregate + per-row result untouched.
+   *
+   * Requires `@objectstack/client` with `data.import` (server `/import` route).
+   * Callers should feature-detect (`typeof dataSource.importRecords`) and fall
+   * back to a per-row `create` loop when unavailable.
+   */
+  async importRecords(
+    resource: string,
+    request: ImportRequestOptions,
+  ): Promise<ImportRecordsResult> {
+    await this.connect();
+    const importFn = (this.client.data as { import?: unknown }).import;
+    if (typeof importFn !== 'function') {
+      throw new ObjectStackError(
+        'The connected @objectstack/client does not support data.import(). ' +
+          'Upgrade the client, or import via a per-row create fallback.',
+        'UNSUPPORTED_OPERATION',
+        400,
+      );
+    }
+    try {
+      const result = await (importFn as (
+        object: string,
+        req: ImportRequestOptions,
+      ) => Promise<ImportRecordsResult>).call(this.client.data, resource, request);
+      return result;
+    } catch (err) {
+      throw normaliseClientError(err);
     }
   }
 

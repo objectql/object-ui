@@ -5,13 +5,18 @@
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
-  cn, Button, Badge, Progress, Input,
+  cn, Button, Badge, Progress, Input, Checkbox, Label,
   Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@object-ui/components';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2, ClipboardPaste } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2, ClipboardPaste, Download } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
+import type {
+  ImportRequestOptions,
+  ImportRecordsResult,
+  ImportWriteMode,
+} from '@object-ui/types';
 import {
   parseSpreadsheetFile, parseClipboardTable, inferColumnType, isTypeCompatible,
   ImportParseError, type InferredType,
@@ -63,8 +68,24 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.importing': 'Importing… {{progress}}%',
   'grid.import.importComplete': 'Import Complete',
   'grid.import.imported': '{{count}} imported',
+  'grid.import.createdCount': '{{count}} created',
+  'grid.import.updatedCount': '{{count}} updated',
   'grid.import.skippedCount': '{{count}} skipped',
   'grid.import.moreErrors': '…and {{count}} more errors',
+  'grid.import.downloadFailed': 'Download failed rows',
+  // Write-mode / options (preview step)
+  'grid.import.options': 'Import options',
+  'grid.import.writeMode': 'When a row matches an existing record',
+  'grid.import.writeMode.insert': 'Always create new',
+  'grid.import.writeMode.update': 'Update existing (skip if no match)',
+  'grid.import.writeMode.upsert': 'Update if matched, else create',
+  'grid.import.matchFields': 'Match on',
+  'grid.import.matchFieldsPlaceholder': 'Choose match field(s)…',
+  'grid.import.matchFieldsHint': 'Rows are matched to existing records by these field(s).',
+  'grid.import.needMatchFields': 'Select at least one field to match on.',
+  'grid.import.optCreateOptions': 'Keep unknown option values',
+  'grid.import.optRunAutomations': 'Run automations & triggers',
+  'grid.import.optSkipBlankKey': 'Skip rows with a blank match value',
   'grid.import.cancel': 'Cancel',
   'grid.import.back': 'Back',
   'grid.import.next': 'Next',
@@ -114,6 +135,8 @@ export const __testables = {
   get loadTemplates() { return loadTemplates; },
   get saveTemplates() { return saveTemplates; },
   get autoMapColumns() { return autoMapColumns; },
+  get isUnsupportedImport() { return isUnsupportedImport; },
+  get buildFailedRowsCsv() { return buildFailedRowsCsv; },
 };
 
 /** A reusable column-mapping template, persisted across sessions. Keys are
@@ -158,6 +181,12 @@ export interface ImportResult {
   importedRows: number;
   skippedRows: number;
   errors: Array<{ row: number; field: string; message: string }>;
+  /** Rows that created a new record (server-side import). */
+  createdRows?: number;
+  /** Rows that updated an existing record (server-side import). */
+  updatedRows?: number;
+  /** The raw per-row server result, when the server `/import` path was used. */
+  serverResult?: ImportRecordsResult;
 }
 
 type WizardStep = 'upload' | 'mapping' | 'preview';
@@ -283,6 +312,36 @@ function validateRow(row: string[], mappedCols: MappedCol[], rowIndex: number) {
     record[col.field.name] = raw;
   }
   return { record, errors };
+}
+
+/** True when the adapter/client can't speak the server `/import` route, so the
+ *  wizard should transparently fall back to a per-row `create` loop. */
+function isUnsupportedImport(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code;
+  if (code === 'UNSUPPORTED_OPERATION') return true;
+  const msg = err instanceof Error ? err.message : '';
+  return /does not support data\.import|importRecords is not a function|\.import is not a function/i.test(msg);
+}
+
+/** Build a CSV blob of failed rows for re-export: the original mapped columns
+ *  plus an `_error` column, so a user can fix and re-import just the failures. */
+function buildFailedRowsCsv(
+  headers: string[],
+  rows: string[][],
+  mapping: Record<number, string>,
+  errorsByRow: Map<number, string>,
+): string {
+  const cols = Object.keys(mapping).map(Number).sort((a, b) => a - b);
+  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const head = [...cols.map((c) => headers[c] ?? `col${c}`), '_error'];
+  const lines = [head.map(esc).join(',')];
+  // errorsByRow is keyed by 1-based row number.
+  for (const [rowNum, message] of errorsByRow) {
+    const src = rows[rowNum - 1];
+    if (!src) continue;
+    lines.push([...cols.map((c) => esc(src[c] ?? '')), esc(message)].join(','));
+  }
+  return lines.join('\n');
 }
 
 /** Map a thrown import-parse error code to a translated, user-facing message. */
@@ -652,6 +711,95 @@ const StepPreview: React.FC<{
   );
 };
 
+/** Options controlling how the server commits each row (insert/update/upsert
+ *  + toggles). Rendered above the preview so the choices are visible before the
+ *  import runs. */
+const ImportOptions: React.FC<{
+  fields: ImportWizardProps['fields'];
+  mapping: Record<number, string>;
+  writeMode: ImportWriteMode;
+  onWriteMode: (m: ImportWriteMode) => void;
+  matchFields: string[];
+  onToggleMatchField: (name: string) => void;
+  createMissingOptions: boolean;
+  onCreateMissingOptions: (v: boolean) => void;
+  runAutomations: boolean;
+  onRunAutomations: (v: boolean) => void;
+  skipBlankMatchKey: boolean;
+  onSkipBlankMatchKey: (v: boolean) => void;
+}> = ({
+  fields, mapping, writeMode, onWriteMode, matchFields, onToggleMatchField,
+  createMissingOptions, onCreateMissingOptions, runAutomations, onRunAutomations,
+  skipBlankMatchKey, onSkipBlankMatchKey,
+}) => {
+  const { t } = useImportTranslation();
+  // Only fields that are actually mapped can serve as match keys.
+  const mappedFieldNames = useMemo(() => new Set(Object.values(mapping)), [mapping]);
+  const matchable = useMemo(() => fields.filter((f) => mappedFieldNames.has(f.name)), [fields, mappedFieldNames]);
+  const needsMatch = writeMode !== 'insert';
+
+  return (
+    <div className="mb-3 rounded-md border bg-muted/30 p-3" data-testid="import-options">
+      <p className="mb-2 text-xs font-medium text-muted-foreground">{t('grid.import.options')}</p>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">{t('grid.import.writeMode')}</Label>
+          <Select value={writeMode} onValueChange={(v) => onWriteMode(v as ImportWriteMode)}>
+            <SelectTrigger className="h-8 w-72 text-xs" data-testid="import-writemode-select">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="insert">{t('grid.import.writeMode.insert')}</SelectItem>
+              <SelectItem value="update">{t('grid.import.writeMode.update')}</SelectItem>
+              <SelectItem value="upsert">{t('grid.import.writeMode.upsert')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {needsMatch && (
+          <div className="flex flex-col gap-1.5" data-testid="import-matchfields">
+            <Label className="text-xs">{t('grid.import.matchFields')}</Label>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {matchable.length === 0 && (
+                <span className="text-[11px] text-muted-foreground">{t('grid.import.matchFieldsPlaceholder')}</span>
+              )}
+              {matchable.map((f) => (
+                <label key={f.name} className="flex items-center gap-1.5 text-xs" data-testid={`import-matchfield-${f.name}`}>
+                  <Checkbox
+                    checked={matchFields.includes(f.name)}
+                    onCheckedChange={() => onToggleMatchField(f.name)}
+                  />
+                  {f.label}
+                </label>
+              ))}
+            </div>
+            <p className={cn('text-[11px]', matchFields.length === 0 ? 'text-destructive' : 'text-muted-foreground')}>
+              {matchFields.length === 0 ? t('grid.import.needMatchFields') : t('grid.import.matchFieldsHint')}
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          <label className="flex items-center gap-2 text-xs" data-testid="import-opt-create-options">
+            <Checkbox checked={createMissingOptions} onCheckedChange={(v) => onCreateMissingOptions(v === true)} />
+            {t('grid.import.optCreateOptions')}
+          </label>
+          {needsMatch && (
+            <label className="flex items-center gap-2 text-xs" data-testid="import-opt-skip-blank">
+              <Checkbox checked={skipBlankMatchKey} onCheckedChange={(v) => onSkipBlankMatchKey(v === true)} />
+              {t('grid.import.optSkipBlankKey')}
+            </label>
+          )}
+          <label className="flex items-center gap-2 text-xs" data-testid="import-opt-run-automations">
+            <Checkbox checked={runAutomations} onCheckedChange={(v) => onRunAutomations(v === true)} />
+            {t('grid.import.optRunAutomations')}
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Main wizard component
 export const ImportWizard: React.FC<ImportWizardProps> = ({
   objectName, objectLabel, fields, dataSource, onComplete, onCancel, open, onOpenChange, onErrorMode = 'skip',
@@ -665,7 +813,27 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [corrections, setCorrections] = useState<Record<number, Record<number, string>>>({});
+  // Write-mode + coercion options (drive the server-side /import request).
+  const [writeMode, setWriteMode] = useState<ImportWriteMode>('insert');
+  const [matchFields, setMatchFields] = useState<string[]>([]);
+  const [createMissingOptions, setCreateMissingOptions] = useState(false);
+  const [runAutomations, setRunAutomations] = useState(false);
+  const [skipBlankMatchKey, setSkipBlankMatchKey] = useState(false);
   const label = objectLabel ?? objectName;
+
+  const toggleMatchField = useCallback((name: string) => {
+    setMatchFields((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
+  }, []);
+
+  // Keep matchFields consistent with the current column mapping — drop any
+  // match key whose column was unmapped so we never send a stale key.
+  useEffect(() => {
+    const mapped = new Set(Object.values(mapping));
+    setMatchFields((prev) => {
+      const next = prev.filter((n) => mapped.has(n));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [mapping]);
 
   // Template storage — resolved once; `null` opts out of persistence.
   const storage = useMemo<ImportTemplateStorage | null>(
@@ -738,8 +906,26 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     [headers, rows],
   );
 
-  const handleImport = useCallback(async () => {
-    setImporting(true); setProgress(0);
+  // Build raw, mapping-applied rows keyed by target field name (inline
+  // corrections applied). Values stay RAW strings — the server coerces them to
+  // storage values from field metadata, so booleans / dates / lookups / selects
+  // are all handled uniformly server-side rather than guessed on the client.
+  const buildRawRows = useCallback((): Array<Record<string, string>> => {
+    const mappedCols = Object.entries(mapping).map(([idx, name]) => ({ csvIdx: Number(idx), field: name }));
+    return rows.map((original, i) => {
+      const fixes = corrections[i];
+      const out: Record<string, string> = {};
+      for (const col of mappedCols) {
+        const v = fixes && fixes[col.csvIdx] !== undefined ? fixes[col.csvIdx] : (original[col.csvIdx] ?? '');
+        out[col.field] = v;
+      }
+      return out;
+    });
+  }, [rows, mapping, corrections]);
+
+  // Legacy fallback — per-row `create` with light client-side validation. Used
+  // only when the adapter/client can't reach the server `/import` route.
+  const legacyImport = useCallback(async () => {
     const errors: ImportResult['errors'] = [];
     let importedRows = 0, skippedRows = 0;
     const mappedCols = Object.entries(mapping).map(([idx, name]) => ({
@@ -747,8 +933,6 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     }));
 
     for (let i = 0; i < rows.length; i++) {
-      // Apply inline corrections (only available for the visible preview rows)
-      // before validation so users can fix issues without re-uploading the file.
       const original = rows[i];
       const fixes = corrections[i];
       const effectiveRow = fixes
@@ -775,10 +959,95 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setResult(importResult); setImporting(false); onComplete?.(importResult);
   }, [rows, mapping, fields, dataSource, objectName, onComplete, onErrorMode, corrections]);
 
+  const handleImport = useCallback(async () => {
+    setImporting(true); setProgress(0);
+
+    // Prefer the single-call server import: it coerces special values and
+    // routes each row to insert / update / upsert. Fall back to the per-row
+    // create loop only when the adapter can't speak `/import`.
+    const serverImport = (dataSource as {
+      importRecords?: (o: string, r: ImportRequestOptions) => Promise<ImportRecordsResult>;
+    } | undefined)?.importRecords;
+
+    if (typeof serverImport === 'function') {
+      const request: ImportRequestOptions = {
+        format: 'json',
+        rows: buildRawRows(),
+        writeMode,
+        ...(writeMode !== 'insert' ? { matchFields } : {}),
+        createMissingOptions,
+        runAutomations,
+        skipBlankMatchKey,
+      };
+      try {
+        const res = await serverImport.call(dataSource, objectName, request);
+        const importResult: ImportResult = {
+          totalRows: res.total,
+          importedRows: res.ok,
+          skippedRows: res.skipped + res.errors,
+          createdRows: res.created,
+          updatedRows: res.updated,
+          errors: res.results
+            .filter((r) => !r.ok)
+            .map((r) => ({ row: r.row, field: r.field ?? '', message: r.error ?? r.code ?? 'Import failed' })),
+          serverResult: res,
+        };
+        setProgress(100);
+        setResult(importResult); setImporting(false); onComplete?.(importResult);
+        return;
+      } catch (err) {
+        if (!isUnsupportedImport(err)) {
+          // A real server failure — surface it rather than silently retrying
+          // via the legacy loop (which could double-import partial successes).
+          const msg = err instanceof Error ? err.message : 'Import failed';
+          const importResult: ImportResult = {
+            totalRows: rows.length, importedRows: 0, skippedRows: rows.length,
+            errors: [{ row: 0, field: '', message: msg }],
+          };
+          setResult(importResult); setImporting(false); onComplete?.(importResult);
+          return;
+        }
+        // Unsupported — fall through to the legacy path below.
+      }
+    }
+
+    await legacyImport();
+  }, [
+    dataSource, objectName, buildRawRows, writeMode, matchFields, createMissingOptions,
+    runAutomations, skipBlankMatchKey, onComplete, rows.length, legacyImport,
+  ]);
+
   const reset = useCallback(() => {
     setStep('upload'); setHeaders([]); setRows([]); setMapping({}); setProgress(0); setResult(null);
     setCorrections({}); setSelectedTemplateId(null);
+    setWriteMode('insert'); setMatchFields([]);
+    setCreateMissingOptions(false); setRunAutomations(false); setSkipBlankMatchKey(false);
   }, []);
+
+  /** Download a CSV of just the failed rows (original values + `_error`). */
+  const handleDownloadFailed = useCallback(() => {
+    if (!result || result.errors.length === 0) return;
+    const errorsByRow = new Map<number, string>();
+    for (const e of result.errors) {
+      if (e.row < 1) continue; // top-level (row 0) errors have no source row
+      const prefix = e.field ? `${e.field}: ` : '';
+      const existing = errorsByRow.get(e.row);
+      errorsByRow.set(e.row, existing ? `${existing}; ${prefix}${e.message}` : `${prefix}${e.message}`);
+    }
+    if (errorsByRow.size === 0) return;
+    const csv = buildFailedRowsCsv(headers, rows, mapping, errorsByRow);
+    try {
+      const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${objectName}-import-errors.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch { /* non-browser env */ }
+  }, [result, headers, rows, mapping, objectName]);
 
   const handleClose = useCallback(() => { reset(); onOpenChange?.(false); onCancel?.(); }, [reset, onOpenChange, onCancel]);
   const { t } = useImportTranslation();
@@ -828,14 +1097,30 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               />
             )}
             {step === 'preview' && (
-              <StepPreview
-                headers={headers}
-                rows={rows}
-                mapping={mapping}
-                fields={fields}
-                corrections={corrections}
-                onCorrect={handleCorrect}
-              />
+              <>
+                <ImportOptions
+                  fields={fields}
+                  mapping={mapping}
+                  writeMode={writeMode}
+                  onWriteMode={setWriteMode}
+                  matchFields={matchFields}
+                  onToggleMatchField={toggleMatchField}
+                  createMissingOptions={createMissingOptions}
+                  onCreateMissingOptions={setCreateMissingOptions}
+                  runAutomations={runAutomations}
+                  onRunAutomations={setRunAutomations}
+                  skipBlankMatchKey={skipBlankMatchKey}
+                  onSkipBlankMatchKey={setSkipBlankMatchKey}
+                />
+                <StepPreview
+                  headers={headers}
+                  rows={rows}
+                  mapping={mapping}
+                  fields={fields}
+                  corrections={corrections}
+                  onCorrect={handleCorrect}
+                />
+              </>
             )}
             {importing && (
               <div className="flex flex-col gap-1">
@@ -848,17 +1133,36 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
           <div className="flex flex-col items-center gap-3 py-4">
             <CheckCircle2 className="h-10 w-10 text-green-500" />
             <p className="text-lg font-semibold">{t('grid.import.importComplete')}</p>
-            <div className="flex gap-3">
-              <Badge variant="default">{t('grid.import.imported', { count: result.importedRows })}</Badge>
+            <div className="flex flex-wrap justify-center gap-2">
+              {/* Prefer the finer created/updated breakdown when the server
+                  reports it; otherwise fall back to a single "imported" count. */}
+              {result.createdRows !== undefined || result.updatedRows !== undefined ? (
+                <>
+                  {(result.createdRows ?? 0) > 0 && <Badge variant="default">{t('grid.import.createdCount', { count: result.createdRows })}</Badge>}
+                  {(result.updatedRows ?? 0) > 0 && <Badge variant="default">{t('grid.import.updatedCount', { count: result.updatedRows })}</Badge>}
+                  {(result.createdRows ?? 0) === 0 && (result.updatedRows ?? 0) === 0 && (
+                    <Badge variant="default">{t('grid.import.imported', { count: result.importedRows })}</Badge>
+                  )}
+                </>
+              ) : (
+                <Badge variant="default">{t('grid.import.imported', { count: result.importedRows })}</Badge>
+              )}
               {result.skippedRows > 0 && <Badge variant="destructive">{t('grid.import.skippedCount', { count: result.skippedRows })}</Badge>}
             </div>
             {result.errors.length > 0 && (
-              <div className="max-h-32 w-full overflow-auto rounded border p-2 text-xs">
-                {result.errors.slice(0, 10).map((err, i) => (
-                  <p key={i} className="text-destructive">Row {err.row}{err.field ? ` (${err.field})` : ''}: {err.message}</p>
-                ))}
-                {result.errors.length > 10 && <p className="text-muted-foreground">{t('grid.import.moreErrors', { count: result.errors.length - 10 })}</p>}
-              </div>
+              <>
+                <div className="max-h-32 w-full overflow-auto rounded border p-2 text-xs">
+                  {result.errors.slice(0, 10).map((err, i) => (
+                    <p key={i} className="text-destructive">Row {err.row}{err.field ? ` (${err.field})` : ''}: {err.message}</p>
+                  ))}
+                  {result.errors.length > 10 && <p className="text-muted-foreground">{t('grid.import.moreErrors', { count: result.errors.length - 10 })}</p>}
+                </div>
+                {result.errors.some((e) => e.row >= 1) && (
+                  <Button variant="outline" size="sm" onClick={handleDownloadFailed} data-testid="import-download-failed">
+                    <Download className="mr-1 h-4 w-4" /> {t('grid.import.downloadFailed')}
+                  </Button>
+                )}
+              </>
             )}
           </div>
         )}
@@ -881,7 +1185,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 </Button>
               )}
               {step === 'preview' && (
-                <Button onClick={handleImport} disabled={importing}>
+                <Button
+                  onClick={handleImport}
+                  disabled={importing || (writeMode !== 'insert' && matchFields.length === 0)}
+                >
                   {importing ? t('grid.import.importingProgress') : t('grid.import.importNRows', { count: rows.length })}
                 </Button>
               )}
