@@ -105,6 +105,13 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.optCreateOptions': 'Keep unknown option values',
   'grid.import.optRunAutomations': 'Run automations & triggers',
   'grid.import.optSkipBlankKey': 'Skip rows with a blank match value',
+  // Server dry-run pre-check (small files, preview step)
+  'grid.import.validate': 'Validate data',
+  'grid.import.validating': 'Validating…',
+  'grid.import.validateHint': 'Check every row against the server before importing.',
+  'grid.import.validatePassed': 'All {{ok}} rows are valid.',
+  'grid.import.validateFailed': '{{ok}} valid, {{errors}} with errors.',
+  'grid.import.errorRowPrefix': 'Row {{row}}: ',
   'grid.import.cancel': 'Cancel',
   'grid.import.back': 'Back',
   'grid.import.next': 'Next',
@@ -159,6 +166,7 @@ export const __testables = {
   get jobResultToImportResult() { return jobResultToImportResult; },
   get buildFailedRowsCsv() { return buildFailedRowsCsv; },
   get buildImportTemplateCsv() { return buildImportTemplateCsv; },
+  get assembleImportRequest() { return assembleImportRequest; },
 };
 
 /** A reusable column-mapping template, persisted across sessions. Keys are
@@ -349,6 +357,33 @@ function validateRow(row: string[], mappedCols: MappedCol[], rowIndex: number) {
     record[col.field.name] = raw;
   }
   return { record, errors };
+}
+
+/** Assemble the server `/import` request from mapping-applied raw rows plus the
+ *  current write-mode + coercion options. Kept pure (no component state) so the
+ *  real import and the dry-run pre-check send byte-identical payloads and it can
+ *  be unit-tested. `matchFields` is only sent when the write-mode consults it. */
+function assembleImportRequest(
+  rows: Record<string, string>[],
+  opts: {
+    writeMode: ImportWriteMode;
+    matchFields: string[];
+    createMissingOptions: boolean;
+    runAutomations: boolean;
+    skipBlankMatchKey: boolean;
+    dryRun?: boolean;
+  },
+): ImportRequestOptions {
+  return {
+    format: 'json',
+    rows,
+    writeMode: opts.writeMode,
+    ...(opts.writeMode !== 'insert' ? { matchFields: opts.matchFields } : {}),
+    createMissingOptions: opts.createMissingOptions,
+    runAutomations: opts.runAutomations,
+    skipBlankMatchKey: opts.skipBlankMatchKey,
+    ...(opts.dryRun ? { dryRun: true } : {}),
+  };
 }
 
 /** True when the adapter/client can't speak the server `/import` route, so the
@@ -993,6 +1028,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [jobId, setJobId] = useState<string | null>(null);
   const [asyncCounts, setAsyncCounts] = useState<{ processed: number; total: number } | null>(null);
   const cancelPollRef = React.useRef(false);
+  // Small-file server dry-run pre-check — validates the exact payload without
+  // writing, so the summary/error list reflect real coercion outcomes.
+  const [validating, setValidating] = useState(false);
+  const [dryRunResult, setDryRunResult] = useState<ImportRecordsResult | null>(null);
   // Write-mode + coercion options (drive the server-side /import request).
   const [writeMode, setWriteMode] = useState<ImportWriteMode>('insert');
   const [matchFields, setMatchFields] = useState<string[]>([]);
@@ -1222,20 +1261,21 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     }
   }, [dataSource, objectName, onComplete]);
 
+  // Assemble the server import request from the current mapping + options.
+  // `dryRun` reuses the exact same payload the real import will send, so the
+  // pre-check validates precisely what would be written.
+  const buildImportRequest = useCallback((dryRun = false): ImportRequestOptions =>
+    assembleImportRequest(buildRawRows(), {
+      writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey, dryRun,
+    }),
+  [buildRawRows, writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey]);
+
   const handleImport = useCallback(async () => {
     setImporting(true); setProgress(0);
     cancelPollRef.current = false;
     setJobId(null); setAsyncCounts(null);
 
-    const request: ImportRequestOptions = {
-      format: 'json',
-      rows: buildRawRows(),
-      writeMode,
-      ...(writeMode !== 'insert' ? { matchFields } : {}),
-      createMissingOptions,
-      runAutomations,
-      skipBlankMatchKey,
-    };
+    const request = buildImportRequest();
 
     // Route large files through a background job so they neither block the UI
     // nor trip the sync route's row ceiling. Any unsupported signal (older
@@ -1300,9 +1340,43 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
 
     await legacyImport();
   }, [
-    dataSource, objectName, buildRawRows, writeMode, matchFields, createMissingOptions,
-    runAutomations, skipBlankMatchKey, onComplete, rows.length, legacyImport, runAsyncImport,
+    dataSource, objectName, buildImportRequest, onComplete, rows.length, legacyImport, runAsyncImport,
   ]);
+
+  // Small-file server dry-run pre-check: validate + coerce every row without
+  // persisting, so mapping / type / required errors are caught before import.
+  // Large files skip this (they're validated row-by-row during the async job).
+  const handleValidate = useCallback(async () => {
+    const serverImport = (dataSource as {
+      importRecords?: (o: string, r: ImportRequestOptions) => Promise<ImportRecordsResult>;
+    } | undefined)?.importRecords;
+    if (typeof serverImport !== 'function') return;
+    setValidating(true);
+    try {
+      const res = await serverImport.call(dataSource, objectName, buildImportRequest(true));
+      setDryRunResult(res);
+    } catch (err) {
+      // Older adapter/client without /import — silently fall back to the
+      // client-side cell validation that StepPreview already shows.
+      if (!isUnsupportedImport(err)) {
+        const msg = err instanceof Error ? err.message : 'Validation failed';
+        setDryRunResult({
+          object: objectName, dryRun: true, writeMode, total: rows.length,
+          ok: 0, errors: rows.length, created: 0, updated: 0, skipped: 0,
+          results: [{ row: 0, ok: false, error: msg }],
+        });
+      }
+    } finally {
+      setValidating(false);
+    }
+  }, [dataSource, objectName, buildImportRequest, writeMode, rows.length]);
+
+  // A prior dry-run becomes stale the moment the payload changes (mapping,
+  // write-mode, options, or an inline cell correction) — drop it so the summary
+  // never reflects data the user has since edited.
+  useEffect(() => {
+    setDryRunResult(null);
+  }, [mapping, corrections, writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey]);
 
   // User-initiated cancel of an in-flight async job. Stops the poll loop, asks
   // the server to cancel (best-effort), and shows a cancelled result.
@@ -1330,6 +1404,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setWriteMode('insert'); setMatchFields([]);
     setCreateMissingOptions(false); setRunAutomations(false); setSkipBlankMatchKey(false);
     setJobId(null); setAsyncCounts(null);
+    setValidating(false); setDryRunResult(null);
   }, []);
 
   /** Download a CSV of just the failed rows (original values + `_error`). */
@@ -1429,6 +1504,42 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                   corrections={corrections}
                   onCorrect={handleCorrect}
                 />
+                {rows.length <= ASYNC_IMPORT_THRESHOLD
+                  && typeof (dataSource as Partial<DataSource> | undefined)?.importRecords === 'function' && (
+                  <div className="flex flex-col gap-2 rounded-md border border-border p-3" data-testid="import-validate">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">{t('grid.import.validateHint')}</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleValidate}
+                        disabled={validating}
+                        data-testid="import-validate-btn"
+                      >
+                        {validating ? t('grid.import.validating') : t('grid.import.validate')}
+                      </Button>
+                    </div>
+                    {dryRunResult && (
+                      <div className="flex flex-col gap-1" data-testid="import-validate-result">
+                        <p className={`text-xs font-medium ${dryRunResult.errors > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
+                          {dryRunResult.errors > 0
+                            ? t('grid.import.validateFailed', { ok: dryRunResult.ok, errors: dryRunResult.errors })
+                            : t('grid.import.validatePassed', { ok: dryRunResult.ok })}
+                        </p>
+                        {dryRunResult.errors > 0 && (
+                          <ul className="max-h-32 overflow-auto text-xs text-destructive">
+                            {dryRunResult.results.filter((r) => !r.ok).slice(0, 20).map((r, i) => (
+                              <li key={i}>
+                                {r.row > 0 ? t('grid.import.errorRowPrefix', { row: r.row }) : ''}
+                                {r.field ? `${r.field}: ` : ''}{r.error ?? r.code ?? ''}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
             {importing && (
