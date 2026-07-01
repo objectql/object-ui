@@ -85,7 +85,10 @@ function formatSummaryLabel(
   let formatted: string;
   if (type !== 'count' && colType === 'currency') {
     const currency = resolveFieldCurrency(column, tenantDefault);
-    const decimals = column?.precision ?? column?.scale ?? 0;
+    // Decimal places come from `scale`, not `precision` (the total digit count
+    // of a decimal(p, s) column) — see #2131. Reading `precision` padded a
+    // decimal(10, 0) sum out to "…0000000000".
+    const decimals = column?.scale ?? 0;
     try {
       formatted = currency
         ? new Intl.NumberFormat(undefined, {
