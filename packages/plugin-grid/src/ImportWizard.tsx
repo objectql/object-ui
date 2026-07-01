@@ -84,6 +84,7 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.asyncQueued': 'Queued — preparing to import…',
   'grid.import.asyncProcessing': 'Importing {{processed}} of {{total}} rows… {{progress}}%',
   'grid.import.asyncLargeHint': 'This file is large, so it will be imported in the background.',
+  'grid.import.largeSampleNotice': 'Previewing the first {{shown}} of {{total}} rows.',
   'grid.import.cancelImport': 'Cancel import',
   'grid.import.importCancelled': 'Import cancelled',
   'grid.import.resultsTruncated': 'Showing the first {{count}} row results (of {{total}}).',
@@ -1681,6 +1682,15 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                   corrections={corrections}
                   onCorrect={handleCorrect}
                 />
+                {rows.length > ASYNC_IMPORT_THRESHOLD && (
+                  <div
+                    className="mt-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
+                    data-testid="import-large-sample-notice"
+                  >
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{t('grid.import.largeSampleNotice', { shown: PREVIEW_ROW_COUNT, total: rows.length })} {t('grid.import.asyncLargeHint')}</span>
+                  </div>
+                )}
                 {rows.length <= ASYNC_IMPORT_THRESHOLD
                   && typeof (dataSource as Partial<DataSource> | undefined)?.importRecords === 'function' && (
                   <div className="flex flex-col gap-2 rounded-md border border-border p-3" data-testid="import-validate">
