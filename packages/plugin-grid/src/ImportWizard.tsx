@@ -39,6 +39,8 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.previewDescription': 'Review data before importing.',
   'grid.import.dragDrop': 'Drag & drop a CSV or Excel file here, or click to browse',
   'grid.import.browseFiles': 'Browse Files',
+  'grid.import.downloadTemplate': 'Download template',
+  'grid.import.downloadTemplateHint': 'Get a CSV with the right columns (required fields marked *).',
   'grid.import.parsing': 'Parsing…',
   'grid.import.pasteHint': 'or paste (Ctrl/⌘+V) rows copied from Excel or Google Sheets',
   'grid.import.legacyXls': "Legacy .xls files aren't supported — please re-save as .xlsx.",
@@ -156,6 +158,7 @@ export const __testables = {
   get isUnsupportedImportJob() { return isUnsupportedImportJob; },
   get jobResultToImportResult() { return jobResultToImportResult; },
   get buildFailedRowsCsv() { return buildFailedRowsCsv; },
+  get buildImportTemplateCsv() { return buildImportTemplateCsv; },
 };
 
 /** A reusable column-mapping template, persisted across sessions. Keys are
@@ -179,7 +182,15 @@ export interface ImportTemplateStorage {
 export interface ImportWizardProps {
   objectName: string;
   objectLabel?: string;
-  fields: Array<{ name: string; label: string; type: string; required?: boolean }>;
+  fields: Array<{
+    name: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    /** Allowed values for select/enum fields — used to seed the downloadable
+     *  template's example row. Accepts option objects or bare strings. */
+    options?: Array<{ label?: string; value?: string | number } | string>;
+  }>;
   dataSource: any;
   onComplete?: (result: ImportResult) => void;
   onCancel?: () => void;
@@ -396,6 +407,73 @@ function buildFailedRowsCsv(
   return lines.join('\n');
 }
 
+/** Pick a representative allowed value from a select field's options, for the
+ *  template example row. Prefers the stored value over the display label. */
+function firstOptionValue(
+  options: ImportWizardProps['fields'][number]['options'],
+): string | undefined {
+  const first = options?.[0];
+  if (first === undefined || first === null) return undefined;
+  if (typeof first === 'string') return first;
+  if (first.value !== undefined && first.value !== null) return String(first.value);
+  if (first.label) return first.label;
+  return undefined;
+}
+
+/** A type-appropriate example cell for the downloadable import template. Kept
+ *  format-oriented (dates, emails) rather than prose so it reads the same in
+ *  any locale; text-ish fields are left blank so the row is obviously a sample. */
+function exampleForField(field: ImportWizardProps['fields'][number]): string {
+  switch (field.type) {
+    case 'number':
+    case 'currency':
+    case 'percent':
+      return '0';
+    case 'date':
+      return '2024-01-31';
+    case 'datetime':
+      return '2024-01-31 09:00';
+    case 'time':
+      return '09:00';
+    case 'boolean':
+      return 'true';
+    case 'email':
+      return 'name@example.com';
+    case 'url':
+      return 'https://example.com';
+    case 'select':
+    case 'multiselect':
+    case 'lookup':
+    case 'reference':
+      return firstOptionValue(field.options) ?? '';
+    default:
+      return '';
+  }
+}
+
+/** Build a downloadable CSV import template for the given fields: a header row
+ *  of field labels (required fields marked with `*`, which re-import tolerates)
+ *  plus a single example row. Not persisted — a convenience starting point. */
+function buildImportTemplateCsv(fields: ImportWizardProps['fields']): string {
+  const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
+  const header = fields.map((f) => `${f.label}${f.required ? ' *' : ''}`);
+  const example = fields.map((f) => exampleForField(f));
+  return [header.map(esc).join(','), example.map(esc).join(',')].join('\n');
+}
+
+/** Trigger a client-side text file download (prepends a UTF-8 BOM so Excel
+ *  reads non-ASCII correctly). No-op in non-DOM environments. */
+function downloadTextFile(filename: string, text: string, mime = 'text/csv;charset=utf-8'): void {
+  if (typeof document === 'undefined' || typeof URL?.createObjectURL !== 'function') return;
+  const blob = new Blob([`﻿${text}`], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Map a thrown import-parse error code to a translated, user-facing message. */
 function parseErrorMessage(err: unknown, t: (k: string, v?: Record<string, unknown>) => string): string {
   const code = err instanceof Error ? err.message : '';
@@ -405,7 +483,11 @@ function parseErrorMessage(err: unknown, t: (k: string, v?: Record<string, unkno
 }
 
 // Step 1: File Upload (CSV / Excel / paste)
-const StepUpload: React.FC<{ onFileLoaded: (headers: string[], rows: string[][]) => void }> = ({ onFileLoaded }) => {
+const StepUpload: React.FC<{
+  onFileLoaded: (headers: string[], rows: string[][]) => void;
+  fields: ImportWizardProps['fields'];
+  objectName: string;
+}> = ({ onFileLoaded, fields, objectName }) => {
   const { t } = useImportTranslation();
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -471,6 +553,20 @@ const StepUpload: React.FC<{ onFileLoaded: (headers: string[], rows: string[][])
           <ClipboardPaste className="h-3.5 w-3.5" /> {t('grid.import.pasteHint')}
         </p>
       </div>
+      {fields.length > 0 && (
+        <div className="flex flex-col items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => downloadTextFile(`${objectName || 'import'}-template.csv`, buildImportTemplateCsv(fields))}
+            data-testid="import-download-template"
+          >
+            <Download className="mr-1 h-4 w-4" /> {t('grid.import.downloadTemplate')}
+          </Button>
+          <p className="text-xs text-muted-foreground/70">{t('grid.import.downloadTemplateHint')}</p>
+        </div>
+      )}
       {error && (
         <p className="flex items-center gap-1 text-sm text-destructive">
           <AlertCircle className="h-4 w-4" /> {error}
@@ -1293,7 +1389,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
         <div className="min-h-0 flex-1 overflow-auto">
         {!result ? (
           <>
-            {step === 'upload' && <StepUpload onFileLoaded={handleFileLoaded} />}
+            {step === 'upload' && <StepUpload onFileLoaded={handleFileLoaded} fields={fields} objectName={objectName} />}
             {step === 'mapping' && (
               <StepMapping
                 headers={headers}

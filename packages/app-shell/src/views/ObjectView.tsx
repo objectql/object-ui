@@ -1632,6 +1632,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                        label: def?.label || name,
                        type: def?.type || 'text',
                        required: !!def?.required,
+                       // Enum options seed the downloadable template's example row.
+                       ...(def?.options ? { options: def.options } : {}),
                      }))}
                    dataSource={dataSource}
                    onComplete={(result) => {

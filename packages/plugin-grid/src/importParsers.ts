@@ -195,16 +195,18 @@ export function isTypeCompatible(inferred: InferredType, fieldType: string): boo
 
 // ── Airtable-style column → field mapping suggestions ───────────────────
 
-/** Normalize a header/field key: lower-case, strip separators/punctuation. */
+/** Normalize a header/field key: lower-case, strip separators/punctuation.
+ *  Also strips the `*`/`＊` required-marker our downloaded templates append to
+ *  header labels, so a filled-in template round-trips back to the same field. */
 const normalizeKey = (s: string): string =>
-  s.toLowerCase().replace(/[\s_\-.]+/g, '').replace(/[()（）[\]{}:：,，、/]/g, '');
+  s.toLowerCase().replace(/[\s_\-.]+/g, '').replace(/[()（）[\]{}:：,，、/*＊]/g, '');
 
 /** Split a header/label into comparable tokens (space/underscore/case/CJK aware). */
 function tokenize(s: string): string[] {
   return s
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .toLowerCase()
-    .split(/[\s_\-./()（）[\]{}:：,，、]+/)
+    .split(/[\s_\-./()（）[\]{}:：,，、*＊]+/)
     .map((t) => t.trim())
     .filter(Boolean);
 }
