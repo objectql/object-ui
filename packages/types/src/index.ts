@@ -284,6 +284,12 @@ export type {
   ImportRequestOptions,
   ImportRowResult,
   ImportRecordsResult,
+  ImportJobStatus,
+  CreateImportJobResult,
+  ImportJobProgressInfo,
+  ImportJobResultsInfo,
+  ImportJobSummaryInfo,
+  ListImportJobsOptions,
 } from './data';
 
 // ============================================================================

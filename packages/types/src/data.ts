@@ -551,6 +551,61 @@ export interface DataSource<T = any> {
     resource: string,
     request: ImportRequestOptions,
   ): Promise<ImportRecordsResult>;
+
+  /**
+   * Initiate an **asynchronous** import job — the large-file counterpart to
+   * {@link importRecords}. The whole payload is posted once; the server persists
+   * a job, returns immediately with a `jobId`, and processes rows in the
+   * background (up to its row ceiling, typically 50,000). Callers poll
+   * {@link getImportJobProgress} for live counters and
+   * {@link getImportJobResults} for the capped per-row report.
+   *
+   * Optional — adapters whose backend lacks async import jobs omit this (the
+   * wizard then keeps every file on the synchronous {@link importRecords} path).
+   * Feature-detect with `typeof dataSource.createImportJob === 'function'`.
+   *
+   * @param resource - Object/table name
+   * @param request - Same payload shape as {@link importRecords}
+   * @returns Promise resolving to job tracking info ({ jobId, status, total, … })
+   */
+  createImportJob?(
+    resource: string,
+    request: ImportRequestOptions,
+  ): Promise<CreateImportJobResult>;
+
+  /**
+   * Poll the progress of a previously-created import job.
+   * Optional — required only if {@link createImportJob} is implemented.
+   *
+   * @param jobId - The job identifier returned by {@link createImportJob}.
+   * @returns Promise resolving to current counters / terminal status.
+   */
+  getImportJobProgress?(jobId: string): Promise<ImportJobProgressInfo>;
+
+  /**
+   * Fetch the per-row results of an import job (server-capped; failures first).
+   * Optional — required only if {@link createImportJob} is implemented.
+   *
+   * @param jobId - The job identifier.
+   * @returns Progress fields plus `results` and a `resultsTruncated` flag.
+   */
+  getImportJobResults?(jobId: string): Promise<ImportJobResultsInfo>;
+
+  /**
+   * List recent import jobs (history), newest first.
+   * Optional — implementations without a history endpoint omit this.
+   *
+   * @param options - Optional filters (object, status) + pagination.
+   */
+  listImportJobs?(options?: ListImportJobsOptions): Promise<ImportJobSummaryInfo[]>;
+
+  /**
+   * Cancel a pending/running import job (cooperative — the worker stops at its
+   * next progress boundary). Optional; the UI hides Cancel when omitted.
+   *
+   * @param jobId - The job identifier to cancel.
+   */
+  cancelImportJob?(jobId: string): Promise<void>;
 }
 
 /**
@@ -640,6 +695,109 @@ export interface ImportRecordsResult {
   updated: number;
   skipped: number;
   results: ImportRowResult[];
+}
+
+/**
+ * Lifecycle status of an asynchronous import job. Mirrors the server's
+ * `ImportJobStatus` enum (`@objectstack/spec`).
+ */
+export type ImportJobStatus =
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
+
+/**
+ * Result of {@link DataSource.createImportJob}. `jobId` is the polling key.
+ * Mirrors the server's `CreateImportJobResponse`.
+ */
+export interface CreateImportJobResult {
+  /** Server-assigned job identifier. */
+  jobId: string;
+  /** Object the job imports into. */
+  object: string;
+  /** Initial status (usually 'pending'). */
+  status: ImportJobStatus;
+  /** Total rows accepted for processing. */
+  total: number;
+  /** ISO-8601 creation timestamp. */
+  createdAt?: string;
+}
+
+/**
+ * Live progress of an import job, returned by
+ * {@link DataSource.getImportJobProgress}. Mirrors the server's
+ * `ImportJobProgress`.
+ */
+export interface ImportJobProgressInfo {
+  jobId: string;
+  object: string;
+  status: ImportJobStatus;
+  dryRun?: boolean;
+  writeMode?: ImportWriteMode;
+  /** Total rows in the job. */
+  total: number;
+  /** Rows processed so far. */
+  processed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  /** 0–100 completion. */
+  percentComplete: number;
+  /** Failure detail when `status === 'failed'`. */
+  error?: string;
+  /** ISO-8601 start timestamp. */
+  startedAt?: string;
+  /** ISO-8601 completion timestamp. */
+  completedAt?: string;
+  /** ISO-8601 creation timestamp. */
+  createdAt?: string;
+}
+
+/**
+ * Import-job progress plus the capped per-row report, returned by
+ * {@link DataSource.getImportJobResults}. Mirrors the server's
+ * `ImportJobResults`.
+ */
+export interface ImportJobResultsInfo extends ImportJobProgressInfo {
+  /** Per-row outcomes (server-capped; failures first). */
+  results: ImportRowResult[];
+  /** True when `results` omits rows because the cap was exceeded. */
+  resultsTruncated: boolean;
+}
+
+/**
+ * One row in the import-job history list, returned by
+ * {@link DataSource.listImportJobs}. Mirrors the server's `ImportJobSummary`.
+ */
+export interface ImportJobSummaryInfo {
+  jobId: string;
+  object: string;
+  status: ImportJobStatus;
+  total: number;
+  processed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  createdAt?: string;
+  completedAt?: string;
+}
+
+/**
+ * Filters + pagination for {@link DataSource.listImportJobs}.
+ */
+export interface ListImportJobsOptions {
+  /** Only jobs importing into this object. */
+  object?: string;
+  /** Only jobs in this status. */
+  status?: ImportJobStatus;
+  /** Page size (server clamps; default 50). */
+  limit?: number;
+  /** Offset for pagination. */
+  offset?: number;
 }
 
 /**

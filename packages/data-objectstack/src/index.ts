@@ -14,6 +14,11 @@ import type {
   FileUploadResult,
   ImportRequestOptions,
   ImportRecordsResult,
+  CreateImportJobResult,
+  ImportJobProgressInfo,
+  ImportJobResultsInfo,
+  ImportJobSummaryInfo,
+  ListImportJobsOptions,
 } from '@object-ui/types';
 import { convertFiltersToAST } from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
@@ -1085,6 +1090,123 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         req: ImportRequestOptions,
       ) => Promise<ImportRecordsResult>).call(this.client.data, resource, request);
       return result;
+    } catch (err) {
+      throw normaliseClientError(err);
+    }
+  }
+
+  /**
+   * Feature-detect the async import-job API on the connected client. Older
+   * clients/servers lack these routes; callers fall back to {@link importRecords}.
+   */
+  private importJobApi(): {
+    createImportJob: (object: string, req: ImportRequestOptions) => Promise<CreateImportJobResult>;
+    getImportJobProgress: (jobId: string) => Promise<ImportJobProgressInfo>;
+    getImportJobResults: (jobId: string) => Promise<ImportJobResultsInfo>;
+    listImportJobs: (query: ListImportJobsOptions) => Promise<ImportJobSummaryInfo[]>;
+    cancelImportJob: (jobId: string) => Promise<{ success: boolean }>;
+  } | undefined {
+    const d = this.client.data as Record<string, unknown>;
+    if (typeof d.createImportJob !== 'function') return undefined;
+    return d as any;
+  }
+
+  /**
+   * Start an asynchronous import job — the large-file counterpart to
+   * {@link importRecords}. Posts the whole payload once; the server processes
+   * rows in the background. Requires an `@objectstack/client` new enough to
+   * expose `data.createImportJob` (server `/import/jobs` route). Callers should
+   * feature-detect (`typeof dataSource.createImportJob`) and fall back to the
+   * synchronous path when unavailable.
+   */
+  async createImportJob(
+    resource: string,
+    request: ImportRequestOptions,
+  ): Promise<CreateImportJobResult> {
+    await this.connect();
+    const api = this.importJobApi();
+    if (!api) {
+      throw new ObjectStackError(
+        'The connected @objectstack/client does not support async import jobs (data.createImportJob). ' +
+          'Upgrade the client, or use the synchronous importRecords() path.',
+        'UNSUPPORTED_OPERATION',
+        400,
+      );
+    }
+    try {
+      return await api.createImportJob.call(this.client.data, resource, request);
+    } catch (err) {
+      throw normaliseClientError(err);
+    }
+  }
+
+  /** Poll an import job's progress. Requires {@link createImportJob} support. */
+  async getImportJobProgress(jobId: string): Promise<ImportJobProgressInfo> {
+    await this.connect();
+    const api = this.importJobApi();
+    if (!api) {
+      throw new ObjectStackError(
+        'The connected @objectstack/client does not support async import jobs.',
+        'UNSUPPORTED_OPERATION',
+        400,
+      );
+    }
+    try {
+      return await api.getImportJobProgress.call(this.client.data, jobId);
+    } catch (err) {
+      throw normaliseClientError(err);
+    }
+  }
+
+  /** Fetch an import job's capped per-row results. */
+  async getImportJobResults(jobId: string): Promise<ImportJobResultsInfo> {
+    await this.connect();
+    const api = this.importJobApi();
+    if (!api) {
+      throw new ObjectStackError(
+        'The connected @objectstack/client does not support async import jobs.',
+        'UNSUPPORTED_OPERATION',
+        400,
+      );
+    }
+    try {
+      return await api.getImportJobResults.call(this.client.data, jobId);
+    } catch (err) {
+      throw normaliseClientError(err);
+    }
+  }
+
+  /** List recent import jobs (history), newest first. */
+  async listImportJobs(options: ListImportJobsOptions = {}): Promise<ImportJobSummaryInfo[]> {
+    await this.connect();
+    const api = this.importJobApi();
+    if (!api) {
+      throw new ObjectStackError(
+        'The connected @objectstack/client does not support async import jobs.',
+        'UNSUPPORTED_OPERATION',
+        400,
+      );
+    }
+    try {
+      return await api.listImportJobs.call(this.client.data, options);
+    } catch (err) {
+      throw normaliseClientError(err);
+    }
+  }
+
+  /** Cancel a pending/running import job (cooperative). */
+  async cancelImportJob(jobId: string): Promise<void> {
+    await this.connect();
+    const api = this.importJobApi();
+    if (!api) {
+      throw new ObjectStackError(
+        'The connected @objectstack/client does not support async import jobs.',
+        'UNSUPPORTED_OPERATION',
+        400,
+      );
+    }
+    try {
+      await api.cancelImportJob.call(this.client.data, jobId);
     } catch (err) {
       throw normaliseClientError(err);
     }
