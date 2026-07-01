@@ -785,7 +785,15 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else onOpenChange?.(v); }}>
-      <DialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-hidden sm:max-w-4xl">
+      <DialogContent
+        className="flex max-h-[85vh] flex-col gap-4 overflow-hidden sm:max-w-4xl"
+        // The wizard holds unsaved upload + mapping progress, so a stray click
+        // must not close it. This blocks two accidental dismissals: (1) clicking
+        // the gray overlay, and (2) clicking a Radix Select's dropdown flyout,
+        // which is portalled to document.body and would otherwise read as an
+        // "interact outside" the dialog. Users still close via the X, Cancel, or Esc.
+        onInteractOutside={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" /> {t('grid.import.title', { object: label })}
