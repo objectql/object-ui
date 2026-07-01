@@ -19,7 +19,8 @@ import type {
 } from '@object-ui/types';
 import {
   parseSpreadsheetFile, parseClipboardTable, inferColumnType, isTypeCompatible,
-  ImportParseError, type InferredType,
+  suggestColumnMappings, ImportParseError,
+  type InferredType, type ColumnSuggestion, type MappingConfidence,
 } from './importParsers';
 
 /** Default English fallback strings used when no I18nProvider is mounted
@@ -51,6 +52,11 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.csvColumn': 'Column',
   'grid.import.mapsTo': 'Maps To',
   'grid.import.typeMismatch': 'Looks like {{type}}',
+  'grid.import.autoMatched': 'Auto-matched',
+  'grid.import.autoMatchedSummary': 'Auto-matched {{count}} column(s) — review and adjust below.',
+  'grid.import.confidence.high': 'High confidence',
+  'grid.import.confidence.medium': 'Medium confidence',
+  'grid.import.confidence.low': 'Low confidence',
   'grid.import.type.number': 'Number',
   'grid.import.type.boolean': 'Boolean',
   'grid.import.type.date': 'Date',
@@ -194,6 +200,13 @@ type WizardStep = 'upload' | 'mapping' | 'preview';
 /** Maximum number of rows to show in the preview step */
 const PREVIEW_ROW_COUNT = 10;
 
+/** Text colour for the auto-match confidence hint, keyed by confidence bucket. */
+const CONFIDENCE_CLASS: Record<MappingConfidence, string> = {
+  high: 'text-emerald-600',
+  medium: 'text-sky-600',
+  low: 'text-muted-foreground',
+};
+
 /** Boolean tokens the server's import coercion accepts (import-coerce.ts).
  *  Kept in sync so the preview step doesn't flag a cell the server would take
  *  (e.g. Chinese 是/否, on/off, ✓/×). Compared case-insensitively. */
@@ -212,14 +225,12 @@ function validateValue(value: string, type: string): boolean {
   }
 }
 
-const normalizeKey = (s: string) => s.toLowerCase().replace(/[_\s-]/g, '');
-
 /**
- * Auto-map source columns to object fields. Pass 1 matches by normalized
- * name/label (exact). Pass 2 fills still-unmapped columns by fuzzy name
- * containment *gated on type compatibility* with the column's inferred type —
- * the type gate keeps the fuzzy pass from confidently mis-mapping. `rows` is
- * optional; without it only the exact pass runs.
+ * Auto-map source columns to object fields, Airtable-style. Delegates to
+ * {@link suggestColumnMappings} (name/label similarity + bilingual synonyms +
+ * token overlap + content-inferred type gating, assigned globally by
+ * confidence) and keeps only the confidently-matched columns. `rows` is
+ * optional; without it only name-based signals fire.
  */
 function autoMapColumns(
   headers: string[],
@@ -227,29 +238,8 @@ function autoMapColumns(
   rows?: string[][],
 ): Record<number, string> {
   const mapping: Record<number, string> = {};
-  const used = new Set<string>();
-  // Pass 1 — exact normalized name/label match.
-  headers.forEach((header, idx) => {
-    const h = normalizeKey(header);
-    const match = fields.find((f) => normalizeKey(f.name) === h || normalizeKey(f.label) === h);
-    if (match && !used.has(match.name)) { mapping[idx] = match.name; used.add(match.name); }
-  });
-  // Pass 2 — fuzzy containment, gated on inferred-type compatibility.
-  if (rows && rows.length) {
-    headers.forEach((header, idx) => {
-      if (mapping[idx]) return;
-      const h = normalizeKey(header);
-      if (h.length < 3) return;
-      const inferred = inferColumnType(rows.map((r) => r[idx]));
-      const match = fields.find((f) => {
-        if (used.has(f.name)) return false;
-        if (!isTypeCompatible(inferred, f.type)) return false;
-        const name = normalizeKey(f.name);
-        const label = normalizeKey(f.label);
-        return name.includes(h) || h.includes(name) || label.includes(h) || h.includes(label);
-      });
-      if (match) { mapping[idx] = match.name; used.add(match.name); }
-    });
+  for (const s of suggestColumnMappings(headers, fields, rows)) {
+    if (s.fieldName) mapping[s.columnIndex] = s.fieldName;
   }
   return mapping;
 }
@@ -529,14 +519,26 @@ const StepMapping: React.FC<{
   mapping: Record<number, string>;
   onMappingChange: (mapping: Record<number, string>) => void;
   inferredTypes: InferredType[];
+  suggestions: ColumnSuggestion[];
   templates: ImportMappingTemplate[];
   selectedTemplateId: string | null;
   onSelectTemplate: (id: string) => void;
   onSaveTemplate: (name: string) => void;
   onDeleteTemplate: () => void;
-}> = ({ headers, fields, mapping, onMappingChange, inferredTypes, templates, selectedTemplateId, onSelectTemplate, onSaveTemplate, onDeleteTemplate }) => {
+}> = ({ headers, fields, mapping, onMappingChange, inferredTypes, suggestions, templates, selectedTemplateId, onSelectTemplate, onSaveTemplate, onDeleteTemplate }) => {
   const { t } = useImportTranslation();
   const usedFields = useMemo(() => new Set(Object.values(mapping)), [mapping]);
+  const suggestionByCol = useMemo(() => {
+    const m = new Map<number, ColumnSuggestion>();
+    suggestions.forEach((s) => m.set(s.columnIndex, s));
+    return m;
+  }, [suggestions]);
+  // How many columns were auto-matched (vs. the current, possibly-edited mapping).
+  const autoMatchedCount = useMemo(() => {
+    let n = 0;
+    suggestionByCol.forEach((s, idx) => { if (s.fieldName && mapping[idx] === s.fieldName) n++; });
+    return n;
+  }, [suggestionByCol, mapping]);
   const handleChange = useCallback((colIdx: number, fieldName: string) => {
     const next = { ...mapping };
     if (fieldName === '__skip__') delete next[colIdx]; else next[colIdx] = fieldName;
@@ -553,6 +555,12 @@ const StepMapping: React.FC<{
         onDelete={onDeleteTemplate}
         disabled={Object.keys(mapping).length === 0}
       />
+      {autoMatchedCount > 0 && (
+        <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="import-automatch-summary">
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+          {t('grid.import.autoMatchedSummary', { count: String(autoMatchedCount) })}
+        </p>
+      )}
       <div className="max-h-[420px] overflow-auto">
       <Table>
         <TableHeader>
@@ -567,6 +575,10 @@ const StepMapping: React.FC<{
             const inferred = inferredTypes[idx] ?? 'text';
             const mappedField = mapping[idx] ? fields.find((f) => f.name === mapping[idx]) : undefined;
             const typeMismatch = !!mappedField && !isTypeCompatible(inferred, mappedField.type);
+            const suggestion = suggestionByCol.get(idx);
+            // Badge only while the user's choice still matches what we auto-suggested.
+            const autoMatched = !!suggestion?.fieldName && mapping[idx] === suggestion.fieldName
+              ? suggestion.confidence : null;
             return (
             <TableRow key={idx}>
               <TableCell className="font-medium">
@@ -591,6 +603,11 @@ const StepMapping: React.FC<{
                     ))}
                   </SelectContent>
                 </Select>
+                {autoMatched && (
+                  <p className={cn('mt-1 flex items-center gap-1 text-[11px]', CONFIDENCE_CLASS[autoMatched])} data-testid={`import-automatch-${idx}`}>
+                    <CheckCircle2 className="h-3 w-3" /> {t('grid.import.autoMatched')} · {t(`grid.import.confidence.${autoMatched}`)}
+                  </p>
+                )}
                 {typeMismatch && (
                   <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600" data-testid={`import-type-warn-${idx}`}>
                     <AlertCircle className="h-3 w-3" /> {t('grid.import.typeMismatch', { type: t(`grid.import.type.${inferred}`) })}
@@ -914,6 +931,14 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     [headers, rows],
   );
 
+  // Airtable-style auto-mapping suggestions (with confidence), computed once per
+  // file. Drives the "auto-matched" badges: a badge shows only while the user's
+  // current mapping for a column still equals what we suggested.
+  const suggestions = useMemo<ColumnSuggestion[]>(
+    () => suggestColumnMappings(headers, fields, rows),
+    [headers, fields, rows],
+  );
+
   // Build raw, mapping-applied rows keyed by target field name (inline
   // corrections applied). Values stay RAW strings — the server coerces them to
   // storage values from field metadata, so booleans / dates / lookups / selects
@@ -1097,6 +1122,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 mapping={mapping}
                 onMappingChange={setMapping}
                 inferredTypes={inferredTypes}
+                suggestions={suggestions}
                 templates={templates}
                 selectedTemplateId={selectedTemplateId}
                 onSelectTemplate={handleSelectTemplate}

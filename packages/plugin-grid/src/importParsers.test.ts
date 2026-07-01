@@ -7,6 +7,7 @@ import ExcelJS from 'exceljs';
 import {
   parseDelimited, parseCSV, parseExcelArrayBuffer, parseClipboardTable,
   inferColumnType, isTypeCompatible, ImportParseError, parseSpreadsheetFile,
+  suggestColumnMappings, scoreToConfidence, type MappableField,
 } from './importParsers';
 
 describe('parseDelimited', () => {
@@ -107,5 +108,69 @@ describe('parseSpreadsheetFile', () => {
   it('parses a .csv file', async () => {
     const grid = await parseSpreadsheetFile(makeFile('data.csv', 'a,b\n1,2'));
     expect(grid).toEqual([['a', 'b'], ['1', '2']]);
+  });
+});
+
+describe('suggestColumnMappings', () => {
+  const FIELDS: MappableField[] = [
+    { name: 'full_name', label: '姓名', type: 'text' },
+    { name: 'email', label: 'Email', type: 'email' },
+    { name: 'phone', label: '手机', type: 'text' },
+    { name: 'amount', label: '金额', type: 'currency' },
+    { name: 'active', label: '启用', type: 'boolean' },
+    { name: 'due_date', label: '截止日期', type: 'date' },
+  ];
+  const byCol = (s: ReturnType<typeof suggestColumnMappings>) =>
+    Object.fromEntries(s.map((x) => [x.columnIndex, x.fieldName]));
+
+  it('matches exact and normalized header names with high confidence', () => {
+    const s = suggestColumnMappings(['Full Name', 'email'], FIELDS);
+    expect(s[0]).toMatchObject({ fieldName: 'full_name', confidence: 'high' });
+    expect(s[1]).toMatchObject({ fieldName: 'email', reason: 'exact', confidence: 'high' });
+  });
+
+  it('resolves bilingual synonyms (邮箱→email, 电话→phone)', () => {
+    const s = suggestColumnMappings(['邮箱', '电话'], FIELDS);
+    expect(byCol(s)).toMatchObject({ 0: 'email', 1: 'phone' });
+    expect(s[0].reason).toBe('synonym');
+  });
+
+  it('assigns each field to at most one column (global greedy)', () => {
+    // Two columns both look like email; only the better one wins the field.
+    const s = suggestColumnMappings(['email', 'e-mail address'], FIELDS,
+      [['a@x.com', 'b@x.com']]);
+    const assigned = s.map((x) => x.fieldName).filter(Boolean);
+    expect(assigned).toContain('email');
+    expect(new Set(assigned).size).toBe(assigned.length); // no dup field
+  });
+
+  it('uses content type to gate a fuzzy match (numeric column → currency)', () => {
+    const s = suggestColumnMappings(['金额'], FIELDS, [['1200'], ['3400']]);
+    expect(s[0]).toMatchObject({ fieldName: 'amount' });
+    expect(s[0].inferredType).toBe('number');
+  });
+
+  it('discounts a name match when the content type is incompatible', () => {
+    // Header rhymes with a boolean field, but the sampled data is text → no confident map.
+    const s = suggestColumnMappings(['active'], [{ name: 'active', label: 'Active', type: 'boolean' }],
+      [['some free text'], ['more prose here']]);
+    // exact name still wins (exact matches aren't type-gated)…
+    expect(s[0].fieldName).toBe('active');
+    // …but a merely-fuzzy header with bad type stays unmapped:
+    const s2 = suggestColumnMappings(['is_it_on'], [{ name: 'active', label: 'Active', type: 'boolean' }],
+      [['free text'], ['prose']]);
+    expect(s2[0].fieldName).toBeNull();
+  });
+
+  it('leaves an unknown column unmapped', () => {
+    const s = suggestColumnMappings(['xyzzy_42'], FIELDS);
+    expect(s[0]).toMatchObject({ fieldName: null, confidence: null, reason: 'none' });
+  });
+
+  it('scoreToConfidence buckets by threshold', () => {
+    expect(scoreToConfidence(1)).toBe('high');
+    expect(scoreToConfidence(0.6)).toBe('medium');
+    expect(scoreToConfidence(0.3)).toBe('low');
+    expect(scoreToConfidence(0)).toBeNull();
   });
 });

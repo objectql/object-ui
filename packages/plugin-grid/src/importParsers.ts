@@ -192,3 +192,177 @@ export function isTypeCompatible(inferred: InferredType, fieldType: string): boo
     default: return true;
   }
 }
+
+// ── Airtable-style column → field mapping suggestions ───────────────────
+
+/** Normalize a header/field key: lower-case, strip separators/punctuation. */
+const normalizeKey = (s: string): string =>
+  s.toLowerCase().replace(/[\s_\-.]+/g, '').replace(/[()（）[\]{}:：,，、/]/g, '');
+
+/** Split a header/label into comparable tokens (space/underscore/case/CJK aware). */
+function tokenize(s: string): string[] {
+  return s
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[\s_\-./()（）[\]{}:：,，、]+/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Bilingual synonym groups — headers and field names in the same group are
+ * treated as strong matches even when neither contains the other (e.g. a
+ * `邮箱` column onto an `email` field). Deliberately conservative: only
+ * unambiguous, common CRM/spreadsheet concepts.
+ */
+const SYNONYM_GROUPS: string[][] = [
+  ['name', 'fullname', 'displayname', '姓名', '名称', '名字'],
+  ['email', 'emailaddress', 'mail', '邮箱', '电子邮箱', '邮件'],
+  ['phone', 'tel', 'telephone', 'mobile', 'cell', '手机', '电话', '手机号', '联系电话'],
+  ['date', '日期'],
+  ['datetime', 'timestamp', '时间', '日期时间'],
+  ['amount', 'price', 'total', 'cost', '金额', '价格', '总额', '总价', '费用'],
+  ['status', 'state', '状态'],
+  ['address', '地址'],
+  ['company', 'organization', 'org', '公司', '单位', '组织', '企业'],
+  ['description', 'desc', 'note', 'notes', 'remark', 'remarks', '备注', '描述', '说明'],
+  ['id', 'code', 'number', 'no', '编号', '编码', '代码'],
+  ['quantity', 'qty', 'count', '数量'],
+  ['country', '国家'], ['city', '城市'], ['province', 'state', '省份', '省'],
+  ['gender', 'sex', '性别'], ['age', '年龄'],
+  ['title', '标题', '职位', '头衔'],
+  ['owner', 'assignee', 'assignedto', '负责人', '负责', '所有者', '归属人'],
+  ['createdat', 'createdon', 'createtime', '创建时间'],
+  ['updatedat', 'updatedon', 'modifiedtime', '更新时间'],
+];
+
+const SYNONYM_INDEX: Map<string, number> = (() => {
+  const m = new Map<string, number>();
+  SYNONYM_GROUPS.forEach((group, gi) => group.forEach((k) => m.set(normalizeKey(k), gi)));
+  return m;
+})();
+
+/** Confidence bucket used for the mapping UI badge. */
+export type MappingConfidence = 'high' | 'medium' | 'low';
+
+/** Why a column was matched to a field — drives the UI hint text. */
+export type MappingReason = 'exact' | 'normalized' | 'synonym' | 'contains' | 'token' | 'none';
+
+/** A per-column mapping suggestion with a confidence score, à la Airtable. */
+export interface ColumnSuggestion {
+  columnIndex: number;
+  /** The suggested field name, or `null` when nothing matched confidently. */
+  fieldName: string | null;
+  /** Match strength in [0, 1]. */
+  score: number;
+  confidence: MappingConfidence | null;
+  reason: MappingReason;
+  /** Content-inferred type of the column (for the type-mismatch hint). */
+  inferredType: InferredType;
+}
+
+/** Minimal field descriptor the mapper needs (keeps this module React-free). */
+export interface MappableField {
+  name: string;
+  label?: string;
+  type: string;
+}
+
+/** Map a raw score to a confidence bucket (null → not assigned). */
+export function scoreToConfidence(score: number): MappingConfidence | null {
+  if (score >= 0.85) return 'high';
+  if (score >= 0.55) return 'medium';
+  if (score > 0) return 'low';
+  return null;
+}
+
+/** Minimum score for a column/field pair to be auto-applied. */
+const MIN_MATCH_SCORE = 0.4;
+
+function jaccard(a: string[], b: string[]): number {
+  if (a.length === 0 || b.length === 0) return 0;
+  const sa = new Set(a);
+  const sb = new Set(b);
+  let inter = 0;
+  sa.forEach((x) => { if (sb.has(x)) inter++; });
+  return inter / (sa.size + sb.size - inter);
+}
+
+/** Best (score, reason) for a single header ↔ field pair. */
+function scorePair(header: string, field: MappableField, inferred: InferredType): { score: number; reason: MappingReason } {
+  const targets = [field.name, field.label].filter((s): s is string => !!s);
+  const hNorm = normalizeKey(header);
+  const hTokens = tokenize(header);
+  let score = 0;
+  let reason: MappingReason = 'none';
+  const bump = (s: number, r: MappingReason) => { if (s > score) { score = s; reason = r; } };
+
+  for (const target of targets) {
+    if (header.trim() === target.trim()) { bump(1, 'exact'); continue; }
+    const tNorm = normalizeKey(target);
+    if (hNorm && tNorm && hNorm === tNorm) { bump(0.95, 'normalized'); continue; }
+    if (hNorm && tNorm && (hNorm.includes(tNorm) || tNorm.includes(hNorm))) {
+      const ratio = Math.min(hNorm.length, tNorm.length) / Math.max(hNorm.length, tNorm.length);
+      bump(0.5 + ratio * 0.35, 'contains');
+    }
+    const j = jaccard(hTokens, tokenize(target));
+    if (j > 0) bump(0.4 + j * 0.45, 'token');
+  }
+
+  // Synonym signal — header and any target land in the same concept group.
+  const hGroup = SYNONYM_INDEX.get(hNorm);
+  if (hGroup !== undefined && targets.some((t) => SYNONYM_INDEX.get(normalizeKey(t)) === hGroup)) {
+    bump(0.82, 'synonym');
+  }
+
+  // Type gate: for softer (non-exact) matches, reward a compatible inferred
+  // type and heavily discount an incompatible one so we don't confidently map
+  // a text column onto a number field just because the names rhyme.
+  if (reason !== 'exact' && reason !== 'normalized' && inferred !== 'text' && score > 0) {
+    if (isTypeCompatible(inferred, field.type)) score = Math.min(1, score + 0.05);
+    else score *= 0.5;
+  }
+  return { score, reason };
+}
+
+/**
+ * Suggest a field for every source column, Airtable-style: score each
+ * column/field pair on name/label similarity, bilingual synonyms, token
+ * overlap and (content-inferred) type compatibility, then assign globally by
+ * descending score so each column and each field is used at most once. `rows`
+ * is optional — without sample data only name-based signals fire (type gates
+ * are skipped). Returns one entry per column, in column order.
+ */
+export function suggestColumnMappings(
+  headers: string[],
+  fields: MappableField[],
+  rows?: string[][],
+): ColumnSuggestion[] {
+  const inferred = headers.map((_, ci) => inferColumnType(rows ? rows.map((r) => r[ci]) : []));
+
+  type Pair = { ci: number; field: string; score: number; reason: MappingReason };
+  const pairs: Pair[] = [];
+  headers.forEach((header, ci) => {
+    fields.forEach((field) => {
+      const { score, reason } = scorePair(header, field, inferred[ci]);
+      if (score > 0) pairs.push({ ci, field: field.name, score, reason });
+    });
+  });
+  // Greedy global assignment: highest-scoring pairs win their column + field.
+  pairs.sort((a, b) => b.score - a.score);
+  const usedCol = new Set<number>();
+  const usedField = new Set<string>();
+  const chosen = new Map<number, Pair>();
+  for (const p of pairs) {
+    if (p.score < MIN_MATCH_SCORE || usedCol.has(p.ci) || usedField.has(p.field)) continue;
+    chosen.set(p.ci, p);
+    usedCol.add(p.ci);
+    usedField.add(p.field);
+  }
+
+  return headers.map((_, ci) => {
+    const c = chosen.get(ci);
+    if (!c) return { columnIndex: ci, fieldName: null, score: 0, confidence: null, reason: 'none' as MappingReason, inferredType: inferred[ci] };
+    return { columnIndex: ci, fieldName: c.field, score: c.score, confidence: scoreToConfidence(c.score), reason: c.reason, inferredType: inferred[ci] };
+  });
+}
