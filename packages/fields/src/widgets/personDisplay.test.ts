@@ -14,6 +14,7 @@ import {
   getPersonSubtitle,
   getPersonAvatarUrl,
   getPersonId,
+  matchRanges,
 } from './personDisplay';
 
 describe('personDisplay helpers', () => {
@@ -89,5 +90,24 @@ describe('personDisplay helpers', () => {
       expect(getPersonId({ user_id: 9 }, 'user_id')).toBe(9);
       expect(getPersonId('plain')).toBe('plain');
     });
+  });
+});
+
+describe('matchRanges', () => {
+  it('returns no ranges for an empty query or empty text', () => {
+    expect(matchRanges('Amy Lin', '')).toEqual([]);
+    expect(matchRanges('', 'amy')).toEqual([]);
+  });
+
+  it('finds case-insensitive substring ranges', () => {
+    expect(matchRanges('Amy Lin', 'am')).toEqual([[0, 2]]);
+    expect(matchRanges('Sales · amy@x.io', 'amy')).toEqual([[8, 11]]);
+  });
+
+  it('finds every non-overlapping occurrence', () => {
+    expect(matchRanges('banana', 'an')).toEqual([
+      [1, 3],
+      [3, 5],
+    ]);
   });
 });

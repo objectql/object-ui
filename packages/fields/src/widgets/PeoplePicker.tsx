@@ -17,8 +17,9 @@ import {
   DialogTitle,
   Input,
   ScrollArea,
+  Skeleton,
 } from '@object-ui/components';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, AlertCircle } from 'lucide-react';
 import type { DataSource, LookupFilterDef } from '@object-ui/types';
 import { useRecordQuery } from './useRecordQuery';
 import { lookupFiltersToRecord } from './RecordPickerDialog';
@@ -35,6 +36,11 @@ import { useFieldTranslation } from './useFieldTranslation';
  * (avatar + name + department·email) → a live SelectionTray for multi-select.
  * Composed from the reusable {@link useRecordQuery} kernel and
  * {@link SelectionTray}; a future org-tree tier reuses both beside a left tree.
+ *
+ * Interaction: full keyboard model (↑/↓ move the cursor, ↵ toggles/commits,
+ * Backspace on an empty search removes the last chip, Esc closes), matched-term
+ * highlighting in rows, skeletons on first load with no flash-to-empty on
+ * refetch, and friendly empty / error+retry states.
  *
  * Candidate hygiene (e.g. `banned != true`), the department `$expand`, and the
  * avatar/subtitle field config are supplied by the caller (UserField). Pinyin /
@@ -71,6 +77,7 @@ export interface PeoplePickerProps {
 }
 
 const DEFAULT_PAGE_SIZE = 25;
+const SKELETON_ROWS = 6;
 
 export function PeoplePicker({
   open,
@@ -235,10 +242,58 @@ export function PeoplePicker({
     return query.records.filter(r => !recentSet.has(String(getPersonId(r, idField))));
   }, [hasSearch, query.records, recentIds, idField]);
 
-  const isEmpty =
-    !query.loading && resultRecords.length === 0 && recentRecords.length === 0;
+  // Flat, in-display-order list the keyboard cursor walks.
+  const navList = useMemo(
+    () => [...recentRecords, ...resultRecords],
+    [recentRecords, resultRecords],
+  );
 
-  const renderRow = (record: any) => {
+  // --- keyboard cursor ---
+  const [activeIndex, setActiveIndex] = useState(-1);
+  // Reset the cursor when the query changes (results replaced).
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [query.search, query.records]);
+  // Keep it in range if the list shrinks.
+  useEffect(() => {
+    setActiveIndex(i => (i >= navList.length ? navList.length - 1 : i));
+  }, [navList.length]);
+
+  const onSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveIndex(i => (navList.length ? Math.min(navList.length - 1, i + 1) : -1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveIndex(i => Math.max(0, i - 1));
+      } else if (e.key === 'Enter') {
+        if (activeIndex >= 0 && activeIndex < navList.length) {
+          e.preventDefault();
+          handleRowSelect(navList[activeIndex]);
+        }
+      } else if (
+        e.key === 'Backspace' &&
+        query.search.length === 0 &&
+        multiple &&
+        selectedRecords.length > 0
+      ) {
+        handleRemove(getPersonId(selectedRecords[selectedRecords.length - 1], idField));
+      }
+    },
+    [navList, activeIndex, handleRowSelect, query.search, multiple, selectedRecords, handleRemove, idField],
+  );
+
+  const initialLoading =
+    query.loading && !query.error && query.records.length === 0 && recentRecords.length === 0;
+  const refetching = query.loading && !initialLoading;
+  const isEmpty =
+    !query.loading &&
+    !query.error &&
+    resultRecords.length === 0 &&
+    recentRecords.length === 0;
+
+  const renderRow = (record: any, index: number) => {
     const id = getPersonId(record, idField);
     return (
       <PersonRow
@@ -248,6 +303,8 @@ export function PeoplePicker({
         subtitleFields={subtitleFields}
         avatarField={avatarField}
         selected={selectedIds.has(String(id))}
+        active={index === activeIndex}
+        highlightQuery={query.search}
         onSelect={handleRowSelect}
       />
     );
@@ -270,42 +327,76 @@ export function PeoplePicker({
             autoFocus
             value={query.search}
             onChange={e => query.setSearch(e.target.value)}
+            onKeyDown={onSearchKeyDown}
             placeholder={t('table.search')}
-            className="pl-8"
+            className="px-8"
+            role="combobox"
+            aria-expanded
+            aria-controls="people-picker-list"
             data-testid="people-picker-search"
           />
+          {query.loading && (
+            <Loader2
+              className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
+              aria-hidden
+            />
+          )}
         </div>
 
         {/* Candidate area */}
         <ScrollArea className="min-h-0 flex-1" data-testid="people-picker-list">
-          <div className="flex flex-col gap-0.5 pr-2">
-            {query.loading && (
-              <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                {t('lookup.loading')}
-              </div>
+          <div
+            id="people-picker-list"
+            role="listbox"
+            aria-busy={query.loading}
+            className={cn(
+              'flex flex-col gap-0.5 pr-2 transition-opacity',
+              refetching && 'opacity-70',
             )}
-
-            {!query.loading && recentRecords.length > 0 && (
-              <>
-                <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                  {t('lookup.recentlyUsed')}
+          >
+            {query.error ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-center text-sm text-muted-foreground">
+                <AlertCircle className="size-5 text-destructive" aria-hidden />
+                <span className="max-w-xs">{query.error}</span>
+                <Button type="button" variant="outline" size="sm" onClick={query.refetch}>
+                  {t('lookup.retry')}
+                </Button>
+              </div>
+            ) : initialLoading ? (
+              Array.from({ length: SKELETON_ROWS }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-2 py-1.5">
+                  <Skeleton className="size-9 shrink-0 rounded-full" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3 w-1/3" />
+                    <Skeleton className="h-2.5 w-1/2" />
+                  </div>
                 </div>
-                {recentRecords.map(renderRow)}
-                {resultRecords.length > 0 && (
-                  <div className="mt-1 px-2 py-1 text-xs font-medium text-muted-foreground">
-                    {t('lookup.allResults')}
+              ))
+            ) : (
+              <>
+                {recentRecords.length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                      {t('lookup.recentlyUsed')}
+                    </div>
+                    {recentRecords.map((r, i) => renderRow(r, i))}
+                    {resultRecords.length > 0 && (
+                      <div className="mt-1 flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground">
+                        <span>{t('lookup.allResults')}</span>
+                        <span className="font-normal opacity-70">· {query.total}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {resultRecords.map((r, i) => renderRow(r, recentRecords.length + i))}
+
+                {isEmpty && (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    {t('lookup.noRecords')}
                   </div>
                 )}
               </>
-            )}
-
-            {!query.loading && resultRecords.map(renderRow)}
-
-            {isEmpty && (
-              <div className="py-6 text-center text-sm text-muted-foreground">
-                {t('lookup.noRecords')}
-              </div>
             )}
           </div>
         </ScrollArea>
@@ -316,6 +407,8 @@ export function PeoplePicker({
             <SelectionTray
               records={selectedRecords}
               onRemove={handleRemove}
+              onClear={() => setSelectedRecords([])}
+              clearLabel={t('lookup.clear')}
               displayField={displayField}
               avatarField={avatarField}
               idField={idField}

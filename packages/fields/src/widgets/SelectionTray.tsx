@@ -33,6 +33,10 @@ export interface SelectionTrayProps {
   idField?: string;
   /** Header label, e.g. "Selected (3)" — omit to hide the header. */
   label?: string;
+  /** When provided, a "Clear all" action shows in the header while non-empty. */
+  onClear?: () => void;
+  /** Localized "Clear all" text (i18n-agnostic — caller passes it). */
+  clearLabel?: string;
   /** Shown when the selection is empty. */
   emptyText?: string;
   className?: string;
@@ -45,12 +49,29 @@ export function SelectionTray({
   avatarField = 'image',
   idField = 'id',
   label,
+  onClear,
+  clearLabel,
   emptyText,
   className,
 }: SelectionTrayProps) {
+  const showHeader = !!label || (!!onClear && records.length > 0);
   return (
     <div className={cn('flex flex-col gap-1.5', className)} data-testid="selection-tray">
-      {label && <div className="text-xs font-medium text-muted-foreground">{label}</div>}
+      {showHeader && (
+        <div className="flex items-center justify-between">
+          {label && <div className="text-xs font-medium text-muted-foreground">{label}</div>}
+          {onClear && records.length > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+              data-testid="selection-clear"
+            >
+              {clearLabel ?? 'Clear all'}
+            </button>
+          )}
+        </div>
+      )}
       {records.length === 0 ? (
         <div className="text-xs text-muted-foreground">{emptyText ?? ''}</div>
       ) : (

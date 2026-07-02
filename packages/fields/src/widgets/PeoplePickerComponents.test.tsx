@@ -67,4 +67,38 @@ describe('SelectionTray', () => {
     fireEvent.click(screen.getByLabelText('Remove Amy Lin'));
     expect(onRemove).toHaveBeenCalledWith('u1');
   });
+
+  it('shows Clear all only when non-empty and fires onClear', () => {
+    const onClear = vi.fn();
+    const { rerender } = render(
+      <SelectionTray records={[]} onRemove={vi.fn()} onClear={onClear} clearLabel="Clear all" />,
+    );
+    expect(screen.queryByTestId('selection-clear')).toBeNull();
+    rerender(
+      <SelectionTray records={[amy, bob]} onRemove={vi.fn()} onClear={onClear} clearLabel="Clear all" />,
+    );
+    fireEvent.click(screen.getByTestId('selection-clear'));
+    expect(onClear).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PersonRow — highlight + active', () => {
+  it('wraps the matched substring in a <mark>', () => {
+    const { container } = render(<PersonRow record={amy} highlightQuery="am" />);
+    const mark = container.querySelector('mark');
+    expect(mark?.textContent).toBe('Am');
+  });
+
+  it('renders plain text (no mark) when there is no query', () => {
+    const { container } = render(<PersonRow record={amy} />);
+    expect(container.querySelector('mark')).toBeNull();
+    expect(screen.getByText('Amy Lin')).toBeTruthy();
+  });
+
+  it('exposes the keyboard-active state via data-active', () => {
+    const { rerender } = render(<PersonRow record={amy} active={false} />);
+    expect(screen.getByTestId('person-row').getAttribute('data-active')).toBeNull();
+    rerender(<PersonRow record={amy} active />);
+    expect(screen.getByTestId('person-row').getAttribute('data-active')).toBe('true');
+  });
 });

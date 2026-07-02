@@ -157,4 +157,71 @@ describe('PeoplePicker', () => {
     expect(screen.getByText('Cara Xu')).toBeTruthy();
     expect(screen.getByText('All results')).toBeTruthy();
   });
+
+  it('keyboard: ArrowDown then Enter commits the active row (single)', async () => {
+    const ds = makeDataSource();
+    const onSelect = vi.fn();
+    render(
+      <PeoplePicker {...baseProps} dataSource={ds} onSelect={onSelect} onSelectRecords={vi.fn()} onOpenChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+    const search = screen.getByTestId('people-picker-search');
+    fireEvent.keyDown(search, { key: 'ArrowDown' });
+    fireEvent.keyDown(search, { key: 'Enter' });
+    expect(onSelect).toHaveBeenCalledWith('u1');
+  });
+
+  it('keyboard: Backspace on empty search removes the last chip (multi)', async () => {
+    const ds = makeDataSource();
+    render(
+      <PeoplePicker {...baseProps} multiple dataSource={ds} onSelect={vi.fn()} onSelectRecords={vi.fn()} onOpenChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+    fireEvent.click(screen.getByText('Amy Lin'));
+    fireEvent.click(screen.getByText('Bob Wu'));
+    await waitFor(() => expect(screen.getAllByTestId('selection-chip')).toHaveLength(2));
+    fireEvent.keyDown(screen.getByTestId('people-picker-search'), { key: 'Backspace' });
+    await waitFor(() => expect(screen.getAllByTestId('selection-chip')).toHaveLength(1));
+  });
+
+  it('multi: Clear all empties the tray', async () => {
+    const ds = makeDataSource();
+    render(
+      <PeoplePicker {...baseProps} multiple dataSource={ds} onSelect={vi.fn()} onSelectRecords={vi.fn()} onOpenChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+    fireEvent.click(screen.getByText('Amy Lin'));
+    fireEvent.click(screen.getByText('Bob Wu'));
+    await waitFor(() => expect(screen.getAllByTestId('selection-chip')).toHaveLength(2));
+    fireEvent.click(screen.getByTestId('selection-clear'));
+    await waitFor(() => expect(screen.queryAllByTestId('selection-chip')).toHaveLength(0));
+  });
+
+  it('highlights the matched term in rows while searching', async () => {
+    const ds = makeDataSource();
+    // Dialog content portals onto document.body, so query the document, not the
+    // render container.
+    render(<PeoplePicker {...baseProps} dataSource={ds} onSelect={vi.fn()} onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('people-picker-search'), { target: { value: 'amy' } });
+    await waitFor(() => expect(document.querySelector('mark')).toBeTruthy());
+    expect(document.querySelector('mark')?.textContent?.toLowerCase()).toContain('am');
+  });
+
+  it('shows an error with a retry that refetches', async () => {
+    let calls = 0;
+    const ds = {
+      find: vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) throw new Error('boom');
+        return { data: [users[0]], total: 1 };
+      }),
+    } as any;
+    render(
+      <PeoplePicker {...baseProps} dataSource={ds} onSelect={vi.fn()} onOpenChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByText('boom')).toBeTruthy());
+    fireEvent.click(screen.getByText('Retry'));
+    await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+  });
 });

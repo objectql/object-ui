@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage, cn } from '@object-ui/components';
 import { Check } from 'lucide-react';
 import {
@@ -14,26 +14,48 @@ import {
   getPersonInitials,
   getPersonSubtitle,
   getPersonAvatarUrl,
+  matchRanges,
 } from './personDisplay';
 
 /**
  * A rich, single-line candidate row for the search-first PeoplePicker:
  * avatar (image with initials fallback) + name + subtitle (department · email).
  * The subtitle is what lets search stand in for an org tree — it disambiguates
- * same-named people inline. Selectable/toggleable; a Check marks the selected
- * state for both single- and multi-select.
+ * same-named people inline. The typed query is highlighted in both lines.
+ * Selectable/toggleable; a Check marks the selected state, and `active` reflects
+ * the keyboard cursor (scrolls itself into view).
  */
 export interface PersonRowProps {
   record: any;
-  /** Field holding the display name. Default `name`. */
   displayField?: string;
-  /** Dotted field paths joined with " · " for the secondary line. */
   subtitleFields?: string[];
-  /** Field holding the avatar image URL. Default `image`. */
   avatarField?: string;
   selected?: boolean;
+  /** Keyboard cursor is on this row — highlight + scroll into view. */
+  active?: boolean;
+  /** Typed search term; matches are highlighted in name + subtitle. */
+  highlightQuery?: string;
   onSelect?: (record: any) => void;
   className?: string;
+}
+
+/** Wrap literal matches of `query` in a subtle highlight. */
+function Highlighted({ text, query }: { text: string; query?: string }): React.ReactElement {
+  const ranges = query ? matchRanges(text, query) : [];
+  if (ranges.length === 0) return <>{text}</>;
+  const out: React.ReactNode[] = [];
+  let cursor = 0;
+  ranges.forEach(([start, end], i) => {
+    if (start > cursor) out.push(text.slice(cursor, start));
+    out.push(
+      <mark key={i} className="rounded-[2px] bg-primary/20 px-px text-inherit">
+        {text.slice(start, end)}
+      </mark>,
+    );
+    cursor = end;
+  });
+  if (cursor < text.length) out.push(text.slice(cursor));
+  return <>{out}</>;
 }
 
 export function PersonRow({
@@ -42,6 +64,8 @@ export function PersonRow({
   subtitleFields,
   avatarField = 'image',
   selected = false,
+  active = false,
+  highlightQuery,
   onSelect,
   className,
 }: PersonRowProps) {
@@ -50,16 +74,26 @@ export function PersonRow({
   const avatarUrl = getPersonAvatarUrl(record, avatarField);
   const initials = getPersonInitials(name);
 
+  const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // Optional-call the method too — jsdom doesn't implement scrollIntoView.
+    if (active) ref.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [active]);
+
   return (
     <button
+      ref={ref}
       type="button"
+      tabIndex={-1}
       onClick={() => onSelect?.(record)}
       aria-pressed={selected}
       data-testid="person-row"
+      data-active={active || undefined}
       className={cn(
         'flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors',
-        'hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
+        'hover:bg-accent focus-visible:outline-none',
         selected && 'bg-accent',
+        active && 'bg-accent ring-1 ring-inset ring-ring',
         className,
       )}
     >
@@ -68,9 +102,13 @@ export function PersonRow({
         <AvatarFallback className="text-xs">{initials}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">{name || '—'}</div>
+        <div className="truncate text-sm font-medium">
+          {name ? <Highlighted text={name} query={highlightQuery} /> : '—'}
+        </div>
         {subtitle && (
-          <div className="truncate text-xs text-muted-foreground">{subtitle}</div>
+          <div className="truncate text-xs text-muted-foreground">
+            <Highlighted text={subtitle} query={highlightQuery} />
+          </div>
         )}
       </div>
       {selected && <Check className="size-4 shrink-0 text-primary" aria-hidden />}

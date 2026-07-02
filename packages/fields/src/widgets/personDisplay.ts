@@ -67,3 +67,26 @@ export function getPersonId(record: any, idField = 'id'): any {
   if (!record || typeof record !== 'object') return record;
   return record[idField] ?? record.id ?? record._id;
 }
+
+/**
+ * Case-insensitive literal-substring match ranges of `query` in `text`, as
+ * `[start, end)` index pairs. Used to highlight the typed term in candidate
+ * rows — a strong disambiguation aid for same-named people. Pinyin matches are
+ * resolved server-side and won't have client ranges; that's fine, the row still
+ * shows, just without a highlight.
+ */
+export function matchRanges(text: string, query: string): Array<[number, number]> {
+  const t = text ?? '';
+  const q = (query ?? '').trim().toLowerCase();
+  if (!q || !t) return [];
+  const lower = t.toLowerCase();
+  const ranges: Array<[number, number]> = [];
+  let from = 0;
+  for (;;) {
+    const idx = lower.indexOf(q, from);
+    if (idx === -1) break;
+    ranges.push([idx, idx + q.length]);
+    from = idx + q.length;
+  }
+  return ranges;
+}
