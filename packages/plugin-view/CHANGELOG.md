@@ -1,5 +1,16 @@
 # @object-ui/plugin-view
 
+## 11.3.1
+
+### Patch Changes
+
+- @object-ui/plugin-form@11.3.1
+- @object-ui/plugin-grid@11.3.1
+- @object-ui/types@11.3.1
+- @object-ui/core@11.3.1
+- @object-ui/react@11.3.1
+- @object-ui/components@11.3.1
+
 ## 11.3.0
 
 ### Patch Changes

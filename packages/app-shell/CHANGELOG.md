@@ -1,5 +1,70 @@
 # @object-ui/app-shell — Changelog
 
+## 11.3.1
+
+### Patch Changes
+
+- 839f6c2: fix(studio): stamp packageId on pillar draft saves → true package-scoped publish
+
+  Studio pillar draft-saves now pass the active `packageId`, so each draft row is
+  stamped with its package binding (`sys_metadata.package_id`) instead of `null`.
+  This makes the package-scoped surfaces reliable: the top-bar count + Changes review
+  filter via `GET /meta/_drafts?packageId=`, and Publish promotes exactly this
+  package's drafts via `POST /packages/:id/publish-drafts` (which matches
+  `WHERE package_id = X`). Replaces the previous "publish all pending" fallback that
+  was only needed because null-package drafts couldn't be package-filtered or picked
+  up by publish-drafts.
+
+- 5ba3d0e: feat(studio): WYSIWYG form-layout designer in the Data pillar
+
+  The Data pillar's Form view gains a **布局 (Layout)** designer: the object's default
+  form rendered WYSIWYG, where an admin adds **sections**, drag-reorders fields within
+  a section and drags them **across** sections, and clicks a field to edit it in the
+  **same** protocol inspector the grid uses — one screen, no Data↔Interface switch.
+
+  Sections persist as the object's `fieldGroups`, and membership/order as `field.group`
+  plus field order, via the existing draft → publish. The drag/section chrome (dnd-kit)
+  is the only new code; the data model and all mutations reuse the existing, tested
+  `object-fields-io` helpers (`readGroups`/`addGroup`/`renameGroup`/`removeGroup`/
+  `moveGroup`/`clearFieldGroup`/`groupEntries`).
+
+  Also fixes the Data pillar clobbering an in-progress draft when the metadata client
+  identity churned (e.g. toggling the live preview): the object baseline is now loaded
+  exactly once per selected object.
+
+- 65efc01: feat(studio): package-level draft publish (replaces per-item publish)
+
+  The pillar Studio now publishes at the **package** level, not item-by-item. Edits
+  across Data / Automation / Interface accumulate as per-item **drafts**; the top bar
+  shows a pending-draft **count**, a **变更** (Changes) review, and one **发布** that
+  publishes **all** pending drafts in a single governed pass — reusing
+  `usePublishAllDrafts` (per-package `publish-drafts` with structure-before-seeds + the
+  ADR-0038 L3 probes, and by-reference for orphan / null-package drafts).
+
+  - The per-pillar **发布** buttons are removed; **保存草稿** stays (drafts accumulate).
+  - The Data grid's drag-reorder no longer **auto-publishes** — it saves a draft like
+    every other edit, so nothing goes live outside the one package publish.
+  - After a publish, pillars re-read the fresh published baseline (a publish nonce),
+    and a draft-save refreshes the pending count.
+
+- Updated dependencies [5160832]
+- Updated dependencies [69d6b94]
+- Updated dependencies [243a9ba]
+- Updated dependencies [289be5b]
+  - @object-ui/fields@11.3.1
+  - @object-ui/types@11.3.1
+  - @object-ui/core@11.3.1
+  - @object-ui/i18n@11.3.1
+  - @object-ui/react@11.3.1
+  - @object-ui/components@11.3.1
+  - @object-ui/layout@11.3.1
+  - @object-ui/data-objectstack@11.3.1
+  - @object-ui/auth@11.3.1
+  - @object-ui/permissions@11.3.1
+  - @object-ui/plugin-editor@11.3.1
+  - @object-ui/collaboration@11.3.1
+  - @object-ui/providers@11.3.1
+
 ## 11.3.0
 
 ### Patch Changes

@@ -1,5 +1,82 @@
 # @object-ui/fields
 
+## 11.3.1
+
+### Patch Changes
+
+- 5160832: fix(fields): inline-edit relational fields with the standard picker (not a text box)
+
+  Inline cell editing reuses the form's field widgets, but the inline map
+  (`EDIT_WIDGETS`) was a hand-maintained subset of the form's (`fieldWidgetMap`)
+  and had drifted: **lookup / master_detail / user / owner** had perfectly good
+  form pickers yet fell back to a plain text box inline (you'd type a raw record
+  id). Wire them up — `lookup`/`master_detail` → `LookupField`, `user`/`owner` →
+  `UserField`, the exact widgets the form uses. They read the related-object
+  dataSource from `SchemaRendererContext` (which the grid provides), so the
+  record picker opens, fetches, and selects inline.
+
+  To stop the two lists drifting again, `index` now exports `FORM_FIELD_TYPES`
+  and a drift-guard test pins the contract: every form widget type must have an
+  explicit inline decision — an editor in `EDIT_WIDGETS` or an entry in the new
+  `INLINE_EXCLUDED_FIELD_TYPES` (computed/binary/heavy/container types, each with
+  a reason). A future form widget can no longer silently become a text box (or a
+  missing editor) in the grid.
+
+- 69d6b94: feat(fields): inline-edit structured-value fields (color, address, location, geolocation, code, qrcode)
+
+  Completes the inline-editor ↔ form-widget parity from the previous fix: the six
+  structured types that already had lightweight form widgets — `color`,
+  `address`, `location`, `geolocation`, `code`, `qrcode` — now edit inline with
+  those same widgets instead of being deferred. All are dependency-light (no map
+  or code-editor libraries) and use the standard `FieldWidgetProps`. Verified
+  inline on the field-zoo: color → a color picker, code → a textarea, the rest
+  their value editors. The drift-guard's exclusion set now contains only the
+  genuinely-non-inline types (computed, binary, heavy editors, containers).
+
+- 243a9ba: fix(fields): inline lookup editor shows the selected record's name (not the "Select…" placeholder)
+
+  When editing a `lookup` / `master_detail` / `user` / `owner` field inline in the
+  data grid, the `LookupField` picker showed the placeholder instead of the
+  current record's name. The grid requests `$expand` for visible reference
+  columns, so a lookup cell's value arrives as the related record **object**
+  (`{ id, name }`) rather than a bare id. The read cell (`LookupCellRenderer`)
+  already resolves objects via the display-name path, but the inline editor only
+  matched **primitive** ids (`findOption(value)` with a strict `===`), so an
+  object value never resolved — and the hydration effect made it worse by calling
+  `findOne(referenceTo, <object>)` with a bogus id.
+
+  `LookupField` now resolves an expanded-reference object directly into its
+  display option (mirroring the read cell), skips the pointless per-object fetch,
+  and normalises object values to their id for option matching / multi-select
+  toggle / removal. `FieldEditWidget` also renders the relational pickers
+  `compact` inline — the same single-line, borderless trigger the line-item grid
+  uses — so the record name shows **in** the trigger instead of a chip stacked
+  above a "Select…" button.
+
+- 289be5b: fix(fields): align inline lookup value resolution with the read cell (external-id strings, tolerant id match)
+
+  Follow-up to #2125. `LookupField`'s inline display now resolves every value
+  shape the read cell (`LookupCellRenderer`) does:
+
+  - **JSON-encoded external-id references** (`'{"externalId":"Website Relaunch"}'`)
+    are parsed and shown by their external id, and excluded from the hydration
+    fetch (so we never `findOne` with a raw JSON string). `recordToOption` gained
+    an `externalId` fallback for both the value and the label.
+  - **Tolerant id matching** — a `String()`-coerced fallback (`findOptionLoose`)
+    resolves a numeric cell value against a string-keyed option (and vice versa),
+    matching the read cell's `String(a) === String(b)` comparison. Only consulted
+    when the strict match misses, so homogeneous option lists are unaffected.
+
+  Also adds explicit inline-editor tests for `user` / `owner` fields (they
+  delegate to `LookupField` via `UserField`), completing coverage for the full
+  relational set wired inline in #2122.
+  - @object-ui/types@11.3.1
+  - @object-ui/core@11.3.1
+  - @object-ui/i18n@11.3.1
+  - @object-ui/react@11.3.1
+  - @object-ui/components@11.3.1
+  - @object-ui/providers@11.3.1
+
 ## 11.3.0
 
 ### Patch Changes
