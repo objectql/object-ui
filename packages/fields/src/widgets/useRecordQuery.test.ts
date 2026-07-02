@@ -44,7 +44,9 @@ describe('useRecordQuery', () => {
     );
 
     await waitFor(() => expect(ds.find).toHaveBeenLastCalledWith('o', { $top: 10, $skip: 0 }));
-    expect(result.current.totalPages).toBe(10);
+    // waitFor: the call firing doesn't guarantee its promise resolved and
+    // setTotal flushed — assert on the settled state, not a bare read.
+    await waitFor(() => expect(result.current.totalPages).toBe(10));
 
     act(() => result.current.setPage(3));
     await waitFor(() =>

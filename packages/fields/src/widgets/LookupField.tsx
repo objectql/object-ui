@@ -15,6 +15,7 @@ import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types'
 import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
 import { PeoplePicker } from './PeoplePicker';
+import { useRecordQuery } from './useRecordQuery';
 import { deriveLookupColumns } from './deriveLookupColumns';
 import { getRecordDisplayName } from '@object-ui/core';
 import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
@@ -176,16 +177,12 @@ function mapFieldTypeToFilterType(
  */
 export function LookupField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const { t } = useFieldTranslation();
   const listboxId = React.useId();
 
-  // Dynamic data loading state
-  const [fetchedOptions, setFetchedOptions] = useState<LookupOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Create-new error is local; the popover's fetch state (search/loading/error/
+  // total/options) is sourced from the shared useRecordQuery kernel below.
+  const [createError, setCreateError] = useState<string | null>(null);
 
   // Records selected via RecordPickerDialog (Level 2).
   // Stored as LookupOption so that findOption can resolve display labels
@@ -350,6 +347,44 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
   // Determine which options to display
+  // Quick-select popover fetch — the shared record-query kernel (same one the
+  // Record Picker dialog and PeoplePicker use). Filter = dependent-lookup chain
+  // + base lookupFilters, so the popover matches the full picker.
+  const popoverFilter = useMemo<Record<string, any> | undefined>(() => {
+    const f: Record<string, any> = {};
+    for (const { field, param } of dependsOn) {
+      const v = resolvedDependentValues[field];
+      if (v === undefined || v === null || v === '') continue;
+      f[param] = typeof v === 'number' ? v : String(v);
+    }
+    if (lookupFilters && lookupFilters.length > 0) {
+      Object.assign(f, lookupFiltersToRecord(lookupFilters));
+    }
+    return Object.keys(f).length > 0 ? f : undefined;
+  }, [dependsOn, resolvedDependentValues, lookupFilters]);
+
+  const popoverQuery = useRecordQuery({
+    dataSource,
+    objectName: referenceTo,
+    enabled: isOpen && hasDataSource && !dependenciesMissing,
+    pageSize: LOOKUP_PAGE_SIZE,
+    filter: popoverFilter,
+  });
+
+  // Re-source the popover's fetch state from the kernel; all existing read sites
+  // (searchQuery / loading / error / totalCount / fetchedOptions) stay unchanged.
+  const searchQuery = popoverQuery.search;
+  const loading = popoverQuery.loading;
+  const totalCount = popoverQuery.total;
+  const error = popoverQuery.error ?? createError;
+  const fetchedOptions = useMemo(
+    () =>
+      popoverQuery.records.map(r =>
+        recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema),
+      ),
+    [popoverQuery.records, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema],
+  );
+
   const allOptions = hasDataSource ? fetchedOptions : staticOptions;
 
   // For static options, filter locally based on search
@@ -368,123 +403,18 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     setActiveIndex(-1);
   }, [filteredOptions.length]);
 
-  // Fetch data from DataSource
-  const fetchLookupData = useCallback(
-    async (search?: string) => {
-      if (!dataSource || !referenceTo) return;
-      // Don't issue a request that ignores configured dependencies.
-      if (dependenciesMissing) {
-        setFetchedOptions([]);
-        setTotalCount(0);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const params: QueryParams = {
-          $top: LOOKUP_PAGE_SIZE,
-        };
-        if (search && search.trim()) {
-          params.$search = search.trim();
-        }
-
-        // Build a dependent-lookup filter chain: AND of `param eq value`.
-        // QueryParams.$filter is a Record<string, any> — adapters convert to
-        // the underlying query language (OData, ObjectQL, etc).
-        if (dependsOn.length > 0) {
-          const filterEntries: Record<string, any> = {};
-          for (const { field, param } of dependsOn) {
-            const v = resolvedDependentValues[field];
-            if (v === undefined || v === null || v === '') continue;
-            filterEntries[param] = typeof v === 'number' ? v : String(v);
-          }
-          if (Object.keys(filterEntries).length > 0) {
-            params.$filter = filterEntries;
-          }
-        }
-
-        // Apply base scoping filters so the quick-select popover matches the
-        // full picker dialog (lookupFilters were previously dialog-only).
-        if (lookupFilters && lookupFilters.length > 0) {
-          params.$filter = { ...(params.$filter ?? {}), ...lookupFiltersToRecord(lookupFilters) };
-        }
-
-        const result = await dataSource.find(referenceTo, params);
-        const records: any[] = result?.data ?? result ?? [];
-        const mapped = records.map(r => recordToOption(r, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema));
-
-        setFetchedOptions(mapped);
-        setTotalCount(result?.total ?? records.length);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(msg);
-        setFetchedOptions([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [dataSource, referenceTo, displayField, idField, effectiveDescriptionField, refTitleFormat, dependenciesMissing, dependsOn, resolvedDependentValues, lookupFilters],
-  );
-
-  // Re-fetch when dependent values change while the picker is open. This keeps
-  // a "City" dropdown reactive when the user changes "Country" without closing.
-  const dependencySignature = useMemo(
-    () => dependsOn.map(d => `${d.param}=${resolvedDependentValues[d.field] ?? ''}`).join('|'),
-    [dependsOn, resolvedDependentValues],
-  );
+  // Reset the keyboard cursor when the popover closes. Fetch state (records,
+  // search, error, total) is owned by `popoverQuery` and resets automatically
+  // when it becomes disabled (via `enabled`), including its debounced search.
   useEffect(() => {
-    if (isOpen && hasDataSource && dependsOn.length > 0) {
-      fetchLookupData(searchQuery || undefined);
-      // Clear local selection if it no longer satisfies the new filter chain —
-      // out of scope here; consumer should validate on submit.
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dependencySignature]);
-
-  // Fetch data when dialog opens.
-  // We intentionally depend only on `isOpen` so the effect fires once per
-  // open/close transition. `fetchLookupData` is stable-enough via its own
-  // useCallback deps; including it here would cause spurious re-fetches.
-  useEffect(() => {
-    if (isOpen && hasDataSource) {
-      fetchLookupData(searchQuery || undefined);
-    }
-    // Clean up fetched data when dialog closes
-    if (!isOpen) {
-      setSearchQuery('');
-      setError(null);
-      setActiveIndex(-1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!isOpen) setActiveIndex(-1);
   }, [isOpen]);
 
-  // Debounced search
+  // Search is the kernel's debounced setter.
   const handleSearchChange = useCallback(
-    (query: string) => {
-      setSearchQuery(query);
-
-      if (!hasDataSource) return;
-
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
-      debounceTimer.current = setTimeout(() => {
-        fetchLookupData(query || undefined);
-      }, 300);
-    },
-    [hasDataSource, fetchLookupData],
+    (query: string) => popoverQuery.setSearch(query),
+    [popoverQuery.setSearch],
   );
-
-  // Clean up debounce timer
-  useEffect(() => {
-    return () => {
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
-    };
-  }, []);
 
   /**
    * Hydrate the picker's display when the field already has a value (e.g.
@@ -702,14 +632,14 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       if (onCreateNew) { onCreateNew(label); setIsOpen(false); return; }
       if (!allowCreate || !dataSource || !referenceTo || !label) return;
       setCreating(true);
-      setError(null);
+      setCreateError(null);
       try {
         const created = await (dataSource as any).create(referenceTo, { [displayField]: label });
         const opt = recordToOption(created, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema);
         setPickerResolvedRecords((prev) => [opt, ...prev.filter((o) => o.value !== opt.value)]);
         handleSelect(opt);
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setCreateError(err instanceof Error ? err.message : String(err));
       } finally {
         setCreating(false);
       }
@@ -923,7 +853,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => fetchLookupData(searchQuery || undefined)}
+                onClick={() => popoverQuery.refetch()}
                 type="button"
               >
                 {t('lookup.retry')}
