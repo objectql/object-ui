@@ -51,8 +51,7 @@ import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import { readFields, writeFields, newField } from '../metadata-admin/previews/object-fields-io';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
-import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { toast } from 'sonner';
 
 const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'data', label: 'Data', Icon: Database },
@@ -140,24 +139,20 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const packageId = params.packageId ?? 'com.example.showcase';
   const tab = params.tab ?? 'interfaces';
 
-  // Package-level publish (ADR-0033/0037): edits accumulate as per-item drafts;
-  // publishing is ONE governed pass over ALL pending drafts — the same path the
-  // Home banner / draft-preview bar use (usePublishAllDrafts → per-package
-  // publish-drafts with structure-before-seeds + L3 probes, and by-reference for
-  // orphan/null-package drafts). Reviewed as a whole in DraftChangesPanel; there
-  // is no per-item publish. (Drafts carry no reliable packageId — the flow overlay
-  // reports null — so we count/publish ALL pending, which in the single-package
-  // Studio is exactly this app's build.)
-  const { t } = useObjectTranslation();
-  const { publishAll, publishing } = usePublishAllDrafts(t);
+  // Package-level publish (ADR-0033/0037/0048): edits accumulate as per-item
+  // drafts STAMPED with this package (each save passes packageId → the draft row's
+  // sys_metadata.package_id). Publishing promotes exactly THIS package's drafts in
+  // one atomic pass (POST /packages/:id/publish-drafts), reviewed as a whole in
+  // DraftChangesPanel. There is no per-item publish.
   const [changesOpen, setChangesOpen] = React.useState(false);
   const [pendingCount, setPendingCount] = React.useState<number | null>(null);
+  const [publishing, setPublishing] = React.useState(false);
   const [publishNonce, setPublishNonce] = React.useState(0); // ↑ → pillars re-read the published baseline
   const [draftNonce, setDraftNonce] = React.useState(0); // ↑ → refresh the pending-draft count
 
   const refreshPending = React.useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/meta/_drafts', {
+      const res = await fetch(`/api/v1/meta/_drafts?packageId=${encodeURIComponent(packageId)}`, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
         cache: 'no-store',
@@ -169,20 +164,33 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
     } catch {
       setPendingCount(null);
     }
-  }, []);
+  }, [packageId]);
 
   React.useEffect(() => {
     void refreshPending();
   }, [refreshPending, publishNonce, draftNonce]);
 
   const doPublish = React.useCallback(async () => {
-    const r = await publishAll();
-    if (r.ok) {
+    setPublishing(true);
+    try {
+      const res = await fetch(`/api/v1/packages/${encodeURIComponent(packageId)}/publish-drafts`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: '{}',
+      });
+      const payload = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
+      if (!res.ok || payload?.success === false) throw new Error(payload?.error?.message || `HTTP ${res.status}`);
+      toast.success('已发布本软件包的全部草稿(一次原子发布)');
       setChangesOpen(false);
       setPublishNonce((n) => n + 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPublishing(false);
     }
     await refreshPending();
-  }, [publishAll, refreshPending]);
+  }, [packageId, refreshPending]);
 
   const onDraftSaved = React.useCallback(() => setDraftNonce((n) => n + 1), []);
   const hasPending = (pendingCount ?? 0) > 0;
@@ -249,7 +257,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
         </div>
       </div>
 
-      <DraftChangesPanel open={changesOpen} onOpenChange={setChangesOpen} />
+      <DraftChangesPanel open={changesOpen} onOpenChange={setChangesOpen} packageId={packageId} />
     </div>
   );
 }
@@ -439,7 +447,7 @@ function InterfacesPillar({
     if (!current) return;
     setSaving('draft');
     try {
-      await client.save(current.type, current.name, draft, { mode: 'draft' });
+      await client.save(current.type, current.name, draft, { mode: 'draft', packageId });
       setHasDraft(true);
       onDraftSaved?.();
     } catch (e) {
@@ -458,7 +466,7 @@ function InterfacesPillar({
     if (!appName) return;
     setNavSaving('draft');
     try {
-      await client.save('app', appName, appDraft, { mode: 'draft' });
+      await client.save('app', appName, appDraft, { mode: 'draft', packageId });
       setNavHasDraft(true);
       setNavDirty(false);
       onDraftSaved?.();
@@ -845,7 +853,7 @@ function DataPillar({
     setSaving('draft');
     setError(null);
     try {
-      await client.save('object', current.name, objDraft, { mode: 'draft' });
+      await client.save('object', current.name, objDraft, { mode: 'draft', packageId });
       setHasDraft(true);
       setDirty(false);
       onDraftSaved?.();
@@ -876,7 +884,7 @@ function DataPillar({
       setSaving('draft');
       setError(null);
       try {
-        await client.save('object', current.name, body, { mode: 'draft' });
+        await client.save('object', current.name, body, { mode: 'draft', packageId });
         setHasDraft(true);
         setDirty(false);
         onDraftSaved?.();
@@ -1254,7 +1262,7 @@ function AutomationsPillar({
     setSaving('draft');
     setError(null);
     try {
-      await client.save('flow', current.name, draft, { mode: 'draft' });
+      await client.save('flow', current.name, draft, { mode: 'draft', packageId });
       setHasDraft(true);
       onDraftSaved?.();
     } catch (e) {

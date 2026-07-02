@@ -39,8 +39,9 @@ export interface DraftChangeEntry {
 }
 
 /** Pending drafts straight from the ADR-0033 `_drafts` endpoint. */
-async function listPendingDrafts(): Promise<DraftChangeEntry[]> {
-  const res = await fetch('/api/v1/meta/_drafts', {
+async function listPendingDrafts(packageId?: string | null): Promise<DraftChangeEntry[]> {
+  const qs = packageId ? `?packageId=${encodeURIComponent(packageId)}` : '';
+  const res = await fetch(`/api/v1/meta/_drafts${qs}`, {
     credentials: 'include',
     headers: { Accept: 'application/json' },
     cache: 'no-store',
@@ -85,9 +86,11 @@ async function publishedNamesOf(type: string): Promise<Set<string>> {
 export interface DraftChangesPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** When set, list only pending drafts belonging to this package (Studio is package-scoped). */
+  packageId?: string | null;
 }
 
-export function DraftChangesPanel({ open, onOpenChange }: DraftChangesPanelProps) {
+export function DraftChangesPanel({ open, onOpenChange, packageId }: DraftChangesPanelProps) {
   const { t } = useObjectTranslation();
   const [entries, setEntries] = useState<DraftChangeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +99,7 @@ export function DraftChangesPanel({ open, onOpenChange }: DraftChangesPanelProps
     setEntries(null);
     setError(null);
     try {
-      const drafts = await listPendingDrafts();
+      const drafts = await listPendingDrafts(packageId);
       setEntries(drafts);
       // Classify new-vs-update per TYPE: one published-list read covers every
       // draft of that type. A type whose read fails stays unclassified
@@ -124,7 +127,7 @@ export function DraftChangesPanel({ open, onOpenChange }: DraftChangesPanelProps
     } catch (e) {
       setError((e as Error).message);
     }
-  }, []);
+  }, [packageId]);
 
   useEffect(() => {
     if (open) void load();
