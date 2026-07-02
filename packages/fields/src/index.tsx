@@ -10,7 +10,7 @@ import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
 import { ComponentRegistry, percentDisplayValue } from '@object-ui/core';
 import { useLocalization } from '@object-ui/i18n';
-import { Badge, Avatar, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
+import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import { SchemaRendererContext as _SchemaRendererContext } from '@object-ui/react';
@@ -1327,6 +1327,7 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
               className="size-8 border-2 border-white"
               title={name}
             >
+              {user.image && <AvatarImage src={user.image} alt={name} />}
               <AvatarFallback className="bg-blue-500 text-white text-xs">
                 {initials}
               </AvatarFallback>
@@ -1350,6 +1351,7 @@ export function UserCellRenderer({ value }: CellRendererProps): React.ReactEleme
   return (
     <div className="flex items-center gap-2">
       <Avatar className="size-8">
+        {value.image && <AvatarImage src={value.image} alt={name} />}
         <AvatarFallback className="bg-blue-500 text-white text-xs">
           {initials}
         </AvatarFallback>

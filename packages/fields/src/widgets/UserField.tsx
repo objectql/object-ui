@@ -14,7 +14,21 @@ import { LookupField } from './LookupField';
  *
  * Table-cell display (avatars / initials) is handled separately by
  * `UserCellRenderer`; this is the form/editor widget.
+ *
+ * By default the user picker is the search-first {@link PeoplePicker}
+ * (`picker: 'search'`) with a department·email subtitle, avatar, and banned
+ * users excluded from candidates. Authors can override any of these, or opt
+ * back to the classic table dialog with `picker: 'default'`.
  */
+
+/** Exclude deactivated (`banned`) users unless the author already filters on it. */
+function withBannedFilter(filters?: any[]): any[] {
+  const base = Array.isArray(filters) ? filters : [];
+  return base.some(f => f?.field === 'banned')
+    ? base
+    : [...base, { field: 'banned', operator: 'ne', value: true }];
+}
+
 export function UserField(props: FieldWidgetProps<any>) {
   const raw = (props.field || (props as any).schema) as any;
 
@@ -26,11 +40,16 @@ export function UserField(props: FieldWidgetProps<any>) {
   const meta = metaIsNested ? raw.field : raw;
 
   // Ensure the picker always targets sys_user (even if the author omitted an
-  // explicit reference) and presents user names by default.
+  // explicit reference), presents user names by default, and defaults to the
+  // search-first PeoplePicker with sensible person display + candidate hygiene.
   const normalized = {
     ...(meta || {}),
     reference: meta?.reference || meta?.reference_to || 'sys_user',
     display_field: meta?.display_field || meta?.displayField || meta?.reference_field || 'name',
+    picker: meta?.picker ?? 'search',
+    subtitle: meta?.subtitle ?? ['primary_business_unit_id.name', 'email'],
+    avatar_field: meta?.avatar_field ?? meta?.avatarField ?? 'image',
+    lookup_filters: withBannedFilter(meta?.lookup_filters ?? meta?.lookupFilters),
   };
 
   const fieldProp = metaIsNested ? { ...raw, field: normalized } : normalized;

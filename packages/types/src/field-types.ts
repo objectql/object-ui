@@ -499,6 +499,31 @@ export interface AutoNumberFieldMetadata extends BaseFieldMetadata {
 export interface UserFieldMetadata extends BaseFieldMetadata {
   type: 'user' | 'owner';
   multiple?: boolean;
+
+  /**
+   * Picker UI variant.
+   * - `'search'` — the search-first PeoplePicker (rich rows + selection tray).
+   *   Default for `user`/`owner` fields.
+   * - `'default'` — the classic table-based record-picker dialog.
+   */
+  picker?: 'search' | 'default';
+
+  /**
+   * Dotted field paths shown as the candidate/row subtitle for disambiguation.
+   * Relation paths auto-expand (e.g. `primary_business_unit_id.name`).
+   * @example ['primary_business_unit_id.name', 'email']
+   */
+  subtitle?: string[];
+
+  /** Field holding the avatar image URL. Default `image`. */
+  avatar_field?: string;
+
+  /**
+   * Base candidate filters applied to the picker query — e.g. exclude
+   * deactivated users. Defaults to excluding `banned` users for user fields.
+   * @example [{ field: 'banned', operator: 'ne', value: true }]
+   */
+  lookup_filters?: LookupFilterDef[];
 }
 
 /**

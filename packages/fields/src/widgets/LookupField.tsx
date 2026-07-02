@@ -11,6 +11,7 @@ import { FieldWidgetProps } from './types';
 import type { DataSource, QueryParams, LookupColumnDef } from '@object-ui/types';
 import { RecordPickerDialog, lookupFiltersToRecord } from './RecordPickerDialog';
 import type { RecordPickerFilterColumn } from './RecordPickerDialog';
+import { PeoplePicker } from './PeoplePicker';
 import { deriveLookupColumns } from './deriveLookupColumns';
 import { getRecordDisplayName } from '@object-ui/core';
 import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
@@ -218,6 +219,13 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const lookupColumns: Array<string | LookupColumnDef> | undefined = fieldMeta?.lookup_columns ?? fieldMeta?.lookupColumns;
   const lookupPageSize: number | undefined = fieldMeta?.lookup_page_size ?? fieldMeta?.lookupPageSize;
   const lookupFilters: import('@object-ui/types').LookupFilterDef[] | undefined = fieldMeta?.lookup_filters ?? fieldMeta?.lookupFilters;
+
+  // Search-first PeoplePicker opt-in (user fields). When `picker === 'search'`
+  // the Level-2 picker is the rich PeoplePicker (avatar rows + selection tray)
+  // instead of the classic table dialog. `subtitle`/`avatar_field` drive the rows.
+  const pickerVariant: string | undefined = fieldMeta?.picker;
+  const subtitleFields: string[] | undefined = fieldMeta?.subtitle;
+  const avatarField: string = fieldMeta?.avatar_field ?? fieldMeta?.avatarField ?? 'image';
 
   /**
    * Dependent lookups — restrict candidates based on values of *other* fields
@@ -1025,27 +1033,47 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       )}
       </div>
 
-      {/* Level 2: Full Record Picker Dialog */}
+      {/* Level 2: Full picker — search-first PeoplePicker or classic table dialog */}
       {hasDataSource && dataSource && referenceTo && (
-        <RecordPickerDialog
-          open={isPickerOpen}
-          onOpenChange={setIsPickerOpen}
-          title={lookupField?.label || t('common.select')}
-          multiple={multiple}
-          dataSource={dataSource}
-          objectName={referenceTo}
-          columns={pickerColumns}
-          displayField={displayField}
-          titleFormat={refTitleFormat}
-          idField={idField}
-          pageSize={lookupPageSize}
-          value={value}
-          onSelect={onChange}
-          onSelectRecords={handlePickerSelectRecords}
-          lookupFilters={lookupFilters}
-          cellRenderer={getCellRendererResolver()}
-          filterColumns={filterColumns}
-        />
+        pickerVariant === 'search' ? (
+          <PeoplePicker
+            open={isPickerOpen}
+            onOpenChange={setIsPickerOpen}
+            title={lookupField?.label || t('common.select')}
+            multiple={multiple}
+            dataSource={dataSource}
+            objectName={referenceTo}
+            displayField={displayField}
+            idField={idField}
+            subtitleFields={subtitleFields}
+            avatarField={avatarField}
+            pageSize={lookupPageSize}
+            value={value}
+            onSelect={onChange}
+            onSelectRecords={handlePickerSelectRecords}
+            lookupFilters={lookupFilters}
+          />
+        ) : (
+          <RecordPickerDialog
+            open={isPickerOpen}
+            onOpenChange={setIsPickerOpen}
+            title={lookupField?.label || t('common.select')}
+            multiple={multiple}
+            dataSource={dataSource}
+            objectName={referenceTo}
+            columns={pickerColumns}
+            displayField={displayField}
+            titleFormat={refTitleFormat}
+            idField={idField}
+            pageSize={lookupPageSize}
+            value={value}
+            onSelect={onChange}
+            onSelectRecords={handlePickerSelectRecords}
+            lookupFilters={lookupFilters}
+            cellRenderer={getCellRendererResolver()}
+            filterColumns={filterColumns}
+          />
+        )
       )}
     </div>
   );
