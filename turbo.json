@@ -5,7 +5,7 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".next/**", "build/**", "**/*.tsbuildinfo"],
-      "env": ["NODE_ENV", "VITE_BASE_PATH"]
+      "env": ["NODE_ENV", "VITE_BASE_PATH", "OBJECTSTACK_CLIENT_DIST"]
     },
     "test": {
       "dependsOn": ["^build"],
