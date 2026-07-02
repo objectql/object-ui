@@ -441,7 +441,7 @@ export function ObjectFormDesigner({
         onDragCancel={() => setActiveId(null)}
       >
         <div className="mx-auto flex max-w-3xl flex-col gap-3">
-          {containerOrder.map((c, i) => {
+          {containerOrder.map((c) => {
             const isUngrouped = c === cid(UNGROUPED);
             // Hide the ungrouped bucket only when it is empty AND groups exist.
             if (isUngrouped && (items[c]?.length ?? 0) === 0 && groups.length > 0) return null;
