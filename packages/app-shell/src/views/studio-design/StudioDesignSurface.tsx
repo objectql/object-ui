@@ -40,6 +40,8 @@ import {
   Check,
   Plus,
   X,
+  GitBranch,
+  Rocket,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
@@ -48,6 +50,9 @@ import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import { readFields, writeFields, newField } from '../metadata-admin/previews/object-fields-io';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
+import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
+import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'data', label: 'Data', Icon: Database },
@@ -135,6 +140,53 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const packageId = params.packageId ?? 'com.example.showcase';
   const tab = params.tab ?? 'interfaces';
 
+  // Package-level publish (ADR-0033/0037): edits accumulate as per-item drafts;
+  // publishing is ONE governed pass over ALL pending drafts — the same path the
+  // Home banner / draft-preview bar use (usePublishAllDrafts → per-package
+  // publish-drafts with structure-before-seeds + L3 probes, and by-reference for
+  // orphan/null-package drafts). Reviewed as a whole in DraftChangesPanel; there
+  // is no per-item publish. (Drafts carry no reliable packageId — the flow overlay
+  // reports null — so we count/publish ALL pending, which in the single-package
+  // Studio is exactly this app's build.)
+  const { t } = useObjectTranslation();
+  const { publishAll, publishing } = usePublishAllDrafts(t);
+  const [changesOpen, setChangesOpen] = React.useState(false);
+  const [pendingCount, setPendingCount] = React.useState<number | null>(null);
+  const [publishNonce, setPublishNonce] = React.useState(0); // ↑ → pillars re-read the published baseline
+  const [draftNonce, setDraftNonce] = React.useState(0); // ↑ → refresh the pending-draft count
+
+  const refreshPending = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/meta/_drafts', {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      });
+      if (!res.ok) return setPendingCount(null);
+      const data = (await res.json()) as unknown;
+      const list = (Array.isArray(data) ? data : ((data as { drafts?: unknown[] })?.drafts ?? [])) as unknown[];
+      setPendingCount(list.length);
+    } catch {
+      setPendingCount(null);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void refreshPending();
+  }, [refreshPending, publishNonce, draftNonce]);
+
+  const doPublish = React.useCallback(async () => {
+    const r = await publishAll();
+    if (r.ok) {
+      setChangesOpen(false);
+      setPublishNonce((n) => n + 1);
+    }
+    await refreshPending();
+  }, [publishAll, refreshPending]);
+
+  const onDraftSaved = React.useCallback(() => setDraftNonce((n) => n + 1), []);
+  const hasPending = (pendingCount ?? 0) > 0;
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
       {aiSlot ? <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside> : null}
@@ -162,18 +214,42 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               </Link>
             ))}
           </nav>
+
+          {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setChangesOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <GitBranch className="h-3.5 w-3.5" />
+              变更{hasPending ? ` · ${pendingCount}` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={doPublish}
+              disabled={publishing || !hasPending}
+              title={hasPending ? '一次性确认并发布全部待发布草稿(整包 · 一次原子发布)' : '没有待发布的草稿'}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+            >
+              {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
+              发布
+            </button>
+          </div>
         </header>
 
         <div className="min-h-0 flex-1">
           {tab === 'data' ? (
-            <DataPillar packageId={packageId} />
+            <DataPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : tab === 'automations' ? (
-            <AutomationsPillar packageId={packageId} />
+            <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : (
-            <InterfacesPillar packageId={packageId} />
+            <InterfacesPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           )}
         </div>
       </div>
+
+      <DraftChangesPanel open={changesOpen} onOpenChange={setChangesOpen} />
     </div>
   );
 }
@@ -232,7 +308,15 @@ function NavTree({
 }
 
 /** Interfaces pillar — real App nav · live canvas · inspector. */
-function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElement {
+function InterfacesPillar({
+  packageId,
+  publishNonce = 0,
+  onDraftSaved,
+}: {
+  packageId: string;
+  publishNonce?: number;
+  onDraftSaved?: () => void;
+}): React.ReactElement {
   const client = useMetadataClient();
   const locale = 'zh-CN';
 
@@ -345,7 +429,7 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
     return () => {
       cancelled = true;
     };
-  }, [client, current, isEditable]);
+  }, [client, current, isEditable, publishNonce]);
 
   const onPatch = React.useCallback(
     (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
@@ -357,24 +441,13 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
     try {
       await client.save(current.type, current.name, draft, { mode: 'draft' });
       setHasDraft(true);
+      onDraftSaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
-  }, [client, current, draft]);
-  const doPublish = React.useCallback(async () => {
-    if (!current) return;
-    setSaving('publish');
-    try {
-      await client.publish(current.type, current.name);
-      setHasDraft(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  }, [client, current]);
+  }, [client, current, draft, onDraftSaved]);
 
   // nav editing — patch appDraft.navigation, then save/publish the App overlay
   const onNavPatch = React.useCallback((patch: Record<string, unknown>) => {
@@ -388,24 +461,13 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
       await client.save('app', appName, appDraft, { mode: 'draft' });
       setNavHasDraft(true);
       setNavDirty(false);
+      onDraftSaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setNavSaving(false);
     }
-  }, [client, appName, appDraft]);
-  const doNavPublish = React.useCallback(async () => {
-    if (!appName) return;
-    setNavSaving('publish');
-    try {
-      await client.publish('app', appName);
-      setNavHasDraft(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setNavSaving(false);
-    }
-  }, [client, appName]);
+  }, [client, appName, appDraft, onDraftSaved]);
 
   return (
     <div className="flex h-full flex-col">
@@ -432,14 +494,6 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           保存草稿
-        </button>
-        <button
-          onClick={doPublish}
-          disabled={!current || !isEditable || !hasDraft || !!saving}
-          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-        >
-          {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          发布
         </button>
       </div>
 
@@ -490,14 +544,6 @@ function InterfacesPillar({ packageId }: { packageId: string }): React.ReactElem
                     <Save className="h-3 w-3" />
                   )}
                   保存草稿
-                </button>
-                <button
-                  onClick={doNavPublish}
-                  disabled={!navHasDraft || !!navSaving}
-                  className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
-                >
-                  {navSaving === 'publish' ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                  发布
                 </button>
               </div>
             )}
@@ -686,7 +732,15 @@ function renderStudioGridList(props: {
   );
 }
 
-function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
+function DataPillar({
+  packageId,
+  publishNonce = 0,
+  onDraftSaved,
+}: {
+  packageId: string;
+  publishNonce?: number;
+  onDraftSaved?: () => void;
+}): React.ReactElement {
   const client = useMetadataClient();
   const adapter = useAdapter();
   const locale = 'zh-CN';
@@ -736,8 +790,11 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
     // Load once per selected object. Bail if this object's baseline is already
     // loaded — a client-identity churn or a child remount must NOT re-fetch and
     // clobber the in-progress form-layout draft the designer is editing.
-    if (loadedNameRef.current === current.name) return;
-    loadedNameRef.current = current.name;
+    // Keyed by object + publishNonce: a package publish (nonce++) re-reads the
+    // fresh published baseline; otherwise we never clobber an in-progress draft.
+    const loadKey = `${current.name}#${publishNonce}`;
+    if (loadedNameRef.current === loadKey) return;
+    loadedNameRef.current = loadKey;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -764,7 +821,7 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [client, current]);
+  }, [client, current, publishNonce]);
 
   const fieldCount = React.useMemo(() => readFields(objDraft.fields).entries.length, [objDraft]);
 
@@ -791,34 +848,17 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
       await client.save('object', current.name, objDraft, { mode: 'draft' });
       setHasDraft(true);
       setDirty(false);
+      onDraftSaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
-  }, [client, current, objDraft]);
-
-  const doPublish = React.useCallback(async () => {
-    if (!current) return;
-    setSaving('publish');
-    setError(null);
-    try {
-      await client.publish('object', current.name);
-      // Bust the data-layer object-schema cache (separate from the metadata client)
-      // so the remounted grid re-fetches the new/edited columns without a reload.
-      (adapter as { clearCache?: () => void } | null)?.clearCache?.();
-      setHasDraft(false);
-      setDirty(false);
-      setGridVer((v) => v + 1);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  }, [adapter, client, current]);
+  }, [client, current, objDraft, onDraftSaved]);
 
   // Drag-reorder columns → reorder the object's `fields` metadata (field display
-  // order follows metadata order), then publish so the new order persists.
+  // order follows metadata order), saved as a DRAFT. Published later via the
+  // package release — NOT auto-published per reorder as it used to be.
   const doReorderFields = React.useCallback(
     async (orderedNames: string[]) => {
       if (!current) return;
@@ -833,22 +873,21 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
       const entries = view.entries.map((e) => (visible.has(e.name) ? visibleInOrder[vi++] : e));
       const body = { ...objDraft, fields: writeFields({ ...view, entries }) };
       setObjDraft(body);
-      setSaving('publish');
+      setSaving('draft');
       setError(null);
       try {
         await client.save('object', current.name, body, { mode: 'draft' });
-        await client.publish('object', current.name);
-        (adapter as { clearCache?: () => void } | null)?.clearCache?.();
-        setHasDraft(false);
+        setHasDraft(true);
         setDirty(false);
-        setGridVer((v) => v + 1); // remount so the grid reflects the persisted order
+        onDraftSaved?.();
+        setGridVer((v) => v + 1); // remount so the grid reflects the new (draft) order
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
       } finally {
         setSaving(false);
       }
     },
-    [client, current, objDraft, adapter],
+    [client, current, objDraft, onDraftSaved],
   );
 
   const inspector = getMetadataInspector('object');
@@ -877,14 +916,6 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           保存草稿
-        </button>
-        <button
-          onClick={doPublish}
-          disabled={!current || !hasDraft || !!saving}
-          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-        >
-          {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          发布
         </button>
       </div>
 
@@ -1142,7 +1173,15 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
 }
 
 /** Automations pillar — flows: list → FlowPreview (default OFF / review-then-enable). */
-function AutomationsPillar({ packageId }: { packageId: string }): React.ReactElement {
+function AutomationsPillar({
+  packageId,
+  publishNonce = 0,
+  onDraftSaved,
+}: {
+  packageId: string;
+  publishNonce?: number;
+  onDraftSaved?: () => void;
+}): React.ReactElement {
   const client = useMetadataClient();
   const locale = 'zh-CN';
   const [flows, setFlows] = React.useState<Surface[]>([]);
@@ -1204,7 +1243,7 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
     return () => {
       cancelled = true;
     };
-  }, [client, current]);
+  }, [client, current, publishNonce]);
 
   const onPatch = React.useCallback(
     (patch: Record<string, unknown>) => setDraft((d) => ({ ...d, ...patch })),
@@ -1217,25 +1256,13 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
     try {
       await client.save('flow', current.name, draft, { mode: 'draft' });
       setHasDraft(true);
+      onDraftSaved?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
-  }, [client, current, draft]);
-  const doPublish = React.useCallback(async () => {
-    if (!current) return;
-    setSaving('publish');
-    setError(null);
-    try {
-      await client.publish('flow', current.name);
-      setHasDraft(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  }, [client, current]);
+  }, [client, current, draft, onDraftSaved]);
 
   return (
     <div className="flex h-full flex-col">
@@ -1253,14 +1280,6 @@ function AutomationsPillar({ packageId }: { packageId: string }): React.ReactEle
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           保存草稿
-        </button>
-        <button
-          onClick={doPublish}
-          disabled={!current || !isEditable || !hasDraft || !!saving}
-          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
-        >
-          {saving === 'publish' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          发布
         </button>
       </div>
 
