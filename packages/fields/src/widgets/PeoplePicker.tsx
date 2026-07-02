@@ -15,11 +15,15 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   ScrollArea,
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetTrigger,
   Skeleton,
   useIsMobile,
 } from '@object-ui/components';
@@ -79,6 +83,17 @@ export interface PeoplePickerProps {
   value?: any;
   onSelect: (value: any) => void;
   onSelectRecords?: (records: any[]) => void;
+
+  /**
+   * Render as an inline combobox anchored to {@link trigger} — a Popover
+   * dropdown on desktop, a bottom Sheet on mobile — instead of a centered
+   * modal Dialog. In inline mode multi-select commits live on each toggle
+   * (the caller's field chips are the selection), so there's no staging tray
+   * or confirm button.
+   */
+  inline?: boolean;
+  /** The element the inline dropdown/sheet anchors to (the field trigger). */
+  trigger?: React.ReactNode;
 }
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -102,6 +117,8 @@ export function PeoplePicker({
   value,
   onSelect,
   onSelectRecords,
+  inline = false,
+  trigger,
 }: PeoplePickerProps) {
   const { t } = useFieldTranslation();
   const isMobile = useIsMobile();
@@ -215,6 +232,15 @@ export function PeoplePicker({
     [multiple, objectName, onSelect, onSelectRecords, onOpenChange],
   );
 
+  // Inline mode has no confirm step — push the value out on every change.
+  const commitLive = useCallback(
+    (records: any[]) => {
+      onSelect(records.map(r => getPersonId(r, idField)));
+      onSelectRecords?.(records);
+    },
+    [onSelect, onSelectRecords, idField],
+  );
+
   const handleRowSelect = useCallback(
     (record: any) => {
       const id = getPersonId(record, idField);
@@ -222,22 +248,30 @@ export function PeoplePicker({
         commit([id], [record]);
         return;
       }
-      setSelectedRecords(prev => {
-        const key = String(id);
-        return prev.some(r => String(getPersonId(r, idField)) === key)
-          ? prev.filter(r => String(getPersonId(r, idField)) !== key)
-          : [...prev, record];
-      });
+      const key = String(id);
+      const exists = selectedRecords.some(r => String(getPersonId(r, idField)) === key);
+      const next = exists
+        ? selectedRecords.filter(r => String(getPersonId(r, idField)) !== key)
+        : [...selectedRecords, record];
+      setSelectedRecords(next);
+      // Inline: commit live (chips live in the field), stay open for more.
+      // Modal: stage in the tray until Confirm.
+      if (inline) {
+        if (!exists) pushRecentLookupId(objectName, id);
+        commitLive(next);
+      }
     },
-    [multiple, idField, commit],
+    [multiple, idField, commit, selectedRecords, inline, objectName, commitLive],
   );
 
   const handleRemove = useCallback(
     (id: any) => {
       const key = String(id);
-      setSelectedRecords(prev => prev.filter(r => String(getPersonId(r, idField)) !== key));
+      const next = selectedRecords.filter(r => String(getPersonId(r, idField)) !== key);
+      setSelectedRecords(next);
+      if (inline) commitLive(next);
     },
-    [idField],
+    [idField, selectedRecords, inline, commitLive],
   );
 
   const handleConfirm = useCallback(() => {
@@ -413,8 +447,9 @@ export function PeoplePicker({
         </div>
       </ScrollArea>
 
-      {/* Multi-select tray + confirm */}
-      {multiple && (
+      {/* Multi-select tray + confirm — modal only; inline commits live and
+          shows the selection as chips in the caller's field. */}
+      {multiple && !inline && (
         <>
           <SelectionTray
             records={selectedRecords}
@@ -439,6 +474,40 @@ export function PeoplePicker({
       )}
     </>
   );
+
+  // Inline combobox: anchored Popover on desktop, bottom Sheet (opened from the
+  // same trigger) on mobile. The trigger is the caller's field control.
+  if (inline) {
+    if (isMobile) {
+      return (
+        <Sheet open={open} onOpenChange={onOpenChange}>
+          <SheetTrigger asChild>{trigger}</SheetTrigger>
+          <SheetContent
+            side="bottom"
+            className="flex h-[85vh] flex-col gap-3"
+            data-testid="people-picker-sheet"
+          >
+            <SheetHeader className="text-left">
+              <SheetTitle>{titleText}</SheetTitle>
+            </SheetHeader>
+            {body}
+          </SheetContent>
+        </Sheet>
+      );
+    }
+    return (
+      <Popover open={open} onOpenChange={onOpenChange}>
+        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+        <PopoverContent
+          align="start"
+          className="flex max-h-[min(28rem,60vh)] w-[var(--radix-popover-trigger-width)] min-w-72 flex-col gap-3 p-3"
+          data-testid="people-picker-inline"
+        >
+          {body}
+        </PopoverContent>
+      </Popover>
+    );
+  }
 
   if (isMobile) {
     return (

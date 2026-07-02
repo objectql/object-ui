@@ -268,4 +268,67 @@ describe('PeoplePicker', () => {
     await waitFor(() => expect(screen.getAllByTestId('selection-chip')).toHaveLength(1));
     expect(screen.getByTestId('selection-tray').textContent).toContain('Amy Lin');
   });
+
+  it('inline: renders an anchored popover, not a modal dialog', async () => {
+    const ds = makeDataSource();
+    render(
+      <PeoplePicker
+        {...baseProps}
+        inline
+        trigger={<button data-testid="inline-trigger">open</button>}
+        dataSource={ds}
+        onOpenChange={vi.fn()}
+        onSelect={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('people-picker-inline')).toBeTruthy());
+    expect(screen.queryByTestId('people-picker-dialog')).toBeNull();
+    expect(screen.getByTestId('inline-trigger')).toBeTruthy();
+  });
+
+  it('inline multi: toggling a row commits live, with no confirm button', async () => {
+    const ds = makeDataSource();
+    const onSelect = vi.fn();
+    render(
+      <PeoplePicker
+        {...baseProps}
+        inline
+        multiple
+        value={[]}
+        dataSource={ds}
+        trigger={<button data-testid="inline-trigger" />}
+        onOpenChange={vi.fn()}
+        onSelect={onSelect}
+        onSelectRecords={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+    // Inline has no staging tray / confirm — selection lives in the field chips.
+    expect(screen.queryByText('Confirm')).toBeNull();
+    fireEvent.click(screen.getByText('Amy Lin'));
+    expect(onSelect).toHaveBeenLastCalledWith(['u1']);
+    fireEvent.click(screen.getByText('Bob Wu'));
+    expect(onSelect).toHaveBeenLastCalledWith(['u1', 'u2']);
+  });
+
+  it('inline single: clicking a row commits and closes', async () => {
+    const ds = makeDataSource();
+    const onSelect = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <PeoplePicker
+        {...baseProps}
+        inline
+        dataSource={ds}
+        trigger={<button data-testid="inline-trigger" />}
+        onOpenChange={onOpenChange}
+        onSelect={onSelect}
+        onSelectRecords={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+    fireEvent.click(screen.getByText('Amy Lin'));
+    expect(onSelect).toHaveBeenCalledWith('u1');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });

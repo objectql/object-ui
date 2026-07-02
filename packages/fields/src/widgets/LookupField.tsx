@@ -726,6 +726,36 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const compact = !!(props as any).compact;
   const singleSelectedLabel = selectedOptions[0]?.label || selectedOptions[0]?.[displayField];
 
+  // Shared field trigger — the anchor for either the inline PeoplePicker
+  // (search fields) or the classic quick-select popover. No onClick: the Radix
+  // trigger it is slotted into (PopoverTrigger / SheetTrigger) owns open/close.
+  const triggerButton = (
+    <Button
+      variant="outline"
+      className={cn(
+        'min-w-0 flex-1 justify-start text-left font-normal',
+        compact && 'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
+      )}
+      type="button"
+      disabled={dependenciesMissing || (props as any).disabled}
+      data-testid={dependenciesMissing ? 'lookup-trigger-gated' : (((props as any).name || lookupField?.name) ? `lookup-trigger-${(props as any).name || lookupField.name}` : 'lookup-trigger')}
+      title={dependenciesMissing
+        ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
+        : undefined}
+    >
+      <Search className={cn('size-4 shrink-0 text-muted-foreground', compact ? 'mr-1.5' : 'mr-2')} />
+      <span className={cn('truncate', compact && selectedOptions.length === 0 && 'text-muted-foreground')}>
+        {dependenciesMissing
+          ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
+          : compact && !multiple && selectedOptions.length > 0
+            ? singleSelectedLabel
+            : selectedOptions.length === 0
+              ? lookupField?.placeholder || t('common.select')
+              : multiple ? t('table.selected', { count: selectedOptions.length }) : t('common.select')}
+      </span>
+    </Button>
+  );
+
   return (
     <div className={compact ? '' : 'space-y-2'}>
       {/* Selected values display (full mode only — compact shows it in-trigger) */}
@@ -778,46 +808,38 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         </div>
       )}
 
-      {/* Level 1: Quick-select Popover (inline typeahead) */}
+      {/* Field control: search-first inline combobox (anchored dropdown / mobile
+          sheet), else the classic quick-select popover. */}
+      {pickerVariant === 'search' && hasDataSource && dataSource && referenceTo ? (
+        <PeoplePicker
+          inline
+          trigger={triggerButton}
+          open={isPickerOpen}
+          onOpenChange={setIsPickerOpen}
+          title={lookupField?.label || t('common.select')}
+          multiple={multiple}
+          dataSource={dataSource}
+          objectName={referenceTo}
+          displayField={displayField}
+          idField={idField}
+          subtitleFields={subtitleFields}
+          avatarField={avatarField}
+          pageSize={lookupPageSize}
+          value={value}
+          onSelect={onChange}
+          onSelectRecords={handlePickerSelectRecords}
+          lookupFilters={lookupFilters}
+        />
+      ) : (
       <div className="flex items-center gap-1.5">
       <Popover
-        open={pickerVariant === 'search' ? false : isOpen}
+        open={isOpen}
         onOpenChange={(o) => {
-          // Search-first fields open the PeoplePicker instead of this popover.
-          if (pickerVariant === 'search') return;
           if (!dependenciesMissing) setIsOpen(o);
         }}
       >
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              'min-w-0 flex-1 justify-start text-left font-normal',
-              compact && 'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
-            )}
-            type="button"
-            onClick={pickerVariant === 'search' ? () => { if (!dependenciesMissing) setIsPickerOpen(true); } : undefined}
-            aria-haspopup={pickerVariant === 'search' ? 'dialog' : 'listbox'}
-            aria-expanded={pickerVariant === 'search' ? undefined : isOpen}
-            aria-controls={listboxId}
-            disabled={dependenciesMissing || (props as any).disabled}
-            data-testid={dependenciesMissing ? 'lookup-trigger-gated' : (((props as any).name || lookupField?.name) ? `lookup-trigger-${(props as any).name || lookupField.name}` : 'lookup-trigger')}
-            title={dependenciesMissing
-              ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
-              : undefined}
-          >
-            <Search className={cn('size-4 shrink-0 text-muted-foreground', compact ? 'mr-1.5' : 'mr-2')} />
-            <span className={cn('truncate', compact && selectedOptions.length === 0 && 'text-muted-foreground')}>
-            {dependenciesMissing
-              ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
-              : compact && !multiple && selectedOptions.length > 0
-                ? singleSelectedLabel
-                : selectedOptions.length === 0
-                  ? lookupField?.placeholder || t('common.select')
-                  : multiple ? t('table.selected', { count: selectedOptions.length }) : t('common.select')
-            }
-            </span>
-          </Button>
+          {triggerButton}
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
           {/* Search input */}
@@ -1002,48 +1024,29 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         </Button>
       )}
       </div>
+      )}
 
-      {/* Level 2: Full picker — search-first PeoplePicker or classic table dialog */}
-      {hasDataSource && dataSource && referenceTo && (
-        pickerVariant === 'search' ? (
-          <PeoplePicker
-            open={isPickerOpen}
-            onOpenChange={setIsPickerOpen}
-            title={lookupField?.label || t('common.select')}
-            multiple={multiple}
-            dataSource={dataSource}
-            objectName={referenceTo}
-            displayField={displayField}
-            idField={idField}
-            subtitleFields={subtitleFields}
-            avatarField={avatarField}
-            pageSize={lookupPageSize}
-            value={value}
-            onSelect={onChange}
-            onSelectRecords={handlePickerSelectRecords}
-            lookupFilters={lookupFilters}
-          />
-        ) : (
-          <RecordPickerDialog
-            open={isPickerOpen}
-            onOpenChange={setIsPickerOpen}
-            title={lookupField?.label || t('common.select')}
-            multiple={multiple}
-            dataSource={dataSource}
-            objectName={referenceTo}
-            columns={pickerColumns}
-            displayField={displayField}
-            titleFormat={refTitleFormat}
-            idField={idField}
-            pageSize={lookupPageSize}
-            value={value}
-            onSelect={onChange}
-            onSelectRecords={handlePickerSelectRecords}
-            lookupFilters={lookupFilters}
-            cellRenderer={getCellRendererResolver()}
-            filterColumns={filterColumns}
-          />
-        )
+      {/* Level 2: classic table picker — search fields use the inline combobox above. */}
+      {hasDataSource && dataSource && referenceTo && pickerVariant !== 'search' && (
+        <RecordPickerDialog
+          open={isPickerOpen}
+          onOpenChange={setIsPickerOpen}
+          title={lookupField?.label || t('common.select')}
+          multiple={multiple}
+          dataSource={dataSource}
+          objectName={referenceTo}
+          columns={pickerColumns}
+          displayField={displayField}
+          titleFormat={refTitleFormat}
+          idField={idField}
+          pageSize={lookupPageSize}
+          value={value}
+          onSelect={onChange}
+          onSelectRecords={handlePickerSelectRecords}
+          lookupFilters={lookupFilters}
+          cellRenderer={getCellRendererResolver()}
+          filterColumns={filterColumns}
+        />
       )}
     </div>
   );
