@@ -37,8 +37,9 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react';
-import type { DataSource, QueryParams, LookupColumnDef, LookupFilterDef } from '@object-ui/types';
+import type { DataSource, LookupColumnDef, LookupFilterDef } from '@object-ui/types';
 import { useFieldTranslation } from './useFieldTranslation';
+import { useRecordQuery } from './useRecordQuery';
 
 /** Default page size for the Record Picker dialog */
 const DEFAULT_PAGE_SIZE = 10;
@@ -338,17 +339,9 @@ export function RecordPickerDialog({
   renderGrid,
 }: RecordPickerDialogProps) {
   const { t } = useFieldTranslation();
-  const [records, setRecords] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [totalCount, setTotalCount] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Column sorting state
-  const [sortField, setSortField] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  // Query state (records/loading/error/total + page/search/sort) lives in the
+  // shared useRecordQuery kernel — instantiated after mergedFilter below.
 
   // For multi-select, track pending selections before confirming
   const [pendingSelection, setPendingSelection] = useState<Set<any>>(new Set());
@@ -434,67 +427,35 @@ export function RecordPickerDialog({
     return Object.keys(combined).length > 0 ? combined : undefined;
   }, [lookupFilters, effectiveFilterColumns, filterValues]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  // Shared query kernel: builds params, fetches, and owns records/loading/error/
+  // total plus the page/search/sort controls. Selection state stays local (above).
+  const query = useRecordQuery({
+    dataSource,
+    objectName,
+    enabled: open,
+    pageSize,
+    paginate: true,
+    filter: mergedFilter,
+  });
+  // Preserve the previous local names so the handlers and render below are
+  // unchanged (the migration is a pure refactor).
+  const { records, loading, error } = query;
+  const totalCount = query.total;
+  const totalPages = query.totalPages;
+  const searchQuery = query.search;
+  const currentPage = query.page;
+  const sortField = query.sort?.field ?? null;
+  const sortDirection: 'asc' | 'desc' = query.sort?.direction ?? 'asc';
+  const setCurrentPage = query.setPage;
+  const handleSort = query.toggleSort;
+  const handleSearchChange = query.setSearch;
 
-  // Fetch records
-  const fetchRecords = useCallback(
-    async (search?: string, page = 1, sort?: { field: string; direction: 'asc' | 'desc' } | null, customFilter?: Record<string, any>) => {
-      if (!dataSource || !objectName) return;
-
-      setLoading(true);
-      setError(null);
-
-      try {
-        const params: QueryParams = {
-          $top: pageSize,
-          $skip: (page - 1) * pageSize,
-        };
-        if (search && search.trim()) {
-          params.$search = search.trim();
-        }
-        if (sort) {
-          params.$orderby = { [sort.field]: sort.direction };
-        }
-        // Inject filters (lookup_filters + filter bar values)
-        const effectiveFilter = customFilter !== undefined ? customFilter : mergedFilter;
-        if (effectiveFilter && Object.keys(effectiveFilter).length > 0) {
-          params.$filter = effectiveFilter;
-        }
-
-        const result = await dataSource.find(objectName, params);
-        const data: any[] = result?.data ?? result ?? [];
-
-        setRecords(data);
-        setTotalCount(result?.total ?? data.length);
-        setFocusedRow(-1);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(msg);
-        setRecords([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [dataSource, objectName, pageSize, mergedFilter],
-  );
-
-  // Build current sort object for passing to fetchRecords
-  const currentSort = useMemo(
-    () => sortField ? { field: sortField, direction: sortDirection } : null,
-    [sortField, sortDirection],
-  );
-
-  // Reset state when dialog closes — separate from the fetch effect so that
-  // resetting currentPage / sortField (which are fetch-effect deps) does not
-  // re-trigger the fetch effect and cause cascading re-renders (React #185).
+  // Reset non-query UI/selection state when the dialog closes. Query state
+  // (search/page/sort/records) is cleared by useRecordQuery when `enabled`
+  // (== open) goes false, kept separate so resets never cascade into a fetch
+  // (React #185).
   useEffect(() => {
     if (!open) {
-      setSearchQuery('');
-      setCurrentPage(1);
-      setError(null);
-      setRecords([]);
-      setSortField(null);
-      setSortDirection('asc');
       setFocusedRow(-1);
       setFilterBarOpen(false);
       setFilterValues({});
@@ -510,17 +471,6 @@ export function RecordPickerDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Fetch when dialog is open and pagination / sort / filter deps change
-  useEffect(() => {
-    if (open) {
-      fetchRecords(searchQuery || undefined, currentPage, currentSort);
-    }
-    // `fetchRecords` and `searchQuery` are intentionally excluded:
-    // fetchRecords is stable (useCallback), searchQuery triggers its own
-    // debounced fetch in handleSearchChange.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, currentPage, currentSort, mergedFilter]);
-
   // Initialize pending selection when dialog opens
   useEffect(() => {
     if (open && multiple) {
@@ -528,44 +478,11 @@ export function RecordPickerDialog({
     }
   }, [open, multiple, value]);
 
-  // Debounced search
-  const handleSearchChange = useCallback(
-    (query: string) => {
-      setSearchQuery(query);
-      setCurrentPage(1);
-
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
-      debounceTimer.current = setTimeout(() => {
-        fetchRecords(query || undefined, 1, currentSort);
-      }, 300);
-    },
-    [fetchRecords, currentSort],
-  );
-
-  // Clean up debounce timer
+  // Reset keyboard focus whenever the result set changes (previously done
+  // inline at the end of fetchRecords).
   useEffect(() => {
-    return () => {
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-      }
-    };
-  }, []);
-
-  // Column sort handler
-  const handleSort = useCallback((field: string) => {
-    setSortField(prev => {
-      if (prev === field) {
-        // Toggle direction
-        setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
-        return field;
-      }
-      setSortDirection('asc');
-      return field;
-    });
-    setCurrentPage(1);
-  }, []);
+    setFocusedRow(-1);
+  }, [records]);
 
   // Get record id
   const getRecordId = useCallback(
@@ -626,12 +543,12 @@ export function RecordPickerDialog({
 
   // Page navigation
   const handlePrevPage = useCallback(() => {
-    setCurrentPage(p => Math.max(1, p - 1));
-  }, []);
+    setCurrentPage(Math.max(1, currentPage - 1));
+  }, [setCurrentPage, currentPage]);
 
   const handleNextPage = useCallback(() => {
-    setCurrentPage(p => Math.min(totalPages, p + 1));
-  }, [totalPages]);
+    setCurrentPage(Math.min(totalPages, currentPage + 1));
+  }, [setCurrentPage, currentPage, totalPages]);
 
   // Page jump handler
   const handlePageJump = useCallback(
@@ -978,7 +895,7 @@ export function RecordPickerDialog({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => fetchRecords(searchQuery || undefined, currentPage, currentSort)}
+              onClick={() => query.refetch()}
               type="button"
             >
               {t('lookup.retry')}
