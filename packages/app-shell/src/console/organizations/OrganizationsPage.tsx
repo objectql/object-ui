@@ -140,21 +140,30 @@ export function OrganizationsPage() {
   }, [isOrganizationsLoading, orgList.length, manageMode, wantsCreate]);
 
   // Open the create dialog when arriving via the header "Create workspace"
-  // entry (`?create=1`). Guarded so closing the dialog doesn't re-open it.
+  // entry (`?create=1`), OR for a brand-new user who has ZERO organizations:
+  // they have nothing to pick, so land them straight on the "name your
+  // workspace" form instead of an empty picker (one hop fewer on first run).
+  // The empty-state (with its own "New organization" button) remains the
+  // backdrop if they dismiss the dialog. Guarded so closing never re-opens it.
   const createOpenedRef = useRef(false);
   useEffect(() => {
-    if (wantsCreate && !createOpenedRef.current) {
+    if (isOrganizationsLoading) return;
+    const firstRunNoOrg = orgList.length === 0 && canCreateOrg;
+    if ((wantsCreate || firstRunNoOrg) && !createOpenedRef.current) {
       createOpenedRef.current = true;
       setIsCreateOpen(true);
     }
-  }, [wantsCreate]);
+  }, [wantsCreate, orgList.length, canCreateOrg, isOrganizationsLoading]);
 
-  // Show a spinner while we're either still loading, or about to auto-redirect
-  // because there's only one org. This prevents the picker from briefly
-  // flashing on screen for single-org users.
+  // Show a spinner while we're either still loading, about to auto-redirect
+  // because there's only one org, or about to auto-open the create dialog for a
+  // brand-new zero-org user. This prevents the picker / empty-state from
+  // briefly flashing on screen before the redirect or dialog.
   const willAutoSelect =
     !wantsCreate && !isOrganizationsLoading && orgList.length === 1;
-  if (isOrganizationsLoading || willAutoSelect) {
+  const willAutoCreate =
+    !isOrganizationsLoading && orgList.length === 0 && canCreateOrg && !createOpenedRef.current;
+  if (isOrganizationsLoading || willAutoSelect || willAutoCreate) {
     return (
       <div className="flex flex-1 items-center justify-center py-20">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
