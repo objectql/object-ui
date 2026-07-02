@@ -41,6 +41,18 @@ const baseProps = {
 };
 
 beforeEach(() => {
+  // jsdom has no matchMedia; useIsMobile needs it. Default to desktop width.
+  Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 1280 });
+  window.matchMedia = ((query: string) => ({
+    matches: window.innerWidth < 768,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as any;
   try {
     window.localStorage.clear();
   } catch {
@@ -223,5 +235,20 @@ describe('PeoplePicker', () => {
     await waitFor(() => expect(screen.getByText('boom')).toBeTruthy());
     fireEvent.click(screen.getByText('Retry'));
     await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
+  });
+
+  it('renders a Dialog on desktop and a bottom Sheet on mobile', async () => {
+    const ds = makeDataSource();
+    const { unmount } = render(
+      <PeoplePicker {...baseProps} dataSource={ds} onSelect={vi.fn()} onOpenChange={vi.fn()} />,
+    );
+    await waitFor(() => expect(screen.getByTestId('people-picker-dialog')).toBeTruthy());
+    expect(screen.queryByTestId('people-picker-sheet')).toBeNull();
+    unmount();
+
+    Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: 375 });
+    render(<PeoplePicker {...baseProps} dataSource={ds} onSelect={vi.fn()} onOpenChange={vi.fn()} />);
+    await waitFor(() => expect(screen.getByTestId('people-picker-sheet')).toBeTruthy());
+    expect(screen.queryByTestId('people-picker-dialog')).toBeNull();
   });
 });
