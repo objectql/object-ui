@@ -98,9 +98,9 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   // Write-mode / options (preview step)
   'grid.import.options': 'Import options',
   'grid.import.writeMode': 'When a row matches an existing record',
-  'grid.import.writeMode.insert': 'Always create new',
-  'grid.import.writeMode.update': 'Update existing (skip if no match)',
-  'grid.import.writeMode.upsert': 'Update if matched, else create',
+  'grid.import.writeModeOpt.insert': 'Always create new',
+  'grid.import.writeModeOpt.update': 'Update existing (skip if no match)',
+  'grid.import.writeModeOpt.upsert': 'Update if matched, else create',
   'grid.import.matchFields': 'Match on',
   'grid.import.matchFieldsPlaceholder': 'Choose match field(s)…',
   'grid.import.matchFieldsHint': 'Rows are matched to existing records by these field(s).',
@@ -134,11 +134,11 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.undoing': 'Undoing…',
   'grid.import.undoConfirm': 'Undo this import? Records it created will be deleted and records it updated will be restored to their previous values.',
   'grid.import.reverted': 'Undone',
-  'grid.import.status.pending': 'Pending',
-  'grid.import.status.running': 'Running',
-  'grid.import.status.succeeded': 'Succeeded',
-  'grid.import.status.failed': 'Failed',
-  'grid.import.status.cancelled': 'Cancelled',
+  'grid.import.jobStatus.pending': 'Pending',
+  'grid.import.jobStatus.running': 'Running',
+  'grid.import.jobStatus.succeeded': 'Succeeded',
+  'grid.import.jobStatus.failed': 'Failed',
+  'grid.import.jobStatus.cancelled': 'Cancelled',
   'grid.import.cancel': 'Cancel',
   'grid.import.back': 'Back',
   'grid.import.next': 'Next',
@@ -1001,9 +1001,9 @@ const ImportOptions: React.FC<{
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="insert">{t('grid.import.writeMode.insert')}</SelectItem>
-              <SelectItem value="update">{t('grid.import.writeMode.update')}</SelectItem>
-              <SelectItem value="upsert">{t('grid.import.writeMode.upsert')}</SelectItem>
+              <SelectItem value="insert">{t('grid.import.writeModeOpt.insert')}</SelectItem>
+              <SelectItem value="update">{t('grid.import.writeModeOpt.update')}</SelectItem>
+              <SelectItem value="upsert">{t('grid.import.writeModeOpt.upsert')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1168,7 +1168,7 @@ const ImportHistoryPanel: React.FC<{
               <TableRow key={job.jobId} data-testid={`import-history-row-${job.jobId}`}>
                 <TableCell>
                   <Badge variant={IMPORT_JOB_STATUS_VARIANT[job.status]}>
-                    {t(`grid.import.status.${job.status}`)}
+                    {t(`grid.import.jobStatus.${job.status}`)}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{job.processed}/{job.total}</TableCell>
