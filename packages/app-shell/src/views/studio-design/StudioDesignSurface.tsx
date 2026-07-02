@@ -978,7 +978,12 @@ function DataPillar({
                   </button>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-                  <Eye className="h-3 w-3" /> {viewMode === 'grid' ? '运行态列表 · 同一渲染器' : '运行态表单 · 同一渲染器'}
+                  <Eye className="h-3 w-3" />{' '}
+                  {viewMode === 'grid'
+                    ? '运行态列表 · 同一渲染器'
+                    : formMode === 'layout'
+                      ? '表单设计 · 草稿'
+                      : '运行态表单 · 已发布定义'}
                 </span>
                 <button
                   type="button"
@@ -1072,8 +1077,17 @@ function DataPillar({
                   </button>
                 </div>
                 <span className="text-[11px] text-muted-foreground">
-                  {formMode === 'layout' ? '布局设计器 · 分组与排序' : '运行态表单 · 同一渲染器'}
+                  {formMode === 'layout' ? '布局设计器 · 草稿(含未发布改动)' : '运行态表单 · 已发布定义'}
                 </span>
+                {/* Preview renders the PUBLISHED definition on purpose: a draft with
+                  * structural changes has no physical columns yet (DDL lands at
+                  * publish), so a draft-with-data preview would break. Publishing is
+                  * a deliberate user action — say so instead of silently lying. */}
+                {formMode === 'preview' && (dirty || hasDraft) && (
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
+                    有未发布改动 — 此预览为发布前(已发布)的效果;草稿确认用「布局」,看发布后效果请先点顶栏「发布」
+                  </span>
+                )}
               </div>
               {formMode === 'layout' ? (
                 <ObjectFormDesigner
