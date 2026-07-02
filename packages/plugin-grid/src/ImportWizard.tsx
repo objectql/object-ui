@@ -1892,7 +1892,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               <ArrowLeft className="mr-1 h-4 w-4" /> {t('grid.import.historyBack')}
             </Button>
           ) : result ? (
-            <Button onClick={handleClose}>{t('grid.import.close')}</Button>
+            <Button onClick={handleClose} data-testid="import-close-btn">{t('grid.import.close')}</Button>
           ) : (
             <>
               <Button variant="ghost" onClick={handleClose} disabled={importing}><X className="mr-1 h-4 w-4" /> {t('grid.import.cancel')}</Button>
@@ -1902,7 +1902,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 </Button>
               )}
               {step === 'mapping' && (
-                <Button onClick={() => setStep('preview')} disabled={Object.keys(mapping).length === 0 || missingRequired.length > 0}>
+                <Button onClick={() => setStep('preview')} disabled={Object.keys(mapping).length === 0 || missingRequired.length > 0} data-testid="import-next-btn">
                   {t('grid.import.next')} <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               )}
@@ -1910,6 +1910,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 <Button
                   onClick={handleImport}
                   disabled={importing || (writeMode !== 'insert' && matchFields.length === 0)}
+                  data-testid="import-run-btn"
                 >
                   {importing ? t('grid.import.importingProgress') : t('grid.import.importNRows', { count: rows.length })}
                 </Button>

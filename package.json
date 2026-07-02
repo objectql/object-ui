@@ -55,7 +55,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:live": "playwright test --config=playwright.live.config.ts",
-    "test:e2e:import-harness": "playwright test --config=playwright.import-harness.config.ts"
+    "test:e2e:import-harness": "playwright test --config=playwright.import-harness.config.ts",
+    "test:e2e:import-console": "playwright test --config=playwright.import-console.config.ts"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",

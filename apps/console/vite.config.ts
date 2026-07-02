@@ -101,6 +101,23 @@ const workspaceAliases: Record<string, string> = {
   '@object-ui/plugin-designer': path.resolve(__dirname, '../../packages/plugin-designer/src'),
 };
 
+// Opt-in override of the installed `@objectstack/client`. The published client
+// (11.2.0) predates the async import-job API (`data.createImportJob` et al.),
+// so to exercise the full background-import + undo flow through the real
+// console before that client ships, point OBJECTSTACK_CLIENT_DIST at a locally
+// built client (its dist entry or package dir). Inert when unset — production
+// and CI builds use the installed client unchanged.
+const clientDistOverride = process.env.OBJECTSTACK_CLIENT_DIST;
+// Extra dirs the dev server may read the override from — it lives outside the
+// workspace root, so Vite's default `server.fs.allow` would 403 it (blank page).
+const clientFsAllow: string[] = [];
+if (clientDistOverride) {
+  const resolved = path.resolve(clientDistOverride);
+  workspaceAliases['@objectstack/client'] = resolved;
+  // Allow the containing package (…/dist/index.mjs → …/<pkg>) so Vite can serve it.
+  clientFsAllow.push(path.dirname(resolved), path.resolve(path.dirname(resolved), '..'));
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   base: basePath,
@@ -234,6 +251,9 @@ export default defineConfig({
   },
   server: {
     port: 5180,
+    // Widen the fs allow-list only when an out-of-tree client override is set
+    // (see OBJECTSTACK_CLIENT_DIST above); otherwise keep Vite's defaults.
+    ...(clientFsAllow.length ? { fs: { allow: [path.resolve(__dirname, '../..'), ...clientFsAllow] } } : {}),
     proxy: {
       '/api': { target: process.env.DEV_PROXY_TARGET || 'http://localhost:3000', changeOrigin: true },
     },
