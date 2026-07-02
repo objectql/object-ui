@@ -20,6 +20,7 @@ import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/r
 import { GridFieldAuthoringProvider } from '@object-ui/components';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import { ListView } from '@object-ui/plugin-list';
+import { ObjectForm } from '@object-ui/plugin-form';
 import {
   Boxes,
   FileText,
@@ -46,6 +47,7 @@ import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import { readFields, writeFields, newField } from '../metadata-admin/previews/object-fields-io';
+import { ObjectFormDesigner } from './ObjectFormDesigner';
 
 const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'data', label: 'Data', Icon: Database },
@@ -699,6 +701,15 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
   const [hasDraft, setHasDraft] = React.useState(false);
   const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [gridVer, setGridVer] = React.useState(0);
+  // Records grid ⇄ Form — two views of the SAME object, both the runtime
+  // renderer (same-renderer principle). Form = WYSIWYG object form; clicking a
+  // rendered field selects it into the same field inspector the grid uses.
+  const [viewMode, setViewMode] = React.useState<'grid' | 'form'>('grid');
+  // Within the Form view: 布局 (WYSIWYG drag/section designer) ⇄ 预览 (live form).
+  const [formMode, setFormMode] = React.useState<'layout' | 'preview'>('layout');
+  // Tracks which object's baseline is currently loaded — so we (re)load exactly
+  // once per selected object and never clobber an in-progress draft.
+  const loadedNameRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -722,6 +733,11 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
 
   React.useEffect(() => {
     if (!current) return;
+    // Load once per selected object. Bail if this object's baseline is already
+    // loaded — a client-identity churn or a child remount must NOT re-fetch and
+    // clobber the in-progress form-layout draft the designer is editing.
+    if (loadedNameRef.current === current.name) return;
+    loadedNameRef.current = current.name;
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -899,8 +915,31 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
           ) : (
             <>
               <div className="mb-3 flex shrink-0 items-center gap-2">
+                {/* view toggle — Records grid ⇄ Form, both the runtime renderer */}
+                <div className="inline-flex rounded-md border p-0.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('grid')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (viewMode === 'grid' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    记录
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('form')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (viewMode === 'form' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    表单
+                  </button>
+                </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-                  <Eye className="h-3 w-3" /> 运行态列表 · 同一渲染器
+                  <Eye className="h-3 w-3" /> {viewMode === 'grid' ? '运行态列表 · 同一渲染器' : '运行态表单 · 同一渲染器'}
                 </span>
                 <button
                   type="button"
@@ -916,6 +955,8 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
                   {error}
                 </div>
               )}
+              {viewMode === 'grid' ? (
+              <>
               {/* Records grid — fields are the columns. Header "+" adds a field, the
                 * per-column edit affordance opens the field editor, and dragging a
                 * column header reorders the object's fields (all via the context). */}
@@ -964,6 +1005,103 @@ function DataPillar({ packageId }: { packageId: string }): React.ReactElement {
               <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
                 <MousePointer2 className="h-3 w-3" /> 列头「+」加字段 · 笔形改属性 · 拖列头重排 · 改完「保存草稿」→「发布」
               </p>
+              </>
+              ) : (
+              <>
+              {/* form sub-mode: 布局 (WYSIWYG drag/section designer) ⇄ 预览 (live form) */}
+              <div className="mb-3 flex items-center gap-2">
+                <div className="inline-flex rounded-md border p-0.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setFormMode('layout')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (formMode === 'layout' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    布局
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormMode('preview')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (formMode === 'preview' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    预览
+                  </button>
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  {formMode === 'layout' ? '布局设计器 · 分组与排序' : '运行态表单 · 同一渲染器'}
+                </span>
+              </div>
+              {formMode === 'layout' ? (
+                <ObjectFormDesigner
+                  draft={objDraft}
+                  systemFieldNames={STUDIO_SYSTEM_FIELD_NAMES}
+                  onChange={onPatch}
+                  selectedField={fieldSel?.kind === 'field' ? fieldSel.id : null}
+                  onSelectField={(name) => setFieldSel({ kind: 'field', id: name })}
+                  onAddField={addField}
+                />
+              ) : (
+              <>
+              {/* Form — the real runtime ObjectForm ("same renderer"): the object's
+                * form exactly as an end user sees it. Clicking any rendered field
+                * (event-delegated via the renderer's data-field) selects it into the
+                * SAME field inspector the grid uses — one screen, no pillar switch. */}
+              <style>{`
+                /* Design preview: the form is a click-to-select canvas, not a data-entry
+                 * form. Disable interaction on field contents so a click anywhere on a
+                 * field routes to its [data-field] wrapper (→ select), and neutralize the
+                 * create/cancel footer so nothing is submittable here. */
+                .os-form-authoring [data-field]{border-radius:8px;cursor:pointer;transition:box-shadow .12s;padding:8px;margin:-8px 0;}
+                .os-form-authoring [data-field] *{pointer-events:none;}
+                .os-form-authoring [data-field]:hover{box-shadow:0 0 0 1px hsl(var(--border));}
+                .os-form-authoring form > div:last-child:has(button){display:none;}
+                ${
+                  fieldSel?.kind === 'field'
+                    ? `.os-form-authoring [data-field="${String(fieldSel.id).replace(/[^\w-]/g, '')}"]{box-shadow:0 0 0 2px hsl(var(--primary));}`
+                    : ''
+                }
+              `}</style>
+              <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background p-6">
+                <div
+                  className="os-form-authoring mx-auto max-w-2xl"
+                  onClick={(e) => {
+                    const el = (e.target as HTMLElement).closest('[data-field]');
+                    const name = el?.getAttribute('data-field');
+                    if (name && readFields(objDraft.fields).entries.some((f) => f.name === name)) {
+                      setFieldSel({ kind: 'field', id: name });
+                    }
+                  }}
+                >
+                  <SchemaRendererProvider dataSource={adapter as never}>
+                    <ObjectForm
+                      key={`${current.name}:${gridVer}:form`}
+                      schema={
+                        {
+                          type: 'object-form',
+                          objectName: current.name,
+                          mode: 'create',
+                          fields: readFields(objDraft.fields)
+                            .entries.map((e) => e.name)
+                            .filter((n) => !STUDIO_SYSTEM_FIELD_NAMES.has(n)),
+                        } as never
+                      }
+                      dataSource={adapter as never}
+                    />
+                  </SchemaRendererProvider>
+                </div>
+              </div>
+              <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <MousePointer2 className="h-3 w-3" /> 点选任意字段 → 右侧改属性 · 「添加字段」加字段 · 改完「保存草稿」→「发布」
+              </p>
+              </>
+              )}
+              </>
+              )}
             </>
           )}
         </main>
