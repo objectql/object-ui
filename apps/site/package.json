@@ -31,7 +31,7 @@
     "@object-ui/plugin-view": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^11.2.0",
+    "@objectstack/spec": "^11.5.0",
     "fumadocs-core": "16.10.6",
     "fumadocs-mdx": "15.0.13",
     "fumadocs-ui": "16.10.6",

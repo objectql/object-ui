@@ -30,8 +30,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.6.0(jiti@2.7.0))
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -262,11 +262,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.1
         version: 4.3.1
@@ -397,8 +397,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       fumadocs-core:
         specifier: 16.10.6
         version: 16.10.6(@mdx-js/mdx@3.1.1)(@tanstack/react-router@1.170.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@types/estree-jsx@1.0.5)(@types/hast@3.0.4)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.22.0(react@19.2.7))(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react-router@7.18.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(zod@4.4.3)
@@ -686,8 +686,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       '@sentry/react':
         specifier: ^10.62.0
         version: 10.62.0(react@19.2.7)
@@ -1066,11 +1066,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
@@ -1128,8 +1128,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -1881,8 +1881,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       lucide-react:
         specifier: ^1.22.0
         version: 1.22.0(react@19.2.7)
@@ -2110,8 +2110,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       lucide-react:
         specifier: ^1.22.0
         version: 1.22.0(react@19.2.7)
@@ -2299,8 +2299,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2351,8 +2351,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       lucide-react:
         specifier: ^1.22.0
         version: 1.22.0(react@19.2.7)
@@ -2474,8 +2474,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       react:
         specifier: 19.2.7
         version: 19.2.7
@@ -2599,8 +2599,8 @@ importers:
   packages/types:
     dependencies:
       '@objectstack/spec':
-        specifier: ^11.2.0
-        version: 11.2.0(ai@6.0.214(zod@4.4.3))
+        specifier: ^11.5.0
+        version: 11.5.0(ai@7.0.4(zod@4.4.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2639,12 +2639,6 @@ packages:
   '@adobe/css-tools@4.5.0':
     resolution: {integrity: sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q==}
 
-  '@ai-sdk/gateway@3.0.139':
-    resolution: {integrity: sha512-RFpxyh5j9g7ZMfKxhiwCcF7bGU872o3JvoiIqZbHOM4qkR4RCzeKJF+k+zHomcJYGeUabEbeMXTKNASzz4Toxw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
   '@ai-sdk/gateway@4.0.4':
     resolution: {integrity: sha512-xO0e9duft/uZlnDaIeBZmzTMjfdEz1kkDzWnhQNkJZZljsKWVi6IREZW9nAa+Dx6jYJssyxSUggaFYBAV1WZpw==}
     engines: {node: '>=22'}
@@ -2657,21 +2651,11 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/provider-utils@4.0.33':
-    resolution: {integrity: sha512-nJ0bAfegMAIJtrzMJtbzer1cS3nb7c7DsyU1S4nrPm7ZU0Mn6SBBZv5IGZZGTbpWTJwqKTSPeZJTXalbAxt1BA==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
   '@ai-sdk/provider-utils@5.0.1':
     resolution: {integrity: sha512-p9Ra+dN4jjHrssXvklNf4nFvWbj1KePMfUOs7nue0NuoIMbYFBULhX4Vu0+6DWLnw3+UsLL9+RCKLtzzU43Qpg==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider@3.0.12':
-    resolution: {integrity: sha512-sj9DWTJ2Ze0WR9qsiOPqoqzNx3OxL6iMxHImbhvoe9qOspekbzxNDMiJ4TIGfYHYh9w4OmBjz3prvqhzTi96+Q==}
-    engines: {node: '>=18'}
 
   '@ai-sdk/provider@4.0.0':
     resolution: {integrity: sha512-fr9Gs89prDWiuox/T+kCA+i2cJkHpxU5S+tr4megjTzRC27ZsvFhwjU/+XrqqMbvBUlfmXxTOYWy8ng45dsjIg==}
@@ -3961,22 +3945,22 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@11.2.0':
-    resolution: {integrity: sha512-/xIsLcgkaid8TGo4ruiuisqccAKmmrSIK9jIf+K/VTkfrIeOGR+6ADJZhdbBzxnIuz+8JnHVMSRgX60s+/uckA==}
+  '@objectstack/client@11.5.0':
+    resolution: {integrity: sha512-k4sWgtS/gpoVPG83+TrXjMt89o3ABaFD7Qr5vkcxCDrPO0IRr9zBPs3aoU4+ZSv1bKRwS27S+W8wQrsi8elRyQ==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/core@11.2.0':
-    resolution: {integrity: sha512-Gh1sKlMb+jUIuGpgQZgypTi2qM0VVUDVEKbTkbvP8qP1Sbf/0Yw1m7tnYqcmR1yPvznbLGLvGKxVA64qVxyFiw==}
+  '@objectstack/core@11.5.0':
+    resolution: {integrity: sha512-uC12hbeRBywranRqbnkRl0vPhQruUsJr8zuTgzy1bMuNAu9GWEavGHrkKBX4QooRaw/Zv08IkTmzC7EiXlTLKA==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/formula@11.2.0':
-    resolution: {integrity: sha512-j0Zjm6cpju9MrDyO6VAHhWhN5E8woCrsGYLLCu6O631TWoy4UlBiMI6KqR/tnaNrnX0KBiiLqu9mTofGVj184g==}
+  '@objectstack/formula@11.5.0':
+    resolution: {integrity: sha512-bVZOB0AY0xteZkGwuP7JYsgOUfchBmxrlT+tiE65Ny2CMbMECOXIArOQxzunxzElxksDfYA6OZn9TadYjTzKiQ==}
 
-  '@objectstack/spec@11.2.0':
-    resolution: {integrity: sha512-FxqLrATMnY4nKYxzIe22U2HIXfe840BjkcqfDTL4IziQBgYmrNycHekFKL2SPwBt7JjfpZt31CrTNo5pKhLXAw==}
+  '@objectstack/spec@11.5.0':
+    resolution: {integrity: sha512-TLPr3l27wD2fWdO+YTXjjTgkpC7PrRiKV1iRY8hu7CyD8X4BKXbLkgo3GcEM0xfiysCTViaTedQHaQG1uoeOHQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
-      ai: ^6.0.0
+      ai: ^7.0.0
     peerDependenciesMeta:
       ai:
         optional: true
@@ -5863,12 +5847,6 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
-
-  ai@6.0.214:
-    resolution: {integrity: sha512-9MlePEXT5pXtQv4fXqmiR0RG3DZU4Dbv+kU9ktEJC2COi2RH2WvI2GiyG9MuCqgPII6f1w+5kB5fNIiArqPzaQ==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
 
   ai@7.0.4:
     resolution: {integrity: sha512-mZub080RWRxpWg8OY56KVnI3AoMVniccSWG+dwVb3nH81+GiNMDYBIdP41RLUivLpmU49pB7ssD7tvfIUaSaCA==}
@@ -10729,14 +10707,6 @@ snapshots:
 
   '@adobe/css-tools@4.5.0': {}
 
-  '@ai-sdk/gateway@3.0.139(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.12
-      '@ai-sdk/provider-utils': 4.0.33(zod@4.4.3)
-      '@vercel/oidc': 3.2.0
-      zod: 4.4.3
-    optional: true
-
   '@ai-sdk/gateway@4.0.4(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.0
@@ -10751,14 +10721,6 @@ snapshots:
       pkce-challenge: 5.0.1
       zod: 4.4.3
 
-  '@ai-sdk/provider-utils@4.0.33(zod@4.4.3)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.12
-      '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.1.0
-      zod: 4.4.3
-    optional: true
-
   '@ai-sdk/provider-utils@5.0.1(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.0
@@ -10766,11 +10728,6 @@ snapshots:
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.0
       zod: 4.4.3
-
-  '@ai-sdk/provider@3.0.12':
-    dependencies:
-      json-schema: 0.4.0
-    optional: true
 
   '@ai-sdk/provider@4.0.0':
     dependencies:
@@ -12069,32 +12026,32 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@11.2.0(ai@6.0.214(zod@4.4.3))':
+  '@objectstack/client@11.5.0(ai@7.0.4(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 11.2.0(ai@6.0.214(zod@4.4.3))
-      '@objectstack/spec': 11.2.0(ai@6.0.214(zod@4.4.3))
+      '@objectstack/core': 11.5.0(ai@7.0.4(zod@4.4.3))
+      '@objectstack/spec': 11.5.0(ai@7.0.4(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@11.2.0(ai@6.0.214(zod@4.4.3))':
+  '@objectstack/core@11.5.0(ai@7.0.4(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 11.2.0(ai@6.0.214(zod@4.4.3))
+      '@objectstack/spec': 11.5.0(ai@7.0.4(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@11.2.0(ai@6.0.214(zod@4.4.3))':
+  '@objectstack/formula@11.5.0(ai@7.0.4(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 7.6.1
-      '@objectstack/spec': 11.2.0(ai@6.0.214(zod@4.4.3))
+      '@objectstack/spec': 11.5.0(ai@7.0.4(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/spec@11.2.0(ai@6.0.214(zod@4.4.3))':
+  '@objectstack/spec@11.5.0(ai@7.0.4(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:
-      ai: 6.0.214(zod@4.4.3)
+      ai: 7.0.4(zod@4.4.3)
 
   '@open-draft/deferred-promise@2.2.0': {}
 
@@ -14043,15 +14000,6 @@ snapshots:
       - supports-color
 
   agent-base@7.1.4: {}
-
-  ai@6.0.214(zod@4.4.3):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.139(zod@4.4.3)
-      '@ai-sdk/provider': 3.0.12
-      '@ai-sdk/provider-utils': 4.0.33(zod@4.4.3)
-      '@opentelemetry/api': 1.9.1
-      zod: 4.4.3
-    optional: true
 
   ai@7.0.4(zod@4.4.3):
     dependencies:
