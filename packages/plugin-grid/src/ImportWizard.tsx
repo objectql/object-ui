@@ -108,6 +108,8 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.optCreateOptions': 'Keep unknown option values',
   'grid.import.optRunAutomations': 'Run automations & triggers',
   'grid.import.optSkipBlankKey': 'Skip rows with a blank match value',
+  'grid.import.optBackground': 'Import in the background',
+  'grid.import.optBackgroundHint': '(runs as an undoable job)',
   // Server dry-run pre-check (small files, preview step)
   'grid.import.validate': 'Validate data',
   'grid.import.validating': 'Validating…',
@@ -979,10 +981,14 @@ const ImportOptions: React.FC<{
   onRunAutomations: (v: boolean) => void;
   skipBlankMatchKey: boolean;
   onSkipBlankMatchKey: (v: boolean) => void;
+  showBackground: boolean;
+  backgroundImport: boolean;
+  onBackgroundImport: (v: boolean) => void;
 }> = ({
   fields, mapping, writeMode, onWriteMode, matchFields, onToggleMatchField,
   createMissingOptions, onCreateMissingOptions, runAutomations, onRunAutomations,
   skipBlankMatchKey, onSkipBlankMatchKey,
+  showBackground, backgroundImport, onBackgroundImport,
 }) => {
   const { t } = useImportTranslation();
   // Only fields that are actually mapped can serve as match keys.
@@ -1046,6 +1052,15 @@ const ImportOptions: React.FC<{
             <Checkbox checked={runAutomations} onCheckedChange={(v) => onRunAutomations(v === true)} />
             {t('grid.import.optRunAutomations')}
           </label>
+          {showBackground && (
+            <label className="flex items-center gap-2 text-xs" data-testid="import-opt-background">
+              <Checkbox checked={backgroundImport} onCheckedChange={(v) => onBackgroundImport(v === true)} />
+              <span>
+                {t('grid.import.optBackground')}
+                <span className="ml-1 text-[11px] text-muted-foreground">{t('grid.import.optBackgroundHint')}</span>
+              </span>
+            </label>
+          )}
         </div>
       </div>
     </div>
@@ -1247,7 +1262,21 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [createMissingOptions, setCreateMissingOptions] = useState(false);
   const [runAutomations, setRunAutomations] = useState(false);
   const [skipBlankMatchKey, setSkipBlankMatchKey] = useState(false);
+  // Opt-in: route this import through a background job even when the row count
+  // is under the async threshold. This is the only way to obtain an undoable
+  // job for a small import — the sync path never captures undo state.
+  const [backgroundImport, setBackgroundImport] = useState(false);
   const label = objectLabel ?? objectName;
+
+  // The background-import toggle only makes sense when the data source can
+  // actually run jobs (create + poll + fetch results). Mirrors the guard in
+  // runAsyncImport so the checkbox never promises an unsupported path.
+  const supportsImportJob = useMemo(() => {
+    const ds = dataSource as Partial<DataSource> | undefined;
+    return typeof ds?.createImportJob === 'function'
+      && typeof ds?.getImportJobProgress === 'function'
+      && typeof ds?.getImportJobResults === 'function';
+  }, [dataSource]);
 
   const toggleMatchField = useCallback((name: string) => {
     setMatchFields((prev) => (prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]));
@@ -1487,9 +1516,11 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     const request = buildImportRequest();
 
     // Route large files through a background job so they neither block the UI
-    // nor trip the sync route's row ceiling. Any unsupported signal (older
-    // adapter / client / server) falls through to the synchronous path.
-    if (rows.length > ASYNC_IMPORT_THRESHOLD) {
+    // nor trip the sync route's row ceiling. Small files can also opt into the
+    // background path (the "background import" toggle) — that's the only way to
+    // get an undoable job for a sub-threshold import. Any unsupported signal
+    // (older adapter / client / server) falls through to the synchronous path.
+    if (rows.length > ASYNC_IMPORT_THRESHOLD || backgroundImport) {
       try {
         const handled = await runAsyncImport(request);
         if (handled) return;
@@ -1550,6 +1581,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     await legacyImport();
   }, [
     dataSource, objectName, buildImportRequest, onComplete, rows.length, legacyImport, runAsyncImport,
+    backgroundImport,
   ]);
 
   // Small-file server dry-run pre-check: validate + coerce every row without
@@ -1724,6 +1756,9 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                   onRunAutomations={setRunAutomations}
                   skipBlankMatchKey={skipBlankMatchKey}
                   onSkipBlankMatchKey={setSkipBlankMatchKey}
+                  showBackground={supportsImportJob && rows.length <= ASYNC_IMPORT_THRESHOLD}
+                  backgroundImport={backgroundImport}
+                  onBackgroundImport={setBackgroundImport}
                 />
                 <StepPreview
                   headers={headers}

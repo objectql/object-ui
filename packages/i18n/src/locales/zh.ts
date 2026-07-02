@@ -265,6 +265,8 @@ const zh = {
       optRunAutomations: '运行自动化与触发器',
       optCreateOptions: '保留未知选项值',
       optSkipBlankKey: '跳过匹配值为空的行',
+      optBackground: '后台导入',
+      optBackgroundHint: '(作为可撤销任务运行)',
       // 结果
       createdCount: '新建 {{count}} 条',
       updatedCount: '更新 {{count}} 条',
