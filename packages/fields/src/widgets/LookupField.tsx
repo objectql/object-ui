@@ -3,6 +3,9 @@ import { cn,
   Button,
   Input,
   Badge,
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
   Popover,
   PopoverTrigger,
   PopoverContent, EmptyValue } from '@object-ui/components';
@@ -15,6 +18,7 @@ import { PeoplePicker } from './PeoplePicker';
 import { deriveLookupColumns } from './deriveLookupColumns';
 import { getRecordDisplayName } from '@object-ui/core';
 import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
+import { getPersonInitials } from './personDisplay';
 import { getCellRendererResolver } from './_cell-renderer-bridge';
 import { SchemaRendererContext as ImportedSchemaRendererContext } from '@object-ui/react';
 import { useFieldTranslation } from './useFieldTranslation';
@@ -797,29 +801,63 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       {/* Selected values display (full mode only — compact shows it in-trigger) */}
       {selectedOptions.length > 0 && !compact && (
         <div className="flex flex-wrap gap-1">
-          {selectedOptions.map((opt, idx) => (
-            <Badge
-              key={idx}
-              variant="outline"
-              className="gap-1"
-            >
-              {opt?.label || opt?.[displayField]}
-              <button
-                onClick={() => handleRemove(opt?.value)}
-                className="ml-1 hover:text-destructive"
-                type="button"
-                aria-label={t('lookup.remove', { label: opt?.label || opt?.[displayField] })}
-              >
-                <X className="size-3" />
-              </button>
-            </Badge>
-          ))}
+          {selectedOptions.map((opt, idx) => {
+            const chipLabel = opt?.label || opt?.[displayField];
+            // Search-first (people) fields show avatar chips; classic lookups
+            // keep the plain text Badge.
+            if (pickerVariant === 'search') {
+              const avatarUrl = (opt as any)?.[avatarField] || (opt as any)?.image;
+              return (
+                <span
+                  key={idx}
+                  data-testid="people-field-chip"
+                  className="inline-flex items-center gap-1.5 rounded-full border bg-background py-0.5 pl-0.5 pr-1.5 text-sm"
+                >
+                  <Avatar className="size-6 shrink-0">
+                    {avatarUrl && <AvatarImage src={avatarUrl} alt={String(chipLabel || '')} />}
+                    <AvatarFallback className="text-[10px]">
+                      {getPersonInitials(String(chipLabel || ''))}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="max-w-[10rem] truncate">{chipLabel}</span>
+                  <button
+                    onClick={() => handleRemove(opt?.value)}
+                    className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    type="button"
+                    aria-label={t('lookup.remove', { label: chipLabel })}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </span>
+              );
+            }
+            return (
+              <Badge key={idx} variant="outline" className="gap-1">
+                {chipLabel}
+                <button
+                  onClick={() => handleRemove(opt?.value)}
+                  className="ml-1 hover:text-destructive"
+                  type="button"
+                  aria-label={t('lookup.remove', { label: chipLabel })}
+                >
+                  <X className="size-3" />
+                </button>
+              </Badge>
+            );
+          })}
         </div>
       )}
 
       {/* Level 1: Quick-select Popover (inline typeahead) */}
       <div className="flex items-center gap-1.5">
-      <Popover open={isOpen} onOpenChange={(o) => !dependenciesMissing && setIsOpen(o)}>
+      <Popover
+        open={pickerVariant === 'search' ? false : isOpen}
+        onOpenChange={(o) => {
+          // Search-first fields open the PeoplePicker instead of this popover.
+          if (pickerVariant === 'search') return;
+          if (!dependenciesMissing) setIsOpen(o);
+        }}
+      >
         <PopoverTrigger asChild>
           <Button
             variant="outline"
@@ -828,8 +866,9 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
               compact && 'h-8 rounded-none border-0 bg-transparent px-2 shadow-none focus-visible:ring-1 focus-visible:ring-ring/60',
             )}
             type="button"
-            aria-haspopup="listbox"
-            aria-expanded={isOpen}
+            onClick={pickerVariant === 'search' ? () => { if (!dependenciesMissing) setIsPickerOpen(true); } : undefined}
+            aria-haspopup={pickerVariant === 'search' ? 'dialog' : 'listbox'}
+            aria-expanded={pickerVariant === 'search' ? undefined : isOpen}
             aria-controls={listboxId}
             disabled={dependenciesMissing || (props as any).disabled}
             data-testid={dependenciesMissing ? 'lookup-trigger-gated' : (((props as any).name || lookupField?.name) ? `lookup-trigger-${(props as any).name || lookupField.name}` : 'lookup-trigger')}
@@ -1016,8 +1055,9 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         </PopoverContent>
       </Popover>
 
-      {/* "Browse All" button — always visible when DataSource is available */}
-      {hasDataSource && (
+      {/* "Browse All" button — classic lookups only; search fields open the
+          PeoplePicker from the trigger itself, so this would be redundant. */}
+      {hasDataSource && pickerVariant !== 'search' && (
         <Button
           variant="outline"
           size="icon"

@@ -251,4 +251,21 @@ describe('PeoplePicker', () => {
     await waitFor(() => expect(screen.getByTestId('people-picker-sheet')).toBeTruthy());
     expect(screen.queryByTestId('people-picker-dialog')).toBeNull();
   });
+
+  it('seeds the tray from an existing multi value (edit mode)', async () => {
+    const ds = makeDataSource();
+    render(
+      <PeoplePicker
+        {...baseProps}
+        multiple
+        dataSource={ds}
+        value={['u1']}
+        onSelect={vi.fn()}
+        onSelectRecords={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getAllByTestId('selection-chip')).toHaveLength(1));
+    expect(screen.getByTestId('selection-tray').textContent).toContain('Amy Lin');
+  });
 });

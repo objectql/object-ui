@@ -168,10 +168,16 @@ export function PeoplePicker({
   // --- selection state (full records so the tray can show avatar + name) ---
   const [selectedRecords, setSelectedRecords] = useState<any[]>([]);
   const seededRef = useRef(false);
+  // On open, seedQuery.loading is still false for one render (its fetch is
+  // kicked off in an effect that runs after this one), so an eager seed would
+  // read an empty recordsById, seed nothing, and lock — wiping an existing
+  // selection on confirm. Only seed after we've observed the fetch start.
+  const sawSeedLoadingRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
       seededRef.current = false;
+      sawSeedLoadingRef.current = false;
       setSelectedRecords([]);
     }
   }, [open]);
@@ -183,7 +189,12 @@ export function PeoplePicker({
       seededRef.current = true;
       return;
     }
-    if (seedQuery.loading) return;
+    if (seedQuery.loading) {
+      sawSeedLoadingRef.current = true;
+      return;
+    }
+    // The seed fetch hasn't started yet this open — wait for it before locking.
+    if (!sawSeedLoadingRef.current) return;
     const seeded = valueIds.map(id => recordsById.get(String(id))).filter(Boolean);
     setSelectedRecords(seeded);
     seededRef.current = true;
