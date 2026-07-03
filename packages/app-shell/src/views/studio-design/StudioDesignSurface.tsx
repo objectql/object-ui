@@ -58,6 +58,7 @@ import {
   toFieldNameLoose,
 } from '../metadata-admin/previews/object-fields-io';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
+import { fetchPackages, createBasePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { toast } from 'sonner';
 
@@ -137,33 +138,6 @@ function extractDraftBody(resp: unknown): Record<string, unknown> | null {
   return Object.keys(body as object).length > 0 ? (body as Record<string, unknown>) : null;
 }
 
-/** A package as the switcher needs it. Writability is a display heuristic —
- * kernel packages (scope system/cloud) are hidden, `scope: 'project'` marks a
- * read-only code package (authoring is refused by the ADR-0070 D4 gate), and a
- * scope-less entry is a database base package (writable). The gate stays the
- * authority; this only sets expectations up front. */
-interface PkgEntry {
-  id: string;
-  name: string;
-  writable: boolean;
-}
-
-function parsePackages(payload: unknown): PkgEntry[] {
-  const root = (payload as { data?: unknown })?.data ?? payload;
-  const raw = Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? []);
-  const out: PkgEntry[] = [];
-  for (const p of raw as Array<Record<string, unknown>>) {
-    if (!p || typeof p !== 'object') continue;
-    const m = (p.manifest ?? {}) as Record<string, unknown>;
-    const id = String(m.id ?? p.id ?? '');
-    if (!id) continue;
-    const scope = typeof m.scope === 'string' ? m.scope : '';
-    if (scope === 'system' || scope === 'cloud') continue; // kernel — not app packages
-    out.push({ id, name: String(m.name ?? id), writable: scope !== 'project' });
-  }
-  return out;
-}
-
 /** Top-bar package switcher: list app packages (可写 base vs 只读 code), switch by
  * navigation, and create a new writable base inline (POST /packages {id,name}). */
 function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string }): React.ReactElement {
@@ -179,20 +153,13 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
 
   React.useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/v1/packages', {
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const parsed = parsePackages(await res.json());
+    fetchPackages()
+      .then((parsed) => {
         if (!cancelled) setPkgs(parsed);
-      } catch {
+      })
+      .catch(() => {
         /* leave null — switcher still works for navigation-free display */
-      }
-    })();
+      });
     return () => {
       cancelled = true;
     };
@@ -203,18 +170,11 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
   const doCreate = React.useCallback(async () => {
     const name = newName.trim();
     const id = newId.trim();
-    if (!name || !/^[a-z][a-z0-9_.-]*(\.[a-z0-9_-]+)+$/.test(id)) return;
+    if (!name || !PACKAGE_ID_RE.test(id)) return;
     setBusy(true);
     setErr(null);
     try {
-      const res = await fetch('/api/v1/packages', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ id, name }),
-      });
-      const payload = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
-      if (!res.ok || payload?.success === false) throw new Error(payload?.error?.message || `HTTP ${res.status}`);
+      await createBasePackage(id, name);
       toast.success(`软件包 ${name} 已创建(可写)`);
       setOpen(false);
       setCreating(false);
@@ -325,7 +285,7 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                     <button
                       type="button"
                       onClick={() => void doCreate()}
-                      disabled={busy || !newName.trim() || !/^[a-z][a-z0-9_.-]*(\.[a-z0-9_-]+)+$/.test(newId.trim())}
+                      disabled={busy || !newName.trim() || !PACKAGE_ID_RE.test(newId.trim())}
                       className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
                     >
                       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}

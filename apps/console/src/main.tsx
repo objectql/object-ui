@@ -148,6 +148,9 @@ import './components/schema/registerObjectDetailWidgets';
 // Register `developer:*` component refs.
 import './registerDeveloperComponents';
 
+// Register `studio:*` component refs (the application-builder entry).
+import './registerStudioComponents';
+
 // Register `account:*` component refs (My Profile, etc.).
 import './registerAccountComponents';
 

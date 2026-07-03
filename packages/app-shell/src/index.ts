@@ -262,6 +262,9 @@ export {
   StudioDesignSurface,
   type StudioDesignSurfaceProps,
 } from './views/studio-design/StudioDesignSurface';
+// The builder's front door: pick/create a writable package → pillar builder.
+// Standalone at `/studio` and embedded via the `studio:builder` component ref.
+export { BuilderLanding } from './views/studio-design/BuilderLanding';
 
 // AI assistant bus — connects the metadata designers to the global chat.
 export {

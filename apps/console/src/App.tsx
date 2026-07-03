@@ -37,6 +37,7 @@ import {
   DefaultSettingsPage,
   DefaultAiChatPage,
   StudioDesignSurface,
+  BuilderLanding,
 } from '@object-ui/app-shell';
 
 import { AppContent } from './AppContent';
@@ -178,10 +179,17 @@ export function App() {
               * REST API and renders a read-only view.
               */}
             <Route path="/s/:token" element={<SharedRecordPage />} />
-            {/* Dev-only (ADR-0080 slice-1): Studio WYSIWYG design surface
-              * harness. Public + backend-free so it renders from a fixture.
-              * Purely additive — touches no existing surface. Not product nav. */}
-            <Route path="/studio/:packageId" element={<Navigate to="interfaces" replace />} />
+            {/* Application builder (ADR-0080/0084). `/studio` is the front door
+              * (pick/create a writable package); a package lands on its Data
+              * pillar. Also reachable from the Studio app's 「应用构建」 nav. */}
+            <Route path="/studio" element={
+              <ProtectedRoute>
+                <div className="min-h-screen bg-background text-foreground">
+                  <BuilderLanding />
+                </div>
+              </ProtectedRoute>
+            } />
+            <Route path="/studio/:packageId" element={<Navigate to="data" replace />} />
             <Route path="/studio/:packageId/:tab" element={
               <ProtectedRoute>
                 <StudioDesignSurface />
