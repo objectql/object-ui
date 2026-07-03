@@ -45,6 +45,7 @@ import {
   ChevronDown,
   Lock,
   ExternalLink,
+  Home as HomeIcon,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
@@ -388,8 +389,44 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   // package (设计界面), the app is its published front-end. If this package
   // ships an app, offer 打开应用 — opened in a new tab so the builder context
   // survives. (App → builder is the reverse bridge, tracked separately.)
+  const shellNavigate = useNavigate();
   const shellClient = useMetadataClient();
   const [packageApp, setPackageApp] = React.useState<{ name: string; label: string } | null>(null);
+  // 创建应用 (package has no app yet): create a draft `app` item — the published
+  // front-end's on-ramp. The button flips to 打开应用 after the package publish.
+  const [appCreating, setAppCreating] = React.useState(false);
+  const [appLabel, setAppLabel] = React.useState('');
+  const [appName, setAppName] = React.useState('');
+  const [appNameTouched, setAppNameTouched] = React.useState(false);
+  const [appBusy, setAppBusy] = React.useState(false);
+  const [appDraftPending, setAppDraftPending] = React.useState<string | null>(null);
+
+  const doCreateApp = React.useCallback(async () => {
+    const label = appLabel.trim();
+    const name = toFieldName(appName.trim() || label);
+    if (!label || !name || name === 'field') return;
+    setAppBusy(true);
+    try {
+      await shellClient.save(
+        'app',
+        name,
+        { name, label, active: true, navigation: [] },
+        { mode: 'draft', packageId },
+      );
+      toast.success(`应用「${label}」已存为草稿 — 发布后即可打开`);
+      setAppDraftPending(label);
+      setAppCreating(false);
+      setAppLabel('');
+      setAppName('');
+      setAppNameTouched(false);
+      setDraftNonce((n) => n + 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAppBusy(false);
+    }
+  }, [appLabel, appName, shellClient, packageId]);
+
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -414,6 +451,15 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b px-3 py-2">
+          {/* Never a dead end: walk back to the platform Home / builder landing. */}
+          <button
+            type="button"
+            onClick={() => shellNavigate('/home')}
+            title="返回主页"
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <HomeIcon className="h-4 w-4" />
+          </button>
           <PackageSwitcher packageId={packageId} tab={tab} />
           <span className="text-muted-foreground">·</span>
           <nav className="flex gap-1">
@@ -436,7 +482,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
           {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
           <div className="ml-auto flex items-center gap-2">
-            {packageApp && (
+            {packageApp ? (
               <button
                 type="button"
                 onClick={() => window.open(`/apps/${encodeURIComponent(packageApp.name)}`, '_blank')}
@@ -446,6 +492,68 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                 <ExternalLink className="h-3.5 w-3.5" />
                 打开应用
               </button>
+            ) : appDraftPending ? (
+              <span
+                title="发布后这里会变成「打开应用」"
+                className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
+              >
+                应用「{appDraftPending}」待发布
+              </span>
+            ) : (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setAppCreating((v) => !v)}
+                  title="这个软件包还没有应用(前端界面)— 创建一个"
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  创建应用
+                </button>
+                {appCreating && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setAppCreating(false)} />
+                    <div className="absolute right-0 top-full z-50 mt-1 flex w-72 flex-col gap-1.5 rounded-lg border bg-background p-2 shadow-lg">
+                      <input
+                        autoFocus
+                        value={appLabel}
+                        onChange={(e) => {
+                          setAppLabel(e.target.value);
+                          if (!appNameTouched) setAppName(toFieldNameLoose(e.target.value));
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void doCreateApp();
+                          if (e.key === 'Escape') setAppCreating(false);
+                        }}
+                        placeholder="应用名称(如:订单中心)"
+                        className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <input
+                        value={appName}
+                        onChange={(e) => {
+                          setAppNameTouched(true);
+                          setAppName(toFieldNameLoose(e.target.value));
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void doCreateApp();
+                          if (e.key === 'Escape') setAppCreating(false);
+                        }}
+                        placeholder="标识符(如:orders_app)"
+                        className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void doCreateApp()}
+                        disabled={appBusy || !appLabel.trim() || !toFieldName(appName.trim() || appLabel) || toFieldName(appName.trim() || appLabel) === 'field'}
+                        className="inline-flex items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                      >
+                        {appBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                        创建(存为草稿)
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             )}
             <button
               type="button"
@@ -1006,6 +1114,10 @@ function DataPillar({
   // Records grid must not fire data SQL against it.
   const [hasBaseline, setHasBaseline] = React.useState(true);
 
+  // Distinguishes "still fetching" from "fetched, the package has no objects" —
+  // an empty NEW package must read as an invitation, not an endless 加载中….
+  const [objectsLoaded, setObjectsLoaded] = React.useState(false);
+
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -1017,8 +1129,13 @@ function DataPillar({
           .filter((o) => o.name);
         setObjects(items);
         setCurrent((c) => c ?? items[0] ?? null);
+        // First-run: an empty writable package opens the creator right away —
+        // the first thing to do here is make an object, so put the inputs up.
+        if (items.length === 0) setCreating(true);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setObjectsLoaded(true);
       }
     })();
     return () => {
@@ -1213,7 +1330,9 @@ function DataPillar({
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-2 pt-1">
             {objects.length === 0 && (
-              <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+              <p className="px-2 py-3 text-[11px] text-muted-foreground">
+                {error ? '加载失败' : objectsLoaded ? '还没有对象 — 在下方新建一个开始' : '加载中…'}
+              </p>
             )}
             {objects
               .filter(
@@ -1299,7 +1418,19 @@ function DataPillar({
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-4">
           {!current ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">选择一个对象</div>
+            objectsLoaded && objects.length === 0 ? (
+              /* Fresh package: the first act is creating an object — say so and
+               * point at the rail creator (already auto-opened). */
+              <div className="flex flex-col items-center gap-2 py-16 text-center">
+                <p className="text-sm font-medium">从第一个对象开始</p>
+                <p className="max-w-sm text-[11px] leading-5 text-muted-foreground">
+                  对象是应用的数据基座(如「订单」「客户」)。在左下角输入显示名与标识符即可创建;
+                  之后为它设计字段、表单与自动化,最后一次发布。
+                </p>
+              </div>
+            ) : (
+              <div className="py-16 text-center text-sm text-muted-foreground">选择一个对象</div>
+            )
           ) : (
             <>
               <div className="mb-3 flex shrink-0 items-center gap-2">
