@@ -115,18 +115,29 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 function ScopeBadge({ scope }: { scope?: string }) {
   const locale = React.useMemo(() => detectLocale(), []);
-  const s = scope ?? 'project';
+  // Writability semantics, aligned with the builder (studio-design/packages-io):
+  // a SCOPE-LESS entry is a database base package (writable — authoring lives
+  // there), while `project` marks a read-only code package. Defaulting the
+  // missing scope to 'project' used to render both with the same badge, which
+  // contradicted the builder's 可写/只读 labeling for the very same package.
+  if (!scope) {
+    return (
+      <Badge className="bg-emerald-400/15 text-emerald-600 hover:bg-emerald-400/15 dark:text-emerald-300">
+        {t('engine.packages.scope.writable', locale)}
+      </Badge>
+    );
+  }
   const variant =
-    s === 'project' ? 'default' : s === 'system' ? 'secondary' : 'outline';
+    scope === 'project' ? 'default' : scope === 'system' ? 'secondary' : 'outline';
   const labelKey =
-    s === 'project'
+    scope === 'project'
       ? 'engine.packages.scope.project'
-      : s === 'system'
+      : scope === 'system'
         ? 'engine.packages.scope.system'
-        : s === 'cloud'
+        : scope === 'cloud'
           ? 'engine.packages.scope.cloud'
           : '';
-  return <Badge variant={variant as any}>{labelKey ? t(labelKey, locale) : s}</Badge>;
+  return <Badge variant={variant as any}>{labelKey ? t(labelKey, locale) : scope}</Badge>;
 }
 
 function StatusBadge({ pkg }: { pkg: InstalledPackage }) {
@@ -190,7 +201,11 @@ export function CreatePackageDialog({
             name: name.trim(),
             version: version.trim(),
             type: 'app',
-            scope: 'project',
+            // No `scope`: runtime-created base packages are writable authoring
+            // targets. `scope: 'project'` marks read-only CODE packages — the
+            // old hardcode here made Setup-created bases read as 只读 in the
+            // builder's switcher/landing while the builder's own creator made
+            // writable ones. One creation semantic everywhere now.
           },
         }),
       });
