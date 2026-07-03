@@ -40,9 +40,6 @@ export interface ObjectDefLike {
   /** Semantic role (ADR-0085): the object's most important fields —
    *  drives the highlight strip (first 4). */
   highlightFields?: string[];
-  /** @deprecated Renamed to `highlightFields` (ADR-0085). Read as a
-   *  fallback for pre-11.7 metadata that reaches consumers un-normalized. */
-  compactLayout?: string[];
   /** Name of the field that holds the record's display title (e.g. `name`,
    *  `subject`). When present we exclude it from the auto-derived highlight
    *  list to avoid duplicating the page H1. */
@@ -266,14 +263,12 @@ export function deriveHighlightFields(
   max = 4,
 ): string[] {
   if (!def) return [];
-  // Semantic role first (ADR-0085): top-level `highlightFields`, with the
-  // deprecated `compactLayout` spelling as a fallback for pre-11.7 metadata
-  // that reaches consumers un-normalized (the spec mirrors the two on parse).
+  // Semantic role first (ADR-0085): top-level `highlightFields`. (The
+  // deprecated `compactLayout` fallback was retired with the alias —
+  // framework#2536.)
   const declared = Array.isArray(def.highlightFields) && def.highlightFields.length > 0
     ? def.highlightFields
-    : Array.isArray(def.compactLayout) && def.compactLayout.length > 0
-      ? def.compactLayout
-      : null;
+    : null;
   if (declared) {
     return declared
       .filter((n): n is string => typeof n === 'string' && n.length > 0)

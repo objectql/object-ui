@@ -1379,12 +1379,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       return base;
     })();
 
-    // Build highlightFields from the object's semantic role (ADR-0085):
-    // top-level `highlightFields`, with the deprecated `compactLayout`
-    // spelling as fallback for pre-11.7 metadata that reaches consumers
-    // un-normalized. Bare field names resolve label/type from the field def.
-    const rawHighlightFields =
-      (objectDef as any).highlightFields ?? (objectDef as any).compactLayout ?? [];
+    // Build highlightFields from the object's semantic role (ADR-0085).
+    // Bare field names resolve label/type from the field def.
+    const rawHighlightFields = (objectDef as any).highlightFields ?? [];
     const highlightFields: HighlightField[] = (Array.isArray(rawHighlightFields) ? rawHighlightFields : [])
       .map((f: any): HighlightField | null => {
         const name = typeof f === 'string' ? f : f?.name;
@@ -1494,9 +1491,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           childObjectDef?.displayNameField ||
           (Array.isArray(childObjectDef?.highlightFields)
             ? childObjectDef.highlightFields[0]
-            : Array.isArray(childObjectDef?.compactLayout)
-              ? childObjectDef.compactLayout[0]
-              : undefined),
+            : undefined),
         onNew,
         onViewAll,
         onRowClick,

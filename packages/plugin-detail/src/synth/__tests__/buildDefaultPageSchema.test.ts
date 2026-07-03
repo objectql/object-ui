@@ -698,23 +698,15 @@ describe('semantic-role hints (ADR-0085 / #2065)', () => {
   });
 
   describe('deriveHighlightFields', () => {
-    it('highlightFields wins over the deprecated compactLayout spelling', () => {
+    it('reads the highlightFields semantic role', () => {
       expect(
-        deriveHighlightFields(
-          {
-            ...leadDef,
-            highlightFields: ['phone', 'rating'],
-            compactLayout: ['email'],
-          },
-          'status',
-        ),
+        deriveHighlightFields({ ...leadDef, highlightFields: ['phone', 'rating'] }, 'status'),
       ).toEqual(['phone', 'rating']);
     });
 
-    it('reads the deprecated compactLayout when highlightFields is absent', () => {
-      expect(
-        deriveHighlightFields({ ...leadDef, compactLayout: ['email', 'phone'] }, 'status'),
-      ).toEqual(['email', 'phone']);
+    it('ignores the retired compactLayout spelling (framework#2536) — heuristic applies instead', () => {
+      const derived = deriveHighlightFields({ ...leadDef, compactLayout: ['email', 'phone'] }, 'status');
+      expect(derived).not.toEqual(['email', 'phone']);
     });
 
     it('drops non-string entries and caps the declared list at max', () => {

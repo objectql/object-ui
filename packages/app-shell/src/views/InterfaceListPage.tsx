@@ -70,8 +70,8 @@ function resolveSourceView(objectDef: any, sourceView?: string): any | undefined
  * Default column set when the resolved view carries none — mirrors
  * ObjectView's data-mode fallback so an interface page never renders a
  * column-less grid. Priority: the `highlightFields` semantic role
- * (ADR-0085; deprecated `compactLayout` read as fallback), else the first
- * business fields (system/audit columns excluded).
+ * (ADR-0085), else the first business fields (system/audit columns
+ * excluded).
  */
 const SYSTEM_FIELDS = new Set([
   'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
@@ -79,9 +79,7 @@ const SYSTEM_FIELDS = new Set([
   'updated_by', 'updatedBy', '_version', '_rev',
 ]);
 function defaultColumnsFromObject(objectDef: any): string[] {
-  const curated = Array.isArray(objectDef?.highlightFields) && objectDef.highlightFields.length > 0
-    ? objectDef.highlightFields
-    : objectDef?.compactLayout;
+  const curated = objectDef?.highlightFields;
   if (Array.isArray(curated) && curated.length > 0) {
     return curated.filter((n: string) => objectDef.fields?.[n]);
   }

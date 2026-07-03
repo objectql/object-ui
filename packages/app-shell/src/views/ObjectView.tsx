@@ -236,9 +236,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     'updated_by', 'updatedBy', '_version', '_rev',
                 ]);
                 let defaultColumns: string[] = [];
-                const curated = Array.isArray(objectDef?.highlightFields) && objectDef.highlightFields.length > 0
-                    ? objectDef.highlightFields
-                    : objectDef?.compactLayout;
+                const curated = objectDef?.highlightFields;
                 if (Array.isArray(curated) && curated.length > 0) {
                     defaultColumns = curated.filter((n: string) => objectDef.fields?.[n]);
                 } else if (objectDef?.fields) {
@@ -489,8 +487,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // Resolve Views from objectDef.listViews (camelCase per @objectstack/spec)
     const views = useMemo(() => {
         // Default column resolution priority:
-        //   1. The `highlightFields` semantic role (ADR-0085; deprecated
-        //      `compactLayout` read as fallback).
+        //   1. The `highlightFields` semantic role (ADR-0085).
         //   2. Business fields only — exclude system-managed identifiers/audit
         //      columns (id, created_at, updated_at, …) and fields explicitly
         //      marked hidden/readonly on the schema. First 5 kept for compactness.
@@ -500,9 +497,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             'updated_by', 'updatedBy', '_version', '_rev',
         ]);
         const resolveDefaultColumns = (): string[] => {
-            const curated = Array.isArray(objectDef.highlightFields) && objectDef.highlightFields.length > 0
-                ? objectDef.highlightFields
-                : objectDef.compactLayout;
+            const curated = objectDef.highlightFields;
             if (Array.isArray(curated) && curated.length > 0) {
                 return curated.filter((n: string) => objectDef.fields?.[n]);
             }
