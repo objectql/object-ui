@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { __testables } from './ImportWizard';
 
-const { isUnsupportedImport, buildFailedRowsCsv } = __testables;
+const { isUnsupportedImport, buildFailedRowsCsv, mappedReferenceFields } = __testables;
 
 describe('isUnsupportedImport', () => {
   it('matches the adapter UNSUPPORTED_OPERATION code', () => {
@@ -57,5 +57,42 @@ describe('buildFailedRowsCsv', () => {
     const csv = buildFailedRowsCsv(headers, rows, mapping, errorsByRow);
     // header only — no data line for the non-existent row
     expect(csv.split('\n')).toHaveLength(1);
+  });
+});
+
+describe('mappedReferenceFields (legacy-fallback relation guard)', () => {
+  // The legacy per-row create fallback stores raw cell text verbatim — for
+  // relation fields that corrupts data (text where a record ID belongs), so
+  // the fallback refuses to run when any mapped column targets one.
+  const fields = [
+    { name: 'name', label: 'Name', type: 'text' },
+    { name: 'account_id', label: 'Account', type: 'lookup' },
+    { name: 'parent_id', label: 'Parent', type: 'master_detail' },
+    { name: 'owner', label: 'Owner', type: 'user' },
+    { name: 'ref', label: 'Ref', type: 'reference' },
+    { name: 'node', label: 'Node', type: 'tree' },
+    { name: 'amount', label: 'Amount', type: 'number' },
+  ];
+
+  it('returns every mapped relation-type field (all five guarded types)', () => {
+    const mapping = { 0: 'account_id', 1: 'parent_id', 2: 'owner', 3: 'ref', 4: 'node' };
+    expect(mappedReferenceFields(mapping, fields).map((f) => f.name)).toEqual([
+      'account_id', 'parent_id', 'owner', 'ref', 'node',
+    ]);
+  });
+
+  it('ignores mapped scalar fields and unmapped relation fields', () => {
+    // account_id exists on the object but is NOT mapped — must not trigger.
+    const mapping = { 0: 'name', 1: 'amount' };
+    expect(mappedReferenceFields(mapping, fields)).toEqual([]);
+  });
+
+  it('flags a mix: only the mapped relation column is returned', () => {
+    const mapping = { 0: 'name', 1: 'account_id', 2: 'amount' };
+    expect(mappedReferenceFields(mapping, fields).map((f) => f.name)).toEqual(['account_id']);
+  });
+
+  it('returns [] for an empty mapping', () => {
+    expect(mappedReferenceFields({}, fields)).toEqual([]);
   });
 });

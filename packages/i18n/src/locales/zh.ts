@@ -237,6 +237,7 @@ const zh = {
       requiredMark: '*',
       required: '必填',
       invalidType: '{{type}} 格式无效',
+      legacyReferenceBlocked: '导入已阻止：{{fields}} 是关联字段，需要服务端导入接口把名称解析为记录 ID，而当前连接不支持。按纯文本导入会写坏数据。请升级后端/客户端，或取消这些列的映射后再导入。',
       // 自动匹配（Airtable 风格）
       autoMatched: '自动匹配',
       autoMatchedSummary: '已自动匹配 {{count}} 列 — 请在下方检查并调整。',

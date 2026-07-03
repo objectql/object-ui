@@ -149,6 +149,7 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.importingProgress': 'Importing…',
   'grid.import.required': 'Required',
   'grid.import.invalidType': 'Invalid {{type}}',
+  'grid.import.legacyReferenceBlocked': 'Import blocked: {{fields}} are relation fields that need the server import route to resolve names into record IDs, and this connection doesn’t support it. Importing them as plain text would corrupt the data. Upgrade the backend/client, or unmap these columns and import them separately.',
 };
 
 /** Apply `{{var}}` interpolation to a translation template. */
@@ -191,6 +192,7 @@ export const __testables = {
   get saveTemplates() { return saveTemplates; },
   get autoMapColumns() { return autoMapColumns; },
   get isUnsupportedImport() { return isUnsupportedImport; },
+  get mappedReferenceFields() { return mappedReferenceFields; },
   get isUnsupportedImportJob() { return isUnsupportedImportJob; },
   get jobResultToImportResult() { return jobResultToImportResult; },
   get buildFailedRowsCsv() { return buildFailedRowsCsv; },
@@ -292,6 +294,22 @@ const BOOLEAN_IMPORT_TOKENS = new Set([
   'true', 't', 'yes', 'y', '1', 'on', '是', '对', '✓', '√',
   'false', 'f', 'no', 'n', '0', 'off', '否', '错', '✗', '×',
 ]);
+
+/** Field types the server resolves from display text to record IDs during
+ *  `/import` (kept in step with the server's import-coerce REFERENCE_TYPES).
+ *  The legacy per-row create fallback has no resolution step — raw cell text
+ *  would be stored verbatim into relation fields — so the fallback must refuse
+ *  to run when any mapped column targets one of these types. */
+const REFERENCE_IMPORT_TYPES = new Set(['lookup', 'master_detail', 'user', 'reference', 'tree']);
+
+/** Mapped fields whose type the legacy fallback cannot import safely. */
+function mappedReferenceFields(
+  mapping: Record<number, string>,
+  fields: ImportWizardProps['fields'],
+): ImportWizardProps['fields'] {
+  const mappedNames = new Set(Object.values(mapping));
+  return fields.filter((f) => mappedNames.has(f.name) && REFERENCE_IMPORT_TYPES.has(f.type));
+}
 
 function validateValue(value: string, type: string): boolean {
   if (!value) return true;
@@ -1237,6 +1255,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   objectName, objectLabel, fields, dataSource, onComplete, onCancel, open, onOpenChange, onErrorMode = 'skip',
   templateStorageKey, templateStorage,
 }) => {
+  const { t } = useImportTranslation();
   const [step, setStep] = useState<WizardStep>('upload');
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<string[][]>([]);
@@ -1391,6 +1410,27 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   // Legacy fallback — per-row `create` with light client-side validation. Used
   // only when the adapter/client can't reach the server `/import` route.
   const legacyImport = useCallback(async () => {
+    // Relation columns need the server to resolve display text into record
+    // IDs; per-row `create` would store the raw text verbatim. Refuse up
+    // front — corrupting relation data is worse than not importing.
+    const refFields = mappedReferenceFields(mapping, fields);
+    if (refFields.length > 0) {
+      const importResult: ImportResult = {
+        totalRows: rows.length,
+        importedRows: 0,
+        skippedRows: rows.length,
+        errors: [{
+          row: 0,
+          field: refFields.map((f) => f.name).join(', '),
+          message: t('grid.import.legacyReferenceBlocked', {
+            fields: refFields.map((f) => f.label || f.name).join(', '),
+          }),
+        }],
+      };
+      setResult(importResult); setImporting(false); onComplete?.(importResult);
+      return;
+    }
+
     const errors: ImportResult['errors'] = [];
     let importedRows = 0, skippedRows = 0;
     const mappedCols = Object.entries(mapping).map(([idx, name]) => ({
@@ -1422,7 +1462,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     }
     const importResult: ImportResult = { totalRows: rows.length, importedRows, skippedRows, errors };
     setResult(importResult); setImporting(false); onComplete?.(importResult);
-  }, [rows, mapping, fields, dataSource, objectName, onComplete, onErrorMode, corrections]);
+  }, [rows, mapping, fields, dataSource, objectName, onComplete, onErrorMode, corrections, t]);
 
   // Large-file path: hand the rows to a server-side background job and poll it
   // to completion. Returns `true` when the async path handled the import
@@ -1675,7 +1715,6 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   }, [result, headers, rows, mapping, objectName]);
 
   const handleClose = useCallback(() => { reset(); onOpenChange?.(false); onCancel?.(); }, [reset, onOpenChange, onCancel]);
-  const { t } = useImportTranslation();
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else onOpenChange?.(v); }}>
@@ -1874,7 +1913,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               <>
                 <div className="max-h-32 w-full overflow-auto rounded border p-2 text-xs">
                   {result.errors.slice(0, 10).map((err, i) => (
-                    <p key={i} className="text-destructive">Row {err.row}{err.field ? ` (${err.field})` : ''}: {err.message}</p>
+                    <p key={i} className="text-destructive">{err.row >= 1 ? `Row ${err.row}${err.field ? ` (${err.field})` : ''}: ` : ''}{err.message}</p>
                   ))}
                   {result.errors.length > 10 && <p className="text-muted-foreground">{t('grid.import.moreErrors', { count: result.errors.length - 10 })}</p>}
                 </div>

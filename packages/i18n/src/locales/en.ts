@@ -237,6 +237,7 @@ const en = {
       requiredMark: '*',
       required: 'Required',
       invalidType: 'Invalid {{type}}',
+      legacyReferenceBlocked: 'Import blocked: {{fields}} are relation fields that need the server import route to resolve names into record IDs, and this connection doesn\u2019t support it. Importing them as plain text would corrupt the data. Upgrade the backend/client, or unmap these columns and import them separately.',
     },
   },
   calendar: {
