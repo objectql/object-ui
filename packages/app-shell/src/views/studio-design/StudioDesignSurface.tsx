@@ -46,9 +46,11 @@ import {
   Lock,
   ExternalLink,
   Home as HomeIcon,
+  Shield,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
+import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
@@ -70,6 +72,7 @@ const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> =
   { key: 'data', label: 'Data', Icon: Database },
   { key: 'automations', label: 'Automations', Icon: Workflow },
   { key: 'interfaces', label: 'Interfaces', Icon: LayoutDashboard },
+  { key: 'access', label: 'Access', Icon: Shield },
 ];
 
 interface Surface {
@@ -583,6 +586,8 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
             <DataPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : tab === 'automations' ? (
             <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
+          ) : tab === 'access' ? (
+            <AccessPillar />
           ) : (
             <InterfacesPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           )}
@@ -1966,6 +1971,212 @@ function AutomationsPillar({
             )}
           </div>
         </aside>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Access pillar — the permission workbench (builder-ui §7, ADR-0084's fourth
+ * content pillar). Left rail: the environment's permission sets / profiles;
+ * main: the existing Salesforce-style PermissionMatrixEditPage (objects ×
+ * CRUD/VAMA + field-level R/W), embedded unchanged.
+ *
+ * Semantics note (v1, deliberate): permissions are PLATFORM-level authorization
+ * objects, not package content — the matrix's own Save writes the ACTIVE item
+ * directly (no draft, no package binding), so the shell's 变更/发布 does not
+ * apply here. The banner says so instead of pretending otherwise.
+ */
+function AccessPillar(): React.ReactElement {
+  const client = useMetadataClient();
+  const [perms, setPerms] = React.useState<Array<{ name: string; label: string; isProfile?: boolean }>>([]);
+  const [loaded, setLoaded] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [current, setCurrent] = React.useState<string | null>(null);
+  const [query, setQuery] = React.useState('');
+  // inline creator (same rail pattern as the Data pillar's object creator)
+  const [creating, setCreating] = React.useState(false);
+  const [newLabel, setNewLabel] = React.useState('');
+  const [newName, setNewName] = React.useState('');
+  const [nameTouched, setNameTouched] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+
+  const load = React.useCallback(async () => {
+    try {
+      const list = (await client.list('permission')) as Array<Record<string, unknown>>;
+      const items = (list || [])
+        .map((p) => ({
+          name: String(p.name ?? (p as Record<string, unknown>).id ?? ''),
+          label: String(p.label ?? p.name ?? ''),
+          isProfile: !!(p as Record<string, unknown>).isProfile,
+        }))
+        .filter((p) => p.name);
+      setPerms(items);
+      setCurrent((c) => c ?? items[0]?.name ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoaded(true);
+    }
+  }, [client]);
+
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  const doCreate = React.useCallback(async () => {
+    const label = newLabel.trim();
+    const name = toFieldName(newName.trim() || label);
+    if (!label || !name || name === 'field') return;
+    setBusy(true);
+    try {
+      await client.save('permission', name, { name, label, objects: {}, fields: {} });
+      toast.success(`权限集「${label}」已创建`);
+      setCreating(false);
+      setNewLabel('');
+      setNewName('');
+      setNameTouched(false);
+      await load();
+      setCurrent(name);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [client, newLabel, newName, load]);
+
+  const filtered = perms.filter(
+    (p) =>
+      !query.trim() ||
+      p.label.toLowerCase().includes(query.trim().toLowerCase()) ||
+      p.name.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Shield className="h-3.5 w-3.5" />
+          <span className="text-[13px] font-medium text-foreground">权限矩阵</span>
+          <span className="rounded bg-muted px-1.5 py-0.5">对象 × CRUD · 字段级读写</span>
+        </span>
+        <span
+          title="权限是平台级授权配置,矩阵内的「Save」保存即生效;不进入软件包草稿,顶栏「发布」不涉及它。"
+          className="ml-auto rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
+        >
+          保存即生效 · 不走包草稿
+        </span>
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        <nav className="flex w-52 shrink-0 flex-col border-r">
+          <div className="p-2 pb-0">
+            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">权限集 / Profile</p>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索权限…"
+              className="mb-1 h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-2 pt-1">
+            {perms.length === 0 && (
+              <p className="px-2 py-3 text-[11px] text-muted-foreground">
+                {error ? '加载失败' : loaded ? '还没有权限集 — 在下方新建一个' : '加载中…'}
+              </p>
+            )}
+            {filtered.map((p) => (
+              <button
+                key={p.name}
+                onClick={() => setCurrent(p.name)}
+                className={
+                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                  (current === p.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+                }
+              >
+                <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <span className="flex-1 truncate">{p.label}</span>
+                {p.isProfile && (
+                  <span className="rounded bg-muted px-1 py-px text-[9px] uppercase text-muted-foreground">
+                    profile
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="shrink-0 border-t p-2">
+            {creating ? (
+              <div className="flex flex-col gap-1.5">
+                <input
+                  autoFocus
+                  value={newLabel}
+                  onChange={(e) => {
+                    setNewLabel(e.target.value);
+                    if (!nameTouched) setNewName(toFieldNameLoose(e.target.value));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void doCreate();
+                    if (e.key === 'Escape') setCreating(false);
+                  }}
+                  placeholder="显示名(如:销售权限)"
+                  className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                />
+                <input
+                  value={newName}
+                  onChange={(e) => {
+                    setNameTouched(true);
+                    setNewName(toFieldNameLoose(e.target.value));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void doCreate();
+                    if (e.key === 'Escape') setCreating(false);
+                  }}
+                  placeholder="标识符(如:sales_perms)"
+                  className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void doCreate()}
+                    disabled={busy || !newLabel.trim() || !toFieldName(newName.trim() || newLabel) || toFieldName(newName.trim() || newLabel) === 'field'}
+                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                    创建
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreating(false)}
+                    className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" /> 新建权限集
+              </button>
+            )}
+          </div>
+        </nav>
+
+        <main className="min-w-0 flex-1 overflow-auto">
+          {current ? (
+            /* The existing Salesforce-style matrix page, embedded unchanged —
+             * objects × CRUD/VAMA/lifecycle up top, per-object field-level R/W
+             * below, its own Save + destructive-change guard included. */
+            <PermissionMatrixEditPage key={current} type="permission" name={current} />
+          ) : (
+            <div className="py-16 text-center text-sm text-muted-foreground">
+              {loaded && perms.length === 0 ? '新建一个权限集开始配置' : '选择一个权限集'}
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );
