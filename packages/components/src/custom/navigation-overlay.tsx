@@ -65,6 +65,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from '../ui/resizable';
+import { usePopperAwareInteractOutside } from './mobile-dialog-content';
 
 /** Navigation mode type — matches ViewNavigationConfig.mode */
 export type NavigationOverlayMode =
@@ -282,6 +283,9 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
   // Keep hooks above all conditional returns. Opening a record changes
   // selectedRecord from null to an object, but hook order must stay stable.
   const resize = useDrawerResize(mode === 'drawer' ? storageKey : undefined);
+  // Inline-edit dropdowns render in body-level poppers; without this guard the
+  // click that closes an open dropdown also dismisses the drawer/modal (#2156).
+  const handleInteractOutside = usePopperAwareInteractOutside();
 
   // Non-overlay modes don't render anything
   if (mode === 'page' || mode === 'new_window' || mode === 'none') {
@@ -320,6 +324,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
       <Sheet open={isOpen} onOpenChange={setIsOpen}>
         <SheetContent
           side="right"
+          onInteractOutside={handleInteractOutside}
           className={cn(
             // Mobile: full width (no inline cap, no max-w from base sheet).
             // sm+: honor the host-supplied width via `--ov-w` CSS var with a
@@ -405,6 +410,7 @@ export const NavigationOverlay: React.FC<NavigationOverlayProps> = ({
     return (
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent
+          onInteractOutside={handleInteractOutside}
           className={cn(
             'w-[calc(100vw-1rem)] max-w-none sm:max-w-[var(--ov-w,42rem)] max-h-[90vh] overflow-y-auto',
             className,

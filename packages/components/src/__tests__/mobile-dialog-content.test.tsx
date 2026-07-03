@@ -13,8 +13,12 @@
  * leaving a genuine backdrop click (which still closes the dialog) untouched.
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
-import { isInsidePopperLayer } from '../custom/mobile-dialog-content';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { renderHook } from '@testing-library/react';
+import {
+  isInsidePopperLayer,
+  usePopperAwareInteractOutside,
+} from '../custom/mobile-dialog-content';
 
 function mount(html: string): HTMLElement {
   const host = document.createElement('div');
@@ -51,5 +55,97 @@ describe('isInsidePopperLayer', () => {
   it('is null/undefined safe', () => {
     expect(isInsidePopperLayer(null)).toBe(false);
     expect(isInsidePopperLayer(undefined)).toBe(false);
+  });
+});
+
+/**
+ * usePopperAwareInteractOutside — the deferred-dismissal path (#2156).
+ *
+ * radix-dialog@1.1.17 defers its outside-pointerdown verdict to the `click`
+ * phase, but radix-select dismisses and unregisters on `pointerdown`. The one
+ * click that closes an open dropdown therefore ALSO reads as the dialog's own
+ * outside click and used to dismiss the whole modal. The hook snapshots
+ * "popper open?" on document pointerdown (capture) and swallows the
+ * pointer-initiated interact-outside that follows.
+ */
+describe('usePopperAwareInteractOutside', () => {
+  const pointerInteractOutside = (target: Element) =>
+    ({
+      detail: { originalEvent: { type: 'pointerdown', target } },
+      preventDefault: vi.fn(),
+    }) as any;
+
+  const dispatchPointerDown = () =>
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+
+  it('swallows the interact-outside when a popper flyout was open at pointerdown', () => {
+    mount('<div data-radix-popper-content-wrapper><div role="listbox"></div></div>');
+    const inner = vi.fn();
+    const { result } = renderHook(() => usePopperAwareInteractOutside(inner));
+
+    dispatchPointerDown();
+    const event = pointerInteractOutside(document.body);
+    result.current(event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(inner).not.toHaveBeenCalled();
+  });
+
+  it('lets a plain backdrop click through when no popper is open', () => {
+    const inner = vi.fn();
+    const { result } = renderHook(() => usePopperAwareInteractOutside(inner));
+
+    dispatchPointerDown();
+    const event = pointerInteractOutside(document.body);
+    result.current(event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(inner).toHaveBeenCalledWith(event);
+  });
+
+  it('closes normally on the SECOND click after the dropdown-closing one', () => {
+    const host = mount('<div data-radix-popper-content-wrapper></div>');
+    const inner = vi.fn();
+    const { result } = renderHook(() => usePopperAwareInteractOutside(inner));
+
+    // First click: popper open → swallowed (it closes the dropdown).
+    dispatchPointerDown();
+    const first = pointerInteractOutside(document.body);
+    result.current(first);
+    expect(first.preventDefault).toHaveBeenCalled();
+
+    // Dropdown unmounts; second click must dismiss the dialog again.
+    host.remove();
+    dispatchPointerDown();
+    const second = pointerInteractOutside(document.body);
+    result.current(second);
+    expect(second.preventDefault).not.toHaveBeenCalled();
+    expect(inner).toHaveBeenCalledWith(second);
+  });
+
+  it('still guards a target INSIDE a (possibly detached) popper layer', () => {
+    const host = mount('<div data-radix-popper-content-wrapper><span id="in">x</span></div>');
+    const target = host.querySelector('#in')!;
+    const { result } = renderHook(() => usePopperAwareInteractOutside());
+
+    const event = pointerInteractOutside(target);
+    result.current(event);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it('does not apply the popper flag to focus-driven interact-outside', () => {
+    mount('<div data-radix-popper-content-wrapper></div>');
+    const inner = vi.fn();
+    const { result } = renderHook(() => usePopperAwareInteractOutside(inner));
+
+    dispatchPointerDown();
+    const event = {
+      detail: { originalEvent: { type: 'focusin', target: document.body } },
+      preventDefault: vi.fn(),
+    } as any;
+    result.current(event);
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(inner).toHaveBeenCalledWith(event);
   });
 });

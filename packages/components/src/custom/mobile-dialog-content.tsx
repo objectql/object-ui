@@ -44,14 +44,47 @@ export function isInsidePopperLayer(target: Element | null | undefined): boolean
   return !!target?.closest?.(POPPER_LAYER_SELECTOR);
 }
 
-export const MobileDialogContent = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onInteractOutside, ...props }, ref) => {
-  const handleInteractOutside = React.useCallback(
-    (event: Parameters<NonNullable<typeof onInteractOutside>>[0]) => {
-      const target = (event.detail?.originalEvent?.target ?? null) as Element | null;
+type InteractOutsideHandler = NonNullable<
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>['onInteractOutside']
+>;
+
+/**
+ * Popper-aware interact-outside guard for Radix Dialog/Sheet content.
+ *
+ * Covers a second dismissal path `isInsidePopperLayer` alone cannot: with a
+ * dropdown OPEN, one outside click must only close the dropdown — but
+ * radix-dialog@1.1.17 defers its outside-pointerdown verdict to the `click`
+ * phase (`deferPointerDownOutside`), while radix-select@2.3.1 dismisses and
+ * unregisters on `pointerdown`. By the deferred verdict the dialog has become
+ * the top layer, so it treats the dropdown-closing click as its own outside
+ * click and dismisses too (#2156).
+ *
+ * The guard snapshots "was a popper flyout open?" on every `pointerdown`
+ * (document capture phase — runs before Radix's bubble-phase dismissal
+ * unmounts the flyout) and swallows the pointer-initiated interact-outside
+ * that follows. Focus-driven interact-outside (Tab out) is untouched, as is a
+ * plain backdrop click with no flyout open.
+ */
+export function usePopperAwareInteractOutside(
+  onInteractOutside?: InteractOutsideHandler,
+): InteractOutsideHandler {
+  const popperOpenAtPointerDownRef = React.useRef(false);
+  React.useEffect(() => {
+    const snapshotPopperState = () => {
+      popperOpenAtPointerDownRef.current = !!document.querySelector(POPPER_LAYER_SELECTOR);
+    };
+    document.addEventListener('pointerdown', snapshotPopperState, true);
+    return () => document.removeEventListener('pointerdown', snapshotPopperState, true);
+  }, []);
+  return React.useCallback(
+    (event: Parameters<InteractOutsideHandler>[0]) => {
+      const originalEvent = event.detail?.originalEvent;
+      const target = (originalEvent?.target ?? null) as Element | null;
       if (isInsidePopperLayer(target)) {
+        event.preventDefault();
+        return;
+      }
+      if (originalEvent?.type === 'pointerdown' && popperOpenAtPointerDownRef.current) {
         event.preventDefault();
         return;
       }
@@ -59,6 +92,13 @@ export const MobileDialogContent = React.forwardRef<
     },
     [onInteractOutside],
   );
+}
+
+export const MobileDialogContent = React.forwardRef<
+  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(({ className, children, onInteractOutside, ...props }, ref) => {
+  const handleInteractOutside = usePopperAwareInteractOutside(onInteractOutside);
   return (
   <DialogPortal>
     <DialogOverlay />
