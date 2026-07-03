@@ -1779,6 +1779,14 @@ const zh = {
     greetingEvening: '晚上好',
     greetingNight: '夜深了',
     heroTagline: '从上次离开的地方继续，或者探索新的内容。',
+    build: {
+      title: '构建应用',
+      subtitle: '从零开始 — 设计对象、表单、自动化与界面。',
+    },
+    template: {
+      title: '从模板开始',
+      subtitle: '从应用市场安装模板应用并按需定制。',
+    },
     open: '打开',
     stats: {
       apps: '应用',

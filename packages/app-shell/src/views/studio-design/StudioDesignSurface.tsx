@@ -659,6 +659,113 @@ function NavTree({
 }
 
 /** Interfaces pillar — real App nav · live canvas · inspector. */
+/**
+ * StudioNavItemInspector — right-panel editor for the selected nav item while
+ * editing an app's navigation. The Studio adds flat top-level items
+ * (`navigation[i]`), so binding is a business-friendly object picker rather
+ * than the raw path field of the generic AppNavInspector: picking an object
+ * writes `{ object }` (which the runtime resolves to that object's record
+ * list) and, if the label is still the placeholder, adopts the object's label.
+ */
+function StudioNavItemInspector({
+  navId,
+  appDraft,
+  objects,
+  onNavPatch,
+  onClear,
+}: {
+  navId: string;
+  appDraft: Record<string, unknown>;
+  objects: Array<{ name: string; label: string }>;
+  onNavPatch: (patch: Record<string, unknown>) => void;
+  onClear: () => void;
+}): React.ReactElement {
+  const idx = React.useMemo(() => {
+    const m = /^navigation\[(\d+)\]$/.exec(navId);
+    return m ? Number(m[1]) : -1;
+  }, [navId]);
+  const nav = React.useMemo(
+    () => (Array.isArray(appDraft.navigation) ? (appDraft.navigation as Array<Record<string, unknown>>) : []),
+    [appDraft],
+  );
+  const node = idx >= 0 ? nav[idx] : null;
+  if (!node) {
+    return (
+      <div className="px-2 py-10 text-center text-xs text-muted-foreground">在左侧选择一个菜单项。</div>
+    );
+  }
+  const patch = (updates: Record<string, unknown>) => {
+    onNavPatch({ navigation: nav.map((n, i) => (i === idx ? { ...n, ...updates } : n)) });
+  };
+  const boundObject = String(node.object ?? node.objectName ?? '');
+  const curLabel = String(node.label ?? node.title ?? node.name ?? '');
+  const isPlaceholder = !curLabel || curLabel === 'New item';
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="mb-1 block text-[11px] font-medium text-muted-foreground">标签</label>
+        <input
+          value={curLabel}
+          onChange={(e) => patch({ label: e.target.value })}
+          placeholder="如:职位"
+          className="w-full rounded border bg-background px-2 py-1 text-xs"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-[11px] font-medium text-muted-foreground">链接到对象</label>
+        <select
+          value={boundObject}
+          onChange={(e) => {
+            const objName = e.target.value;
+            const obj = objects.find((o) => o.name === objName);
+            if (!objName) {
+              // Unbind → back to an (invalid, dropped-on-save) placeholder.
+              patch({ type: undefined, objectName: undefined, object: undefined });
+              return;
+            }
+            // Emit a spec-complete ObjectNavItem: the app schema's nav is a
+            // discriminated union on `type` and BaseNavItem requires a
+            // snake_case `id`. Missing either fails "navigation.0: Invalid
+            // input" at save. `object`/`path` are cleared so no stray keys
+            // linger from the blank placeholder.
+            patch({
+              id: (node.id as string) || `nav_${objName}`,
+              type: 'object',
+              objectName: objName,
+              object: undefined,
+              path: undefined,
+              label: isPlaceholder && obj ? obj.label : curLabel,
+            });
+          }}
+          className="w-full rounded border bg-background px-2 py-1 text-xs"
+        >
+          <option value="">— 选择对象 —</option>
+          {objects.map((o) => (
+            <option key={o.name} value={o.name}>
+              {o.label} ({o.name})
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {boundObject ? '这个菜单项会打开该对象的记录列表。' : '选择一个对象,菜单项将打开它的记录列表。'}
+        </p>
+        {objects.length === 0 && (
+          <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+            这个软件包还没有对象 — 先到 Data 支柱创建。
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+      >
+        取消选择
+      </button>
+    </div>
+  );
+}
+
 function InterfacesPillar({
   packageId,
   publishNonce = 0,
@@ -703,6 +810,35 @@ function InterfacesPillar({
   // no app", so the canvas shows a real empty state instead of an endless
   // spinner.
   const [appStatus, setAppStatus] = React.useState<'loading' | 'ready' | 'missing'>('loading');
+  // Objects in THIS package (published ∪ draft) — the nav item inspector's
+  // object picker, so nav can be wired to sibling objects before publishing.
+  const [pkgObjects, setPkgObjects] = React.useState<Array<{ name: string; label: string }>>([]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [pub, drafts] = await Promise.all([
+          client.list('object', { packageId }) as Promise<Array<Record<string, unknown>>>,
+          client.listDrafts({ packageId, type: 'object' }).catch(() => [] as Array<Record<string, unknown>>),
+        ]);
+        if (cancelled) return;
+        const byName = new Map<string, { name: string; label: string }>();
+        for (const raw of [...(pub || []), ...(drafts || [])]) {
+          const o = raw as Record<string, unknown>;
+          const name = String(o.name ?? '');
+          if (!name || byName.has(name)) continue;
+          byName.set(name, { name, label: String(o.label ?? o.name ?? name) });
+        }
+        setPkgObjects([...byName.values()]);
+      } catch {
+        /* non-fatal — picker just stays empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, packageId, publishNonce, draftNonce]);
 
   // Resolve THIS package's App → load its navigation tree. The query is scoped
   // to the package (`list('app', { packageId })`) so a design surface only ever
@@ -845,7 +981,19 @@ function InterfacesPillar({
     if (!appName) return;
     setNavSaving('draft');
     try {
-      await client.save('app', appName, appDraft, { mode: 'draft', packageId });
+      // "Add nav item" inserts a blank placeholder that only becomes a valid,
+      // spec-conformant item once a target is picked in the inspector. Drop
+      // still-untargeted placeholders (no `type`) so one stray blank can't fail
+      // the whole app's spec validation ("navigation.N: Invalid input"), and
+      // backfill a snake_case id defensively.
+      const rawNav = Array.isArray(appDraft.navigation) ? appDraft.navigation : [];
+      const cleanedNav = rawNav
+        .filter((n) => n && typeof (n as Record<string, unknown>).type === 'string')
+        .map((n, i) => {
+          const item = n as Record<string, unknown>;
+          return typeof item.id === 'string' && item.id ? item : { ...item, id: `nav_item_${i + 1}` };
+        });
+      await client.save('app', appName, { ...appDraft, navigation: cleanedNav }, { mode: 'draft', packageId });
       setNavHasDraft(true);
       setNavDirty(false);
       onDraftSaved?.();
@@ -1069,7 +1217,15 @@ function InterfacesPillar({
             )}
           </header>
           <div className="p-3">
-            {selection && Inspector && current ? (
+            {editNav && navSel ? (
+              <StudioNavItemInspector
+                navId={navSel.id}
+                appDraft={appDraft}
+                objects={pkgObjects}
+                onNavPatch={onNavPatch}
+                onClear={() => setNavSel(null)}
+              />
+            ) : selection && Inspector && current ? (
               <Inspector
                 type={current.type}
                 name={current.name}
@@ -1862,6 +2018,15 @@ function AutomationsPillar({
   const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [hasDraft, setHasDraft] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // Tells "still fetching the list" apart from "fetched, package has no flows"
+  // — without it the empty rail showed an endless "加载中…" for a fresh package.
+  const [listed, setListed] = React.useState(false);
+  // Inline create — a fresh package starts with zero flows, so the pillar must
+  // offer a way to author the first one (mirrors the object/app creators).
+  const [creating, setCreating] = React.useState(false);
+  const [newLabel, setNewLabel] = React.useState('');
+  const [newName, setNewName] = React.useState('');
+  const [createBusy, setCreateBusy] = React.useState(false);
   const Preview = getMetadataPreview(current?.type ?? '');
   const inspector = getMetadataInspector('flow');
   const isEditable = !!Preview;
@@ -1879,12 +2044,50 @@ function AutomationsPillar({
         setCurrent((c) => c ?? items[0] ?? null);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (!cancelled) setListed(true);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [client, packageId]);
+
+  const doCreateFlow = React.useCallback(async () => {
+    const label = newLabel.trim();
+    const name = toFieldName(newName.trim() || label);
+    if (!label || !name || name === 'field') return;
+    setCreateBusy(true);
+    setError(null);
+    try {
+      // Minimal valid, autolaunched skeleton: start → end. The designer fills in
+      // the trigger + nodes; publishing it is a separate, user-initiated step.
+      const skeleton = {
+        name,
+        label,
+        type: 'autolaunched',
+        nodes: [
+          { id: 'start', type: 'start', label: '开始' },
+          { id: 'end', type: 'end', label: '结束' },
+        ],
+        edges: [{ id: 'e1', source: 'start', target: 'end' }],
+      };
+      await client.save('flow', name, skeleton, { mode: 'draft', packageId });
+      const item: Surface = { type: 'flow', name, label };
+      setFlows((fs) => [...fs.filter((f) => f.name !== name), item]);
+      setCurrent(item);
+      setHasDraft(true);
+      setCreating(false);
+      setNewLabel('');
+      setNewName('');
+      onDraftSaved?.();
+      toast.success(`自动化「${label}」已存为草稿`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreateBusy(false);
+    }
+  }, [newLabel, newName, client, packageId, onDraftSaved]);
 
   React.useEffect(() => {
     if (!current) return;
@@ -1954,11 +2157,19 @@ function AutomationsPillar({
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <nav className="w-52 shrink-0 overflow-auto border-r p-2">
-          <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">自动化 · flow</p>
-          {flows.length === 0 ? (
-            <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
-          ) : (
+        <nav className="flex w-52 shrink-0 flex-col overflow-auto border-r p-2">
+          <div className="flex items-center gap-1 px-2 pb-1 pt-1">
+            <p className="flex-1 text-[11px] font-medium text-muted-foreground">自动化 · flow</p>
+            <button
+              type="button"
+              onClick={() => setCreating((v) => !v)}
+              title="新建自动化"
+              className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] hover:bg-muted"
+            >
+              <Plus className="h-3 w-3" /> 新建
+            </button>
+          </div>
+          {flows.length > 0 &&
             flows.map((f) => (
               <button
                 key={f.name}
@@ -1971,7 +2182,54 @@ function AutomationsPillar({
                 <Workflow className="h-3.5 w-3.5 shrink-0" />
                 <span className="flex-1 truncate">{f.label}</span>
               </button>
-            ))
+            ))}
+          {flows.length === 0 && !creating && (
+            <p className="px-2 py-3 text-[11px] text-muted-foreground">
+              {error ? '加载失败' : !listed ? '加载中…' : '还没有自动化 — 点「新建」开始'}
+            </p>
+          )}
+          {creating && (
+            <div className="mt-1 space-y-1.5 rounded-md border bg-muted/30 p-2">
+              <input
+                autoFocus
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void doCreateFlow();
+                  if (e.key === 'Escape') setCreating(false);
+                }}
+                placeholder="名称(如:录用通知)"
+                className="w-full rounded border bg-background px-2 py-1 text-xs"
+              />
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void doCreateFlow();
+                  if (e.key === 'Escape') setCreating(false);
+                }}
+                placeholder="标识符(如:offer_notice)"
+                className="w-full rounded border bg-background px-2 py-1 font-mono text-[11px]"
+              />
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => void doCreateFlow()}
+                  disabled={!newLabel.trim() || createBusy}
+                  className="inline-flex flex-1 items-center justify-center gap-1 rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  {createBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                  创建(存为草稿)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreating(false)}
+                  className="rounded border px-2 py-1 text-[11px] hover:bg-muted"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
           )}
         </nav>
 

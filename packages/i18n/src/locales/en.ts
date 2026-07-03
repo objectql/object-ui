@@ -1694,6 +1694,14 @@ const en = {
     greetingEvening: 'Good evening',
     greetingNight: 'Working late',
     heroTagline: 'Pick up where you left off, or explore something new.',
+    build: {
+      title: 'Build an app',
+      subtitle: 'Start from scratch — design objects, forms, automations and interfaces.',
+    },
+    template: {
+      title: 'Start with a template',
+      subtitle: 'Install a template app from the marketplace and customize it.',
+    },
     open: 'Open',
     stats: {
       apps: 'Applications',
