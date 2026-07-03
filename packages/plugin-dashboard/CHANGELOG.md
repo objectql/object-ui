@@ -1,5 +1,22 @@
 # @object-ui/plugin-dashboard
 
+## 11.4.0
+
+### Patch Changes
+
+- Updated dependencies [1948c5b]
+- Updated dependencies [9cd9be1]
+- Updated dependencies [5160832]
+- Updated dependencies [69d6b94]
+- Updated dependencies [243a9ba]
+- Updated dependencies [289be5b]
+  - @object-ui/components@11.4.0
+  - @object-ui/types@11.4.0
+  - @object-ui/i18n@11.4.0
+  - @object-ui/fields@11.4.0
+  - @object-ui/core@11.4.0
+  - @object-ui/react@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes

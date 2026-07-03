@@ -1,5 +1,16 @@
 # @object-ui/plugin-timeline
 
+## 11.4.0
+
+### Patch Changes
+
+- Updated dependencies [1948c5b]
+  - @object-ui/components@11.4.0
+  - @object-ui/types@11.4.0
+  - @object-ui/core@11.4.0
+  - @object-ui/mobile@11.4.0
+  - @object-ui/react@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes
