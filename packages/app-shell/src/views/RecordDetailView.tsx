@@ -28,7 +28,7 @@ import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog
 import { FlowRunner, type ScreenFlowState } from './FlowRunner';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
-import type { DetailViewSchema, FeedItem, HighlightField, SectionGroup } from '@object-ui/types';
+import type { DetailViewSchema, FeedItem, HighlightField } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals } from '../hooks/useRecordApprovals';
 import { getRecordDisplayName } from '../utils';
@@ -77,9 +77,8 @@ const AUDIT_FIELD_NAMES = new Set(['created_at', 'created_by', 'updated_at', 'up
 /**
  * System/tenant fields that the framework auto-injects on every record but
  * which carry no business value on a detail page. Hidden from the
- * auto-generated section (when the object has no explicit form sections).
- * Authors who really want to show these can still list them in
- * `objectDef.views.form.sections`.
+ * auto-generated sections. Authors who really want to surface one can
+ * assign it to a `fieldGroups` group explicitly (explicit listing wins).
  */
 const HIDDEN_SYSTEM_FIELD_NAMES = new Set([
   'organization_id', 'tenant_id', 'is_deleted', 'deleted_at',
@@ -1225,49 +1224,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         (key) => key === 'name' || key === 'title'
       );
 
-    // Build sections, in priority order:
-    //   1) explicit sections — the spec-writable `detail.sections` block,
-    //      else legacy `views.form.sections` (the spec's ObjectSchema has no
-    //      `views` key, so that source only exists on non-spec metadata);
-    //   2) sections derived from the designer's `fieldGroups` metadata
-    //      (see the fieldGroups branch in the fallback below);
-    //   3) auto-grouping (primary + collapsible "More details").
-    const formSections = (objectDef as any).detail?.sections ?? objectDef.views?.form?.sections;
-    const sections = formSections && formSections.length > 0
-      ? formSections.map((sec: any) => ({
-          title: sec.name ? sectionLabel(objectDef.name, sec.name, sec.title || sec.name) : sec.title,
-          collapsible: sec.collapsible,
-          defaultCollapsed: sec.defaultCollapsed,
-          fields: (sec.fields || [])
-            .filter((f: any) => {
-              // Honor `hidden: true` on a field def even when the form
-              // section explicitly lists it. Hidden fields are typically
-              // internal artifacts (e.g. database URL, environment id)
-              // that platform actions read but end-users shouldn't see.
-              const fieldName = typeof f === 'string' ? f : f.name;
-              const fieldDef = objectDef.fields?.[fieldName];
-              return !fieldDef?.hidden;
-            })
-            .map((f: any) => {
-            const fieldName = typeof f === 'string' ? f : f.name;
-            const fieldDef = objectDef.fields[fieldName];
-            if (!fieldDef) {
-              console.warn(`[RecordDetailView] Field "${fieldName}" not found in ${objectDef.name} definition`);
-              return { name: fieldName, label: fieldName };
-            }
-            const refTarget = fieldDef.reference_to || fieldDef.reference;
-            return {
-              name: fieldName,
-              label: fieldDef.label || fieldName,
-              type: fieldDef.type || 'text',
-              ...(fieldDef.options && { options: fieldDef.options }),
-              ...(refTarget && { reference_to: refTarget }),
-              ...(fieldDef.reference_field && { reference_field: fieldDef.reference_field }),
-              ...(fieldDef.currency && { currency: fieldDef.currency }),
-            };
-          }),
-        }))
-      : (() => {
+    // Build sections (ADR-0085: grouping is the `fieldGroups` semantic
+    // role — there is no per-surface sections override; per-page
+    // customization goes through an assigned Page schema):
+    //   1) sections derived from the object's `fieldGroups`;
+    //   2) auto-grouping (primary + collapsible "More details").
+    const sections = (() => {
           const toField = (key: string) => {
             const fieldDef = objectDef.fields[key];
             const refTarget = fieldDef.reference_to || fieldDef.reference;
@@ -1319,13 +1281,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             ];
           };
 
-          // 2) fieldGroups-derived sections (object-designer metadata,
-          //    same source the runtime form honours). Declared groups
-          //    render as titled cards in declared order; the helper's
+          // 1) fieldGroups-derived sections (the ADR-0085 semantic role,
+          //    same shared derivation the runtime form honours). Declared
+          //    groups render as titled cards in declared order; the
           //    trailing untitled bucket (ungrouped fields) still goes
           //    through the primary/"More details" split so long-form
-          //    fields stay tucked away. Objects can opt out via
-          //    `detail.useFieldGroups: false`.
+          //    fields stay tucked away.
           const grouped = deriveFieldGroupDetailSections(objectDef as any);
           if (grouped) {
             return grouped.flatMap((sec: any) => {
@@ -1418,19 +1379,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       return base;
     })();
 
-    // Build highlightFields: exclusively from objectDef metadata (no
-    // hardcoded fallback). The spec-writable `detail.highlightFields`
-    // wins; `views.detail.highlightFields` stays as back-compat for
-    // non-spec metadata (the spec's ObjectSchema has no `views` key).
-    // Entries may be bare field names — normalize them to the
-    // HighlightField shape by resolving label/type from the field def.
+    // Build highlightFields from the object's semantic role (ADR-0085):
+    // top-level `highlightFields`, with the deprecated `compactLayout`
+    // spelling as fallback for pre-11.7 metadata that reaches consumers
+    // un-normalized. Bare field names resolve label/type from the field def.
     const rawHighlightFields =
-      (objectDef as any).detail?.highlightFields ?? objectDef.views?.detail?.highlightFields ?? [];
+      (objectDef as any).highlightFields ?? (objectDef as any).compactLayout ?? [];
     const highlightFields: HighlightField[] = (Array.isArray(rawHighlightFields) ? rawHighlightFields : [])
       .map((f: any): HighlightField | null => {
         const name = typeof f === 'string' ? f : f?.name;
         if (!name) return null;
-        if (typeof f === 'object' && f.label) return f as HighlightField;
         const fieldDef = objectDef.fields?.[name];
         return {
           name,
@@ -1439,12 +1397,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         };
       })
       .filter((f): f is HighlightField => !!f);
-
-    // Build sectionGroups from objectDef detail/form config if available
-    const sectionGroups: SectionGroup[] | undefined =
-      (objectDef as any).detail?.sectionGroups
-      ?? objectDef.views?.detail?.sectionGroups
-      ?? objectDef.views?.form?.sectionGroups;
 
     // Build related entries from reverse-reference child objects.
     // `referenceField` is the FK field on the child pointing back to this
@@ -1538,10 +1490,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         // right-rail can show meaningful labels (`user_agent`, `email`,
         // …) instead of opaque IDs like `kCc8mhJr0bRs0r9Ykd09…`.
         displayField:
+          childObjectDef?.nameField ||
           childObjectDef?.displayNameField ||
-          (Array.isArray(childObjectDef?.compactLayout)
-            ? childObjectDef.compactLayout[0]
-            : undefined),
+          (Array.isArray(childObjectDef?.highlightFields)
+            ? childObjectDef.highlightFields[0]
+            : Array.isArray(childObjectDef?.compactLayout)
+              ? childObjectDef.compactLayout[0]
+              : undefined),
         onNew,
         onViewAll,
         onRowClick,
@@ -1576,7 +1531,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       }),
       ...(related.length > 0 && { related }),
       ...(highlightFields.length > 0 && { highlightFields }),
-      ...(sectionGroups && sectionGroups.length > 0 && { sectionGroups }),
       ...(recordHeaderActions.length > 0 && {
         actions: [{
           type: 'action:bar',
@@ -1793,17 +1747,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           headerActions: synthHeaderActions,
           related: synthRelated,
           history: synthHistory,
-          // Per-object opt-outs read from `objectDef.detail.*`. Lets
-          // catalog/atomic objects (product, task, ...) keep a focused
-          // single-column layout instead of inheriting the rail.
-          showReferenceRail:
-            (objectDef as any)?.detail?.showReferenceRail === true || undefined,
-          hideReferenceRail:
-            (objectDef as any)?.detail?.hideReferenceRail === true || undefined,
-          hideRelatedTab:
-            (objectDef as any)?.detail?.hideRelatedTab === true || undefined,
-          relatedLayout:
-            (objectDef as any)?.detail?.relatedLayout === 'tabs' ? 'tabs' : undefined,
+          // ADR-0085 removed the per-object `detail.*` presentation
+          // toggles (show/hideReferenceRail, hideRelatedTab, relatedLayout)
+          // — the synth defaults apply; per-page layout goes through an
+          // assigned Page schema (`record:reference_rail` stays available
+          // there as a renderer capability).
           ...(assignedSlots ? { slots: assignedSlots } : {}),
         });
     return (

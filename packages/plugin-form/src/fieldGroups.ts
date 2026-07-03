@@ -9,42 +9,17 @@
 /**
  * Field-group helpers for ObjectForm.
  *
- * An object's metadata can declare top-level `fieldGroups` (a.k.a. sections),
- * and individual fields opt into a group via `field.group === group.key`. The
- * object designer already lays out fields this way; these helpers let the
- * runtime form renderer honour the same grouping so authored sections show up
- * on the actual record form — not just in the designer preview.
- *
- * The grouping semantics mirror the designer's `groupEntries`: sections render
- * in declared order, and any field without a (declared) group lands in a
- * trailing untitled bucket.
+ * An object's metadata declares top-level `fieldGroups`, and individual
+ * fields opt into a group via `field.group === group.key`. The grouping
+ * SEMANTICS (declared order, empty groups dropped, trailing untitled bucket,
+ * collapse behaviour incl. legacy alias handling) are single-sourced in
+ * `@objectstack/spec` (`deriveFieldGroupLayout`, ADR-0085 §5) — this module
+ * is only the adapter from that shared derivation onto the form renderer's
+ * `ObjectFormSection` shape and its permission-filtered `FormField` list.
  */
 
+import { deriveFieldGroupLayout } from '@objectstack/spec/data';
 import type { FormField, ObjectFormSection } from '@object-ui/types';
-
-/** A declared field group on the object metadata. */
-export interface DeclaredFieldGroup {
-  key: string;
-  label?: string;
-  /** Render the group's section header with a collapse toggle. */
-  collapsible?: boolean;
-  /** Start the (collapsible) group collapsed. */
-  collapsed?: boolean;
-}
-
-/** Read an object's `fieldGroups` into a normalized, well-typed list. */
-export function readObjectFieldGroups(input: unknown): DeclaredFieldGroup[] {
-  if (!Array.isArray(input)) return [];
-  return input
-    .filter((g): g is Record<string, unknown> => !!g && typeof g === 'object')
-    .map((g) => ({
-      key: typeof g.key === 'string' ? (g.key as string) : '',
-      label: typeof g.label === 'string' ? (g.label as string) : undefined,
-      collapsible: typeof g.collapsible === 'boolean' ? (g.collapsible as boolean) : undefined,
-      collapsed: typeof g.collapsed === 'boolean' ? (g.collapsed as boolean) : undefined,
-    }))
-    .filter((g) => g.key);
-}
 
 /**
  * Derive form sections from an object's declared `fieldGroups` and each
@@ -52,56 +27,52 @@ export function readObjectFieldGroups(input: unknown): DeclaredFieldGroup[] {
  *
  * Returns `null` when grouping does not apply — no declared groups, or no
  * rendered field opts into a declared group — so callers fall back to a flat
- * form. Sections come back in declared order; fields without a declared group
- * collect into a trailing untitled section (no `name`/`label`) so they render
- * as a plain block rather than a card.
+ * form.
  *
- * Section `fields` are returned as field *names* (strings) so the result plugs
- * straight into ObjectForm's existing section-render path, which resolves names
- * back to generated `FormField`s and applies field-level permissions.
+ * The derivation runs against the RENDERED field list (post permission /
+ * visibility filtering), not the raw object def, so a section never names a
+ * field the form isn't showing. Any rendered field the shared derivation
+ * excludes from its default buckets (audit/system fields) is re-appended to
+ * the trailing bucket: the form was already told to render it, and a layout
+ * helper silently dropping a rendered input is exactly the failure mode
+ * ADR-0085 exists to kill.
+ *
+ * Section `fields` are field *names* (strings) so the result plugs straight
+ * into ObjectForm's existing section-render path.
  */
 export function deriveFieldGroupSections(
   fields: FormField[],
   fieldGroups: unknown,
 ): ObjectFormSection[] | null {
-  const declared = readObjectFieldGroups(fieldGroups);
-  if (declared.length === 0) return null;
+  const derived = deriveFieldGroupLayout({
+    fieldGroups,
+    // Pseudo-def over the rendered fields: membership is the only input the
+    // derivation needs per field.
+    fields: Object.fromEntries(
+      fields.map((f) => [f.name, { group: (f as { group?: unknown }).group }]),
+    ),
+  });
+  if (!derived) return null;
 
-  const declaredKeys = new Set(declared.map((g) => g.key));
-  const groupOf = (f: FormField): string | null => {
-    const g = (f as { group?: unknown }).group;
-    return typeof g === 'string' && declaredKeys.has(g) ? g : null;
-  };
+  const placed = new Set(derived.flatMap((s) => s.fields));
+  const leftover = fields.map((f) => f.name).filter((n) => !placed.has(n));
 
-  // No field references a declared group → keep the flat layout.
-  if (!fields.some((f) => groupOf(f) !== null)) return null;
+  const sections: ObjectFormSection[] = derived.map((s) => ({
+    ...(s.key !== undefined ? { name: s.key } : {}),
+    ...(s.key !== undefined ? { label: s.label ?? s.key } : {}),
+    fields: [...s.fields],
+    // Map the shared `collapse` enum onto the renderer's boolean pair.
+    ...(s.collapse !== 'none' ? { collapsible: true } : {}),
+    ...(s.collapse === 'collapsed' ? { collapsed: true } : {}),
+  }));
 
-  const buckets = new Map<string, FormField[]>();
-  for (const g of declared) buckets.set(g.key, []);
-  const ungrouped: FormField[] = [];
-  for (const f of fields) {
-    const g = groupOf(f);
-    if (g) buckets.get(g)!.push(f);
-    else ungrouped.push(f);
-  }
-
-  const sections: ObjectFormSection[] = [];
-  for (const g of declared) {
-    const items = buckets.get(g.key)!;
-    if (items.length === 0) continue;
-    sections.push({
-      name: g.key,
-      label: g.label ?? g.key,
-      fields: items.map((f) => f.name),
-      ...(g.collapsible !== undefined ? { collapsible: g.collapsible } : {}),
-      ...(g.collapsed !== undefined ? { collapsed: g.collapsed } : {}),
-    });
-  }
-  // Trailing untitled bucket for ungrouped fields. Omitting `name`/`label`
-  // makes the section render flat (no card chrome) instead of surfacing an
-  // internal key as a header.
-  if (ungrouped.length > 0) {
-    sections.push({ fields: ungrouped.map((f) => f.name) });
+  if (leftover.length > 0) {
+    const trailing = sections[sections.length - 1];
+    if (trailing && trailing.name === undefined) {
+      trailing.fields = [...(trailing.fields ?? []), ...leftover];
+    } else {
+      sections.push({ fields: leftover });
+    }
   }
 
   return sections;

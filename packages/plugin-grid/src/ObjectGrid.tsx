@@ -1196,7 +1196,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
 
     const generatedColumns: any[] = [];
     // Default columns priority (when schema doesn't specify columns):
-    //   1. Explicit `compactLayout` from the object schema (curated business fields).
+    //   1. The object's `highlightFields` semantic role (ADR-0085; deprecated
+    //      `compactLayout` spelling read as fallback for pre-11.7 metadata).
     //   2. Otherwise, all schema fields with system-managed fields pushed to the end.
     //
     // Also drop fields that are platform-managed identifiers/audit columns or
@@ -1208,7 +1209,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       'deleted_at', 'deletedAt', 'created_by', 'createdBy',
       'updated_by', 'updatedBy', '_version', '_rev',
     ]);
-    const compactLayout: string[] | undefined = (objectSchema as any)?.compactLayout;
+    const compactLayout: string[] | undefined =
+      (objectSchema as any)?.highlightFields ?? (objectSchema as any)?.compactLayout;
     const allFieldNames = Object.keys(objectSchema.fields || {});
     let fieldsToShow: string[];
     if (schemaFields) {

@@ -236,8 +236,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     'updated_by', 'updatedBy', '_version', '_rev',
                 ]);
                 let defaultColumns: string[] = [];
-                if (Array.isArray(objectDef?.compactLayout) && objectDef.compactLayout.length > 0) {
-                    defaultColumns = objectDef.compactLayout.filter((n: string) => objectDef.fields?.[n]);
+                const curated = Array.isArray(objectDef?.highlightFields) && objectDef.highlightFields.length > 0
+                    ? objectDef.highlightFields
+                    : objectDef?.compactLayout;
+                if (Array.isArray(curated) && curated.length > 0) {
+                    defaultColumns = curated.filter((n: string) => objectDef.fields?.[n]);
                 } else if (objectDef?.fields) {
                     defaultColumns = Object.entries(objectDef.fields)
                         .filter(([name, f]: [string, any]) => f && !f.hidden && !SYSTEM_FIELDS.has(name))
@@ -486,7 +489,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // Resolve Views from objectDef.listViews (camelCase per @objectstack/spec)
     const views = useMemo(() => {
         // Default column resolution priority:
-        //   1. `compactLayout` (curated primary business fields).
+        //   1. The `highlightFields` semantic role (ADR-0085; deprecated
+        //      `compactLayout` read as fallback).
         //   2. Business fields only — exclude system-managed identifiers/audit
         //      columns (id, created_at, updated_at, …) and fields explicitly
         //      marked hidden/readonly on the schema. First 5 kept for compactness.
@@ -496,8 +500,11 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             'updated_by', 'updatedBy', '_version', '_rev',
         ]);
         const resolveDefaultColumns = (): string[] => {
-            if (Array.isArray(objectDef.compactLayout) && objectDef.compactLayout.length > 0) {
-                return objectDef.compactLayout.filter((n: string) => objectDef.fields?.[n]);
+            const curated = Array.isArray(objectDef.highlightFields) && objectDef.highlightFields.length > 0
+                ? objectDef.highlightFields
+                : objectDef.compactLayout;
+            if (Array.isArray(curated) && curated.length > 0) {
+                return curated.filter((n: string) => objectDef.fields?.[n]);
             }
             if (objectDef.fields) {
                 return Object.entries(objectDef.fields)

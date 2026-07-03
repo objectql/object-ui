@@ -671,64 +671,56 @@ describe('buildDefaultPageSchema', () => {
   });
 });
 
-// #2148 — spec-writable `detail.*` hints + fieldGroups-derived sections.
-describe('detail.* hints (#2148 / #2065)', () => {
+// ADR-0085 — top-level semantic roles (stageField / highlightFields).
+describe('semantic-role hints (ADR-0085 / #2065)', () => {
   describe('detectStatusField', () => {
-    it('detail.stageField wins over top-level stageField and heuristics', () => {
+    it('an explicit stageField wins over heuristics', () => {
       expect(
         detectStatusField({
-          detail: { stageField: 'pipeline' },
-          stageField: 'legacy_stage',
-          fields: { pipeline: {}, legacy_stage: {}, status: {} },
+          stageField: 'pipeline',
+          fields: { pipeline: {}, status: {} },
         }),
       ).toBe('pipeline');
     });
 
-    it('detail.stageField: false suppresses detection entirely', () => {
+    it('stageField: false suppresses detection entirely', () => {
       expect(
         detectStatusField({
-          detail: { stageField: false },
-          stageField: 'status',
+          stageField: false,
           fields: { status: { type: 'status' } },
         }),
       ).toBeNull();
     });
 
-    it('falls back to top-level stageField, then heuristic, when detail hint absent', () => {
-      expect(
-        detectStatusField({ detail: {}, stageField: 'stage_x', fields: { stage_x: {} } }),
-      ).toBe('stage_x');
-      expect(detectStatusField({ detail: {}, fields: { status: {} } })).toBe('status');
+    it('falls back to the heuristic when no role is declared', () => {
+      expect(detectStatusField({ fields: { status: {} } })).toBe('status');
     });
   });
 
   describe('deriveHighlightFields', () => {
-    it('detail.highlightFields wins over top-level highlightFields', () => {
+    it('highlightFields wins over the deprecated compactLayout spelling', () => {
       expect(
         deriveHighlightFields(
           {
             ...leadDef,
-            detail: { highlightFields: ['phone', 'rating'] },
-            highlightFields: ['email'],
+            highlightFields: ['phone', 'rating'],
+            compactLayout: ['email'],
           },
           'status',
         ),
       ).toEqual(['phone', 'rating']);
     });
 
-    it('accepts { name } object entries and drops malformed ones', () => {
+    it('reads the deprecated compactLayout when highlightFields is absent', () => {
       expect(
-        deriveHighlightFields(
-          { ...leadDef, detail: { highlightFields: [{ name: 'email' }, 'phone', {} as any, ''] } },
-          'status',
-        ),
+        deriveHighlightFields({ ...leadDef, compactLayout: ['email', 'phone'] }, 'status'),
       ).toEqual(['email', 'phone']);
     });
 
-    it('caps the detail list at max', () => {
+    it('drops non-string entries and caps the declared list at max', () => {
       expect(
         deriveHighlightFields(
-          { detail: { highlightFields: ['a', 'b', 'c', 'd', 'e'] }, fields: {} },
+          { highlightFields: ['a', '', { name: 'x' } as any, 'b', 'c', 'd'], fields: {} },
           null,
           3,
         ),
@@ -779,6 +771,19 @@ describe('deriveFieldGroupDetailSections (#2148)', () => {
     expect(trailing.fields.map((f: any) => f.name)).toEqual(['website']);
   });
 
+  it('honours the canonical collapse enum (ADR-0085)', () => {
+    const sections = deriveFieldGroupDetailSections({
+      fieldGroups: [
+        { key: 'a', label: 'A', collapse: 'collapsed' },
+        { key: 'b', label: 'B', collapse: 'expanded' },
+      ],
+      fields: { x: { group: 'a' }, y: { group: 'b' } },
+    })!;
+    expect(sections[0]).toMatchObject({ name: 'a', collapsible: true, defaultCollapsed: true });
+    expect(sections[1]).toMatchObject({ name: 'b', collapsible: true });
+    expect(sections[1].defaultCollapsed).toBeUndefined();
+  });
+
   it('keeps audit fields an author EXPLICITLY grouped', () => {
     const def: ObjectDefLike = {
       fieldGroups: [{ key: 'meta', label: 'Meta' }],
@@ -816,10 +821,6 @@ describe('deriveFieldGroupDetailSections (#2148)', () => {
         fields: { a: {}, b: {} },
       }),
     ).toBeNull();
-    // Explicit opt-out.
-    expect(
-      deriveFieldGroupDetailSections({ ...groupedDef, detail: { useFieldGroups: false } }),
-    ).toBeNull();
     // Undefined def.
     expect(deriveFieldGroupDetailSections(undefined)).toBeNull();
   });
@@ -834,7 +835,7 @@ describe('deriveFieldGroupDetailSections (#2148)', () => {
   });
 });
 
-describe('resolveDetailSections priority (#2148)', () => {
+describe('resolveDetailSections priority (ADR-0085)', () => {
   const groupedDef: ObjectDefLike = {
     fieldGroups: [{ key: 'g', label: 'G' }],
     fields: { a: { group: 'g' }, b: {} },
@@ -843,13 +844,6 @@ describe('resolveDetailSections priority (#2148)', () => {
   it('explicit options.sections wins', () => {
     const explicit = [{ title: 'Explicit', fields: ['a'] }];
     expect(resolveDetailSections(groupedDef, explicit)).toBe(explicit);
-  });
-
-  it('falls back to detail.sections next', () => {
-    const declared = [{ title: 'Declared', fields: ['a'] }];
-    expect(
-      resolveDetailSections({ ...groupedDef, detail: { sections: declared } }),
-    ).toBe(declared);
   });
 
   it('derives from fieldGroups last, else undefined', () => {
@@ -882,10 +876,10 @@ describe('buildDefaultPageSchema integration (#2148)', () => {
     expect(details.sections[0]).toMatchObject({ name: 'basic', title: 'Basic' });
   });
 
-  it('detail.stageField: false drops record:path', () => {
+  it('stageField: false drops record:path', () => {
     const def: ObjectDefLike = {
       ...leadDef,
-      detail: { stageField: false },
+      stageField: false,
     };
     const types = buildDefaultPageSchema(def).regions[0].components.map((c: any) => c.type);
     expect(types).not.toContain('record:path');

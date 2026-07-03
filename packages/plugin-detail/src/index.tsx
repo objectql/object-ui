@@ -223,9 +223,9 @@ ComponentRegistry.register('record:details', RecordDetailsRenderer, {
   // Designer inputs mirror @objectstack/spec RecordDetailsProps (component.zod).
   inputs: [
     { name: 'columns', type: 'enum', label: 'Columns', enum: ['1', '2', '3', '4'], defaultValue: '2', description: 'Number of columns for field layout (1-4)' },
-    { name: 'layout', type: 'enum', label: 'Layout', enum: ['auto', 'custom'], defaultValue: 'auto', description: 'auto uses the object compactLayout; custom uses explicit sections' },
+    { name: 'layout', type: 'enum', label: 'Layout', enum: ['auto', 'custom'], defaultValue: 'auto', description: 'auto uses the object highlightFields; custom uses explicit sections' },
     { name: 'sections', type: 'array', label: 'Sections', description: 'Section IDs to show (required when layout is "custom")' },
-    { name: 'fields', type: 'array', label: 'Fields', description: 'Explicit field list (overrides compactLayout)' },
+    { name: 'fields', type: 'array', label: 'Fields', description: 'Explicit field list (overrides highlightFields)' },
   ],
 });
 
