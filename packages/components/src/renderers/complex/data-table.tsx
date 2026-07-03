@@ -662,10 +662,18 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // Cell editing handlers
   const startEdit = (rowIndex: number, columnKey: string) => {
     if (!editable) return;
-    
+
+    // Already editing THIS cell — do nothing. Re-entering would reset `editValue`
+    // from `pendingChanges`, and when a widget-injected editor commits via an
+    // overlay (a lookup/select popover renders in a Portal, but React events
+    // still bubble through the component tree to this cell's onClick), that reset
+    // reads a stale `pendingChanges` — before the just-staged value has flushed —
+    // and clobbers the freshly picked value. Guarding here keeps the selection.
+    if (editingCell?.rowIndex === rowIndex && editingCell?.columnKey === columnKey) return;
+
     const column = columns.find(col => col.accessorKey === columnKey);
     if (column?.editable === false) return;
-    
+
     setEditingCell({ rowIndex, columnKey });
     
     // Check if there's a pending change for this cell, otherwise use current data value
