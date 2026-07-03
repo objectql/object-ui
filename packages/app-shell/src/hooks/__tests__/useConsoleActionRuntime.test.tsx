@@ -44,12 +44,26 @@ vi.mock('../../views/ActionParamDialog', () => ({ ActionParamDialog: () => null 
 vi.mock('../../views/ActionResultDialog', () => ({ ActionResultDialog: () => null }));
 vi.mock('../../views/FlowRunner', () => ({ FlowRunner: () => null }));
 
+// Spy on the toast library so we can assert the handlers DON'T toast errors
+// themselves (the ActionRunner's post-execution hook owns the error toast —
+// toasting here too double-fires it).
+vi.mock('sonner', () => {
+  const fn: any = vi.fn();
+  fn.error = vi.fn();
+  fn.success = vi.fn();
+  return { toast: fn };
+});
+
+import { toast } from 'sonner';
 import { useConsoleActionRuntime, ConsoleActionRuntimeProvider } from '../useConsoleActionRuntime';
 import { useAction, usePageVariables, PageVariablesProvider, PageVariableActionBridge } from '@object-ui/react';
 
 beforeEach(() => {
   authFetchSpy.mockReset();
   navigateSpy.mockReset();
+  (toast as any).mockClear?.();
+  (toast as any).error.mockClear();
+  (toast as any).success.mockClear();
 });
 
 describe('useConsoleActionRuntime — authenticated handlers', () => {
@@ -168,6 +182,29 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
 
     expect(String(authFetchSpy.mock.calls[0][0])).toContain('/api/v1/actions/global/provision');
     expect(res).toMatchObject({ success: true });
+  });
+
+  it('serverActionHandler returns a failed action error WITHOUT toasting it (the ActionRunner owns the error toast — no double toast)', async () => {
+    // A script action that throws (e.g. lead_apply_convert validation) returns
+    // { success:false, error } from the server. The handler must NOT toast it —
+    // ActionRunner.handlePostExecution does, and toasting here too showed the
+    // error twice (the reported bug).
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: false, error: '线索信息不完整，提交转商机申请前请补全：终端客户' }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'mtc_lead' }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.serverActionHandler({ type: 'script', name: 'lead_apply_convert' } as any);
+    });
+
+    expect(res).toEqual({ success: false, error: '线索信息不完整，提交转商机申请前请补全：终端客户' });
+    expect((toast as any).error).not.toHaveBeenCalled();
   });
 
   it('exposes ActionProvider props with the api/flow/script/modal handlers wired', () => {

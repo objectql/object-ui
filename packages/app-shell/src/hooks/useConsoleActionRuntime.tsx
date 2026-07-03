@@ -510,7 +510,9 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       if (!res.ok || (json && json.success === false)) {
         const errMsg = json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-        toast.error(errMsg);
+        // Don't toast here — the ActionRunner's post-execution hook surfaces
+        // `error` as a toast (see apiHandler/flowHandler, which likewise only
+        // return). Toasting here too double-fires the error (two identical toasts).
         return { success: false, error: errMsg };
       }
       const shouldRefresh = action.refreshAfter !== false;
@@ -544,7 +546,8 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     } catch (error) {
       if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
       const msg = (error as Error).message;
-      toast.error(msg);
+      // The ActionRunner's post-execution hook toasts `error`; returning it here
+      // (without a local toast.error) avoids the double toast.
       return { success: false, error: msg };
     } finally {
       serverActionInFlight.current.delete(inflightKey);
