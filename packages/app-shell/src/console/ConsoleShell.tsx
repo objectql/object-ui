@@ -14,7 +14,8 @@ import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { AuthGuard, useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
-import { SchemaRendererProvider } from '@object-ui/react';
+import { SchemaRendererProvider, ActionProvider } from '@object-ui/react';
+import { useActionModal } from '../hooks/useActionModal';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
 import { AdapterProvider, useAdapter } from '../providers/AdapterProvider';
 import { MetadataProvider, useMetadata } from '../providers/MetadataProvider';
@@ -35,6 +36,26 @@ export function LoadingFallback() {
     <div className="h-screen flex items-center justify-center text-sm text-muted-foreground">
       Loading…
     </div>
+  );
+}
+
+/**
+ * Provide a MODAL handler at the console ROOT — the same level the global
+ * SchemaRendererProvider (dataSource) sits — so it reaches EVERY field widget,
+ * including a relation field inside a create/edit form that renders in a Radix
+ * Dialog portal (which sits above the lower per-view ActionProviders). This is
+ * what lets a lookup's inline "create the referenced record" open that object's
+ * OWN create form and select the result. Only ADDS the modal capability where
+ * none existed; richer per-view ActionProviders still override it where they
+ * apply. Must render inside MetadataProvider (useActionModal reads useMetadata).
+ */
+function GlobalCreateModalProvider({ dataSource, children }: { dataSource: unknown; children: ReactNode }) {
+  const { modalHandler, modalElement } = useActionModal(dataSource);
+  return (
+    <ActionProvider onModal={modalHandler}>
+      {children}
+      {modalElement}
+    </ActionProvider>
   );
 }
 
@@ -125,7 +146,9 @@ function ConnectedShellInner({ children }: { children: ReactNode }) {
     <SchemaRendererProvider dataSource={adapter}>
       <MetadataProvider key={language} adapter={adapter}>
         <UserStateBridge />
-        {children}
+        <GlobalCreateModalProvider dataSource={adapter}>
+          {children}
+        </GlobalCreateModalProvider>
       </MetadataProvider>
     </SchemaRendererProvider>
   );

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LookupField } from './widgets/LookupField';
+import { ActionProvider } from '@object-ui/react';
 import { FieldEditWidget } from './FieldEditWidget';
 import { MasterDetailField } from './widgets/MasterDetailField';
 import { GridField } from './widgets/GridField';
@@ -342,6 +343,85 @@ describe('Complex & Relationship Widgets', () => {
             await waitFor(() => {
                 expect(onChange).toHaveBeenCalledWith('new-1');
             });
+        });
+
+        it('defaults inline-create ON for a user-facing relation (no allow_create needed)', async () => {
+            // dynamicField.reference_to === 'customers' (user-facing) with NO
+            // allow_create flag → the capability is ON by default (standard).
+            mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+            mockDataSource.create.mockResolvedValue({ id: 'new-2', name: 'Zeta' });
+            const onChange = vi.fn();
+
+            render(<LookupField {...dynamicProps} onChange={onChange} />);
+            await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Select/i })); });
+            const input = await screen.findByRole('combobox');
+            await act(async () => { fireEvent.change(input, { target: { value: 'Zeta' } }); });
+
+            expect(await screen.findByText('Create new "Zeta"')).toBeInTheDocument();
+            // No ActionProvider in scope → the create falls back to a direct
+            // dataSource.create (the modal-open path is exercised in the E2E).
+            await act(async () => { fireEvent.click(screen.getByText('Create new "Zeta"')); });
+            await waitFor(() => { expect(mockDataSource.create).toHaveBeenCalledWith('customers', { name: 'Zeta' }); });
+        });
+
+        it('does NOT default inline-create for a system / user-directory reference', async () => {
+            // A picker into the platform user directory must not offer "+ create"
+            // (those rows are org members, not inline-created from a field).
+            mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+            const field = { ...dynamicField, reference_to: 'sys_user' } as any;
+
+            render(<LookupField {...dynamicProps} field={field} />);
+            await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Select/i })); });
+            const input = await screen.findByRole('combobox');
+            await act(async () => { fireEvent.change(input, { target: { value: 'Somebody' } }); });
+
+            await waitFor(() => { expect(screen.getByText('No options found')).toBeInTheDocument(); });
+            expect(screen.queryByText(/Create new/)).not.toBeInTheDocument();
+        });
+
+        it('honors an explicit allow_create:false opt-out on a user-facing relation', async () => {
+            mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+            const field = { ...dynamicField, allow_create: false } as any;
+
+            render(<LookupField {...dynamicProps} field={field} />);
+            await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Select/i })); });
+            const input = await screen.findByRole('combobox');
+            await act(async () => { fireEvent.change(input, { target: { value: 'Nope' } }); });
+
+            await waitFor(() => { expect(screen.getByText('No options found')).toBeInTheDocument(); });
+            expect(screen.queryByText(/Create new/)).not.toBeInTheDocument();
+        });
+
+        it('under an ActionProvider, "+ create" opens the referenced object\'s create form (not a one-field create) and selects the result', async () => {
+            // The standard behaviour (founder ask): rather than blindly creating a
+            // record from the typed text, open the referenced object's OWN create
+            // form so the user fills every required field, then select what they
+            // made. Routed through the ActionProvider modal handler — the console
+            // wires one globally (ConsoleShell.GlobalCreateModalProvider).
+            mockDataSource.find.mockResolvedValue({ data: [], total: 0 });
+            mockDataSource.create.mockClear();
+            const onChange = vi.fn();
+            // Stand-in for the console's global create-modal host: resolves with
+            // the record the user created in the opened form.
+            const onModal = vi.fn(async (_schema: any) => ({ success: true, reload: true, data: { id: 'bk-1', name: 'Deep Sea Mechanics' } }));
+
+            render(
+                <ActionProvider onModal={onModal}>
+                    <LookupField {...dynamicProps} onChange={onChange} />
+                </ActionProvider>
+            );
+            await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Select/i })); });
+            const input = await screen.findByRole('combobox');
+            await act(async () => { fireEvent.change(input, { target: { value: 'Deep Sea Mechanics' } }); });
+            await act(async () => { fireEvent.click(await screen.findByText('Create new "Deep Sea Mechanics"')); });
+
+            // It opened the referenced object's CREATE FORM (modal), addressed by
+            // object name + create mode — NOT a silent one-field dataSource.create.
+            await waitFor(() => { expect(onModal).toHaveBeenCalled(); });
+            expect(onModal.mock.calls[0][0]).toMatchObject({ objectName: 'customers', mode: 'create' });
+            expect(mockDataSource.create).not.toHaveBeenCalled();
+            // The record the user created in the form is selected back into the field.
+            await waitFor(() => { expect(onChange).toHaveBeenCalledWith('bk-1'); });
         });
 
         it('shows a recently-used section on empty focus', async () => {

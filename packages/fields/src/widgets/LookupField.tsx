@@ -21,7 +21,7 @@ import { getRecordDisplayName } from '@object-ui/core';
 import { getRecentLookupIds, pushRecentLookupId } from './recentLookups';
 import { getPersonInitials } from './personDisplay';
 import { getCellRendererResolver } from './_cell-renderer-bridge';
-import { SchemaRendererContext as ImportedSchemaRendererContext } from '@object-ui/react';
+import { SchemaRendererContext as ImportedSchemaRendererContext, useAction, useHasActionProvider } from '@object-ui/react';
 import { useFieldTranslation } from './useFieldTranslation';
 
 export interface LookupOption {
@@ -39,6 +39,22 @@ const LOOKUP_PAGE_SIZE = 50;
  * Using a static import to be compatible with Next.js Turbopack SSR.
  */
 const SchemaRendererContext: React.Context<any> = ImportedSchemaRendererContext;
+
+/**
+ * A relation whose picker should offer inline "create the referenced record" by
+ * default. Inline quick-create is a STANDARD capability so a freshly-built app
+ * isn't a dead end (an empty required picker → you can create the FIRST related
+ * record right here). Platform/system objects are excluded: the user directory
+ * (`sys_user` and its bare `user`/`users` aliases) and everything under the
+ * `sys_`/`cloud_`/`ai_` namespaces are pre-populated plumbing you must not create
+ * from a field picker. A user-authored business entity (customer, pet, book, …)
+ * never matches, so it gets the capability.
+ */
+const SYSTEM_REFERENCE_RX = /^(sys_|cloud_|ai_)/;
+const USER_DIRECTORY_REFS = new Set(['user', 'users']);
+function isUserFacingReference(reference: string | undefined): boolean {
+  return !!reference && !SYSTEM_REFERENCE_RX.test(reference) && !USER_DIRECTORY_REFS.has(reference);
+}
 
 /**
  * Render a record title from a `titleFormat` template (e.g. `{full_name}` or
@@ -212,9 +228,15 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   const idField = fieldMeta?.id_field || 'id';
   // ObjectStack convention uses `reference`; types define `reference_to` — support both
   const referenceTo: string | undefined = fieldMeta?.reference_to || fieldMeta?.reference;
-  // Opt-in inline quick-create: when set, an empty/zero-result picker offers to
-  // create a record from the typed text via dataSource.create.
-  const allowCreate: boolean = !!(fieldMeta?.allow_create ?? fieldMeta?.allowCreate);
+  // Inline quick-create — a STANDARD capability, default ON for user-facing
+  // relations: an empty/zero-result picker offers to create the referenced
+  // record (opening its create form; see handleCreateNew) so the first related
+  // record can be made right here. An explicit `allowCreate` (either casing)
+  // wins — set it `false` to opt a field out; system/user-directory references
+  // are excluded from the default (isUserFacingReference).
+  const explicitAllowCreate = fieldMeta?.allow_create ?? fieldMeta?.allowCreate;
+  const allowCreate: boolean =
+    explicitAllowCreate != null ? !!explicitAllowCreate : isUserFacingReference(referenceTo);
 
   // Enterprise Record Picker configuration
   const lookupColumns: Array<string | LookupColumnDef> | undefined = fieldMeta?.lookup_columns ?? fieldMeta?.lookupColumns;
@@ -637,14 +659,47 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   useEffect(() => { setActiveIndex(-1); }, [visibleOptions.length]);
 
   const [creating, setCreating] = useState(false);
-  const canCreate = !!onCreateNew || (allowCreate && hasDataSource);
+  // Open the referenced object's create form through the ActionProvider's modal
+  // handler (when a form host wired one). Safe outside a provider — useAction
+  // returns a local runner and useHasActionProvider is false.
+  const { execute } = useAction();
+  const hasActionProvider = useHasActionProvider();
+  const canCreate = !!onCreateNew || (allowCreate && (hasActionProvider || hasDataSource));
   const handleCreateNew = useCallback(
     async (q: string) => {
       const label = (q || '').trim();
       if (onCreateNew) { onCreateNew(label); setIsOpen(false); return; }
-      if (!allowCreate || !dataSource || !referenceTo || !label) return;
-      setCreating(true);
+      if (!allowCreate || !referenceTo) return;
       setCreateError(null);
+
+      // Preferred path — open the referenced object's FULL create form so the
+      // user fills every required field themselves, then select the record they
+      // created. This is the standard "create related record" behaviour: it
+      // works for ANY object (not only ones whose sole required field is the
+      // title) and turns an empty required picker from a dead end into a way to
+      // author the first related record.
+      if (hasActionProvider) {
+        setIsOpen(false); // hand off to the modal
+        const result: any = await execute({
+          type: 'modal',
+          modal: { objectName: referenceTo, mode: 'create' },
+        } as any);
+        if (result?.success && result.data) {
+          const opt = recordToOption(result.data, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema);
+          setPickerResolvedRecords((prev) => [opt, ...prev.filter((o) => o.value !== opt.value)]);
+          handleSelect(opt);
+          return;
+        }
+        // `success` + an echoed `modal` schema means no modal handler was wired
+        // in this tree → fall through to the legacy inline create. Anything else
+        // (cancel / no data) means the user backed out → stop.
+        if (!(result?.success && result.modal)) return;
+      }
+
+      // Fallback (no modal handler in scope): the legacy one-field inline create
+      // from the typed text. Best-effort; surfaces any validation error inline.
+      if (!dataSource || !label) return;
+      setCreating(true);
       try {
         const created = await (dataSource as any).create(referenceTo, { [displayField]: label });
         const opt = recordToOption(created, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema);
@@ -656,7 +711,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
         setCreating(false);
       }
     },
-    [onCreateNew, allowCreate, dataSource, referenceTo, displayField, idField, effectiveDescriptionField, refTitleFormat, handleSelect],
+    [onCreateNew, allowCreate, referenceTo, hasActionProvider, execute, dataSource, displayField, idField, effectiveDescriptionField, refTitleFormat, refObjectSchema, handleSelect],
   );
 
   // Compact one-line preview of an option's extra (non-display) columns —
