@@ -1034,18 +1034,32 @@ function useObjectOptions(): Array<{ value: string; label: string }> {
 
   React.useEffect(() => {
     let cancelled = false;
-    client
-      .list<{ name?: string; label?: string }>('object')
-      .then((items) => {
+    Promise.all([
+      client.list<{ name?: string; label?: string }>('object'),
+      // Draft objects are not yet published, so `list('object')` can't see
+      // them. Include them so a lookup can target a SIBLING object being
+      // designed in the same authoring pass (before the package's first
+      // publish) instead of forcing the author to type an API name blind.
+      client.listDrafts({ type: 'object' }).catch(() => [] as Array<{ name?: string }>),
+    ])
+      .then(([published, drafts]) => {
         if (cancelled) return;
-        const mapped = items
-          .filter((i) => typeof i?.name === 'string' && i.name)
-          .map((i) => ({
-            value: i.name as string,
-            label: i.label ? `${i.label} (${i.name})` : (i.name as string),
-          }))
-          .sort((a, b) => a.value.localeCompare(b.value));
-        setOpts(mapped);
+        const byName = new Map<string, { value: string; label: string }>();
+        for (const i of published ?? []) {
+          if (typeof i?.name === 'string' && i.name && !byName.has(i.name)) {
+            byName.set(i.name, {
+              value: i.name,
+              label: i.label ? `${i.label} (${i.name})` : i.name,
+            });
+          }
+        }
+        for (const d of drafts ?? []) {
+          const name = (d as { name?: string }).name;
+          if (typeof name === 'string' && name && !byName.has(name)) {
+            byName.set(name, { value: name, label: `${name} (草稿)` });
+          }
+        }
+        setOpts([...byName.values()].sort((a, b) => a.value.localeCompare(b.value)));
       })
       .catch(() => {
         // Empty list — picker falls back to free-text. No banner needed.
