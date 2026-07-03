@@ -50,9 +50,16 @@ function makeDataSource() {
     const data = Object.values(store).map((r) => ({ ...r }));
     return { data, total: data.length, hasMore: false, pageSize: 50 };
   });
+  // Per-row update primitive — the exact surface the rich-def executor
+  // (useBulkExecutor, operation:'update') mutates through, per record.
+  const update = vi.fn(async (_resource: string, id: string, patch: Record<string, any>) => {
+    if (store[id]) Object.assign(store[id], patch);
+    return { ...store[id] };
+  });
   return {
     store,
     find,
+    update,
     getObjectSchema: async (name: string) => ({
       name,
       fields: {
@@ -143,5 +150,78 @@ describe('ObjectGrid — string bulk action refreshes the list on success', () =
     await new Promise((r) => setTimeout(r, 50));
     expect(ds.find.mock.calls.length).toBe(findCallsBefore);
     expect(screen.queryByTestId('bulk-actions-bar')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Rich `bulkActionDefs` path — the mechanism the os-tianshun-ehr 排班计划 grid
+ * actually uses for 下推 / 派工: `operation: 'update'`, `patch: { <trigger>: true }`,
+ * `batchSize: 1` (per-row so each record independently trips its Hooks). This
+ * travels bar → dispatchBulkActionDef → BulkActionDialog → useBulkExecutor
+ * (dataSource.update per row) → onClose(result) → handleBulkDialogClose. This
+ * refresh has existed since rich defs were introduced; the test guards it so the
+ * production path never silently regresses to the string-path bug (#2159).
+ */
+function renderGridWithDefs(dataSource: any) {
+  const schema: any = {
+    type: 'object-grid',
+    objectName: OBJECT,
+    // Mirrors production: update + trigger patch, batchSize 1 → per-row execution.
+    bulkActionDefs: [
+      {
+        name: 'push_plan_bulk',
+        label: '下推',
+        operation: 'update',
+        patch: { status: 'pushed' },
+        batchSize: 1,
+        confirmText: '确认下推勾选的计划吗？',
+      },
+    ],
+    columns: [
+      { field: 'name', label: 'Name' },
+      { field: 'status', label: 'Status' },
+    ],
+    pagination: { pageSize: 50 },
+  };
+  return render(
+    <ActionProvider handlers={{}}>
+      <ObjectGrid schema={schema} dataSource={dataSource} />
+    </ActionProvider>,
+  );
+}
+
+describe('ObjectGrid — rich bulk action def (operation:update) refreshes the list', () => {
+  it('runs the def through the dialog, updates each row, and refetches on Done', async () => {
+    const ds = makeDataSource();
+    renderGridWithDefs(ds);
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+    expect(screen.getAllByText('draft').length).toBeGreaterThan(0);
+    const findCallsBefore = ds.find.mock.calls.length;
+
+    // Select all rows, then open the rich-def dialog from the bar.
+    const headerCheckbox = document.querySelector('thead [role="checkbox"]') as HTMLElement;
+    expect(headerCheckbox).toBeTruthy();
+    fireEvent.click(headerCheckbox);
+
+    fireEvent.click(await screen.findByTestId('bulk-action-push_plan_bulk'));
+
+    // Confirm step (no params) → Run, then the executor mutates each row.
+    fireEvent.click(await screen.findByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(ds.update).toHaveBeenCalledTimes(2));
+
+    // Result step → Done closes the dialog with a truthy result → refresh.
+    fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
+
+    // The list refetched and reflects the server state (draft → pushed).
+    await waitFor(() =>
+      expect(ds.find.mock.calls.length).toBeGreaterThan(findCallsBefore),
+    );
+    await waitFor(() => expect(screen.getAllByText('pushed').length).toBeGreaterThan(0));
+
+    // And the selection toolbar reset.
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument(),
+    );
   });
 });
