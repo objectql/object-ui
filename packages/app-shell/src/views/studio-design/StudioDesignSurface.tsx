@@ -584,7 +584,13 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
           ) : tab === 'automations' ? (
             <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : (
-            <InterfacesPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
+            <InterfacesPillar
+              packageId={packageId}
+              publishNonce={publishNonce}
+              draftNonce={draftNonce}
+              onDraftSaved={onDraftSaved}
+              onCreateApp={() => setAppCreating(true)}
+            />
           )}
         </div>
       </div>
@@ -651,11 +657,19 @@ function NavTree({
 function InterfacesPillar({
   packageId,
   publishNonce = 0,
+  draftNonce = 0,
   onDraftSaved,
+  onCreateApp,
 }: {
   packageId: string;
   publishNonce?: number;
+  /** Bumped when a draft is saved elsewhere (e.g. the header's 创建应用) — a
+   * re-resolve signal so a just-created app appears without a reload. */
+  draftNonce?: number;
   onDraftSaved?: () => void;
+  /** Invoked from the empty state when this package has no app, to open the
+   * header's create-app flow (single source of truth for app creation). */
+  onCreateApp?: () => void;
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = 'zh-CN';
@@ -680,32 +694,57 @@ function InterfacesPillar({
   const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [hasDraft, setHasDraft] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // App resolution status — tells "still loading" apart from "this package has
+  // no app", so the canvas shows a real empty state instead of an endless
+  // spinner.
+  const [appStatus, setAppStatus] = React.useState<'loading' | 'ready' | 'missing'>('loading');
 
-  // Resolve the App by package id → load its navigation tree.
+  // Resolve THIS package's App → load its navigation tree. The query is scoped
+  // to the package (`list('app', { packageId })`) so a design surface only ever
+  // shows the current package's app — never another package's. `list()` sees
+  // published metadata only, so a freshly-created (unpublished) app is found via
+  // `listDrafts()` instead, keeping it designable before its first publish.
   React.useEffect(() => {
     let cancelled = false;
+    setAppStatus('loading');
     (async () => {
       try {
-        const apps = (await client.list('app')) as Array<Record<string, unknown>>;
+        const published = (await client.list('app', { packageId })) as Array<Record<string, unknown>>;
         if (cancelled) return;
-        const app =
-          (apps || []).find(
-            (a) => a._packageId === packageId || a.packageId === packageId || a.name === packageId,
-          ) ?? (apps || [])[0];
-        if (!app) return;
-        setAppLabel(String(app.label ?? app.name ?? packageId));
-        setAppName(String(app.name));
+        let name = published?.[0]?.name ? String(published[0].name) : null;
+        let label = published?.[0]
+          ? String(published[0].label ?? published[0].name ?? packageId)
+          : packageId;
+        if (!name) {
+          const drafts = await client.listDrafts({ packageId, type: 'app' });
+          if (cancelled) return;
+          const d = drafts?.[0];
+          if (d?.name) {
+            name = String(d.name);
+            label = String(d.name);
+          }
+        }
+        if (!name) {
+          setAppStatus('missing');
+          return;
+        }
+        setAppLabel(label);
+        setAppName(name);
         const [layRaw, appDraftResp] = await Promise.all([
-          client.layered<Record<string, unknown>>('app', String(app.name)),
-          client.getDraft<Record<string, unknown>>('app', String(app.name)).catch(() => null),
+          client.layered<Record<string, unknown>>('app', name),
+          client.getDraft<Record<string, unknown>>('app', name).catch(() => null),
         ]);
         if (cancelled) return;
         const lay = layRaw as { effective?: Record<string, unknown>; code?: Record<string, unknown> };
         const eff = (lay.effective ?? lay.code ?? {}) as Record<string, unknown>;
         const appDraftBody = extractDraftBody(appDraftResp);
         const body = appDraftBody ? { ...eff, ...appDraftBody } : eff;
+        if (typeof body.label === 'string' || typeof body.name === 'string') {
+          setAppLabel(String(body.label ?? body.name ?? label));
+        }
         setAppDraft(body);
         setNavHasDraft(!!appDraftBody);
+        setAppStatus('ready');
         const tree = Array.isArray(body.navigation) ? (body.navigation as NavNode[]) : [];
         // auto-open the first resolvable leaf
         const firstLeaf = (function find(nodes: NavNode[]): Surface | null {
@@ -722,13 +761,16 @@ function InterfacesPillar({
         })(tree);
         setCurrent((cur) => cur ?? firstLeaf);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : String(e));
+          setAppStatus('missing');
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [client, packageId]);
+  }, [client, packageId, publishNonce, draftNonce]);
 
   const Preview = getMetadataPreview(current?.type ?? '');
   const Inspector = getMetadataInspector(current?.type ?? '');
@@ -843,28 +885,30 @@ function InterfacesPillar({
           <div className="shrink-0 border-b px-2 py-1.5">
             <div className="flex items-center justify-between gap-1">
               <p className="truncate text-[11px] font-medium text-muted-foreground">{appLabel} · 导航</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditNav((v) => !v);
-                  setNavSel(null);
-                }}
-                title={editNav ? '完成编辑' : '编辑导航(拖拽排序 / 重命名 / 增删)'}
-                className={
-                  'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ' +
-                  (editNav ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted')
-                }
-              >
-                {editNav ? (
-                  <>
-                    <Check className="h-3 w-3" /> 完成
-                  </>
-                ) : (
-                  <>
-                    <Pencil className="h-3 w-3" /> 编辑
-                  </>
-                )}
-              </button>
+              {appStatus === 'ready' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditNav((v) => !v);
+                    setNavSel(null);
+                  }}
+                  title={editNav ? '完成编辑' : '编辑导航(拖拽排序 / 重命名 / 增删)'}
+                  className={
+                    'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ' +
+                    (editNav ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted')
+                  }
+                >
+                  {editNav ? (
+                    <>
+                      <Check className="h-3 w-3" /> 完成
+                    </>
+                  ) : (
+                    <>
+                      <Pencil className="h-3 w-3" /> 编辑
+                    </>
+                  )}
+                </button>
+              )}
             </div>
             {editNav && (
               <div className="mt-1.5 flex items-center gap-1.5">
@@ -889,9 +933,23 @@ function InterfacesPillar({
             )}
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-2">
-            {navTree.length === 0 ? (
-              <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+            {appStatus === 'missing' && !error ? (
+              <div className="px-2 py-3">
+                <p className="text-[11px] text-muted-foreground">这个软件包还没有应用。</p>
+                {onCreateApp && (
+                  <button
+                    type="button"
+                    onClick={onCreateApp}
+                    className="mt-2 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted"
+                  >
+                    <Plus className="h-3 w-3" /> 创建应用
+                  </button>
+                )}
+              </div>
             ) : editNav ? (
+              // Edit mode renders AppNavCanvas even when the nav is empty — it
+              // carries its own "Add nav item" affordance, so a fresh app can be
+              // built up from nothing.
               <AppNavCanvas
                 draft={appDraft}
                 rootKey="navigation"
@@ -899,6 +957,14 @@ function InterfacesPillar({
                 selection={navSel}
                 onSelectionChange={(s) => setNavSel(s ? { kind: s.kind, id: s.id } : null)}
               />
+            ) : navTree.length === 0 ? (
+              <p className="px-2 py-3 text-[11px] text-muted-foreground">
+                {error
+                  ? '加载失败'
+                  : appStatus === 'loading'
+                    ? '加载中…'
+                    : '还没有导航项 —（点上方「编辑」添加)'}
+              </p>
             ) : (
               <NavTree nodes={navTree} active={current} onPick={setCurrent} />
             )}
@@ -923,7 +989,26 @@ function InterfacesPillar({
             </div>
           )}
           <div className="rounded-lg border bg-background p-4">
-            {!current ? (
+            {appStatus === 'missing' && !error ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <LayoutDashboard className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">这个软件包还没有应用</p>
+                  <p className="mt-1 text-xs text-muted-foreground">创建一个应用来设计它的导航与界面。</p>
+                </div>
+                {onCreateApp && (
+                  <button
+                    type="button"
+                    onClick={onCreateApp}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> 创建应用
+                  </button>
+                )}
+              </div>
+            ) : !current ? (
               <div className="py-16 text-center text-sm text-muted-foreground">从左侧选择一个菜单项</div>
             ) : loading ? (
               <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
