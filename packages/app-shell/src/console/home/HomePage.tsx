@@ -184,7 +184,7 @@ function PendingDraftsBanner({ t }: { t: (key: string, opts?: any) => string }) 
  */
 function RecoveryPasswordReminder({ t }: { t: (key: string, opts?: any) => string }) {
   const navigate = useNavigate();
-  const { hasLocalPassword } = useAuth();
+  const { hasLocalPassword, getAuthConfig } = useAuth();
   const [show, setShow] = useState(false);
   useEffect(() => {
     if (typeof localStorage !== 'undefined' && localStorage.getItem('os:recovery-pw-dismissed') === '1') return;
@@ -198,11 +198,22 @@ function RecoveryPasswordReminder({ t }: { t: (key: string, opts?: any) => strin
       return;
     }
     let cancelled = false;
-    Promise.resolve(hasLocalPassword?.())
-      .then((has) => { if (!cancelled && has === false) setShow(true); })
+    Promise.all([
+      Promise.resolve(hasLocalPassword?.()),
+      Promise.resolve(getAuthConfig?.()).catch(() => null),
+    ])
+      .then(([has, config]: [unknown, any]) => {
+        if (cancelled) return;
+        // Skip on SSO-enforced envs: password login is disabled there, so a
+        // recovery password can't be used — nudging for one is misleading and
+        // gives a false sense of security. Same signal LoginForm uses.
+        const passwordUnavailable =
+          config?.features?.ssoEnforced === true || config?.emailPassword?.enabled === false;
+        if (has === false && !passwordUnavailable) setShow(true);
+      })
       .catch(() => { /* unknown → don't nag */ });
     return () => { cancelled = true; };
-  }, [hasLocalPassword]);
+  }, [hasLocalPassword, getAuthConfig]);
   const dismiss = () => {
     try { localStorage.setItem('os:recovery-pw-dismissed', '1'); } catch { /* ignore */ }
     setShow(false);
