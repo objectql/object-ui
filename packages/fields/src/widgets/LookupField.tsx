@@ -605,6 +605,18 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
 
   const handleSelect = useCallback(
     (option: LookupOption) => {
+      // Cache the picked option so its label resolves synchronously and durably,
+      // independent of the popover's `fetchedOptions` (which the editor may have
+      // remounted away, or which a slow/contended re-render hasn't surfaced yet —
+      // the intermittent CI failure where a just-picked lookup showed no label,
+      // #2150). `selectedOptions` consults `pickerResolvedRecords` in `findOption`.
+      if (option && option.value != null) {
+        setPickerResolvedRecords((prev) => {
+          const map = new Map(prev.map((o) => [o.value, o]));
+          map.set(option.value, option);
+          return Array.from(map.values());
+        });
+      }
       if (multiple) {
         // Normalise any expanded-reference objects to bare ids so toggling
         // compares like-for-like and always persists ids (never mixed shapes).
