@@ -110,6 +110,8 @@ export {
   detectStatusField,
   deriveStages,
   deriveHighlightFields,
+  deriveFieldGroupDetailSections,
+  resolveDetailSections,
 } from './synth/buildDefaultPageSchema';
 export type {
   ObjectDefLike,

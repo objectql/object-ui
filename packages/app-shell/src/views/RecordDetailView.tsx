@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { DetailView, RecordChatterPanel, buildDefaultPageSchema, extractMentions } from '@object-ui/plugin-detail';
+import { DetailView, RecordChatterPanel, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, useGlobalUndo } from '@object-ui/react';
@@ -1225,8 +1225,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         (key) => key === 'name' || key === 'title'
       );
 
-    // Build sections: prefer form sections from objectDef, fallback to flat field list
-    const formSections = objectDef.views?.form?.sections;
+    // Build sections, in priority order:
+    //   1) explicit sections — the spec-writable `detail.sections` block,
+    //      else legacy `views.form.sections` (the spec's ObjectSchema has no
+    //      `views` key, so that source only exists on non-spec metadata);
+    //   2) sections derived from the designer's `fieldGroups` metadata
+    //      (see the fieldGroups branch in the fallback below);
+    //   3) auto-grouping (primary + collapsible "More details").
+    const formSections = (objectDef as any).detail?.sections ?? objectDef.views?.form?.sections;
     const sections = formSections && formSections.length > 0
       ? formSections.map((sec: any) => ({
           title: sec.name ? sectionLabel(objectDef.name, sec.name, sec.title || sec.name) : sec.title,
@@ -1262,14 +1268,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           }),
         }))
       : (() => {
-          // Auto-grouping (platform B): when no form sections are authored,
-          // split fields into a primary section and a collapsible
-          // "More details" section so long-form/secondary fields don't
-          // dilute the main grid. The primary section stays untitled so
-          // DetailSection still flattens its chrome when alone.
-          const allFields = Object.keys(objectDef.fields || {})
-            .filter((key) => !AUDIT_FIELD_NAMES.has(key) && !HIDDEN_SYSTEM_FIELD_NAMES.has(key) && !objectDef.fields[key]?.hidden);
-
           const toField = (key: string) => {
             const fieldDef = objectDef.fields[key];
             const refTarget = fieldDef.reference_to || fieldDef.reference;
@@ -1284,35 +1282,70 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             };
           };
 
-          const primaryKeys = allFields.filter((k) => !isSecondaryField(k, objectDef.fields[k]));
-          const secondaryKeys = allFields.filter((k) => isSecondaryField(k, objectDef.fields[k]));
+          // Auto-grouping (platform B): split fields into a primary section
+          // and a collapsible "More details" section so long-form/secondary
+          // fields don't dilute the main grid. The primary section stays
+          // untitled so DetailSection still flattens its chrome when alone.
+          // Shared by the pure-fallback path and the ungrouped remainder of
+          // the fieldGroups path below.
+          const splitPrimarySecondary = (keys: string[]) => {
+            const primaryKeys = keys.filter((k) => !isSecondaryField(k, objectDef.fields[k]));
+            const secondaryKeys = keys.filter((k) => isSecondaryField(k, objectDef.fields[k]));
 
-          // Below ~6 primary fields the second section often looks awkward
-          // — keep the legacy single-untitled-section behaviour. Also
-          // honour the "no secondary fields" case the same way.
-          if (secondaryKeys.length === 0 || primaryKeys.length === 0) {
+            // Keep the legacy single-untitled-section behaviour when the
+            // split would leave one side empty.
+            if (secondaryKeys.length === 0 || primaryKeys.length === 0) {
+              return [
+                {
+                  showBorder: false as const,
+                  fields: keys.map(toField),
+                },
+              ];
+            }
+
             return [
               {
                 showBorder: false as const,
-                fields: allFields.map(toField),
+                fields: primaryKeys.map(toField),
+              },
+              {
+                name: 'details',
+                title: sectionLabel(objectDef.name, 'details', t('detail.sectionMoreDetails', 'More details')),
+                collapsible: true,
+                defaultCollapsed: false,
+                showBorder: true as const,
+                fields: secondaryKeys.map(toField),
               },
             ];
+          };
+
+          // 2) fieldGroups-derived sections (object-designer metadata,
+          //    same source the runtime form honours). Declared groups
+          //    render as titled cards in declared order; the helper's
+          //    trailing untitled bucket (ungrouped fields) still goes
+          //    through the primary/"More details" split so long-form
+          //    fields stay tucked away. Objects can opt out via
+          //    `detail.useFieldGroups: false`.
+          const grouped = deriveFieldGroupDetailSections(objectDef as any);
+          if (grouped) {
+            return grouped.flatMap((sec: any) => {
+              if (!sec.name) {
+                return splitPrimarySecondary(
+                  (sec.fields as any[]).map((f: any) => f.name),
+                );
+              }
+              return [{
+                ...sec,
+                title: sectionLabel(objectDef.name, sec.name, sec.title),
+                showBorder: true as const,
+              }];
+            });
           }
 
-          return [
-            {
-              showBorder: false as const,
-              fields: primaryKeys.map(toField),
-            },
-            {
-              name: 'details',
-              title: sectionLabel(objectDef.name, 'details', t('detail.sectionMoreDetails', 'More details')),
-              collapsible: true,
-              defaultCollapsed: false,
-              showBorder: true as const,
-              fields: secondaryKeys.map(toField),
-            },
-          ];
+          // 3) Pure auto-grouping fallback.
+          const allFields = Object.keys(objectDef.fields || {})
+            .filter((key) => !AUDIT_FIELD_NAMES.has(key) && !HIDDEN_SYSTEM_FIELD_NAMES.has(key) && !objectDef.fields[key]?.hidden);
+          return splitPrimarySecondary(allFields);
         })();
 
     // Audit fields (created_at/created_by/updated_at/updated_by) are NOT
@@ -1385,12 +1418,33 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       return base;
     })();
 
-    // Build highlightFields: exclusively from objectDef metadata (no hardcoded fallback)
-    const highlightFields: HighlightField[] = objectDef.views?.detail?.highlightFields ?? [];
+    // Build highlightFields: exclusively from objectDef metadata (no
+    // hardcoded fallback). The spec-writable `detail.highlightFields`
+    // wins; `views.detail.highlightFields` stays as back-compat for
+    // non-spec metadata (the spec's ObjectSchema has no `views` key).
+    // Entries may be bare field names — normalize them to the
+    // HighlightField shape by resolving label/type from the field def.
+    const rawHighlightFields =
+      (objectDef as any).detail?.highlightFields ?? objectDef.views?.detail?.highlightFields ?? [];
+    const highlightFields: HighlightField[] = (Array.isArray(rawHighlightFields) ? rawHighlightFields : [])
+      .map((f: any): HighlightField | null => {
+        const name = typeof f === 'string' ? f : f?.name;
+        if (!name) return null;
+        if (typeof f === 'object' && f.label) return f as HighlightField;
+        const fieldDef = objectDef.fields?.[name];
+        return {
+          name,
+          label: fieldDef?.label || name,
+          ...(fieldDef?.type ? { type: fieldDef.type } : {}),
+        };
+      })
+      .filter((f): f is HighlightField => !!f);
 
     // Build sectionGroups from objectDef detail/form config if available
     const sectionGroups: SectionGroup[] | undefined =
-      objectDef.views?.detail?.sectionGroups ?? objectDef.views?.form?.sectionGroups;
+      (objectDef as any).detail?.sectionGroups
+      ?? objectDef.views?.detail?.sectionGroups
+      ?? objectDef.views?.form?.sectionGroups;
 
     // Build related entries from reverse-reference child objects.
     // `referenceField` is the FK field on the child pointing back to this

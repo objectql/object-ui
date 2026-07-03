@@ -41,6 +41,37 @@ export interface ObjectDefLike {
   primaryField?: string;
   /** Optional section grouping for the details region. */
   sections?: Array<{ title?: string; columns?: number; fields?: any[] }>;
+  /**
+   * Declared field groups from the object designer. Fields opt in via
+   * `field.group === group.key`; the detail synthesizer derives sections
+   * from them when no explicit sections are provided.
+   */
+  fieldGroups?: Array<{
+    key?: string;
+    label?: string;
+    collapsible?: boolean;
+    collapsed?: boolean;
+  }>;
+  /**
+   * Author-facing detail hints. This block is the ONLY spec-writable home
+   * for detail-page hints: `@objectstack/spec`'s ObjectSchema rejects
+   * unknown top-level keys (`views`, top-level `stageField`, …) but keeps
+   * the `detail` block passthrough. Keys read here:
+   * - `stageField` — explicit status field, or `false` to suppress the
+   *   `record:path` stepper entirely (#2065).
+   * - `highlightFields` — explicit highlight strip (string names or
+   *   `{ name }` objects).
+   * - `sections` — explicit detail sections, same shape as
+   *   `BuildPageOptions['sections']`.
+   * - `useFieldGroups: false` — opt out of fieldGroups-derived sections.
+   */
+  detail?: {
+    stageField?: string | false;
+    highlightFields?: Array<string | { name?: string }>;
+    sections?: Array<{ title?: string; columns?: number; fields?: any[] }>;
+    useFieldGroups?: boolean;
+    [key: string]: any;
+  };
 }
 
 export interface ObjectFieldLike {
@@ -48,6 +79,10 @@ export interface ObjectFieldLike {
   label?: string;
   type?: string;
   options?: Array<{ value: any; label: string }>;
+  /** Declared group membership — matches a `fieldGroups[].key`. */
+  group?: string;
+  /** Hidden fields never surface in derived sections. */
+  hidden?: boolean;
 }
 
 export interface BuildPageOptions {
@@ -189,12 +224,18 @@ function toNodeArray(slot: any | any[] | undefined): any[] {
  * Detect the canonical "status" / "stage" field on an object definition.
  *
  * Heuristic — same as DetailView's `autoSummaryFields`:
- *   1) prefer an explicit `objectDef.stageField`
- *   2) else first field named status / stage / state / phase
- *   3) else null
+ *   1) `objectDef.detail.stageField` — the spec-writable hint. `false`
+ *      suppresses stage detection entirely (no `record:path`, #2065).
+ *   2) else an explicit top-level `objectDef.stageField` (legacy /
+ *      non-spec metadata; the spec strips this key)
+ *   3) else first field named status / stage / state / phase
+ *   4) else null
  */
 export function detectStatusField(def?: ObjectDefLike): string | null {
   if (!def) return null;
+  const hint = def.detail?.stageField;
+  if (hint === false) return null;
+  if (typeof hint === 'string' && hint) return hint;
   if (def.stageField) return def.stageField;
   const fields = def.fields || {};
   const candidates = ['status', 'stage', 'state', 'phase'];
@@ -232,6 +273,15 @@ export function deriveHighlightFields(
   max = 4,
 ): string[] {
   if (!def) return [];
+  // Spec-writable hint first: `detail.highlightFields` accepts string
+  // names or `{ name }` objects (the shape RecordDetailView's legacy
+  // schema uses).
+  const declared = (Array.isArray(def.detail?.highlightFields) ? def.detail!.highlightFields! : [])
+    .map((f) => (typeof f === 'string' ? f : f?.name))
+    .filter((n): n is string => typeof n === 'string' && n.length > 0);
+  if (declared.length > 0) {
+    return declared.slice(0, max);
+  }
   if (Array.isArray(def.highlightFields) && def.highlightFields.length > 0) {
     return def.highlightFields.slice(0, max);
   }
@@ -360,16 +410,140 @@ export function buildDefaultHighlights(
 }
 
 /**
+ * System / audit fields the app-shell filters out of auto-generated detail
+ * sections. Mirrored here so fieldGroups-derived sections (used by the
+ * synth-only consumers — Studio page preview, metadata-admin anchors)
+ * match the runtime detail page. Fields an author EXPLICITLY assigns to a
+ * group are kept — explicit listing wins, same as authored sections.
+ */
+const DERIVED_SECTION_SKIP_FIELDS = new Set<string>([
+  'created_at', 'created_by', 'updated_at', 'updated_by',
+  'organization_id', 'tenant_id', 'is_deleted', 'deleted_at',
+]);
+
+/**
+ * Derive detail sections from the object's declared `fieldGroups` plus each
+ * field's `group` membership — the same metadata the object designer writes
+ * and the runtime form (`@object-ui/plugin-form` `deriveFieldGroupSections`)
+ * already honours. Semantics mirror the form side:
+ *
+ *   - sections come back in declared-group order;
+ *   - declared groups no visible field references are dropped;
+ *   - fields without a (declared) group collect into a trailing untitled
+ *     section so they render flat rather than as a spurious card;
+ *   - `collapsible` / `collapsed` pass through (as DetailSection's
+ *     `collapsible` / `defaultCollapsed`).
+ *
+ * Returns `null` when grouping does not apply — no declared groups, no
+ * visible field references one, or the object opted out via
+ * `detail.useFieldGroups: false` — so callers fall back to their existing
+ * layout (flat or auto-split).
+ *
+ * Section fields are emitted as rich descriptors (`{ name, label, type,
+ * options }`) so DetailSection renders typed values without re-resolving
+ * the object definition.
+ */
+export function deriveFieldGroupDetailSections(
+  def: ObjectDefLike | undefined,
+): Array<Record<string, any>> | null {
+  if (!def) return null;
+  if (def.detail?.useFieldGroups === false) return null;
+  const declared = (Array.isArray(def.fieldGroups) ? def.fieldGroups : [])
+    .filter((g): g is NonNullable<typeof g> => !!g && typeof g === 'object')
+    .map((g) => ({
+      key: typeof g.key === 'string' ? g.key : '',
+      label: typeof g.label === 'string' ? g.label : undefined,
+      collapsible: typeof g.collapsible === 'boolean' ? g.collapsible : undefined,
+      collapsed: typeof g.collapsed === 'boolean' ? g.collapsed : undefined,
+    }))
+    .filter((g) => g.key);
+  if (declared.length === 0) return null;
+
+  const declaredKeys = new Set(declared.map((g) => g.key));
+  const fields = def.fields || {};
+  const toField = (name: string) => {
+    const f = fields[name] || {};
+    return {
+      name,
+      label: f.label || name,
+      type: f.type || 'text',
+      ...(f.options ? { options: f.options } : {}),
+      ...((f as any).reference_to || (f as any).reference
+        ? { reference_to: (f as any).reference_to || (f as any).reference }
+        : {}),
+      ...((f as any).reference_field ? { reference_field: (f as any).reference_field } : {}),
+      ...((f as any).currency ? { currency: (f as any).currency } : {}),
+    };
+  };
+
+  const buckets = new Map<string, string[]>();
+  for (const g of declared) buckets.set(g.key, []);
+  const ungrouped: string[] = [];
+  let anyGrouped = false;
+  for (const [name, f] of Object.entries(fields)) {
+    if (f?.hidden) continue;
+    const g = typeof f?.group === 'string' && declaredKeys.has(f.group) ? f.group : null;
+    if (g) {
+      buckets.get(g)!.push(name);
+      anyGrouped = true;
+    } else if (!DERIVED_SECTION_SKIP_FIELDS.has(name)) {
+      ungrouped.push(name);
+    }
+  }
+  // No visible field references a declared group → keep the flat layout.
+  if (!anyGrouped) return null;
+
+  const sections: Array<Record<string, any>> = [];
+  for (const g of declared) {
+    const names = buckets.get(g.key)!;
+    if (names.length === 0) continue;
+    sections.push({
+      name: g.key,
+      title: g.label ?? g.key,
+      ...(g.collapsible !== undefined ? { collapsible: g.collapsible } : {}),
+      ...(g.collapsed !== undefined ? { defaultCollapsed: g.collapsed } : {}),
+      fields: names.map(toField),
+    });
+  }
+  // Trailing untitled bucket for ungrouped fields. Omitting `name`/`title`
+  // keeps the section flat (record-details defaults showBorder to false
+  // for untitled sections) instead of surfacing an internal key as a
+  // header.
+  if (ungrouped.length > 0) {
+    sections.push({ fields: ungrouped.map(toField) });
+  }
+  return sections.length > 0 ? sections : null;
+}
+
+/**
+ * Resolve the sections for the Details tab body:
+ *   1) explicit `options.sections` from the caller (RecordDetailView folds
+ *      `detail.sections` / legacy `views.form.sections` in here);
+ *   2) else the object's spec-writable `detail.sections`;
+ *   3) else sections derived from `fieldGroups` (designer metadata);
+ *   4) else `undefined` — record:details falls back to its flat layout.
+ */
+export function resolveDetailSections(
+  def: ObjectDefLike | undefined,
+  sections?: BuildPageOptions['sections'],
+): BuildPageOptions['sections'] | undefined {
+  if (Array.isArray(sections) && sections.length > 0) return sections;
+  const declared = def?.detail?.sections;
+  if (Array.isArray(declared) && declared.length > 0) return declared;
+  return deriveFieldGroupDetailSections(def) ?? undefined;
+}
+
+/**
  * Sub-builder: the Details tab body — a single `record:details` node.
  */
 export function buildDefaultDetails(
-  _def: ObjectDefLike | undefined,
+  def: ObjectDefLike | undefined,
   sections?: BuildPageOptions['sections'],
   hideFields?: string[],
 ): any {
   return {
     type: 'record:details',
-    sections,
+    sections: resolveDetailSections(def, sections),
     ...(hideFields && hideFields.length > 0 ? { hideFields } : {}),
   };
 }

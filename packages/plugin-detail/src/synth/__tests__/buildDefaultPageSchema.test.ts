@@ -17,6 +17,8 @@ import {
   detectStatusField,
   deriveStages,
   deriveHighlightFields,
+  deriveFieldGroupDetailSections,
+  resolveDetailSections,
   type ObjectDefLike,
 } from '../buildDefaultPageSchema';
 
@@ -666,5 +668,226 @@ describe('buildDefaultPageSchema', () => {
     it('buildDefaultDiscussion returns the record:discussion node', () => {
       expect(buildDefaultDiscussion()).toEqual({ type: 'record:discussion' });
     });
+  });
+});
+
+// #2148 — spec-writable `detail.*` hints + fieldGroups-derived sections.
+describe('detail.* hints (#2148 / #2065)', () => {
+  describe('detectStatusField', () => {
+    it('detail.stageField wins over top-level stageField and heuristics', () => {
+      expect(
+        detectStatusField({
+          detail: { stageField: 'pipeline' },
+          stageField: 'legacy_stage',
+          fields: { pipeline: {}, legacy_stage: {}, status: {} },
+        }),
+      ).toBe('pipeline');
+    });
+
+    it('detail.stageField: false suppresses detection entirely', () => {
+      expect(
+        detectStatusField({
+          detail: { stageField: false },
+          stageField: 'status',
+          fields: { status: { type: 'status' } },
+        }),
+      ).toBeNull();
+    });
+
+    it('falls back to top-level stageField, then heuristic, when detail hint absent', () => {
+      expect(
+        detectStatusField({ detail: {}, stageField: 'stage_x', fields: { stage_x: {} } }),
+      ).toBe('stage_x');
+      expect(detectStatusField({ detail: {}, fields: { status: {} } })).toBe('status');
+    });
+  });
+
+  describe('deriveHighlightFields', () => {
+    it('detail.highlightFields wins over top-level highlightFields', () => {
+      expect(
+        deriveHighlightFields(
+          {
+            ...leadDef,
+            detail: { highlightFields: ['phone', 'rating'] },
+            highlightFields: ['email'],
+          },
+          'status',
+        ),
+      ).toEqual(['phone', 'rating']);
+    });
+
+    it('accepts { name } object entries and drops malformed ones', () => {
+      expect(
+        deriveHighlightFields(
+          { ...leadDef, detail: { highlightFields: [{ name: 'email' }, 'phone', {} as any, ''] } },
+          'status',
+        ),
+      ).toEqual(['email', 'phone']);
+    });
+
+    it('caps the detail list at max', () => {
+      expect(
+        deriveHighlightFields(
+          { detail: { highlightFields: ['a', 'b', 'c', 'd', 'e'] }, fields: {} },
+          null,
+          3,
+        ),
+      ).toEqual(['a', 'b', 'c']);
+    });
+  });
+});
+
+describe('deriveFieldGroupDetailSections (#2148)', () => {
+  const groupedDef: ObjectDefLike = {
+    name: 'account',
+    fieldGroups: [
+      { key: 'basic', label: '基本信息' },
+      { key: 'finance', label: '财务', collapsible: true, collapsed: true },
+      { key: 'unused', label: 'Empty group' },
+    ],
+    fields: {
+      name: { label: 'Name', type: 'text', group: 'basic' },
+      industry: { label: 'Industry', type: 'select', group: 'basic' },
+      revenue: { label: 'Revenue', type: 'currency', group: 'finance' },
+      website: { label: 'Website', type: 'url' },
+      secret: { label: 'Secret', type: 'text', group: 'basic', hidden: true },
+      created_at: { label: 'Created', type: 'datetime' },
+      organization_id: { label: 'Org', type: 'text' },
+    },
+  };
+
+  it('returns sections in declared order with collapse passthrough, dropping empty groups', () => {
+    const sections = deriveFieldGroupDetailSections(groupedDef)!;
+    expect(sections.map((s: any) => s.name)).toEqual(['basic', 'finance', undefined]);
+    expect(sections[0].title).toBe('基本信息');
+    expect(sections[0].fields.map((f: any) => f.name)).toEqual(['name', 'industry']);
+    expect(sections[1]).toMatchObject({
+      name: 'finance',
+      title: '财务',
+      collapsible: true,
+      defaultCollapsed: true,
+    });
+    // 'unused' group has no fields → dropped.
+    expect(sections.some((s: any) => s.name === 'unused')).toBe(false);
+  });
+
+  it('collects ungrouped fields into a trailing untitled section, skipping audit/system fields', () => {
+    const sections = deriveFieldGroupDetailSections(groupedDef)!;
+    const trailing = sections[sections.length - 1];
+    expect(trailing.name).toBeUndefined();
+    expect(trailing.title).toBeUndefined();
+    expect(trailing.fields.map((f: any) => f.name)).toEqual(['website']);
+  });
+
+  it('keeps audit fields an author EXPLICITLY grouped', () => {
+    const def: ObjectDefLike = {
+      fieldGroups: [{ key: 'meta', label: 'Meta' }],
+      fields: {
+        title: { type: 'text' },
+        created_at: { type: 'datetime', group: 'meta' },
+      },
+    };
+    const sections = deriveFieldGroupDetailSections(def)!;
+    expect(sections[0].fields.map((f: any) => f.name)).toEqual(['created_at']);
+  });
+
+  it('skips hidden fields even when grouped', () => {
+    const sections = deriveFieldGroupDetailSections(groupedDef)!;
+    const basic = sections.find((s: any) => s.name === 'basic')!;
+    expect(basic.fields.map((f: any) => f.name)).not.toContain('secret');
+  });
+
+  it('emits rich field descriptors (label / type / options)', () => {
+    const sections = deriveFieldGroupDetailSections(groupedDef)!;
+    expect(sections[0].fields[1]).toMatchObject({
+      name: 'industry',
+      label: 'Industry',
+      type: 'select',
+    });
+  });
+
+  it('returns null when grouping does not apply', () => {
+    // No fieldGroups at all.
+    expect(deriveFieldGroupDetailSections(leadDef)).toBeNull();
+    // Declared groups but no field references one.
+    expect(
+      deriveFieldGroupDetailSections({
+        fieldGroups: [{ key: 'g1' }],
+        fields: { a: {}, b: {} },
+      }),
+    ).toBeNull();
+    // Explicit opt-out.
+    expect(
+      deriveFieldGroupDetailSections({ ...groupedDef, detail: { useFieldGroups: false } }),
+    ).toBeNull();
+    // Undefined def.
+    expect(deriveFieldGroupDetailSections(undefined)).toBeNull();
+  });
+
+  it('ignores keyless / malformed group entries', () => {
+    expect(
+      deriveFieldGroupDetailSections({
+        fieldGroups: [{ label: 'No key' } as any, null as any],
+        fields: { a: { group: 'x' } },
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('resolveDetailSections priority (#2148)', () => {
+  const groupedDef: ObjectDefLike = {
+    fieldGroups: [{ key: 'g', label: 'G' }],
+    fields: { a: { group: 'g' }, b: {} },
+  };
+
+  it('explicit options.sections wins', () => {
+    const explicit = [{ title: 'Explicit', fields: ['a'] }];
+    expect(resolveDetailSections(groupedDef, explicit)).toBe(explicit);
+  });
+
+  it('falls back to detail.sections next', () => {
+    const declared = [{ title: 'Declared', fields: ['a'] }];
+    expect(
+      resolveDetailSections({ ...groupedDef, detail: { sections: declared } }),
+    ).toBe(declared);
+  });
+
+  it('derives from fieldGroups last, else undefined', () => {
+    const derived = resolveDetailSections(groupedDef)!;
+    expect(derived[0]).toMatchObject({ name: 'g', title: 'G' });
+    expect(resolveDetailSections(leadDef)).toBeUndefined();
+    expect(resolveDetailSections(undefined)).toBeUndefined();
+  });
+
+  it('empty options.sections array does not shadow the fallbacks', () => {
+    const derived = resolveDetailSections(groupedDef, [])!;
+    expect(derived[0]).toMatchObject({ name: 'g' });
+  });
+});
+
+describe('buildDefaultPageSchema integration (#2148)', () => {
+  it('record:details picks up fieldGroups-derived sections when no options.sections', () => {
+    const def: ObjectDefLike = {
+      name: 'account',
+      fieldGroups: [{ key: 'basic', label: 'Basic' }],
+      fields: {
+        name: { type: 'text', group: 'basic' },
+        website: { type: 'url' },
+      },
+    };
+    const page = buildDefaultPageSchema(def);
+    const tabs = page.regions[0].components.find((c: any) => c.type === 'page:tabs');
+    const details = tabs.items[0].children[0];
+    expect(details.type).toBe('record:details');
+    expect(details.sections[0]).toMatchObject({ name: 'basic', title: 'Basic' });
+  });
+
+  it('detail.stageField: false drops record:path', () => {
+    const def: ObjectDefLike = {
+      ...leadDef,
+      detail: { stageField: false },
+    };
+    const types = buildDefaultPageSchema(def).regions[0].components.map((c: any) => c.type);
+    expect(types).not.toContain('record:path');
   });
 });
