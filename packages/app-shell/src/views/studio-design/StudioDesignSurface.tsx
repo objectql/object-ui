@@ -15,7 +15,7 @@
  */
 
 import * as React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
 import { GridFieldAuthoringProvider } from '@object-ui/components';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
@@ -42,6 +42,8 @@ import {
   X,
   GitBranch,
   Rocket,
+  ChevronDown,
+  Lock,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
@@ -135,6 +137,226 @@ function extractDraftBody(resp: unknown): Record<string, unknown> | null {
   return Object.keys(body as object).length > 0 ? (body as Record<string, unknown>) : null;
 }
 
+/** A package as the switcher needs it. Writability is a display heuristic —
+ * kernel packages (scope system/cloud) are hidden, `scope: 'project'` marks a
+ * read-only code package (authoring is refused by the ADR-0070 D4 gate), and a
+ * scope-less entry is a database base package (writable). The gate stays the
+ * authority; this only sets expectations up front. */
+interface PkgEntry {
+  id: string;
+  name: string;
+  writable: boolean;
+}
+
+function parsePackages(payload: unknown): PkgEntry[] {
+  const root = (payload as { data?: unknown })?.data ?? payload;
+  const raw = Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? []);
+  const out: PkgEntry[] = [];
+  for (const p of raw as Array<Record<string, unknown>>) {
+    if (!p || typeof p !== 'object') continue;
+    const m = (p.manifest ?? {}) as Record<string, unknown>;
+    const id = String(m.id ?? p.id ?? '');
+    if (!id) continue;
+    const scope = typeof m.scope === 'string' ? m.scope : '';
+    if (scope === 'system' || scope === 'cloud') continue; // kernel — not app packages
+    out.push({ id, name: String(m.name ?? id), writable: scope !== 'project' });
+  }
+  return out;
+}
+
+/** Top-bar package switcher: list app packages (可写 base vs 只读 code), switch by
+ * navigation, and create a new writable base inline (POST /packages {id,name}). */
+function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string }): React.ReactElement {
+  const navigate = useNavigate();
+  const [open, setOpen] = React.useState(false);
+  const [pkgs, setPkgs] = React.useState<PkgEntry[] | null>(null);
+  const [creating, setCreating] = React.useState(false);
+  const [newName, setNewName] = React.useState('');
+  const [newId, setNewId] = React.useState('');
+  const [idTouched, setIdTouched] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/v1/packages', {
+          credentials: 'include',
+          headers: { Accept: 'application/json' },
+          cache: 'no-store',
+        });
+        if (!res.ok) return;
+        const parsed = parsePackages(await res.json());
+        if (!cancelled) setPkgs(parsed);
+      } catch {
+        /* leave null — switcher still works for navigation-free display */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [packageId]);
+
+  const current = pkgs?.find((p) => p.id === packageId) ?? null;
+
+  const doCreate = React.useCallback(async () => {
+    const name = newName.trim();
+    const id = newId.trim();
+    if (!name || !/^[a-z][a-z0-9_.-]*(\.[a-z0-9_-]+)+$/.test(id)) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch('/api/v1/packages', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ id, name }),
+      });
+      const payload = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
+      if (!res.ok || payload?.success === false) throw new Error(payload?.error?.message || `HTTP ${res.status}`);
+      toast.success(`软件包 ${name} 已创建(可写)`);
+      setOpen(false);
+      setCreating(false);
+      setNewName('');
+      setNewId('');
+      setIdTouched(false);
+      navigate(`/studio/${encodeURIComponent(id)}/data`);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [newName, newId, navigate]);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[13px] font-medium hover:bg-muted"
+        title="切换 / 新建软件包"
+      >
+        <Boxes className="h-4 w-4" /> {current?.name ?? packageId}
+        {current && !current.writable && (
+          <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-normal text-amber-600 dark:text-amber-300">
+            <Lock className="h-2.5 w-2.5" /> 只读
+          </span>
+        )}
+        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg border bg-background p-1.5 shadow-lg">
+            <p className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              软件包(应用)
+            </p>
+            <div className="max-h-64 overflow-auto">
+              {pkgs === null && <p className="px-2 py-2 text-[11px] text-muted-foreground">加载中…</p>}
+              {pkgs?.length === 0 && <p className="px-2 py-2 text-[11px] text-muted-foreground">暂无应用软件包</p>}
+              {pkgs?.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    navigate(`/studio/${encodeURIComponent(p.id)}/${tab}`);
+                  }}
+                  className={
+                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                    (p.id === packageId ? 'bg-muted font-medium' : 'hover:bg-muted/60')
+                  }
+                >
+                  <Boxes className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{p.name}</span>
+                    <span className="block truncate font-mono text-[10px] text-muted-foreground">{p.id}</span>
+                  </span>
+                  {p.writable ? (
+                    <span className="rounded bg-emerald-400/15 px-1.5 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-300">
+                      可写
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-300">
+                      <Lock className="h-2.5 w-2.5" /> 只读
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-1 border-t pt-1.5">
+              {creating ? (
+                <div className="flex flex-col gap-1.5 px-1 pb-1">
+                  <input
+                    autoFocus
+                    value={newName}
+                    onChange={(e) => {
+                      setNewName(e.target.value);
+                      if (!idTouched) {
+                        const slug = toFieldNameLoose(e.target.value).replace(/_/g, '-');
+                        setNewId(slug ? `com.example.${slug}` : '');
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void doCreate();
+                      if (e.key === 'Escape') setCreating(false);
+                    }}
+                    placeholder="名称(如:维修中心)"
+                    className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <input
+                    value={newId}
+                    onChange={(e) => {
+                      setIdTouched(true);
+                      setNewId(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void doCreate();
+                      if (e.key === 'Escape') setCreating(false);
+                    }}
+                    placeholder="包 ID(如:com.example.repairs)"
+                    className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  {err && <p className="text-[10px] text-destructive">{err}</p>}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => void doCreate()}
+                      disabled={busy || !newName.trim() || !/^[a-z][a-z0-9_.-]*(\.[a-z0-9_-]+)+$/.test(newId.trim())}
+                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                    >
+                      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                      创建可写软件包
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreating(false)}
+                      className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setCreating(true)}
+                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Plus className="h-3.5 w-3.5" /> 新建软件包(可写 base)
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export interface StudioDesignSurfaceProps {
   /** Open-core slot — the cloud edition injects its AI copilot panel here. */
   aiSlot?: React.ReactNode;
@@ -207,9 +429,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b px-3 py-2">
-          <span className="flex items-center gap-1.5 whitespace-nowrap text-[13px] font-medium">
-            <Boxes className="h-4 w-4" /> {packageId}
-          </span>
+          <PackageSwitcher packageId={packageId} tab={tab} />
           <span className="text-muted-foreground">·</span>
           <nav className="flex gap-1">
             {PILLARS.map((p) => (
