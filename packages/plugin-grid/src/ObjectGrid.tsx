@@ -1456,7 +1456,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           canDelete={canDelete}
           onEdit={onEdit}
           onDelete={onDelete}
-          onAction={(action, r) => executeAction({ type: action, params: { record: r } })}
+          onAction={(action, r) => {
+            void executeAction({ type: action, params: { record: r } }).then(res => {
+              // A successful row action typically mutated this record; refresh
+              // so the grid reflects the server state (same rationale as bulk).
+              if (res?.success) setRefreshKey(k => k + 1);
+            });
+          }}
           onActionDef={(def, r) => {
             // Dispatch schema-driven row action through the runner. We forward
             // the full action def so type/target/recordIdParam/bodyShape/etc.
@@ -1469,7 +1475,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
               dispatch.actionParams = rawParams;
             }
             dispatch.params = { _rowRecord: r };
-            executeAction(dispatch);
+            void executeAction(dispatch).then(res => {
+              if (res?.success) setRefreshKey(k => k + 1);
+            });
           }}
         />
       ),
@@ -1591,7 +1599,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         setSelectAllMatching(false);
         return;
       }
-      executeAction({ type: action, params: { records: expanded } });
+      // A string bulk action (e.g. 下推 / 派工) mutated the selected records,
+      // usually through a custom API that never touches dataSource.update — so
+      // nothing else signals the grid to refetch. On success, reset the
+      // selection toolbar and refresh so the list reflects the server state
+      // (mirrors the delete branch and handleBulkDialogClose).
+      const res = await executeAction({ type: action, params: { records: expanded } });
+      if (res?.success) {
+        setSelectedRows([]);
+        setSelectAllMatching(false);
+        setRefreshKey(k => k + 1);
+      }
     })();
   };
 
