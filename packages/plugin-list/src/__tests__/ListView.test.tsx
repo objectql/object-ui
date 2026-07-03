@@ -2365,3 +2365,65 @@ describe('ListView — viewType normalization (AI-authored views)', () => {
     expect(screen.queryByText(/Unknown component type/i)).not.toBeInTheDocument();
   });
 });
+
+describe('ListView — inline-edit toggle drives grid editability', () => {
+  // Regression: clicking 行内编辑 flipped the toggle's own highlight but the grid
+  // did NOT enter edit mode. The grid schema is built in a useMemo that embeds
+  // `editable: inlineEdit`, but `inlineEdit` was missing from the memo's deps —
+  // so the emitted `editable` stayed stale until some *other* dep changed (a data
+  // refetch), lagging the toggle by one interaction. The spy grid below records
+  // the `editable` prop it is rendered with on each toggle.
+  let prevObjectGrid: ReturnType<typeof ComponentRegistry.get>;
+  let editableCalls: Array<boolean | undefined>;
+
+  beforeAll(() => {
+    prevObjectGrid = ComponentRegistry.get('object-grid');
+    ComponentRegistry.register('object-grid', (props: any) => {
+      editableCalls.push(props.editable);
+      return <div data-testid="grid-editable">{String(!!props.editable)}</div>;
+    });
+  });
+  afterAll(() => {
+    if (prevObjectGrid) {
+      ComponentRegistry.register('object-grid', prevObjectGrid);
+    } else {
+      ComponentRegistry.unregister('object-grid');
+    }
+  });
+  beforeEach(() => {
+    editableCalls = [];
+  });
+
+  it('toggling 行内编辑 immediately propagates editable to the grid (no one-toggle lag)', async () => {
+    mockDataSource.find.mockResolvedValue([
+      { id: '1', name: 'Alice', email: 'alice@test.com' },
+    ]);
+    const onInlineEditChange = vi.fn();
+    const schema: ListViewSchema = {
+      type: 'list-view',
+      objectName: 'contacts',
+      viewType: 'grid',
+      fields: ['name', 'email'],
+    };
+
+    renderWithProvider(
+      <ListView schema={schema} dataSource={mockDataSource} onInlineEditChange={onInlineEditChange} />,
+    );
+
+    // Starts non-editable (wait for the initial data fetch to paint the grid).
+    expect(await screen.findByTestId('grid-editable')).toHaveTextContent('false');
+
+    // One click on the toggle must make the grid editable on the SAME interaction.
+    fireEvent.click(screen.getByTestId('toolbar-inline-edit-toggle'));
+
+    expect(onInlineEditChange).toHaveBeenCalledWith(true);
+    expect(screen.getByTestId('grid-editable')).toHaveTextContent('true');
+    // The last schema the grid received must carry editable:true.
+    expect(editableCalls.at(-1)).toBe(true);
+
+    // Toggling back off must return to non-editable, again on the same click.
+    fireEvent.click(screen.getByTestId('toolbar-inline-edit-toggle'));
+    expect(screen.getByTestId('grid-editable')).toHaveTextContent('false');
+    expect(editableCalls.at(-1)).toBe(false);
+  });
+});

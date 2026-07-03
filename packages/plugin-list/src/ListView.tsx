@@ -499,17 +499,22 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   }), []);
 
   // --- P2: Auto-subscribe to DataSource mutation events ---
-  // When an external refreshTrigger is provided, rely on that instead of
-  // subscribing to dataSource mutations to avoid double refreshes.
+  // Refetch whenever the bound object is mutated through the DataSource. This
+  // is the ONLY refresh signal for inline-edit "Save All": ObjectGrid persists
+  // those edits by calling dataSource.update() directly, with no form-success
+  // handler to bump an external refreshTrigger — so subscribing even when
+  // `refreshTrigger` is provided is required, not redundant. Form/delete flows
+  // also bump refreshTrigger; the extra refetch that produces is harmless
+  // because find() coalesces concurrent identical reads into one round-trip.
   React.useEffect(() => {
-    if (!dataSource?.onMutation || !schema.objectName || schema.refreshTrigger) return;
+    if (!dataSource?.onMutation || !schema.objectName) return;
     const unsub = dataSource.onMutation((event: any) => {
       if (event.resource === schema.objectName) {
         setRefreshKey(k => k + 1);
       }
     });
     return unsub;
-  }, [dataSource, schema.objectName, schema.refreshTrigger]);
+  }, [dataSource, schema.objectName]);
 
   // Dynamic page size state (wired from pageSizeOptions selector)
   const [dynamicPageSize, setDynamicPageSize] = React.useState<number | undefined>(undefined);
@@ -1471,7 +1476,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         };
       }
     }
-  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize]);
+  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit]);
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 

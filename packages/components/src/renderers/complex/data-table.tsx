@@ -765,6 +765,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       const newPendingChanges = new Map(pendingChanges);
       newPendingChanges.delete(rowIndex);
       setPendingChanges(newPendingChanges);
+      // A staged editor (e.g. a lookup picker, which keeps its widget open on
+      // pick rather than committing) must exit edit mode once its value is
+      // persisted — otherwise the saved cell stays stuck showing the editor.
+      if (editingCell?.rowIndex === rowIndex) {
+        setEditingCell(null);
+        setEditValue('');
+      }
       // Saved — drop any prior error for this row, and clear the banner once
       // no errored rows remain.
       setErroredRows((prev) => {
@@ -815,6 +822,11 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       
       // Clear all pending changes
       setPendingChanges(new Map());
+      // Any staged editor left open (e.g. a lookup picker that keeps its widget
+      // open on pick) must exit edit mode now that every row is persisted —
+      // otherwise the edited cell stays stuck showing the editor after 全部保存.
+      setEditingCell(null);
+      setEditValue('');
       // Saved — clear any prior errors.
       setErroredRows(new Set());
       setSaveError(null);

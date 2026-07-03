@@ -9,6 +9,7 @@
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type {
   DataSource,
+  MutationEvent,
   QueryParams,
   QueryResult,
   FileUploadResult,
@@ -403,6 +404,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // so optional collections like sys_presence don't hammer the server with
   // failing requests on every record open / panel render.
   private missingResources = new Set<string>();
+  // Subscribers registered via onMutation(). Emitted after each successful
+  // create/update/delete so data-bound views (ListView, ObjectView, kanban,
+  // calendar) auto-refresh — the interface ListView relies on to reflect
+  // inline-edit "Save All" writes without a manual reload.
+  private mutationListeners = new Set<(event: MutationEvent<T>) => void>();
 
   constructor(config: {
     baseUrl: string;
@@ -706,9 +712,37 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   /**
    * Create a new record.
    */
+  /**
+   * Notify all mutation subscribers. A throwing listener must not break the
+   * mutation or starve the other subscribers, so each is isolated.
+   */
+  private emitMutation(event: MutationEvent<T>): void {
+    for (const listener of this.mutationListeners) {
+      try {
+        listener(event);
+      } catch (err) {
+        console.warn('ObjectStackAdapter: mutation listener error', err);
+      }
+    }
+  }
+
+  /**
+   * Subscribe to create/update/delete events on any resource. Returns an
+   * unsubscribe function. Data-bound views use this to auto-refresh after a
+   * mutation (e.g. inline-edit "Save All", which writes through `update` and
+   * must repaint the list without a manual reload).
+   */
+  onMutation(callback: (event: MutationEvent<T>) => void): () => void {
+    this.mutationListeners.add(callback);
+    return () => {
+      this.mutationListeners.delete(callback);
+    };
+  }
+
   async create(resource: string, data: Partial<T>): Promise<T> {
     await this.connect();
     const result = await this.client.data.create<T>(resource, data);
+    this.emitMutation({ type: 'create', resource, record: { ...result.record } });
     return result.record;
   }
 
@@ -737,6 +771,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         data,
         opts?.ifMatch ? { ifMatch: opts.ifMatch } : undefined,
       );
+      this.emitMutation({ type: 'update', resource, id, record: { ...result.record } });
       return result.record;
     } catch (err) {
       throw normaliseClientError(err);
@@ -762,6 +797,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         String(id),
         opts?.ifMatch ? { ifMatch: opts.ifMatch } : undefined,
       );
+      if (result.deleted) {
+        this.emitMutation({ type: 'delete', resource, id });
+      }
       return result.deleted;
     } catch (err) {
       throw normaliseClientError(err);
@@ -792,6 +830,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     if (!ids || ids.length === 0) return 0;
     const records = ids.map((id) => ({ id: String(id), data: patch as any }));
 
+    // Notify subscribers once for the whole batch (not per-id) so a single
+    // "mark all read"/"archive selected" refreshes bound views exactly once.
+    const emitBulk = (count: number): number => {
+      if (count > 0) this.emitMutation({ type: 'update', resource });
+      return count;
+    };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateMany = (this.client.data as any).updateMany;
     if (typeof updateMany === 'function') {
@@ -800,10 +845,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         // The server returns BatchUpdateResponse { succeeded, failed, ... };
         // fall back to ids.length on adapters that return a bare array.
         if (res && typeof res === 'object' && typeof (res as any).succeeded === 'number') {
-          return (res as any).succeeded as number;
+          return emitBulk((res as any).succeeded as number);
         }
-        if (Array.isArray(res)) return (res as any[]).length;
-        return ids.length;
+        if (Array.isArray(res)) return emitBulk((res as any[]).length);
+        return emitBulk(ids.length);
       } catch (err) {
         throw normaliseClientError(err);
       }
@@ -819,7 +864,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         // continueOnError semantics — swallow per-row errors
       }
     }
-    return succeeded;
+    return emitBulk(succeeded);
   }
 
   /**
@@ -837,17 +882,23 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     if (!ids || ids.length === 0) return 0;
     const strIds = ids.map((id) => String(id));
 
+    // Notify subscribers once for the whole batch (see bulkUpdate).
+    const emitBulk = (count: number): number => {
+      if (count > 0) this.emitMutation({ type: 'delete', resource });
+      return count;
+    };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const deleteMany = (this.client.data as any).deleteMany;
     if (typeof deleteMany === 'function') {
       try {
         const res = await deleteMany(resource, strIds, { continueOnError: true });
         if (res && typeof res === 'object' && typeof (res as any).succeeded === 'number') {
-          return (res as any).succeeded as number;
+          return emitBulk((res as any).succeeded as number);
         }
-        if (Array.isArray(res)) return (res as any[]).length;
+        if (Array.isArray(res)) return emitBulk((res as any[]).length);
         // deleteMany historically returns void on success — assume all hit.
-        return strIds.length;
+        return emitBulk(strIds.length);
       } catch (err) {
         throw normaliseClientError(err);
       }
@@ -863,7 +914,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         // continueOnError semantics — swallow per-row errors
       }
     }
-    return succeeded;
+    return emitBulk(succeeded);
   }
 
   /**

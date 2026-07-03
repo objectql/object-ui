@@ -1163,7 +1163,14 @@ export function ImageCellRenderer({ value }: CellRendererProps): React.ReactElem
  *    Falls back to a muted placeholder while pending and on failure.
  */
 export function LookupCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
-  const referenceTo = (field as { reference_to?: string }).reference_to;
+  // ObjectStack object metadata uses `reference` for the lookup target while the
+  // objectui types call it `reference_to`. Every other reader (LookupField,
+  // UserField, DetailSection, RelatedList, …) accepts both; this read cell must
+  // too, or a picked/opaque id never resolves to a name and the cell shows the
+  // muted "—" placeholder forever (e.g. after inline-editing a lookup).
+  const referenceTo =
+    (field as { reference_to?: string }).reference_to ||
+    (field as { reference?: string }).reference;
 
   // Pick the FIRST primitive id we see (for arrays, only the first one is auto-resolved
   // to keep the cell cheap; multi-value lookups should generally be expanded server-side).

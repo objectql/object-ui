@@ -179,4 +179,40 @@ describe('data-table — inline edit is per-row usable', () => {
 
     expect(container.textContent).not.toContain('Save failed');
   });
+
+  it('E) a staged editor (e.g. a lookup picker) exits edit mode after Save All', async () => {
+    // Regression: relational pickers (lookup/master_detail/user/owner) keep their
+    // widget open on pick — they `stage` the value rather than commit-and-close.
+    // saveBatch cleared pendingChanges but never cleared `editingCell`, so after
+    // 全部保存 the saved cell stayed stuck showing the picker widget instead of
+    // reverting to the resolved display value. Save All must close any open editor.
+    const onBatchSave = vi.fn().mockResolvedValue(undefined);
+    // A host-injected editor that mimics a lookup: picking a value STAGES it and
+    // deliberately keeps the editor open (no commit/close).
+    const renderCellEditor = ({ column, stage }: any) =>
+      column.accessorKey === 'qty' ? (
+        <button data-testid="picker" onClick={() => stage('picked')}>
+          picker
+        </button>
+      ) : null;
+
+    const { container, getByText, getByTestId, queryByTestId } = renderComponent({
+      ...editableSchema,
+      onBatchSave,
+      renderCellEditor,
+    });
+
+    const cells = container.querySelectorAll('tbody td');
+    const qtyCell = cells[2] as HTMLElement; // uses the injected picker editor
+    fireEvent.click(qtyCell);
+
+    // Editor is open; pick a value — it stages and stays open (no close).
+    fireEvent.click(getByTestId('picker'));
+    expect(queryByTestId('picker')).toBeInTheDocument();
+
+    // Save All persists the staged value AND must exit edit mode.
+    fireEvent.click(getByText(/Save All/i));
+    await waitFor(() => expect(onBatchSave).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(queryByTestId('picker')).not.toBeInTheDocument());
+  });
 });
