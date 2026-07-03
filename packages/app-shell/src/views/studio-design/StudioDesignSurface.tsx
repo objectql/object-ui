@@ -44,6 +44,7 @@ import {
   Rocket,
   ChevronDown,
   Lock,
+  ExternalLink,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
@@ -383,6 +384,30 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const onDraftSaved = React.useCallback(() => setDraftNonce((n) => n + 1), []);
   const hasPending = (pendingCount ?? 0) > 0;
 
+  // Builder → running-app bridge (Airtable's Launch): the builder edits the
+  // package (设计界面), the app is its published front-end. If this package
+  // ships an app, offer 打开应用 — opened in a new tab so the builder context
+  // survives. (App → builder is the reverse bridge, tracked separately.)
+  const shellClient = useMetadataClient();
+  const [packageApp, setPackageApp] = React.useState<{ name: string; label: string } | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const apps = (await shellClient.list('app', { packageId })) as Array<Record<string, unknown>>;
+        const first = (apps || [])
+          .map((a) => ({ name: String(a.name ?? ''), label: String(a.label ?? a.name ?? '') }))
+          .filter((a) => a.name)[0];
+        if (!cancelled) setPackageApp(first ?? null);
+      } catch {
+        if (!cancelled) setPackageApp(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shellClient, packageId, publishNonce]);
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
       {aiSlot ? <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside> : null}
@@ -411,6 +436,17 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
           {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
           <div className="ml-auto flex items-center gap-2">
+            {packageApp && (
+              <button
+                type="button"
+                onClick={() => window.open(`/apps/${encodeURIComponent(packageApp.name)}`, '_blank')}
+                title={`打开应用「${packageApp.label}」(发布后的前端界面)`}
+                className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                打开应用
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setChangesOpen(true)}

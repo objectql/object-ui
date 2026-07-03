@@ -28,7 +28,7 @@ import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
 import { appRouteSegment } from '../../utils';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
-import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText } from 'lucide-react';
+import { Sparkles, ShieldAlert, X, UploadCloud, MessageSquareText, Hammer, LayoutTemplate } from 'lucide-react';
 import { useMetadataClient } from '../../views/metadata-admin/useMetadata';
 import { usePublishAllDrafts } from '../../preview/usePublishAllDrafts';
 import { resolveAiApiBase } from '../../hooks/useAiSurface';
@@ -342,6 +342,54 @@ export function HomePage() {
               t={t}
             />
           </div>
+
+          {/* Builder cover — guided creation entries (Airtable-style Home). The
+            * application builder's front door lives HERE, not in a separate
+            * builder app: build from scratch → /studio (pick/create a writable
+            * package), or start from a template via the marketplace. Shown to
+            * builders/admins only; end users just see their apps below. */}
+          {isAdmin && (
+            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => navigate('/studio')}
+                className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
+              >
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Hammer className="h-4.5 w-4.5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">
+                    {t('home.build.title', { defaultValue: 'Build an app' })}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {t('home.build.subtitle', {
+                      defaultValue: 'Start from scratch — design objects, forms, automations and interfaces.',
+                    })}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/apps/setup/system/marketplace')}
+                className="flex items-start gap-3 rounded-xl border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary/50 hover:bg-muted/40"
+              >
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <LayoutTemplate className="h-4.5 w-4.5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">
+                    {t('home.template.title', { defaultValue: 'Start with a template' })}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {t('home.template.subtitle', {
+                      defaultValue: 'Install a template app from the marketplace and customize it.',
+                    })}
+                  </span>
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* Your apps — compact, scalable launcher (favorites first) */}
           <HomeAppsStrip
