@@ -13,7 +13,7 @@
  */
 
 import { type ReactNode } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
 import { DevLists } from './dev/DevLists';
@@ -184,8 +184,21 @@ export function App() {
               * pillar. Also reachable from the Studio app's 「应用构建」 nav. */}
             <Route path="/studio" element={
               <ProtectedRoute>
-                <div className="min-h-screen bg-background text-foreground">
-                  <BuilderLanding />
+                <div className="flex min-h-screen flex-col bg-background text-foreground">
+                  {/* Standalone frame — the landing must never be a navigation
+                    * dead end: the wordmark walks back to the platform Home. */}
+                  <header className="flex shrink-0 items-center border-b px-3 py-2">
+                    <Link
+                      to="/home"
+                      title="返回主页"
+                      className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[13px] font-semibold hover:bg-muted"
+                    >
+                      ObjectOS
+                    </Link>
+                  </header>
+                  <div className="min-h-0 flex-1 overflow-auto">
+                    <BuilderLanding />
+                  </div>
                 </div>
               </ProtectedRoute>
             } />
