@@ -188,6 +188,15 @@ function RecoveryPasswordReminder({ t }: { t: (key: string, opts?: any) => strin
   const [show, setShow] = useState(false);
   useEffect(() => {
     if (typeof localStorage !== 'undefined' && localStorage.getItem('os:recovery-pw-dismissed') === '1') return;
+    // Don't nag on the very first landing: let a brand-new SSO user reach
+    // their magic moment (build their first app) before asking them to set a
+    // recovery password. Record the first home visit; show the reminder only
+    // from the next one on. (The component already intends 'not before the
+    // first session'; previously the code still fired on the very first screen.)
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('os:recovery-pw-first-seen') !== '1') {
+      try { localStorage.setItem('os:recovery-pw-first-seen', '1'); } catch { /* ignore */ }
+      return;
+    }
     let cancelled = false;
     Promise.resolve(hasLocalPassword?.())
       .then((has) => { if (!cancelled && has === false) setShow(true); })
