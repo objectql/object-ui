@@ -48,7 +48,13 @@ import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/pr
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
-import { readFields, writeFields, newField } from '../metadata-admin/previews/object-fields-io';
+import {
+  readFields,
+  writeFields,
+  newField,
+  toFieldName,
+  toFieldNameLoose,
+} from '../metadata-admin/previews/object-fields-io';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { toast } from 'sonner';
@@ -772,6 +778,17 @@ function DataPillar({
   // Tracks which object's baseline is currently loaded — so we (re)load exactly
   // once per selected object and never clobber an in-progress draft.
   const loadedNameRef = React.useRef<string | null>(null);
+  // Left-rail search + inline "new object" creator (design §4: rail = search + New).
+  const [query, setQuery] = React.useState('');
+  const [creating, setCreating] = React.useState(false);
+  const [newLabel, setNewLabel] = React.useState('');
+  const [newName, setNewName] = React.useState('');
+  const [nameTouched, setNameTouched] = React.useState(false);
+  const [createBusy, setCreateBusy] = React.useState(false);
+  // Whether the selected object exists beyond the draft (published/code baseline).
+  // A draft-only object has NO physical table yet (DDL lands at publish), so the
+  // Records grid must not fire data SQL against it.
+  const [hasBaseline, setHasBaseline] = React.useState(true);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -820,6 +837,7 @@ function DataPillar({
         const draftBody = extractDraftBody(draftResp);
         setObjDraft(draftBody ? { ...baseline, ...draftBody } : baseline);
         setHasDraft(!!draftBody);
+        setHasBaseline(!!(lay.effective ?? lay.code));
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -847,6 +865,45 @@ function DataPillar({
     setDirty(true);
     setFieldSel({ kind: 'field', id: name });
   }, [objDraft]);
+
+  // "+ new object": create a fresh object as a DRAFT in this package (runtime
+  // create — same path the classic Studio editor uses), seeded with one text
+  // field so the form/grid isn't empty. It stays draft-only (no physical table)
+  // until the package publish, so we land on 表单·布局 — the metadata-level
+  // surface that never fires data SQL.
+  const doCreateObject = React.useCallback(async () => {
+    const label = newLabel.trim();
+    const name = toFieldName(newName.trim() || label);
+    if (!label || !name || name === 'field') return; // CJK label → identifier must be typed
+    if (objects.some((o) => o.name === name)) {
+      setError(`标识符 "${name}" 已存在`);
+      return;
+    }
+    setCreateBusy(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = {
+        name,
+        label,
+        fields: { name: { type: 'text', label: '名称' } },
+      };
+      await client.save('object', name, body, { mode: 'draft', packageId });
+      const surface: Surface = { type: 'object', name, label };
+      setObjects((prev) => [...prev, surface]);
+      setCurrent(surface);
+      setViewMode('form');
+      setFormMode('layout');
+      setCreating(false);
+      setNewLabel('');
+      setNewName('');
+      setNameTouched(false);
+      onDraftSaved?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreateBusy(false);
+    }
+  }, [newLabel, newName, objects, client, packageId, onDraftSaved]);
 
   const doSave = React.useCallback(async () => {
     if (!current) return;
@@ -928,24 +985,100 @@ function DataPillar({
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <nav className="w-52 shrink-0 overflow-auto border-r p-2">
-          <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">对象</p>
-          {objects.length === 0 && (
-            <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
-          )}
-          {objects.map((o) => (
-            <button
-              key={o.name}
-              onClick={() => setCurrent(o)}
-              className={
-                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
-                (current?.name === o.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
-              }
-            >
-              <Database className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1 truncate">{o.label}</span>
-            </button>
-          ))}
+        <nav className="flex w-52 shrink-0 flex-col border-r">
+          <div className="shrink-0 p-2 pb-1">
+            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">对象</p>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="搜索对象…"
+              className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none placeholder:text-muted-foreground/70 focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-2 pt-1">
+            {objects.length === 0 && (
+              <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+            )}
+            {objects
+              .filter(
+                (o) =>
+                  !query.trim() ||
+                  o.label.toLowerCase().includes(query.trim().toLowerCase()) ||
+                  o.name.toLowerCase().includes(query.trim().toLowerCase()),
+              )
+              .map((o) => (
+                <button
+                  key={o.name}
+                  onClick={() => setCurrent(o)}
+                  className={
+                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                    (current?.name === o.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+                  }
+                >
+                  <Database className="h-3.5 w-3.5 shrink-0" />
+                  <span className="flex-1 truncate">{o.label}</span>
+                </button>
+              ))}
+          </div>
+          <div className="shrink-0 border-t p-2">
+            {creating ? (
+              <div className="flex flex-col gap-1.5">
+                <input
+                  autoFocus
+                  value={newLabel}
+                  onChange={(e) => {
+                    setNewLabel(e.target.value);
+                    if (!nameTouched) setNewName(toFieldNameLoose(e.target.value));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void doCreateObject();
+                    if (e.key === 'Escape') setCreating(false);
+                  }}
+                  placeholder="显示名(如:报修工单)"
+                  className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                />
+                <input
+                  value={newName}
+                  onChange={(e) => {
+                    setNameTouched(true);
+                    setNewName(toFieldNameLoose(e.target.value));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void doCreateObject();
+                    if (e.key === 'Escape') setCreating(false);
+                  }}
+                  placeholder="标识符(如:repair_ticket)"
+                  className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                />
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => void doCreateObject()}
+                    disabled={createBusy || !newLabel.trim() || !toFieldName(newName.trim() || newLabel) || toFieldName(newName.trim() || newLabel) === 'field'}
+                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    {createBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                    创建(存为草稿)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreating(false)}
+                    className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" /> 新建对象
+              </button>
+            )}
+          </div>
         </nav>
 
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden p-4">
@@ -999,7 +1132,28 @@ function DataPillar({
                   {error}
                 </div>
               )}
-              {viewMode === 'grid' ? (
+              {viewMode === 'grid' && !hasBaseline ? (
+                /* Draft-only object: no physical table until the package publish —
+                 * rendering the runtime grid would fire data SQL against a table
+                 * that doesn't exist. Say so instead of erroring. */
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/20 text-center">
+                  <p className="text-sm font-medium">未发布的新对象</p>
+                  <p className="max-w-md text-[11px] leading-5 text-muted-foreground">
+                    「记录」网格查询真实数据,而这个对象发布前还没有数据表。请先在「表单 · 布局」里设计字段与分组,
+                    然后点顶栏「发布」— 发布后这里就是它的实时数据网格。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewMode('form');
+                      setFormMode('layout');
+                    }}
+                    className="mt-1 inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
+                  >
+                    去「表单 · 布局」设计字段
+                  </button>
+                </div>
+              ) : viewMode === 'grid' ? (
               <>
               {/* Records grid — fields are the columns. Header "+" adds a field, the
                 * per-column edit affordance opens the field editor, and dragging a
@@ -1098,6 +1252,14 @@ function DataPillar({
                   onSelectField={(name) => setFieldSel({ kind: 'field', id: name })}
                   onAddField={addField}
                 />
+              ) : !hasBaseline ? (
+                /* Draft-only object: there is no published definition to preview yet. */
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/20 text-center">
+                  <p className="text-sm font-medium">尚无已发布定义</p>
+                  <p className="max-w-md text-[11px] leading-5 text-muted-foreground">
+                    「预览」渲染已发布的运行态表单,而这个对象还未发布。在「布局」里确认草稿,点顶栏「发布」后即可预览。
+                  </p>
+                </div>
               ) : (
               <>
               {/* Form — the real runtime ObjectForm ("same renderer"): the object's
