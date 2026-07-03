@@ -16,6 +16,7 @@ import type {
   DataSource,
   ImportRequestOptions,
   ImportRecordsResult,
+  ImportRowResult,
   ImportWriteMode,
   CreateImportJobResult,
   ImportJobProgressInfo,
@@ -117,6 +118,9 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.validatePassed': 'All {{ok}} rows are valid.',
   'grid.import.validateFailed': '{{ok}} valid, {{errors}} with errors.',
   'grid.import.errorRowPrefix': 'Row {{row}}: ',
+  // Friendly, localized renderings of the server's structured import errors.
+  'grid.import.referenceNotFound': 'No matching record for "{{value}}"',
+  'grid.import.referenceAmbiguous': '"{{value}}" matches more than one record — use a unique value or the record id',
   // Import-job history
   'grid.import.history': 'History',
   'grid.import.historyBack': 'Back to import',
@@ -193,6 +197,7 @@ export const __testables = {
   get autoMapColumns() { return autoMapColumns; },
   get isUnsupportedImport() { return isUnsupportedImport; },
   get mappedReferenceFields() { return mappedReferenceFields; },
+  get formatDryRunError() { return formatDryRunError; },
   get isUnsupportedImportJob() { return isUnsupportedImportJob; },
   get jobResultToImportResult() { return jobResultToImportResult; },
   get buildFailedRowsCsv() { return buildFailedRowsCsv; },
@@ -309,6 +314,51 @@ function mappedReferenceFields(
 ): ImportWizardProps['fields'] {
   const mappedNames = new Set(Object.values(mapping));
   return fields.filter((f) => mappedNames.has(f.name) && REFERENCE_IMPORT_TYPES.has(f.type));
+}
+
+/** Pull the first double-quoted token out of a server error message — e.g.
+ *  `no os_..._product matches "导管架"` → `导管架`. A locale-agnostic fallback for
+ *  naming the offending value when it can't be read back from the row. */
+function extractQuotedValue(message?: string): string | undefined {
+  const m = message?.match(/"([^"]*)"/);
+  return m?.[1];
+}
+
+/**
+ * Turn one failed dry-run row into a friendly, localizable error line.
+ *
+ * The server keys each error by a field's api-name, bakes that same api-name
+ * into an English message (`product: no os_..._product matches "..."`), and
+ * tags it with a structured `code`. Rendered verbatim that reads as
+ * `产品: product: no os_..._product matches "..."` — the field twice, an
+ * internal object name, all in English. So we drive the message off `code`
+ * (localized, with the offending value), resolve the api-name to its human
+ * label, and only fall back to the raw server text — minus any duplicated
+ * `<api-name>:` prefix — for codes we don't recognize.
+ */
+function formatDryRunError(
+  r: Pick<ImportRowResult, 'field' | 'error' | 'code'>,
+  fieldLabelByName: Map<string, string>,
+  value: string | undefined,
+  t: (key: string, vars?: Record<string, unknown>) => string,
+): { fieldLabel?: string; message: string } {
+  const fieldLabel = r.field ? (fieldLabelByName.get(r.field) ?? r.field) : undefined;
+  // Prefer the value the row actually supplied; fall back to the token the
+  // server echoed into its message.
+  const shown = (value ?? '').trim() || extractQuotedValue(r.error) || '';
+  switch (r.code) {
+    case 'reference_not_found':
+      return { fieldLabel, message: t('grid.import.referenceNotFound', { value: shown }) };
+    case 'reference_ambiguous':
+      return { fieldLabel, message: t('grid.import.referenceAmbiguous', { value: shown }) };
+  }
+  let message = (r.error ?? r.code ?? '').trim();
+  // Drop a leading `<api-name>:` the server prepended, so it isn't shown on top
+  // of the label we render.
+  if (r.field && message.toLowerCase().startsWith(`${r.field.toLowerCase()}:`)) {
+    message = message.slice(r.field.length + 1).trimStart();
+  }
+  return { fieldLabel, message };
 }
 
 function validateValue(value: string, type: string): boolean {
@@ -933,7 +983,9 @@ const StepPreview: React.FC<{
         <TableHeader>
           <TableRow>
             <TableHead className="w-12">#</TableHead>
-            {mappedCols.map((col) => <TableHead key={col.csvIdx}>{col.field.label}</TableHead>)}
+            {mappedCols.map((col) => (
+              <TableHead key={col.csvIdx} className="min-w-[140px] whitespace-nowrap">{col.field.label}</TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -1286,6 +1338,28 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   // job for a small import — the sync path never captures undo state.
   const [backgroundImport, setBackgroundImport] = useState(false);
   const label = objectLabel ?? objectName;
+
+  // Field api-name → human label, for friendlier dry-run error messages.
+  const fieldLabelByName = useMemo(
+    () => new Map(fields.map((f) => [f.name, f.label])),
+    [fields],
+  );
+  // Field api-name → its source CSV column (first mapped match wins), so a
+  // dry-run error can name the offending cell value without parsing the message.
+  const csvIdxByField = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const [idx, fieldName] of Object.entries(mapping)) {
+      if (!m.has(fieldName)) m.set(fieldName, Number(idx));
+    }
+    return m;
+  }, [mapping]);
+  const dryRunCellValue = useCallback((row1Based: number, field?: string): string | undefined => {
+    if (!field) return undefined;
+    const csvIdx = csvIdxByField.get(field);
+    if (csvIdx === undefined) return undefined;
+    const rIdx = row1Based - 1;
+    return corrections[rIdx]?.[csvIdx] ?? rows[rIdx]?.[csvIdx];
+  }, [csvIdxByField, corrections, rows]);
 
   // The background-import toggle only makes sense when the data source can
   // actually run jobs (create + poll + fetch results). Mirrors the guard in
@@ -1848,12 +1922,15 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                         </p>
                         {dryRunResult.errors > 0 && (
                           <ul className="max-h-32 overflow-auto text-xs text-destructive">
-                            {dryRunResult.results.filter((r) => !r.ok).slice(0, 20).map((r, i) => (
-                              <li key={i}>
-                                {r.row > 0 ? t('grid.import.errorRowPrefix', { row: r.row }) : ''}
-                                {r.field ? `${r.field}: ` : ''}{r.error ?? r.code ?? ''}
-                              </li>
-                            ))}
+                            {dryRunResult.results.filter((r) => !r.ok).slice(0, 20).map((r, i) => {
+                              const { fieldLabel, message } = formatDryRunError(r, fieldLabelByName, dryRunCellValue(r.row, r.field), t);
+                              return (
+                                <li key={i}>
+                                  {r.row > 0 ? t('grid.import.errorRowPrefix', { row: r.row }) : ''}
+                                  {fieldLabel ? `${fieldLabel}: ` : ''}{message}
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
                       </div>

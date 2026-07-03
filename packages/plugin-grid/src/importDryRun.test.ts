@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { __testables } from './ImportWizard';
 
-const { assembleImportRequest } = __testables;
+const { assembleImportRequest, formatDryRunError } = __testables;
 
 const rows = [{ name: 'Acme' }, { name: 'Beta' }];
 const baseOpts = {
@@ -50,5 +50,60 @@ describe('assembleImportRequest', () => {
     expect(req.createMissingOptions).toBe(true);
     expect(req.runAutomations).toBe(true);
     expect(req.skipBlankMatchKey).toBe(true);
+  });
+});
+
+describe('formatDryRunError', () => {
+  const labels = new Map([['product', '产品']]);
+  // Echoes the server's structured English messages for reference failures.
+  const t = (key: string, vars?: Record<string, unknown>) =>
+    ({
+      'grid.import.referenceNotFound': `No matching record for "${vars?.value}"`,
+      'grid.import.referenceAmbiguous': `"${vars?.value}" matches more than one record`,
+    } as Record<string, string>)[key] ?? key;
+
+  it('resolves the field api-name to its label', () => {
+    const { fieldLabel } = formatDryRunError(
+      { field: 'product', code: 'reference_not_found', error: 'product: no os_x_product matches "导管架"' },
+      labels, '导管架', t,
+    );
+    expect(fieldLabel).toBe('产品');
+  });
+
+  it('renders reference_not_found from the code, not the raw English server text', () => {
+    const { message } = formatDryRunError(
+      { field: 'product', code: 'reference_not_found', error: 'product: no os_x_product matches "导管架"' },
+      labels, '导管架', t,
+    );
+    // No duplicated field name, no internal object api-name leaking through.
+    expect(message).toBe('No matching record for "导管架"');
+    expect(message).not.toContain('os_x_product');
+    expect(message).not.toContain('product:');
+  });
+
+  it('falls back to the quoted value when the cell value is unavailable', () => {
+    const { message } = formatDryRunError(
+      { field: 'product', code: 'reference_not_found', error: 'product: no os_x_product matches "导管架"' },
+      labels, undefined, t,
+    );
+    expect(message).toBe('No matching record for "导管架"');
+  });
+
+  it('maps reference_ambiguous through its own key', () => {
+    const { message } = formatDryRunError(
+      { field: 'product', code: 'reference_ambiguous', error: 'product: "导管架" matches more than one os_x_product' },
+      labels, '导管架', t,
+    );
+    expect(message).toBe('"导管架" matches more than one record');
+  });
+
+  it('strips a duplicated api-name prefix for codes it does not recognize', () => {
+    const { fieldLabel, message } = formatDryRunError(
+      { field: 'product', code: 'some_other_error', error: 'product: value is out of range' },
+      labels, 'x', t,
+    );
+    expect(fieldLabel).toBe('产品');
+    // The label carries the field; the message must not repeat "product:".
+    expect(message).toBe('value is out of range');
   });
 });

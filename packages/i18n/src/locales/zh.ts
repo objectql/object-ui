@@ -257,6 +257,9 @@ const zh = {
       validateFailed: '{{ok}} 条有效，{{errors}} 条有错误。',
       errorCount: '{{count}} 个错误',
       errorRowPrefix: '第 {{row}} 行：',
+      // 服务端结构化导入错误的友好文案
+      referenceNotFound: '找不到匹配 "{{value}}" 的记录',
+      referenceAmbiguous: '"{{value}}" 匹配到多条记录，请使用唯一值或记录 ID',
       // 导入选项 / 写入模式
       options: '导入选项',
       writeMode: '当某行匹配到已有记录时',
