@@ -225,3 +225,69 @@ describe('ObjectGrid — rich bulk action def (operation:update) refreshes the l
     );
   });
 });
+
+/**
+ * Selection desync (separate from #2159's refresh gap): closing the rich-def
+ * dialog on Done cleared ObjectGrid's `selectedRows` (which drives the toolbar)
+ * but never touched the DataTable's *internal* `selectedRowIds` (which drives
+ * the checkboxes). After a run the toolbar vanished yet every row stayed
+ * visibly ticked — and on a *total failure* the toolbar vanished too, stranding
+ * the user with no way to retry the rows they'd selected.
+ *
+ * The fix gates the reset on `result.succeeded > 0` and, when it does reset,
+ * bumps a `selectionResetKey` so the table drops its checkbox state in lockstep
+ * with the toolbar. These tests pin both halves: success clears checkboxes +
+ * toolbar together; total failure preserves both (and skips the refetch).
+ */
+describe('ObjectGrid — bulk dialog Done keeps selection in sync', () => {
+  const headerChecked = () =>
+    (document.querySelector('thead [role="checkbox"]') as HTMLElement)?.getAttribute('data-state');
+
+  it('clears the row checkboxes (not just the toolbar) after a successful run', async () => {
+    const ds = makeDataSource();
+    renderGridWithDefs(ds);
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+
+    fireEvent.click(document.querySelector('thead [role="checkbox"]') as HTMLElement);
+    // Header checkbox reflects "all selected" before the action runs.
+    await waitFor(() => expect(headerChecked()).toBe('checked'));
+
+    fireEvent.click(await screen.findByTestId('bulk-action-push_plan_bulk'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(ds.update).toHaveBeenCalledTimes(2));
+    fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
+
+    // Both selection sources reset in lockstep: toolbar gone AND boxes cleared.
+    await waitFor(() =>
+      expect(screen.queryByTestId('bulk-actions-bar')).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(headerChecked()).toBe('unchecked'));
+  });
+
+  it('keeps selection + toolbar and skips the refetch when every row fails', async () => {
+    const ds = makeDataSource();
+    // Every per-row update rejects → succeeded: 0, failed: 2.
+    ds.update = vi.fn(async () => { throw new Error('precondition not met'); });
+
+    renderGridWithDefs(ds);
+
+    await waitFor(() => expect(screen.getByText('Plan A')).toBeInTheDocument());
+    const findCallsBefore = ds.find.mock.calls.length;
+
+    fireEvent.click(document.querySelector('thead [role="checkbox"]') as HTMLElement);
+    await waitFor(() => expect(headerChecked()).toBe('checked'));
+
+    fireEvent.click(await screen.findByTestId('bulk-action-push_plan_bulk'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Run' }));
+    await waitFor(() => expect(ds.update).toHaveBeenCalledTimes(2));
+    fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
+
+    // Nothing changed on the server, so: no refetch, and the user keeps the
+    // exact rows they picked (toolbar present, boxes still ticked) to retry.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(ds.find.mock.calls.length).toBe(findCallsBefore);
+    expect(screen.queryByTestId('bulk-actions-bar')).toBeInTheDocument();
+    expect(headerChecked()).toBe('checked');
+  });
+});

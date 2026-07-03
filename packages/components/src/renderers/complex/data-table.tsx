@@ -258,6 +258,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     searchable = true,
     selectable = false,
     showSelectionCount = true,
+    selectionResetKey,
     sortable = true,
     exportable = false,
     rowActions = false,
@@ -400,6 +401,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   useEffect(() => {
     setColumns(initialColumns);
   }, [initialColumns]);
+
+  // Clear the internal checkbox selection when the host bumps selectionResetKey.
+  // Row selection is otherwise table-internal state a host can't reach; this lets
+  // e.g. a grid reset the checkboxes after a bulk action. On mount the selection
+  // is already empty, so the initial run is a no-op.
+  useEffect(() => {
+    if (selectionResetKey === undefined) return;
+    setSelectedRowIds(new Set());
+  }, [selectionResetKey]);
 
   // Filtering
   const filteredData = useMemo(() => {

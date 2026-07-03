@@ -444,6 +444,13 @@ export interface DataTableSchema extends BaseSchema {
    */
   onSelectionChange?: (selectedRows: any[]) => void;
   /**
+   * Bump this value to imperatively clear the table's internal row selection.
+   * The table clears its checkbox selection whenever the key changes to a new
+   * value. Lets a host (e.g. a grid clearing selection after a bulk action)
+   * reset the checkboxes, which are otherwise internal table state.
+   */
+  selectionResetKey?: string | number;
+  /**
    * Columns reorder handler
    */
   onColumnsReorder?: (columns: TableColumn[]) => void;

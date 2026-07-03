@@ -44,6 +44,7 @@ import { resolveRowCrudAffordances } from './rowCrudAffordances';
 import { RowActionMenu, formatActionLabel } from './components/RowActionMenu';
 import { BulkActionBar } from './components/BulkActionBar';
 import { BulkActionDialog } from './components/BulkActionDialog';
+import type { BulkResult } from './hooks/useBulkExecutor';
 import type { BulkActionDef } from '@object-ui/types';
 
 // Clickable text cell that can safely contain other interactive content
@@ -269,6 +270,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const [rowHeightMode, setRowHeightMode] = useState<'compact' | 'short' | 'medium' | 'tall' | 'extra_tall'>(schema.rowHeight ?? 'compact');
   const [selectedRows, setSelectedRows] = useState<any[]>([]);
   const [selectAllMatching, setSelectAllMatching] = useState(false);
+  // Bumped to tell the underlying table to drop its internal checkbox selection.
+  // The table owns that state, so clearing our `selectedRows` alone would leave
+  // the checkboxes ticked (toolbar gone, rows still visibly selected).
+  const [selectionResetKey, setSelectionResetKey] = useState(0);
   const [totalMatching, setTotalMatching] = useState<number | undefined>(undefined);
   const [activeBulkDef, setActiveBulkDef] = useState<BulkActionDef | null>(null);
   const [activeBulkRows, setActiveBulkRows] = useState<any[]>([]);
@@ -1658,13 +1663,19 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       setActiveBulkRows(expanded);
     })();
   };
-  const handleBulkDialogClose = (result?: unknown) => {
+  const handleBulkDialogClose = (result?: BulkResult | null) => {
     setActiveBulkDef(null);
     setActiveBulkRows([]);
-    if (result) {
-      // Clear selection after a successful run so the toolbar resets.
+    // Only reset selection when the run actually changed something. A total
+    // failure (0 succeeded — e.g. a "推计划" precondition error) leaves the data
+    // untouched, so we keep the selection *and* the toolbar so the user can fix
+    // it and retry the same rows. Both selection sources must move together, or
+    // the checkboxes (table-internal) and the toolbar (our `selectedRows`) drift
+    // out of sync — ticked rows with no toolbar.
+    if (result && result.succeeded > 0) {
       setSelectedRows([]);
       setSelectAllMatching(false);
+      setSelectionResetKey(k => k + 1);
       // Trigger refresh via the same path used by single-record mutations.
       setRefreshKey(k => k + 1);
     }
@@ -1849,6 +1860,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       setSelectedRows(rows);
       onRowSelect?.(rows);
     },
+    selectionResetKey,
     onRowClick: navigation.handleClick,
     onCellChange: onCellChange,
     // Install a dataSource-backed default only when the consumer did NOT wire
