@@ -59,6 +59,8 @@ import {
   toFieldNameLoose,
 } from '../metadata-admin/previews/object-fields-io';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
+import { ObjectValidationsPanel } from './ObjectValidationsPanel';
+import { ObjectSettingsPanel } from './ObjectSettingsPanel';
 import { fetchPackages, createBasePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { toast } from 'sonner';
@@ -975,6 +977,7 @@ function DataPillar({
   const adapter = useAdapter();
   const locale = 'zh-CN';
   const [objects, setObjects] = React.useState<Surface[]>([]);
+  const [objectsLoaded, setObjectsLoaded] = React.useState(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
   const [objDraft, setObjDraft] = React.useState<Record<string, unknown>>({});
   const [loading, setLoading] = React.useState(false);
@@ -985,10 +988,11 @@ function DataPillar({
   const [hasDraft, setHasDraft] = React.useState(false);
   const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [gridVer, setGridVer] = React.useState(0);
-  // Records grid ⇄ Form — two views of the SAME object, both the runtime
-  // renderer (same-renderer principle). Form = WYSIWYG object form; clicking a
-  // rendered field selects it into the same field inspector the grid uses.
-  const [viewMode, setViewMode] = React.useState<'grid' | 'form'>('grid');
+  // Records grid ⇄ Form ⇄ Validations ⇄ Settings — four views of the SAME
+  // object. Grid/Form are the runtime renderer (same-renderer principle);
+  // Validations edits `validations` rules; Settings edits object basics +
+  // the ADR-0085 semantic roles. All patch the one `objDraft`.
+  const [viewMode, setViewMode] = React.useState<'grid' | 'form' | 'rules' | 'settings'>('grid');
   // Within the Form view: 布局 (WYSIWYG drag/section designer) ⇄ 预览 (live form).
   const [formMode, setFormMode] = React.useState<'layout' | 'preview'>('layout');
   // Tracks which object's baseline is currently loaded — so we (re)load exactly
@@ -1010,12 +1014,27 @@ function DataPillar({
     let cancelled = false;
     (async () => {
       try {
-        const list = (await client.list('object', { packageId })) as Array<Record<string, unknown>>;
+        // Published objects + pending DRAFT objects, merged. `list()` only
+        // sees published/active metadata, so a freshly-created writable base
+        // whose objects are all drafts would render an empty (previously:
+        // forever-"loading") rail. Draft headers carry no label — show the
+        // machine name until the draft body loads on selection.
+        const [list, draftHeaders] = await Promise.all([
+          client.list('object', { packageId }) as Promise<Array<Record<string, unknown>>>,
+          client.listDrafts({ packageId, type: 'object' }).catch(() => []),
+        ]);
         if (cancelled) return;
         const items = (list || [])
           .map((o) => ({ type: 'object', name: String(o.name ?? ''), label: String(o.label ?? o.name ?? '') }))
           .filter((o) => o.name);
+        const known = new Set(items.map((o) => o.name));
+        for (const d of draftHeaders) {
+          if (d.name && !known.has(d.name)) {
+            items.push({ type: 'object', name: d.name, label: d.name });
+          }
+        }
         setObjects(items);
+        setObjectsLoaded(true);
         setCurrent((c) => c ?? items[0] ?? null);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
@@ -1213,7 +1232,9 @@ function DataPillar({
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-2 pt-1">
             {objects.length === 0 && (
-              <p className="px-2 py-3 text-[11px] text-muted-foreground">{error ? '加载失败' : '加载中…'}</p>
+              <p className="px-2 py-3 text-[11px] text-muted-foreground">
+                {error ? '加载失败' : objectsLoaded ? '这个包还没有对象 — 点下方「新建对象」开始' : '加载中…'}
+              </p>
             )}
             {objects
               .filter(
@@ -1325,30 +1346,65 @@ function DataPillar({
                   >
                     表单
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('rules')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (viewMode === 'rules' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    验证
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('settings')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (viewMode === 'settings' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    设置
+                  </button>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
                   <Eye className="h-3 w-3" />{' '}
                   {viewMode === 'grid'
                     ? '运行态列表 · 同一渲染器'
-                    : formMode === 'layout'
-                      ? '表单设计 · 草稿'
-                      : '运行态表单 · 已发布定义'}
+                    : viewMode === 'rules'
+                      ? '验证规则 · 草稿'
+                      : viewMode === 'settings'
+                        ? '对象设置 · 草稿'
+                        : formMode === 'layout'
+                          ? '表单设计 · 草稿'
+                          : '运行态表单 · 已发布定义'}
                 </span>
-                <button
-                  type="button"
-                  onClick={addField}
-                  title="添加一个字段(随后在右侧设置类型与属性)"
-                  className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <Plus className="h-3.5 w-3.5" /> 添加字段
-                </button>
+                {(viewMode === 'grid' || viewMode === 'form') && (
+                  <button
+                    type="button"
+                    onClick={addField}
+                    title="添加一个字段(随后在右侧设置类型与属性)"
+                    className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> 添加字段
+                  </button>
+                )}
               </div>
               {error && (
                 <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">
                   {error}
                 </div>
               )}
-              {viewMode === 'grid' && !hasBaseline ? (
+              {viewMode === 'rules' ? (
+                <ObjectValidationsPanel draft={objDraft} onPatch={onPatch} />
+              ) : viewMode === 'settings' ? (
+                <ObjectSettingsPanel
+                  name={current.name}
+                  draft={objDraft}
+                  onPatch={onPatch}
+                  locale={locale}
+                />
+              ) : viewMode === 'grid' && !hasBaseline ? (
                 /* Draft-only object: no physical table until the package publish —
                  * rendering the runtime grid would fire data SQL against a table
                  * that doesn't exist. Say so instead of erroring. */
