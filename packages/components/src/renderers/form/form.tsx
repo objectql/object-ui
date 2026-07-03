@@ -705,7 +705,7 @@ ComponentRegistry.register('form',
                         data-field={name}
                       >
                         {label && (
-                          <FormLabel className="text-xs sm:text-sm">
+                          <FormLabel className="text-xs font-normal text-muted-foreground">
                             {label}
                             {required && (
                               <span className="text-destructive ml-1" aria-label="required">
