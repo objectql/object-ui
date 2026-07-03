@@ -59,4 +59,25 @@ export async function createBasePackage(id: string, name: string): Promise<void>
   }
 }
 
+/**
+ * Duplicate a package into a NEW writable base (ADR-0070 D4 — the Airtable
+ * "duplicate base" gesture; POST /packages/:id/duplicate). This is how a
+ * read-only code package becomes a customizable starting point: objects are
+ * re-namespaced and intra-package references rewritten server-side.
+ */
+export async function duplicatePackage(sourceId: string, targetId: string, targetName?: string): Promise<void> {
+  const res = await fetch(`/api/v1/packages/${encodeURIComponent(sourceId)}/duplicate`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ targetPackageId: targetId, ...(targetName ? { targetName } : {}) }),
+  });
+  const payload = (await res.json().catch(() => null)) as
+    | { success?: boolean; error?: { message?: string } }
+    | null;
+  if (!res.ok || payload?.success === false) {
+    throw new Error(payload?.error?.message || `HTTP ${res.status}`);
+  }
+}
+
 export const PACKAGE_ID_RE = /^[a-z][a-z0-9_.-]*(\.[a-z0-9_-]+)+$/;
