@@ -28,6 +28,7 @@ import {
   Textarea,
 } from '@object-ui/components';
 import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { useObjectTranslation } from '@object-ui/react';
 import type { BulkActionDef, BulkActionParam } from '@object-ui/types';
 import { useBulkExecutor, type BulkExecutorOptions, type BulkResult } from '../hooks/useBulkExecutor';
 
@@ -74,6 +75,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   onClose,
   labelKey = 'name',
 }) => {
+  const { t } = useObjectTranslation();
   const params = def?.params ?? [];
   const initialParamValues = useMemo<Record<string, unknown>>(() => {
     const v: Record<string, unknown> = {};
@@ -219,7 +221,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
           </DialogTitle>
           {step === 'confirm' && (
             <DialogDescription>
-              {def.confirmText ?? `This will apply to ${rows.length} record${rows.length === 1 ? '' : 's'}.`}
+              {def.confirmText ?? t('grid.bulk.confirmDefault', { count: rows.length, defaultValue: `This will apply to ${rows.length} record(s).` })}
             </DialogDescription>
           )}
         </DialogHeader>
@@ -244,20 +246,28 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
               <div className="rounded-md bg-destructive/10 text-destructive px-3 py-2 flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
                 <div>
-                  Selection ({rows.length}) exceeds the action limit ({maxRecords}). Reduce the selection to proceed.
+                  {t('grid.bulk.overLimit', {
+                    count: rows.length,
+                    limit: maxRecords,
+                    defaultValue: `Selection (${rows.length}) exceeds the action limit (${maxRecords}). Reduce the selection to proceed.`,
+                  })}
                 </div>
               </div>
             )}
-            <div className="text-muted-foreground">Affected records ({rows.length}):</div>
+            <div className="text-muted-foreground">
+              {t('grid.bulk.affectedRecords', { count: rows.length, defaultValue: `Affected records (${rows.length}):` })}
+            </div>
             <ScrollArea className="max-h-32 rounded border bg-muted/30 p-2">
               <ul className="text-xs space-y-1">
                 {previewRows.map((r, i) => (
-                  <li key={String(r.id ?? i)} className="truncate">
-                    • {String(r[labelKey] ?? r.id ?? `Row ${i + 1}`)}
+                  <li key={String(r.id ?? i)} className="break-words">
+                    • {String(r[labelKey] ?? r.id ?? t('grid.bulk.rowFallback', { index: i + 1, defaultValue: `Row ${i + 1}` }))}
                   </li>
                 ))}
                 {restCount > 0 && (
-                  <li className="text-muted-foreground">… and {restCount} more</li>
+                  <li className="text-muted-foreground">
+                    {t('grid.bulk.andMore', { count: restCount, defaultValue: `… and ${restCount} more` })}
+                  </li>
                 )}
               </ul>
             </ScrollArea>
@@ -265,7 +275,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
               <div className="rounded border bg-muted/30 p-2 text-xs space-y-0.5">
                 {Object.entries(values).map(([k, v]) => (
                   <div key={k}>
-                    <span className="text-muted-foreground">{k}:</span> {formatValue(v)}
+                    <span className="text-muted-foreground">{k}:</span> {formatValue(v, t)}
                   </div>
                 ))}
               </div>
@@ -277,8 +287,12 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
           <div className="space-y-2">
             <Progress value={progress.total ? (progress.done + progress.failed) / progress.total * 100 : 0} />
             <div className="text-xs text-muted-foreground text-center">
-              {progress.done + progress.failed} / {progress.total} processed
-              {progress.failed > 0 && ` · ${progress.failed} failed`}
+              {t('grid.bulk.processed', {
+                count: progress.done + progress.failed,
+                total: progress.total,
+                defaultValue: `${progress.done + progress.failed} / ${progress.total} processed`,
+              })}
+              {progress.failed > 0 && t('grid.bulk.processedFailed', { count: progress.failed, defaultValue: ` · ${progress.failed} failed` })}
             </div>
           </div>
         )}
@@ -292,9 +306,13 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
               )}
               <span>
-                {undoneAt !== null ? 'Undone — ' : ''}
-                Succeeded {result.succeeded} / {result.total}
-                {result.failed > 0 && ` · Failed ${result.failed}`}
+                {undoneAt !== null ? t('grid.bulk.undonePrefix', { defaultValue: 'Undone — ' }) : ''}
+                {t('grid.bulk.succeeded', {
+                  count: result.succeeded,
+                  total: result.total,
+                  defaultValue: `Succeeded ${result.succeeded} / ${result.total}`,
+                })}
+                {result.failed > 0 && t('grid.bulk.resultFailed', { count: result.failed, defaultValue: ` · Failed ${result.failed}` })}
               </span>
             </div>
             {result.errors.length > 0 && (
@@ -309,7 +327,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                       >
                         <XCircle className="h-3 w-3 mt-0.5 shrink-0 text-destructive" />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate">
+                          <div className="break-words">
                             <span className="text-muted-foreground">{e.id}:</span> {e.error}
                           </div>
                         </div>
@@ -317,12 +335,12 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-5 px-1.5 text-[10px]"
+                            className="h-5 px-1.5 text-[10px] shrink-0"
                             onClick={() => handleRetry(e.id)}
                             disabled={retrying === e.id}
                             data-testid={`bulk-error-retry-${e.id}`}
                           >
-                            {retrying === e.id ? '…' : 'Retry'}
+                            {retrying === e.id ? '…' : t('grid.bulk.retry', { defaultValue: 'Retry' })}
                           </Button>
                         )}
                       </li>
@@ -330,7 +348,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                   </ul>
                 </ScrollArea>
                 <Button variant="outline" size="sm" onClick={downloadErrors}>
-                  Download error CSV
+                  {t('grid.bulk.downloadErrorCsv', { defaultValue: 'Download error CSV' })}
                 </Button>
               </>
             )}
@@ -340,27 +358,27 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
         <DialogFooter>
           {step === 'params' && (
             <>
-              <Button variant="ghost" onClick={() => onClose()}>Cancel</Button>
-              <Button onClick={() => setStep('confirm')} disabled={!paramsValid}>Next</Button>
+              <Button variant="ghost" onClick={() => onClose()}>{t('grid.bulk.cancel', { defaultValue: 'Cancel' })}</Button>
+              <Button onClick={() => setStep('confirm')} disabled={!paramsValid}>{t('grid.bulk.next', { defaultValue: 'Next' })}</Button>
             </>
           )}
           {step === 'confirm' && (
             <>
               <Button variant="ghost" onClick={() => params.length ? setStep('params') : onClose()}>
-                {params.length ? 'Back' : 'Cancel'}
+                {params.length ? t('grid.bulk.back', { defaultValue: 'Back' }) : t('grid.bulk.cancel', { defaultValue: 'Cancel' })}
               </Button>
               <Button
                 variant={def.variant === 'danger' ? 'destructive' : 'default'}
                 onClick={handleRun}
                 disabled={overLimit}
               >
-                {def.confirmLabel ?? 'Run'}
+                {def.confirmLabel ?? t('grid.bulk.run', { defaultValue: 'Run' })}
               </Button>
             </>
           )}
           {step === 'running' && (
             <Button variant="ghost" disabled>
-              Running…
+              {t('grid.bulk.running', { defaultValue: 'Running…' })}
             </Button>
           )}
           {step === 'result' && (
@@ -372,10 +390,10 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
                   disabled={undoing}
                   data-testid="bulk-undo-button"
                 >
-                  {undoing ? 'Undoing…' : 'Undo'}
+                  {undoing ? t('grid.bulk.undoing', { defaultValue: 'Undoing…' }) : t('grid.bulk.undo', { defaultValue: 'Undo' })}
                 </Button>
               )}
-              <Button onClick={() => onClose(result)}>Done</Button>
+              <Button onClick={() => onClose(result)}>{t('grid.bulk.done', { defaultValue: 'Done' })}</Button>
             </>
           )}
         </DialogFooter>
@@ -384,9 +402,9 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   );
 };
 
-function formatValue(v: unknown): string {
+function formatValue(v: unknown, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (v === null || v === undefined || v === '') return '—';
-  if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  if (typeof v === 'boolean') return v ? t('grid.yes', { defaultValue: 'Yes' }) : t('grid.no', { defaultValue: 'No' });
   return String(v);
 }
 
@@ -398,6 +416,7 @@ interface ParamFieldProps {
 }
 
 const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupOptions }) => {
+  const { t } = useObjectTranslation();
   const id = `bulk-param-${param.name}`;
   const label = (
     <Label htmlFor={id} className="text-xs">
@@ -432,7 +451,7 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupO
       control = (
         <Select value={value !== undefined && value !== null ? String(value) : ''} onValueChange={onChange}>
           <SelectTrigger id={id}>
-            <SelectValue placeholder={param.placeholder ?? 'Select…'} />
+            <SelectValue placeholder={param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' })} />
           </SelectTrigger>
           <SelectContent>
             {options.map(o => (
@@ -448,7 +467,7 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupO
       control = (
         <Select value={(value as string) ?? ''} onValueChange={onChange}>
           <SelectTrigger id={id}>
-            <SelectValue placeholder={opts.length === 0 ? 'Loading…' : (param.placeholder ?? 'Select…')} />
+            <SelectValue placeholder={opts.length === 0 ? t('grid.bulk.loading', { defaultValue: 'Loading…' }) : (param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' }))} />
           </SelectTrigger>
           <SelectContent>
             {opts.map(o => (
