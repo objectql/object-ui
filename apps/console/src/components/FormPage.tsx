@@ -44,6 +44,9 @@ interface ObjectFieldDef {
   helpText?: string;
 }
 
+/** Visualization types the form renderer understands (FormViewSpec.type). */
+const FORM_SPEC_TYPES = new Set(['simple', 'tabbed', 'wizard', 'split', 'drawer', 'modal']);
+
 interface FormViewSpec {
   type?: 'simple' | 'tabbed' | 'wizard' | 'split' | 'drawer' | 'modal';
   label?: string;
@@ -250,13 +253,26 @@ export function resolveInternalForm(
     spec && typeof spec === 'object'
     && spec.config && typeof spec.config === 'object'
     && ('viewKind' in spec || 'object' in spec);
-  const viewKind: string | undefined = isEnvelope ? spec.viewKind : undefined;
+  // viewKind may sit on the envelope OR on a flattened list-view body
+  // (runtime personalization overlays are persisted with the config at the
+  // top level), so read it wherever it is.
+  const viewKind: string | undefined =
+    spec && typeof spec === 'object' ? spec.viewKind : undefined;
   if (viewKind && viewKind !== 'form') {
     throw new Error(
       `View "${name}" is a ${viewKind} view, not a form view — check the action or link that targets it.`,
     );
   }
   const form: FormViewSpec = isEnvelope ? spec.config : spec;
+  // A flattened list config carries no viewKind at all but declares a grid/
+  // kanban/… visualization type no form renderer understands — same false
+  // positive, same loud failure.
+  if (!viewKind && form && typeof form === 'object' && typeof form.type === 'string'
+    && !FORM_SPEC_TYPES.has(form.type)) {
+    throw new Error(
+      `View "${name}" is a ${form.type} view, not a form view — check the action or link that targets it.`,
+    );
+  }
   return {
     label: (isEnvelope ? spec.label : undefined) ?? form?.label ?? name,
     object: (isEnvelope ? spec.object : undefined) ?? (form as any)?.data?.object ?? spec?.object,

@@ -236,6 +236,35 @@ describe('resolveInternalForm', () => {
     expect(() => resolveInternalForm('showcase_task.default', listView)).toThrow(/list view, not a form view/);
   });
 
+  it('throws for a flattened runtime-overlay list row that lost its viewKind (framework#2555 fallout)', () => {
+    // A personalization PUT persisted the raw config at the top level; the
+    // pre-heal server returns it with name/object/label but NO viewKind and
+    // NO config envelope. It must not pass for a legacy bare form spec.
+    const pollutedOverlay = {
+      name: 'showcase_task.default',
+      object: 'showcase_task',
+      label: 'All Tasks',
+      type: 'grid',
+      data: { provider: 'object', object: 'showcase_task' },
+      columns: [{ field: 'title' }],
+      sort: [{ id: '29200fa8-c416-471e-9ca3-913f9308ad89', field: 'estimate_hours', order: 'desc' }],
+    };
+    expect(() => resolveInternalForm('showcase_task.default', pollutedOverlay)).toThrow(/grid view, not a form view/);
+  });
+
+  it('throws for a flattened list body whose viewKind sits at the top level (healed overlay row)', () => {
+    const healedOverlay = {
+      name: 'showcase_task.default',
+      object: 'showcase_task',
+      viewKind: 'list',
+      label: 'All Tasks',
+      type: 'grid',
+      data: { provider: 'object', object: 'showcase_task' },
+      columns: [{ field: 'title' }],
+    };
+    expect(() => resolveInternalForm('showcase_task.default', healedOverlay)).toThrow(/list view, not a form view/);
+  });
+
   it('still accepts a bare legacy form spec (no envelope)', () => {
     const bare = {
       type: 'simple',
