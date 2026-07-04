@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { Badge, cn } from '@object-ui/components';
 import { appendArray, moveArray, spliceArray } from '../inspectors/_shared';
+import { t, useMetadataLocale } from '../i18n';
 
 const DND_MIME = 'text/x-objectui-nav';
 
@@ -156,6 +157,7 @@ export function AppNavCanvas({
   selection,
   onSelectionChange,
 }: AppNavCanvasProps) {
+  const locale = useMetadataLocale();
   const items: RawNav[] = React.useMemo(() => {
     const v = (draft as any)[rootKey];
     return Array.isArray(v) ? (v as RawNav[]) : [];
@@ -174,15 +176,16 @@ export function AppNavCanvas({
 
   const addItem = React.useCallback(() => {
     if (!onPatch) return;
-    const newItem: RawNav = { label: 'New item', path: '' };
+    const newLabel = t('engine.appNav.newItem', locale);
+    const newItem: RawNav = { label: newLabel, path: '' };
     const next = appendArray(items, newItem);
     setItems(next);
     onSelectionChange?.({
       kind: 'nav',
       id: `${rootKey}[${next.length - 1}]`,
-      label: 'New item',
+      label: newLabel,
     });
-  }, [onPatch, items, setItems, rootKey, onSelectionChange]);
+  }, [onPatch, items, setItems, rootKey, onSelectionChange, locale]);
 
   const removeItem = React.useCallback(
     (index: number) => {
@@ -229,11 +232,11 @@ export function AppNavCanvas({
     <div className="rounded-md border bg-card/40">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-mono uppercase tracking-wide text-muted-foreground">
-            {rootKey}
+          <span className="font-medium uppercase tracking-wide text-muted-foreground">
+            {t('engine.appNav.heading', locale)}
           </span>
           <Badge variant="outline" className="text-[10px]">
-            {items.length} {items.length === 1 ? 'item' : 'items'}
+            {items.length} {items.length === 1 ? t('engine.appNav.itemOne', locale) : t('engine.appNav.itemOther', locale)}
           </Badge>
         </div>
         {onPatch && (
@@ -242,7 +245,7 @@ export function AppNavCanvas({
             className="inline-flex items-center gap-1 rounded border border-dashed px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted/30 hover:text-foreground"
             onClick={addItem}
           >
-            <Plus className="h-3 w-3" /> Add nav item
+            <Plus className="h-3 w-3" /> {t('engine.appNav.addItem', locale)}
           </button>
         )}
       </div>
@@ -266,8 +269,8 @@ export function AppNavCanvas({
         {items.length === 0 ? (
           <div className="rounded border border-dashed px-3 py-4 text-center text-[11px] text-muted-foreground">
             {onPatch
-              ? 'Empty — click "Add nav item" to start'
-              : 'No top-level nav items yet'}
+              ? t('engine.appNav.empty', locale)
+              : t('engine.appNav.emptyReadonly', locale)}
           </div>
         ) : (
           items.map((it, i) => (
@@ -392,6 +395,7 @@ function NavCard({
   onDragEnd: () => void;
   onDropBefore: () => void;
 }) {
+  const locale = useMetadataLocale();
   const kind = inferKind(item);
   const Icon = kindIcon(kind);
   const tone = kindTone(kind);
@@ -509,7 +513,7 @@ function NavCard({
               }
             }}
             className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            aria-label="Remove nav item"
+            aria-label={t('engine.appNav.removeItem', locale)}
           >
             <Trash2 className="h-3 w-3" />
           </span>

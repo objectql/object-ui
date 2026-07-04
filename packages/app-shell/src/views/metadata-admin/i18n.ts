@@ -22,6 +22,8 @@
  * the consumer hasn't wired the global i18n provider.
  */
 
+import { useObjectTranslation } from '@object-ui/i18n';
+
 export type SupportedLocale = 'en-US' | 'zh-CN';
 
 const TYPE_LABELS_EN: Record<string, string> = {
@@ -847,6 +849,166 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   // AI assistant entry points
   'designer.canvas.askAi': 'Ask AI',
   'designer.canvas.askAiGenerate': 'Generate fields with AI',
+
+  // ── StudioDesignSurface (ADR-0080 WYSIWYG design surface) ──────────────
+  // Shared chrome
+  'engine.studio.cancel': 'Cancel',
+  'engine.studio.create': 'Create',
+  'engine.studio.createDraft': 'Create (save as draft)',
+  'engine.studio.saveDraft': 'Save draft',
+  'engine.studio.publish': 'Publish',
+  'engine.studio.loading': 'Loading…',
+  'engine.studio.loadFailed': 'Failed to load',
+  'engine.studio.unpublishedDraft': 'Unpublished draft',
+  'engine.studio.unpublished': 'Unpublished',
+  'engine.studio.new': 'New',
+  'engine.studio.edit': 'Edit',
+  'engine.studio.done': 'Done',
+  'engine.studio.close': 'Close',
+  'engine.studio.deselect': 'Clear selection',
+  'engine.studio.home': 'Back to home',
+  // Pillar tab labels
+  'engine.studio.pillar.data': 'Data',
+  'engine.studio.pillar.automations': 'Automations',
+  'engine.studio.pillar.interfaces': 'Interfaces',
+  'engine.studio.pillar.access': 'Access',
+  // Header · package-level publish + app bridge
+  'engine.studio.changes': 'Changes',
+  'engine.studio.publishTitle': 'Confirm and publish all pending drafts at once (whole package · one atomic release)',
+  'engine.studio.publishNoneTitle': 'No drafts pending publish',
+  'engine.studio.publishedAll': 'Published all drafts in this package (one atomic release)',
+  'engine.studio.app.open': 'Open app',
+  'engine.studio.app.openTitle': 'Open app “{label}” (the published front-end)',
+  'engine.studio.app.create': 'Create app',
+  'engine.studio.app.noneTitle': 'This package has no app (front-end) yet — create one',
+  'engine.studio.app.willOpenAfterPublish': 'After publishing, this becomes “Open app”',
+  'engine.studio.app.pending': 'App “{label}” pending publish',
+  'engine.studio.app.namePlaceholder': 'App name (e.g. Order Center)',
+  'engine.studio.app.idPlaceholder': 'Identifier (e.g. orders_app)',
+  'engine.studio.app.savedDraft': 'App “{label}” saved as draft — open it after publishing',
+  // Package switcher
+  'engine.studio.pkg.switchTitle': 'Switch / create package',
+  'engine.studio.pkg.readonly': 'Read-only',
+  'engine.studio.pkg.writable': 'Writable',
+  'engine.studio.pkg.heading': 'Packages (apps)',
+  'engine.studio.pkg.none': 'No app packages yet',
+  'engine.studio.pkg.namePlaceholder': 'Name (e.g. Repair Center)',
+  'engine.studio.pkg.idPlaceholder': 'Package ID (e.g. com.example.repairs)',
+  'engine.studio.pkg.createWritable': 'Create writable package',
+  'engine.studio.pkg.new': 'New package (writable base)',
+  'engine.studio.pkg.created': 'Package {name} created (writable)',
+  // Nav item inspector (Interfaces pillar)
+  'engine.studio.nav.selectItem': 'Select a menu item on the left.',
+  'engine.studio.nav.label': 'Label',
+  'engine.studio.nav.labelPlaceholder': 'e.g. Positions',
+  'engine.studio.nav.linkObject': 'Link to object',
+  'engine.studio.nav.chooseObject': '— Choose object —',
+  'engine.studio.nav.boundHint': 'This menu item opens that object’s record list.',
+  'engine.studio.nav.unboundHint': 'Choose an object; the menu item will open its record list.',
+  'engine.studio.nav.noObjects': 'This package has no objects yet — create one in the Data pillar first.',
+  // Interfaces pillar
+  'engine.studio.if.pickLeft': 'Select a menu item on the left',
+  'engine.studio.if.navHeading': '{app} · Navigation',
+  'engine.studio.if.editNavTitle': 'Edit navigation (drag to reorder / rename / add-remove)',
+  'engine.studio.if.doneEditTitle': 'Done editing',
+  'engine.studio.if.noApp': 'This package has no app yet.',
+  'engine.studio.if.noNavItems': 'No nav items yet — (click “Edit” above to add)',
+  'engine.studio.if.previewIsRuntime': 'Preview = runtime · same renderer',
+  'engine.studio.if.noAppTitle': 'This package has no app yet',
+  'engine.studio.if.noAppHint': 'Create an app to design its navigation and interfaces.',
+  'engine.studio.if.readonlyPreview': '{type} shows a read-only preview for now; design support is in progress.',
+  'engine.studio.if.editHint': 'Click a block → edit on the right · then “Save draft” → “Publish”',
+  'engine.studio.if.objectHintPre': 'Runtime list preview · edit fields / structure in the ',
+  'engine.studio.if.objectHintPost': ' pillar',
+  'engine.studio.inspector.props': 'Properties',
+  'engine.studio.inspector.emptyLine1': 'Click a block on the canvas,',
+  'engine.studio.inspector.emptyLine2': 'and edit its properties right here.',
+  // Data pillar
+  'engine.studio.data.newFieldLabel': 'New field',
+  'engine.studio.data.nameFieldLabel': 'Name',
+  'engine.studio.data.idExists': 'Identifier “{name}” already exists',
+  'engine.studio.data.fieldCount': '{count} fields',
+  'engine.studio.data.pickObject': 'Select an object',
+  'engine.studio.data.objects': 'Objects',
+  'engine.studio.data.searchObjects': 'Search objects…',
+  'engine.studio.data.noObjects': 'No objects yet — create one below to start',
+  'engine.studio.data.labelPlaceholder': 'Display name (e.g. Repair Ticket)',
+  'engine.studio.data.idPlaceholder': 'Identifier (e.g. repair_ticket)',
+  'engine.studio.data.newObject': 'New object',
+  'engine.studio.data.firstObjectTitle': 'Start with your first object',
+  'engine.studio.data.firstObjectHint':
+    'Objects are your app’s data foundation (e.g. “Orders”, “Customers”). Enter a display name and identifier at the bottom-left to create one; then design its fields, forms, and automations, and publish once at the end.',
+  'engine.studio.data.tab.records': 'Records',
+  'engine.studio.data.tab.form': 'Form',
+  'engine.studio.data.tab.rules': 'Validations',
+  'engine.studio.data.tab.settings': 'Settings',
+  'engine.studio.data.badge.grid': 'Runtime list · same renderer',
+  'engine.studio.data.badge.rules': 'Validation rules · draft',
+  'engine.studio.data.badge.settings': 'Object settings · draft',
+  'engine.studio.data.badge.formLayout': 'Form design · draft',
+  'engine.studio.data.badge.formPreview': 'Runtime form · published definition',
+  'engine.studio.data.addFieldTitle': 'Add a field (then set its type and properties on the right)',
+  'engine.studio.data.addField': 'Add field',
+  'engine.studio.data.editFieldProps': 'Edit field properties',
+  'engine.studio.data.draftObjectTitle': 'Unpublished new object',
+  'engine.studio.data.draftObjectHint':
+    'The Records grid queries real data, but this object has no table until it’s published. Design fields and groups in “Form · Layout” first, then click “Publish” in the top bar — after publishing, this becomes its live data grid.',
+  'engine.studio.data.goDesignFields': 'Go to “Form · Layout” to design fields',
+  'engine.studio.data.gridHint':
+    'Column “+” adds a field · pencil edits properties · drag a header to reorder · then “Save draft” → “Publish”',
+  'engine.studio.data.form.layout': 'Layout',
+  'engine.studio.data.form.preview': 'Preview',
+  'engine.studio.data.form.layoutBadge': 'Layout designer · draft (includes unpublished changes)',
+  'engine.studio.data.form.previewBadge': 'Runtime form · published definition',
+  'engine.studio.data.form.previewWarn':
+    'You have unpublished changes — this preview shows the pre-publish (published) state; confirm the draft in “Layout”, and to see the post-publish result, click “Publish” in the top bar first.',
+  'engine.studio.data.form.noPublishedTitle': 'No published definition yet',
+  'engine.studio.data.form.noPublishedHint':
+    '“Preview” renders the published runtime form, but this object isn’t published yet. Confirm the draft in “Layout”, then click “Publish” in the top bar to preview.',
+  'engine.studio.data.formHint':
+    'Click any field → edit properties on the right · “Add field” adds a field · then “Save draft” → “Publish”',
+  'engine.studio.data.fieldProps': 'Field properties',
+  // Automations pillar
+  'engine.studio.auto.nodeStart': 'Start',
+  'engine.studio.auto.nodeEnd': 'End',
+  'engine.studio.auto.savedDraft': 'Automation “{label}” saved as draft',
+  'engine.studio.auto.defaultOff': 'Off by default · review before enabling',
+  'engine.studio.auto.heading': 'Automations · flow',
+  'engine.studio.auto.newTitle': 'New automation',
+  'engine.studio.auto.none': 'No automations yet — click “New” to start',
+  'engine.studio.auto.namePlaceholder': 'Name (e.g. Offer Notice)',
+  'engine.studio.auto.idPlaceholder': 'Identifier (e.g. offer_notice)',
+  'engine.studio.auto.canvasHint': 'Visual orchestration · click a node to configure',
+  'engine.studio.auto.pick': 'Select an automation',
+  'engine.studio.auto.editHint': 'Click a node → configure on the right · then “Save draft” → “Publish”',
+  'engine.studio.auto.config': 'Configuration',
+  'engine.studio.auto.emptyLine1': 'Click a node on the canvas,',
+  'engine.studio.auto.emptyLine2': 'and its configuration appears here.',
+  // Access pillar
+  'engine.studio.access.created': 'Permission set “{label}” created',
+  'engine.studio.access.title': 'Permission matrix',
+  'engine.studio.access.subtitle': 'Objects × CRUD · field-level R/W',
+  'engine.studio.access.bannerTitle':
+    'Permissions are platform-level authorization; the matrix’s “Save” takes effect immediately — it doesn’t enter package drafts, so the top-bar “Publish” doesn’t apply here.',
+  'engine.studio.access.banner': 'Saved = live · not package drafts',
+  'engine.studio.access.heading': 'Permission sets / Profiles',
+  'engine.studio.access.search': 'Search permissions…',
+  'engine.studio.access.none': 'No permission sets yet — create one below',
+  'engine.studio.access.labelPlaceholder': 'Display name (e.g. Sales permissions)',
+  'engine.studio.access.idPlaceholder': 'Identifier (e.g. sales_perms)',
+  'engine.studio.access.new': 'New permission set',
+  'engine.studio.access.emptyMain': 'Create a permission set to start configuring',
+  'engine.studio.access.pick': 'Select a permission set',
+
+  // ── AppNavCanvas (nav-tree editor, used by Studio + AppPreview) ─────────
+  'engine.appNav.heading': 'Navigation',
+  'engine.appNav.addItem': 'Add nav item',
+  'engine.appNav.removeItem': 'Remove nav item',
+  'engine.appNav.empty': 'Empty — click “Add nav item” to start',
+  'engine.appNav.emptyReadonly': 'No top-level nav items yet',
+  'engine.appNav.newItem': 'New item',
+  'engine.appNav.itemOne': 'item',
+  'engine.appNav.itemOther': 'items',
 };
 
 const ENGINE_STRINGS_ZH: Record<string, string> = {
@@ -1548,6 +1710,164 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   // AI assistant entry points
   'designer.canvas.askAi': '问 AI',
   'designer.canvas.askAiGenerate': '用 AI 生成字段',
+
+  // ── StudioDesignSurface (ADR-0080 WYSIWYG design surface) ──────────────
+  // Shared chrome
+  'engine.studio.cancel': '取消',
+  'engine.studio.create': '创建',
+  'engine.studio.createDraft': '创建(存为草稿)',
+  'engine.studio.saveDraft': '保存草稿',
+  'engine.studio.publish': '发布',
+  'engine.studio.loading': '加载中…',
+  'engine.studio.loadFailed': '加载失败',
+  'engine.studio.unpublishedDraft': '未发布草稿',
+  'engine.studio.unpublished': '未发布',
+  'engine.studio.new': '新建',
+  'engine.studio.edit': '编辑',
+  'engine.studio.done': '完成',
+  'engine.studio.close': '关闭',
+  'engine.studio.deselect': '取消选择',
+  'engine.studio.home': '返回主页',
+  // Pillar tab labels
+  'engine.studio.pillar.data': '数据',
+  'engine.studio.pillar.automations': '自动化',
+  'engine.studio.pillar.interfaces': '界面',
+  'engine.studio.pillar.access': '权限',
+  // Header · package-level publish + app bridge
+  'engine.studio.changes': '变更',
+  'engine.studio.publishTitle': '一次性确认并发布全部待发布草稿(整包 · 一次原子发布)',
+  'engine.studio.publishNoneTitle': '没有待发布的草稿',
+  'engine.studio.publishedAll': '已发布本软件包的全部草稿(一次原子发布)',
+  'engine.studio.app.open': '打开应用',
+  'engine.studio.app.openTitle': '打开应用「{label}」(发布后的前端界面)',
+  'engine.studio.app.create': '创建应用',
+  'engine.studio.app.noneTitle': '这个软件包还没有应用(前端界面)— 创建一个',
+  'engine.studio.app.willOpenAfterPublish': '发布后这里会变成「打开应用」',
+  'engine.studio.app.pending': '应用「{label}」待发布',
+  'engine.studio.app.namePlaceholder': '应用名称(如:订单中心)',
+  'engine.studio.app.idPlaceholder': '标识符(如:orders_app)',
+  'engine.studio.app.savedDraft': '应用「{label}」已存为草稿 — 发布后即可打开',
+  // Package switcher
+  'engine.studio.pkg.switchTitle': '切换 / 新建软件包',
+  'engine.studio.pkg.readonly': '只读',
+  'engine.studio.pkg.writable': '可写',
+  'engine.studio.pkg.heading': '软件包(应用)',
+  'engine.studio.pkg.none': '暂无应用软件包',
+  'engine.studio.pkg.namePlaceholder': '名称(如:维修中心)',
+  'engine.studio.pkg.idPlaceholder': '包 ID(如:com.example.repairs)',
+  'engine.studio.pkg.createWritable': '创建可写软件包',
+  'engine.studio.pkg.new': '新建软件包(可写 base)',
+  'engine.studio.pkg.created': '软件包 {name} 已创建(可写)',
+  // Nav item inspector (Interfaces pillar)
+  'engine.studio.nav.selectItem': '在左侧选择一个菜单项。',
+  'engine.studio.nav.label': '标签',
+  'engine.studio.nav.labelPlaceholder': '如:职位',
+  'engine.studio.nav.linkObject': '链接到对象',
+  'engine.studio.nav.chooseObject': '— 选择对象 —',
+  'engine.studio.nav.boundHint': '这个菜单项会打开该对象的记录列表。',
+  'engine.studio.nav.unboundHint': '选择一个对象,菜单项将打开它的记录列表。',
+  'engine.studio.nav.noObjects': '这个软件包还没有对象 — 先到 Data 支柱创建。',
+  // Interfaces pillar
+  'engine.studio.if.pickLeft': '从左侧选择一个菜单项',
+  'engine.studio.if.navHeading': '{app} · 导航',
+  'engine.studio.if.editNavTitle': '编辑导航(拖拽排序 / 重命名 / 增删)',
+  'engine.studio.if.doneEditTitle': '完成编辑',
+  'engine.studio.if.noApp': '这个软件包还没有应用。',
+  'engine.studio.if.noNavItems': '还没有导航项 —(点上方「编辑」添加)',
+  'engine.studio.if.previewIsRuntime': '预览即运行 · 同一渲染器',
+  'engine.studio.if.noAppTitle': '这个软件包还没有应用',
+  'engine.studio.if.noAppHint': '创建一个应用来设计它的导航与界面。',
+  'engine.studio.if.readonlyPreview': '{type} 暂用只读预览,设计能力建设中。',
+  'engine.studio.if.editHint': '点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」',
+  'engine.studio.if.objectHintPre': '运行态列表预览 · 改字段 / 结构请到 ',
+  'engine.studio.if.objectHintPost': ' 支柱',
+  'engine.studio.inspector.props': '属性',
+  'engine.studio.inspector.emptyLine1': '在画布里点选一个积木,',
+  'engine.studio.inspector.emptyLine2': '它的属性会在这里直接编辑。',
+  // Data pillar
+  'engine.studio.data.newFieldLabel': '新字段',
+  'engine.studio.data.nameFieldLabel': '名称',
+  'engine.studio.data.idExists': '标识符 "{name}" 已存在',
+  'engine.studio.data.fieldCount': '{count} 字段',
+  'engine.studio.data.pickObject': '选择一个对象',
+  'engine.studio.data.objects': '对象',
+  'engine.studio.data.searchObjects': '搜索对象…',
+  'engine.studio.data.noObjects': '还没有对象 — 在下方新建一个开始',
+  'engine.studio.data.labelPlaceholder': '显示名(如:报修工单)',
+  'engine.studio.data.idPlaceholder': '标识符(如:repair_ticket)',
+  'engine.studio.data.newObject': '新建对象',
+  'engine.studio.data.firstObjectTitle': '从第一个对象开始',
+  'engine.studio.data.firstObjectHint':
+    '对象是应用的数据基座(如「订单」「客户」)。在左下角输入显示名与标识符即可创建;之后为它设计字段、表单与自动化,最后一次发布。',
+  'engine.studio.data.tab.records': '记录',
+  'engine.studio.data.tab.form': '表单',
+  'engine.studio.data.tab.rules': '验证',
+  'engine.studio.data.tab.settings': '设置',
+  'engine.studio.data.badge.grid': '运行态列表 · 同一渲染器',
+  'engine.studio.data.badge.rules': '验证规则 · 草稿',
+  'engine.studio.data.badge.settings': '对象设置 · 草稿',
+  'engine.studio.data.badge.formLayout': '表单设计 · 草稿',
+  'engine.studio.data.badge.formPreview': '运行态表单 · 已发布定义',
+  'engine.studio.data.addFieldTitle': '添加一个字段(随后在右侧设置类型与属性)',
+  'engine.studio.data.addField': '添加字段',
+  'engine.studio.data.editFieldProps': '编辑字段属性',
+  'engine.studio.data.draftObjectTitle': '未发布的新对象',
+  'engine.studio.data.draftObjectHint':
+    '「记录」网格查询真实数据,而这个对象发布前还没有数据表。请先在「表单 · 布局」里设计字段与分组,然后点顶栏「发布」— 发布后这里就是它的实时数据网格。',
+  'engine.studio.data.goDesignFields': '去「表单 · 布局」设计字段',
+  'engine.studio.data.gridHint': '列头「+」加字段 · 笔形改属性 · 拖列头重排 · 改完「保存草稿」→「发布」',
+  'engine.studio.data.form.layout': '布局',
+  'engine.studio.data.form.preview': '预览',
+  'engine.studio.data.form.layoutBadge': '布局设计器 · 草稿(含未发布改动)',
+  'engine.studio.data.form.previewBadge': '运行态表单 · 已发布定义',
+  'engine.studio.data.form.previewWarn':
+    '有未发布改动 — 此预览为发布前(已发布)的效果;草稿确认用「布局」,看发布后效果请先点顶栏「发布」',
+  'engine.studio.data.form.noPublishedTitle': '尚无已发布定义',
+  'engine.studio.data.form.noPublishedHint':
+    '「预览」渲染已发布的运行态表单,而这个对象还未发布。在「布局」里确认草稿,点顶栏「发布」后即可预览。',
+  'engine.studio.data.formHint': '点选任意字段 → 右侧改属性 · 「添加字段」加字段 · 改完「保存草稿」→「发布」',
+  'engine.studio.data.fieldProps': '字段属性',
+  // Automations pillar
+  'engine.studio.auto.nodeStart': '开始',
+  'engine.studio.auto.nodeEnd': '结束',
+  'engine.studio.auto.savedDraft': '自动化「{label}」已存为草稿',
+  'engine.studio.auto.defaultOff': '默认 OFF · 审阅后再启用',
+  'engine.studio.auto.heading': '自动化 · flow',
+  'engine.studio.auto.newTitle': '新建自动化',
+  'engine.studio.auto.none': '还没有自动化 — 点「新建」开始',
+  'engine.studio.auto.namePlaceholder': '名称(如:录用通知)',
+  'engine.studio.auto.idPlaceholder': '标识符(如:offer_notice)',
+  'engine.studio.auto.canvasHint': '可视化编排 · 点选节点配置',
+  'engine.studio.auto.pick': '选择一个自动化',
+  'engine.studio.auto.editHint': '点选节点 → 右侧配置 · 改完「保存草稿」→「发布」',
+  'engine.studio.auto.config': '配置',
+  'engine.studio.auto.emptyLine1': '在画布里点选一个节点,',
+  'engine.studio.auto.emptyLine2': '它的配置会在这里显示。',
+  // Access pillar
+  'engine.studio.access.created': '权限集「{label}」已创建',
+  'engine.studio.access.title': '权限矩阵',
+  'engine.studio.access.subtitle': '对象 × CRUD · 字段级读写',
+  'engine.studio.access.bannerTitle':
+    '权限是平台级授权配置,矩阵内的「Save」保存即生效;不进入软件包草稿,顶栏「发布」不涉及它。',
+  'engine.studio.access.banner': '保存即生效 · 不走包草稿',
+  'engine.studio.access.heading': '权限集 / Profile',
+  'engine.studio.access.search': '搜索权限…',
+  'engine.studio.access.none': '还没有权限集 — 在下方新建一个',
+  'engine.studio.access.labelPlaceholder': '显示名(如:销售权限)',
+  'engine.studio.access.idPlaceholder': '标识符(如:sales_perms)',
+  'engine.studio.access.new': '新建权限集',
+  'engine.studio.access.emptyMain': '新建一个权限集开始配置',
+  'engine.studio.access.pick': '选择一个权限集',
+
+  // ── AppNavCanvas (nav-tree editor, used by Studio + AppPreview) ─────────
+  'engine.appNav.heading': '导航',
+  'engine.appNav.addItem': '添加导航项',
+  'engine.appNav.removeItem': '删除导航项',
+  'engine.appNav.empty': '还没有导航项 — 点「添加导航项」开始',
+  'engine.appNav.emptyReadonly': '还没有顶层导航项',
+  'engine.appNav.newItem': '新菜单项',
+  'engine.appNav.itemOne': '项',
+  'engine.appNav.itemOther': '项',
 };
 
 function pickTable(
@@ -1641,4 +1961,20 @@ export function translateValidationMessage(
 export function detectLocale(): SupportedLocale {
   if (typeof navigator !== 'undefined' && /^zh/i.test(navigator.language)) return 'zh-CN';
   return 'en-US';
+}
+
+/**
+ * React hook — the Studio/metadata-admin locale derived from the app's ACTIVE
+ * i18n language, collapsed to one of the two locales this catalog ships.
+ *
+ * Prefer this over {@link detectLocale} in components: `detectLocale()` reads
+ * `navigator.language`, which never changes when the user switches languages
+ * in-app via the LocaleSwitcher (that only moves the i18next instance). This
+ * follows the live `useObjectTranslation().language`, so the Studio pillars
+ * re-render in lock-step with the console locale — the same source the rest of
+ * the app (Home, forms, list views) renders from.
+ */
+export function useMetadataLocale(): SupportedLocale {
+  const { language } = useObjectTranslation();
+  return /^zh/i.test(language) ? 'zh-CN' : 'en-US';
 }

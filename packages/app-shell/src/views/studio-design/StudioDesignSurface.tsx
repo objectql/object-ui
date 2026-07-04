@@ -53,6 +53,7 @@ import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/pr
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import {
   readFields,
@@ -149,6 +150,7 @@ function extractDraftBody(resp: unknown): Record<string, unknown> | null {
  * navigation, and create a new writable base inline (POST /packages {id,name}). */
 function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string }): React.ReactElement {
   const navigate = useNavigate();
+  const locale = useMetadataLocale();
   const [open, setOpen] = React.useState(false);
   const [pkgs, setPkgs] = React.useState<PkgEntry[] | null>(null);
   const [creating, setCreating] = React.useState(false);
@@ -182,7 +184,7 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
     setErr(null);
     try {
       await createBasePackage(id, name);
-      toast.success(`软件包 ${name} 已创建(可写)`);
+      toast.success(tFormat('engine.studio.pkg.created', locale, { name }));
       setOpen(false);
       setCreating(false);
       setNewName('');
@@ -202,12 +204,12 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[13px] font-medium hover:bg-muted"
-        title="切换 / 新建软件包"
+        title={t('engine.studio.pkg.switchTitle', locale)}
       >
         <Boxes className="h-4 w-4" /> {current?.name ?? packageId}
         {current && !current.writable && (
           <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-normal text-amber-600 dark:text-amber-300">
-            <Lock className="h-2.5 w-2.5" /> 只读
+            <Lock className="h-2.5 w-2.5" /> {t('engine.studio.pkg.readonly', locale)}
           </span>
         )}
         <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -218,11 +220,11 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg border bg-background p-1.5 shadow-lg">
             <p className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              软件包(应用)
+              {t('engine.studio.pkg.heading', locale)}
             </p>
             <div className="max-h-64 overflow-auto">
-              {pkgs === null && <p className="px-2 py-2 text-[11px] text-muted-foreground">加载中…</p>}
-              {pkgs?.length === 0 && <p className="px-2 py-2 text-[11px] text-muted-foreground">暂无应用软件包</p>}
+              {pkgs === null && <p className="px-2 py-2 text-[11px] text-muted-foreground">{t('engine.studio.loading', locale)}</p>}
+              {pkgs?.length === 0 && <p className="px-2 py-2 text-[11px] text-muted-foreground">{t('engine.studio.pkg.none', locale)}</p>}
               {pkgs?.map((p) => (
                 <button
                   key={p.id}
@@ -243,11 +245,11 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                   </span>
                   {p.writable ? (
                     <span className="rounded bg-emerald-400/15 px-1.5 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-300">
-                      可写
+                      {t('engine.studio.pkg.writable', locale)}
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-300">
-                      <Lock className="h-2.5 w-2.5" /> 只读
+                      <Lock className="h-2.5 w-2.5" /> {t('engine.studio.pkg.readonly', locale)}
                     </span>
                   )}
                 </button>
@@ -271,7 +273,7 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                       if (e.key === 'Enter') void doCreate();
                       if (e.key === 'Escape') setCreating(false);
                     }}
-                    placeholder="名称(如:维修中心)"
+                    placeholder={t('engine.studio.pkg.namePlaceholder', locale)}
                     className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
                   />
                   <input
@@ -284,7 +286,7 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                       if (e.key === 'Enter') void doCreate();
                       if (e.key === 'Escape') setCreating(false);
                     }}
-                    placeholder="包 ID(如:com.example.repairs)"
+                    placeholder={t('engine.studio.pkg.idPlaceholder', locale)}
                     className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
                   />
                   {err && <p className="text-[10px] text-destructive">{err}</p>}
@@ -296,14 +298,14 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                       className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
                     >
                       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                      创建可写软件包
+                      {t('engine.studio.pkg.createWritable', locale)}
                     </button>
                     <button
                       type="button"
                       onClick={() => setCreating(false)}
                       className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
                     >
-                      取消
+                      {t('engine.studio.cancel', locale)}
                     </button>
                   </div>
                 </div>
@@ -313,7 +315,7 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                   onClick={() => setCreating(true)}
                   className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  <Plus className="h-3.5 w-3.5" /> 新建软件包(可写 base)
+                  <Plus className="h-3.5 w-3.5" /> {t('engine.studio.pkg.new', locale)}
                 </button>
               )}
             </div>
@@ -333,6 +335,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const params = useParams<{ packageId?: string; tab?: string }>();
   const packageId = params.packageId ?? 'com.example.showcase';
   const tab = params.tab ?? 'interfaces';
+  const locale = useMetadataLocale();
 
   // Package-level publish (ADR-0033/0037/0048): edits accumulate as per-item
   // drafts STAMPED with this package (each save passes packageId → the draft row's
@@ -376,7 +379,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
       });
       const payload = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
       if (!res.ok || payload?.success === false) throw new Error(payload?.error?.message || `HTTP ${res.status}`);
-      toast.success('已发布本软件包的全部草稿(一次原子发布)');
+      toast.success(t('engine.studio.publishedAll', locale));
       setChangesOpen(false);
       setPublishNonce((n) => n + 1);
     } catch (e) {
@@ -418,7 +421,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
         { name, label, active: true, navigation: [] },
         { mode: 'draft', packageId },
       );
-      toast.success(`应用「${label}」已存为草稿 — 发布后即可打开`);
+      toast.success(tFormat('engine.studio.app.savedDraft', locale, { label }));
       setAppDraftPending(label);
       setAppCreating(false);
       setAppLabel('');
@@ -460,7 +463,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
           <button
             type="button"
             onClick={() => shellNavigate('/home')}
-            title="返回主页"
+            title={t('engine.studio.home', locale)}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <HomeIcon className="h-4 w-4" />
@@ -480,7 +483,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                 }
               >
                 <p.Icon className="h-3.5 w-3.5" />
-                {p.label}
+                {t(`engine.studio.pillar.${p.key}`, locale)}
               </Link>
             ))}
           </nav>
@@ -491,29 +494,29 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               <button
                 type="button"
                 onClick={() => window.open(`/apps/${encodeURIComponent(packageApp.name)}`, '_blank')}
-                title={`打开应用「${packageApp.label}」(发布后的前端界面)`}
+                title={tFormat('engine.studio.app.openTitle', locale, { label: packageApp.label })}
                 className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
-                打开应用
+                {t('engine.studio.app.open', locale)}
               </button>
             ) : appDraftPending ? (
               <span
-                title="发布后这里会变成「打开应用」"
+                title={t('engine.studio.app.willOpenAfterPublish', locale)}
                 className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
               >
-                应用「{appDraftPending}」待发布
+                {tFormat('engine.studio.app.pending', locale, { label: appDraftPending })}
               </span>
             ) : (
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setAppCreating((v) => !v)}
-                  title="这个软件包还没有应用(前端界面)— 创建一个"
+                  title={t('engine.studio.app.noneTitle', locale)}
                   className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  创建应用
+                  {t('engine.studio.app.create', locale)}
                 </button>
                 {appCreating && (
                   <>
@@ -530,7 +533,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                           if (e.key === 'Enter') void doCreateApp();
                           if (e.key === 'Escape') setAppCreating(false);
                         }}
-                        placeholder="应用名称(如:订单中心)"
+                        placeholder={t('engine.studio.app.namePlaceholder', locale)}
                         className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
                       />
                       <input
@@ -543,7 +546,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                           if (e.key === 'Enter') void doCreateApp();
                           if (e.key === 'Escape') setAppCreating(false);
                         }}
-                        placeholder="标识符(如:orders_app)"
+                        placeholder={t('engine.studio.app.idPlaceholder', locale)}
                         className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
                       />
                       <button
@@ -553,7 +556,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                         className="inline-flex items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
                       >
                         {appBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                        创建(存为草稿)
+                        {t('engine.studio.createDraft', locale)}
                       </button>
                     </div>
                   </>
@@ -566,17 +569,17 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <GitBranch className="h-3.5 w-3.5" />
-              变更{hasPending ? ` · ${pendingCount}` : ''}
+              {t('engine.studio.changes', locale)}{hasPending ? ` · ${pendingCount}` : ''}
             </button>
             <button
               type="button"
               onClick={doPublish}
               disabled={publishing || !hasPending}
-              title={hasPending ? '一次性确认并发布全部待发布草稿(整包 · 一次原子发布)' : '没有待发布的草稿'}
+              title={hasPending ? t('engine.studio.publishTitle', locale) : t('engine.studio.publishNoneTitle', locale)}
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
             >
               {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
-              发布
+              {t('engine.studio.publish', locale)}
             </button>
           </div>
         </header>
@@ -680,6 +683,7 @@ function StudioNavItemInspector({
   onNavPatch: (patch: Record<string, unknown>) => void;
   onClear: () => void;
 }): React.ReactElement {
+  const locale = useMetadataLocale();
   const idx = React.useMemo(() => {
     const m = /^navigation\[(\d+)\]$/.exec(navId);
     return m ? Number(m[1]) : -1;
@@ -691,7 +695,7 @@ function StudioNavItemInspector({
   const node = idx >= 0 ? nav[idx] : null;
   if (!node) {
     return (
-      <div className="px-2 py-10 text-center text-xs text-muted-foreground">在左侧选择一个菜单项。</div>
+      <div className="px-2 py-10 text-center text-xs text-muted-foreground">{t('engine.studio.nav.selectItem', locale)}</div>
     );
   }
   const patch = (updates: Record<string, unknown>) => {
@@ -699,20 +703,24 @@ function StudioNavItemInspector({
   };
   const boundObject = String(node.object ?? node.objectName ?? '');
   const curLabel = String(node.label ?? node.title ?? node.name ?? '');
-  const isPlaceholder = !curLabel || curLabel === 'New item';
+  // A nav card is a placeholder until its label is edited or a target adopts a
+  // real label. Match both the legacy English sentinel and the locale-specific
+  // default from AppNavCanvas so items created in any locale are recognized.
+  const isPlaceholder =
+    !curLabel || curLabel === 'New item' || curLabel === t('engine.appNav.newItem', locale);
   return (
     <div className="space-y-3">
       <div>
-        <label className="mb-1 block text-[11px] font-medium text-muted-foreground">标签</label>
+        <label className="mb-1 block text-[11px] font-medium text-muted-foreground">{t('engine.studio.nav.label', locale)}</label>
         <input
           value={curLabel}
           onChange={(e) => patch({ label: e.target.value })}
-          placeholder="如:职位"
+          placeholder={t('engine.studio.nav.labelPlaceholder', locale)}
           className="w-full rounded border bg-background px-2 py-1 text-xs"
         />
       </div>
       <div>
-        <label className="mb-1 block text-[11px] font-medium text-muted-foreground">链接到对象</label>
+        <label className="mb-1 block text-[11px] font-medium text-muted-foreground">{t('engine.studio.nav.linkObject', locale)}</label>
         <select
           value={boundObject}
           onChange={(e) => {
@@ -739,7 +747,7 @@ function StudioNavItemInspector({
           }}
           className="w-full rounded border bg-background px-2 py-1 text-xs"
         >
-          <option value="">— 选择对象 —</option>
+          <option value="">{t('engine.studio.nav.chooseObject', locale)}</option>
           {objects.map((o) => (
             <option key={o.name} value={o.name}>
               {o.label} ({o.name})
@@ -747,11 +755,11 @@ function StudioNavItemInspector({
           ))}
         </select>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          {boundObject ? '这个菜单项会打开该对象的记录列表。' : '选择一个对象,菜单项将打开它的记录列表。'}
+          {boundObject ? t('engine.studio.nav.boundHint', locale) : t('engine.studio.nav.unboundHint', locale)}
         </p>
         {objects.length === 0 && (
           <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
-            这个软件包还没有对象 — 先到 Data 支柱创建。
+            {t('engine.studio.nav.noObjects', locale)}
           </p>
         )}
       </div>
@@ -760,7 +768,7 @@ function StudioNavItemInspector({
         onClick={onClear}
         className="text-[11px] text-muted-foreground underline-offset-2 hover:underline"
       >
-        取消选择
+        {t('engine.studio.deselect', locale)}
       </button>
     </div>
   );
@@ -784,7 +792,7 @@ function InterfacesPillar({
   onCreateApp?: () => void;
 }): React.ReactElement {
   const client = useMetadataClient();
-  const locale = 'zh-CN';
+  const locale = useMetadataLocale();
 
   const [appLabel, setAppLabel] = React.useState<string>(packageId);
   const [appName, setAppName] = React.useState<string | null>(null);
@@ -1015,11 +1023,11 @@ function InterfacesPillar({
             </span>
           </span>
         ) : (
-          <span className="text-[11px] text-muted-foreground">从左侧选择一个菜单项</span>
+          <span className="text-[11px] text-muted-foreground">{t('engine.studio.if.pickLeft', locale)}</span>
         )}
         {hasDraft && (
           <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
-            未发布草稿
+            {t('engine.studio.unpublishedDraft', locale)}
           </span>
         )}
         <button
@@ -1028,7 +1036,7 @@ function InterfacesPillar({
           className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          保存草稿
+          {t('engine.studio.saveDraft', locale)}
         </button>
       </div>
 
@@ -1037,7 +1045,7 @@ function InterfacesPillar({
         <nav className={(editNav ? 'w-72' : 'w-52') + ' flex shrink-0 flex-col border-r'}>
           <div className="shrink-0 border-b px-2 py-1.5">
             <div className="flex items-center justify-between gap-1">
-              <p className="truncate text-[11px] font-medium text-muted-foreground">{appLabel} · 导航</p>
+              <p className="truncate text-[11px] font-medium text-muted-foreground">{tFormat('engine.studio.if.navHeading', locale, { app: appLabel })}</p>
               {appStatus === 'ready' && (
                 <button
                   type="button"
@@ -1045,7 +1053,7 @@ function InterfacesPillar({
                     setEditNav((v) => !v);
                     setNavSel(null);
                   }}
-                  title={editNav ? '完成编辑' : '编辑导航(拖拽排序 / 重命名 / 增删)'}
+                  title={editNav ? t('engine.studio.if.doneEditTitle', locale) : t('engine.studio.if.editNavTitle', locale)}
                   className={
                     'inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] ' +
                     (editNav ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted')
@@ -1053,11 +1061,11 @@ function InterfacesPillar({
                 >
                   {editNav ? (
                     <>
-                      <Check className="h-3 w-3" /> 完成
+                      <Check className="h-3 w-3" /> {t('engine.studio.done', locale)}
                     </>
                   ) : (
                     <>
-                      <Pencil className="h-3 w-3" /> 编辑
+                      <Pencil className="h-3 w-3" /> {t('engine.studio.edit', locale)}
                     </>
                   )}
                 </button>
@@ -1067,7 +1075,7 @@ function InterfacesPillar({
               <div className="mt-1.5 flex items-center gap-1.5">
                 {navHasDraft && (
                   <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-300">
-                    未发布
+                    {t('engine.studio.unpublished', locale)}
                   </span>
                 )}
                 <button
@@ -1080,7 +1088,7 @@ function InterfacesPillar({
                   ) : (
                     <Save className="h-3 w-3" />
                   )}
-                  保存草稿
+                  {t('engine.studio.saveDraft', locale)}
                 </button>
               </div>
             )}
@@ -1088,14 +1096,14 @@ function InterfacesPillar({
           <div className="min-h-0 flex-1 overflow-auto p-2">
             {appStatus === 'missing' && !error ? (
               <div className="px-2 py-3">
-                <p className="text-[11px] text-muted-foreground">这个软件包还没有应用。</p>
+                <p className="text-[11px] text-muted-foreground">{t('engine.studio.if.noApp', locale)}</p>
                 {onCreateApp && (
                   <button
                     type="button"
                     onClick={onCreateApp}
                     className="mt-2 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] hover:bg-muted"
                   >
-                    <Plus className="h-3 w-3" /> 创建应用
+                    <Plus className="h-3 w-3" /> {t('engine.studio.app.create', locale)}
                   </button>
                 )}
               </div>
@@ -1113,10 +1121,10 @@ function InterfacesPillar({
             ) : navTree.length === 0 ? (
               <p className="px-2 py-3 text-[11px] text-muted-foreground">
                 {error
-                  ? '加载失败'
+                  ? t('engine.studio.loadFailed', locale)
                   : appStatus === 'loading'
-                    ? '加载中…'
-                    : '还没有导航项 —（点上方「编辑」添加)'}
+                    ? t('engine.studio.loading', locale)
+                    : t('engine.studio.if.noNavItems', locale)}
               </p>
             ) : (
               <NavTree nodes={navTree} active={current} onPick={setCurrent} />
@@ -1128,7 +1136,7 @@ function InterfacesPillar({
         <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
           <div className="mb-3 flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-              <Eye className="h-3 w-3" /> 预览即运行 · 同一渲染器
+              <Eye className="h-3 w-3" /> {t('engine.studio.if.previewIsRuntime', locale)}
             </span>
             {current && (
               <span className="text-[11px] text-muted-foreground">
@@ -1148,8 +1156,8 @@ function InterfacesPillar({
                   <LayoutDashboard className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">这个软件包还没有应用</p>
-                  <p className="mt-1 text-xs text-muted-foreground">创建一个应用来设计它的导航与界面。</p>
+                  <p className="text-sm font-medium">{t('engine.studio.if.noAppTitle', locale)}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('engine.studio.if.noAppHint', locale)}</p>
                 </div>
                 {onCreateApp && (
                   <button
@@ -1157,15 +1165,15 @@ function InterfacesPillar({
                     onClick={onCreateApp}
                     className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
                   >
-                    <Plus className="h-3.5 w-3.5" /> 创建应用
+                    <Plus className="h-3.5 w-3.5" /> {t('engine.studio.app.create', locale)}
                   </button>
                 )}
               </div>
             ) : !current ? (
-              <div className="py-16 text-center text-sm text-muted-foreground">从左侧选择一个菜单项</div>
+              <div className="py-16 text-center text-sm text-muted-foreground">{t('engine.studio.if.pickLeft', locale)}</div>
             ) : loading ? (
               <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.studio.loading', locale)}
               </div>
             ) : current.type === 'object' ? (
               // Object nav leaf = the records list as the running app shows it
@@ -1185,17 +1193,17 @@ function InterfacesPillar({
               />
             ) : (
               <div className="py-12 text-center text-xs text-muted-foreground">
-                {current.type} 暂用只读预览,设计能力建设中。
+                {tFormat('engine.studio.if.readonlyPreview', locale, { type: current.type })}
               </div>
             )}
           </div>
           {isEditable ? (
             <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <MousePointer2 className="h-3 w-3" /> 点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」
+              <MousePointer2 className="h-3 w-3" /> {t('engine.studio.if.editHint', locale)}
             </p>
           ) : current?.type === 'object' ? (
             <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Database className="h-3 w-3" /> 运行态列表预览 · 改字段 / 结构请到 <span className="font-medium">Data</span> 支柱
+              <Database className="h-3 w-3" /> {t('engine.studio.if.objectHintPre', locale)}<span className="font-medium">Data</span>{t('engine.studio.if.objectHintPost', locale)}
             </p>
           ) : null}
         </main>
@@ -1204,13 +1212,13 @@ function InterfacesPillar({
         <aside className="w-72 shrink-0 overflow-auto border-l">
           <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="text-[13px] font-medium">属性</span>
+            <span className="text-[13px] font-medium">{t('engine.studio.inspector.props', locale)}</span>
             {selection && (
               <button
                 type="button"
                 onClick={() => setSelection(null)}
                 className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="取消选择"
+                aria-label={t('engine.studio.deselect', locale)}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -1240,9 +1248,9 @@ function InterfacesPillar({
             ) : (
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
                 <MousePointer2 className="h-5 w-5" />
-                在画布里点选一个积木,
+                {t('engine.studio.inspector.emptyLine1', locale)}
                 <br />
-                它的属性会在这里直接编辑。
+                {t('engine.studio.inspector.emptyLine2', locale)}
               </div>
             )}
           </div>
@@ -1329,7 +1337,7 @@ function DataPillar({
 }): React.ReactElement {
   const client = useMetadataClient();
   const adapter = useAdapter();
-  const locale = 'zh-CN';
+  const locale = useMetadataLocale();
   const [objects, setObjects] = React.useState<Surface[]>([]);
   const [objectsLoaded, setObjectsLoaded] = React.useState(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
@@ -1453,7 +1461,7 @@ function DataPillar({
   const addField = React.useCallback(() => {
     const view = readFields(objDraft.fields);
     const name = nextFieldName(view.entries.map((e) => e.name));
-    view.entries.push(newField(name, 'text', '新字段'));
+    view.entries.push(newField(name, 'text', t('engine.studio.data.newFieldLabel', locale)));
     setObjDraft((d) => ({ ...d, fields: writeFields(view) }));
     setDirty(true);
     setFieldSel({ kind: 'field', id: name });
@@ -1469,7 +1477,7 @@ function DataPillar({
     const name = toFieldName(newName.trim() || label);
     if (!label || !name || name === 'field') return; // CJK label → identifier must be typed
     if (objects.some((o) => o.name === name)) {
-      setError(`标识符 "${name}" 已存在`);
+      setError(tFormat('engine.studio.data.idExists', locale, { name }));
       return;
     }
     setCreateBusy(true);
@@ -1478,7 +1486,7 @@ function DataPillar({
       const body: Record<string, unknown> = {
         name,
         label,
-        fields: { name: { type: 'text', label: '名称' } },
+        fields: { name: { type: 'text', label: t('engine.studio.data.nameFieldLabel', locale) } },
       };
       await client.save('object', name, body, { mode: 'draft', packageId });
       const surface: Surface = { type: 'object', name, label };
@@ -1557,14 +1565,14 @@ function DataPillar({
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="text-[13px] font-medium text-foreground">{current.label}</span>
             <span className="rounded bg-muted px-1.5 py-0.5">object · {current.name}</span>
-            <span>{fieldCount} 字段</span>
+            <span>{tFormat('engine.studio.data.fieldCount', locale, { count: fieldCount })}</span>
           </span>
         ) : (
-          <span className="text-[11px] text-muted-foreground">选择一个对象</span>
+          <span className="text-[11px] text-muted-foreground">{t('engine.studio.data.pickObject', locale)}</span>
         )}
         {hasDraft && (
           <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
-            未发布草稿
+            {t('engine.studio.unpublishedDraft', locale)}
           </span>
         )}
         <button
@@ -1573,25 +1581,25 @@ function DataPillar({
           className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          保存草稿
+          {t('engine.studio.saveDraft', locale)}
         </button>
       </div>
 
       <div className="flex min-h-0 flex-1">
         <nav className="flex w-52 shrink-0 flex-col border-r">
           <div className="shrink-0 p-2 pb-1">
-            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">对象</p>
+            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">{t('engine.studio.data.objects', locale)}</p>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索对象…"
+              placeholder={t('engine.studio.data.searchObjects', locale)}
               className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none placeholder:text-muted-foreground/70 focus:ring-1 focus:ring-primary"
             />
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-2 pt-1">
             {objects.length === 0 && (
               <p className="px-2 py-3 text-[11px] text-muted-foreground">
-                {error ? '加载失败' : objectsLoaded ? '还没有对象 — 在下方新建一个开始' : '加载中…'}
+                {error ? t('engine.studio.loadFailed', locale) : objectsLoaded ? t('engine.studio.data.noObjects', locale) : t('engine.studio.loading', locale)}
               </p>
             )}
             {objects
@@ -1629,7 +1637,7 @@ function DataPillar({
                     if (e.key === 'Enter') void doCreateObject();
                     if (e.key === 'Escape') setCreating(false);
                   }}
-                  placeholder="显示名(如:报修工单)"
+                  placeholder={t('engine.studio.data.labelPlaceholder', locale)}
                   className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
                 />
                 <input
@@ -1642,7 +1650,7 @@ function DataPillar({
                     if (e.key === 'Enter') void doCreateObject();
                     if (e.key === 'Escape') setCreating(false);
                   }}
-                  placeholder="标识符(如:repair_ticket)"
+                  placeholder={t('engine.studio.data.idPlaceholder', locale)}
                   className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
                 />
                 <div className="flex items-center gap-1.5">
@@ -1653,14 +1661,14 @@ function DataPillar({
                     className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
                   >
                     {createBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                    创建(存为草稿)
+                    {t('engine.studio.createDraft', locale)}
                   </button>
                   <button
                     type="button"
                     onClick={() => setCreating(false)}
                     className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
                   >
-                    取消
+                    {t('engine.studio.cancel', locale)}
                   </button>
                 </div>
               </div>
@@ -1670,7 +1678,7 @@ function DataPillar({
                 onClick={() => setCreating(true)}
                 className="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
-                <Plus className="h-3.5 w-3.5" /> 新建对象
+                <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
               </button>
             )}
           </div>
@@ -1682,14 +1690,13 @@ function DataPillar({
               /* Fresh package: the first act is creating an object — say so and
                * point at the rail creator (already auto-opened). */
               <div className="flex flex-col items-center gap-2 py-16 text-center">
-                <p className="text-sm font-medium">从第一个对象开始</p>
+                <p className="text-sm font-medium">{t('engine.studio.data.firstObjectTitle', locale)}</p>
                 <p className="max-w-sm text-[11px] leading-5 text-muted-foreground">
-                  对象是应用的数据基座(如「订单」「客户」)。在左下角输入显示名与标识符即可创建;
-                  之后为它设计字段、表单与自动化,最后一次发布。
+                  {t('engine.studio.data.firstObjectHint', locale)}
                 </p>
               </div>
             ) : (
-              <div className="py-16 text-center text-sm text-muted-foreground">选择一个对象</div>
+              <div className="py-16 text-center text-sm text-muted-foreground">{t('engine.studio.data.pickObject', locale)}</div>
             )
           ) : (
             <>
@@ -1704,7 +1711,7 @@ function DataPillar({
                       (viewMode === 'grid' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
                     }
                   >
-                    记录
+                    {t('engine.studio.data.tab.records', locale)}
                   </button>
                   <button
                     type="button"
@@ -1714,7 +1721,7 @@ function DataPillar({
                       (viewMode === 'form' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
                     }
                   >
-                    表单
+                    {t('engine.studio.data.tab.form', locale)}
                   </button>
                   <button
                     type="button"
@@ -1724,7 +1731,7 @@ function DataPillar({
                       (viewMode === 'rules' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
                     }
                   >
-                    验证
+                    {t('engine.studio.data.tab.rules', locale)}
                   </button>
                   <button
                     type="button"
@@ -1734,29 +1741,29 @@ function DataPillar({
                       (viewMode === 'settings' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
                     }
                   >
-                    设置
+                    {t('engine.studio.data.tab.settings', locale)}
                   </button>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
                   <Eye className="h-3 w-3" />{' '}
                   {viewMode === 'grid'
-                    ? '运行态列表 · 同一渲染器'
+                    ? t('engine.studio.data.badge.grid', locale)
                     : viewMode === 'rules'
-                      ? '验证规则 · 草稿'
+                      ? t('engine.studio.data.badge.rules', locale)
                       : viewMode === 'settings'
-                        ? '对象设置 · 草稿'
+                        ? t('engine.studio.data.badge.settings', locale)
                         : formMode === 'layout'
-                          ? '表单设计 · 草稿'
-                          : '运行态表单 · 已发布定义'}
+                          ? t('engine.studio.data.badge.formLayout', locale)
+                          : t('engine.studio.data.badge.formPreview', locale)}
                 </span>
                 {(viewMode === 'grid' || viewMode === 'form') && (
                   <button
                     type="button"
                     onClick={addField}
-                    title="添加一个字段(随后在右侧设置类型与属性)"
+                    title={t('engine.studio.data.addFieldTitle', locale)}
                     className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
-                    <Plus className="h-3.5 w-3.5" /> 添加字段
+                    <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.addField', locale)}
                   </button>
                 )}
               </div>
@@ -1779,10 +1786,9 @@ function DataPillar({
                  * rendering the runtime grid would fire data SQL against a table
                  * that doesn't exist. Say so instead of erroring. */
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/20 text-center">
-                  <p className="text-sm font-medium">未发布的新对象</p>
+                  <p className="text-sm font-medium">{t('engine.studio.data.draftObjectTitle', locale)}</p>
                   <p className="max-w-md text-[11px] leading-5 text-muted-foreground">
-                    「记录」网格查询真实数据,而这个对象发布前还没有数据表。请先在「表单 · 布局」里设计字段与分组,
-                    然后点顶栏「发布」— 发布后这里就是它的实时数据网格。
+                    {t('engine.studio.data.draftObjectHint', locale)}
                   </p>
                   <button
                     type="button"
@@ -1792,7 +1798,7 @@ function DataPillar({
                     }}
                     className="mt-1 inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted"
                   >
-                    去「表单 · 布局」设计字段
+                    {t('engine.studio.data.goDesignFields', locale)}
                   </button>
                 </div>
               ) : viewMode === 'grid' ? (
@@ -1804,14 +1810,14 @@ function DataPillar({
                 <GridFieldAuthoringProvider
                   value={{
                     onAddColumn: addField,
-                    addColumnLabel: '添加字段',
+                    addColumnLabel: t('engine.studio.data.addField', locale),
                     onEditColumn: (fieldName) => {
                       // ignore non-field columns (e.g. the row-actions column)
                       if (readFields(objDraft.fields).entries.some((e) => e.name === fieldName)) {
                         setFieldSel({ kind: 'field', id: fieldName });
                       }
                     },
-                    editColumnLabel: '编辑字段属性',
+                    editColumnLabel: t('engine.studio.data.editFieldProps', locale),
                     onReorderFields: doReorderFields,
                   }}
                 >
@@ -1843,7 +1849,7 @@ function DataPillar({
                 </GridFieldAuthoringProvider>
               </div>
               <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                <MousePointer2 className="h-3 w-3" /> 列头「+」加字段 · 笔形改属性 · 拖列头重排 · 改完「保存草稿」→「发布」
+                <MousePointer2 className="h-3 w-3" /> {t('engine.studio.data.gridHint', locale)}
               </p>
               </>
               ) : (
@@ -1859,7 +1865,7 @@ function DataPillar({
                       (formMode === 'layout' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
                     }
                   >
-                    布局
+                    {t('engine.studio.data.form.layout', locale)}
                   </button>
                   <button
                     type="button"
@@ -1869,11 +1875,11 @@ function DataPillar({
                       (formMode === 'preview' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
                     }
                   >
-                    预览
+                    {t('engine.studio.data.form.preview', locale)}
                   </button>
                 </div>
                 <span className="text-[11px] text-muted-foreground">
-                  {formMode === 'layout' ? '布局设计器 · 草稿(含未发布改动)' : '运行态表单 · 已发布定义'}
+                  {formMode === 'layout' ? t('engine.studio.data.form.layoutBadge', locale) : t('engine.studio.data.form.previewBadge', locale)}
                 </span>
                 {/* Preview renders the PUBLISHED definition on purpose: a draft with
                   * structural changes has no physical columns yet (DDL lands at
@@ -1881,7 +1887,7 @@ function DataPillar({
                   * a deliberate user action — say so instead of silently lying. */}
                 {formMode === 'preview' && (dirty || hasDraft) && (
                   <span className="inline-flex items-center gap-1 rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
-                    有未发布改动 — 此预览为发布前(已发布)的效果;草稿确认用「布局」,看发布后效果请先点顶栏「发布」
+                    {t('engine.studio.data.form.previewWarn', locale)}
                   </span>
                 )}
               </div>
@@ -1897,9 +1903,9 @@ function DataPillar({
               ) : !hasBaseline ? (
                 /* Draft-only object: there is no published definition to preview yet. */
                 <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/20 text-center">
-                  <p className="text-sm font-medium">尚无已发布定义</p>
+                  <p className="text-sm font-medium">{t('engine.studio.data.form.noPublishedTitle', locale)}</p>
                   <p className="max-w-md text-[11px] leading-5 text-muted-foreground">
-                    「预览」渲染已发布的运行态表单,而这个对象还未发布。在「布局」里确认草稿,点顶栏「发布」后即可预览。
+                    {t('engine.studio.data.form.noPublishedHint', locale)}
                   </p>
                 </div>
               ) : (
@@ -1953,7 +1959,7 @@ function DataPillar({
                 </div>
               </div>
               <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                <MousePointer2 className="h-3 w-3" /> 点选任意字段 → 右侧改属性 · 「添加字段」加字段 · 改完「保存草稿」→「发布」
+                <MousePointer2 className="h-3 w-3" /> {t('engine.studio.data.formHint', locale)}
               </p>
               </>
               )}
@@ -1968,12 +1974,12 @@ function DataPillar({
           <aside className="flex w-80 shrink-0 flex-col border-l">
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span className="text-[13px] font-medium">字段属性</span>
+              <span className="text-[13px] font-medium">{t('engine.studio.data.fieldProps', locale)}</span>
               <button
                 type="button"
                 onClick={() => setFieldSel(null)}
                 className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="关闭"
+                aria-label={t('engine.studio.close', locale)}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -2009,7 +2015,7 @@ function AutomationsPillar({
   onDraftSaved?: () => void;
 }): React.ReactElement {
   const client = useMetadataClient();
-  const locale = 'zh-CN';
+  const locale = useMetadataLocale();
   const [flows, setFlows] = React.useState<Surface[]>([]);
   const [current, setCurrent] = React.useState<Surface | null>(null);
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
@@ -2067,8 +2073,8 @@ function AutomationsPillar({
         label,
         type: 'autolaunched',
         nodes: [
-          { id: 'start', type: 'start', label: '开始' },
-          { id: 'end', type: 'end', label: '结束' },
+          { id: 'start', type: 'start', label: t('engine.studio.auto.nodeStart', locale) },
+          { id: 'end', type: 'end', label: t('engine.studio.auto.nodeEnd', locale) },
         ],
         edges: [{ id: 'e1', source: 'start', target: 'end' }],
       };
@@ -2081,7 +2087,7 @@ function AutomationsPillar({
       setNewLabel('');
       setNewName('');
       onDraftSaved?.();
-      toast.success(`自动化「${label}」已存为草稿`);
+      toast.success(tFormat('engine.studio.auto.savedDraft', locale, { label }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -2140,10 +2146,10 @@ function AutomationsPillar({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
-        <span className="text-[11px] text-muted-foreground">默认 OFF · 审阅后再启用</span>
+        <span className="text-[11px] text-muted-foreground">{t('engine.studio.auto.defaultOff', locale)}</span>
         {hasDraft && (
           <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
-            未发布草稿
+            {t('engine.studio.unpublishedDraft', locale)}
           </span>
         )}
         <button
@@ -2152,21 +2158,21 @@ function AutomationsPillar({
           className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-          保存草稿
+          {t('engine.studio.saveDraft', locale)}
         </button>
       </div>
 
       <div className="flex min-h-0 flex-1">
         <nav className="flex w-52 shrink-0 flex-col overflow-auto border-r p-2">
           <div className="flex items-center gap-1 px-2 pb-1 pt-1">
-            <p className="flex-1 text-[11px] font-medium text-muted-foreground">自动化 · flow</p>
+            <p className="flex-1 text-[11px] font-medium text-muted-foreground">{t('engine.studio.auto.heading', locale)}</p>
             <button
               type="button"
               onClick={() => setCreating((v) => !v)}
-              title="新建自动化"
+              title={t('engine.studio.auto.newTitle', locale)}
               className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] hover:bg-muted"
             >
-              <Plus className="h-3 w-3" /> 新建
+              <Plus className="h-3 w-3" /> {t('engine.studio.new', locale)}
             </button>
           </div>
           {flows.length > 0 &&
@@ -2185,7 +2191,7 @@ function AutomationsPillar({
             ))}
           {flows.length === 0 && !creating && (
             <p className="px-2 py-3 text-[11px] text-muted-foreground">
-              {error ? '加载失败' : !listed ? '加载中…' : '还没有自动化 — 点「新建」开始'}
+              {error ? t('engine.studio.loadFailed', locale) : !listed ? t('engine.studio.loading', locale) : t('engine.studio.auto.none', locale)}
             </p>
           )}
           {creating && (
@@ -2198,7 +2204,7 @@ function AutomationsPillar({
                   if (e.key === 'Enter') void doCreateFlow();
                   if (e.key === 'Escape') setCreating(false);
                 }}
-                placeholder="名称(如:录用通知)"
+                placeholder={t('engine.studio.auto.namePlaceholder', locale)}
                 className="w-full rounded border bg-background px-2 py-1 text-xs"
               />
               <input
@@ -2208,7 +2214,7 @@ function AutomationsPillar({
                   if (e.key === 'Enter') void doCreateFlow();
                   if (e.key === 'Escape') setCreating(false);
                 }}
-                placeholder="标识符(如:offer_notice)"
+                placeholder={t('engine.studio.auto.idPlaceholder', locale)}
                 className="w-full rounded border bg-background px-2 py-1 font-mono text-[11px]"
               />
               <div className="flex items-center gap-1">
@@ -2219,14 +2225,14 @@ function AutomationsPillar({
                   className="inline-flex flex-1 items-center justify-center gap-1 rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
                 >
                   {createBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                  创建(存为草稿)
+                  {t('engine.studio.createDraft', locale)}
                 </button>
                 <button
                   type="button"
                   onClick={() => setCreating(false)}
                   className="rounded border px-2 py-1 text-[11px] hover:bg-muted"
                 >
-                  取消
+                  {t('engine.studio.cancel', locale)}
                 </button>
               </div>
             </div>
@@ -2236,7 +2242,7 @@ function AutomationsPillar({
         <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
           <div className="mb-3 flex items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-              <Workflow className="h-3 w-3" /> 可视化编排 · 点选节点配置
+              <Workflow className="h-3 w-3" /> {t('engine.studio.auto.canvasHint', locale)}
             </span>
             {current && <span className="text-[11px] text-muted-foreground">flow · {current.name}</span>}
           </div>
@@ -2247,10 +2253,10 @@ function AutomationsPillar({
           )}
           <div className="rounded-lg border bg-background p-4">
             {!current ? (
-              <div className="py-16 text-center text-sm text-muted-foreground">选择一个自动化</div>
+              <div className="py-16 text-center text-sm text-muted-foreground">{t('engine.studio.auto.pick', locale)}</div>
             ) : loading ? (
               <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> 加载中…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.studio.loading', locale)}
               </div>
             ) : Preview ? (
               React.createElement(Preview, {
@@ -2271,7 +2277,7 @@ function AutomationsPillar({
           </div>
           {isEditable && (
             <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <MousePointer2 className="h-3 w-3" /> 点选节点 → 右侧配置 · 改完「保存草稿」→「发布」
+              <MousePointer2 className="h-3 w-3" /> {t('engine.studio.auto.editHint', locale)}
             </p>
           )}
         </main>
@@ -2279,13 +2285,13 @@ function AutomationsPillar({
         <aside className="w-72 shrink-0 overflow-auto border-l">
           <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="text-[13px] font-medium">配置</span>
+            <span className="text-[13px] font-medium">{t('engine.studio.auto.config', locale)}</span>
             {selection && (
               <button
                 type="button"
                 onClick={() => setSelection(null)}
                 className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="取消选择"
+                aria-label={t('engine.studio.deselect', locale)}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -2307,9 +2313,9 @@ function AutomationsPillar({
             ) : (
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
                 <MousePointer2 className="h-5 w-5" />
-                在画布里点选一个节点,
+                {t('engine.studio.auto.emptyLine1', locale)}
                 <br />
-                它的配置会在这里显示。
+                {t('engine.studio.auto.emptyLine2', locale)}
               </div>
             )}
           </div>
@@ -2332,6 +2338,7 @@ function AutomationsPillar({
  */
 function AccessPillar(): React.ReactElement {
   const client = useMetadataClient();
+  const locale = useMetadataLocale();
   const [perms, setPerms] = React.useState<Array<{ name: string; label: string; isProfile?: boolean }>>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -2374,7 +2381,7 @@ function AccessPillar(): React.ReactElement {
     setBusy(true);
     try {
       await client.save('permission', name, { name, label, objects: {}, fields: {} });
-      toast.success(`权限集「${label}」已创建`);
+      toast.success(tFormat('engine.studio.access.created', locale, { label }));
       setCreating(false);
       setNewLabel('');
       setNewName('');
@@ -2400,32 +2407,32 @@ function AccessPillar(): React.ReactElement {
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Shield className="h-3.5 w-3.5" />
-          <span className="text-[13px] font-medium text-foreground">权限矩阵</span>
-          <span className="rounded bg-muted px-1.5 py-0.5">对象 × CRUD · 字段级读写</span>
+          <span className="text-[13px] font-medium text-foreground">{t('engine.studio.access.title', locale)}</span>
+          <span className="rounded bg-muted px-1.5 py-0.5">{t('engine.studio.access.subtitle', locale)}</span>
         </span>
         <span
-          title="权限是平台级授权配置,矩阵内的「Save」保存即生效;不进入软件包草稿,顶栏「发布」不涉及它。"
+          title={t('engine.studio.access.bannerTitle', locale)}
           className="ml-auto rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
         >
-          保存即生效 · 不走包草稿
+          {t('engine.studio.access.banner', locale)}
         </span>
       </div>
 
       <div className="flex min-h-0 flex-1">
         <nav className="flex w-52 shrink-0 flex-col border-r">
           <div className="p-2 pb-0">
-            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">权限集 / Profile</p>
+            <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">{t('engine.studio.access.heading', locale)}</p>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索权限…"
+              placeholder={t('engine.studio.access.search', locale)}
               className="mb-1 h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-2 pt-1">
             {perms.length === 0 && (
               <p className="px-2 py-3 text-[11px] text-muted-foreground">
-                {error ? '加载失败' : loaded ? '还没有权限集 — 在下方新建一个' : '加载中…'}
+                {error ? t('engine.studio.loadFailed', locale) : loaded ? t('engine.studio.access.none', locale) : t('engine.studio.loading', locale)}
               </p>
             )}
             {filtered.map((p) => (
@@ -2461,7 +2468,7 @@ function AccessPillar(): React.ReactElement {
                     if (e.key === 'Enter') void doCreate();
                     if (e.key === 'Escape') setCreating(false);
                   }}
-                  placeholder="显示名(如:销售权限)"
+                  placeholder={t('engine.studio.access.labelPlaceholder', locale)}
                   className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
                 />
                 <input
@@ -2474,7 +2481,7 @@ function AccessPillar(): React.ReactElement {
                     if (e.key === 'Enter') void doCreate();
                     if (e.key === 'Escape') setCreating(false);
                   }}
-                  placeholder="标识符(如:sales_perms)"
+                  placeholder={t('engine.studio.access.idPlaceholder', locale)}
                   className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
                 />
                 <div className="flex items-center gap-1.5">
@@ -2485,14 +2492,14 @@ function AccessPillar(): React.ReactElement {
                     className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
                   >
                     {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                    创建
+                    {t('engine.studio.create', locale)}
                   </button>
                   <button
                     type="button"
                     onClick={() => setCreating(false)}
                     className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
                   >
-                    取消
+                    {t('engine.studio.cancel', locale)}
                   </button>
                 </div>
               </div>
@@ -2502,7 +2509,7 @@ function AccessPillar(): React.ReactElement {
                 onClick={() => setCreating(true)}
                 className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
-                <Plus className="h-3.5 w-3.5" /> 新建权限集
+                <Plus className="h-3.5 w-3.5" /> {t('engine.studio.access.new', locale)}
               </button>
             )}
           </div>
@@ -2516,7 +2523,7 @@ function AccessPillar(): React.ReactElement {
             <PermissionMatrixEditPage key={current} type="permission" name={current} />
           ) : (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              {loaded && perms.length === 0 ? '新建一个权限集开始配置' : '选择一个权限集'}
+              {loaded && perms.length === 0 ? t('engine.studio.access.emptyMain', locale) : t('engine.studio.access.pick', locale)}
             </div>
           )}
         </main>
