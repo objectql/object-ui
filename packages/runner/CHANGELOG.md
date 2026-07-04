@@ -1,5 +1,20 @@
 # @object-ui/runner
 
+## 11.4.0
+
+### Patch Changes
+
+- Updated dependencies [1948c5b]
+- Updated dependencies [bce581a]
+- Updated dependencies [c38d107]
+- Updated dependencies [e84d64d]
+  - @object-ui/components@11.4.0
+  - @object-ui/types@11.4.0
+  - @object-ui/plugin-kanban@11.4.0
+  - @object-ui/plugin-charts@11.4.0
+  - @object-ui/core@11.4.0
+  - @object-ui/react@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes

@@ -1,5 +1,16 @@
 # @object-ui/console
 
+## 11.4.0
+
+### Patch Changes
+
+- a4ccd4d: FormPage: unwrap the ExpandedViewItem envelope from `/meta/view/:name` — the form
+  spec lives under `config`, so internal forms rendered zero fields with a bare
+  Submit that falsely succeeded. Non-form views reaching the forms route now throw
+  an actionable error instead of the same empty-form false positive.
+  - @object-ui/react-runtime@11.4.0
+  - @object-ui/sdui-parser@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes
