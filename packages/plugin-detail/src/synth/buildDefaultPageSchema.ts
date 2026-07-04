@@ -136,20 +136,31 @@ export interface BuildPageOptions {
     columns?: any[];
     limit?: number;
     icon?: string;
+    /**
+     * `relatedList: 'primary'` — a CORE relationship. Under the default
+     * layout this list is promoted to its OWN tab; non-primary lists collapse
+     * into a single "Related" tab. Ignored when `relatedLayout` forces a
+     * uniform layout.
+     */
+    isPrimary?: boolean;
   }>;
   /**
    * How the related child lists are laid out under the tab strip.
    *
-   * - `'stack'` (default) — all related lists stack vertically inside a
-   *   single `Related` tab. Preserves the legacy behavior.
-   * - `'tabs'` — each related child gets its OWN tab (label = the child's
-   *   `title`, falling back to `objectName`) instead of sharing one
-   *   `Related` tab. Lets authors surface related tables as peer tabs
-   *   purely via config (per object: `detail.relatedLayout`).
+   * - **default (unset)** — the ADR-0085 prominence rule: lists flagged
+   *   `relatedList: 'primary'` (`isPrimary`) each get their OWN tab; every
+   *   other related list collapses into a single stacked `Related` tab. With
+   *   no primary lists this is identical to the legacy stacked behavior, so
+   *   the change is opt-in per relationship — never a surprise.
+   * - `'stack'` — app-level override: ALL related lists stack vertically
+   *   inside one `Related` tab, ignoring `isPrimary`.
+   * - `'tabs'` — app-level override: EVERY related child gets its own peer
+   *   tab (label = the child's `title`, falling back to `objectName`),
+   *   ignoring `isPrimary`.
    *
-   * Ignored when the `Related` tab is suppressed (`hideRelatedTab`).
-   *
-   * @default 'stack'
+   * Precise per-tab ordering / filtered splits / non-relationship tabs are a
+   * custom Page concern (Tier 2) — this synthesizer only covers the derived
+   * default. Ignored when the `Related` tab is suppressed (`hideRelatedTab`).
    */
   relatedLayout?: 'stack' | 'tabs';
   /**
@@ -512,21 +523,29 @@ export function buildDefaultTabs(
       ...(rel.limit ? { limit: rel.limit } : {}),
       ...(rel.icon ? { icon: rel.icon } : {}),
     });
+    const asOwnTab = (rel: NonNullable<BuildPageOptions['related']>[number]) => ({
+      label: rel.title || rel.objectName,
+      ...(rel.icon ? { icon: rel.icon } : {}),
+      children: [relatedNode(rel)],
+    });
     if (options.relatedLayout === 'tabs') {
-      // One peer tab per related child, instead of a single shared
-      // `Related` tab that stacks them all vertically.
-      for (const rel of options.related) {
-        items.push({
-          label: rel.title || rel.objectName,
-          ...(rel.icon ? { icon: rel.icon } : {}),
-          children: [relatedNode(rel)],
-        });
-      }
+      // App-level override: one peer tab per related child.
+      for (const rel of options.related) items.push(asOwnTab(rel));
+    } else if (options.relatedLayout === 'stack') {
+      // App-level override: all related lists share one stacked `Related` tab.
+      items.push({ label: 'Related', children: options.related.map(relatedNode) });
     } else {
-      items.push({
-        label: 'Related',
-        children: options.related.map(relatedNode),
-      });
+      // DEFAULT (rule Z, ADR-0085 prominence): `isPrimary` lists become their
+      // own tab; the rest collapse into one `Related` tab. Owned-before-lookup
+      // order is preserved by deriveRelatedLists upstream. With no primary
+      // lists this is identical to the legacy stacked default (opt-in per
+      // relationship, never a surprise).
+      const primary = options.related.filter((r) => r.isPrimary);
+      const rest = options.related.filter((r) => !r.isPrimary);
+      for (const rel of primary) items.push(asOwnTab(rel));
+      if (rest.length > 0) {
+        items.push({ label: 'Related', children: rest.map(relatedNode) });
+      }
     }
   }
   if (options.showActivity) {

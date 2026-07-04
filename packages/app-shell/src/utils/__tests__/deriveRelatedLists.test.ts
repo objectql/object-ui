@@ -23,6 +23,7 @@ describe('deriveRelatedLists', () => {
         childLabel: 'Task',
         referenceField: 'project',
         isOwned: true,
+        isPrimary: false,
       },
     ]);
   });
@@ -34,7 +35,12 @@ describe('deriveRelatedLists', () => {
       fields: { project_id: { type: 'lookup', reference: 'project' } },
     };
     const out = deriveRelatedLists(project, [project, note]);
-    expect(out[0]).toMatchObject({ childObject: 'note', referenceField: 'project_id', isOwned: false });
+    expect(out[0]).toMatchObject({
+      childObject: 'note',
+      referenceField: 'project_id',
+      isOwned: false,
+      isPrimary: false,
+    });
   });
 
   it('supports reference_to as well as reference', () => {
@@ -94,20 +100,54 @@ describe('deriveRelatedLists', () => {
     });
   });
 
-  it('dedupes to one related list per child object (first eligible FK wins)', () => {
-    const assignment = {
-      name: 'assignment',
-      fields: {
-        project: { type: 'master_detail', reference: 'project' },
-        secondary_project: { type: 'lookup', reference: 'project' },
-      },
+  it('flags relatedList: "primary" as isPrimary (prominence → own tab)', () => {
+    const task = {
+      name: 'task',
+      label: 'Task',
+      fields: { project: { type: 'master_detail', reference: 'project', relatedList: 'primary' } },
     };
-    const out = deriveRelatedLists(project, [project, assignment]);
-    expect(out).toHaveLength(1);
-    expect(out[0].referenceField).toBe('project');
+    const out = deriveRelatedLists(project, [project, task]);
+    expect(out[0]).toMatchObject({ childObject: 'task', isPrimary: true, isOwned: true });
   });
 
-  it('skips a suppressed FK but still considers a sibling FK on the same child', () => {
+  it('emits one related list per eligible FK when a child references the parent multiple times', () => {
+    const opportunity = {
+      name: 'opportunity',
+      label: 'Opportunity',
+      fields: {
+        primary_project: { type: 'lookup', reference: 'project', label: 'Primary Project' },
+        partner_project: { type: 'lookup', reference: 'project', label: 'Partner Project' },
+      },
+    };
+    const out = deriveRelatedLists(project, [project, opportunity]);
+    expect(out).toHaveLength(2);
+    expect(out.map((r) => r.referenceField).sort()).toEqual(['partner_project', 'primary_project']);
+    // No explicit relatedListTitle → the FK label disambiguates the two lists.
+    expect(out.map((r) => r.title).sort()).toEqual([
+      'Opportunity · Partner Project',
+      'Opportunity · Primary Project',
+    ]);
+  });
+
+  it('keeps an explicit relatedListTitle over the multi-FK disambiguation suffix', () => {
+    const opportunity = {
+      name: 'opportunity',
+      label: 'Opportunity',
+      fields: {
+        primary_project: {
+          type: 'lookup', reference: 'project', label: 'Primary Project',
+          relatedListTitle: 'Primary Opps',
+        },
+        partner_project: { type: 'lookup', reference: 'project', label: 'Partner Project' },
+      },
+    };
+    const out = deriveRelatedLists(project, [project, opportunity]);
+    const byField = Object.fromEntries(out.map((r) => [r.referenceField, r.title]));
+    expect(byField.primary_project).toBe('Primary Opps');
+    expect(byField.partner_project).toBe('Opportunity · Partner Project');
+  });
+
+  it('skips a suppressed FK but keeps a sibling FK on the same child', () => {
     const assignment = {
       name: 'assignment',
       fields: {
@@ -120,10 +160,27 @@ describe('deriveRelatedLists', () => {
     expect(out[0].referenceField).toBe('project');
   });
 
-  it('ignores unrelated objects and self-references', () => {
+  it('includes a self-referential relationship (hierarchy → "child" list)', () => {
+    const selfRef = {
+      name: 'project',
+      label: 'Project',
+      fields: {
+        name: { type: 'text' },
+        parent_project: { type: 'lookup', reference: 'project', label: 'Parent Project' },
+      },
+    };
+    const out = deriveRelatedLists(selfRef, [selfRef]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      childObject: 'project',
+      referenceField: 'parent_project',
+      isOwned: false,
+    });
+  });
+
+  it('ignores unrelated objects', () => {
     const other = { name: 'other', fields: { foo: { type: 'lookup', reference: 'somethingelse' } } };
-    const selfRef = { name: 'project', fields: { parent: { type: 'tree', reference: 'project' } } };
-    expect(deriveRelatedLists(project, [project, other, selfRef])).toEqual([]);
+    expect(deriveRelatedLists(project, [project, other])).toEqual([]);
   });
 
   it('handles array-shaped fields', () => {

@@ -316,6 +316,59 @@ describe('buildDefaultPageSchema', () => {
       expect(tabs.items[1].children[0].limit).toBe(10);
     });
 
+    it('promotes an isPrimary related list to its OWN tab (rule Z default)', () => {
+      const tabs = buildDefaultTabs(leadDef, {
+        related: [
+          { objectName: 'opportunity', relationshipField: 'lead_id', title: 'Opportunities', isPrimary: true },
+        ],
+      });
+      const labels = tabs.items.map((t: any) => t.label);
+      expect(labels).toEqual(['Details', 'Opportunities']);
+      expect(labels).not.toContain('Related');
+    });
+
+    it('gives primary lists their own tab and collapses the rest into Related', () => {
+      const tabs = buildDefaultTabs(leadDef, {
+        related: [
+          { objectName: 'opportunity', relationshipField: 'lead_id', title: 'Opportunities', isPrimary: true },
+          { objectName: 'task', relationshipField: 'lead_id', title: 'Tasks' },
+          { objectName: 'note', relationshipField: 'parent_id', title: 'Notes' },
+        ],
+      });
+      const labels = tabs.items.map((t: any) => t.label);
+      expect(labels).toEqual(['Details', 'Opportunities', 'Related']);
+      const related = tabs.items.find((t: any) => t.label === 'Related');
+      expect(related.children).toHaveLength(2);
+      expect(related.children.map((c: any) => c.objectName)).toEqual(['task', 'note']);
+    });
+
+    it("relatedLayout:'tabs' gives every related list its own tab, ignoring isPrimary", () => {
+      const tabs = buildDefaultTabs(leadDef, {
+        relatedLayout: 'tabs',
+        related: [
+          { objectName: 'task', relationshipField: 'lead_id', title: 'Tasks' },
+          { objectName: 'note', relationshipField: 'parent_id', title: 'Notes' },
+        ],
+      });
+      const labels = tabs.items.map((t: any) => t.label);
+      expect(labels).toEqual(['Details', 'Tasks', 'Notes']);
+      expect(labels).not.toContain('Related');
+    });
+
+    it("relatedLayout:'stack' collapses all lists into one Related tab, ignoring isPrimary", () => {
+      const tabs = buildDefaultTabs(leadDef, {
+        relatedLayout: 'stack',
+        related: [
+          { objectName: 'opportunity', relationshipField: 'lead_id', title: 'Opportunities', isPrimary: true },
+          { objectName: 'task', relationshipField: 'lead_id', title: 'Tasks' },
+        ],
+      });
+      const labels = tabs.items.map((t: any) => t.label);
+      expect(labels).toEqual(['Details', 'Related']);
+      const related = tabs.items.find((t: any) => t.label === 'Related');
+      expect(related.children).toHaveLength(2);
+    });
+
     it('does NOT emit a Reference Rail by default, keeping the Related tab', () => {
       const page = buildDefaultPageSchema(leadDef, {
         related: [

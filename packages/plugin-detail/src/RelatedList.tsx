@@ -527,6 +527,23 @@ export const RelatedList: React.FC<RelatedListProps> = ({
      }
     if (!objectSchema?.fields) return [];
 
+    // ADR-0085 prominence: when the child object declares `highlightFields` —
+    // the canonical "how to list this object" set, the SAME source the lookup
+    // picker (`deriveLookupColumns`) leads with — auto-derive from those before
+    // the heuristic field walk below, so a related list and a picker of the
+    // same object agree on columns with zero per-surface config. Run through the
+    // identical normalize / FK / FLS / empty pruning as explicit columns; fall
+    // through to the walk if nothing survives (e.g. all FLS-blocked).
+    const declaredHighlights = Array.isArray((objectSchema as any).highlightFields)
+      ? ((objectSchema as any).highlightFields as any[]).filter(
+          (n): n is string => typeof n === 'string' && n.length > 0,
+        )
+      : [];
+    if (declaredHighlights.length > 0) {
+      const hf = pruneEmpty(filterFLS(filterFK(declaredHighlights.map(normalizeColumn))));
+      if (hf.length > 0) return hf.slice(0, Math.max(1, maxColumns));
+    }
+
     const resolvedObjectName = relatedObjectName;
     const SKIP_TYPES = new Set(['image', 'file', 'attachment', 'rich_text', 'html', 'json']);
     const PRIORITY_NAMES = [

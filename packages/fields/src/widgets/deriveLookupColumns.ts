@@ -32,7 +32,14 @@ export interface DeriveColumnsOptions {
 
 interface ObjectSchemaLike {
   fields?: Record<string, { type?: string; label?: string; hidden?: boolean }>;
-  /** Object-level "fields to display in search result cards" (spec metadata). */
+  /**
+   * ADR-0085 semantic role: the object's most important fields. The single
+   * source for "how to list this object" — shared with the detail-page related
+   * list — so a lookup picker and a related list of the same object agree on
+   * columns with zero per-surface config.
+   */
+  highlightFields?: unknown;
+  /** Object-level "fields to display in search result cards" (legacy spec metadata). */
   displayFields?: unknown;
 }
 
@@ -53,9 +60,10 @@ function dedupe(names: string[]): string[] {
  * a lookup field declares no explicit `lookup_columns`.
  *
  * Priority:
- *   1. The referenced object's own `displayFields` ("fields to display in
- *      search result cards") — the author's declared search-card shape.
- *   2. Otherwise the display field plus the next few business fields in
+ *   1. The referenced object's ADR-0085 `highlightFields` — the canonical
+ *      "how to list this object" set, shared with the detail-page related list.
+ *   2. Else the object's legacy `displayFields` search-card shape.
+ *   3. Otherwise the display field plus the next few business fields in
  *      declaration order, skipping system/audit fields and heavy non-tabular
  *      types.
  *
@@ -79,17 +87,23 @@ export function deriveLookupColumns(
 
   if (Object.keys(fields).length === 0) return [];
 
-  // 1. Honour the object's explicit search-card fields when present.
-  const declared = objectSchema?.displayFields;
-  if (Array.isArray(declared) && declared.length > 0) {
-    const names = (declared as unknown[]).filter(
+  // 1 & 2. Honour a declared column list — `highlightFields` (ADR-0085
+  // canonical, shared with the related list) first, then the legacy
+  // `displayFields` search-card list. The display field always leads.
+  const fromDeclaredList = (list: unknown): LookupColumnDef[] | null => {
+    if (!Array.isArray(list) || list.length === 0) return null;
+    const names = (list as unknown[]).filter(
       (n): n is string => typeof n === 'string' && n.length > 0,
     );
     const ordered = dedupe([displayField, ...names.filter((n) => n !== displayField)]);
     return ordered.slice(0, max).map(toCol);
-  }
+  };
+  const fromHighlights = fromDeclaredList(objectSchema?.highlightFields);
+  if (fromHighlights) return fromHighlights;
+  const fromDisplay = fromDeclaredList(objectSchema?.displayFields);
+  if (fromDisplay) return fromDisplay;
 
-  // 2. Derive from the field set in declaration order.
+  // 3. Derive from the field set in declaration order.
   const candidates = Object.keys(fields).filter((name) => {
     if (name === displayField) return false;
     if (SYSTEM_FIELDS.has(name)) return false;

@@ -71,4 +71,29 @@ describe('deriveLookupColumns', () => {
     const cols = deriveLookupColumns(schema, { displayField: 'name' });
     expect(cols.map((c) => c.field)).toEqual(['name', 'region']);
   });
+
+  it('prefers ADR-0085 highlightFields over the declaration-order walk', () => {
+    const schema = {
+      fields: {
+        name: { type: 'text', label: 'Name' },
+        code: { type: 'text', label: 'Code' },
+        region: { type: 'select', label: 'Region' },
+        notes: { type: 'text', label: 'Notes' },
+      },
+      highlightFields: ['region', 'code'],
+    };
+    const cols = deriveLookupColumns(schema, { displayField: 'name', max: 4 });
+    // Display field leads, then highlightFields in order — not the raw field walk.
+    expect(cols.map((c) => c.field)).toEqual(['name', 'region', 'code']);
+  });
+
+  it('lets highlightFields win over legacy displayFields when both are present', () => {
+    const schema = {
+      fields: { name: { type: 'text' }, code: { type: 'text' }, region: { type: 'select' } },
+      highlightFields: ['region'],
+      displayFields: ['code'],
+    };
+    const cols = deriveLookupColumns(schema, { displayField: 'name' });
+    expect(cols.map((c) => c.field)).toEqual(['name', 'region']);
+  });
 });

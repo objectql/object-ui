@@ -9,20 +9,29 @@
  *
  * This helper scans every object for fields whose `reference`/`reference_to`
  * points back at the parent object and produces one related-list descriptor per
- * child collection. The detail page (`RecordDetailView`) feeds these into the
+ * eligible FK. The detail page (`RecordDetailView`) feeds these into the
  * `record:related_list` renderers (and the legacy `DetailView.related`).
  *
  * Rules (kept in lockstep with the relationship-level `relatedList` spec flag):
  *   - Owned children (`master_detail`) and `lookup` children are SHOWN by
  *     default. Set `relatedList: false` on the FK field to suppress a noisy
- *     association/audit link.
+ *     association/audit link; set `relatedList: 'primary'` to mark a CORE
+ *     relationship — the detail page promotes it to its own tab (the tab-vs-
+ *     Related split is decided downstream in `buildDefaultTabs`).
  *   - `relatedListTitle` / `relatedListColumns` on the FK field override the
- *     derived title / columns.
+ *     derived title / columns (columns default to the child object's own list
+ *     columns when omitted — resolved by the renderer).
  *   - Audit FKs (`created_by` / `updated_by` / `owner_id`) are skipped — they
  *     exist on virtually every object and would balloon the detail page into
  *     dozens of duplicate cards.
- *   - One related list per child object (deduped by child object name): the
- *     first non-audit, non-suppressed FK wins.
+ *   - ONE related list per eligible FK. A child may point at the parent through
+ *     MORE THAN ONE relationship (e.g. `opportunity.primary_account` +
+ *     `opportunity.partner_account`); each surfaces as its own list. When a
+ *     child appears more than once and gave no explicit `relatedListTitle`, the
+ *     FK's label is suffixed to disambiguate ("Opportunity · Partner Account").
+ *   - Self-references are allowed (e.g. `account.parent_account` → `account`):
+ *     the parent record lists the records whose self-FK points back at it
+ *     ("Child Accounts"). Suppress with `relatedList: false` if unwanted.
  *   - Owned (`master_detail`) children are ordered before plain `lookup`
  *     children, preserving discovery order within each group.
  */
@@ -43,6 +52,12 @@ export interface DerivedRelatedList {
   columns?: any[];
   /** True when the child→parent link is a `master_detail` (owned) relationship. */
   isOwned: boolean;
+  /**
+   * True when the FK declares `relatedList: 'primary'`. A prominence hint
+   * (ADR-0085): the detail page promotes this relationship to its OWN tab,
+   * while non-primary lists collapse into a single "Related" tab.
+   */
+  isPrimary: boolean;
 }
 
 interface ObjectLike {
@@ -73,12 +88,15 @@ export function deriveRelatedLists(
 ): DerivedRelatedList[] {
   if (!objectDef?.name || !Array.isArray(objects) || objects.length === 0) return [];
   const parentName = objectDef.name;
-  const owned: DerivedRelatedList[] = [];
-  const referenced: DerivedRelatedList[] = [];
-  const seenChild = new Set<string>();
+
+  // Working entries carry the FK label so we can disambiguate multi-FK children
+  // after the full sweep; it is stripped from the returned descriptors.
+  type Working = DerivedRelatedList & { _fkLabel: string };
+  const owned: Working[] = [];
+  const referenced: Working[] = [];
 
   for (const child of objects) {
-    if (!child?.name || child.name === parentName) continue;
+    if (!child?.name) continue;
     for (const [fieldName, fieldDef] of fieldEntries(child.fields)) {
       if (!fieldDef) continue;
       const type = fieldDef.type;
@@ -87,15 +105,14 @@ export function deriveRelatedLists(
       if (AUDIT_FK_FIELDS.has(fieldName)) continue;
       // Explicit opt-out lives on the relationship.
       if (fieldDef.relatedList === false) continue;
-      // One related list per child object — the first eligible FK wins.
-      if (seenChild.has(child.name)) continue;
-      seenChild.add(child.name);
 
-      const entry: DerivedRelatedList = {
+      const entry: Working = {
         childObject: child.name,
         childLabel: child.label || child.name,
         referenceField: fieldName,
         isOwned: type === 'master_detail',
+        isPrimary: fieldDef.relatedList === 'primary',
+        _fkLabel: (typeof fieldDef.label === 'string' && fieldDef.label) || fieldName,
         ...(typeof fieldDef.relatedListTitle === 'string' && fieldDef.relatedListTitle
           ? { title: fieldDef.relatedListTitle }
           : {}),
@@ -103,10 +120,22 @@ export function deriveRelatedLists(
           ? { columns: fieldDef.relatedListColumns }
           : {}),
       };
+      // NO `break`: a child object may reference this parent through several FKs.
       (entry.isOwned ? owned : referenced).push(entry);
-      break; // move on to the next child object
     }
   }
 
-  return [...owned, ...referenced];
+  const all = [...owned, ...referenced];
+  // Multi-FK disambiguation: when a child object points here through more than
+  // one relationship and gave no explicit title, suffix the FK label so the two
+  // lists are distinguishable (e.g. "Opportunity · Partner Account").
+  const counts: Record<string, number> = {};
+  for (const r of all) counts[r.childObject] = (counts[r.childObject] || 0) + 1;
+
+  return all.map(({ _fkLabel, ...rest }) => {
+    if (!rest.title && counts[rest.childObject] > 1) {
+      return { ...rest, title: `${rest.childLabel} · ${_fkLabel}` };
+    }
+    return rest;
+  });
 }

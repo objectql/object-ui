@@ -1714,14 +1714,23 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     const synthRelated = Array.isArray((detailSchema as any).related)
       ? ((detailSchema as any).related as any[])
           .filter((r) => r?.api && r?.referenceField)
-          .map((r) => ({
-            title: r.title,
-            objectName: r.api,
-            relationshipField: r.referenceField,
-            ...(Array.isArray(r.columns) ? { columns: r.columns } : {}),
-            ...(typeof r.pageSize === 'number' ? { limit: r.pageSize } : {}),
-            ...(r.icon ? { icon: r.icon } : {}),
-          }))
+          .map((r) => {
+            // Carry the `relatedList: 'primary'` prominence flag from the derived
+            // relationship graph. Matched by (childObject, referenceField) — the
+            // unique key of a related list — so it is robust to ordering/filtering.
+            const derived = childRelations.find(
+              (c) => c.childObject === r.api && c.referenceField === r.referenceField,
+            );
+            return {
+              title: r.title,
+              objectName: r.api,
+              relationshipField: r.referenceField,
+              ...(Array.isArray(r.columns) ? { columns: r.columns } : {}),
+              ...(typeof r.pageSize === 'number' ? { limit: r.pageSize } : {}),
+              ...(r.icon ? { icon: r.icon } : {}),
+              ...(derived?.isPrimary ? { isPrimary: true } : {}),
+            };
+          })
       : undefined;
     const synthHistory = (detailSchema as any).history
       ? {
