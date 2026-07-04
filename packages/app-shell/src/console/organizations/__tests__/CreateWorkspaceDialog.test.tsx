@@ -75,7 +75,8 @@ describe('CreateWorkspaceDialog', () => {
       expect(createOrganization).toHaveBeenCalledWith({ name: 'Acme Inc', slug: 'acme-inc' }),
     );
     await waitFor(() =>
-      expect(provisionMock).toHaveBeenCalledWith({ organizationId: 'org-123' }),
+      // The workspace name is passed through as the production env displayName (#2228).
+      expect(provisionMock).toHaveBeenCalledWith({ organizationId: 'org-123', displayName: 'Acme Inc' }),
     );
     await waitFor(() =>
       expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ id: 'org-123' })),
