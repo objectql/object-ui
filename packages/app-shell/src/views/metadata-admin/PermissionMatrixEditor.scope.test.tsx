@@ -33,6 +33,7 @@ interface Server {
   set: Record<string, unknown>;
   packageObjects: Array<{ name: string; label?: string }>;
   saved: Array<Record<string, unknown>>;
+  savedOpts: Array<Record<string, unknown> | undefined>;
 }
 
 function makeClient(server: Server) {
@@ -43,6 +44,9 @@ function makeClient(server: Server) {
       overlay: null,
       overlayScope: null,
     }),
+    // ADR-0086 P2: the package door reads any pending draft first. This fixture
+    // models the published baseline only (no pending draft) → null.
+    getDraft: async () => null,
     list: async (type: string, opts?: { packageId?: string }) => {
       if (type === 'object') {
         // The server scopes to the package — the panel must not see anything
@@ -52,8 +56,9 @@ function makeClient(server: Server) {
       }
       return [];
     },
-    save: async (_type: string, _name: string, payload: Record<string, unknown>) => {
+    save: async (_type: string, _name: string, payload: Record<string, unknown>, opts?: Record<string, unknown>) => {
       server.saved.push(payload);
+      server.savedOpts.push(opts);
       server.set = payload; // becomes the new effective (reopen reads this)
       return payload;
     },
@@ -82,6 +87,7 @@ function freshServer(): Server {
   return {
     packageObjects: [{ name: 'a_account' }, { name: 'a_contact' }],
     saved: [],
+    savedOpts: [],
     set: {
       name: 'sales_perms',
       label: 'Sales',
@@ -138,6 +144,9 @@ describe('PermissionMatrixEditPage — package scope + slice merge (ADR-0086 P0)
     expect(saved.objects.a_contact).toEqual({ allowRead: true });
     // Set-level identity/extras carried through from the fresh base.
     expect(saved.systemPermissions).toEqual(['api_enabled']);
+    // ADR-0086 P2 (D6): the package door writes a DRAFT stamped with the
+    // package — not a live record — so the package Publish promotes it.
+    expect(server.savedOpts[0]).toMatchObject({ mode: 'draft', packageId: 'app.a' });
 
     view.unmount();
 

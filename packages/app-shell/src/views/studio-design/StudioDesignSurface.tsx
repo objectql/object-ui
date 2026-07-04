@@ -591,7 +591,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
           ) : tab === 'automations' ? (
             <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : tab === 'access' ? (
-            <AccessPillar packageId={packageId} />
+            <AccessPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : (
             <InterfacesPillar
               packageId={packageId}
@@ -2342,7 +2342,15 @@ function AutomationsPillar({
  * writes the ACTIVE item directly (no draft/publish flow), so the shell's
  * 变更/发布 does not apply here.
  */
-function AccessPillar({ packageId }: { packageId: string }): React.ReactElement {
+function AccessPillar({
+  packageId,
+  publishNonce,
+  onDraftSaved,
+}: {
+  packageId: string;
+  publishNonce?: number;
+  onDraftSaved?: () => void;
+}): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
   const [perms, setPerms] = React.useState<
@@ -2361,21 +2369,38 @@ function AccessPillar({ packageId }: { packageId: string }): React.ReactElement 
 
   const load = React.useCallback(async () => {
     try {
-      const list = (await client.list('permission')) as Array<Record<string, unknown>>;
-      const items = (list || [])
-        .map((p) => ({
-          name: String(p.name ?? (p as Record<string, unknown>).id ?? ''),
+      // ADR-0086 P2 (D6): a package permission set is draft/published metadata,
+      // so the rail shows published ∪ pending-draft sets — a set created (or
+      // renamed) as a draft but not yet published must still appear here, just
+      // like the Data/Interfaces pillars merge their drafts.
+      const [list, drafts] = await Promise.all([
+        client.list('permission') as Promise<Array<Record<string, unknown>>>,
+        client.listDrafts({ packageId, type: 'permission' }).catch(() => []),
+      ]);
+      const byName = new Map<string, { name: string; label: string; isProfile?: boolean; packageId?: string | null }>();
+      for (const p of list || []) {
+        const name = String(p.name ?? (p as Record<string, unknown>).id ?? '');
+        if (!name) continue;
+        byName.set(name, {
+          name,
           label: String(p.label ?? p.name ?? ''),
           isProfile: !!(p as Record<string, unknown>).isProfile,
           // Record-level provenance (framework ADR-0086 P1); snake_case is the
           // framework field, camelCase tolerated for either serialization.
           packageId: ((p as Record<string, unknown>).package_id ??
             (p as Record<string, unknown>).packageId) as string | undefined,
-        }))
-        .filter((p) => p.name);
+        });
+      }
+      // Draft-only sets (no published row yet) are stamped with this package,
+      // so add them without needing scope-list's mid-migration guard.
+      for (const d of (drafts as Array<{ name?: string; packageId?: string | null }>) || []) {
+        const name = String(d?.name ?? '');
+        if (!name || byName.has(name)) continue;
+        byName.set(name, { name, label: name, packageId: d?.packageId ?? packageId });
+      }
       // Hide environment-owned platform-default sets (no package_id) from this
       // package's panel — see scopePermissionSetList for the mid-migration guard.
-      const scoped = scopePermissionSetList(items, packageId);
+      const scoped = scopePermissionSetList([...byName.values()], packageId);
       setPerms(scoped);
       setCurrent((c) => c ?? scoped[0]?.name ?? null);
     } catch (e) {
@@ -2387,7 +2412,9 @@ function AccessPillar({ packageId }: { packageId: string }): React.ReactElement 
 
   React.useEffect(() => {
     void load();
-  }, [load]);
+    // Re-read after a package publish so drafts that went live collapse into
+    // the published rail (ADR-0086 P2).
+  }, [load, publishNonce]);
 
   const doCreate = React.useCallback(async () => {
     const label = newLabel.trim();
@@ -2395,12 +2422,15 @@ function AccessPillar({ packageId }: { packageId: string }): React.ReactElement 
     if (!label || !name || name === 'field') return;
     setBusy(true);
     try {
-      await client.save('permission', name, { name, label, objects: {}, fields: {} });
+      // Package door → create as a DRAFT stamped with this package (D6/D7),
+      // published atomically with the rest of the package.
+      await client.save('permission', name, { name, label, objects: {}, fields: {} }, { mode: 'draft', packageId });
       toast.success(tFormat('engine.studio.access.created', locale, { label }));
       setCreating(false);
       setNewLabel('');
       setNewName('');
       setNameTouched(false);
+      onDraftSaved?.();
       await load();
       setCurrent(name);
     } catch (e) {
@@ -2408,7 +2438,7 @@ function AccessPillar({ packageId }: { packageId: string }): React.ReactElement 
     } finally {
       setBusy(false);
     }
-  }, [client, newLabel, newName, load]);
+  }, [client, newLabel, newName, load, packageId, onDraftSaved, locale]);
 
   const filtered = perms.filter(
     (p) =>
@@ -2540,6 +2570,8 @@ function AccessPillar({ packageId }: { packageId: string }): React.ReactElement 
               type="permission"
               name={current}
               packageId={packageId}
+              publishNonce={publishNonce}
+              onDraftSaved={onDraftSaved}
             />
           ) : (
             <div className="py-16 text-center text-sm text-muted-foreground">

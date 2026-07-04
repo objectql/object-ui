@@ -111,13 +111,23 @@ export interface PermissionMatrixEditPageProps {
    * the matrix operates at environment scope (all objects, whole-record save).
    */
   packageId?: string;
+  /**
+   * ADR-0086 P2 (D6/D7 — the package door). When editing under a `packageId`,
+   * a permission set is package **metadata**: Save writes a **draft** (not a
+   * live record), published atomically with the rest of the package. `onDraftSaved`
+   * notifies the surface so its pending-changes counter refreshes; `publishNonce`
+   * bumps on publish so the editor re-reads the now-published baseline (its draft
+   * is gone). Both are no-ops at environment scope, where Save stays live (D7).
+   */
+  onDraftSaved?: () => void;
+  publishNonce?: number;
 }
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Component                                                          */
 /* ────────────────────────────────────────────────────────────────── */
 
-export function PermissionMatrixEditPage({ type, name, packageId }: PermissionMatrixEditPageProps) {
+export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce }: PermissionMatrixEditPageProps) {
   const navigate = useNavigate();
   const client = useMetadataClient();
   const { entries } = useMetadataTypes(client);
@@ -151,14 +161,25 @@ export function PermissionMatrixEditPage({ type, name, packageId }: PermissionMa
     setLoading(true);
     (async () => {
       try {
-        const [lay, objList] = await Promise.all([
+        const [lay, objList, pendingDraft] = await Promise.all([
           client.layered<PermissionSetDraft>(type, name).catch(() => null),
           // In package scope, list only the objects this package declares
           // (ADR-0086 P0) — otherwise the whole environment leaks into the panel.
           client.list<any>('object', packageId ? { packageId } : {}).catch(() => []),
+          // ADR-0086 P2 (D6): under the package door a set is draft/published
+          // metadata, so surface the PENDING draft if one exists — otherwise a
+          // just-saved-not-yet-published edit would appear lost on reopen. Draft
+          // reads return the `{ type, name, item }` envelope; `null` = no draft.
+          packageId
+            ? client.getDraft<{ item?: PermissionSetDraft } | PermissionSetDraft>(type, name, { packageId }).catch(() => null)
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
-        const effective: PermissionSetDraft = (lay?.effective ??
+        const draftBody = pendingDraft
+          ? (((pendingDraft as any).item ?? pendingDraft) as PermissionSetDraft)
+          : null;
+        // Draft wins over the published baseline for display (D6).
+        const effective: PermissionSetDraft = (draftBody ?? lay?.effective ??
           lay?.code ?? { name, objects: {} }) as PermissionSetDraft;
         const list: ObjectSummary[] = ((objList as any[]) ?? [])
           .map((row) => {
@@ -192,7 +213,7 @@ export function PermissionMatrixEditPage({ type, name, packageId }: PermissionMa
     return () => {
       cancelled = true;
     };
-  }, [client, type, name, packageId]);
+  }, [client, type, name, packageId, publishNonce]);
 
   /* ── Lazy-load fields when an object is expanded ─────────── */
   async function ensureFields(objectName: string) {
@@ -304,11 +325,23 @@ export function PermissionMatrixEditPage({ type, name, packageId }: PermissionMa
         const base = (fresh?.effective ?? payload) as PermissionSetDraft;
         toSave = mergePermissionSlice(base, payload, scope);
       }
+      // ADR-0086 P2 (D6/D7). Package door → the set is metadata: write a DRAFT
+      // (stamped with `packageId`) that the package's atomic Publish promotes,
+      // exactly like the Data/Interfaces pillars — NOT a live record write.
+      // Environment door (no packageId) stays live (config).
       await client.save<PermissionSetDraft>(type, payload.name, toSave, {
         force,
+        ...(packageId ? { mode: 'draft' as const, packageId } : {}),
       });
-      const lay = await client.layered<PermissionSetDraft>(type, payload.name);
-      setDraft(toDisplayDraft((lay.effective ?? toSave) as PermissionSetDraft));
+      if (packageId) {
+        // The draft is now the pending truth for display; the published baseline
+        // hasn't moved. Show what we just staged and let the surface count it.
+        setDraft(toDisplayDraft(toSave));
+        onDraftSaved?.();
+      } else {
+        const lay = await client.layered<PermissionSetDraft>(type, payload.name);
+        setDraft(toDisplayDraft((lay.effective ?? toSave) as PermissionSetDraft));
+      }
       setDestructive(null);
     } catch (err: any) {
       if (err?.status === 409 && err?.code === 'destructive_change') {
