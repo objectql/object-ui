@@ -51,6 +51,7 @@ import {
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
+import { scopePermissionSetList } from '../metadata-admin/permission-slice';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
@@ -2331,17 +2332,22 @@ function AutomationsPillar({
  * main: the Salesforce-style PermissionMatrixEditPage (objects × CRUD/VAMA +
  * field-level R/W).
  *
- * Scope note (ADR-0086 P0): permission SETS are platform-level authorization
- * objects (the left rail lists all of them), but the object MATRIX is scoped to
- * the current package — it lists only the objects this package declares, and
- * its Save merges just that slice back, leaving other packages' contributed
- * rows untouched. The matrix still writes the ACTIVE item directly (no draft,
- * no draft/publish flow), so the shell's 变更/发布 does not apply here.
+ * Scope note (ADR-0086 P0/P1): the pillar is scoped to the current package.
+ * The left rail lists only permission sets this package owns — environment-owned
+ * platform defaults (`admin_full_access`, `member_default`, …) are hidden once
+ * the backend tags sets with a record-level `package_id` (P1); see
+ * `scopePermissionSetList` for the mid-migration guard. The object MATRIX lists
+ * only the objects this package declares, and its Save merges just that slice
+ * back, leaving other packages' contributed rows untouched. The matrix still
+ * writes the ACTIVE item directly (no draft/publish flow), so the shell's
+ * 变更/发布 does not apply here.
  */
 function AccessPillar({ packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
-  const [perms, setPerms] = React.useState<Array<{ name: string; label: string; isProfile?: boolean }>>([]);
+  const [perms, setPerms] = React.useState<
+    Array<{ name: string; label: string; isProfile?: boolean; packageId?: string | null }>
+  >([]);
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [current, setCurrent] = React.useState<string | null>(null);
@@ -2361,16 +2367,23 @@ function AccessPillar({ packageId }: { packageId: string }): React.ReactElement 
           name: String(p.name ?? (p as Record<string, unknown>).id ?? ''),
           label: String(p.label ?? p.name ?? ''),
           isProfile: !!(p as Record<string, unknown>).isProfile,
+          // Record-level provenance (framework ADR-0086 P1); snake_case is the
+          // framework field, camelCase tolerated for either serialization.
+          packageId: ((p as Record<string, unknown>).package_id ??
+            (p as Record<string, unknown>).packageId) as string | undefined,
         }))
         .filter((p) => p.name);
-      setPerms(items);
-      setCurrent((c) => c ?? items[0]?.name ?? null);
+      // Hide environment-owned platform-default sets (no package_id) from this
+      // package's panel — see scopePermissionSetList for the mid-migration guard.
+      const scoped = scopePermissionSetList(items, packageId);
+      setPerms(scoped);
+      setCurrent((c) => c ?? scoped[0]?.name ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoaded(true);
     }
-  }, [client]);
+  }, [client, packageId]);
 
   React.useEffect(() => {
     void load();

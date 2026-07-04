@@ -175,11 +175,15 @@ accumulate authorization rows contributed by many packages, so the matrix:
 - saves via **slice-merge** — it re-reads the record and writes back just this
   package's slice, leaving rows contributed by other packages untouched.
 
-Permission *sets* stay platform-level (the left rail lists them all); only the
-object matrix and its Save are package-scoped. Rendering `PermissionMatrixEditPage`
-without a `packageId` keeps the environment-wide behavior (full object list,
-whole-record save). The scope/merge helpers (`scopePermissionSet`,
-`mergePermissionSlice`) live in `metadata-admin/permission-slice.ts`.
+The left rail lists only permission sets this package owns — environment-owned
+platform defaults (`admin_full_access`, `member_default`, …) are hidden once the
+backend tags sets with a record-level `package_id` (framework ADR-0086 P1). A
+mid-migration guard keeps the rail populated until that provenance axis is live
+(if no set carries a `package_id` yet, all are shown). Rendering
+`PermissionMatrixEditPage` without a `packageId` keeps the environment-wide
+behavior (full object list, whole-record save). The scope/merge helpers
+(`scopePermissionSet`, `mergePermissionSlice`, `scopePermissionSetList`) live in
+`metadata-admin/permission-slice.ts`.
 
 ### Visual flow canvas
 

@@ -17,7 +17,9 @@ Opened inside a package, the matrix now:
   package's slice, leaving every row contributed by other packages
   byte-for-byte intact.
 
-Permission *sets* remain platform-level (the left rail still lists them all);
-only the object matrix and its Save are package-scoped. Behavior is unchanged
-when the editor is used outside a package (no `packageId`): full object list,
-whole-record save.
+The Access rail also hides environment-owned platform-default sets
+(`admin_full_access`, `member_default`, …) from a package's panel once the
+backend tags sets with a record-level `package_id` (framework ADR-0086 P1), with
+a mid-migration guard that shows all sets until that provenance axis is live so
+the rail never goes empty. Behavior is unchanged when the editor is used outside
+a package (no `packageId`): full object list, whole-record save.
