@@ -26,7 +26,7 @@ import {
   cn,
   useIsMobile,
 } from '@object-ui/components';
-import { SchemaRenderer } from '@object-ui/react';
+import { SchemaRenderer, type RelatedRowActionDef } from '@object-ui/react';
 import {
   Plus,
   ExternalLink,
@@ -79,6 +79,13 @@ export interface RelatedListProps {
   };
   /** Callback when a row is clicked (opens record detail) */
   onRowClick?: (row: any) => void;
+  /**
+   * Child-object row actions (`locations: ['list_item']`), already localized
+   * by the host. Rendered in each row's overflow menu alongside Edit/Delete.
+   */
+  rowActions?: RelatedRowActionDef[];
+  /** Execute one of {@link rowActions} against the clicked row. */
+  onRowAction?: (action: RelatedRowActionDef, row: any) => void | Promise<void>;
   /** Maximum number of columns to auto-generate. Default 6. */
   maxColumns?: number;
   /** Page size for pagination (enables pagination when set) */
@@ -139,6 +146,8 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   onRowEdit,
   onRowDelete,
   onRowClick,
+  rowActions,
+  onRowAction,
   add,
   maxColumns = 6,
   pageSize,
@@ -249,6 +258,21 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       }
     }
   }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce]);
+
+  // Refetch when a mutation elsewhere signals this related object changed —
+  // e.g. a child row action executed through the host retargets `api` and
+  // dispatches `objectui:related-changed`. Only meaningful on the auto-fetch
+  // path (parent-provided data is refreshed by the parent).
+  React.useEffect(() => {
+    if (!api || dataProvided) return;
+    const onChanged = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail || {};
+      if (detail.objectName && detail.objectName !== api) return;
+      setRefreshNonce((n) => n + 1);
+    };
+    window.addEventListener('objectui:related-changed', onChanged as EventListener);
+    return () => window.removeEventListener('objectui:related-changed', onChanged as EventListener);
+  }, [api, dataProvided]);
 
   // Resolve lookup-field display labels by batch-fetching referenced records.
   // For each lookup/master_detail column whose data is a primitive ID, gather
@@ -594,7 +618,8 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     return pruned.slice(0, Math.max(1, maxColumns));
   }, [columns, objectSchema, objectName, api, resolveFieldLabel, referenceField, relatedData, maxColumns, lookupLabels, perms]);
 
-  const hasRowActions = !!onRowEdit || !!onRowDelete;
+  const hasCustomRowActions = Array.isArray(rowActions) && rowActions.length > 0;
+  const hasRowActions = !!onRowEdit || !!onRowDelete || hasCustomRowActions;
   const isMobile = useIsMobile();
 
   const viewSchema = React.useMemo(() => {
@@ -641,6 +666,10 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           onRowEdit,
           onRowDelete: onRowDelete ? handleDeleteRow : undefined,
           onRowClick,
+          // Child-object row actions (locations:['list_item']) rendered in the
+          // same overflow menu, dispatched with the clicked row as target.
+          rowActionDefs: hasCustomRowActions ? rowActions : undefined,
+          onRowActionDef: hasCustomRowActions ? onRowAction : undefined,
         };
       case 'list':
         return {
@@ -650,7 +679,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       default:
         return { type: 'div', children: 'No view configured' };
     }
-  }, [type, paginatedData, effectiveColumns, schema, effectivePageSize, hasRowActions, onRowEdit, onRowDelete, handleDeleteRow, onRowClick, isMobile, api]);
+  }, [type, paginatedData, effectiveColumns, schema, effectivePageSize, hasRowActions, hasCustomRowActions, rowActions, onRowAction, onRowEdit, onRowDelete, handleDeleteRow, onRowClick, isMobile, api]);
 
   const headerClassName = collapsible ? 'cursor-pointer select-none' : undefined;
   const handleHeaderClick = collapsible ? () => setCollapsed((c) => !c) : undefined;

@@ -12,7 +12,7 @@
  */
 
 import React from 'react';
-import { useRecordContext, useSafeFieldLabel } from '@object-ui/react';
+import { useRecordContext, useSafeFieldLabel, useRelatedRecordActions } from '@object-ui/react';
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { humanizeLabel } from '@object-ui/fields';
 import type { RecordRelatedListComponentProps } from '@object-ui/types';
@@ -24,6 +24,9 @@ const colName = (entry: any): string | null => {
   if (entry && typeof entry === 'object') return entry.field || entry.name || entry.key || null;
   return null;
 };
+
+/** Extract a record's primary key, tolerating the `id` / `_id` split. */
+const rowId = (row: any): string | number | null => row?.id ?? row?._id ?? null;
 
 const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
@@ -72,6 +75,23 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
   const perms = usePermissions();
   const { readableFields } = useFieldPermissions(objectName);
 
+  // Host-provided CRUD + action handlers for this child object. Absent when no
+  // host wired the provider (Studio designer, standalone embed) — the related
+  // list then stays read-only. The host decides, per child object, which of
+  // create / edit / delete / view it exposes (lifecycle affordances + FLS), so
+  // we simply wire whatever comes back. `resolve` is passed the relationship so
+  // a newly-created child is pre-linked to the current parent.
+  const relatedActions = useRelatedRecordActions();
+  const handlers = React.useMemo(
+    () =>
+      relatedActions?.resolve({
+        objectName,
+        relationshipField: schema.relationshipField,
+        parentId: (ctx?.recordId ?? null) as string | number | null,
+      }) ?? null,
+    [relatedActions, objectName, schema.relationshipField, ctx?.recordId],
+  );
+
   const required: string[] = Array.isArray((schema as any).requiredPermissions)
     ? (schema as any).requiredPermissions
     : [];
@@ -118,17 +138,46 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
         pageSize={schema.limit}
         dataSource={ctx?.dataSource as any}
         add={(schema as any).add}
-        onRowDelete={
-          // Generic remove for link/junction rows: delete the related row itself.
-          // RelatedList refreshes after this resolves. Only wired when an `add`
-          // config is present (i.e. this is a managed assignment list), so plain
-          // read-only related lists keep their existing behavior.
-          (schema as any).add && ctx?.dataSource
-            ? async (row: any) => {
-                const id = row?.id ?? row?._id;
-                if (id != null) await (ctx!.dataSource as any).delete?.(objectName, String(id));
+        rowActions={handlers?.rowActions}
+        onRowAction={handlers?.onRowAction}
+        // Create a new child, pre-linked to this parent (增). Host omits when
+        // create is denied by lifecycle/permissions, hiding the "New" button.
+        onNew={handlers?.onCreate}
+        // Open the child record's detail page on row click (查看记录详情).
+        onRowClick={
+          handlers?.onView
+            ? (row: any) => {
+                const id = rowId(row);
+                if (id != null) handlers.onView!(id, row);
               }
             : undefined
+        }
+        // Open the child record's edit form (改).
+        onRowEdit={
+          handlers?.onEdit
+            ? (row: any) => {
+                const id = rowId(row);
+                if (id != null) handlers.onEdit!(id, row);
+              }
+            : undefined
+        }
+        onRowDelete={
+          // Delete the child record (删). Prefer the host handler (gated by
+          // lifecycle affordance + permissions); fall back to the generic
+          // link/junction remove when an `add` config is present so managed
+          // assignment lists keep working without a host provider. RelatedList
+          // shows the confirm dialog and refreshes after this resolves.
+          handlers?.onDelete
+            ? (row: any) => {
+                const id = rowId(row);
+                if (id != null) return handlers.onDelete!(id, row);
+              }
+            : (schema as any).add && ctx?.dataSource
+              ? async (row: any) => {
+                  const id = row?.id ?? row?._id;
+                  if (id != null) await (ctx!.dataSource as any).delete?.(objectName, String(id));
+                }
+              : undefined
         }
       />
     </div>

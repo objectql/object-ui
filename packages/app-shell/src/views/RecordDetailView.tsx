@@ -26,6 +26,7 @@ import { ActionConfirmDialog, type ConfirmDialogState } from './ActionConfirmDia
 import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
 import { FlowRunner, type ScreenFlowState } from './FlowRunner';
+import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { DetailViewSchema, FeedItem, HighlightField } from '@object-ui/types';
@@ -402,28 +403,37 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         case 'opportunity_mark_lost':
           await dataSource.update(objectName!, pureRecordId!, { stage: 'closed_lost', loss_reason: params.loss_reason });
           break;
-        default:
-          // Generic: update record with collected params
-          if (Object.keys(params).length > 0) {
+        default: {
+          // Generic: update record with collected params. Related-list row
+          // actions retarget a CHILD record via explicit `objectName`/`recordId`;
+          // otherwise the update falls back to this page's record.
+          const targetObject = action.objectName ?? objectName;
+          const targetId = (action as any).recordId ?? pureRecordId;
+          const isThisRecord =
+            targetObject === objectName && String(targetId) === String(pureRecordId);
+          if (Object.keys(params).length > 0 && targetObject && targetId != null) {
             // Undoable single-record update: capture the changed fields' prior
             // values from the loaded record so the success toast can offer Undo.
-            if (action.undoable && pageRecord && objectName && pureRecordId) {
+            // Only this page's record has its prior values loaded, so child-row
+            // updates skip undo capture.
+            if (action.undoable && isThisRecord && pageRecord) {
               const undoData: Record<string, unknown> = {};
               for (const k of Object.keys(params)) undoData[k] = (pageRecord as any)[k] ?? null;
               undo = {
-                id: `undo-${objectName}-${pureRecordId}-${Date.now()}`,
+                id: `undo-${targetObject}-${targetId}-${Date.now()}`,
                 type: 'update',
-                objectName,
-                recordId: String(pureRecordId),
+                objectName: targetObject,
+                recordId: String(targetId),
                 timestamp: Date.now(),
-                description: action.label || `Undo ${objectName}`,
+                description: action.label || `Undo ${targetObject}`,
                 undoData,
                 redoData: { ...params },
               };
             }
-            await dataSource.update(objectName!, pureRecordId!, params);
+            await dataSource.update(targetObject, String(targetId), params);
           }
           break;
+        }
       }
 
       const shouldRefresh = action.refreshAfter === true;
@@ -465,8 +475,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            recordId: pureRecordId,
-            objectName,
+            // Related-list row actions retarget the flow at a CHILD record via
+            // an explicit `recordId` / `objectName`; fall back to this page's
+            // record when the action carries none (header/more actions).
+            recordId: (action as any).recordId ?? pureRecordId,
+            objectName: action.objectName ?? objectName,
             params: action.params ?? {},
           }),
         },
@@ -588,7 +601,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recordId: pureRecordId, params }),
+          // Related-list row actions retarget a CHILD record via explicit
+          // `recordId`; header/more actions carry none and use this page's id.
+          body: JSON.stringify({ recordId: (action as any).recordId ?? pureRecordId, params }),
         },
       );
       const json = await res.json().catch(() => null);
@@ -1801,7 +1816,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                     <span>{originFrom.label}</span>
                   </Link>
                 )}
-                <SchemaRenderer schema={renderedPage as any} />
+                <RelatedRecordActionsBridge
+                  appName={appName}
+                  objects={objects}
+                  dataSource={dataSource}
+                  actionLabel={actionLabel}
+                >
+                  <SchemaRenderer schema={renderedPage as any} />
+                </RelatedRecordActionsBridge>
                 {/* Auto-append RecordChatterPanel only when the page
                     schema doesn't already place a `record:discussion` /
                     `record:chatter` component. Hard opt-out via

@@ -298,6 +298,28 @@ export interface TableSchema extends BaseSchema {
 }
 
 /**
+ * A single extra per-row action rendered in the data-table's row overflow
+ * menu (after Edit/Delete). Used to surface an object's own row actions in
+ * embedded tables — e.g. a detail page's related list showing the child
+ * object's `list_item` actions. The host pre-localizes `label`/`confirmText`
+ * and executes the action via {@link DataTableSchema.onRowActionDef}.
+ */
+export interface DataTableRowAction {
+  /** Stable action name. */
+  name: string;
+  /** Display label (already localized). */
+  label?: string;
+  /** Lucide icon name (kebab-case). */
+  icon?: string;
+  /** `'danger'` renders the item in the destructive color. */
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'link';
+  /** Confirmation prompt shown before the action runs. */
+  confirmText?: string;
+  /** Remaining action metadata is preserved for the host executor. */
+  [k: string]: unknown;
+}
+
+/**
  * Enterprise data table with advanced features
  */
 export interface DataTableSchema extends BaseSchema {
@@ -439,6 +461,18 @@ export interface DataTableSchema extends BaseSchema {
    * Row delete handler
    */
   onRowDelete?: (row: any) => void;
+  /**
+   * Extra per-row action definitions rendered in the row overflow menu, after
+   * Edit/Delete. Each is dispatched via {@link onRowActionDef} with the clicked
+   * row. Surfaces an object's own row actions in embedded tables (e.g. a detail
+   * page's related list). Requires {@link rowActions} to be enabled.
+   */
+  rowActionDefs?: DataTableRowAction[];
+  /**
+   * Handler invoked when one of {@link rowActionDefs} is chosen from the row
+   * overflow menu.
+   */
+  onRowActionDef?: (action: DataTableRowAction, row: any) => void | Promise<void>;
   /**
    * Selection change handler
    */

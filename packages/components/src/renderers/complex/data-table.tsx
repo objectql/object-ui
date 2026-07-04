@@ -9,6 +9,7 @@
 // Enterprise-level DataTable Component (Airtable-like)
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { cn } from '../../lib/utils';
+import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry } from '@object-ui/core';
 import type { DataTableSchema } from '@object-ui/types';
@@ -1500,7 +1501,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                 </Button>
                               </>
                             ) : (
-                              (schema.onRowEdit || schema.onRowDelete) && (
+                              (() => {
+                                const customActions =
+                                  Array.isArray(schema.rowActionDefs) && schema.onRowActionDef
+                                    ? schema.rowActionDefs
+                                    : [];
+                                if (!schema.onRowEdit && !schema.onRowDelete && customActions.length === 0) {
+                                  return null;
+                                }
+                                return (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button
@@ -1520,7 +1529,26 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                         {t('table.edit')}
                                       </DropdownMenuItem>
                                     )}
-                                    {schema.onRowEdit && schema.onRowDelete && <DropdownMenuSeparator />}
+                                    {/* Child-object custom actions (e.g. a related
+                                        list surfacing the child's `list_item`
+                                        actions). Dispatched with the clicked row. */}
+                                    {customActions.length > 0 && schema.onRowEdit && <DropdownMenuSeparator />}
+                                    {customActions.map((action) => {
+                                      const ActionIcon = resolveIcon(action.icon);
+                                      return (
+                                        <DropdownMenuItem
+                                          key={action.name}
+                                          onClick={() => { void schema.onRowActionDef?.(action, row); }}
+                                          className={cn(
+                                            action.variant === 'danger' && 'text-destructive focus:text-destructive',
+                                          )}
+                                        >
+                                          {ActionIcon && <ActionIcon className="mr-2 h-4 w-4" />}
+                                          {action.label || action.name}
+                                        </DropdownMenuItem>
+                                      );
+                                    })}
+                                    {schema.onRowDelete && (schema.onRowEdit || customActions.length > 0) && <DropdownMenuSeparator />}
                                     {schema.onRowDelete && (
                                       <DropdownMenuItem
                                         onClick={() => schema.onRowDelete?.(row)}
@@ -1532,7 +1560,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                     )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>
-                              )
+                                );
+                              })()
                             )}
                           </div>
                         </TableCell>
