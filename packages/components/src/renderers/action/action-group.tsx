@@ -142,6 +142,8 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
           successMessage: action.successMessage,
           errorMessage: action.errorMessage,
           refreshAfter: action.refreshAfter,
+          // Placement declaration — see action-button.tsx (#2210).
+          locations: action.locations,
           toast: action.toast,
         });
       },

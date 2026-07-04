@@ -50,6 +50,22 @@ import { resolvePageVarTokens } from '../utils/resolvePageVarTokens';
 
 const FALLBACK_USER = { id: 'current-user', name: 'Demo User', isPlatformAdmin: false };
 
+/**
+ * An action that also mounts on list rows (`list_item`) or record pages is
+ * designed to run against a single record. When such an action is launched
+ * from the list toolbar with nothing selected, there is no record context to
+ * resolve — block up front instead of triggering a run that fails at its
+ * first record-bound step (#2210: "Update requires an ID"). Actions declaring
+ * only object-level locations (e.g. `['list_toolbar']`) are left alone: they
+ * legitimately run without a record.
+ */
+function isRecordScoped(action: ActionDef): boolean {
+  const locations = (action as { locations?: unknown }).locations;
+  if (!Array.isArray(locations)) return false;
+  return locations.some((l) =>
+    l === 'list_item' || l === 'record_header' || l === 'record_more' || l === 'record_section');
+}
+
 export interface ConsoleActionRuntimeOptions {
   /** Adapter for generic CRUD / execute calls. */
   dataSource: any;
@@ -369,12 +385,18 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       // context as `selectedRecords`. Flows take a single `recordId` input
       // variable, so a multi-row selection is ambiguous: block with a message
       // instead of triggering a run that fails at its first record-bound node.
+      // Zero selection is blocked too when the action is record-scoped (it
+      // also mounts on list rows) — otherwise the wizard opens, collects
+      // input, and dies at its first record-bound node ("Update requires an
+      // ID"). Pure object-level toolbar flows keep triggering with no record.
       if (recordId == null) {
         const selected = Array.isArray(context?.selectedRecords) ? context!.selectedRecords : [];
         if (selected.length === 1) {
           recordId = selected[0]?.id;
         } else if (selected.length > 1) {
           return { success: false, error: 'This flow runs on a single record — select exactly one row.' };
+        } else if (isRecordScoped(action)) {
+          return { success: false, error: 'This flow runs on a single record — select a row first.' };
         }
       }
       if (recordId != null && params.recordId == null) params.recordId = recordId;
@@ -430,7 +452,8 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
     // Same list_toolbar fallback as flowHandler: no `_rowRecord` means the
     // action came from the toolbar — resolve the recordId from the grid's
     // checkbox selection (published as `selectedRecords`). Multi-select is
-    // ambiguous for a single-record action, so block with a message.
+    // ambiguous for a single-record action, so block with a message; so is
+    // zero selection when the action is record-scoped (see isRecordScoped).
     if (resolvedRecordId == null) {
       const selected = Array.isArray(context?.selectedRecords) ? context!.selectedRecords : [];
       if (selected.length === 1) {
@@ -438,6 +461,8 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       } else if (selected.length > 1) {
         // The runner's post-execution hook surfaces `error` as a toast.
         return { success: false, error: 'This action runs on a single record — select exactly one row.' };
+      } else if (isRecordScoped(action)) {
+        return { success: false, error: 'This action runs on a single record — select a row first.' };
       }
     }
 

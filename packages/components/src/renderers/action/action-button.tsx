@@ -106,6 +106,10 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
           // handler never builds the undo operation.
           undoable: (schema as any).undoable,
           recordIdField: (schema as any).recordIdField,
+          // Forward the placement declaration — the console runtime uses it to
+          // tell record-scoped actions (also mounted on rows) from pure
+          // object-level toolbar actions when no row is selected (#2210).
+          locations: (schema as any).locations,
           toast: schema.toast,
           // One-shot reveal dialog for actions whose response is shown
           // exactly once (2FA setup, OAuth client_secret, regenerated

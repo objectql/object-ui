@@ -136,6 +136,8 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
             successMessage: action.successMessage,
             errorMessage: action.errorMessage,
             refreshAfter: action.refreshAfter,
+            // Placement declaration — see action-button.tsx (#2210).
+            locations: action.locations,
             toast: action.toast,
             // See action-button.tsx — overflow-menu actions need the
             // resultDialog spec forwarded too or the one-shot reveal is lost.

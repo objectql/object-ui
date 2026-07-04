@@ -66,6 +66,8 @@ const ActionIconRenderer = forwardRef<HTMLButtonElement, ActionIconProps>(
           successMessage: schema.successMessage,
           errorMessage: schema.errorMessage,
           refreshAfter: schema.refreshAfter,
+          // Placement declaration — see action-button.tsx (#2210).
+          locations: (schema as any).locations,
           toast: schema.toast,
           ...localContext,
         });

@@ -265,6 +265,50 @@ describe('flowHandler — list_toolbar selection fallback', () => {
     expect(authFetchSpy).not.toHaveBeenCalled();
   });
 
+  it('blocks a record-scoped flow (locations include list_item) launched with zero rows selected (#2210)', async () => {
+    // BulkReassignAction shape: mounts on rows AND the toolbar. From the
+    // toolbar with nothing selected there is no record to run on — pre-fix
+    // the wizard opened anyway and died at the first record-bound node
+    // ("Update requires an ID or options.multi=true").
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.flowHandler(
+        {
+          type: 'flow', name: 'showcase_bulk_reassign', target: 'showcase_reassign_wizard',
+          locations: ['list_item', 'list_toolbar'],
+        } as any,
+        { selectedRecords: [] } as any,
+      );
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/select a row/i);
+    expect(authFetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('still triggers an object-level toolbar flow (no record locations) with zero rows selected', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'inv' }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.flowHandler(
+        { type: 'flow', name: 'monthly_close', target: 'monthly_close', locations: ['list_toolbar'] } as any,
+        { selectedRecords: [] } as any,
+      );
+    });
+
+    expect(res).toMatchObject({ success: true });
+    const body = JSON.parse(authFetchSpy.mock.calls[0][1].body);
+    expect(body.recordId ?? null).toBeNull();
+  });
+
   it('an explicit _rowRecord (list_item invocation) still wins over the selection', async () => {
     authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
     const { result } = renderHook(() =>
@@ -368,6 +412,42 @@ describe('serverActionHandler — list_toolbar selection fallback', () => {
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/single record/i);
     expect(authFetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('blocks a record-scoped script action launched with zero rows selected (#2210)', async () => {
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'inv' }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.serverActionHandler(
+        { type: 'script', name: 'archive', locations: ['list_item', 'list_toolbar'] } as any,
+        { selectedRecords: [] } as any,
+      );
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/select a row/i);
+    expect(authFetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('still calls an object-level toolbar script action with zero rows selected', async () => {
+    authFetchSpy.mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [], objectName: 'inv' }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.serverActionHandler(
+        { type: 'script', name: 'export_all', locations: ['list_toolbar'] } as any,
+        { selectedRecords: [] } as any,
+      );
+    });
+
+    expect(res).toMatchObject({ success: true });
+    expect(String(authFetchSpy.mock.calls[0][0])).toContain('/api/v1/actions/inv/export_all');
   });
 });
 
