@@ -51,7 +51,6 @@ import {
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
-import { scopePermissionSetList } from '../metadata-admin/permission-slice';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
@@ -2332,15 +2331,14 @@ function AutomationsPillar({
  * main: the Salesforce-style PermissionMatrixEditPage (objects × CRUD/VAMA +
  * field-level R/W).
  *
- * Scope note (ADR-0086 P0/P1): the pillar is scoped to the current package.
- * The left rail lists only permission sets this package owns — environment-owned
- * platform defaults (`admin_full_access`, `member_default`, …) are hidden once
- * the backend tags sets with a record-level `package_id` (P1); see
- * `scopePermissionSetList` for the mid-migration guard. The object MATRIX lists
- * only the objects this package declares, and its Save merges just that slice
- * back, leaving other packages' contributed rows untouched. The matrix still
- * writes the ACTIVE item directly (no draft/publish flow), so the shell's
- * 变更/发布 does not apply here.
+ * Scope note (ADR-0086 P0/P1/P2): the pillar is scoped to the current package.
+ * The left rail lists only permission sets this package owns — the metadata API
+ * filters `permission` by the record-level `package_id` provenance server-side
+ * (P1), so environment-owned platform defaults (`admin_full_access`,
+ * `member_default`, …) are excluded by the backend. The object MATRIX lists only
+ * the objects this package declares, and Save merges just that slice back,
+ * leaving other packages' contributed rows untouched (P0). Save writes a package
+ * DRAFT and publishes with the whole package via the top-bar Publish (P2, D6).
  */
 function AccessPillar({
   packageId,
@@ -2354,7 +2352,7 @@ function AccessPillar({
   const client = useMetadataClient();
   const locale = useMetadataLocale();
   const [perms, setPerms] = React.useState<
-    Array<{ name: string; label: string; isProfile?: boolean; packageId?: string | null }>
+    Array<{ name: string; label: string; isProfile?: boolean }>
   >([]);
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -2369,15 +2367,23 @@ function AccessPillar({
 
   const load = React.useCallback(async () => {
     try {
+      // Scope the rail to this package server-side (ADR-0086 P1): the metadata
+      // API filters `permission` by the record-level `package_id` provenance, so
+      // it returns only the sets this package owns — environment-owned platform
+      // defaults (`admin_full_access`, `member_default`, …) are excluded by the
+      // backend, not the client. (The `?package=` list rows don't echo the
+      // provenance columns, so a client-side filter can't do this.)
+      //
       // ADR-0086 P2 (D6): a package permission set is draft/published metadata,
       // so the rail shows published ∪ pending-draft sets — a set created (or
-      // renamed) as a draft but not yet published must still appear here, just
-      // like the Data/Interfaces pillars merge their drafts.
+      // renamed) as a draft but not yet published must still appear, just like
+      // the Data/Interfaces pillars merge their drafts. Draft headers are
+      // already package-scoped by `listDrafts({ packageId })`.
       const [list, drafts] = await Promise.all([
-        client.list('permission') as Promise<Array<Record<string, unknown>>>,
+        client.list('permission', { packageId }) as Promise<Array<Record<string, unknown>>>,
         client.listDrafts({ packageId, type: 'permission' }).catch(() => []),
       ]);
-      const byName = new Map<string, { name: string; label: string; isProfile?: boolean; packageId?: string | null }>();
+      const byName = new Map<string, { name: string; label: string; isProfile?: boolean }>();
       for (const p of list || []) {
         const name = String(p.name ?? (p as Record<string, unknown>).id ?? '');
         if (!name) continue;
@@ -2385,22 +2391,14 @@ function AccessPillar({
           name,
           label: String(p.label ?? p.name ?? ''),
           isProfile: !!(p as Record<string, unknown>).isProfile,
-          // Record-level provenance (framework ADR-0086 P1); snake_case is the
-          // framework field, camelCase tolerated for either serialization.
-          packageId: ((p as Record<string, unknown>).package_id ??
-            (p as Record<string, unknown>).packageId) as string | undefined,
         });
       }
-      // Draft-only sets (no published row yet) are stamped with this package,
-      // so add them without needing scope-list's mid-migration guard.
-      for (const d of (drafts as Array<{ name?: string; packageId?: string | null }>) || []) {
+      for (const d of (drafts as Array<{ name?: string }>) || []) {
         const name = String(d?.name ?? '');
         if (!name || byName.has(name)) continue;
-        byName.set(name, { name, label: name, packageId: d?.packageId ?? packageId });
+        byName.set(name, { name, label: name });
       }
-      // Hide environment-owned platform-default sets (no package_id) from this
-      // package's panel — see scopePermissionSetList for the mid-migration guard.
-      const scoped = scopePermissionSetList([...byName.values()], packageId);
+      const scoped = [...byName.values()];
       setPerms(scoped);
       setCurrent((c) => c ?? scoped[0]?.name ?? null);
     } catch (e) {

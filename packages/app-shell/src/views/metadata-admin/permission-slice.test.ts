@@ -13,7 +13,6 @@ import {
   fieldKeyObject,
   mergePermissionSlice,
   scopePermissionSet,
-  scopePermissionSetList,
   type PermissionSetDraft,
 } from './permission-slice';
 
@@ -43,34 +42,6 @@ describe('fieldKeyObject', () => {
   it('extracts the object name up to the first dot', () => {
     expect(fieldKeyObject('a_account.name')).toBe('a_account');
     expect(fieldKeyObject('lonely')).toBe('lonely');
-  });
-});
-
-describe('scopePermissionSetList — rail hides other packages / platform defaults', () => {
-  const rail = [
-    { name: 'showcase_contributor', label: 'Contributor', packageId: 'com.example.showcase' },
-    { name: 'admin_full_access', label: 'Admin', packageId: null }, // platform default
-    { name: 'member_default', label: 'Member' }, // platform default (no field)
-    { name: 'crm_sales', label: 'Sales', packageId: 'app.acme.crm' }, // other package
-  ];
-
-  it('keeps only this package once sets carry provenance (defaults hidden)', () => {
-    const scoped = scopePermissionSetList(rail, 'com.example.showcase');
-    expect(scoped.map((p) => p.name)).toEqual(['showcase_contributor']);
-  });
-
-  it('scopes to another package independently', () => {
-    expect(scopePermissionSetList(rail, 'app.acme.crm').map((p) => p.name)).toEqual([
-      'crm_sales',
-    ]);
-  });
-
-  it('mid-migration guard: shows everything when no set is tagged yet', () => {
-    const untagged = [
-      { name: 'a', label: 'A' },
-      { name: 'b', label: 'B', packageId: null },
-    ];
-    expect(scopePermissionSetList(untagged, 'com.example.showcase')).toBe(untagged);
   });
 });
 

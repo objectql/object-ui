@@ -175,14 +175,16 @@ accumulate authorization rows contributed by many packages, so the matrix:
 - saves via **slice-merge** — it re-reads the record and writes back just this
   package's slice, leaving rows contributed by other packages untouched.
 
-The left rail lists only permission sets this package owns — environment-owned
-platform defaults (`admin_full_access`, `member_default`, …) are hidden once the
-backend tags sets with a record-level `package_id` (framework ADR-0086 P1). A
-mid-migration guard keeps the rail populated until that provenance axis is live
-(if no set carries a `package_id` yet, all are shown). Rendering
+The left rail lists only permission sets this package owns — the metadata API
+filters `permission` by the record-level `package_id` provenance server-side
+(framework ADR-0086 P1), via `client.list('permission', { packageId })`, so
+environment-owned platform defaults (`admin_full_access`, `member_default`, …)
+are excluded by the backend. (The `?package=` list rows don't echo the
+provenance columns, so a client-side filter can't do this.) Save writes a
+package draft and publishes with the whole package (ADR-0086 P2). Rendering
 `PermissionMatrixEditPage` without a `packageId` keeps the environment-wide
 behavior (full object list, whole-record save). The scope/merge helpers
-(`scopePermissionSet`, `mergePermissionSlice`, `scopePermissionSetList`) live in
+(`scopePermissionSet`, `mergePermissionSlice`) live in
 `metadata-admin/permission-slice.ts`.
 
 ### Visual flow canvas

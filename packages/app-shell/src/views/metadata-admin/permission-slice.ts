@@ -61,29 +61,6 @@ function asScopeSet(scope: Iterable<string>): Set<string> {
 }
 
 /**
- * Narrow the Access pillar's permission-set rail to the sets a package owns.
- *
- * Permission sets carry a record-level `package_id` provenance axis (framework
- * ADR-0086 P1): sets a package declares are seeded owned by it, while
- * environment-owned platform defaults (`admin_full_access`, `member_default`,
- * …) have none. A package's Access panel must not list those platform defaults.
- *
- * Rollout guard: filter ONLY once the backend actually tags sets with a
- * `packageId` (i.e. at least one row carries one). Until then — a backend that
- * predates the P1 provenance seeding — no row is tagged and we show everything,
- * so the rail never collapses to empty mid-migration. Tighten (drop the guard)
- * once the provenance axis is guaranteed live.
- */
-export function scopePermissionSetList<T extends { packageId?: string | null }>(
-  items: T[],
-  packageId: string,
-): T[] {
-  const anyTagged = items.some((p) => p.packageId != null);
-  if (!anyTagged) return items;
-  return items.filter((p) => p.packageId === packageId);
-}
-
-/**
  * Narrow a permission set down to just the rows whose object is in `scope`.
  * Used to drive the matrix display so a package panel lists only its own
  * objects (and their field overrides), never the whole environment.
