@@ -42,6 +42,15 @@ interface CloudOnboardingNextProps {
     openProductionUrl?: string;
     /** SPA route to the environments list (create / open / manage). */
     environmentsRoute?: string;
+    /**
+     * Optional backend pre-warm endpoint. When set and the caller already has
+     * a production env, the widget fires a best-effort GET the moment it knows
+     * the env exists — nudging a possibly-asleep container awake WHILE the user
+     * reads the hint, so the later "Open Production" click lands in an
+     * already-waking env instead of paying the full cold-start. No-op when
+     * unset (older page metadata), so this is safe to ship ahead of the page.
+     */
+    warmUrl?: string;
   };
 }
 
@@ -65,7 +74,7 @@ function pick(label: I18n): string {
  * `unknown` on any failure so the caller degrades gracefully rather than
  * blocking the user behind a wrong "create" CTA.
  */
-function useProductionEnvState(): Resolved {
+function useProductionEnvState(warmUrl?: string): Resolved {
   const { activeOrganization } = useAuth();
   const orgId = activeOrganization?.id;
   const authFetch = useMemo(() => createAuthenticatedFetch(), []);
@@ -89,7 +98,17 @@ function useProductionEnvState(): Resolved {
           setState({ phase: 'unknown' });
           return;
         }
-        setState({ phase: 'ready', hasProductionEnv: data.hasProductionEnv === true });
+        const hasProductionEnv = data.hasProductionEnv === true;
+        setState({ phase: 'ready', hasProductionEnv });
+        // Pre-warm the prod env the instant we know it exists — fire-and-forget,
+        // best-effort, once per resolve. The user is now reading the hint and
+        // will click "Open Production" seconds later; by then the container is
+        // already waking. The sso-open click warms again, so a failed warm here
+        // costs nothing. Only when the page passes a warmUrl (else no-op).
+        if (hasProductionEnv && warmUrl) {
+          void authFetch(`${apiBase}${warmUrl}`, { method: 'GET', credentials: 'include' })
+            .catch(() => { /* pre-warm is best-effort */ });
+        }
       } catch {
         if (!cancelled) setState({ phase: 'unknown' });
       }
@@ -97,7 +116,7 @@ function useProductionEnvState(): Resolved {
     return () => {
       cancelled = true;
     };
-  }, [authFetch, orgId]);
+  }, [authFetch, orgId, warmUrl]);
 
   return state;
 }
@@ -109,7 +128,7 @@ function openProduction(url: string) {
 
 export function CloudOnboardingNext({ properties }: CloudOnboardingNextProps) {
   const navigate = useNavigate();
-  const state = useProductionEnvState();
+  const state = useProductionEnvState(properties?.warmUrl);
   const openUrl = properties?.openProductionUrl || DEFAULT_OPEN_PRODUCTION_URL;
   const envsRoute = properties?.environmentsRoute || DEFAULT_ENVIRONMENTS_ROUTE;
 
