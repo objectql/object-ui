@@ -12,6 +12,7 @@ import {
   normalizeColumns,
   normalizeOptions,
   readPrefill,
+  resolveInternalForm,
 } from './FormPage';
 
 describe('normalizeColumns', () => {
@@ -178,5 +179,82 @@ describe('readPrefill', () => {
   it('treats empty-string values as a real prefill', () => {
     const out = readPrefill(fields, new URLSearchParams('prefill_company='));
     expect(out.company).toBe('');
+  });
+});
+
+/**
+ * objectui#2208 — the server's `/meta/view/:name` returns the flattened
+ * ExpandedViewItem envelope `{ name, object, viewKind, label, config }`;
+ * the form spec lives under `config`. Pre-fix the loader read sections off
+ * the envelope itself → every internal form rendered zero fields + a bare
+ * Submit that "succeeded". List views reaching the forms route (the
+ * framework#2554 collision fallout) rendered the same false positive
+ * instead of an actionable error.
+ */
+describe('resolveInternalForm', () => {
+  const envelope = {
+    name: 'showcase_task.tabbed',
+    object: 'showcase_task',
+    viewKind: 'form',
+    label: 'Tabbed',
+    scope: 'package',
+    config: {
+      type: 'tabbed',
+      data: { provider: 'object', object: 'showcase_task' },
+      sections: [{ name: 'overview', label: 'Overview', fields: ['title', 'status'] }],
+    },
+  };
+
+  it('unwraps the ExpandedViewItem envelope: form spec comes from config', () => {
+    const out = resolveInternalForm('showcase_task.tabbed', envelope);
+    expect(out.form.type).toBe('tabbed');
+    expect(out.form.sections).toHaveLength(1);
+    expect(out.label).toBe('Tabbed');
+    expect(out.object).toBe('showcase_task');
+  });
+
+  it('accepts the { item: envelope } wrapper', () => {
+    const out = resolveInternalForm('showcase_task.tabbed', { item: envelope });
+    expect(out.form.sections).toHaveLength(1);
+    expect(out.object).toBe('showcase_task');
+  });
+
+  it('falls back to the envelope name when neither envelope nor config carry a label', () => {
+    const { label: _l, ...noLabel } = envelope;
+    const out = resolveInternalForm('showcase_task.tabbed', noLabel);
+    expect(out.label).toBe('showcase_task.tabbed');
+  });
+
+  it('throws an actionable error for a non-form view instead of rendering an empty form', () => {
+    const listView = {
+      name: 'showcase_task.default',
+      object: 'showcase_task',
+      viewKind: 'list',
+      label: 'All Tasks',
+      config: { type: 'grid', data: { provider: 'object', object: 'showcase_task' }, columns: ['title'] },
+    };
+    expect(() => resolveInternalForm('showcase_task.default', listView)).toThrow(/list view, not a form view/);
+  });
+
+  it('still accepts a bare legacy form spec (no envelope)', () => {
+    const bare = {
+      type: 'simple',
+      label: 'Quick Edit',
+      data: { provider: 'object', object: 'task' },
+      sections: [{ label: 'Main', fields: ['title'] }],
+    };
+    const out = resolveInternalForm('task.quick', bare);
+    expect(out.form).toBe(bare as any);
+    expect(out.label).toBe('Quick Edit');
+    // object resolved from the spec's data binding
+    expect(out.object).toBe('task');
+  });
+
+  it('accepts the legacy { item: { spec } } wrapper', () => {
+    const out = resolveInternalForm('task.quick', {
+      item: { spec: { type: 'simple', object: 'task', sections: [] } },
+    });
+    expect(out.object).toBe('task');
+    expect(out.form.type).toBe('simple');
   });
 });

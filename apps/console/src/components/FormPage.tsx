@@ -225,6 +225,46 @@ async function loadPublicForm(slug: string): Promise<LoadedForm> {
 }
 
 /**
+ * Unwrap a `/meta/view/:name` response into the FormViewSpec the renderer
+ * consumes. Since the ADR-0017 registrar the server returns the flattened
+ * ExpandedViewItem envelope — `{ name, object, viewKind, label, config:
+ * { type, sections, … } }` — with the actual form spec nested under
+ * `config`. Pre-fix, this loader read `sections`/`label` off the envelope
+ * itself and rendered every internal form as zero fields plus a bare
+ * Submit that "succeeded" (objectui#2208). Older servers / seeded rows may
+ * still serve `{ item: { spec } }` or the bare spec, so all shapes are
+ * accepted.
+ *
+ * Also rejects non-form views loudly: a list-view name reaching this route
+ * (e.g. an action target hit by the framework#2554 key collision) used to
+ * render as that same empty-form false positive.
+ */
+export function resolveInternalForm(
+  name: string,
+  viewBody: unknown,
+): { label: string; object?: string; form: FormViewSpec } {
+  const body = viewBody as Record<string, any> | null;
+  const item = body?.item ?? body;
+  const spec = item?.spec ?? item;
+  const isEnvelope =
+    spec && typeof spec === 'object'
+    && spec.config && typeof spec.config === 'object'
+    && ('viewKind' in spec || 'object' in spec);
+  const viewKind: string | undefined = isEnvelope ? spec.viewKind : undefined;
+  if (viewKind && viewKind !== 'form') {
+    throw new Error(
+      `View "${name}" is a ${viewKind} view, not a form view — check the action or link that targets it.`,
+    );
+  }
+  const form: FormViewSpec = isEnvelope ? spec.config : spec;
+  return {
+    label: (isEnvelope ? spec.label : undefined) ?? form?.label ?? name,
+    object: (isEnvelope ? spec.object : undefined) ?? (form as any)?.data?.object ?? spec?.object,
+    form,
+  };
+}
+
+/**
  * Internal mode: pull the FormView metadata directly + the target object's
  * schema. We use the same `/meta` REST surface the rest of the console
  * already speaks, so anything the user has READ on works automatically.
@@ -235,10 +275,7 @@ async function loadInternalForm(name: string): Promise<LoadedForm> {
     throw new Error(`Form metadata not found: view/${name}`);
   }
   const viewBody = await viewRes.json();
-  // /meta/:type/:name returns either { item: {...} } or the raw spec
-  const item = viewBody?.item ?? viewBody;
-  const spec = item?.spec ?? item;
-  const objectName: string | undefined = spec?.object;
+  const { label, object: objectName, form } = resolveInternalForm(name, viewBody);
   if (!objectName) {
     throw new Error(`FormView "${name}" is missing an "object" target`);
   }
@@ -261,9 +298,9 @@ async function loadInternalForm(name: string): Promise<LoadedForm> {
     // Schema fallback is non-fatal — the renderer copes with text inputs.
   }
   return {
-    label: spec?.label ?? name,
+    label,
     object: objectName,
-    form: spec,
+    form,
     objectSchema,
   };
 }
