@@ -48,6 +48,7 @@ import { ManagedByBadge } from '../components/ManagedByBadge';
 import { RecordDetailView } from './RecordDetailView';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
 import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
+import { resolveViewId } from '../utils/resolveViewId';
 import { useObjectActions } from '../hooks/useObjectActions';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
@@ -657,7 +658,25 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         const def = views.find((v: any) => v.isDefault);
         return def?.id;
     }, [views]);
-    const activeViewId = viewId || searchParams.get('view') || defaultViewId || views[0]?.id;
+    // Canonical view ids are fully qualified (`<object>.<viewKind>`, see
+    // MetadataProvider), but nav items emit `viewName` verbatim — usually
+    // the short form — and legacy embedded listViews carry bare keys (incl.
+    // the `'all'` fallback). Resolve the URL-requested name in both
+    // directions, and never swallow a miss silently (#2217).
+    const requestedViewId = viewId || searchParams.get('view') || undefined;
+    const resolvedViewId = useMemo(
+        () => resolveViewId(requestedViewId, views.map((v: any) => v.id), objectDef.name),
+        [requestedViewId, views, objectDef.name],
+    );
+    useEffect(() => {
+        if (requestedViewId && !resolvedViewId) {
+            console.warn(
+                `[ObjectView] Requested view "${requestedViewId}" not found on object "${objectDef.name}"; ` +
+                `falling back to the default view. Known views: ${views.map((v: any) => v.id).join(', ')}`,
+            );
+        }
+    }, [requestedViewId, resolvedViewId, objectDef.name, views]);
+    const activeViewId = resolvedViewId || defaultViewId || views[0]?.id;
     const baseView = views.find((v: any) => v.id === activeViewId) || views[0];
     const activeView = viewDraft && viewDraft.id === baseView?.id
         ? { ...baseView, ...viewDraft }
