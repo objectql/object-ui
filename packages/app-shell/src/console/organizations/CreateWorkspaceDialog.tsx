@@ -25,15 +25,37 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
 import { provisionProductionEnvironment } from './provisionEnvironment';
 
-/** Convert a display name to a URL-friendly slug */
+/**
+ * Convert a display name to a URL-friendly slug.
+ *
+ * The ASCII pass strips everything outside [a-z0-9 _-]. For a name written
+ * entirely in a non-Latin script (中文 / 日本語 / 한국어 / العربية …) that pass
+ * yields the empty string — and an empty slug left the "Create workspace"
+ * button permanently disabled (`!slug.trim()`), dead-ending the FIRST step of
+ * onboarding for every non-Latin-name user. Rather than block them, fall back
+ * to a deterministic, non-empty slug they can still edit.
+ *
+ * Deterministic (not random) on purpose: a name-derived hash means the slug
+ * doesn't jitter on every keystroke while typing a CJK name, and re-typing the
+ * same name reproduces the same slug. Uniqueness across different names comes
+ * from the hash; the server still enforces global slug uniqueness on submit.
+ */
 function nameToSlug(name: string): string {
-  return name
+  const ascii = name
     .toLowerCase()
     .replace(/[^a-z0-9\s_-]/g, '')
     .replace(/[\s_]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 48);
+  if (ascii) return ascii;
+  // Empty name → empty slug (keep the button disabled; nothing to create yet).
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  // Non-empty name with no ASCII-sluggable chars → deterministic fallback.
+  let hash = 0;
+  for (const ch of trimmed) hash = (Math.imul(hash, 31) + ch.charCodeAt(0)) >>> 0;
+  return `workspace-${hash.toString(36).slice(0, 6)}`;
 }
 
 interface CreateWorkspaceDialogProps {
