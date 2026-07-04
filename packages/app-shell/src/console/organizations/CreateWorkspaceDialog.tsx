@@ -142,7 +142,12 @@ export function CreateWorkspaceDialog({
         // resolves this to `alreadyProvisioned`; a genuine failure falls through
         // to the onboarding gate (lazy provision on first navigation).
         try {
-          await provisionProductionEnvironment({ organizationId: org.id });
+          // PR-5 (naming collapse): name the production environment after the
+          // workspace, so the user sees one consistent name instead of a
+          // workspace "Bloom Studio" whose environment is a generic "Production".
+          // The control plane inherits this displayName verbatim; auto-provision
+          // races that skip this call fall back to the org name server-side.
+          await provisionProductionEnvironment({ organizationId: org.id, displayName: name.trim() });
         } catch (provisionErr) {
           console.warn(
             '[CreateWorkspace] eager env provision failed; onboarding gate will provision lazily',
