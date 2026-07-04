@@ -20,7 +20,7 @@ const ImportWizard = lazy(() =>
 );
 import { ListView } from '@object-ui/plugin-list';
 import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
-import { ObjectView as PluginObjectView, ViewTabBar, ManageViewsDialog } from '@object-ui/plugin-view';
+import { ObjectView as PluginObjectView, ViewTabBar, ManageViewsDialog, deriveRecordSurface } from '@object-ui/plugin-view';
 import type { ViewTabItem } from '@object-ui/plugin-view';
 // Plugin registration is handled by the host app (e.g. apps/console/src/main.tsx
 // uses ComponentRegistry.registerLazy so heavy plugins stay code-split).
@@ -957,7 +957,15 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const detailNavigation: ViewNavigationConfig = useMemo(
         () =>
             activeView?.navigation ??
-            objectDef.navigation ?? { mode: 'drawer', width: 'min(92vw, 1280px)' },
+            objectDef.navigation ??
+            // #2578: default a FIELD-HEAVY object's record peek to a full page
+            // (a form-heavy record is cramped in a drawer); light objects keep
+            // the drawer peek. This automates the "heavy detail object can set
+            // navigation.mode = 'page'" note above. An authored view/object
+            // `navigation` still wins.
+            (deriveRecordSurface(objectDef) === 'page'
+                ? { mode: 'page' }
+                : { mode: 'drawer', width: 'min(92vw, 1280px)' }),
         [activeView?.navigation, objectDef.navigation]
     );
     const drawerRecordId = searchParams.get('recordId');

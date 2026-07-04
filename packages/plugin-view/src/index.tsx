@@ -18,6 +18,8 @@ import { SharedViewLink } from './SharedViewLink';
 export { ObjectView, ViewSwitcher, FilterUI, SortUI, SharedViewLink };
 export { ViewTabBar } from './ViewTabBar';
 export { ManageViewsDialog } from './ManageViewsDialog';
+export { deriveRecordSurface, RECORD_SURFACE_PAGE_THRESHOLD } from './recordSurface';
+export type { RecordSurface } from './recordSurface';
 export type { ObjectViewProps } from './ObjectView';
 export type { ViewSwitcherProps } from './ViewSwitcher';
 export type { ViewTabBarProps, ViewTabItem, AvailableViewType } from './ViewTabBar';
