@@ -887,11 +887,20 @@ export interface FormField {
    */
   [key: string]: any;
   /**
-   * Column span for grid layouts (1-4).
-   * Aligns with @objectstack/spec FormField.colSpan.
+   * Column span for grid layouts (1-4). Legacy — prefer `span`.
+   * Aligns with @objectstack/spec FormField.colSpan. The renderer clamps it to
+   * the current (per-surface derived) column count so it can never overflow.
    * @default 1
    */
   colSpan?: number;
+  /**
+   * Relative field width, decoupled from the (auto-derived) column count so it
+   * stays correct at 1/2/3/4 columns (#2578). `'auto'` (default): width from
+   * the widget type × current columns (wide widgets take the whole row);
+   * `'full'`: whole row at any column count. Aligns with
+   * @objectstack/spec FormField.span. Prefer this over `colSpan`.
+   */
+  span?: 'auto' | 'full';
 }
 
 /**

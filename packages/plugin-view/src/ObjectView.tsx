@@ -54,11 +54,13 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
+  useIsMobile,
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
 import { buildExpandFields } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
+import { deriveRecordSurface } from './recordSurface';
 
 /**
  * SchemaRenderer from @object-ui/react, used to render sub-view schemas.
@@ -392,8 +394,12 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema.objectName, dataSource, currentViewType, filterValues, sortConfig, refreshKey, currentNamedViewConfig, activeView, renderListView]);
 
-  // Determine layout mode
-  const layout = schema.layout || 'drawer';
+  // Determine layout mode. #2578: default the record surface from how heavy the
+  // object is — a field-heavy object opens create/edit/detail as a full page, a
+  // light one as a drawer. Mobile always pages. An explicit `schema.layout` (or
+  // a per-view navigation config, handled in handleRowClick) still wins.
+  const isMobile = useIsMobile();
+  const layout = schema.layout || deriveRecordSurface(objectSchema, { viewport: isMobile ? 'mobile' : 'desktop' });
 
   // Determine enabled operations
   const operations = schema.operations || schema.table?.operations || {

@@ -5,6 +5,7 @@ import {
   inferColumns,
   inferModalSize,
   applyAutoColSpan,
+  resolveColSpan,
   filterCreateModeFields,
   filterSystemFields,
   applyAutoLayout,
@@ -444,6 +445,68 @@ describe('autoLayout', () => {
       // Only 'name' and 'f4' remain after filtering
       expect(result.fields).toHaveLength(2);
       expect(result.columns).toBe(1);
+    });
+  });
+
+  describe('resolveColSpan (#2578 — span-aware, clamping)', () => {
+    it("span: 'full' spans the whole row at any grid width", () => {
+      expect(resolveColSpan({ name: 'x', label: 'X', type: 'field:text', span: 'full' } as any, 2)).toBe(2);
+      expect(resolveColSpan({ name: 'x', label: 'X', type: 'field:text', span: 'full' } as any, 4)).toBe(4);
+    });
+
+    it('clamps a legacy colSpan to the current grid (never overflows)', () => {
+      expect(resolveColSpan({ name: 'x', label: 'X', type: 'field:text', colSpan: 4 } as any, 2)).toBe(2);
+      expect(resolveColSpan({ name: 'x', label: 'X', type: 'field:text', colSpan: 3 } as any, 4)).toBe(3);
+    });
+
+    it("span: 'auto' (default) gives wide widgets the full row, scalars one cell", () => {
+      expect(resolveColSpan({ name: 'x', label: 'X', type: 'field:textarea' } as any, 2)).toBe(2);
+      expect(resolveColSpan({ name: 'x', label: 'X', type: 'field:text' } as any, 2)).toBe(1);
+    });
+
+    it('honours a section density narrower than the grid', () => {
+      // grid 2, section wants 1 column → each field takes the whole row
+      expect(resolveColSpan({ name: 'x', label: 'X', type: 'field:text' } as any, 2, 1)).toBe(2);
+      // grid 4, section wants 2 columns → each field takes half
+      expect(resolveColSpan({ name: 'x', label: 'X', type: 'field:text' } as any, 4, 2)).toBe(2);
+    });
+  });
+
+  describe('applyAutoColSpan with per-section density (#2578)', () => {
+    it('lays a 1-column section out full-width within a 2-column grid', () => {
+      const fields: FormField[] = [
+        { name: 'a', label: 'A', type: 'field:text' },
+        { name: 'b', label: 'B', type: 'field:text' },
+      ];
+      expect(applyAutoColSpan(fields, 2, 1).map(f => f.colSpan)).toEqual([2, 2]);
+    });
+
+    it('leaves a 2-column section at one cell per field in a 2-column grid', () => {
+      const fields: FormField[] = [
+        { name: 'a', label: 'A', type: 'field:text' },
+        { name: 'b', label: 'B', type: 'field:text' },
+      ];
+      expect(applyAutoColSpan(fields, 2, 2).map(f => f.colSpan)).toEqual([undefined, undefined]);
+    });
+
+    it("respects span: 'full' on a scalar field", () => {
+      const fields: FormField[] = [
+        { name: 'summary', label: 'Summary', type: 'field:text', span: 'full' } as any,
+        { name: 'code', label: 'Code', type: 'field:text' },
+      ];
+      const result = applyAutoColSpan(fields, 2, 2);
+      expect(result[0].colSpan).toBe(2);
+      expect(result[1].colSpan).toBeUndefined();
+    });
+
+    it('leaves section-divider rows untouched but fills their fields', () => {
+      const fields: FormField[] = [
+        { name: '__section_x', label: 'X', type: 'section-divider', colSpan: 4 } as any,
+        { name: 'a', label: 'A', type: 'field:text' },
+      ];
+      const result = applyAutoColSpan(fields, 2, 1);
+      expect(result[0].colSpan).toBe(4); // divider unchanged
+      expect(result[1].colSpan).toBe(2); // field filled to full row
     });
   });
 });

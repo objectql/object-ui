@@ -128,6 +128,7 @@ export function normalizeSectionField(
   if (fd.immutable != null) base.immutable = fd.immutable;
   if (fd.hidden != null) base.hidden = fd.hidden;
   if (fd.colSpan != null) base.colSpan = fd.colSpan;
+  if (fd.span != null) base.span = fd.span;
   if (fd.options != null) base.options = fd.options;
   if (fd.multiple != null) base.multiple = fd.multiple;
   if (fd.reference != null) base.reference = fd.reference;

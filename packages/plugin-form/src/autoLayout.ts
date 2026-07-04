@@ -90,24 +90,77 @@ export function inferColumns(fieldCount: number): number {
   return 2;
 }
 
+/** Clamp a raw column-ish number into 1..4 (the grid keys we support). */
+function clampGrid(n: number | undefined): number {
+  return n && n > 0 ? Math.min(Math.floor(n), 4) : 1;
+}
+
 /**
- * Apply colSpan to wide fields so they span the full row.
- * Only sets colSpan if the field does not already have one explicitly set.
+ * Resolve the effective colSpan (grid cells) a field occupies, given the form's
+ * grid width and the section's desired column count (#2578).
  *
+ * The column count is derived per surface (mobile 1 / modal 2 / page 3-4), so
+ * the robust field-width primitive is the relative `span`, NOT an absolute
+ * colSpan. Precedence:
+ *   1. `span: 'full'`     → whole row (grid cells).
+ *   2. legacy `colSpan`   → honoured but CLAMPED to the grid (never overflows).
+ *   3. wide widget type   → whole row (textarea/markdown/… — the `span:'auto'` default).
+ *   4. section density    → grid / sectionColumns, so `sectionColumns` fields fill a row.
+ *
+ * `sectionColumns` defaults to the grid width, i.e. one field per cell (the flat
+ * form's historical behaviour) when there is no narrower section.
+ */
+export function resolveColSpan(
+  field: FormField,
+  gridColumns: number,
+  sectionColumns?: number,
+): number {
+  const grid = clampGrid(gridColumns);
+  if (grid <= 1) return 1;
+
+  const span = (field as { span?: 'auto' | 'full' }).span;
+  if (span === 'full') return grid;
+
+  // Legacy absolute colSpan — honoured but clamped so it can never overflow the
+  // current grid (the fragility `span` exists to replace).
+  if (field.colSpan != null) {
+    return Math.min(Math.max(1, Math.floor(field.colSpan)), grid);
+  }
+
+  // `span: 'auto'` (or unset): wide widgets take the whole row.
+  if (field.type && isWideFieldType(field.type)) return grid;
+
+  // Otherwise fill the section's density: N per row → grid/N cells each.
+  const secCols = Math.min(Math.max(1, Math.floor(sectionColumns || grid)), grid);
+  return Math.min(grid, Math.max(1, Math.round(grid / secCols)));
+}
+
+/**
+ * Apply the resolved colSpan to each field so the form's CSS grid lays them out
+ * at the intended density. Span-aware and clamping (#2578); wide fields still
+ * span the full row (the `span: 'auto'` default). `section-divider` rows are
+ * left untouched (they carry their own full-row span).
+ *
+ * @param gridColumns    The form's grid column count (1-4).
+ * @param sectionColumns The desired columns for THIS group of fields (defaults
+ *                       to the grid width = one field per cell).
  * @returns A new array of fields with colSpan applied where needed.
  */
-export function applyAutoColSpan(fields: FormField[], columns: number): FormField[] {
-  if (columns <= 1) return fields;
+export function applyAutoColSpan(
+  fields: FormField[],
+  gridColumns: number,
+  sectionColumns?: number,
+): FormField[] {
+  const grid = clampGrid(gridColumns);
+  if (grid <= 1) return fields;
 
   return fields.map(field => {
-    // User-defined colSpan takes priority
-    if (field.colSpan !== undefined) return field;
-
-    // Wide field types should span full row
-    if (field.type && isWideFieldType(field.type)) {
-      return { ...field, colSpan: columns };
-    }
-
+    if ((field as { type?: string }).type === 'section-divider') return field;
+    const eff = resolveColSpan(field, grid, sectionColumns);
+    if (eff > 1) return { ...field, colSpan: eff };
+    // eff === 1: strip any stale larger colSpan so it doesn't overflow a
+    // narrower grid than the author imagined.
+    if (field.colSpan != null && field.colSpan !== 1) return { ...field, colSpan: 1 };
     return field;
   });
 }

@@ -740,6 +740,23 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     // Derived (fieldGroup) sections were computed from the filtered field list;
     // explicit sections keep the authored field selection as-is.
     const sourceFields = fieldGroupSections ? groupableFields : formFields;
+    // #2578: honour per-section `columns`. The form renders as ONE grid (one
+    // react-hook-form instance); each section lays its OWN fields out at its
+    // declared density within that grid. Grid width = explicit form `columns`,
+    // else the widest section, else inferred from field count (the
+    // fieldGroup-derived path declares no per-section columns and keeps its
+    // historical inferred multi-column layout).
+    const clampCol = (n: unknown): number | undefined =>
+      typeof n === 'number' && n > 0 ? Math.min(Math.floor(n), 4) : undefined;
+    const declaredSectionCols = effectiveSections
+      .map(s => clampCol((s as any).columns))
+      .filter((c): c is number => c != null);
+    const approxInputs = effectiveSections.reduce(
+      (n, s) => n + (Array.isArray(s.fields) ? s.fields.length : 0), 0,
+    );
+    const formColumns =
+      clampCol(schema.columns) ??
+      (declaredSectionCols.length ? Math.max(...declaredSectionCols) : inferColumns(approxInputs));
     const groupedFields: FormField[] = [];
     effectiveSections.forEach((section, index) => {
       // Section field defs may carry a per-field `visibleOn` predicate (spec
@@ -753,8 +770,17 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       const sectionFields = applyFieldPerms(sourceFields.filter(f => sectionFieldNames.includes(f.name)))
         .map(f => {
           const def = sectionDefByName.get(f.name);
-          const visibleOn = def && typeof def === 'object' ? (def as any).visibleOn : undefined;
-          return visibleOn != null ? ({ ...f, visibleOn } as FormField) : f;
+          if (!def || typeof def !== 'object') return f;
+          // Carry the section field def's layout/visibility overrides onto the
+          // resolved field — the name-only filter above would otherwise drop
+          // them. #2578: `span`/`colSpan` are how a section controls per-field
+          // width; #2212: `visibleOn`.
+          const d = def as any;
+          const merged: any = { ...f };
+          if (d.visibleOn != null) merged.visibleOn = d.visibleOn;
+          if (d.colSpan != null) merged.colSpan = d.colSpan;
+          if (d.span != null) merged.span = d.span;
+          return merged as FormField;
         });
       if (sectionFields.length === 0) return;
 
@@ -779,30 +805,27 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
         } as FormField);
       }
 
+      // #2578: lay THIS section's fields out at its declared column density
+      // within the shared form grid (span-aware; wide fields still full-row).
+      const secCols = clampCol((section as any).columns);
+      const laid = formColumns > 1 ? applyAutoColSpan(sectionFields, formColumns, secCols) : sectionFields;
+
       // Collapsed groups keep their fields registered (values preserved) but
       // hidden from the DOM. An untitled bucket is never collapsible.
       if (label && isCollapsed) {
-        groupedFields.push(...sectionFields.map(f => ({ ...f, hidden: true })));
+        groupedFields.push(...laid.map(f => ({ ...f, hidden: true })));
       } else {
-        groupedFields.push(...sectionFields);
+        groupedFields.push(...laid);
       }
     });
 
-    // Multi-column layout parity with the flat path: infer a column count from
-    // the rendered field count and let wide fields (textarea/markdown/…) span
-    // the full row. The field grid uses container-query classes — with the
-    // @container wrapper below — so it tracks the form's own width: a grouped
-    // form in a wide dialog goes 2-up while a narrow drawer stays stacked.
-    // Section dividers span the full row via their own `col-span-full`.
-    const inputCount = groupedFields.filter(
-      f => (f as any).type !== 'section-divider' && !(f as any).hidden,
-    ).length;
-    const columns =
-      schema.columns && schema.columns > 0
-        ? Math.min(Math.floor(schema.columns), 4)
-        : inferColumns(inputCount);
-    const laidOutFields = columns > 1 ? applyAutoColSpan(groupedFields, columns) : groupedFields;
-    const fieldContainerClass = containerGridColsFor(columns);
+    // Per-section colSpan was applied in the loop above — each section at its
+    // own density within the shared `formColumns` grid. The field grid uses
+    // container-query classes (with the @container wrapper below), so it tracks
+    // the form's own width: a grouped form in a wide dialog goes multi-column
+    // while a narrow drawer stays stacked. Section dividers span the full row.
+    const laidOutFields = groupedFields;
+    const fieldContainerClass = containerGridColsFor(formColumns);
 
     return (
       <div className="w-full @container">
@@ -812,7 +835,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
             objectName: schema.objectName,
             fields: laidOutFields,
             layout: formLayout,
-            columns,
+            columns: formColumns,
             ...(fieldContainerClass ? { fieldContainerClass } : {}),
             defaultValues: finalDefaultValues,
             showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
