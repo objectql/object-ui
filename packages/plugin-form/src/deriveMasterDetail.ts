@@ -208,6 +208,53 @@ export function deriveColumns(
   return curateColumns(cols, maxColumns);
 }
 
+/**
+ * Fill in missing widget metadata on author-supplied grid columns from the
+ * child object's field definitions. A view often lists columns as bare
+ * `{ field, label }` (the common, ergonomic authoring form) — without a `type`
+ * those cells fall back to a plain text `<Input>`, so a lookup, date, number or
+ * picklist field silently renders as free text. This resolves each such
+ * column's `type` (plus `options` / `reference` / computed `expr`) from the
+ * schema, exactly as {@link deriveColumns} would, while preserving the author's
+ * column set, order and labels. A column that already declares a `type` is left
+ * untouched — the author's explicit choice always wins.
+ */
+export function hydrateColumns(
+  columns: GridColumn[] | undefined,
+  childSchema: ObjectSchemaLike | undefined,
+): GridColumn[] {
+  const cols = columns ?? [];
+  const fields = childSchema?.fields;
+  if (!cols.length || !fields || typeof fields !== 'object') return cols;
+  return cols.map((col) => {
+    if (col.type) return col; // explicit type — respect the author's choice
+    const d = (fields as any)[col.field];
+    if (!d) return col; // unknown field — leave as-is (grid falls back to text)
+    const type = fieldTypeToColumnType(d?.type);
+    const next: GridColumn = { ...col, type };
+    if (next.label == null) next.label = d?.label || col.field;
+    if (next.required == null) next.required = !!d?.required;
+    const options = optionsFor(d);
+    if (type === 'select' && options && !next.options) next.options = options;
+    if (type === 'lookup') {
+      if (next.reference == null) next.reference = d?.reference;
+      if (next.displayField == null) next.displayField = d?.display_field || d?.reference_field;
+    }
+    if (next.readonlyWhen == null && d?.readonlyWhen) next.readonlyWhen = d.readonlyWhen;
+    if (next.requiredWhen == null && (d?.requiredWhen ?? d?.conditionalRequired)) {
+      next.requiredWhen = d.requiredWhen ?? d.conditionalRequired;
+    }
+    const expr = typeof d?.expression === 'string' ? d.expression : d?.expression?.source;
+    if (!next.computed && expr && typeof expr === 'string') {
+      next.computed = true;
+      next.expr = expr;
+      next.required = false; // computed → never user-entered, so never required
+      if (typeof d?.scale === 'number') next.scale = d.scale;
+    }
+    return next;
+  });
+}
+
 /** Computed / non-input field types — excluded from the row form (read-only,
  *  server-derived). Unlike grid columns we DO keep rich inputs (textarea,
  *  richtext, file, image, json…) since the row form has room for them. */
@@ -327,7 +374,9 @@ export function deriveDetail(
       `Set relationshipField explicitly.`,
     );
   }
-  const columns = override.columns?.length ? override.columns : deriveColumns(childSchema, { relationshipField });
+  const columns = override.columns?.length
+    ? hydrateColumns(override.columns, childSchema)
+    : deriveColumns(childSchema, { relationshipField });
   const amountField = override.amountField || pickAmountField(columns);
   const formFields = deriveFormFields(childSchema, { relationshipField });
   // Resolve mode from the explicit override, else the relationship field's

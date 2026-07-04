@@ -30,7 +30,7 @@ import { LineItemsField, type GridColumn } from '@object-ui/fields';
 import { Button, Card, CardContent, CardHeader, CardTitle, cn, toast } from '@object-ui/components';
 import { ObjectForm } from './ObjectForm';
 import { applyDetail, idOf, buildMasterDetailBatch, buildMasterDetailEditBatch, sumRows } from './masterDetailTx';
-import { deriveDetail, type InlineMode } from './deriveMasterDetail';
+import { deriveDetail, hydrateColumns, type InlineMode } from './deriveMasterDetail';
 
 export interface MasterDetailDetailConfig {
   /** Child object name, e.g. 'expense_line'. */
@@ -300,8 +300,12 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
 
   // A detail can be configured with just `{ childObject }` — the relationship
   // FK and grid columns are then derived from the child object's metadata
-  // (DataSource.getObjectSchema). Resolve those before rendering the grid.
-  const needsDerive = rawDetails.some((d) => !d.relationshipField || !d.columns?.length);
+  // (DataSource.getObjectSchema). We also resolve when columns are hand-authored
+  // as bare `{ field, label }` (no `type`): those need their widget type
+  // hydrated from the child schema, else every cell falls back to a text input.
+  const needsDerive = rawDetails.some(
+    (d) => !d.relationshipField || !d.columns?.length || d.columns.some((c) => !c.type),
+  );
   const [resolvedDetails, setResolvedDetails] = useState<MasterDetailDetailConfig[] | null>(
     needsDerive ? null : rawDetails,
   );
@@ -314,9 +318,17 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     (async () => {
       const out = await Promise.all(
         rawDetails.map(async (d) => {
-          if (d.relationshipField && d.columns?.length) return d;
+          const columnsTyped = d.columns?.length ? d.columns.every((c) => !!c.type) : false;
+          // Fully configured (FK + every column typed) — nothing to resolve.
+          if (d.relationshipField && columnsTyped) return d;
           try {
             const childSchema = await dataSource.getObjectSchema(d.childObject);
+            // Author gave the FK + an explicit column set but left some columns
+            // untyped — hydrate just their widget types from the schema, keeping
+            // their exact column set / order / labels (don't re-derive columns).
+            if (d.relationshipField && d.columns?.length) {
+              return { ...d, columns: hydrateColumns(d.columns, childSchema) };
+            }
             const derived = deriveDetail(d.childObject, childSchema, schema.objectName, {
               relationshipField: d.relationshipField,
               columns: d.columns,

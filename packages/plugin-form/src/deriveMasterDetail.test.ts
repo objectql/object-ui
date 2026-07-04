@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findRelationshipField, deriveColumns, deriveDetail, deriveFormFields, resolveInlineMode, fieldTypeToColumnType } from './deriveMasterDetail';
+import { findRelationshipField, deriveColumns, deriveDetail, deriveFormFields, resolveInlineMode, fieldTypeToColumnType, hydrateColumns } from './deriveMasterDetail';
 
 const taskSchema = {
   name: 'showcase_task',
@@ -193,6 +193,70 @@ describe('deriveFormFields (per-row expand form)', () => {
     expect(Array.isArray(d.formFields)).toBe(true);
     expect(d.formFields).toContain('title');
     expect(d.formFields).not.toContain('project');
+  });
+});
+
+describe('hydrateColumns (fill types on bare author columns)', () => {
+  it('infers each bare {field,label} column\'s widget type from the child schema', () => {
+    const cols = hydrateColumns(
+      [
+        { field: 'title', label: 'Title' },
+        { field: 'status', label: 'Status' },
+        { field: 'estimate_hours', label: 'Est' },
+        { field: 'budget', label: 'Budget' },
+        { field: 'due_date', label: 'Due' },
+        { field: 'assignee', label: 'Owner' },
+      ] as any,
+      taskSchema,
+    );
+    const byName = Object.fromEntries(cols.map((c) => [c.field, c]));
+    expect(byName.title.type).toBe('text');
+    expect(byName.status).toMatchObject({ type: 'select', options: [{ label: 'To Do', value: 'todo' }, { label: 'Done', value: 'done' }] });
+    expect(byName.estimate_hours.type).toBe('number');
+    expect(byName.budget.type).toBe('currency');
+    expect(byName.due_date.type).toBe('date');
+    expect(byName.assignee).toMatchObject({ type: 'lookup', reference: 'user', displayField: 'name' });
+  });
+
+  it('preserves the author\'s column set, order and labels', () => {
+    const cols = hydrateColumns(
+      [{ field: 'due_date', label: '合同时间' }, { field: 'status', label: 'Status' }] as any,
+      taskSchema,
+    );
+    expect(cols.map((c) => c.field)).toEqual(['due_date', 'status']); // order kept, no extra columns
+    expect(cols[0].label).toBe('合同时间'); // author label kept, not schema's "Due Date"
+  });
+
+  it('never overrides an explicit type the author already set', () => {
+    const cols = hydrateColumns(
+      [{ field: 'status', label: 'Status', type: 'text' }] as any,
+      taskSchema,
+    );
+    expect(cols[0].type).toBe('text'); // author wins — not upgraded to select
+    expect(cols[0].options).toBeUndefined();
+  });
+
+  it('leaves a column untouched when its field is absent from the schema', () => {
+    const cols = hydrateColumns([{ field: 'ghost', label: 'Ghost' }] as any, taskSchema);
+    expect(cols[0].type).toBeUndefined(); // unknown field → grid falls back to text
+  });
+
+  it('is a no-op without a schema or columns', () => {
+    expect(hydrateColumns([{ field: 'x' }] as any, undefined)).toEqual([{ field: 'x' }]);
+    expect(hydrateColumns(undefined, taskSchema)).toEqual([]);
+  });
+});
+
+describe('deriveDetail hydrates explicit-but-untyped override columns', () => {
+  it('fills widget types on bare author columns instead of passing them through raw', () => {
+    const d = deriveDetail('showcase_task', taskSchema, 'showcase_project', {
+      relationshipField: 'project',
+      columns: [{ field: 'status', label: 'Status' }, { field: 'due_date', label: 'Due' }] as any,
+    });
+    const byName = Object.fromEntries(d.columns.map((c) => [c.field, c]));
+    expect(byName.status.type).toBe('select');
+    expect(byName.due_date.type).toBe('date');
+    expect(d.columns.map((c) => c.field)).toEqual(['status', 'due_date']); // author set kept
   });
 });
 
