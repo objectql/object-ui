@@ -27,6 +27,7 @@ const SERVER_MANAGED_FIELDS = new Set([
  */
 const COMPUTED_FIELD_TYPES = new Set([
   'formula',
+  'summary',
   'rollup',
   'lookup_value',
   'auto_number',

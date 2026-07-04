@@ -225,6 +225,80 @@ describe('ObjectForm Integration', () => {
         expect(screen.queryByText('Contact Info')).toBeNull();
     });
 
+    it('strips computed and server-managed fields from the edit-mode update payload', async () => {
+        // Repro of the showcase_project "Unknown field 'budget_remaining'" bug:
+        // an edit form is seeded from a full record read that includes computed
+        // columns (formula/summary) the form never renders — they live in the
+        // form's `sections` allow-list nowhere, yet react-hook-form retains the
+        // seeded defaultValues and round-trips them on submit. The backend then
+        // rejects those non-writable fields. ObjectForm must sanitize them out.
+        const schema = {
+            name: 'test_project',
+            fields: {
+                name: { type: 'text', label: 'Name' },
+                budget: { type: 'currency', label: 'Budget', scale: 2 },
+                // Computed — server-managed, never writable.
+                budget_remaining: { type: 'formula', label: 'Budget Remaining' },
+                task_count: { type: 'summary', label: 'Tasks' },
+            },
+        };
+        const record = {
+            id: 'p1',
+            name: 'Website',
+            budget: 150000,
+            // Present in the read (and thus the form defaultValues) but NOT in
+            // any rendered section — the exact leak path.
+            budget_remaining: 90000,
+            task_count: 5,
+            created_at: '2020-01-01T00:00:00Z',
+        };
+        const ds: any = {
+            getObjectSchema: vi.fn().mockResolvedValue(schema),
+            findOne: vi.fn().mockResolvedValue(record),
+            update: vi.fn().mockResolvedValue({ ...record }),
+            create: vi.fn(),
+        };
+
+        const { container } = render(
+            <ObjectForm
+                schema={{
+                    type: 'object-form',
+                    objectName: 'test_project',
+                    mode: 'edit',
+                    recordId: 'p1',
+                    // Curated form view: only the writable fields are laid out.
+                    sections: [{ name: 'main', label: 'Main', fields: ['name', 'budget'] }],
+                } as any}
+                dataSource={ds}
+            />,
+        );
+
+        // Wait for the record read to seed the form.
+        const nameInput = await waitFor(() => {
+            const el = container.querySelector('input[name="name"]') as HTMLInputElement | null;
+            if (!el || el.value !== 'Website') throw new Error('form not seeded yet');
+            return el;
+        });
+        fireEvent.change(nameInput, { target: { value: 'Website v2' } });
+
+        const form = container.querySelector('form') as HTMLFormElement;
+        fireEvent.submit(form);
+
+        await waitFor(() => {
+            expect(ds.update).toHaveBeenCalledTimes(1);
+        });
+        const [obj, id, payload] = ds.update.mock.calls[0];
+        expect(obj).toBe('test_project');
+        expect(id).toBe('p1');
+        // Edited writable field is sent...
+        expect(payload).toMatchObject({ name: 'Website v2', budget: 150000 });
+        // ...but the computed and server-managed keys are stripped.
+        expect(payload).not.toHaveProperty('budget_remaining');
+        expect(payload).not.toHaveProperty('task_count');
+        expect(payload).not.toHaveProperty('id');
+        expect(payload).not.toHaveProperty('created_at');
+    });
+
     it('renders as a master-detail form when schema.subforms is set', async () => {
         // A plain object form becomes master-detail by config (no bespoke page):
         // parent fields on top + an editable child grid + a single Save action.

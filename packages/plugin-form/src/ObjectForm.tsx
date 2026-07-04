@@ -35,6 +35,7 @@ import {
   inferColumns,
 } from './autoLayout';
 import { deriveFieldGroupSections } from './fieldGroups';
+import { sanitizeFormData } from './sanitize';
 
 export interface ObjectFormProps {
   /**
@@ -586,17 +587,25 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       throw new Error('DataSource is required for form submission (inline mode not configured)');
     }
 
-    // Strip non-editable fields from the payload (FLS — never trust the
-    // client form state; if the user lacked edit access we MUST NOT
-    // include the field in the create/update request).
-    let payload = formData;
-    if (perms?.isLoaded && formData && typeof formData === 'object') {
-      payload = {} as Record<string, unknown>;
-      for (const k of Object.keys(formData)) {
+    // Strip server-managed and computed / read-only fields from the payload
+    // before persisting. react-hook-form retains state for unmounted/disabled
+    // fields (see ModalForm), so an edit form seeded from a full record read
+    // round-trips computed columns it never rendered — formula/summary/rollup
+    // values, flattened lookups, id/timestamps — which the server rejects as
+    // unknown or non-writable fields. Mirrors ModalForm/DrawerForm. For inline
+    // forms `objectSchema` is a field-less stub, so pass null to strip only the
+    // server-managed keys rather than dropping every (schema-less) value.
+    let payload = sanitizeFormData(formData, hasInlineFields ? null : objectSchema);
+    // FLS defence-in-depth: never trust the client to include a field the user
+    // lacked edit access to — drop any that fail the write check.
+    if (perms?.isLoaded && payload && typeof payload === 'object') {
+      const stripped: Record<string, unknown> = {};
+      for (const k of Object.keys(payload)) {
         if (perms.checkField(schema.objectName, k, 'write')) {
-          (payload as Record<string, unknown>)[k] = formData[k];
+          stripped[k] = (payload as Record<string, unknown>)[k];
         }
       }
+      payload = stripped;
     }
 
     try {
@@ -640,7 +649,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       
       throw err;
     }
-  }, [schema, dataSource, hasInlineFields, perms]);
+  }, [schema, dataSource, hasInlineFields, perms, objectSchema]);
 
   // Handle form cancellation
   const handleCancel = useCallback(() => {
