@@ -590,7 +590,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
           ) : tab === 'automations' ? (
             <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : tab === 'access' ? (
-            <AccessPillar />
+            <AccessPillar packageId={packageId} />
           ) : (
             <InterfacesPillar
               packageId={packageId}
@@ -2328,15 +2328,17 @@ function AutomationsPillar({
 /**
  * Access pillar — the permission workbench (builder-ui §7, ADR-0084's fourth
  * content pillar). Left rail: the environment's permission sets / profiles;
- * main: the existing Salesforce-style PermissionMatrixEditPage (objects ×
- * CRUD/VAMA + field-level R/W), embedded unchanged.
+ * main: the Salesforce-style PermissionMatrixEditPage (objects × CRUD/VAMA +
+ * field-level R/W).
  *
- * Semantics note (v1, deliberate): permissions are PLATFORM-level authorization
- * objects, not package content — the matrix's own Save writes the ACTIVE item
- * directly (no draft, no package binding), so the shell's 变更/发布 does not
- * apply here. The banner says so instead of pretending otherwise.
+ * Scope note (ADR-0086 P0): permission SETS are platform-level authorization
+ * objects (the left rail lists all of them), but the object MATRIX is scoped to
+ * the current package — it lists only the objects this package declares, and
+ * its Save merges just that slice back, leaving other packages' contributed
+ * rows untouched. The matrix still writes the ACTIVE item directly (no draft,
+ * no draft/publish flow), so the shell's 变更/发布 does not apply here.
  */
-function AccessPillar(): React.ReactElement {
+function AccessPillar({ packageId }: { packageId: string }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
   const [perms, setPerms] = React.useState<Array<{ name: string; label: string; isProfile?: boolean }>>([]);
@@ -2520,7 +2522,12 @@ function AccessPillar(): React.ReactElement {
             /* The existing Salesforce-style matrix page, embedded unchanged —
              * objects × CRUD/VAMA/lifecycle up top, per-object field-level R/W
              * below, its own Save + destructive-change guard included. */
-            <PermissionMatrixEditPage key={current} type="permission" name={current} />
+            <PermissionMatrixEditPage
+              key={current}
+              type="permission"
+              name={current}
+              packageId={packageId}
+            />
           ) : (
             <div className="py-16 text-center text-sm text-muted-foreground">
               {loaded && perms.length === 0 ? t('engine.studio.access.emptyMain', locale) : t('engine.studio.access.pick', locale)}

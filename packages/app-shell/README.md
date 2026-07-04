@@ -164,6 +164,23 @@ enable, or disable packages; direct `/metadata/package` links redirect there.
 The Studio sidebar also flattens the root Overview group so Home and package
 navigation sit directly under the package selector.
 
+### Access matrix (package-scoped)
+
+The Access pillar's permission matrix follows the active package (ADR-0086 P0).
+A Permission Set / Profile is a single record whose `objects` / `fields` maps
+accumulate authorization rows contributed by many packages, so the matrix:
+
+- lists **only the objects the active package declares** — the panel never
+  exposes the whole environment's objects; and
+- saves via **slice-merge** — it re-reads the record and writes back just this
+  package's slice, leaving rows contributed by other packages untouched.
+
+Permission *sets* stay platform-level (the left rail lists them all); only the
+object matrix and its Save are package-scoped. Rendering `PermissionMatrixEditPage`
+without a `packageId` keeps the environment-wide behavior (full object list,
+whole-record save). The scope/merge helpers (`scopePermissionSet`,
+`mergePermissionSlice`) live in `metadata-admin/permission-slice.ts`.
+
 ### Visual flow canvas
 
 The `flow` designer (`FlowPreview` → `FlowCanvas`) renders an automation as an

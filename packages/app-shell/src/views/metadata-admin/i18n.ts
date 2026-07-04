@@ -989,8 +989,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.access.title': 'Permission matrix',
   'engine.studio.access.subtitle': 'Objects × CRUD · field-level R/W',
   'engine.studio.access.bannerTitle':
-    'Permissions are platform-level authorization; the matrix’s “Save” takes effect immediately — it doesn’t enter package drafts, so the top-bar “Publish” doesn’t apply here.',
-  'engine.studio.access.banner': 'Saved = live · not package drafts',
+    'This matrix lists only the objects this package declares, and “Save” merges just that slice — grants contributed by other packages are preserved. Permissions take effect immediately: they don’t enter package drafts, so the top-bar “Publish” doesn’t apply here.',
+  'engine.studio.access.banner': 'This package’s objects · saved = live',
   'engine.studio.access.heading': 'Permission sets / Profiles',
   'engine.studio.access.search': 'Search permissions…',
   'engine.studio.access.none': 'No permission sets yet — create one below',
@@ -1848,8 +1848,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.access.title': '权限矩阵',
   'engine.studio.access.subtitle': '对象 × CRUD · 字段级读写',
   'engine.studio.access.bannerTitle':
-    '权限是平台级授权配置,矩阵内的「Save」保存即生效;不进入软件包草稿,顶栏「发布」不涉及它。',
-  'engine.studio.access.banner': '保存即生效 · 不走包草稿',
+    '此矩阵仅列出本包声明的对象,「Save」只合并本包切片 —— 其他包贡献的授权原样保留。权限保存即生效:不进入软件包草稿,顶栏「发布」不涉及它。',
+  'engine.studio.access.banner': '仅本包对象 · 保存即生效',
   'engine.studio.access.heading': '权限集 / Profile',
   'engine.studio.access.search': '搜索权限…',
   'engine.studio.access.none': '还没有权限集 — 在下方新建一个',
