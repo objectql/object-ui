@@ -20,7 +20,7 @@ const ImportWizard = lazy(() =>
 );
 import { ListView } from '@object-ui/plugin-list';
 import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
-import { ObjectView as PluginObjectView, ViewTabBar, ManageViewsDialog, deriveRecordSurface } from '@object-ui/plugin-view';
+import { ObjectView as PluginObjectView, ViewTabBar, ManageViewsDialog, deriveRecordSurface, overlayWidthFor } from '@object-ui/plugin-view';
 import type { ViewTabItem } from '@object-ui/plugin-view';
 // Plugin registration is handled by the host app (e.g. apps/console/src/main.tsx
 // uses ComponentRegistry.registerLazy so heavy plugins stay code-split).
@@ -955,18 +955,29 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // is drawer-by-default. Per-view config can still override (e.g. a heavy
     // detail object can set `navigation.mode = 'page'`).
     const detailNavigation: ViewNavigationConfig = useMemo(
-        () =>
-            activeView?.navigation ??
-            objectDef.navigation ??
-            // #2578: default a FIELD-HEAVY object's record peek to a full page
-            // (a form-heavy record is cramped in a drawer); light objects keep
-            // the drawer peek. This automates the "heavy detail object can set
-            // navigation.mode = 'page'" note above. An authored view/object
-            // `navigation` still wins.
-            (deriveRecordSurface(objectDef) === 'page'
+        () => {
+            const authored = activeView?.navigation ?? objectDef.navigation;
+            if (authored) {
+                // Authored config wins. For an overlay, resolve the `size`
+                // bucket (or 'auto') to a viewport-clamped width when no explicit
+                // width was given — #2578: a pixel width can't be authored blind.
+                if (authored.mode === 'page') return authored;
+                return {
+                    ...authored,
+                    width: authored.width ?? overlayWidthFor(
+                        (authored as { size?: 'auto' | 'sm' | 'md' | 'lg' | 'xl' | 'full' }).size,
+                        objectDef,
+                    ),
+                };
+            }
+            // #2578: derive surface + width from FIELD COUNT. Field-heavy → full
+            // page (cramped in a drawer); light → a drawer sized to the content
+            // and clamped to the viewport. Mobile always pages (in deriveRecordSurface).
+            return deriveRecordSurface(objectDef) === 'page'
                 ? { mode: 'page' }
-                : { mode: 'drawer', width: 'min(92vw, 1280px)' }),
-        [activeView?.navigation, objectDef.navigation]
+                : { mode: 'drawer', width: overlayWidthFor('auto', objectDef) };
+        },
+        [activeView?.navigation, objectDef]
     );
     const drawerRecordId = searchParams.get('recordId');
 

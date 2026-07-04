@@ -65,10 +65,13 @@ describe('autoLayout', () => {
       expect(inferColumns(3)).toBe(1);
     });
 
-    it('returns 2 columns for 4+ fields', () => {
+    it('scales the column CAP with field count (#2578)', () => {
       expect(inferColumns(4)).toBe(2);
       expect(inferColumns(8)).toBe(2);
-      expect(inferColumns(20)).toBe(2);
+      expect(inferColumns(9)).toBe(3);
+      expect(inferColumns(15)).toBe(3);
+      expect(inferColumns(16)).toBe(4);
+      expect(inferColumns(60)).toBe(4);
     });
   });
 

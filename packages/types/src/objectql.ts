@@ -1540,7 +1540,14 @@ export interface ViewNavigationConfig {
   /** Open in new tab (for page/new_window modes) */
   openNewTab?: boolean;
   
-  /** Width for drawer/modal/split modes (e.g., '600px', '50%') */
+  /**
+   * [#2578] Overlay size bucket for drawer/modal detail. `'auto'` (default):
+   * the renderer derives it from field count and clamps to the viewport.
+   * Prefer this over the pixel `width`.
+   */
+  size?: 'auto' | 'sm' | 'md' | 'lg' | 'xl' | 'full';
+
+  /** @deprecated [#2578 → `size`] Pixel/percent width — can't be authored blind. Renderer fallback only. */
   width?: string | number;
 }
 

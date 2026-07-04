@@ -62,3 +62,35 @@ export function deriveRecordSurface(objectSchema: unknown, opts: RecordSurfaceOp
   const threshold = opts.pageThreshold ?? RECORD_SURFACE_PAGE_THRESHOLD;
   return countAuthorableFields(objectSchema) >= threshold ? 'page' : 'drawer';
 }
+
+/**
+ * Overlay size bucket for a drawer/modal (mirrors spec `NavigationConfig.size`
+ * / `FormView.modalSize`). #2578: width is a runtime concern — the author can't
+ * know the client viewport — so buckets map to a pixel CAP that the renderer
+ * always clamps to the viewport (`min(cap, 92vw)`).
+ */
+export type OverlaySize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
+
+/** Pixel cap per bucket; always clamped to the viewport at render (min(cap, 92vw)). */
+const OVERLAY_SIZE_PX: Record<OverlaySize, number> = {
+  sm: 480, md: 720, lg: 960, xl: 1200, full: 1600,
+};
+
+/** Derive the overlay size bucket from field count (the `size: 'auto'` path). */
+export function deriveOverlaySize(objectSchema: unknown): OverlaySize {
+  const n = countAuthorableFields(objectSchema);
+  if (n <= 3) return 'sm';
+  if (n <= 8) return 'md';
+  if (n <= 15) return 'lg';
+  return 'xl';
+}
+
+/**
+ * Resolve an overlay `size` (bucket or `'auto'`/absent) to a viewport-clamped
+ * CSS width. `'auto'` derives the bucket from field count. The `min(cap, 92vw)`
+ * clamp is why the AUTHOR never needs the client width — the client applies it.
+ */
+export function overlayWidthFor(size: 'auto' | OverlaySize | undefined, objectSchema: unknown): string {
+  const bucket = (!size || size === 'auto') ? deriveOverlaySize(objectSchema) : size;
+  return `min(92vw, ${OVERLAY_SIZE_PX[bucket]}px)`;
+}
