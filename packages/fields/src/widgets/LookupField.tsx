@@ -679,7 +679,20 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
       // title) and turns an empty required picker from a dead end into a way to
       // author the first related record.
       if (hasActionProvider) {
-        setIsOpen(false); // hand off to the modal
+        setIsOpen(false); // close the picker popover first
+        // Defer opening the create dialog until the popover has fully closed and
+        // returned focus to the field trigger. Two nested-modal bugs come from
+        // opening it in the same tick as the triggering click:
+        //  1) the just-mounted Dialog treats this click's release (and the
+        //     popover's own dismiss) as an outside-interaction and flashes shut
+        //     on the FIRST click (works on the second);
+        //  2) with the popover already gone, the "+ create" button that Radix
+        //     would return focus to is unmounted, so when the nested modal later
+        //     closes focus leaks to <body> and dismisses the PARENT form's dialog
+        //     too ("Cancel closes both").
+        // A macrotask runs after Radix's focus-return layout effects, so focus is
+        // safely back on the still-mounted field trigger before the Dialog opens.
+        await new Promise((r) => setTimeout(r, 0));
         const result: any = await execute({
           type: 'modal',
           modal: { objectName: referenceTo, mode: 'create' },
