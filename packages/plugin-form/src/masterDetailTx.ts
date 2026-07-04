@@ -14,9 +14,29 @@
  */
 
 import type { DataSource } from '@object-ui/types';
+import { sanitizeFormData } from './sanitize';
 
 export const idOf = (rec: any): string | undefined =>
   rec == null ? undefined : (rec.id ?? rec._id ?? rec.recordId);
+
+/** Optional child object schema (`{ fields }`) used to strip non-writable
+ *  values from a child payload before persisting. */
+export type ChildSchema = { fields?: Record<string, any> } | null | undefined;
+
+/**
+ * Strip computed / read-only / server-managed / unknown fields from a child
+ * row's write payload — the same guard the parent form applies via
+ * `sanitizeFormData` (ObjectForm). Child rows are seeded from a full record
+ * read (`dataSource.find`), so an edit round-trips computed columns (formula /
+ * summary) the grid never let the user edit; the server rejects those as
+ * unknown/non-writable fields. Gated on a schema being supplied so existing
+ * callers that don't pass one keep their exact behavior (incl. sending `id`
+ * inside an update payload). A stored client-computed column
+ * (`type: currency` + `expression`, e.g. a line `amount`) is intentionally
+ * preserved — only true computed *types* / `readonly` / unknown keys are dropped.
+ */
+const toWritable = (data: Record<string, any>, childSchema: ChildSchema): Record<string, any> =>
+  childSchema ? sanitizeFormData(data, childSchema) : data;
 
 export interface RowDiff {
   toCreate: Record<string, any>[];
@@ -33,6 +53,9 @@ export interface BatchDetailInput {
   childObject: string;
   relationshipField: string;
   rows: Record<string, any>[];
+  /** When supplied, child write payloads are sanitized against it (drops
+   *  computed / read-only / unknown fields). Omit to persist rows as-is. */
+  childSchema?: ChildSchema;
 }
 
 /** Edit-mode detail input: current rows + the loaded snapshot to diff against. */
@@ -81,7 +104,9 @@ export function buildMasterDetailBatch(
   for (const d of details) {
     for (const row of d.rows) {
       if (isBlankRow(row, d.relationshipField)) continue; // skip the ghost/empty line
-      ops.push({ object: d.childObject, action: 'create', data: { ...row, [d.relationshipField]: { $ref: 0 } } });
+      // Sanitize business fields, then attach the FK (a schema field, so it
+      // survives sanitize anyway — attached explicitly for clarity/safety).
+      ops.push({ object: d.childObject, action: 'create', data: { ...toWritable(row, d.childSchema), [d.relationshipField]: { $ref: 0 } } });
     }
   }
   return ops;
@@ -108,10 +133,12 @@ export function buildMasterDetailEditBatch(
       if (isBlankRow(row, d.relationshipField)) continue; // skip the ghost/empty line
       // Strip any client-only id so the server generates one.
       const { id: _omit, _id: _omit2, recordId: _omit3, ...clean } = row as any;
-      ops.push({ object: d.childObject, action: 'create', data: clean });
+      ops.push({ object: d.childObject, action: 'create', data: toWritable(clean, d.childSchema) });
     }
     for (const row of toUpdate) {
-      ops.push({ object: d.childObject, action: 'update', id: idOf(row)!, data: row });
+      // Route by id; the id is carried separately so sanitize can drop it (and
+      // any computed columns) from the data payload without losing the target.
+      ops.push({ object: d.childObject, action: 'update', id: idOf(row)!, data: toWritable(row, d.childSchema) });
     }
     for (const id of toDelete) {
       ops.push({ object: d.childObject, action: 'delete', id });
@@ -181,6 +208,9 @@ export interface ApplyDetailOptions {
   amountField?: string;
   /** Parent field to receive the rolled-up sum. */
   totalField?: string;
+  /** When supplied, child write payloads are sanitized against it (drops
+   *  computed / read-only / unknown fields). Omit to persist rows as-is. */
+  childSchema?: ChildSchema;
 }
 
 export interface ApplyDetailResult {
@@ -208,15 +238,16 @@ export async function applyDetail(
 
   if (opts.original !== undefined) {
     const { toCreate, toUpdate, toDelete } = diffRows(opts.original, withFk);
-    const newRecords = await createMany(dataSource, opts.childObject, toCreate);
+    const newRecords = await createMany(dataSource, opts.childObject, toCreate.map((r) => toWritable(r, opts.childSchema)));
     for (const rec of newRecords) {
       const id = idOf(rec);
       if (id) created.push({ object: opts.childObject, id });
     }
-    await Promise.all(toUpdate.map((r) => dataSource.update(opts.childObject, idOf(r)!, r)));
+    // idOf(r) is read BEFORE sanitize so update routing survives dropping the id.
+    await Promise.all(toUpdate.map((r) => dataSource.update(opts.childObject, idOf(r)!, toWritable(r, opts.childSchema))));
     await Promise.all(toDelete.map((id) => dataSource.delete(opts.childObject, id)));
   } else {
-    const newRecords = await createMany(dataSource, opts.childObject, withFk);
+    const newRecords = await createMany(dataSource, opts.childObject, withFk.map((r) => toWritable(r, opts.childSchema)));
     for (const rec of newRecords) {
       const id = idOf(rec);
       if (id) created.push({ object: opts.childObject, id });

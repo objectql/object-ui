@@ -361,6 +361,36 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // Cache of child object schemas (keyed by childObject), fetched once so the
+  // client-orchestrated and atomic-batch child writes can strip computed /
+  // read-only columns from each row — parity with the parent form's
+  // `sanitizeFormData`. Child rows are seeded from a full record read, so an
+  // edit would otherwise round-trip formula/summary columns the server rejects.
+  // A ref (not state) so a late-arriving schema never re-renders — and thus
+  // never resets — the header <ObjectForm> (see #1581). Reads happen at submit
+  // time, long after the fetch resolves.
+  const childSchemasRef = useRef<Record<string, { fields?: Record<string, any> }>>({});
+  useEffect(() => {
+    const ds: any = dataSource;
+    if (!ds || typeof ds.getObjectSchema !== 'function') return;
+    let cancelled = false;
+    const objects = Array.from(new Set(rawDetails.map((d) => d.childObject).filter(Boolean)));
+    (async () => {
+      const entries = await Promise.all(
+        objects.map(async (obj) => {
+          try { return [obj, await ds.getObjectSchema(obj)] as const; }
+          catch { return [obj, null] as const; }
+        }),
+      );
+      if (cancelled) return;
+      const next: Record<string, { fields?: Record<string, any> }> = {};
+      for (const [obj, sch] of entries) if (sch) next[obj] = sch;
+      childSchemasRef.current = next;
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataSource, schema.objectName, schema.details]);
+
   // Bumped after a successful CREATE to remount the parent <ObjectForm> (which
   // owns react-hook-form state) so its fields clear for the next entry.
   const [formKey, setFormKey] = useState(0);
@@ -505,6 +535,8 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
           original: isEdit ? original : undefined,
           amountField: d.amountField,
           totalField: d.totalField,
+          // Strip computed / read-only columns from each child row payload.
+          childSchema: childSchemasRef.current[d.childObject],
         });
         createdIds.push(...created);
       }
@@ -565,6 +597,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               relationshipField: d.relationshipField!,
               rows: stateRef.current[i]?.rows ?? [],
               original: stateRef.current[i]?.original ?? [],
+              childSchema: childSchemasRef.current[d.childObject],
             })),
           )
         : buildMasterDetailBatch(
@@ -574,6 +607,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               childObject: d.childObject,
               relationshipField: d.relationshipField!,
               rows: stateRef.current[i]?.rows ?? [],
+              childSchema: childSchemasRef.current[d.childObject],
             })),
           );
       const res = await ds.batchTransaction(ops);

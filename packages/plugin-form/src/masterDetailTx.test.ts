@@ -207,3 +207,84 @@ describe('applyDetail — client-orchestrated child write', () => {
     expect(ds.update).not.toHaveBeenCalled();
   });
 });
+
+// A line-item child schema mirroring the real fixture pattern: `amount` is a
+// STORED currency column carrying an `expression` for live client recompute
+// (persisted as-is, MUST survive sanitize), while `line_total` (summary) and
+// `note_calc` (formula) are true computed types the server rejects on write.
+const LINE_SCHEMA = {
+  fields: {
+    product: { type: 'text' },
+    quantity: { type: 'number' },
+    unit_price: { type: 'currency' },
+    amount: { type: 'currency', expression: { dialect: 'cel', source: 'record.quantity * record.unit_price' } },
+    line_total: { type: 'summary' },
+    note_calc: { type: 'formula' },
+    invoice: { type: 'master_detail' },
+  },
+};
+
+describe('child payload sanitize (childSchema supplied)', () => {
+  const dirtyRow = (over: Record<string, any> = {}) => ({
+    product: 'Widget', quantity: 2, unit_price: 10, amount: 20,
+    line_total: 20, note_calc: 'x', ...over,
+  });
+
+  it('buildMasterDetailBatch strips computed/server-managed child fields, keeps stored amount + FK', () => {
+    const ops = buildMasterDetailBatch('invoice', { name: 'INV-1' }, [{
+      childObject: 'inv_line', relationshipField: 'invoice',
+      rows: [dirtyRow({ id: 'client-only' })],
+      childSchema: LINE_SCHEMA,
+    }]);
+    // formula/summary + client-only id dropped; stored amount kept; FK is $ref.
+    expect(ops[1].data).toEqual({
+      product: 'Widget', quantity: 2, unit_price: 10, amount: 20, invoice: { $ref: 0 },
+    });
+  });
+
+  it('buildMasterDetailEditBatch: update carries routing id but a sanitized data payload', () => {
+    const ops = buildMasterDetailEditBatch('invoice', 'inv1', { name: 'INV-1' }, [{
+      childObject: 'inv_line', relationshipField: 'invoice',
+      rows: [dirtyRow({ id: 'l1', amount: 25 }), dirtyRow({ product: 'New', amount: 5 })],
+      original: [{ id: 'l1', product: 'Widget', quantity: 1, unit_price: 10, amount: 10 }],
+      childSchema: LINE_SCHEMA,
+    }]);
+    // op[0] is the PARENT update — scope to the child object for the line ops.
+    const upd = ops.find((o) => o.object === 'inv_line' && o.action === 'update');
+    // Routed by id; data has the FK + stored fields, NOT id/line_total/note_calc.
+    expect(upd).toEqual({
+      object: 'inv_line', action: 'update', id: 'l1',
+      data: { product: 'Widget', quantity: 2, unit_price: 10, amount: 25, invoice: 'inv1' },
+    });
+    const cre = ops.find((o) => o.object === 'inv_line' && o.action === 'create');
+    expect(cre!.data).toEqual({ product: 'New', quantity: 2, unit_price: 10, amount: 5, invoice: 'inv1' });
+    expect(cre!.data).not.toHaveProperty('note_calc');
+  });
+
+  it('applyDetail sanitizes create and update child payloads', async () => {
+    const ds = mockDataSource();
+    await applyDetail(ds, 'invoice', 'inv1', {
+      childObject: 'inv_line', relationshipField: 'invoice',
+      original: [{ id: 'l1', product: 'Widget', quantity: 1, unit_price: 10, amount: 10 }],
+      rows: [dirtyRow({ id: 'l1', amount: 25 }), dirtyRow({ product: 'New', amount: 5 })],
+      childSchema: LINE_SCHEMA,
+    });
+    // Update: computed/id stripped, stored amount + FK kept.
+    expect(ds.update).toHaveBeenCalledWith('inv_line', 'l1', {
+      product: 'Widget', quantity: 2, unit_price: 10, amount: 25, invoice: 'inv1',
+    });
+    // Create (via bulk): computed dropped, amount kept.
+    expect(ds.bulk).toHaveBeenCalledWith('inv_line', 'create', [
+      { product: 'New', quantity: 2, unit_price: 10, amount: 5, invoice: 'inv1' },
+    ]);
+  });
+
+  it('leaves rows untouched when no childSchema is supplied (backward compatible)', () => {
+    const ops = buildMasterDetailBatch('invoice', { name: 'INV-1' }, [{
+      childObject: 'inv_line', relationshipField: 'invoice',
+      rows: [dirtyRow()],
+    }]);
+    // No schema → the computed columns pass through unchanged (prior behavior).
+    expect(ops[1].data).toMatchObject({ line_total: 20, note_calc: 'x' });
+  });
+});

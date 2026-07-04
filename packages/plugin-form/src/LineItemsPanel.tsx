@@ -66,6 +66,21 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Child object schema — used to strip computed / read-only columns from each
+  // row before persisting (parity with the parent form's sanitize). Rows are
+  // loaded from a full read, so an edit would otherwise round-trip formula /
+  // summary columns the server rejects as unknown fields.
+  const [childSchema, setChildSchema] = useState<{ fields?: Record<string, any> } | null>(null);
+  useEffect(() => {
+    const ds: any = dataSource;
+    if (!ds || typeof ds.getObjectSchema !== 'function') return;
+    let cancelled = false;
+    ds.getObjectSchema(schema.childObject)
+      .then((s: any) => { if (!cancelled) setChildSchema(s ?? null); })
+      .catch(() => { if (!cancelled) setChildSchema(null); });
+    return () => { cancelled = true; };
+  }, [dataSource, schema.childObject]);
+
   const load = useCallback(async () => {
     if (!dataSource || !parentId) {
       setLoading(false);
@@ -110,6 +125,8 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
         amountField: schema.amountField,
         // only roll up when we know the parent object to write the total onto
         totalField: parentObject ? schema.totalField : undefined,
+        // Strip computed / read-only columns from each child row payload.
+        childSchema,
       });
       await load();
     } catch (e: any) {
@@ -117,7 +134,7 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
     } finally {
       setSaving(false);
     }
-  }, [dataSource, parentId, rows, original, schema, parentObject, load]);
+  }, [dataSource, parentId, rows, original, schema, parentObject, load, childSchema]);
 
   const gridField = useMemo(
     () =>
