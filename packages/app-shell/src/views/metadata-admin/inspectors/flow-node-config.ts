@@ -67,6 +67,7 @@ export type ReferenceKind =
   | 'queue'
   | 'department'
   | 'connector'
+  | 'connector-action'
   | 'email-template';
 
 export interface FlowReferenceSpec {
@@ -83,6 +84,13 @@ export interface FlowReferenceSpec {
    *     the object name (e.g. CRUD nodes resolve from their own `objectName`).
    */
   objectSource?: string;
+  /**
+   * For `connector-action` only: the sibling key (on this node's
+   * `connectorConfig` block) holding the chosen connector's name. Defaults to
+   * `'connectorId'`. The picker lists THAT connector's actions (from the runtime
+   * connector descriptors); with no connector chosen it degrades to free text.
+   */
+  connectorSource?: string;
   /**
    * Polymorphic reference: the kind is selected at render time by the value of
    * a sibling field/column named `kindFrom`, looked up in {@link map}. A value
@@ -518,9 +526,10 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
   ],
   connector_action: [
     at('connectorConfig', 'connectorId', 'Connector', 'reference', { ref: { kind: 'connector' }, placeholder: 'slack · email · salesforce' }),
-    // actionId is polymorphic on the chosen connector and has no flat catalog
+    // actionId is polymorphic on the chosen connector: the picker lists THAT
+    // connector's actions (runtime descriptors), degrading to free text if none.
     // (a deliberate open extension point) — stays free text.
-    at('connectorConfig', 'actionId', 'Action', 'text', { placeholder: 'sendMessage · send' }),
+    at('connectorConfig', 'actionId', 'Action', 'reference', { ref: { kind: 'connector-action', connectorSource: 'connectorId' }, placeholder: 'sendMessage · send' }),
     at('connectorConfig', 'input', 'Input', 'keyValue', { help: 'Mapped inputs for the connector action.' }),
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '30000' },
   ],
