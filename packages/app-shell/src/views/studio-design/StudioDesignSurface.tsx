@@ -2023,6 +2023,37 @@ function DataPillar({
 }
 
 /** Automations pillar — flows: list → FlowPreview (default OFF / review-then-enable). */
+/** Runtime enable/bound state for a flow (from `GET /automation/_status`). */
+interface FlowRuntimeState {
+  name: string;
+  enabled?: boolean;
+  bound?: boolean;
+}
+
+/**
+ * A flow's live status in the Automations rail: a colored dot + On/Off, from the
+ * engine's runtime state (persisted `status` is intent; this is what's actually
+ * live). Renders nothing for a flow the engine doesn't know yet (never published)
+ * — the amber "unpublished draft" chip already covers that case.
+ */
+export function FlowStatusDot({ state, locale }: { state?: { enabled: boolean; bound: boolean }; locale: string }): React.ReactElement | null {
+  if (!state) return null;
+  const { enabled, bound } = state;
+  const title = enabled
+    ? bound
+      ? t('engine.studio.auto.onBound', locale)
+      : t('engine.studio.auto.onUnbound', locale)
+    : t('engine.studio.auto.offTitle', locale);
+  return (
+    <span title={title} className="inline-flex shrink-0 items-center gap-1">
+      <span className={'h-1.5 w-1.5 rounded-full ' + (enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
+      <span className={'text-[10px] ' + (enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground')}>
+        {enabled ? t('engine.studio.auto.on', locale) : t('engine.studio.auto.off', locale)}
+      </span>
+    </span>
+  );
+}
+
 function AutomationsPillar({
   packageId,
   publishNonce = 0,
@@ -2054,6 +2085,32 @@ function AutomationsPillar({
   const Preview = getMetadataPreview(current?.type ?? '');
   const inspector = getMetadataInspector('flow');
   const isEditable = !!Preview;
+
+  // Runtime enable/bound state per flow (GET /automation/_status). Persisted
+  // `status` is intent; this is what's actually live in the engine — the truth
+  // behind the rail's status dots. Refetched after a publish (publishNonce);
+  // degrades silently on an older backend / offline (dots just don't render).
+  const [flowStatus, setFlowStatus] = React.useState<Record<string, { enabled: boolean; bound: boolean }>>({});
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/v1/automation/_status', { credentials: 'include', headers: { Accept: 'application/json' } });
+        if (!res.ok) return;
+        const payload = (await res.json().catch(() => null)) as { data?: { flows?: FlowRuntimeState[] }; flows?: FlowRuntimeState[] } | null;
+        const list = payload?.data?.flows ?? payload?.flows ?? [];
+        if (cancelled || !Array.isArray(list)) return;
+        const map: Record<string, { enabled: boolean; bound: boolean }> = {};
+        for (const s of list) if (s?.name) map[s.name] = { enabled: s.enabled !== false, bound: !!s.bound };
+        setFlowStatus(map);
+      } catch {
+        /* offline / older backend → no dots */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [publishNonce]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -2161,6 +2218,30 @@ function AutomationsPillar({
     }
   }, [client, current, draft, onDraftSaved]);
 
+  // Enable/disable persists via the flow's deployment `status` (active = on,
+  // obsolete = off) — the engine honors it on the next publish. The switch flips
+  // it and saves the draft immediately; the change goes live when the package is
+  // published (so "review before enabling" is preserved).
+  const flowEnabled = draft.status !== 'obsolete' && draft.status !== 'invalid';
+  const toggleEnabled = React.useCallback(async () => {
+    if (!current) return;
+    const next = !(draft.status !== 'obsolete' && draft.status !== 'invalid');
+    const nextDraft = { ...draft, status: next ? 'active' : 'obsolete' };
+    setDraft(nextDraft);
+    setSaving('draft');
+    setError(null);
+    try {
+      await client.save('flow', current.name, nextDraft, { mode: 'draft', packageId });
+      setHasDraft(true);
+      onDraftSaved?.();
+      toast.success(next ? t('engine.studio.auto.enabledToast', locale) : t('engine.studio.auto.disabledToast', locale));
+    } catch (e) {
+      setError(formatMetadataError(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [client, current, draft, packageId, onDraftSaved, locale]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
@@ -2169,6 +2250,22 @@ function AutomationsPillar({
           <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
             {t('engine.studio.unpublishedDraft', locale)}
           </span>
+        )}
+        {current && (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={flowEnabled}
+            onClick={toggleEnabled}
+            disabled={!isEditable || !!saving}
+            title={flowEnabled ? t('engine.studio.auto.disableTitle', locale) : t('engine.studio.auto.enableTitle', locale)}
+            className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] hover:bg-muted disabled:opacity-50"
+          >
+            <span className={'relative inline-flex h-3.5 w-6 shrink-0 items-center rounded-full transition-colors ' + (flowEnabled ? 'bg-emerald-500' : 'bg-muted-foreground/40')}>
+              <span className={'inline-block h-2.5 w-2.5 rounded-full bg-white transition-transform ' + (flowEnabled ? 'translate-x-3' : 'translate-x-0.5')} />
+            </span>
+            {flowEnabled ? t('engine.studio.auto.enabled', locale) : t('engine.studio.auto.disabled', locale)}
+          </button>
         )}
         <button
           onClick={doSave}
@@ -2205,6 +2302,7 @@ function AutomationsPillar({
               >
                 <Workflow className="h-3.5 w-3.5 shrink-0" />
                 <span className="flex-1 truncate">{f.label}</span>
+                <FlowStatusDot state={flowStatus[f.name]} locale={locale} />
               </button>
             ))}
           {flows.length === 0 && !creating && (
