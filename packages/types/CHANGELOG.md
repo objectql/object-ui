@@ -1,5 +1,78 @@
 # @object-ui/types
 
+## 11.4.0
+
+### Minor Changes
+
+- 8bf6295: feat: adaptive record surface + semantic field span + responsive columns (framework#2578)
+
+  Field-heavy objects (all metadata is AI-authored) now present themselves without
+  any authored presentation config:
+
+  - **Adaptive surface** — a record's create/edit/detail opens as a full page when
+    the object is field-heavy, or a drawer when it is light. Derived from field
+    count (`deriveRecordSurface`), not authored; mobile always pages. Wired into the
+    app-shell ObjectView detail navigation (an authored view/object `navigation`
+    still wins).
+  - **Semantic field span** — `FormField.span` (`auto`/`full`) is a width primitive
+    decoupled from the (per-surface derived) column count; legacy `colSpan` is
+    clamped so it never overflows. `ObjectForm` now honours per-section `columns`
+    and carries `span`/`colSpan` from section defs — fixes the bug where
+    `type:'simple'` ignored `section.columns` and grouped fields rendered single
+    column.
+  - **Responsive columns** — `inferColumns` scales the column CAP with field count
+    (≤3→1, ≤8→2, ≤15→3, 16+→4); the ACTUAL column count follows the form's real
+    width via CSS container queries, so the same form goes 1→2→3→4 columns as a
+    drawer widens or becomes a page.
+  - **Runtime overlay width** — `NavigationConfig.size` bucket is resolved to a
+    viewport-clamped width at runtime (`overlayWidthFor`); a pixel width is never
+    authored (the author cannot know the client viewport).
+
+### Patch Changes
+
+- 1948c5b: fix(plugin-grid): keep the grid's row selection in sync when a bulk-action dialog closes
+
+  Closing a bulk-action result dialog (e.g. 派工 / 下推) on **Done** cleared
+  ObjectGrid's `selectedRows` — which drives the selection toolbar — but never
+  touched the DataTable's internal checkbox state. Two visible problems:
+
+  - **Desync on success.** The toolbar disappeared while every row stayed visibly
+    ticked, because the checkboxes are table-internal state the grid couldn't
+    reach.
+
+  - **Lost selection on total failure.** When the run failed for _every_ row
+    (0 succeeded — a precondition error, say), the toolbar still vanished,
+    stranding the user with no way to retry the exact rows they'd picked.
+
+  The dialog-close handler now gates the reset on `result.succeeded > 0`: a total
+  failure keeps both the selection _and_ the toolbar (and skips the phantom
+  refetch) so the user can fix the cause and retry. When it does reset, a new
+  `selectionResetKey` prop on DataTable clears the internal checkbox selection in
+  lockstep with the toolbar, so the two never drift apart.
+
+- c38d107: Fix view-level `FormField.visibleOn` (CEL) never taking effect (#2212).
+
+  The spec ships `visibleOn` as an Expression object `{ dialect: 'cel', source }`
+  (what the `P` template emits) or a bare string, but the whole chain dropped it:
+
+  - `sectionFields.ts` / `ObjectForm.tsx` only accepted the bare-string shape and
+    attached a dead `visible()` closure no renderer ever called — the Expression
+    object shape was silently discarded.
+  - The form renderer destructured `visibleOn` out of the field config and never
+    evaluated it.
+  - `RecordFormPage` dropped a `simple` form view's `sections` entirely, so
+    page-mode create/edit fell back to the raw schema (every field, no authored
+    selection/grouping) while the modal path honored the same view.
+  - `ObjectForm`'s grouped-sections path matched section fields by name only,
+    dropping per-field `visibleOn` overrides.
+
+  `visibleOn` now flows through normalization verbatim (both wire shapes) and is
+  evaluated reactively by the form renderer with the canonical expression engine
+  (`evalFieldPredicate` — same engine, record scope, and fail-open semantics as
+  field-level `visibleWhen`; both predicates must allow a field for it to show).
+  Sectioned/flat normalization also copies field-level `visibleWhen` /
+  `readonlyWhen` / `requiredWhen` rules it previously lost.
+
 ## 11.3.0
 
 ## 11.2.0

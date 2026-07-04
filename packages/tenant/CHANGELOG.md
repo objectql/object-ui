@@ -1,5 +1,14 @@
 # @object-ui/tenant
 
+## 11.4.0
+
+### Patch Changes
+
+- Updated dependencies [8bf6295]
+- Updated dependencies [1948c5b]
+- Updated dependencies [c38d107]
+  - @object-ui/types@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes

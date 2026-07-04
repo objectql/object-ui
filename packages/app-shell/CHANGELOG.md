@@ -1,5 +1,527 @@
 # @object-ui/app-shell — Changelog
 
+## 11.4.0
+
+### Minor Changes
+
+- 8bf6295: feat: adaptive record surface + semantic field span + responsive columns (framework#2578)
+
+  Field-heavy objects (all metadata is AI-authored) now present themselves without
+  any authored presentation config:
+
+  - **Adaptive surface** — a record's create/edit/detail opens as a full page when
+    the object is field-heavy, or a drawer when it is light. Derived from field
+    count (`deriveRecordSurface`), not authored; mobile always pages. Wired into the
+    app-shell ObjectView detail navigation (an authored view/object `navigation`
+    still wins).
+  - **Semantic field span** — `FormField.span` (`auto`/`full`) is a width primitive
+    decoupled from the (per-surface derived) column count; legacy `colSpan` is
+    clamped so it never overflows. `ObjectForm` now honours per-section `columns`
+    and carries `span`/`colSpan` from section defs — fixes the bug where
+    `type:'simple'` ignored `section.columns` and grouped fields rendered single
+    column.
+  - **Responsive columns** — `inferColumns` scales the column CAP with field count
+    (≤3→1, ≤8→2, ≤15→3, 16+→4); the ACTUAL column count follows the form's real
+    width via CSS container queries, so the same form goes 1→2→3→4 columns as a
+    drawer widens or becomes a page.
+  - **Runtime overlay width** — `NavigationConfig.size` bucket is resolved to a
+    viewport-clamped width at runtime (`overlayWidthFor`); a pixel width is never
+    authored (the author cannot know the client viewport).
+
+- 144ab55: Consume the ADR-0085 object semantic roles from `@objectstack/spec@11.7.0`, retiring the per-surface hint dialects:
+
+  - **Single-source fieldGroups derivation**: `plugin-form`'s `deriveFieldGroupSections` and `plugin-detail`'s `deriveFieldGroupDetailSections` are now thin adapters over the spec's `deriveFieldGroupLayout` (ADR-0085 §5) — forms, modals and detail pages render the SAME grouping from one implementation. The canonical `collapse: 'none' | 'expanded' | 'collapsed'` enum is honoured everywhere (deprecated `collapsible`/`collapsed` and `defaultExpanded` spellings still read for pre-11.7 metadata).
+  - **`stageField` semantic role**: the detail stepper reads the top-level `stageField`; `stageField: false` now actually suppresses stage detection (previously the `false` handling was wired to the removed `detail.stageField` key, so spec-authored `false` fell through to the name heuristic).
+  - **`highlightFields` rename**: default grid columns, card compact views, the detail highlight strip, child-record preview fields and interface-page default columns read the object's `highlightFields` (deprecated `compactLayout` spelling read as fallback for pre-11.7 metadata).
+  - **Removed dead reads**: the never-spec-writable `objectDef.views.*` UI hints and the ADR-0085-removed `detail.*` block (`sections`, `sectionGroups`, `highlightFields`, `stageField`, `useFieldGroups`, `showReferenceRail`, `hideReferenceRail`, `hideRelatedTab`, `relatedLayout`) are no longer consulted. Per-page customization goes through an assigned Page schema (`record:reference_rail` remains available there as a renderer capability). `detail.renderViaSchema` survives only as the legacy-renderer kill-switch and is removed together with that path.
+
+- d9f5ccd: feat(studio): package Access door is draft/published, not live (ADR-0086 P2 · D6/D7)
+
+  The package **Access** pillar edited permission sets **live** — it wrote the
+  active record directly, unlike the Data and Interfaces pillars which stage a
+  draft and publish with the rest of the package. That contradicted ADR-0086 D6
+  ("a package's own access is metadata → draft/publish") and left the two doors
+  sharing one live write path.
+
+  Now the **package door** (`/studio/:packageId/access`) writes **drafts**:
+
+  - The permission editor's Save (`PermissionMatrixEditPage`, package scope) and
+    the "new set" creator both call `client.save(..., { mode: 'draft', packageId })`
+    — the framework stamps the draft with the package, and the top-bar **Publish**
+    promotes it atomically (materialized into `sys_permission_set` by the framework
+    side, ADR-0086 P2 块1). The **environment-admin** door (no `packageId`) is
+    unchanged: it stays **live** (config), per D7.
+  - Reads are draft-aware: the editor loads any pending draft over the published
+    baseline, and the pillar rail merges published ∪ draft sets — so a set created
+    or edited as a draft stays visible before publish (matching Data/Interfaces).
+    Saving bumps the surface's pending-changes counter; a publish reloads the
+    published baseline.
+  - The pillar banner no longer claims "saved = live" (it said Publish didn't apply
+    here) — it now states edits save as package drafts and go live on Publish.
+
+- 19f2533: Detail-page related lists: `relatedList: 'primary'` → own tab, multi-FK & self-referential related lists, unified picker columns (framework #2579).
+
+  - **plugin-detail** (`buildDefaultTabs`): the default related-list layout is now
+    the ADR-0085 prominence rule — lists whose FK declares `relatedList: 'primary'`
+    each get their OWN tab; every other related list collapses into a single
+    "Related" tab. With no primary lists this is byte-for-byte the previous stacked
+    default, so it is opt-in per relationship. `relatedLayout: 'tabs' | 'stack'`
+    remain app-level overrides (force all-own-tabs / all-stacked).
+  - **app-shell** (`deriveRelatedLists`): emits one related list per eligible FK —
+    a child referencing the parent through several relationships (e.g.
+    `primary_account` + `partner_account`) now surfaces each, disambiguated by the
+    FK label; includes self-referential relationships (hierarchies → a "child"
+    list); and carries the `isPrimary` prominence flag through. `RecordDetailView`
+    threads `isPrimary` into the synthesized page.
+  - **fields** (`deriveLookupColumns`): the lookup-picker default columns now
+    prefer the object's ADR-0085 `highlightFields` (then legacy `displayFields`,
+    then the field walk) — the same "how to list this object" source the related
+    list uses, so a picker and a related list of the same object agree with zero
+    per-surface config.
+
+  Pairs with the `@objectstack/spec` change that makes `relatedList` a tri-state
+  (`boolean | 'primary'`) and `record:related_list` `columns` optional.
+
+- 17374ce: Studio Data pillar Phase B — Validations & Settings views complete the Data v1 surface (builder-ui pillars):
+
+  - **Validations view**: no-code editing of `ObjectSchema.validations` `script` rules (name / message / CEL fail-condition via the metadata-admin ConditionBuilder, fed the DRAFT field list / severity / active / delete). Non-script rule types (state_machine, format, …) stay visible read-only so the list remains a truthful inventory. New rules default to a VALID never-firing `condition: 'false'` — an empty condition 422s the whole draft save and dead-ends the create flow.
+  - **Settings view**: object basics via the shared metadata-admin default inspector (one implementation for both surfaces) plus direct editors for the ADR-0085 semantic roles — `nameField`, `stageField` (incl. the `false` "not a linear flow" state) and ordered `highlightFields` chips.
+  - **Draft-only packages fixed in the rail**: the object list now merges `listDrafts()` headers, so a freshly-created writable base shows its draft objects instead of hanging on "加载中…"; the empty state now says the package has no objects yet.
+
+### Patch Changes
+
+- 4f77044: fix(studio): scope the Access matrix by package + slice-merge on save (ADR-0086 P0)
+
+  The Access pillar embedded the permission matrix at **environment scope**: it
+  listed every object in the environment (the "84-object leak"), and Save
+  overwrote the whole permission set — silently dropping authorization rows other
+  packages had contributed.
+
+  Opened inside a package, the matrix now:
+
+  - lists **only the objects that package declares** (`list('object', { packageId })`),
+    so a package's Access panel no longer exposes unrelated objects; and
+  - saves via **slice-merge** — it re-reads the record and writes back only this
+    package's slice, leaving every row contributed by other packages
+    byte-for-byte intact.
+
+  The Access rail also hides environment-owned platform-default sets
+  (`admin_full_access`, `member_default`, …) from a package's panel once the
+  backend tags sets with a record-level `package_id` (framework ADR-0086 P1), with
+  a mid-migration guard that shows all sets until that provenance axis is live so
+  the rail never goes empty. Behavior is unchanged when the editor is used outside
+  a package (no `packageId`): full object list, whole-record save.
+
+- 1813544: feat(studio): Access pillar — the fourth content pillar (permission matrix)
+
+  The pillar builder gains **Access** (builder-ui §7 / ADR-0084's fourth pillar):
+  left rail lists the environment's permission sets / profiles (search + inline
+  create), and the main zone embeds the existing Salesforce-style
+  `PermissionMatrixEditPage` unchanged — objects × CRUD/VAMA/lifecycle plus
+  per-object field-level R/W, with its own save and destructive-change guard.
+
+  Deliberate v1 semantics, said out loud in the banner: permissions are
+  platform-level authorization objects, not package content — the matrix saves
+  the ACTIVE item directly, so the shell's package draft/publish does not apply.
+
+- 2318ea2: fix(studio): scope the Access rail server-side by package (ADR-0086 P1)
+
+  The Access pillar's permission-set rail filtered client-side on a `package_id`
+  field read from `client.list('permission')` rows. But the metadata list endpoint
+  does not echo the record-level provenance columns — every row comes back with
+  `package_id` unset — so the filter's "any set tagged?" guard never fired and the
+  rail showed **all** sets, including environment-owned platform defaults
+  (`admin_full_access`, `member_default`, …), in a package's Access panel.
+
+  The rail now scopes server-side via `client.list('permission', { packageId })`:
+  the metadata API filters `permission` by the `package_id` provenance seeded in
+  framework ADR-0086 P1, returning only the sets this package owns. Verified
+  against a live showcase backend — the panel lists exactly `showcase_contributor`
+  and `showcase_member_default`, and the four platform defaults are excluded.
+
+  Removes the now-unused `scopePermissionSetList` client-side helper. Object-matrix
+  scoping and Save slice-merge (ADR-0086 P0) are unchanged.
+
+- 9aec681: fix(app-shell): stop double-toasting failed script/modal action errors
+
+  `serverActionHandler` toasted the action error itself **and** returned
+  `{ success: false, error }`, which `ActionRunner.handlePostExecution` also
+  surfaces as a toast — so a failed script action (e.g. a validation throw)
+  showed two identical red toasts.
+
+  `apiHandler` and `flowHandler` already only return the error and let the
+  runner own the toast; `serverActionHandler` now does the same, so a failed
+  action toasts exactly once.
+
+- 2edcaff: Drop the `compactLayout` fallback reads (6 sites: ObjectGrid default columns, deriveHighlightFields, RecordDetailView highlight strip + child preview, ObjectView ×2, InterfaceListPage). The deprecated spelling was retired from the spec by framework#2539 (framework#2536) — served metadata carries `highlightFields` only, so the fallbacks could never fire again; keeping them would teach the retired key to the next reader.
+- 31f96f7: feat(studio): 复制 (duplicate base) on writable packages in the builder landing
+
+  Writable base cards on the builder landing gain **复制** — a name/id inline form
+  that calls `POST /packages/:id/duplicate` (ADR-0070 D4: re-namespaced clone with
+  rewritten references) and drops the user straight into the copy's builder — the
+  Airtable "duplicate base" gesture. Read-only code packages stay browse-only:
+  duplication copies `sys_metadata` rows, which code packages don't have; their
+  customization path is template/marketplace install.
+
+- 34b92ac: fix(studio): show a failed flow run's reason in the Runs panel (string errors)
+
+  The Studio flow **Runs** panel (`FlowRunsPanel`) rendered a run-level error as
+  `run.error?.message`, but the automation engine sends `ExecutionLog.error` as a
+  plain **string** — so `.message` was always `undefined` and the failure reason,
+  the single most useful thing about a failed run, was silently dropped. This grew
+  important now that runs are durable (framework #2581): a failed run persists with
+  its reason, but the panel showed only a red "Failed" badge and no "why".
+
+  The panel now normalizes an error through a small `errorText()` helper that
+  accepts **either** a string (the run-level shape) **or** a `{ code, message }`
+  object (the step-level shape), and uses it for both the run summary and each
+  step row. Verified with a jsdom render test (a failed run's string reason reaches
+  the DOM) and live in the browser against a real failed run (`showcase_resilient_sync`):
+  the reason now displays where it previously showed nothing.
+
+- 346e78e: feat(home,studio): builder cover on Home + builder→app bridge
+
+  Two entries that wire the application builder into the platform journey the
+  Airtable way — Home is the cover, the app is the published front-end:
+
+  - **Home builder cover** (admins/builders only): two guided cards above "Your
+    apps" — **Build an app** (start from scratch → `/studio`, pick/create a
+    writable package) and **Start with a template** (→ marketplace). End users
+    see their apps as before.
+  - **打开应用 bridge** in the `/studio` top bar: when the package ships an app,
+    one click opens its published front-end (`/apps/<name>`) in a new tab —
+    the builder edits the 设计界面, the app is what end users see (Airtable's
+    Data ↔ published-Interfaces relationship, our draft→publish included).
+
+- c38d107: Fix view-level `FormField.visibleOn` (CEL) never taking effect (#2212).
+
+  The spec ships `visibleOn` as an Expression object `{ dialect: 'cel', source }`
+  (what the `P` template emits) or a bare string, but the whole chain dropped it:
+
+  - `sectionFields.ts` / `ObjectForm.tsx` only accepted the bare-string shape and
+    attached a dead `visible()` closure no renderer ever called — the Expression
+    object shape was silently discarded.
+  - The form renderer destructured `visibleOn` out of the field config and never
+    evaluated it.
+  - `RecordFormPage` dropped a `simple` form view's `sections` entirely, so
+    page-mode create/edit fell back to the raw schema (every field, no authored
+    selection/grouping) while the modal path honored the same view.
+  - `ObjectForm`'s grouped-sections path matched section fields by name only,
+    dropping per-field `visibleOn` overrides.
+
+  `visibleOn` now flows through normalization verbatim (both wire shapes) and is
+  evaluated reactively by the form renderer with the canonical expression engine
+  (`evalFieldPredicate` — same engine, record scope, and fail-open semantics as
+  field-level `visibleWhen`; both predicates must allow a field for it to show).
+  Sectioned/flat normalization also copies field-level `visibleWhen` /
+  `readonlyWhen` / `requiredWhen` rules it previously lost.
+
+- 98c9855: fix(studio): lookup target picker can see the package's own draft objects
+
+  When designing a set of related objects in one authoring pass, the field
+  inspector's lookup "related object" picker only listed **published** objects
+  (`list('object')`), so sibling objects still in draft — the ones you're most
+  likely to point a new lookup at — were invisible and had to be typed as a raw
+  API name, blind. The picker now also merges unpublished object drafts
+  (`listDrafts({ type: 'object' })`, labelled "(草稿)"), so a lookup can target a
+  sibling object before the package's first publish.
+
+- 363e8b7: Resolve short view names in `/view/<name>` routes instead of silently falling
+  back to the default view (#2217).
+
+  Nav items emit their `viewName` verbatim — usually the short form
+  (`tabular`) — while canonical view ids are fully qualified
+  (`showcase_task.tabular`), so nav-generated view links always rendered the
+  default view with no hint anything was wrong. `ObjectView` now resolves the
+  requested name in both directions (short → `<object>.<name>`, and qualified →
+  bare key for legacy embedded listViews), and logs a warning listing the known
+  view ids when nothing matches instead of swallowing the miss.
+
+- 0cf352b: fix(packages): Setup's package list and creator agree with the builder on writability
+
+  Two disagreements between Setup › Packages and the application builder about the
+  same package:
+
+  - **Display**: `ScopeBadge` defaulted a missing scope to `project`, so writable
+    database bases wore the same badge as read-only code packages. Scope-less
+    entries now show **可写/Writable** (emerald), `project` reads **只读 · 代码包 /
+    Read-only · code** — matching the builder's labeling.
+  - **Semantics**: the create-package dialog hardcoded `scope: 'project'` onto new
+    runtime-created bases, which made the builder's switcher/landing mislabel
+    Setup-created packages as read-only. New bases are now created scope-less,
+    the same shape the builder's own creator produces.
+
+- 7782698: fix(components): page:header record title honours `nameField` via the unified ADR-0079 resolver
+
+  The default console record detail page renders the synthesized `page:header`
+  (`buildDefaultPageSchema`, renderViaSchema default-on), whose record-chip title
+  chain probed `objSchema.primaryField` (not a spec property — always undefined),
+  `titleFormat`, then hardcoded `name`/`full_name`/`title`/`subject`/
+  `display_name`/`label` record keys. It never consulted the object's declared
+  `nameField`/`displayNameField`, so an object titled by e.g. `subject` rendered
+  `<ObjectLabel> <id-prefix>` as its H1 instead of the record's real name.
+
+  `PageHeaderRenderer` now resolves through `getRecordDisplayName(objSchema, data,
+{ deriveFromRecordKeys: false })` after the author overrides and before the
+  legacy probes — mirroring `DetailView.resolveDisplayTitle` so both headers
+  agree. `RecordDetailView`'s `primaryField` derivation and
+  `buildDefaultPageSchema`'s highlight-strip dedup also honour
+  `nameField`/`displayNameField`.
+
+- 790558b: fix(studio): make the Automations and Interfaces pillars authorable in a fresh package
+
+  Dogfooding a brand-new package end-to-end (design objects → automations →
+  interfaces → publish → use) surfaced two blocking dead-ends in the pillar
+  Studio, both now fixed:
+
+  - **Automations pillar had no way to create a flow.** For a package with zero
+    flows the rail rendered an endless "加载中…" (loading conflated with empty)
+    and offered no create affordance, so automations could never be authored.
+    It now tracks the list-loaded state (real empty state "还没有自动化 — 点「新建」开始")
+    and has a "+ 新建" inline creator that saves a minimal, valid `start → end`
+    autolaunched flow skeleton as a draft and opens it in the flow designer.
+
+  - **Interfaces nav items could not be bound to a target — and silently failed
+    to save.** Selecting a nav item showed no inspector, and the item shape the
+    editor produced (`{ label, object }`, no `id`/`type`) failed the app spec's
+    navigation union ("navigation.N: Invalid input"), so the draft never
+    persisted and the published app navigation stayed empty. The right panel now
+    renders a `StudioNavItemInspector` with a business-friendly object picker
+    (populated from the package's published ∪ draft objects) that emits a
+    spec-valid `ObjectNavItem` (`{ id, type:'object', objectName, label }`), and
+    the nav save drops still-unbound placeholders + backfills a snake_case id so
+    one blank item can't fail the whole save.
+
+  Also fills in the Home builder-cover i18n keys (`home.build.*`,
+  `home.template.*`) in `en`/`zh` so the "Build an app" / "Start with a template"
+  cards resolve real strings instead of falling back to defaults.
+
+- 3c7abf9: feat(studio): Data pillar left rail gains search + inline "new object"
+
+  Closes the two remaining v1 rail gaps from the builder design (§4): the objects rail
+  now has a **search** filter and an inline **新建对象** creator (显示名 + auto-derived
+  snake_case 标识符 — hand-editable, since CJK labels can't derive one). Creating saves
+  the object as a **draft in the current package** (same runtime-create path the classic
+  Studio editor uses), seeded with one text field, and lands in 表单 · 布局 — the
+  metadata-level designer.
+
+  Draft-only objects (no physical table until the package publish) now get honest
+  placeholders instead of broken surfaces: the Records grid explains that data arrives
+  after publish (instead of firing SQL at a table that doesn't exist), and 预览 explains
+  there is no published definition yet.
+
+- 839f6c2: fix(studio): stamp packageId on pillar draft saves → true package-scoped publish
+
+  Studio pillar draft-saves now pass the active `packageId`, so each draft row is
+  stamped with its package binding (`sys_metadata.package_id`) instead of `null`.
+  This makes the package-scoped surfaces reliable: the top-bar count + Changes review
+  filter via `GET /meta/_drafts?packageId=`, and Publish promotes exactly this
+  package's drafts via `POST /packages/:id/publish-drafts` (which matches
+  `WHERE package_id = X`). Replaces the previous "publish all pending" fallback that
+  was only needed because null-package drafts couldn't be package-filtered or picked
+  up by publish-drafts.
+
+- 87e7c23: feat(studio): builder landing + `studio:builder` entry — the builder joins the login journey
+
+  The pillar application builder was a URL-only surface (zero links anywhere pointed at
+  `/studio/...`). Now it has a front door wired into the platform journey:
+
+  - **BuilderLanding** — pick or create a writable base package (writable bases lead,
+    read-only code packages listed for browsing), then jump into the full-screen pillar
+    builder. Served standalone at bare **`/studio`** (bookmarkable) and embeddable via
+    the **`studio:builder`** component ref, which the framework's Studio app references
+    from its new 「App Builder」 nav entry — so the journey is: login → Home → Studio →
+    App Builder → package → build.
+  - `/studio/:packageId` now lands on **`data`** (the pillar order's first surface)
+    instead of `interfaces`.
+  - Package-list parsing/creation is extracted to `packages-io` and shared by the
+    landing and the top-bar package switcher.
+
+- 5ba3d0e: feat(studio): WYSIWYG form-layout designer in the Data pillar
+
+  The Data pillar's Form view gains a **布局 (Layout)** designer: the object's default
+  form rendered WYSIWYG, where an admin adds **sections**, drag-reorders fields within
+  a section and drags them **across** sections, and clicks a field to edit it in the
+  **same** protocol inspector the grid uses — one screen, no Data↔Interface switch.
+
+  Sections persist as the object's `fieldGroups`, and membership/order as `field.group`
+  plus field order, via the existing draft → publish. The drag/section chrome (dnd-kit)
+  is the only new code; the data model and all mutations reuse the existing, tested
+  `object-fields-io` helpers (`readGroups`/`addGroup`/`renameGroup`/`removeGroup`/
+  `moveGroup`/`clearFieldGroup`/`groupEntries`).
+
+  Also fixes the Data pillar clobbering an in-progress draft when the metadata client
+  identity churned (e.g. toggling the live preview): the object baseline is now loaded
+  exactly once per selected object.
+
+- c0164ad: fix(studio): surface spec-validation failures on the field at save/publish
+
+  When a Studio metadata draft failed spec validation, the designer got a single
+  opaque banner (and, on a partial publish, a false "published!" toast) — the
+  server was already returning field-anchored issues, but the client threw them
+  away. Two problems, both fixed:
+
+  - **`parseError` (data-objectstack)** read `String(body.error)`, which yields
+    `"[object Object]"` for the dispatcher's object-shaped error, and ignored the
+    validation `issues`. It now reads the message from either shape (string or
+    `{ message }`) and exposes `MetadataError.issues`, accepting all live server
+    shapes — top-level `body.issues` (REST server) and `error.details.issues`
+    (HTTP dispatcher).
+
+  - **Studio save/publish (app-shell)** now render those issues **field-anchored**.
+    A new `formatMetadataError` helper turns a caught error into one line per
+    offending field (`• fields.amount.type — Invalid option: …`); the save banners
+    render it with `whitespace-pre-line`. `doPublish` no longer claims success when
+    the response carries `data.failed[]` — it lists which drafts failed and why
+    (the server returns 200 with the failures buried, so the UI used to swallow
+    them). `formatPublishFailures` formats those per-draft.
+
+  Verified end-to-end against a live backend: an invalid object draft returns 422
+  with field-anchored issues, and the Studio banner shows
+  `• fields.amount.type — Invalid option: expected one of "text"|…` instead of a
+  generic message. Unit-tested: `parseError` on the dispatcher shape, and the
+  `formatMetadataError` / `formatPublishFailures` helpers.
+
+- 7034306: fix(studio): Interfaces designs the CURRENT package's app, not another's
+
+  The Interfaces pillar resolved its app with an unscoped `list('app')` and a
+  client-side `.find()` by package — but list rows carry no `packageId`, so the
+  match never hit and it fell through to `?? apps[0]`, the first app in the whole
+  system. Opening `/studio/<pkg>/interfaces` for a package with no app therefore
+  rendered a **different** package's navigation tree (e.g. `showcase_app`), and a
+  package that genuinely had no app was stuck on an endless "加载中…".
+
+  Now the query is scoped to the package (`list('app', { packageId })`, matching
+  the header's own resolution) with no cross-package fallback; a freshly-created
+  (still-draft) app is picked up via `listDrafts({ packageId, type: 'app' })` so it
+  stays designable before its first publish. When the package has no app, the nav
+  rail and canvas show a real empty state ("这个软件包还没有应用") with a 创建应用
+  action wired to the header's existing create flow, and edit mode now renders the
+  nav canvas even on an empty tree so the first item can be added.
+
+- 34accfc: fix(studio): close the three journey dead-ends found in UX review
+
+  - **Navigation**: the standalone `/studio` landing gets a slim frame with an
+    ObjectOS wordmark → Home, and the builder top bar gets a Home button — the
+    builder is no longer a browser-back-only dead end.
+  - **Fresh-package empty state**: an empty writable package no longer shows an
+    endless 加载中… — the rail says 还没有对象, the main pane explains the first
+    act (从第一个对象开始), and the object creator auto-opens.
+  - **创建应用 on-ramp**: when the package ships no app, the top-bar bridge slot
+    offers 创建应用 (draft `app` item, name + identifier popover) instead of
+    nothing; after creation it shows 应用「…」待发布, and flips to 打开应用 once
+    the package publish lands.
+
+- 65efc01: feat(studio): package-level draft publish (replaces per-item publish)
+
+  The pillar Studio now publishes at the **package** level, not item-by-item. Edits
+  across Data / Automation / Interface accumulate as per-item **drafts**; the top bar
+  shows a pending-draft **count**, a **变更** (Changes) review, and one **发布** that
+  publishes **all** pending drafts in a single governed pass — reusing
+  `usePublishAllDrafts` (per-package `publish-drafts` with structure-before-seeds + the
+  ADR-0038 L3 probes, and by-reference for orphan / null-package drafts).
+
+  - The per-pillar **发布** buttons are removed; **保存草稿** stays (drafts accumulate).
+  - The Data grid's drag-reorder no longer **auto-publishes** — it saves a draft like
+    every other edit, so nothing goes live outside the one package publish.
+  - After a publish, pillars re-read the fresh published baseline (a publish nonce),
+    and a draft-save refreshes the pending count.
+
+- d8b9547: feat(studio): package switcher + inline "new writable package" in the top bar
+
+  The pillar Studio's top-bar package name becomes a **switcher**: it lists the app's
+  packages (kernel/system packages hidden), marks each **可写** (database base) or
+  **只读** (code package — the ADR-0070 D4 gate refuses authoring into these), and
+  switches by navigation. A **新建软件包** inline form creates a writable base
+  (`POST /packages {id,name}` — 名称 + auto-derived, hand-editable package id) and
+  jumps straight into its Data pillar.
+
+  The current package also shows a proactive **只读** badge, so users learn the
+  package is read-only _before_ hitting the save-time gate. Writability display is a
+  heuristic (`scope: 'project'` = code, scope-less = base); the server-side gate stays
+  the authority.
+
+- 20c1695: Studio pillars now follow the app's active locale instead of hardcoding Chinese.
+  `StudioDesignSurface` pinned `const locale = 'zh-CN'` in its Interfaces / Data /
+  Automations pillars, so the builder always rendered Chinese even when the console
+  ran in English (while the Home page and the rest of the app followed the active
+  locale). Every inline string across the design surface — package switcher,
+  publish/app-bridge header, the four pillars (Data, Automations, Interfaces,
+  Access), and the nav-item inspector — is now extracted into the metadata-admin
+  `engine.studio.*` catalog with English + Chinese entries, and a new
+  `useMetadataLocale()` hook threads the live `useObjectTranslation().language`
+  (the same source the LocaleSwitcher drives) so switching the console language
+  re-renders the Studio in lock-step. `AppNavCanvas` (used by the Studio and the
+  metadata-admin App preview) is likewise localized via `engine.appNav.*` — its
+  previously hardcoded English "NAVIGATION", "Add nav item", "Remove nav item", and
+  empty-state strings now follow the active locale.
+- 00e7735: fix(studio): say what the Form preview shows — published definition, not the draft
+
+  The Data pillar's Form view has two sub-modes: **布局** (the WYSIWYG layout designer,
+  rendered from the draft) and **预览** (the live runtime ObjectForm). The preview
+  renders the **published** definition on purpose — a draft with structural changes has
+  no physical columns yet (DDL lands at publish), so a draft-with-data preview would
+  break — but the UI never said so: after arranging a draft in 布局, switching to 预览
+  silently showed the old shape, reading as "my changes are lost".
+
+  Now the sub-mode captions state their source (布局 = 草稿 · 含未发布改动 / 预览 =
+  已发布定义), and when unpublished changes exist the preview shows an amber note:
+  confirm the draft in 布局, or publish (top bar) first to see the published effect.
+  Publishing stays a deliberate user action — nothing auto-publishes.
+
+- e84d64d: Block record-scoped toolbar actions launched with zero rows selected (#2210).
+
+  A flow/script action that also mounts on list rows (`locations` includes
+  `list_item`) has no record to run on when triggered from the list toolbar with
+  nothing selected — pre-fix the wizard opened anyway, collected input, and died
+  at its first record-bound node ("Update requires an ID or options.multi=true").
+  The console runtime now blocks up front with "select a row first", mirroring
+  the existing multi-selection guard. Pure object-level toolbar actions
+  (`locations: ['list_toolbar']` only) keep triggering without a record.
+
+  The action renderers (button/icon/menu/group) now forward the `locations`
+  declaration to the ActionRunner — previously it was dropped by their
+  allow-list payloads, so the runtime could not tell the two shapes apart.
+
+- 3106584: Warn when `userFilters` / `quickFilters` on an object list view are
+  suppressed instead of dropping them silently (#2219).
+
+  ADR-0053 correctly reserves those fields for page lists (InterfaceListPage
+  "filters" mode) and suppresses them on the object default list, but until the
+  phase-4 schema guardrail lands the author got zero signal — a valid schema
+  and a toolbar with nothing where the filter controls should be. ObjectView
+  now logs a one-shot warning per object/view naming the offending fields and
+  where they belong.
+
+- Updated dependencies [8bf6295]
+- Updated dependencies [1948c5b]
+- Updated dependencies [bce581a]
+- Updated dependencies [9cd9be1]
+- Updated dependencies [5160832]
+- Updated dependencies [69d6b94]
+- Updated dependencies [c38d107]
+- Updated dependencies [243a9ba]
+- Updated dependencies [289be5b]
+- Updated dependencies [7782698]
+- Updated dependencies [19f2533]
+- Updated dependencies [790558b]
+- Updated dependencies [c0164ad]
+- Updated dependencies [09e1b26]
+- Updated dependencies [e84d64d]
+  - @object-ui/types@11.4.0
+  - @object-ui/components@11.4.0
+  - @object-ui/fields@11.4.0
+  - @object-ui/i18n@11.4.0
+  - @object-ui/data-objectstack@11.4.0
+  - @object-ui/auth@11.4.0
+  - @object-ui/collaboration@11.4.0
+  - @object-ui/core@11.4.0
+  - @object-ui/layout@11.4.0
+  - @object-ui/permissions@11.4.0
+  - @object-ui/plugin-editor@11.4.0
+  - @object-ui/providers@11.4.0
+  - @object-ui/react@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes
