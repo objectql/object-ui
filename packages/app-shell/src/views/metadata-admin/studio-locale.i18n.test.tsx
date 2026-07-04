@@ -18,8 +18,8 @@
  */
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
-import { I18nProvider } from '@object-ui/i18n';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { createI18n, I18nProvider } from '@object-ui/i18n';
 import { t } from './i18n';
 import { AppNavCanvas } from './previews/AppNavCanvas';
 
@@ -95,5 +95,33 @@ describe('AppNavCanvas follows the active i18n locale — F1', () => {
     expect(screen.getByRole('button', { name: /添加导航项/ })).toBeInTheDocument();
     // The English counterpart must NOT be on screen.
     expect(screen.queryByText('Add nav item')).not.toBeInTheDocument();
+  });
+
+  // The core of the bug report: switching the language at RUNTIME must re-render
+  // the Studio surface. A shared i18next instance is switched via changeLanguage
+  // (exactly what the LocaleSwitcher calls) and the DOM must flip in place — no
+  // remount, no reload.
+  it('flips in place when the active language is switched at runtime', async () => {
+    const i18n = createI18n({ defaultLanguage: 'en', detectBrowserLanguage: false });
+    render(
+      <I18nProvider instance={i18n}>
+        <AppNavCanvas
+          draft={{ navigation: [] }}
+          rootKey="navigation"
+          onPatch={() => {}}
+          selection={null}
+          onSelectionChange={() => {}}
+        />
+      </I18nProvider>,
+    );
+    expect(screen.getByText('Navigation')).toBeInTheDocument();
+
+    await act(async () => {
+      await i18n.changeLanguage('zh');
+    });
+
+    await waitFor(() => expect(screen.getByText('导航')).toBeInTheDocument());
+    expect(screen.queryByText('Navigation')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /添加导航项/ })).toBeInTheDocument();
   });
 });
