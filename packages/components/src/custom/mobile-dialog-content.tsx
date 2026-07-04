@@ -70,8 +70,17 @@ export function usePopperAwareInteractOutside(
 ): InteractOutsideHandler {
   const popperOpenAtPointerDownRef = React.useRef(false);
   React.useEffect(() => {
-    const snapshotPopperState = () => {
-      popperOpenAtPointerDownRef.current = !!document.querySelector(POPPER_LAYER_SELECTOR);
+    const snapshotPopperState = (e: PointerEvent) => {
+      const t = e.target as Element | null;
+      // Same deferred-verdict race, second source: a NESTED dialog (a create /
+      // edit form opened from a lookup field's inline "+ create") also portals
+      // to <body>. Closing it — e.g. its Cancel button — reads to THIS dialog as
+      // its own outside click and dismisses it too. Snapshot on the capture
+      // phase whether the pointerdown landed on a popper OR inside another open
+      // dialog, before Radix's bubble-phase dismissal can unmount it.
+      popperOpenAtPointerDownRef.current =
+        !!document.querySelector(POPPER_LAYER_SELECTOR) ||
+        !!t?.closest?.('[role="dialog"]');
     };
     document.addEventListener('pointerdown', snapshotPopperState, true);
     return () => document.removeEventListener('pointerdown', snapshotPopperState, true);
@@ -80,7 +89,9 @@ export function usePopperAwareInteractOutside(
     (event: Parameters<InteractOutsideHandler>[0]) => {
       const originalEvent = event.detail?.originalEvent;
       const target = (originalEvent?.target ?? null) as Element | null;
-      if (isInsidePopperLayer(target)) {
+      // Inside this dialog's own dropdown flyout, or inside a nested dialog
+      // stacked above it — either way, not a backdrop click, so keep this open.
+      if (isInsidePopperLayer(target) || target?.closest?.('[role="dialog"]')) {
         event.preventDefault();
         return;
       }
