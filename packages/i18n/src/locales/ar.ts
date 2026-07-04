@@ -1263,6 +1263,7 @@ const ar = {
   },
   topbar: {
     aiAssistant: "مساعد الذكاء الاصطناعي",
+    designInStudio: "التصميم في Studio",
   },
   home: {
     title: "الرئيسية",

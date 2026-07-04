@@ -1263,6 +1263,7 @@ const pt = {
   },
   topbar: {
     aiAssistant: "Assistente de IA",
+    designInStudio: "Projetar no Studio",
   },
   home: {
     title: "Início",

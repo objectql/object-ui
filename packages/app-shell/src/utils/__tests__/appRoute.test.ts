@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appRouteSegment, matchAppBySegment } from '../appRoute';
+import { appRouteSegment, matchAppBySegment, appStudioDesignPath } from '../appRoute';
 
 /**
  * ADR-0048 (option A) — package-id route segment.
@@ -36,5 +36,32 @@ describe('matchAppBySegment', () => {
   it('returns undefined for missing inputs', () => {
     expect(matchAppBySegment(apps, undefined)).toBeUndefined();
     expect(matchAppBySegment(null, 'com.acme.crm')).toBeUndefined();
+  });
+});
+
+/**
+ * ADR-0080 — app → Studio reverse bridge.
+ */
+describe('appStudioDesignPath', () => {
+  const crm = { name: 'crm', _packageId: 'com.acme.crm' };
+
+  it('resolves an admin viewing a packaged app to its design surface', () => {
+    expect(appStudioDesignPath(crm, true)).toBe('/studio/com.acme.crm/data');
+  });
+  it('URL-encodes the package id', () => {
+    expect(appStudioDesignPath({ _packageId: 'com.acme/crm' }, true)).toBe(
+      '/studio/com.acme%2Fcrm/data',
+    );
+  });
+  it('returns null for non-admins', () => {
+    expect(appStudioDesignPath(crm, false)).toBeNull();
+  });
+  it('returns null for apps with no owning package (runtime/DB apps)', () => {
+    expect(appStudioDesignPath({ name: 'crm' }, true)).toBeNull();
+    expect(appStudioDesignPath(undefined, true)).toBeNull();
+    expect(appStudioDesignPath(null, true)).toBeNull();
+  });
+  it('returns null for the DB-authored sys_metadata pseudo-package', () => {
+    expect(appStudioDesignPath({ name: 'crm', _packageId: 'sys_metadata' }, true)).toBeNull();
   });
 });

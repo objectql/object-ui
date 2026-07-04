@@ -28,3 +28,27 @@ export function matchAppBySegment<T extends AppLike>(
   if (!apps || seg == null) return undefined;
   return apps.find((a) => a?._packageId === seg) ?? apps.find((a) => a?.name === seg);
 }
+
+/**
+ * App → Studio reverse bridge (ADR-0080). Resolves a running app to its owning
+ * package's design surface (`/studio/:packageId/data`), or `null` when there is
+ * nothing to open:
+ * - the viewer is not a workspace admin (designing mutates shared package
+ *   metadata, so the entry point is admin-only — mirrors the runtime editors);
+ * - the app has no owning package (runtime/DB apps), or its container is the
+ *   DB-authored `sys_metadata` pseudo-package, which is not a package the
+ *   Studio design surface can open.
+ *
+ * Writability of the target package is NOT checked here — the ADR-0070 D4 gate
+ * stays the server-side authority, and the Studio surface itself renders
+ * read-only packages as browse-only.
+ */
+export function appStudioDesignPath(
+  app: AppLike | null | undefined,
+  isWorkspaceAdmin: boolean,
+): string | null {
+  if (!isWorkspaceAdmin) return null;
+  const packageId = app?._packageId;
+  if (typeof packageId !== 'string' || !packageId || packageId === 'sys_metadata') return null;
+  return `/studio/${encodeURIComponent(packageId)}/data`;
+}

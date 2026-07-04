@@ -1263,6 +1263,7 @@ const de = {
   },
   topbar: {
     aiAssistant: "KI-Assistent",
+    designInStudio: "Im Studio gestalten",
   },
   home: {
     title: "Startseite",

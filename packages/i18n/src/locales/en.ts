@@ -1672,6 +1672,7 @@ const en = {
   },
   topbar: {
     aiAssistant: 'AI Assistant',
+    designInStudio: 'Design in Studio',
     openAssistant: 'Open {{name}} assistant',
     offline: 'Offline',
     usersOnline: 'Users currently online',
