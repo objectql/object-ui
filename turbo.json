@@ -4,7 +4,13 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "build/**", "**/*.tsbuildinfo"],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "build/**",
+        "**/*.tsbuildinfo",
+        "!**/node_modules/**"
+      ],
       "env": ["NODE_ENV", "VITE_BASE_PATH", "OBJECTSTACK_CLIENT_DIST"]
     },
     "test": {
