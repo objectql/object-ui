@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest';
 import { registerBuiltinAnchors } from './anchors';
 import { listMetadataResources, type MetadataResourceConfig } from './registry';
 import { validateMetadataDraft, hasClientValidator } from './clientValidation';
+import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from '../studio-design/skeletons';
 
 registerBuiltinAnchors();
 
@@ -103,6 +104,30 @@ describe('create-roundtrip conformance: default create output passes spec valida
       expect(
         issues,
         `${cfg.type} create output rejected by spec: ${JSON.stringify(issues)}\noutput=${JSON.stringify(output)}`,
+      ).toHaveLength(0);
+    });
+  }
+});
+
+// The Studio pillars (Data/Automations/Interfaces/Access) build their "New X"
+// skeletons INLINE, bypassing the registry the guard above reads — so they need
+// their own coverage, from the SAME source the pillars consume (`skeletons.ts`),
+// so this can never drift from what the "New" button actually emits. Guards the
+// same dead-end family (a minimal shape the spec rejects → create→save 422s).
+describe('Studio inline creators: skeletons pass spec validation', () => {
+  const STUDIO_SKELETONS: Array<{ type: string; skeleton: Record<string, unknown> }> = [
+    { type: 'object', skeleton: buildObjectSkeleton('conf_obj', 'Conformance Object', 'Name') },
+    { type: 'flow', skeleton: buildFlowSkeleton('conf_flow', 'Conformance Flow', 'Start', 'End') },
+    { type: 'app', skeleton: buildAppSkeleton('conf_app', 'Conformance App') },
+    { type: 'permission', skeleton: buildPermissionSkeleton('conf_perm', 'Conformance Permission') },
+  ];
+
+  for (const { type, skeleton } of STUDIO_SKELETONS) {
+    it(`${type}: Studio inline "New" skeleton is spec-valid`, async () => {
+      const { issues } = await validateMetadataDraft(type, skeleton);
+      expect(
+        issues,
+        `${type} inline skeleton rejected by spec: ${JSON.stringify(issues)}\nskeleton=${JSON.stringify(skeleton)}`,
       ).toHaveLength(0);
     });
   }

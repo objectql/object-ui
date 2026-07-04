@@ -54,6 +54,7 @@ import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEdit
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
+import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import {
@@ -436,7 +437,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
       await shellClient.save(
         'app',
         name,
-        { name, label, active: true, navigation: [] },
+        buildAppSkeleton(name, label),
         { mode: 'draft', packageId },
       );
       toast.success(tFormat('engine.studio.app.savedDraft', locale, { label }));
@@ -1501,11 +1502,7 @@ function DataPillar({
     setCreateBusy(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = {
-        name,
-        label,
-        fields: { name: { type: 'text', label: t('engine.studio.data.nameFieldLabel', locale) } },
-      };
+      const body = buildObjectSkeleton(name, label, t('engine.studio.data.nameFieldLabel', locale));
       await client.save('object', name, body, { mode: 'draft', packageId });
       const surface: Surface = { type: 'object', name, label };
       setObjects((prev) => [...prev, surface]);
@@ -2143,16 +2140,12 @@ function AutomationsPillar({
     try {
       // Minimal valid, autolaunched skeleton: start → end. The designer fills in
       // the trigger + nodes; publishing it is a separate, user-initiated step.
-      const skeleton = {
+      const skeleton = buildFlowSkeleton(
         name,
         label,
-        type: 'autolaunched',
-        nodes: [
-          { id: 'start', type: 'start', label: t('engine.studio.auto.nodeStart', locale) },
-          { id: 'end', type: 'end', label: t('engine.studio.auto.nodeEnd', locale) },
-        ],
-        edges: [{ id: 'e1', source: 'start', target: 'end' }],
-      };
+        t('engine.studio.auto.nodeStart', locale),
+        t('engine.studio.auto.nodeEnd', locale),
+      );
       await client.save('flow', name, skeleton, { mode: 'draft', packageId });
       const item: Surface = { type: 'flow', name, label };
       setFlows((fs) => [...fs.filter((f) => f.name !== name), item]);
@@ -2538,7 +2531,7 @@ function AccessPillar({
     try {
       // Package door → create as a DRAFT stamped with this package (D6/D7),
       // published atomically with the rest of the package.
-      await client.save('permission', name, { name, label, objects: {}, fields: {} }, { mode: 'draft', packageId });
+      await client.save('permission', name, buildPermissionSkeleton(name, label), { mode: 'draft', packageId });
       toast.success(tFormat('engine.studio.access.created', locale, { label }));
       setCreating(false);
       setNewLabel('');
