@@ -857,10 +857,11 @@ export function GridField({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className={cn(
-                                'h-8 w-8 text-muted-foreground hover:text-foreground',
-                                !isList && 'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100',
-                              )}
+                              // Always visible (not hover-revealed): row actions must be
+                              // discoverable and reachable on touch/coarse-pointer devices,
+                              // which have no hover. The action column width is reserved
+                              // regardless, so this adds no layout shift.
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
                               aria-label="Duplicate row"
                               title="Duplicate line"
                               data-testid={`line-items-duplicate-${rowIdx}`}
@@ -875,10 +876,8 @@ export function GridField({
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className={cn(
-                                'h-8 w-8 text-muted-foreground hover:text-destructive',
-                                !isList && 'opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100',
-                              )}
+                              // Always visible — see the duplicate button above.
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
                               aria-label="Remove row"
                               data-testid={`line-items-remove-${rowIdx}`}
                               onClick={() => removeRow(rowIdx)}

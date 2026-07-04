@@ -185,6 +185,20 @@ describe('GridField / LineItemsField — editable line items', () => {
     expect(onChange).toHaveBeenCalledWith([{ description: 'B', amount: 2 }]);
   });
 
+  it('row action buttons are always visible in grid mode (not hover-revealed)', () => {
+    render(
+      <GridField
+        value={[{ description: 'A', amount: 1 }]}
+        onChange={() => {}}
+        field={field}
+      />,
+    );
+    // Grid-mode rows previously gated these behind opacity-0/group-hover, so they
+    // were invisible until hover and unreachable on touch — they must always show.
+    expect(screen.getByLabelText('Remove row').className).not.toContain('opacity-0');
+    expect(screen.getByTestId('line-items-duplicate-0').className).not.toContain('opacity-0');
+  });
+
   it('readonly mode shows values and a summed total footer', () => {
     render(
       <GridField
