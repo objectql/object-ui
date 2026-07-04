@@ -122,6 +122,36 @@ describe('MetadataClient', () => {
     });
   });
 
+  it('extracts message, code + field-anchored issues from the dispatcher error shape', async () => {
+    // The dispatcher sends `error` as an OBJECT { message, code, details:{ code, issues } }.
+    // Reading `.message` (not String(object) → "[object Object]") and surfacing
+    // `details.issues` is what lets the Studio point at the offending field.
+    const c = new MetadataClient({
+      baseUrl: 'http://localhost:3000',
+      fetch: mockFetch(async () =>
+        new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              message: '[invalid_metadata] object/bad failed spec validation: label: Required',
+              code: 422,
+              details: {
+                code: 'invalid_metadata',
+                issues: [{ path: 'label', message: 'Required', code: 'invalid_type' }],
+              },
+            },
+          }),
+          { status: 422, headers: { 'content-type': 'application/json' } },
+        )),
+    });
+    await expect(c.save('object', 'bad', {})).rejects.toMatchObject({
+      status: 422,
+      code: 'invalid_metadata',
+      message: '[invalid_metadata] object/bad failed spec validation: label: Required',
+      issues: [{ path: 'label', message: 'Required', code: 'invalid_type' }],
+    });
+  });
+
   it('listDrafts requests /meta/_drafts with packageId + type and parses {drafts}', async () => {
     const seen: string[] = [];
     const c = new MetadataClient({

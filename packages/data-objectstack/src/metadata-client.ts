@@ -278,10 +278,20 @@ export interface MetadataHistoryOptions {
   limit?: number;
 }
 
+/** A single field-anchored spec-validation issue (server `error.details.issues`). */
+export interface MetadataValidationIssue {
+  /** Dot-path to the offending field, e.g. `fields.amount.type` (`''` = root). */
+  path: string;
+  message: string;
+  code?: string;
+}
+
 export interface MetadataError extends Error {
   status: number;
   code?: string;
   body?: unknown;
+  /** Structured spec-validation issues, when the failure was a validation error. */
+  issues?: MetadataValidationIssue[];
 }
 
 const META_PREFIX = '/meta';
@@ -310,16 +320,36 @@ async function parseError(res: Response): Promise<MetadataError> {
   } catch {
     body = await res.text().catch(() => undefined);
   }
+  const bodyObj = body && typeof body === 'object' ? (body as Record<string, any>) : undefined;
+  // The dispatcher error shape is `{ success:false, error:{ message, code,
+  // details:{ code, issues } } }` — `error` is an OBJECT. Older/other surfaces
+  // send `error` as a plain string or a top-level `message`. Accept all three
+  // (reading `.message` off the object case, not `String(object)` which yields
+  // "[object Object]").
+  const errNode = bodyObj?.error;
   const message =
-    (body && typeof body === 'object' && 'error' in (body as Record<string, unknown>)
-      ? String((body as Record<string, unknown>).error)
-      : undefined) ?? `Metadata request failed: ${res.status} ${res.statusText}`;
-  const err = new Error(message) as MetadataError;
+    (errNode && typeof errNode === 'object' ? errNode.message : errNode) ??
+    bodyObj?.message ??
+    `Metadata request failed: ${res.status} ${res.statusText}`;
+  const err = new Error(String(message)) as MetadataError;
   err.status = res.status;
   err.body = body;
-  if (body && typeof body === 'object' && 'code' in (body as Record<string, unknown>)) {
-    err.code = String((body as Record<string, unknown>).code);
-  }
+  // Field-anchored spec-validation issues. Two live server shapes carry them:
+  // the REST server puts them at top-level `body.issues` (with `error` a string),
+  // the HTTP dispatcher nests them under `error.details.issues` (with `error` an
+  // object). Accept both (plus a defensive `error.issues`) so the caller can
+  // point at the offending field regardless of which transport served the error.
+  const details = errNode && typeof errNode === 'object' ? errNode.details : undefined;
+  const issues =
+    details?.issues ??
+    (errNode && typeof errNode === 'object' ? errNode.issues : undefined) ??
+    bodyObj?.issues;
+  if (Array.isArray(issues)) err.issues = issues as MetadataValidationIssue[];
+  const code =
+    details?.code ??
+    (errNode && typeof errNode === 'object' ? errNode.code : undefined) ??
+    bodyObj?.code;
+  if (code != null) err.code = String(code);
   return err;
 }
 

@@ -53,6 +53,7 @@ import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/pr
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
+import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import {
@@ -192,7 +193,7 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
       setIdTouched(false);
       navigate(`/studio/${encodeURIComponent(id)}/data`);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      setErr(formatMetadataError(e));
     } finally {
       setBusy(false);
     }
@@ -377,13 +378,30 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: '{}',
       });
-      const payload = (await res.json().catch(() => null)) as { success?: boolean; error?: { message?: string } } | null;
-      if (!res.ok || payload?.success === false) throw new Error(payload?.error?.message || `HTTP ${res.status}`);
-      toast.success(t('engine.studio.publishedAll', locale));
-      setChangesOpen(false);
+      const payload = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        error?: { message?: string; details?: { issues?: unknown } };
+        data?: { failed?: PublishFailure[] };
+      } | null;
+      if (!res.ok || payload?.success === false) {
+        // Hard failure (e.g. package not found) — carry the field-anchored issues.
+        throw Object.assign(new Error(payload?.error?.message || `HTTP ${res.status}`), {
+          issues: payload?.error?.details?.issues,
+        });
+      }
+      const failed = payload?.data?.failed ?? [];
+      if (failed.length > 0) {
+        // Partial publish: some drafts did NOT go live. The server returns 200
+        // with them buried in `failed[]`, so the UI used to claim success and
+        // swallow the reason — surface which drafts failed and why instead.
+        toast.error(formatPublishFailures(failed));
+      } else {
+        toast.success(t('engine.studio.publishedAll', locale));
+        setChangesOpen(false);
+      }
       setPublishNonce((n) => n + 1);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(formatMetadataError(e));
     } finally {
       setPublishing(false);
     }
@@ -429,7 +447,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
       setAppNameTouched(false);
       setDraftNonce((n) => n + 1);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(formatMetadataError(e));
     } finally {
       setAppBusy(false);
     }
@@ -911,7 +929,7 @@ function InterfacesPillar({
         setCurrent((cur) => cur ?? firstLeaf);
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e));
+          setError(formatMetadataError(e));
           setAppStatus('missing');
         }
       }
@@ -952,7 +970,7 @@ function InterfacesPillar({
         setDraft(body ? { ...baseline, ...body } : baseline);
         setHasDraft(!!body);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(formatMetadataError(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -974,7 +992,7 @@ function InterfacesPillar({
       setHasDraft(true);
       onDraftSaved?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatMetadataError(e));
     } finally {
       setSaving(false);
     }
@@ -1006,7 +1024,7 @@ function InterfacesPillar({
       setNavDirty(false);
       onDraftSaved?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatMetadataError(e));
     } finally {
       setNavSaving(false);
     }
@@ -1145,7 +1163,7 @@ function InterfacesPillar({
             )}
           </div>
           {error && (
-            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
               {error}
             </div>
           )}
@@ -1401,7 +1419,7 @@ function DataPillar({
         // the first thing to do here is make an object, so put the inputs up.
         if (items.length === 0) setCreating(true);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(formatMetadataError(e));
       } finally {
         if (!cancelled) setObjectsLoaded(true);
       }
@@ -1440,7 +1458,7 @@ function DataPillar({
         setHasDraft(!!draftBody);
         setHasBaseline(!!(lay.effective ?? lay.code));
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(formatMetadataError(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -1500,7 +1518,7 @@ function DataPillar({
       setNameTouched(false);
       onDraftSaved?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatMetadataError(e));
     } finally {
       setCreateBusy(false);
     }
@@ -1516,7 +1534,7 @@ function DataPillar({
       setDirty(false);
       onDraftSaved?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatMetadataError(e));
     } finally {
       setSaving(false);
     }
@@ -1548,7 +1566,7 @@ function DataPillar({
         onDraftSaved?.();
         setGridVer((v) => v + 1); // remount so the grid reflects the new (draft) order
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(formatMetadataError(e));
       } finally {
         setSaving(false);
       }
@@ -1768,7 +1786,7 @@ function DataPillar({
                 )}
               </div>
               {error && (
-                <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">
+                <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive whitespace-pre-line">
                   {error}
                 </div>
               )}
@@ -2049,7 +2067,7 @@ function AutomationsPillar({
         setFlows(items);
         setCurrent((c) => c ?? items[0] ?? null);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(formatMetadataError(e));
       } finally {
         if (!cancelled) setListed(true);
       }
@@ -2089,7 +2107,7 @@ function AutomationsPillar({
       onDraftSaved?.();
       toast.success(tFormat('engine.studio.auto.savedDraft', locale, { label }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatMetadataError(e));
     } finally {
       setCreateBusy(false);
     }
@@ -2114,7 +2132,7 @@ function AutomationsPillar({
         setDraft(draftBody ? { ...baseline, ...draftBody } : baseline);
         setHasDraft(!!draftBody);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setError(formatMetadataError(e));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -2137,7 +2155,7 @@ function AutomationsPillar({
       setHasDraft(true);
       onDraftSaved?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatMetadataError(e));
     } finally {
       setSaving(false);
     }
@@ -2247,7 +2265,7 @@ function AutomationsPillar({
             {current && <span className="text-[11px] text-muted-foreground">flow · {current.name}</span>}
           </div>
           {error && (
-            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
               {error}
             </div>
           )}
@@ -2402,7 +2420,7 @@ function AccessPillar({
       setPerms(scoped);
       setCurrent((c) => c ?? scoped[0]?.name ?? null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(formatMetadataError(e));
     } finally {
       setLoaded(true);
     }
@@ -2432,7 +2450,7 @@ function AccessPillar({
       await load();
       setCurrent(name);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e));
+      toast.error(formatMetadataError(e));
     } finally {
       setBusy(false);
     }

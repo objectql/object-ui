@@ -2636,6 +2636,7 @@ export type {
   MetadataDeleteOptions,
   MetadataHistoryOptions,
   MetadataError,
+  MetadataValidationIssue,
   MetadataLayered,
   MetadataReference,
   MetadataDiagnostics,
