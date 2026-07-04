@@ -262,6 +262,15 @@ export interface RecordPickerDialogProps {
   lookupFilters?: LookupFilterDef[];
 
   /**
+   * Hard filter constraints applied to every query, in QueryParams.$filter
+   * record form. Unlike `lookupFilters`, entries here never surface in the
+   * filter bar and cannot be overridden by user filter input — used for the
+   * dependent (cascading) lookup chain, where the parent field's value MUST
+   * scope the candidate set (#2215).
+   */
+  baseFilter?: Record<string, any>;
+
+  /**
    * Cell renderer resolver function.
    * When provided, columns with a `type` property will be rendered using the
    * resolved cell renderer (e.g. badges for select, formatted currency, etc.).
@@ -333,6 +342,7 @@ export function RecordPickerDialog({
   onSelect,
   onSelectRecords,
   lookupFilters,
+  baseFilter,
   cellRenderer,
   filterColumns,
   renderFilterBar,
@@ -415,17 +425,19 @@ export function RecordPickerDialog({
     return undefined;
   }, [filterColumns, lookupFilters]);
 
-  // Merge base lookup_filters with user filter bar values
+  // Merge base lookup_filters with user filter bar values. The hard
+  // `baseFilter` constraint (dependent-lookup chain, #2215) is spread LAST so
+  // user filter-bar input can never widen it back out.
   const mergedFilter = useMemo<Record<string, any> | undefined>(() => {
-    const baseFilter = lookupFilters?.length
+    const lookupBase = lookupFilters?.length
       ? lookupFiltersToRecord(lookupFilters)
       : {};
     const userFilter = effectiveFilterColumns?.length
       ? filterValuesToRecord(filterValues, effectiveFilterColumns)
       : {};
-    const combined = { ...baseFilter, ...userFilter };
+    const combined = { ...lookupBase, ...userFilter, ...(baseFilter ?? {}) };
     return Object.keys(combined).length > 0 ? combined : undefined;
-  }, [lookupFilters, effectiveFilterColumns, filterValues]);
+  }, [lookupFilters, effectiveFilterColumns, filterValues, baseFilter]);
 
   // Shared query kernel: builds params, fetches, and owns records/loading/error/
   // total plus the page/search/sort controls. Selection state stays local (above).

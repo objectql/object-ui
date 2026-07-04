@@ -727,6 +727,12 @@ ComponentRegistry.register('form',
                             placeholder: fieldProps.placeholder ?? (resolvedType === 'select' ? t('common.selectOption') : undefined),
                             disabled: disabled || fieldDisabled || readonly || isSubmitting,
                             dataSource: contextDataSource,
+                            // Live form values for dependent (cascading) lookups
+                            // (#2215): the widget's `dependsOn` gate + filters must
+                            // re-scope as the user picks the parent field in THIS
+                            // form, not read a stale record snapshot. Forwarded to
+                            // data-source widgets only (see stripRegisteredFieldProps).
+                            dependentValues: ruleRecord,
                           })}
                         </FormControl>
                         {description && (

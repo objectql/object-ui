@@ -368,22 +368,31 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
   // State for the full Record Picker dialog (Level 2)
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
-  // Determine which options to display
-  // Quick-select popover fetch — the shared record-query kernel (same one the
-  // Record Picker dialog and PeoplePicker use). Filter = dependent-lookup chain
-  // + base lookupFilters, so the popover matches the full picker.
-  const popoverFilter = useMemo<Record<string, any> | undefined>(() => {
+  // Dependent-lookup chain as a hard QueryParams.$filter record. Shared by
+  // EVERY candidate surface — quick-select popover, Level-2 table picker and
+  // the search-first PeoplePicker — so no picker can bypass the cascade
+  // (#2215: the table picker used to list the full unfiltered set).
+  const dependentFilter = useMemo<Record<string, any> | undefined>(() => {
     const f: Record<string, any> = {};
     for (const { field, param } of dependsOn) {
       const v = resolvedDependentValues[field];
       if (v === undefined || v === null || v === '') continue;
       f[param] = typeof v === 'number' ? v : String(v);
     }
-    if (lookupFilters && lookupFilters.length > 0) {
-      Object.assign(f, lookupFiltersToRecord(lookupFilters));
-    }
     return Object.keys(f).length > 0 ? f : undefined;
-  }, [dependsOn, resolvedDependentValues, lookupFilters]);
+  }, [dependsOn, resolvedDependentValues]);
+
+  // Determine which options to display
+  // Quick-select popover fetch — the shared record-query kernel (same one the
+  // Record Picker dialog and PeoplePicker use). Filter = dependent-lookup chain
+  // + base lookupFilters, so the popover matches the full picker.
+  const popoverFilter = useMemo<Record<string, any> | undefined>(() => {
+    const f: Record<string, any> = {
+      ...(lookupFilters && lookupFilters.length > 0 ? lookupFiltersToRecord(lookupFilters) : {}),
+      ...(dependentFilter ?? {}),
+    };
+    return Object.keys(f).length > 0 ? f : undefined;
+  }, [dependentFilter, lookupFilters]);
 
   const popoverQuery = useRecordQuery({
     dataSource,
@@ -909,6 +918,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           onSelect={onChange}
           onSelectRecords={handlePickerSelectRecords}
           lookupFilters={lookupFilters}
+          baseFilter={dependentFilter}
         />
       ) : (
       <div className="flex items-center gap-1.5">
@@ -1095,9 +1105,14 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           size="icon"
           className="shrink-0"
           type="button"
+          // Gated exactly like the main trigger (#2215) — pre-fix this button
+          // opened the full unscoped table while the dependency was missing.
+          disabled={dependenciesMissing || (props as any).disabled}
           onClick={() => setIsPickerOpen(true)}
           aria-label={t('lookup.browseAll')}
-          title={t('lookup.browseAll')}
+          title={dependenciesMissing
+            ? t('lookup.selectFirst', { fields: dependsOn.map(d => d.field).join(', ') })
+            : t('lookup.browseAll')}
           data-testid="browse-all-records"
         >
           <TableProperties className="size-4" />
@@ -1124,6 +1139,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           onSelect={onChange}
           onSelectRecords={handlePickerSelectRecords}
           lookupFilters={lookupFilters}
+          baseFilter={dependentFilter}
           cellRenderer={getCellRendererResolver()}
           filterColumns={filterColumns}
         />
