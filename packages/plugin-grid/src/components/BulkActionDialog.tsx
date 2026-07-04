@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
@@ -103,6 +103,28 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   const [retrying, setRetrying] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [undoneAt, setUndoneAt] = useState<number | null>(null);
+
+  // #2185 — keep the dialog open when the user dismisses a nested Radix popper
+  // (the Status <Select> dropdown or a ComboBox <Popover>) by clicking away from
+  // it. Radix leaves the dialog overlay at pointer-events:auto while marking the
+  // dialog body pointer-events:none, so that click lands on the backdrop and
+  // Radix's DismissableLayer would tear the whole dialog down. We can't detect
+  // the open popper inside the dialog's onInteractOutside handler — by the time
+  // it runs, Radix has already unmounted the popper (verified: popper is present
+  // at capture-phase pointerdown but gone by bubble). So we snapshot "was a
+  // popper open?" on the capture-phase pointerdown and let the guards below read
+  // that snapshot instead of the (already stale) live DOM.
+  const popperOpenAtPointerDown = useRef(false);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = () => {
+      popperOpenAtPointerDown.current = !!document.querySelector(
+        '[data-radix-popper-content-wrapper] [data-state="open"]',
+      );
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [open]);
 
   // Reset internal state whenever the dialog re-opens for a different action.
   useEffect(() => {
@@ -242,7 +264,21 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(result); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent
+        className="max-w-md"
+        // If the outside interaction that reached the dialog was really the user
+        // dismissing an open nested popper (see popperOpenAtPointerDown above),
+        // swallow it: the popper's own DismissableLayer already closed the
+        // dropdown, so the first click away just dismisses it and the dialog
+        // stays put. A genuine backdrop click (no popper open) still closes the
+        // dialog normally. (#2185)
+        onPointerDownOutside={(e) => {
+          if (popperOpenAtPointerDown.current) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (popperOpenAtPointerDown.current) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {step === 'running' && <Loader2 className="h-4 w-4 animate-spin" />}
