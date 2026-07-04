@@ -1,7 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchFlowRuns } from './FlowRunsPanel';
+import { fetchFlowRuns, errorText } from './FlowRunsPanel';
 
 const RUN = {
   id: 'run-1',
@@ -52,5 +52,26 @@ describe('fetchFlowRuns', () => {
   it('returns null when the payload has no runs array', async () => {
     mockFetch(() => new Response(JSON.stringify({ data: {} }), { status: 200 }));
     expect(await fetchFlowRuns('empty')).toBeNull();
+  });
+});
+
+describe('errorText', () => {
+  it('reads a plain-string error (the engine run-level shape)', () => {
+    // Regression: the engine sends `ExecutionLog.error` as a string; the panel
+    // previously read `.message` off it and dropped the failure reason.
+    expect(errorText("Node 'guarded_push' failed: catch region failed")).toBe(
+      "Node 'guarded_push' failed: catch region failed",
+    );
+  });
+
+  it('reads a { message } object error (the step-level shape)', () => {
+    expect(errorText({ code: 'E_BOOM', message: 'kaboom' })).toBe('kaboom');
+  });
+
+  it('is empty for no error / empty string / message-less object', () => {
+    expect(errorText(undefined)).toBeUndefined();
+    expect(errorText(null)).toBeUndefined();
+    expect(errorText('')).toBeUndefined();
+    expect(errorText({ code: 'E' })).toBeUndefined();
   });
 });

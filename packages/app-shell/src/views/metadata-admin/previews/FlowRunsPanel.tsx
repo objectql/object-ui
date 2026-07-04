@@ -17,13 +17,18 @@ import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight, Clock, Loader2, P
 import { cn } from '@object-ui/components';
 import { apiBase } from './useFlowNodePalette';
 
+/** An error on a run/step. The engine sends the run-level `error` as a plain
+ *  string (`ExecutionLog.error`) while a step-level error is a `{code,message}`
+ *  object — the panel accepts either shape. */
+type RunError = string | { code?: string; message?: string };
+
 /** Step entry of a run log (spec `ExecutionStepLogSchema`, fields we render). */
 interface RunStep {
   nodeId: string;
   nodeType?: string;
   status: 'success' | 'failure' | 'skipped' | string;
   durationMs?: number;
-  error?: { code?: string; message?: string };
+  error?: RunError;
 }
 
 /** Run log entry (spec `ExecutionLogSchema`, fields we render). */
@@ -35,7 +40,20 @@ export interface FlowRun {
   durationMs?: number;
   trigger?: { type?: string; userId?: string; object?: string };
   steps?: RunStep[];
-  error?: { message?: string };
+  error?: RunError;
+}
+
+/**
+ * Normalize a run/step error to its human-readable message. The engine emits a
+ * run-level `error` as a plain string but a step-level error as `{code,message}`
+ * — reading `.message` off the string case silently dropped the run failure
+ * reason (the whole point of the Runs panel for a failed run), so accept both.
+ */
+export function errorText(e: RunError | undefined | null): string | undefined {
+  if (!e) return undefined;
+  if (typeof e === 'string') return e || undefined;
+  const m = e.message;
+  return typeof m === 'string' && m ? m : undefined;
 }
 
 type LoadState = 'loading' | 'ready' | 'unavailable';
@@ -88,6 +106,7 @@ function StepRow({ step }: { step: RunStep }) {
       : step.status === 'failure'
         ? 'text-rose-600 dark:text-rose-400'
         : 'text-muted-foreground';
+  const stepErr = errorText(step.error);
   return (
     <li className="flex items-baseline gap-1.5 py-0.5">
       <span className={cn('shrink-0 text-[9px] font-semibold uppercase', cls)}>{step.status}</span>
@@ -96,9 +115,9 @@ function StepRow({ step }: { step: RunStep }) {
       {fmtDuration(step.durationMs) && (
         <span className="ml-auto shrink-0 text-[9px] text-muted-foreground">{fmtDuration(step.durationMs)}</span>
       )}
-      {step.error?.message && (
-        <span className="min-w-0 truncate text-[9px] text-rose-600" title={step.error.message}>
-          {step.error.message}
+      {stepErr && (
+        <span className="min-w-0 truncate text-[9px] text-rose-600" title={stepErr}>
+          {stepErr}
         </span>
       )}
     </li>
@@ -110,6 +129,7 @@ function RunRow({ run }: { run: FlowRun }) {
   const meta = statusMeta(run.status);
   const Icon = meta.icon;
   const steps = Array.isArray(run.steps) ? run.steps : [];
+  const runErr = errorText(run.error);
   return (
     <li className="rounded border bg-background">
       <button
@@ -138,8 +158,8 @@ function RunRow({ run }: { run: FlowRun }) {
             run {run.id}
             {run.trigger?.type && ` · trigger ${run.trigger.type}`}
           </div>
-          {run.error?.message && (
-            <div className="pb-1 text-[10px] text-rose-600">{run.error.message}</div>
+          {runErr && (
+            <div className="pb-1 text-[10px] text-rose-600">{runErr}</div>
           )}
           {steps.length === 0 ? (
             <div className="text-[10px] italic text-muted-foreground">No step log recorded.</div>
