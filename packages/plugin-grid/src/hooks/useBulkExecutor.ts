@@ -10,6 +10,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { BulkActionDef } from '@object-ui/types';
 import { RelatedCountStore } from '@object-ui/components';
 import { executeBulkBatch } from '@object-ui/core';
+import { normalizeMultiValuePatch, type MultiValueFieldDef } from './multiValueFields';
 
 export interface BulkRowError {
   id: string;
@@ -44,6 +45,14 @@ export interface BulkSnapshotEntry {
 export interface BulkExecutorOptions {
   /** ObjectQL resource name (e.g. 'account'). */
   resource: string;
+  /**
+   * Object-schema `fields` map for `resource`. When provided, patches built
+   * from `def.patch` + params are shape-normalized before hitting the data
+   * source: a lone scalar aimed at a multi-value field (multiselect / tags /
+   * checkboxes, or select / lookup / user / file / image with
+   * `multiple: true`) is wrapped into a single-element array (#2204).
+   */
+  objectFields?: Record<string, MultiValueFieldDef>;
   /**
    * Minimal data-source surface required by the executor. Matches the public
    * shape of `@object-ui/data-objectstack`'s DataSource without importing it,
@@ -93,7 +102,7 @@ export interface BulkExecutorOptions {
  *   Soft (`succeeded < total`) shortfalls surface as a single aggregate
  *   error entry per batch — see comments inline.
  */
-export function useBulkExecutor({ resource, dataSource }: BulkExecutorOptions) {
+export function useBulkExecutor({ resource, dataSource, objectFields }: BulkExecutorOptions) {
   const [progress, setProgress] = useState<BulkProgress>({
     total: 0,
     done: 0,
@@ -133,10 +142,8 @@ export function useBulkExecutor({ resource, dataSource }: BulkExecutorOptions) {
       setResult(null);
       setProgress({ total, done: 0, failed: 0, inFlight: true });
 
-      const buildPatch = (): Record<string, unknown> => ({
-        ...(def.patch ?? {}),
-        ...params,
-      });
+      const buildPatch = (): Record<string, unknown> =>
+        normalizeMultiValuePatch({ ...(def.patch ?? {}), ...params }, objectFields);
 
       // Capture pre-mutation values for keys touched by the patch — only
       // for `update` operations. `delete` is irreversible from the client,
@@ -230,7 +237,7 @@ export function useBulkExecutor({ resource, dataSource }: BulkExecutorOptions) {
       }
       return finalResult;
     },
-    [resource, dataSource],
+    [resource, dataSource, objectFields],
   );
 
   /**
@@ -283,7 +290,10 @@ export function useBulkExecutor({ resource, dataSource }: BulkExecutorOptions) {
       if (!last) return false;
       const row = last.rows.find(r => String(r.id ?? '') === rowId);
       if (!row) return false;
-      const patch = { ...(last.def.patch ?? {}), ...last.params };
+      const patch = normalizeMultiValuePatch(
+        { ...(last.def.patch ?? {}), ...last.params },
+        objectFields,
+      );
       try {
         switch (last.def.operation) {
           case 'delete':
@@ -314,7 +324,7 @@ export function useBulkExecutor({ resource, dataSource }: BulkExecutorOptions) {
         return false;
       }
     },
-    [resource, dataSource],
+    [resource, dataSource, objectFields],
   );
 
   return { run, undo, retry, progress, result, reset };

@@ -41,6 +41,7 @@ import { AlertTriangle, Check, CheckCircle2, ChevronsUpDown, Loader2, XCircle } 
 import { useObjectTranslation } from '@object-ui/react';
 import type { BulkActionDef, BulkActionParam } from '@object-ui/types';
 import { useBulkExecutor, type BulkExecutorOptions, type BulkResult } from '../hooks/useBulkExecutor';
+import { isMultiValueField, type MultiValueFieldDef } from '../hooks/multiValueFields';
 
 export interface BulkActionDialogProps {
   /** The action being executed. */
@@ -62,6 +63,15 @@ export interface BulkActionDialogProps {
   onClose: (result?: BulkResult | null) => void;
   /** Optional column to use as a row label in previews (defaults to 'name'). */
   labelKey?: string;
+  /**
+   * Object-schema `fields` map for `resource`. Used to derive single- vs
+   * multi-value semantics for `update` params whose author did not declare
+   * `multiple` explicitly (#2204): a param aimed at a multiselect / tags /
+   * checkboxes field — or a select / lookup / user / file / image field
+   * flagged `multiple: true` — renders the multi-select control and patches
+   * an array, instead of silently degrading to single-select + scalar.
+   */
+  objectFields?: Record<string, MultiValueFieldDef>;
 }
 
 type Step = 'params' | 'confirm' | 'running' | 'result';
@@ -84,9 +94,22 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   open,
   onClose,
   labelKey = 'name',
+  objectFields,
 }) => {
   const { t } = useObjectTranslation();
   const params = def?.params ?? [];
+
+  // Effective multi-value semantics for an `update` param: an explicit
+  // `param.multiple` wins; when the author omitted it, fall back to the
+  // target field's own schema so a multi-value column never silently gets
+  // a single-select control + scalar patch (#2204). Non-update operations
+  // pass params to a handler (not a field patch), so schema fallback does
+  // not apply there.
+  const isParamMultiple = useCallback((p: BulkActionParam): boolean => {
+    if (typeof p.multiple === 'boolean') return p.multiple;
+    if (def?.operation !== 'update') return false;
+    return isMultiValueField(objectFields?.[p.name]);
+  }, [def?.operation, objectFields]);
   const initialParamValues = useMemo<Record<string, unknown>>(() => {
     const v: Record<string, unknown> = {};
     for (const p of params) {
@@ -99,7 +122,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   const [step, setStep] = useState<Step>('params');
   const [values, setValues] = useState<Record<string, unknown>>(initialParamValues);
   const [lookupCache, setLookupCache] = useState<Record<string, LookupOption[]>>({});
-  const { run, undo, retry, progress, result, reset } = useBulkExecutor({ resource, dataSource });
+  const { run, undo, retry, progress, result, reset } = useBulkExecutor({ resource, dataSource, objectFields });
   const [retrying, setRetrying] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [undoneAt, setUndoneAt] = useState<number | null>(null);
@@ -261,6 +284,7 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
               <ParamField
                 key={p.name}
                 param={p}
+                multiple={isParamMultiple(p)}
                 value={values[p.name]}
                 lookupOptions={lookupCache[p.name]}
                 onChange={(v) => setValues(prev => ({ ...prev, [p.name]: v }))}
@@ -436,12 +460,14 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
 
 interface ParamFieldProps {
   param: BulkActionParam;
+  /** Effective multi-value semantics — explicit `param.multiple` or the target field's schema (#2204). */
+  multiple: boolean;
   value: unknown;
   onChange: (v: unknown) => void;
   lookupOptions?: LookupOption[];
 }
 
-const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupOptions }) => {
+const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChange, lookupOptions }) => {
   const { t } = useObjectTranslation();
   const id = `bulk-param-${param.name}`;
   const label = (
@@ -474,7 +500,7 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupO
       break;
     case 'select': {
       const options = (param.options ?? []).map(o => ({ value: String(o.value), label: o.label }));
-      control = param.multiple ? (
+      control = multiple ? (
         <MultiSelectControl
           id={id}
           options={options}
@@ -501,7 +527,7 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupO
       const loadingPlaceholder = opts.length === 0
         ? t('grid.bulk.loading', { defaultValue: 'Loading…' })
         : (param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' }));
-      control = param.multiple ? (
+      control = multiple ? (
         <MultiSelectControl
           id={id}
           options={opts}

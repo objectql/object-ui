@@ -2469,6 +2469,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       onClose={handleBulkDialogClose}
       dataSource={dataSource as any}
       resource={schema.objectName ?? ''}
+      objectFields={objectSchema?.fields}
     />
   );
 
