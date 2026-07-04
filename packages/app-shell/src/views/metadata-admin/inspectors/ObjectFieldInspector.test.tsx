@@ -3,9 +3,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 
-// The inspector loads the object list for the lookup picker; stub it.
+// The inspector loads the object list (published + drafts) for the lookup
+// picker; stub both surfaces.
 vi.mock('../useMetadata', () => ({
-  useMetadataClient: () => ({ list: vi.fn().mockResolvedValue([]) }),
+  useMetadataClient: () => ({
+    list: vi.fn().mockResolvedValue([]),
+    listDrafts: vi.fn().mockResolvedValue([]),
+  }),
 }));
 
 // Lookup picker config reads the referenced object's fields; stub the catalog.
