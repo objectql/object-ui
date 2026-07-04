@@ -16,7 +16,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectFormSchema, FormField, FormSchema, DataSource } from '@object-ui/types';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
-import { mapFieldTypeToFormType, buildValidationRules, evaluateCondition, formatFileSize } from '@object-ui/fields';
+import { mapFieldTypeToFormType, buildValidationRules, formatFileSize } from '@object-ui/fields';
 import { useIsMobile, toast } from '@object-ui/components';
 import { resolveSuccessNavigate } from './successBehavior';
 import { usePermissions } from '@object-ui/permissions';
@@ -402,22 +402,13 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     }
   }, [schema.objectName, schema.recordId, schema.mode, schema.initialValues, schema.initialData, dataSource, objectSchema, hasInlineFields]);
 
-  // Normalize a single FormField: if it carries a string `visibleOn`
-  // (spec FormFieldSchema CEL expression — see packages/spec FormFieldSchema),
-  // convert it to a reactive `visible(formData)` predicate so plugin-form
-  // variants honor live field-level visibility. Mirrors the schema-derived
-  // `field.visible_on` branch below.
-  const normalizeVisibility = useCallback((f: any): any => {
-    if (!f || typeof f.visible === 'function') return f;
-    const expr = f.visibleOn;
-    if (typeof expr === 'string' && expr.trim()) {
-      return {
-        ...f,
-        visible: (formData: any) => evaluateCondition(expr, formData),
-      };
-    }
-    return f;
-  }, []);
+  // FormField `visibleOn` (spec FormFieldSchema CEL expression) is consumed
+  // directly by the form renderer via the canonical engine — it accepts both
+  // the bare-string and `{ dialect, source }` wire shapes (#2212). Fields are
+  // passed through verbatim; the previous normalization attached a
+  // `visible(formData)` closure backed by the legacy `evaluateCondition`
+  // matcher, which is not a CEL evaluator and was never called downstream.
+  const normalizeVisibility = useCallback((f: any): any => f, []);
 
   // Generate form fields from object schema or inline fields
   useEffect(() => {
@@ -547,11 +538,11 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           formField.disabled = true;
         }
 
-        // Add conditional visibility based on field dependencies
+        // Conditional visibility (legacy snake_case `visible_on`) — carry it
+        // as `visibleOn` so the form renderer evaluates it with the canonical
+        // CEL engine; the old `visible()` closure was never called (#2212).
         if (field.visible_on) {
-          formField.visible = (formData: any) => {
-            return evaluateCondition(field.visible_on, formData);
-          };
+          (formField as any).visibleOn = field.visible_on;
         }
 
         generatedFields.push(formField);
@@ -751,8 +742,20 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     const sourceFields = fieldGroupSections ? groupableFields : formFields;
     const groupedFields: FormField[] = [];
     effectiveSections.forEach((section, index) => {
-      const sectionFieldNames = section.fields.map(f => typeof f === 'string' ? f : ((f as any).field ?? f.name));
-      const sectionFields = applyFieldPerms(sourceFields.filter(f => sectionFieldNames.includes(f.name)));
+      // Section field defs may carry a per-field `visibleOn` predicate (spec
+      // FormFieldSchema, #2212). The filter below matches by name only, so the
+      // predicate must be merged onto the resolved field or it is silently
+      // dropped — the form renderer evaluates it with the canonical engine.
+      const sectionDefByName = new Map<string, any>(
+        section.fields.map(f => [typeof f === 'string' ? f : ((f as any).field ?? f.name), f]),
+      );
+      const sectionFieldNames = Array.from(sectionDefByName.keys());
+      const sectionFields = applyFieldPerms(sourceFields.filter(f => sectionFieldNames.includes(f.name)))
+        .map(f => {
+          const def = sectionDefByName.get(f.name);
+          const visibleOn = def && typeof def === 'object' ? (def as any).visibleOn : undefined;
+          return visibleOn != null ? ({ ...f, visibleOn } as FormField) : f;
+        });
       if (sectionFields.length === 0) return;
 
       const sectionKey = section.name || section.label || String(index);

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry, resolveFieldRuleState } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, ValidationRule, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -308,10 +308,15 @@ ComponentRegistry.register('form',
           ruleRecord,
           { required: !!f.required, readonly: (f as any).readonly === true },
         );
+        // View-level FormField.visibleOn hides the field the same way a
+        // field-level visibleWhen does (#2212) — fold it into the verdict.
+        const viewVisible =
+          (f as any).visibleOn == null ||
+          evalFieldPredicate((f as any).visibleOn, ruleRecord, true);
         // A hidden field shows no errors at all; an un-required field clears
         // only its *required* error (keep legitimate format/min/etc. errors).
         const errType = (errs[name] as { type?: string } | undefined)?.type;
-        if (!st.visible || (!st.required && errType === 'required')) form.clearErrors(name);
+        if (!st.visible || !viewVisible || (!st.required && errType === 'required')) form.clearErrors(name);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ruleRecord]);
@@ -577,6 +582,15 @@ ComponentRegistry.register('form',
                   { required: staticRequired, readonly: staticReadonly === true },
                 );
                 if (!ruleState.visible) return null;
+
+                // View-level conditional visibility — spec FormField.visibleOn,
+                // authored on the form view (not the object field). Same
+                // canonical CEL engine and record scope as visibleWhen; both
+                // the bare-string and `{ dialect, source }` wire shapes are
+                // accepted, and a broken predicate fails open (#2212).
+                if (visibleOn != null && !evalFieldPredicate(visibleOn, ruleRecord, true)) {
+                  return null;
+                }
                 const required = ruleState.required;
                 const readonly = ruleState.readonly;
 

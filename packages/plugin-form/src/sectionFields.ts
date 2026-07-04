@@ -26,7 +26,7 @@
  */
 
 import type { FormField } from '@object-ui/types';
-import { mapFieldTypeToFormType, buildValidationRules, evaluateCondition } from '@object-ui/fields';
+import { mapFieldTypeToFormType, buildValidationRules } from '@object-ui/fields';
 
 export interface SectionFieldsContext {
   /** Resolved object schema (`{ fields: { [name]: fieldDef } }`) or null. */
@@ -41,13 +41,23 @@ export interface SectionFieldsContext {
   fieldLabel: (objectName: string, fieldName: string, fallback?: string) => string;
 }
 
-/** Attach a reactive `visible(formData)` predicate from a CEL `visibleOn` string. */
+/**
+ * Carry a `visibleOn` predicate through to the runtime FormField so the form
+ * renderer evaluates it with the canonical CEL engine (`evalFieldPredicate`,
+ * same record scope as `visibleWhen`). Accepts both wire shapes — a bare CEL
+ * string and the spec Expression object `{ dialect, source }` (#2212).
+ *
+ * The previous implementation attached a `visible(formData)` closure backed
+ * by `evaluateCondition`, which is a legacy `{field, operator, value}`
+ * matcher, not a CEL evaluator — and nothing in the form render chain ever
+ * called the closure, so `visibleOn` silently did nothing.
+ */
 function attachVisibility(formField: FormField, expr: any): FormField {
-  if (typeof expr === 'string' && expr.trim()) {
-    return {
-      ...formField,
-      visible: (formData: any) => evaluateCondition(expr, formData),
-    } as FormField;
+  const isExpression =
+    (typeof expr === 'string' && expr.trim()) ||
+    (expr != null && typeof expr === 'object' && typeof expr.source === 'string' && expr.source.trim());
+  if (isExpression) {
+    return { ...formField, visibleOn: expr } as FormField;
   }
   return formField;
 }
@@ -70,6 +80,13 @@ function fromObjectSchema(fieldName: string, ctx: SectionFieldsContext): FormFie
     field,
     options: field.options,
     multiple: field.multiple,
+    // Field-level conditional rules (ADR-0036) — the form renderer resolves
+    // them via `resolveFieldRuleState`; without this copy a sectioned form
+    // silently dropped rules that the flat (schema-order) form honors.
+    visibleWhen: field.visibleWhen,
+    readonlyWhen: field.readonlyWhen,
+    requiredWhen: field.requiredWhen,
+    conditionalRequired: field.conditionalRequired,
   } as FormField;
 }
 

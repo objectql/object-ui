@@ -233,19 +233,24 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   const formDef: any = (objectDef as any).form ?? (objectDef as any).formViews?.default ?? {};
   const pageFormType: 'simple' | 'tabbed' | 'wizard' | 'split' =
     ['tabbed', 'wizard', 'split'].includes(formDef.type) ? formDef.type : 'simple';
-  const formLayoutProps =
-    pageFormType !== 'simple' && Array.isArray(formDef.sections)
-      ? {
-          sections: formDef.sections,
-          defaultTab: formDef.defaultTab,
-          tabPosition: formDef.tabPosition,
-          allowSkip: formDef.allowSkip,
-          showStepIndicator: formDef.showStepIndicator,
-          splitDirection: formDef.splitDirection,
-          splitSize: formDef.splitSize,
-          splitResizable: formDef.splitResizable,
-        }
-      : {};
+  // Curated `sections` are wired through for EVERY layout family — a `simple`
+  // form view's sections still carry the authored field selection, order,
+  // grouping and per-field `visibleOn` predicates (#2212). Dropping them for
+  // `simple` made the page-mode form fall back to the raw schema (every field,
+  // no conditional visibility) while the New/Edit modal honored the same view
+  // via resolveFormViewLayout.
+  const formLayoutProps = Array.isArray(formDef.sections) && formDef.sections.length > 0
+    ? {
+        sections: formDef.sections,
+        defaultTab: formDef.defaultTab,
+        tabPosition: formDef.tabPosition,
+        allowSkip: formDef.allowSkip,
+        showStepIndicator: formDef.showStepIndicator,
+        splitDirection: formDef.splitDirection,
+        splitSize: formDef.splitSize,
+        splitResizable: formDef.splitResizable,
+      }
+    : {};
 
   return (
     <ExpressionProvider user={expressionUser} app={{ name: appName }} data={{}} features={features}>

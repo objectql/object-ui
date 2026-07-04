@@ -66,6 +66,55 @@ describe('normalizeSectionField', () => {
     const f = normalizeSectionField({ field: 'ghost', required: true }, ctx);
     expect(f.name).toBe('ghost'); // never undefined → no `.split` crash
   });
+
+  // View-level conditional visibility (#2212): the spec `P`-template ships
+  // `visibleOn` as an Expression object `{ dialect: 'cel', source }`. It must
+  // survive normalization verbatim so the form renderer can evaluate it with
+  // the canonical engine — the old code only accepted a bare string, and even
+  // then attached a dead `visible()` closure instead.
+  it('carries a `{ dialect, source }` visibleOn expression through (spec shape, #2212)', () => {
+    const expr = { dialect: 'cel', source: "record.priority == 'urgent'" };
+    const f = normalizeSectionField({ field: 'name', visibleOn: expr }, ctx);
+    expect((f as any).visibleOn).toEqual(expr);
+    expect((f as any).visible).toBeUndefined(); // no dead closure
+  });
+
+  it('carries a bare-string visibleOn through (#2212)', () => {
+    const f = normalizeSectionField(
+      { field: 'name', visibleOn: "record.priority == 'urgent'" },
+      ctx,
+    );
+    expect((f as any).visibleOn).toBe("record.priority == 'urgent'");
+  });
+
+  it('carries visibleOn on a runtime FormField object too (#2212)', () => {
+    const expr = { dialect: 'cel', source: 'record.flag == true' };
+    const f = normalizeSectionField({ name: 'custom', type: 'text', visibleOn: expr } as any, ctx);
+    expect((f as any).visibleOn).toEqual(expr);
+  });
+
+  it('copies field-level conditional rules from the object schema (#2212)', () => {
+    const rulesSchema = {
+      ...objectSchema,
+      fields: {
+        ...objectSchema.fields,
+        paid_on: {
+          type: 'date',
+          label: 'Paid on',
+          visibleWhen: "record.status == 'paid'",
+          requiredWhen: "record.status == 'paid'",
+          readonlyWhen: 'record.locked == true',
+        },
+      },
+    };
+    const rulesCtx = { ...ctx, objectSchema: rulesSchema };
+    for (const def of ['paid_on', { field: 'paid_on' }]) {
+      const f = normalizeSectionField(def as any, rulesCtx);
+      expect((f as any).visibleWhen).toBe("record.status == 'paid'");
+      expect((f as any).requiredWhen).toBe("record.status == 'paid'");
+      expect((f as any).readonlyWhen).toBe('record.locked == true');
+    }
+  });
 });
 
 describe('buildSectionFields', () => {
