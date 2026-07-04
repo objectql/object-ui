@@ -78,6 +78,12 @@ export interface PeoplePickerProps {
   pageSize?: number;
   /** Base candidate filters (e.g. exclude banned users). */
   lookupFilters?: LookupFilterDef[];
+  /**
+   * Hard filter constraints in QueryParams.$filter record form — the
+   * dependent (cascading) lookup chain (#2215). Always ANDed into the
+   * candidate query; spread after `lookupFilters` so it wins on conflicts.
+   */
+  baseFilter?: Record<string, any>;
 
   /** Current selection (id, or id[] when `multiple`). */
   value?: any;
@@ -114,6 +120,7 @@ export function PeoplePicker({
   searchFields,
   pageSize = DEFAULT_PAGE_SIZE,
   lookupFilters,
+  baseFilter: baseFilterProp,
   value,
   onSelect,
   onSelectRecords,
@@ -123,10 +130,13 @@ export function PeoplePicker({
   const { t } = useFieldTranslation();
   const isMobile = useIsMobile();
 
-  const baseFilter = useMemo<Record<string, any> | undefined>(
-    () => (lookupFilters?.length ? lookupFiltersToRecord(lookupFilters) : undefined),
-    [lookupFilters],
-  );
+  const baseFilter = useMemo<Record<string, any> | undefined>(() => {
+    const combined = {
+      ...(lookupFilters?.length ? lookupFiltersToRecord(lookupFilters) : {}),
+      ...(baseFilterProp ?? {}),
+    };
+    return Object.keys(combined).length > 0 ? combined : undefined;
+  }, [lookupFilters, baseFilterProp]);
 
   // Auto-expand relation subtitles (e.g. `primary_business_unit_id.name` needs
   // `$expand: ['primary_business_unit_id']`) unless the caller passed `expand`.

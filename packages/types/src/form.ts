@@ -833,12 +833,15 @@ export interface FormField {
    */
   dependsOn?: string;
   /**
-   * Visibility condition expression.
-   * Aligns with @objectstack/spec FormField.visibleOn.
-   * When evaluated to false, the field is hidden.
-   * @example "${data.role === 'admin'}"
+   * Visibility condition expression (view-level, from the form view's
+   * FormField). Aligns with @objectstack/spec FormField.visibleOn — the wire
+   * shape is either a bare CEL string or the spec Expression object
+   * `{ dialect, source }`. Evaluated against the live record via the
+   * canonical `@objectstack/formula` engine (same as `visibleWhen`); a broken
+   * predicate fails open (field stays visible).
+   * @example "record.priority == 'urgent'"
    */
-  visibleOn?: string;
+  visibleOn?: string | { dialect?: string; source: string };
   /**
    * Whether the field is hidden.
    * Aligns with @objectstack/spec FormField.hidden.

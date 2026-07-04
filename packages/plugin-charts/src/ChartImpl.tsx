@@ -91,7 +91,14 @@ export default function ChartImpl({
             tick={needAngle ? <AngledTick /> : { fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: 'monospace' }}
             tickLine={false}
             axisLine={{ stroke: 'hsl(var(--border))' }}
-            interval={needAngle ? 0 : 'preserveStartEnd'}
+            // Always render every category tick. The old non-angled branch used
+            // `preserveStartEnd`, which keeps ONLY the first + last label — so a
+            // short 3–4 category chart lost its middle labels entirely (AI-built
+            // "count by status" dashboards showed 4 bars but only 2 axis labels,
+            // leaving the middle bars unlabelled). Non-angled means ≤4 short
+            // categories — horizontal space is ample — and the angled branch
+            // already prevents overlap on crowded axes, so `0` is safe for both.
+            interval={0}
             height={needAngle ? 56 : undefined}
             dy={needAngle ? undefined : 10}
           />

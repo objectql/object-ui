@@ -63,39 +63,17 @@ import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from 
 import { resolveResourceConfig } from './registry';
 import { t as translate, detectLocale } from './i18n';
 import { AssignedUsersSection } from './AssignedUsersSection';
+import {
+  mergePermissionSlice,
+  scopePermissionSet,
+  type ObjectPerm,
+  type FieldPerm,
+  type PermissionSetDraft,
+} from './permission-slice';
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Domain shapes                                                      */
 /* ────────────────────────────────────────────────────────────────── */
-
-interface ObjectPerm {
-  allowCreate?: boolean;
-  allowRead?: boolean;
-  allowEdit?: boolean;
-  allowDelete?: boolean;
-  allowTransfer?: boolean;
-  allowRestore?: boolean;
-  allowPurge?: boolean;
-  viewAllRecords?: boolean;
-  modifyAllRecords?: boolean;
-}
-
-interface FieldPerm {
-  readable?: boolean;
-  editable?: boolean;
-}
-
-interface PermissionSetDraft {
-  name: string;
-  label?: string;
-  isProfile?: boolean;
-  objects: Record<string, ObjectPerm>;
-  fields?: Record<string, FieldPerm>;
-  systemPermissions?: string[];
-  tabPermissions?: Record<string, 'visible' | 'hidden' | 'default_on' | 'default_off'>;
-  // Any extra keys are carried through untouched on save.
-  [extra: string]: unknown;
-}
 
 interface ObjectSummary {
   name: string;
@@ -126,13 +104,20 @@ function getObjectActions(
 export interface PermissionMatrixEditPageProps {
   type: string;
   name: string;
+  /**
+   * When set, the matrix is scoped to a single package (ADR-0086 P0): it lists
+   * only the objects that package declares, and Save merges just that slice
+   * back — other packages' contributed rows are left untouched. When omitted,
+   * the matrix operates at environment scope (all objects, whole-record save).
+   */
+  packageId?: string;
 }
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Component                                                          */
 /* ────────────────────────────────────────────────────────────────── */
 
-export function PermissionMatrixEditPage({ type, name }: PermissionMatrixEditPageProps) {
+export function PermissionMatrixEditPage({ type, name, packageId }: PermissionMatrixEditPageProps) {
   const navigate = useNavigate();
   const client = useMetadataClient();
   const { entries } = useMetadataTypes(client);
@@ -168,17 +153,13 @@ export function PermissionMatrixEditPage({ type, name }: PermissionMatrixEditPag
       try {
         const [lay, objList] = await Promise.all([
           client.layered<PermissionSetDraft>(type, name).catch(() => null),
-          client.list<any>('object').catch(() => []),
+          // In package scope, list only the objects this package declares
+          // (ADR-0086 P0) — otherwise the whole environment leaks into the panel.
+          client.list<any>('object', packageId ? { packageId } : {}).catch(() => []),
         ]);
         if (cancelled) return;
         const effective: PermissionSetDraft = (lay?.effective ??
           lay?.code ?? { name, objects: {} }) as PermissionSetDraft;
-        setDraft({
-          ...effective,
-          name: String(effective?.name ?? name),
-          objects: effective?.objects ?? {},
-          fields: effective?.fields ?? {},
-        });
         const list: ObjectSummary[] = ((objList as any[]) ?? [])
           .map((row) => {
             const item = row?.item ?? row;
@@ -187,6 +168,21 @@ export function PermissionMatrixEditPage({ type, name }: PermissionMatrixEditPag
           .filter((o) => !!o.name)
           .sort((a, b) => a.name.localeCompare(b.name));
         setObjects(list);
+        const full: PermissionSetDraft = {
+          ...effective,
+          name: String(effective?.name ?? name),
+          objects: effective?.objects ?? {},
+          fields: effective?.fields ?? {},
+        };
+        // Package scope: only surface this package's slice for editing; rows
+        // contributed by other packages stay off-screen and are re-merged on
+        // Save from a fresh read (see doSave).
+        if (packageId) {
+          const sliced = scopePermissionSet(full, list.map((o) => o.name));
+          setDraft({ ...full, objects: sliced.objects, fields: sliced.fields });
+        } else {
+          setDraft(full);
+        }
       } catch (err: any) {
         setError(err?.message ?? String(err));
       } finally {
@@ -196,7 +192,7 @@ export function PermissionMatrixEditPage({ type, name }: PermissionMatrixEditPag
     return () => {
       cancelled = true;
     };
-  }, [client, type, name]);
+  }, [client, type, name, packageId]);
 
   /* ── Lazy-load fields when an object is expanded ─────────── */
   async function ensureFields(objectName: string) {
@@ -280,17 +276,39 @@ export function PermissionMatrixEditPage({ type, name }: PermissionMatrixEditPag
     });
   }
 
+  /**
+   * Re-narrow a freshly-read full permission set to this package's slice for
+   * display. No-op at environment scope (no `packageId`).
+   */
+  function toDisplayDraft(set: PermissionSetDraft): PermissionSetDraft {
+    if (!packageId) return set;
+    const sliced = scopePermissionSet(set, objects.map((o) => o.name));
+    return { ...set, objects: sliced.objects, fields: sliced.fields };
+  }
+
   /* ── Save ────────────────────────────────────────────────── */
   async function doSave(force: boolean, pending?: PermissionSetDraft) {
     const payload = pending ?? draft;
     setSaving(true);
     setError(null);
     try {
-      await client.save<PermissionSetDraft>(type, payload.name, payload, {
+      // Package scope: merge only this package's slice back onto a fresh read
+      // of the record so rows contributed by other packages survive byte-for-
+      // byte (ADR-0086 P0). Environment scope keeps the whole-record save.
+      let toSave = payload;
+      if (packageId) {
+        const scope = objects.map((o) => o.name);
+        const fresh = await client
+          .layered<PermissionSetDraft>(type, payload.name)
+          .catch(() => null);
+        const base = (fresh?.effective ?? payload) as PermissionSetDraft;
+        toSave = mergePermissionSlice(base, payload, scope);
+      }
+      await client.save<PermissionSetDraft>(type, payload.name, toSave, {
         force,
       });
       const lay = await client.layered<PermissionSetDraft>(type, payload.name);
-      setDraft((lay.effective ?? payload) as PermissionSetDraft);
+      setDraft(toDisplayDraft((lay.effective ?? toSave) as PermissionSetDraft));
       setDestructive(null);
     } catch (err: any) {
       if (err?.status === 409 && err?.code === 'destructive_change') {

@@ -369,6 +369,11 @@ export const ModalForm: React.FC<ModalFormProps> = ({
         field: field,
         options: field.options,
         multiple: field.multiple,
+        // Field-level conditional rules (ADR-0036) — resolved reactively by
+        // the form renderer via the canonical engine (#2212).
+        visibleWhen: (field as any).visibleWhen,
+        readonlyWhen: (field as any).readonlyWhen,
+        requiredWhen: (field as any).requiredWhen ?? (field as any).conditionalRequired,
         // Field-group membership (Field.group → object.fieldGroups[].key) —
         // read by deriveFieldGroupSections for the fieldGroups fallback.
         group: (field as any).group,
