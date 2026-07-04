@@ -277,6 +277,18 @@ export interface BulkActionParam {
   options?: Array<{ label: string; value: string | number | boolean }>;
   /** For lookup widgets — the related object name (e.g. 'user'). */
   object?: string;
+  /**
+   * For `select` / `lookup` widgets — allow picking multiple values. The param
+   * value becomes a string array and is written to the patch as-is (matching a
+   * multi-value backend field, e.g. a multi-user `executors`). Defaults to
+   * single-select.
+   */
+  multiple?: boolean;
+  /**
+   * For `lookup` widgets — the related-object field used as the option label
+   * (defaults to name/full_name/email/id in that order).
+   */
+  labelField?: string;
   /** Placeholder text. */
   placeholder?: string;
   /**

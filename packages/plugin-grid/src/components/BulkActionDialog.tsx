@@ -8,7 +8,14 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Badge,
   Button,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -17,6 +24,9 @@ import {
   DialogTitle,
   Input,
   Label,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Progress,
   ScrollArea,
   Select,
@@ -27,7 +37,7 @@ import {
   Switch,
   Textarea,
 } from '@object-ui/components';
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, ChevronsUpDown, Loader2, XCircle } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
 import type { BulkActionDef, BulkActionParam } from '@object-ui/types';
 import { useBulkExecutor, type BulkExecutorOptions, type BulkResult } from '../hooks/useBulkExecutor';
@@ -120,9 +130,13 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
         try {
           const res = await dataSource.find!(p.object as string, { $top: 200 });
           const items = Array.isArray(res) ? res : (res?.data ?? []);
+          const labelField = typeof p.labelField === 'string' ? p.labelField : undefined;
           next[p.name] = items.map(r => ({
             value: String(r.id ?? r._id ?? ''),
-            label: String(r.name ?? r.full_name ?? r.email ?? r.id ?? '(unnamed)'),
+            label: String(
+              (labelField ? r[labelField] : undefined)
+              ?? r.name ?? r.full_name ?? r.email ?? r.id ?? '(unnamed)',
+            ),
           })).filter(o => o.value);
         } catch {
           next[p.name] = [];
@@ -141,10 +155,25 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
       if (p.required) {
         const v = values[p.name];
         if (v === undefined || v === null || v === '') return false;
+        if (Array.isArray(v) && v.length === 0) return false;
       }
     }
     return true;
   }, [params, values]);
+
+  // Resolve a param value into a human-readable string for the confirm step:
+  // maps select/lookup ids back to their labels, joins multi-value arrays, and
+  // renders booleans/empties sensibly (a raw `String(v)` would show ids and
+  // `[object Object]`).
+  const describeValue = useCallback((param: BulkActionParam | undefined, v: unknown): string => {
+    if (v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) return '—';
+    if (typeof v === 'boolean') return v ? t('grid.yes', { defaultValue: 'Yes' }) : t('grid.no', { defaultValue: 'No' });
+    const optSource: LookupOption[] = param?.type === 'lookup'
+      ? (lookupCache[param.name] ?? [])
+      : (param?.options ?? []).map(o => ({ value: String(o.value), label: String(o.label) }));
+    const labelOf = (x: unknown) => optSource.find(o => o.value === String(x))?.label ?? String(x);
+    return Array.isArray(v) ? v.map(labelOf).join(', ') : labelOf(v);
+  }, [t, lookupCache]);
 
   const maxRecords = def?.maxRecords ?? Infinity;
   const overLimit = rows.length > maxRecords;
@@ -273,11 +302,14 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
             </ScrollArea>
             {Object.keys(values).length > 0 && (
               <div className="rounded border bg-muted/30 p-2 text-xs space-y-0.5">
-                {Object.entries(values).map(([k, v]) => (
-                  <div key={k}>
-                    <span className="text-muted-foreground">{k}:</span> {formatValue(v, t)}
-                  </div>
-                ))}
+                {Object.entries(values).map(([k, v]) => {
+                  const p = params.find(x => x.name === k);
+                  return (
+                    <div key={k}>
+                      <span className="text-muted-foreground">{p?.label ?? k}:</span> {describeValue(p, v)}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -402,12 +434,6 @@ export const BulkActionDialog: React.FC<BulkActionDialogProps> = ({
   );
 };
 
-function formatValue(v: unknown, t: (key: string, options?: Record<string, unknown>) => string): string {
-  if (v === null || v === undefined || v === '') return '—';
-  if (typeof v === 'boolean') return v ? t('grid.yes', { defaultValue: 'Yes' }) : t('grid.no', { defaultValue: 'No' });
-  return String(v);
-}
-
 interface ParamFieldProps {
   param: BulkActionParam;
   value: unknown;
@@ -447,15 +473,23 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupO
       );
       break;
     case 'select': {
-      const options = param.options ?? [];
-      control = (
+      const options = (param.options ?? []).map(o => ({ value: String(o.value), label: o.label }));
+      control = param.multiple ? (
+        <MultiSelectControl
+          id={id}
+          options={options}
+          value={value}
+          onChange={onChange}
+          placeholder={param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' })}
+        />
+      ) : (
         <Select value={value !== undefined && value !== null ? String(value) : ''} onValueChange={onChange}>
           <SelectTrigger id={id}>
             <SelectValue placeholder={param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' })} />
           </SelectTrigger>
           <SelectContent>
             {options.map(o => (
-              <SelectItem key={String(o.value)} value={String(o.value)}>{o.label}</SelectItem>
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -464,10 +498,21 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupO
     }
     case 'lookup': {
       const opts = lookupOptions ?? [];
-      control = (
+      const loadingPlaceholder = opts.length === 0
+        ? t('grid.bulk.loading', { defaultValue: 'Loading…' })
+        : (param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' }));
+      control = param.multiple ? (
+        <MultiSelectControl
+          id={id}
+          options={opts}
+          value={value}
+          onChange={onChange}
+          placeholder={loadingPlaceholder}
+        />
+      ) : (
         <Select value={(value as string) ?? ''} onValueChange={onChange}>
           <SelectTrigger id={id}>
-            <SelectValue placeholder={opts.length === 0 ? t('grid.bulk.loading', { defaultValue: 'Loading…' }) : (param.placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' }))} />
+            <SelectValue placeholder={loadingPlaceholder} />
           </SelectTrigger>
           <SelectContent>
             {opts.map(o => (
@@ -478,6 +523,28 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupO
       );
       break;
     }
+    case 'date':
+      control = (
+        <Input
+          id={id}
+          type="date"
+          value={(value as string) ?? ''}
+          onChange={e => onChange(e.target.value === '' ? undefined : e.target.value)}
+          placeholder={param.placeholder}
+        />
+      );
+      break;
+    case 'datetime':
+      control = (
+        <Input
+          id={id}
+          type="datetime-local"
+          value={(value as string) ?? ''}
+          onChange={e => onChange(e.target.value === '' ? undefined : e.target.value)}
+          placeholder={param.placeholder}
+        />
+      );
+      break;
     case 'number':
       control = (
         <Input
@@ -509,5 +576,75 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, value, onChange, lookupO
       {control}
       {param.help && <p className="text-[11px] text-muted-foreground">{param.help}</p>}
     </div>
+  );
+};
+
+interface MultiSelectControlProps {
+  id: string;
+  options: LookupOption[];
+  value: unknown;
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+}
+
+/**
+ * Popover + Command multi-select used for `multiple` select/lookup params. The
+ * value is a string array (written straight into the patch to match a
+ * multi-value backend field). Search filters the already-loaded option set.
+ */
+const MultiSelectControl: React.FC<MultiSelectControlProps> = ({ id, options, value, onChange, placeholder }) => {
+  const { t } = useObjectTranslation();
+  const [open, setOpen] = useState(false);
+  const selected = Array.isArray(value) ? (value as unknown[]).map(String) : [];
+  const labelOf = (v: string) => options.find(o => o.value === v)?.label ?? v;
+  const toggle = (v: string) => {
+    const next = selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v];
+    onChange(next);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          id={id}
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between h-auto min-h-9 font-normal"
+        >
+          <span className="flex flex-wrap gap-1 items-center text-left">
+            {selected.length === 0 && (
+              <span className="text-muted-foreground">
+                {placeholder ?? t('grid.bulk.selectPlaceholder', { defaultValue: 'Select…' })}
+              </span>
+            )}
+            {selected.map(v => (
+              <Badge key={v} variant="secondary" className="font-normal">{labelOf(v)}</Badge>
+            ))}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={t('grid.bulk.searchPlaceholder', { defaultValue: 'Search…' })} />
+          <CommandList>
+            <CommandEmpty>{t('grid.bulk.noOptions', { defaultValue: 'No options.' })}</CommandEmpty>
+            <CommandGroup>
+              {options.map(o => {
+                const checked = selected.includes(o.value);
+                return (
+                  <CommandItem key={o.value} value={o.label} onSelect={() => toggle(o.value)}>
+                    <Check className={`mr-2 h-4 w-4 ${checked ? 'opacity-100' : 'opacity-0'}`} />
+                    {o.label}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 };
