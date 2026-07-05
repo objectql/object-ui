@@ -78,6 +78,7 @@ import { ObjectSettingsPanel } from './ObjectSettingsPanel';
 import { fetchPackages, createBasePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
 import { PackageIdInput, PackageIdSuggestionHint } from './PackageIdInput';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
+import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
 import { toast } from 'sonner';
 
 const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
@@ -568,7 +569,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
             {packageApp ? (
               <button
                 type="button"
-                onClick={() => window.open(`/apps/${encodeURIComponent(packageApp.name)}`, '_blank')}
+                onClick={() => window.open(resolveConsoleUrl(`apps/${encodeURIComponent(packageApp.name)}`), '_blank')}
                 title={tFormat('engine.studio.app.openTitle', locale, { label: packageApp.label })}
                 className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >

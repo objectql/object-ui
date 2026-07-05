@@ -1,7 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, expect, it } from 'vitest';
-import { resolveHomeUrl, resolveRootUrl } from '../resolveHomeUrl';
+import { resolveHomeUrl, resolveRootUrl, resolveConsoleUrl } from '../resolveHomeUrl';
 
 describe('resolveHomeUrl', () => {
   it('builds an absolute /_console/home URL when base href points at the console mount', () => {
@@ -44,6 +44,29 @@ describe('resolveRootUrl', () => {
   it('resolves to the mount dir from a deeper route (drops the route segment)', () => {
     expect(resolveRootUrl('https://host.example/_console/organizations')).toBe(
       'https://host.example/_console/',
+    );
+  });
+});
+
+describe('resolveConsoleUrl', () => {
+  it('keeps the /_console mount prefix for a raw route path (the 404 this fixes)', () => {
+    // `window.open('/apps/my_app')` resolves against the document origin and
+    // drops the `/_console/` mount, 404ing on hosts that serve the console
+    // under a sub-path (studio-design's "Open app" button — objectui#404).
+    expect(resolveConsoleUrl('apps/my_app', 'https://host.example/_console/')).toBe(
+      'https://host.example/_console/apps/my_app',
+    );
+  });
+
+  it('accepts a leading slash on the path without dropping the mount', () => {
+    expect(resolveConsoleUrl('/apps/my_app', 'https://host.example/_console/')).toBe(
+      'https://host.example/_console/apps/my_app',
+    );
+  });
+
+  it('resolves against the document root when the console mounts at /', () => {
+    expect(resolveConsoleUrl('apps/my_app', 'https://host.example/')).toBe(
+      'https://host.example/apps/my_app',
     );
   });
 });

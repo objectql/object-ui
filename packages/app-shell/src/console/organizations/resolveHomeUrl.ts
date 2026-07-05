@@ -44,3 +44,17 @@ export function resolveRootUrl(baseURI?: string): string {
   }
   return consoleRoot().toString();
 }
+
+/**
+ * Resolve an arbitrary router-relative path (e.g. `apps/my_app`) against the
+ * console's deployment mount, for full-page navigations (`window.open`,
+ * `window.location.assign`, a plain `<a href>`) that fall outside React
+ * Router and so never see its `basename`. A raw absolute path like
+ * `/apps/my_app` resolves against the document origin, not the SPA mount —
+ * dropping the `/_console/` prefix and 404ing when the host serves the
+ * console under a sub-path. See {@link resolveHomeUrl} above for the
+ * mount-resolution history this reuses.
+ */
+export function resolveConsoleUrl(path: string, baseURI?: string): string {
+  return new URL(path.replace(/^\//, ''), resolveRootUrl(baseURI)).toString();
+}
