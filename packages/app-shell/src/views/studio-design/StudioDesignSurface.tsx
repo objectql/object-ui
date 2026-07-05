@@ -69,6 +69,7 @@ import { ObjectFormDesigner } from './ObjectFormDesigner';
 import { ObjectValidationsPanel } from './ObjectValidationsPanel';
 import { ObjectSettingsPanel } from './ObjectSettingsPanel';
 import { fetchPackages, createBasePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
+import { PackageIdInput, PackageIdSuggestionHint } from './PackageIdInput';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { toast } from 'sonner';
 
@@ -279,18 +280,21 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                     placeholder={t('engine.studio.pkg.namePlaceholder', locale)}
                     className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
                   />
-                  <input
+                  <PackageIdSuggestionHint
+                    show={!idTouched && !!newName.trim() && !newId}
+                    locale={locale}
+                  />
+                  <PackageIdInput
                     value={newId}
-                    onChange={(e) => {
+                    onChange={(v) => {
                       setIdTouched(true);
-                      setNewId(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''));
+                      setNewId(v);
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void doCreate();
-                      if (e.key === 'Escape') setCreating(false);
-                    }}
+                    onEnter={() => void doCreate()}
+                    onEscape={() => setCreating(false)}
                     placeholder={t('engine.studio.pkg.idPlaceholder', locale)}
-                    className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                    locale={locale}
+                    testId="pkg-switcher-id-input"
                   />
                   {err && <p className="text-[10px] text-destructive">{err}</p>}
                   <div className="flex items-center gap-1.5">

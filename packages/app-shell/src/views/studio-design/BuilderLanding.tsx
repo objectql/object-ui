@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { toFieldNameLoose } from '../metadata-admin/previews/object-fields-io';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 import { fetchPackages, createBasePackage, duplicatePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
+import { PackageIdInput, PackageIdSuggestionHint } from './PackageIdInput';
 
 export function BuilderLanding(): React.ReactElement {
   const navigate = useNavigate();
@@ -168,15 +169,14 @@ export function BuilderLanding(): React.ReactElement {
                   placeholder={t('engine.studio.landing.dupNamePlaceholder', locale)}
                   className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
                 />
-                <input
+                <PackageIdInput
                   value={dupId}
-                  onChange={(e) => setDupId(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void doDup();
-                    if (e.key === 'Escape') setDupFor(null);
-                  }}
+                  onChange={setDupId}
+                  onEnter={() => void doDup()}
+                  onEscape={() => setDupFor(null)}
                   placeholder={t('engine.studio.landing.dupIdPlaceholder', locale)}
-                  className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
+                  locale={locale}
+                  testId="pkg-dup-id-input"
                 />
                 {dupErr && <p className="text-[10px] text-destructive">{dupErr}</p>}
                 <div className="flex items-center gap-1.5">
@@ -222,18 +222,18 @@ export function BuilderLanding(): React.ReactElement {
               placeholder={t('engine.studio.pkg.namePlaceholder', locale)}
               className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
             />
-            <input
+            <PackageIdSuggestionHint show={!idTouched && !!newName.trim() && !newId} locale={locale} />
+            <PackageIdInput
               value={newId}
-              onChange={(e) => {
+              onChange={(v) => {
                 setIdTouched(true);
-                setNewId(e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, ''));
+                setNewId(v);
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void doCreate();
-                if (e.key === 'Escape') setCreating(false);
-              }}
+              onEnter={() => void doCreate()}
+              onEscape={() => setCreating(false)}
               placeholder={t('engine.studio.pkg.idPlaceholder', locale)}
-              className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
+              locale={locale}
+              testId="pkg-landing-id-input"
             />
             <div className="flex items-center gap-1.5">
               <button

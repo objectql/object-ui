@@ -81,3 +81,16 @@ export async function duplicatePackage(sourceId: string, targetId: string, targe
 }
 
 export const PACKAGE_ID_RE = /^[a-z][a-z0-9_.-]*(\.[a-z0-9_-]+)+$/;
+
+/**
+ * Normalize raw package-id keystrokes to the allowed alphabet, and SAY when
+ * something was dropped — the wizard used to strip illegal characters
+ * silently (`bad id!!` → `badid`), which reads as the input eating keys.
+ * The `stripped` flag drives an inline notice; PACKAGE_ID_RE stays the
+ * format authority (reverse-domain, e.g. `com.example.myapp`).
+ */
+export function sanitizePackageId(raw: string): { value: string; stripped: boolean } {
+  const value = raw.toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+  // Lowercasing is benign normalization; only actually-dropped characters warrant the notice.
+  return { value, stripped: value.length !== raw.length };
+}
