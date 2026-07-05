@@ -1,5 +1,26 @@
 # @object-ui/plugin-designer
 
+## 11.5.0
+
+### Patch Changes
+
+- Updated dependencies [544d8eb]
+- Updated dependencies [6fffd3d]
+- Updated dependencies [9255686]
+- Updated dependencies [fae75e2]
+- Updated dependencies [1072701]
+- Updated dependencies [ec9c8ee]
+- Updated dependencies [6c1ad9e]
+  - @object-ui/i18n@11.5.0
+  - @object-ui/react@11.5.0
+  - @object-ui/components@11.5.0
+  - @object-ui/types@11.5.0
+  - @object-ui/plugin-form@11.5.0
+  - @object-ui/plugin-grid@11.5.0
+  - @object-ui/data-objectstack@11.5.0
+  - @object-ui/fields@11.5.0
+  - @object-ui/core@11.5.0
+
 ## 11.4.0
 
 ### Patch Changes

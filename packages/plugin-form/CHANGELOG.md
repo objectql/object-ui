@@ -1,5 +1,60 @@
 # @object-ui/plugin-form
 
+## 11.5.0
+
+### Patch Changes
+
+- fae75e2: Fix two bugs verified still-present after #2254 claimed to resolve them (framework#2620 / framework#2616 Showcase UX pass, tracked in #2268):
+
+  - **Wizard/form `submitBehavior: 'thank-you'` allowed duplicate resubmission.** #2254 fixed the spec-bridge dropping `submitBehavior` before it reached the renderer, so the configured toast message started appearing — but `WizardForm`'s last step and `ObjectForm`'s submit handler only ever called `toast.success(...)` for `thank-you`/`next-record`; the form stayed mounted and fully filled with its submit button re-enabled once the request settled, so a second click created a second record. Both components now track a terminal `submitted` state and, when set, replace the form with a confirmation panel (using the behavior's `title`/`message`, which were also never read before) — mirroring the pattern `apps/console/src/components/FormPage.tsx` already used for its own standalone forms.
+
+  - **Command Center-style 3-up chart bands stayed collapsed to ~100-130px, and a dataset-bound chart's measure leaked its raw field name.**
+    - `responsiveStyles` (and `style`) were declared on the page-spec `PageComponent` bridge input type but never copied onto the `SchemaNode` in `spec-bridge/bridges/page.ts::mapComponent()` — so a page author's ADR-0065 layout override (e.g. forcing `display: 'grid'` on a `type: 'flex'` band) never reached `SchemaRenderer`, and the node silently fell back to its default flex layout. Both fields are now mapped through.
+    - `ObjectChart`'s dataset-bound fetch path (`schema.dataset` + `ds.queryDataset(...)`) discarded the response's `fields` array (which carries each measure's `label`, e.g. `{ name: 'task_count', label: 'Tasks' }`) before it ever reached `buildChartSeries()` — whose `fields` param already resolves this correctly (see `chart-series.test.ts`) — so the legend/tooltip always fell back to the raw field name. The fetched `fields` are now captured and threaded through.
+
+- ec9c8ee: Fix master-detail record create: stop double success toast + localize the Cancel button.
+
+  Objects with inline subforms (master-detail, e.g. a Lead with product line items)
+  render `MasterDetailForm` inside `ModalForm`/`DrawerForm` instead of the plain
+  footer, which exposed two mismatches with the host contract:
+
+  - **Double success toast.** Flat `ObjectForm` delegates confirmation to the host
+    when an `onSuccess` is supplied (skips its own default toast), but
+    `MasterDetailForm.handleSaved` ALWAYS toasted `Created`/`Saved` AND ran
+    `onSuccess`. In the console the host's `onSuccess` chains into the `crud_success`
+    handler, which toasts a localized message — so create fired both `Created` and
+    e.g. `线索创建成功`. `handleSaved` now only toasts as a fallback when no host
+    `onSuccess` is provided, matching the `ObjectForm` contract; saves without a host
+    handler stay non-silent.
+
+  - **Hardcoded English `Cancel`.** The master-detail action bar wrote `Cancel` as a
+    literal and accepted no `cancelText`, so the button stayed English while the
+    submit button was localized (`submitText` was already forwarded).
+    `MasterDetailForm` now takes `cancelText`, and `ModalForm`/`DrawerForm`/`ObjectForm`
+    forward the host's localized label down the subforms branch.
+
+  Adds regression tests: create with a host `onSuccess` fires no built-in toast (no
+  double-confirm), and the Cancel button renders the host-supplied `cancelText`.
+
+- 6c1ad9e: Record task flows open as derived overlays with lossless return (framework#2604, extends framework#2578).
+
+  - **Create/Edit never route** — the global record form is URL-driven (`?form=new` / `?form=<id>`): browser Back closes the overlay with the origin (list scroll/filters, detail state) intact; field-heavy objects derive a full-screen modal (`modalSize:'full'`) via the new `deriveRecordFlowSurface` mirror in plugin-view, light ones keep the auto-sized modal. `editMode:'page'` opt-in unchanged.
+  - **Save invariant** — _edit never moves you_ (origin refetches in place); _create lands on the new record's detail_ on its derived surface (drawer over the still-intact list for light objects, detail route for heavy), with `replace:true` so Back skips the transient form entry.
+  - **Subtable child create/edit = overlay over the parent detail, never a route** — related-list New/Edit push `?form=…&formObject=<child>&formLink=<fk>:<parentId>`; the one global overlay pre-links the parent (refresh-safe), sizes to the CHILD object, and on save stays on the parent while only the child's related lists refetch. ModalForm now forwards `initialValues` into its master-detail (subforms) branch so pre-links survive for children with inline line items.
+
+- Updated dependencies [544d8eb]
+- Updated dependencies [6fffd3d]
+- Updated dependencies [9255686]
+- Updated dependencies [fae75e2]
+- Updated dependencies [1072701]
+  - @object-ui/i18n@11.5.0
+  - @object-ui/react@11.5.0
+  - @object-ui/components@11.5.0
+  - @object-ui/types@11.5.0
+  - @object-ui/fields@11.5.0
+  - @object-ui/core@11.5.0
+  - @object-ui/permissions@11.5.0
+
 ## 11.4.0
 
 ### Minor Changes
