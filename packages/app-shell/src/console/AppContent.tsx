@@ -14,7 +14,7 @@ import { useAssistant } from '../assistant/assistantBus';
 import { ModalForm } from '@object-ui/plugin-form';
 import { Empty, EmptyTitle, EmptyDescription, Button } from '@object-ui/components';
 import { toast } from 'sonner';
-import { useActionRunner, useGlobalUndo } from '@object-ui/react';
+import { useActionRunner, useGlobalUndo, useMutationInvalidationBridge, notifyDataChanged } from '@object-ui/react';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { ConnectionState } from '@object-ui/data-objectstack';
 import { useAuth } from '@object-ui/auth';
@@ -26,7 +26,7 @@ import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionP
 import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent';
 import { resolveRecordFormTarget, resolveFormViewLayout, resolveNavigateCreateUrl, resolveNavigateEditUrl, resolvePostCreateTarget } from '../utils/recordFormNavigation';
 import { deriveRecordSurface, deriveRecordFlowSurface } from '@object-ui/plugin-view';
-import { notifyRelatedChanged } from '../views/RelatedRecordActionsBridge';
+import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM } from '../urlParams';
 import { matchAppBySegment } from '../utils/appRoute';
 import { resolveHref, type NavTemplateContext } from '@object-ui/layout';
 import { ExpressionEvaluator } from '@object-ui/core';
@@ -246,15 +246,15 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // every close strips the param with `replace` so no stale reopen-entry stays
   // ahead in history.
   const [searchParams, setSearchParams] = useSearchParams();
-  const recordFormParam = searchParams.get('form');
+  const recordFormParam = searchParams.get(RECORD_FORM_PARAM);
   // #2604 D3 — child-task extension of the record-form URL contract:
   // `formObject` names the object the form edits when it is NOT the route's
   // object (a subtable child opened over its parent's detail); `formLink`
   // ("field:id") pre-links the parent on create. Keeping the whole task in
   // the URL means Back closes the overlay and a refresh reopens it still
   // correctly parent-linked — no transient component state to lose.
-  const formObjectParam = searchParams.get('formObject');
-  const formLinkParam = searchParams.get('formLink');
+  const formObjectParam = searchParams.get(RECORD_FORM_OBJECT_PARAM);
+  const formLinkParam = searchParams.get(RECORD_FORM_LINK_PARAM);
   const editingRecord = useMemo(
     () => (recordFormParam && recordFormParam !== 'new' ? { id: recordFormParam } : null),
     [recordFormParam],
@@ -275,24 +275,34 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // post-create redirect below).
   const closeRecordForm = useCallback(() => {
     const sp = new URLSearchParams(window.location.search);
-    if (!sp.has('form') && !sp.has('formObject') && !sp.has('formLink')) return;
-    sp.delete('form');
-    sp.delete('formObject');
-    sp.delete('formLink');
+    if (!sp.has(RECORD_FORM_PARAM) && !sp.has(RECORD_FORM_OBJECT_PARAM) && !sp.has(RECORD_FORM_LINK_PARAM)) return;
+    sp.delete(RECORD_FORM_PARAM);
+    sp.delete(RECORD_FORM_OBJECT_PARAM);
+    sp.delete(RECORD_FORM_LINK_PARAM);
     setSearchParams(sp, { replace: true });
   }, [setSearchParams]);
 
   const { execute: executeAction, runner } = useActionRunner();
+
+  // objectui#2269 — bridge every dataSource write (create/update/delete →
+  // MutationEvent) onto the invalidation bus, ONCE for the whole console.
+  // Readers (record detail, related lists, count badges) refetch in place;
+  // nothing is remounted for a data refresh.
+  useMutationInvalidationBridge(dataSource);
 
   useGlobalUndo({
     dataSource: dataSource ?? undefined,
     onUndo: (op: any) => {
       toast.info(`Undo: ${op.description}`, { duration: 4000 });
       setRefreshKey(k => k + 1);
+      // Precisely-scoped invalidation — UndoableOperation carries the target
+      // (objectName + recordId), so detail readers refresh in place too.
+      if (op?.objectName) notifyDataChanged({ objectName: op.objectName, recordId: op.recordId });
     },
     onRedo: (op: any) => {
       toast.info(`Redo: ${op.description}`, { duration: 3000 });
       setRefreshKey(k => k + 1);
+      if (op?.objectName) notifyDataChanged({ objectName: op.objectName, recordId: op.recordId });
     },
   });
 
@@ -415,12 +425,11 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // to the pre-create origin.
   const handleRecordFormSuccess = useCallback(async (saved: any) => {
     // Child task (#2604 D3): the parent detail must stay EXACTLY as it was —
-    // active tab, scroll, everything. So do NOT go through crud_success (its
-    // refreshKey bump remounts the whole RecordDetailView, resetting the
-    // tab); only the child's open related lists refetch, via the
-    // related-changed event RelatedList already listens for.
+    // active tab, scroll, everything. So do NOT go through crud_success;
+    // the child's open related lists refetch on their own via the
+    // invalidation bus (#2269): the dataSource write already emitted a
+    // MutationEvent that the bridge fans out — no manual notify needed.
     if (isChildFormTask) {
-      if (formObjectDef) notifyRelatedChanged(formObjectDef.name);
       const label = formObjectDef ? objectLabel(formObjectDef as any) : t('common.record', { defaultValue: 'Record' });
       toast.success(editingRecord
         ? t('form.updateSuccess', { object: label, defaultValue: `${label} updated successfully` })
@@ -466,11 +475,11 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     // the overlay, origin intact). `new` = create; a record id = edit.
     const rawId = record?.id ?? record?._id;
     const sp = new URLSearchParams(window.location.search);
-    sp.set('form', rawId != null && rawId !== '' ? String(rawId) : 'new');
+    sp.set(RECORD_FORM_PARAM, rawId != null && rawId !== '' ? String(rawId) : 'new');
     // Top-level task on the route's own object — drop any stale child-task
     // overrides (see the record-form URL contract above).
-    sp.delete('formObject');
-    sp.delete('formLink');
+    sp.delete(RECORD_FORM_OBJECT_PARAM);
+    sp.delete(RECORD_FORM_LINK_PARAM);
     setSearchParams(sp);
   };
 
@@ -663,7 +672,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                   <ObjectDataPage dataSource={dataSource} objects={allObjects} />
                 } />
                 <Route path=":objectName/record/:recordId" element={
-                  <RecordDetailView key={refreshKey} dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
+                  <RecordDetailView dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
                 } />
                 <Route path=":objectName/record/:recordId/edit" element={
                   <RecordFormPage mode="edit" />

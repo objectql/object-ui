@@ -15,6 +15,7 @@ import {
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useUrlOverlay } from '../hooks/useUrlOverlay';
+import { KEYBOARD_SHORTCUTS_PARAM } from '../urlParams';
 
 interface ShortcutEntry {
   keys: string[];
@@ -31,7 +32,7 @@ export function KeyboardShortcutsDialog() {
   // URL-addressable (?shortcuts=1) so the dialog is deep-linkable and openable
   // from the header Help menu, not only via the `?` keyboard accelerator (ADR-0054
   // C1/C2/C3).
-  const { open, setOpen, toggleOverlay } = useUrlOverlay('shortcuts');
+  const { open, setOpen, toggleOverlay } = useUrlOverlay(KEYBOARD_SHORTCUTS_PARAM);
 
   const shortcutGroups: ShortcutGroup[] = useMemo(() => [
     {

@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useUrlOverlay } from '../hooks/useUrlOverlay';
+import { COMMAND_PALETTE_PARAM } from '../urlParams';
 
 export interface CommandPaletteContextValue {
   /** Whether the palette is currently open (derived from the URL). */
@@ -42,7 +43,7 @@ export interface CommandPaletteContextValue {
 const CommandPaletteContext = createContext<CommandPaletteContextValue | null>(null);
 
 export function CommandPaletteProvider({ children }: { children: ReactNode }) {
-  const { open, setOpen, openOverlay, closeOverlay, toggleOverlay } = useUrlOverlay('palette', {
+  const { open, setOpen, openOverlay, closeOverlay, toggleOverlay } = useUrlOverlay(COMMAND_PALETTE_PARAM, {
     alias: 'cmdk',
   });
 

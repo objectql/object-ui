@@ -64,7 +64,7 @@ export { useResizeObserver } from './hooks/use-resize-observer';
 export type { ElementSize } from './hooks/use-resize-observer';
 export { useExportJob } from './hooks/use-export-job';
 export type { UseExportJobOptions, UseExportJobReturn } from './hooks/use-export-job';
-export { useRelatedCount, RelatedCountStore } from './hooks/related-count-store';
+export { useRelatedCount, useRelatedCountVersion, RelatedCountStore } from './hooks/related-count-store';
 
 // Export config panel types
 export type {

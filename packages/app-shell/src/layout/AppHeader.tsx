@@ -72,6 +72,7 @@ import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
 import { useCommandPalette } from '../context/CommandPaletteProvider';
 import { useUrlOverlay } from '../hooks/useUrlOverlay';
+import { KEYBOARD_SHORTCUTS_PARAM } from '../urlParams';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { getProductName } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
@@ -129,7 +130,7 @@ export function AppHeader({
   const { openCommandPalette } = useCommandPalette();
   // Click-reachable entry for the keyboard-shortcuts dialog (was `?`-key only).
   // Shares the `?shortcuts=1` URL param with KeyboardShortcutsDialog (C2/C3).
-  const { openOverlay: openShortcuts } = useUrlOverlay('shortcuts');
+  const { openOverlay: openShortcuts } = useUrlOverlay(KEYBOARD_SHORTCUTS_PARAM);
   const {
     user,
     signOut,

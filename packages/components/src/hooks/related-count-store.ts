@@ -23,6 +23,7 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import { subscribeDataChanges } from '@object-ui/react';
 
 type Listener = () => void;
 
@@ -36,12 +37,18 @@ interface ProbeFn {
 const counts = new Map<string, number>();
 const inflight = new Map<string, Promise<number>>();
 const listeners = new Set<Listener>();
+// Monotonic store version — the `useSyncExternalStore` snapshot. Bumped on
+// every change so React actually re-renders subscribers (returning the
+// `counts` Map itself never re-rendered: identical reference, Object.is-equal
+// snapshots).
+let version = 0;
 
 function key(objectName: string, relField: string | undefined, parentId: string | undefined): string {
   return `${objectName}::${relField ?? ''}::${parentId ?? ''}`;
 }
 
 function emit(): void {
+  version += 1;
   for (const l of listeners) l();
 }
 
@@ -154,8 +161,8 @@ function subscribe(l: Listener): () => void {
   };
 }
 
-function getSnapshot(): Map<string, number> {
-  return counts;
+function getSnapshot(): number {
+  return version;
 }
 
 /**
@@ -171,6 +178,17 @@ export function useRelatedCount(
   useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   if (!objectName) return undefined;
   return getCount(objectName, relField, parentId);
+}
+
+/**
+ * Subscribe to the store's monotonic version. Put it in an effect dependency
+ * array to RE-RUN count probes after an invalidation (#2269) — invalidate
+ * deletes the cached numbers, and this version bump is what makes the probe
+ * effect fetch them again (fetchCount returns cached values without emitting,
+ * so the loop settles once every probed key is warm again).
+ */
+export function useRelatedCountVersion(): number {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /**
@@ -190,3 +208,13 @@ export const RelatedCountStore = {
     emit();
   },
 };
+
+// #2269 — wire the store to the data-invalidation bus: any change to an
+// object (form save, record action, undo, any dataSource write via the
+// MutationEvent bridge) invalidates its related-count badges everywhere.
+// Module-scope on purpose: the store itself is module-scoped, and this keeps
+// the wiring next to the thing it wires (one subscription per bundle).
+subscribeDataChanges((change) => {
+  if (change.objectName === '*') RelatedCountStore.invalidateAll();
+  else RelatedCountStore.invalidate(change.objectName);
+});

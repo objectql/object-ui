@@ -42,6 +42,7 @@ import { useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   RelatedRecordActionsProvider,
+  notifyDataChanged,
   useAction,
   type RelatedRecordActionsValue,
   type RelatedRecordHandlers,
@@ -49,13 +50,20 @@ import {
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
+import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM } from '../urlParams';
 
-/** Notify open related lists for `objectName` to refetch (see RelatedList). */
+/**
+ * Notify open related lists for `objectName` to refetch.
+ *
+ * Since #2269 this is a thin alias over the data-invalidation bus — the bus
+ * dispatches the legacy `objectui:related-changed` window event RelatedList
+ * listens for, plus every `useDataInvalidation` reader. Kept for callers
+ * whose writes BYPASS the dataSource (row actions over the ActionRunner);
+ * dataSource writes need no manual call (the MutationEvent bridge covers
+ * them).
+ */
 export function notifyRelatedChanged(objectName: string): void {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(
-    new CustomEvent('objectui:related-changed', { detail: { objectName } }),
-  );
+  notifyDataChanged({ objectName });
 }
 
 /** i18n label resolver signature (matches `useObjectLabel().actionLabel`). */
@@ -106,10 +114,10 @@ export function RelatedRecordActionsBridge({
   const openChildForm = useCallback(
     (opts: { objectName: string; recordId?: string; link?: { field: string; parentId: string | number } }) => {
       const sp = new URLSearchParams(window.location.search);
-      sp.set('form', opts.recordId ?? 'new');
-      sp.set('formObject', opts.objectName);
-      if (opts.link) sp.set('formLink', `${opts.link.field}:${opts.link.parentId}`);
-      else sp.delete('formLink');
+      sp.set(RECORD_FORM_PARAM, opts.recordId ?? 'new');
+      sp.set(RECORD_FORM_OBJECT_PARAM, opts.objectName);
+      if (opts.link) sp.set(RECORD_FORM_LINK_PARAM, `${opts.link.field}:${opts.link.parentId}`);
+      else sp.delete(RECORD_FORM_LINK_PARAM);
       setSearchParams(sp); // push → Back closes the overlay
     },
     [setSearchParams],

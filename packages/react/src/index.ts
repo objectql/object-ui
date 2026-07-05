@@ -12,6 +12,7 @@ export * from './context'; // will be empty for now
 export * from './components/form';
 export * from './LazyPluginLoader';
 export * from './spec-bridge';
+export * from './data-invalidation';
 
 // i18n utilities
 export { resolveI18nLabel } from './utils/i18n';

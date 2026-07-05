@@ -22,6 +22,7 @@ import { ListView } from '@object-ui/plugin-list';
 import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
 import { ObjectView as PluginObjectView, ViewTabBar, ManageViewsDialog, deriveRecordSurface, overlayWidthFor } from '@object-ui/plugin-view';
 import type { ViewTabItem } from '@object-ui/plugin-view';
+import { RECORD_DRAWER_PARAM } from '../urlParams';
 // Plugin registration is handled by the host app (e.g. apps/console/src/main.tsx
 // uses ComponentRegistry.registerLazy so heavy plugins stay code-split).
 // Do NOT add eager `import '@object-ui/plugin-*'` side-effect imports here.
@@ -979,7 +980,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         },
         [activeView?.navigation, objectDef]
     );
-    const drawerRecordId = searchParams.get('recordId');
+    const drawerRecordId = searchParams.get(RECORD_DRAWER_PARAM);
 
     /**
      * URL-derived equality filters in the form `?filter[<field>]=<value>`.
@@ -1057,7 +1058,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const handleDrawerClose = () => {
         navOverlay.close();
         const newParams = new URLSearchParams(searchParams);
-        newParams.delete('recordId');
+        newParams.delete(RECORD_DRAWER_PARAM);
         setSearchParams(newParams);
     };
     /**
@@ -1084,7 +1085,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 const id = (record?.id ?? record?._id) as string | number | undefined;
                 if (id != null) {
                     const next = new URLSearchParams(searchParams);
-                    next.set('recordId', String(id));
+                    next.set(RECORD_DRAWER_PARAM, String(id));
                     setSearchParams(next);
                     return;
                 }

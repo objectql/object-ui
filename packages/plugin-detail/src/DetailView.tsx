@@ -42,7 +42,7 @@ import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
 import { HistoryTimeline } from './HistoryTimeline';
 import { RecordMetaFooter } from './RecordMetaFooter';
-import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel, useDataInvalidation } from '@object-ui/react';
 import { buildExpandFields, getRecordDisplayName, formatTitleTemplate } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
@@ -186,6 +186,15 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const [objectSchema, setObjectSchema] = React.useState<any>(null);
   const [idCopied, setIdCopied] = React.useState(false);
   const [reloadTick, setReloadTick] = React.useState(0);
+  // #2269 — refetch in place when this record (or its object) is invalidated
+  // on the data bus (form save, record action, undo, any dataSource write).
+  // Replaces the host's key={...} remount, which destroyed tab/scroll/inline
+  // edit state on every refresh. Inert when the schema carries inline data
+  // (the HOST owns fetching then and passes fresh data down).
+  const invalidationNonce = useDataInvalidation(
+    rawSchema.objectName || undefined,
+    rawSchema.resourceId != null ? String(rawSchema.resourceId) : undefined,
+  );
   const [isCancellingApproval, setIsCancellingApproval] = React.useState(false);
   const { t } = useDetailTranslation();
   // Tenant default currency (ADR-0053) for summary metrics whose field omits one.
@@ -402,7 +411,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
     }
 
     return () => { isMounted = false; };
-  }, [schema.api, schema.resourceId, schema.objectName, dataSource, schema.sections, schema.fields, reloadTick]);
+  }, [schema.api, schema.resourceId, schema.objectName, dataSource, schema.sections, schema.fields, reloadTick, invalidationNonce]);
 
   const handleBack = React.useCallback(() => {
     if (onBack) {

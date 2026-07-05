@@ -11,7 +11,7 @@ import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'reac
 import { DetailView, RecordChatterPanel, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
-import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, useGlobalUndo } from '@object-ui/react';
+import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
@@ -28,6 +28,7 @@ import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog
 import { FlowRunner, type ScreenFlowState } from './FlowRunner';
 import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
 import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
+import { RECORD_DETAIL_TAB_PARAM } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { DetailViewSchema, FeedItem, HighlightField } from '@object-ui/types';
@@ -124,11 +125,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // not stack history entries (Back would page through tabs and fight the
   // overlay contract where Back closes `?form=…`).
   const [tabSearchParams, setTabSearchParams] = useSearchParams();
-  const activeTabParam = tabSearchParams.get('tab') ?? undefined;
+  const activeTabParam = tabSearchParams.get(RECORD_DETAIL_TAB_PARAM) ?? undefined;
   const handleTabChange = useCallback((value: string) => {
     const sp = new URLSearchParams(window.location.search);
-    if (sp.get('tab') === value) return;
-    sp.set('tab', value);
+    if (sp.get(RECORD_DETAIL_TAB_PARAM) === value) return;
+    sp.set(RECORD_DETAIL_TAB_PARAM, value);
     setTabSearchParams(sp, { replace: true });
   }, [setTabSearchParams]);
   const location = useLocation();
@@ -142,7 +143,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const [mentionSuggestions, setMentionSuggestions] = useState<
     Array<{ id: string; label: string; avatarUrl?: string }>
   >([]);
-  const [actionRefreshKey, setActionRefreshKey] = useState(0);
   // Screen-flow runtime: a paused `screen`-node flow launched from a record action.
   const [screenFlow, setScreenFlow] = useState<ScreenFlowState | null>(null);
   const [childRelatedData, setChildRelatedData] = useState<Record<string, any[]>>({});
@@ -160,6 +160,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // Navigation code passes `record.id || record._id` directly into the URL
   // without adding any prefix, so no stripping is needed.
   const pureRecordId = recordId;
+  // #2269 — "refresh data, don't rebuild UI": after an action/save succeeds
+  // we INVALIDATE this record on the bus instead of bumping a key that
+  // remounted the whole DetailView (destroying tab/scroll/inline-edit state).
+  // `recordInvalidationNonce` is the read side: it bumps when THIS record (or
+  // its object) is invalidated by anyone — the form overlay, an action, an
+  // undo, or any dataSource write via the MutationEvent bridge.
+  const recordInvalidationNonce = useDataInvalidation(objectName || undefined, pureRecordId || undefined);
+  const notifyRecordChanged = useCallback(() => {
+    if (objectName) notifyDataChanged({ objectName, recordId: pureRecordId || undefined });
+  }, [objectName, pureRecordId]);
 
   // Record-scoped presence ("who else is viewing this record"). The default
   // PresenceProvider source is a no-op, so this resolves to `[]` until a
@@ -280,7 +290,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       cancelled = true;
       window.removeEventListener('objectui:record-changed', onChanged as EventListener);
     };
-  }, [effectivePage, objectName, pureRecordId, dataSource, objectDef]);
+    // #2269: recordInvalidationNonce re-runs this fetch in place whenever the
+    // record (or its object) is invalidated on the bus.
+  }, [effectivePage, objectName, pureRecordId, dataSource, objectDef, recordInvalidationNonce]);
 
   // Schema-driven path: derive a human-readable record title from the
   // loaded `pageRecord` so favourites (record:*) and the breadcrumb show
@@ -366,7 +378,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // "Undo" button (for `undoable` actions) restores the record's prior values.
   const undoCtl = useGlobalUndo({
     dataSource,
-    onUndo: () => { setActionRefreshKey(k => k + 1); toast.success('Change undone'); },
+    onUndo: (op: any) => {
+      if (op?.objectName) notifyDataChanged({ objectName: op.objectName, recordId: op.recordId });
+      else notifyRecordChanged();
+      toast.success('Change undone');
+    },
   });
 
   const toastHandler = useCallback((message: string, options?: { type?: string; duration?: number; undo?: { label?: string } }) => {
@@ -453,11 +469,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
       const shouldRefresh = action.refreshAfter === true;
       if (shouldRefresh) {
-        setActionRefreshKey(k => k + 1);
+        notifyRecordChanged();
       } else if (undo) {
         // Even when refreshAfter isn't set, reflect the change so the user sees
         // it (and the subsequent Undo) on the open record.
-        setActionRefreshKey(k => k + 1);
+        notifyRecordChanged();
       }
       return { success: true, reload: shouldRefresh, undo };
     } catch (error) {
@@ -515,7 +531,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       }
       const shouldRefresh = action.refreshAfter !== false;
       if (shouldRefresh) {
-        setActionRefreshKey(k => k + 1);
+        notifyRecordChanged();
       }
       return { success: true, data: json?.data, reload: shouldRefresh };
     } catch (error) {
@@ -607,7 +623,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             });
           }
         }
-        if (action.refreshAfter === true) setActionRefreshKey(k => k + 1);
+        if (action.refreshAfter === true) notifyRecordChanged();
         return { success: true };
       }
       const obj = action.objectName || objectName || 'global';
@@ -641,7 +657,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         return { success: false, error: errMsg };
       }
       const shouldRefresh = action.refreshAfter !== false;
-      if (shouldRefresh) setActionRefreshKey(k => k + 1);
+      if (shouldRefresh) notifyRecordChanged();
       const result = json?.data;
       // ── redirectUrl convention ────────────────────────────────────────
       // A script-action handler can return `{ redirectUrl: 'https://…' }`
@@ -713,7 +729,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       } else {
         return { success: false, error: `Unknown approval target: ${target}` };
       }
-      setActionRefreshKey((k) => k + 1);
+      notifyRecordChanged();
       return { success: true, reload: true };
     } catch (err: any) {
       return { success: false, error: err?.message || String(err) };
@@ -1577,7 +1593,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       }),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectDef?.name, pureRecordId, childRelatedData, actionRefreshKey, appName, navigate, dataSource, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide, approvals.pendingRequest, approvals.latestRequest, embedded, activeTabParam, handleTabChange]);
+  }, [objectDef?.name, pureRecordId, childRelatedData, appName, navigate, dataSource, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide, approvals.pendingRequest, approvals.latestRequest, embedded, activeTabParam, handleTabChange]);
 
   if (isLoading) {
     return <SkeletonDetail />;
@@ -1927,7 +1943,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           dataSource={dataSource}
           objects={objects}
           onClose={() => setScreenFlow(null)}
-          onComplete={() => { setScreenFlow(null); setActionRefreshKey(k => k + 1); }}
+          onComplete={() => { setScreenFlow(null); notifyRecordChanged(); }}
         />
       </div>
     );
@@ -1966,7 +1982,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, approval: approvalHandler }}
           >
             <DetailView
-              key={actionRefreshKey}
               schema={detailSchema}
               dataSource={dataSource}
               objectLabel={objectLabel({ name: objectDef.name, label: objectDef.label })}
@@ -2044,7 +2059,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         dataSource={dataSource}
         objects={objects}
         onClose={() => setScreenFlow(null)}
-        onComplete={() => { setScreenFlow(null); setActionRefreshKey(k => k + 1); }}
+        onComplete={() => { setScreenFlow(null); notifyRecordChanged(); }}
       />
     </div>
   );

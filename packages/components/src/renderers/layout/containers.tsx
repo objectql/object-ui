@@ -22,7 +22,7 @@ import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName } from '@o
 import { useRecordContext, useAction, usePredicateScope } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
-import { RelatedCountStore, useRelatedCount } from '../../hooks/related-count-store';
+import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
 import {
   Tabs,
   TabsList,
@@ -325,9 +325,11 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const ctx = useRecordContext();
   const parentId = ctx?.data?.id;
   const ds: any = ctx?.dataSource;
-  // Subscribe to store changes so badges re-render on invalidation /
-  // remote count updates. The actual count lookup is per-tab below.
-  useRelatedCount(undefined, undefined, parentId);
+  // Subscribe to the store version so badges re-render on invalidation /
+  // remote count updates, and RE-PROBE freshly-invalidated keys (#2269): the
+  // version is a dep of the probe effect below, so an invalidation (deleted
+  // cache entries) triggers a refetch instead of leaving the badge stale.
+  const countsVersion = useRelatedCountVersion();
 
   // Snapshot which tabs (index → derived (objectName, relationshipField))
   // need a count probe. Cached per items reference so we don't re-walk on
@@ -370,10 +372,10 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     return () => {
       cancelled = true;
     };
-  }, [ds, probeTargets, parentId]);
+  }, [ds, probeTargets, parentId, countsVersion]);
 
   // Compute the displayed count by reading the store for every probe target.
-  // useRelatedCount above subscribed us to changes, so any store update —
+  // useRelatedCountVersion above subscribed us to changes, so any store update —
   // whether from this effect or from an external invalidate — re-renders.
   const computeCount = (idx: number): number | undefined => {
     const probes = probeTargets.get(idx);
