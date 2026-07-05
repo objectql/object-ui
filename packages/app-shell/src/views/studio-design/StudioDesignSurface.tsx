@@ -340,6 +340,29 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const tab = params.tab ?? 'interfaces';
   const locale = useMetadataLocale();
 
+  // Courtesy client-side gate (ADR-0057 D10) mirroring the server's
+  // writable_package_required check (ADR-0070) — read-only (code/installed)
+  // packages reject authoring writes late, at save time. Default to `true`
+  // (don't gate) until the fetch resolves or if it fails, so a slow/broken
+  // packages endpoint never blocks legitimate authoring — the server remains
+  // the actual authority either way.
+  const [packageWritable, setPackageWritable] = React.useState(true);
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchPackages()
+      .then((pkgs) => {
+        if (cancelled) return;
+        const current = pkgs.find((p) => p.id === packageId);
+        setPackageWritable(current ? current.writable : true);
+      })
+      .catch(() => {
+        if (!cancelled) setPackageWritable(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [packageId]);
+
   // Package-level publish (ADR-0033/0037/0048): edits accumulate as per-item
   // drafts STAMPED with this package (each save passes packageId → the draft row's
   // sys_metadata.package_id). Publishing promotes exactly THIS package's drafts in
@@ -606,7 +629,12 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
         <div className="min-h-0 flex-1">
           {tab === 'data' ? (
-            <DataPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
+            <DataPillar
+              packageId={packageId}
+              publishNonce={publishNonce}
+              onDraftSaved={onDraftSaved}
+              writable={packageWritable}
+            />
           ) : tab === 'automations' ? (
             <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : tab === 'access' ? (
@@ -1350,10 +1378,20 @@ function DataPillar({
   packageId,
   publishNonce = 0,
   onDraftSaved,
+  writable = true,
 }: {
   packageId: string;
   publishNonce?: number;
   onDraftSaved?: () => void;
+  /**
+   * Courtesy client-side gate (ADR-0057 D10) mirroring the server's
+   * writable_package_required check — a read-only (code/installed) package
+   * rejects authoring writes late, at save time, so hide/disable the "Add
+   * field" and "New object" affordances up front instead of letting the user
+   * mutate the canvas and then hit a save-time error. The server remains the
+   * authority; this only sets expectations.
+   */
+  writable?: boolean;
 }): React.ReactElement {
   const client = useMetadataClient();
   const adapter = useAdapter();
@@ -1419,7 +1457,7 @@ function DataPillar({
         setCurrent((c) => c ?? items[0] ?? null);
         // First-run: an empty writable package opens the creator right away —
         // the first thing to do here is make an object, so put the inputs up.
-        if (items.length === 0) setCreating(true);
+        if (items.length === 0 && writable) setCreating(true);
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -1429,7 +1467,7 @@ function DataPillar({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId]);
+  }, [client, packageId, writable]);
 
   React.useEffect(() => {
     if (!current) return;
@@ -1478,14 +1516,17 @@ function DataPillar({
   }, []);
 
   // "+ add field": append a fresh text field and select it for editing in the panel.
+  // Guarded by `writable` in addition to being hidden — belt-and-suspenders,
+  // since it's also wired through GridFieldAuthoringProvider/ObjectFormDesigner.
   const addField = React.useCallback(() => {
+    if (!writable) return;
     const view = readFields(objDraft.fields);
     const name = nextFieldName(view.entries.map((e) => e.name));
     view.entries.push(newField(name, 'text', t('engine.studio.data.newFieldLabel', locale)));
     setObjDraft((d) => ({ ...d, fields: writeFields(view) }));
     setDirty(true);
     setFieldSel({ kind: 'field', id: name });
-  }, [objDraft]);
+  }, [objDraft, writable]);
 
   // "+ new object": create a fresh object as a DRAFT in this package (runtime
   // create — same path the classic Studio editor uses), seeded with one text
@@ -1493,6 +1534,7 @@ function DataPillar({
   // until the package publish, so we land on 表单·布局 — the metadata-level
   // surface that never fires data SQL.
   const doCreateObject = React.useCallback(async () => {
+    if (!writable) return;
     const label = newLabel.trim();
     const name = toFieldName(newName.trim() || label);
     if (!label || !name || name === 'field') return; // CJK label → identifier must be typed
@@ -1520,7 +1562,7 @@ function DataPillar({
     } finally {
       setCreateBusy(false);
     }
-  }, [newLabel, newName, objects, client, packageId, onDraftSaved]);
+  }, [newLabel, newName, objects, client, packageId, onDraftSaved, writable]);
 
   const doSave = React.useCallback(async () => {
     if (!current) return;
@@ -1640,7 +1682,14 @@ function DataPillar({
               ))}
           </div>
           <div className="shrink-0 border-t p-2">
-            {creating ? (
+            {!writable ? (
+              <div
+                className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground/60"
+                title={t('engine.studio.data.readOnlyPackage', locale)}
+              >
+                <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
+              </div>
+            ) : creating ? (
               <div className="flex flex-col gap-1.5">
                 <input
                   autoFocus
@@ -1772,7 +1821,7 @@ function DataPillar({
                           ? t('engine.studio.data.badge.formLayout', locale)
                           : t('engine.studio.data.badge.formPreview', locale)}
                 </span>
-                {(viewMode === 'grid' || viewMode === 'form') && (
+                {(viewMode === 'grid' || viewMode === 'form') && writable && (
                   <button
                     type="button"
                     onClick={addField}
@@ -1825,7 +1874,7 @@ function DataPillar({
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
                 <GridFieldAuthoringProvider
                   value={{
-                    onAddColumn: addField,
+                    onAddColumn: writable ? addField : undefined,
                     addColumnLabel: t('engine.studio.data.addField', locale),
                     onEditColumn: (fieldName) => {
                       // ignore non-field columns (e.g. the row-actions column)
@@ -1914,7 +1963,7 @@ function DataPillar({
                   onChange={onPatch}
                   selectedField={fieldSel?.kind === 'field' ? fieldSel.id : null}
                   onSelectField={(name) => setFieldSel({ kind: 'field', id: name })}
-                  onAddField={addField}
+                  onAddField={writable ? addField : undefined}
                 />
               ) : !hasBaseline ? (
                 /* Draft-only object: there is no published definition to preview yet. */

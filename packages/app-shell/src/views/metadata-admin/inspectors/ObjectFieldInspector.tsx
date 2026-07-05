@@ -22,7 +22,6 @@
  */
 
 import * as React from 'react';
-import { slugify } from '../createDerive';
 import type { MetadataInspectorProps } from '../inspector-registry';
 import { MetadataClient } from '@object-ui/data-objectstack';
 import { useMetadataClient } from '../useMetadata';
@@ -195,25 +194,30 @@ export function ObjectFieldInspector({
     onSelectionChange?.({ kind: 'field', id: nextName, label: String(def.label ?? nextName) });
   };
 
-  // Derive the API name from the label (on blur, so we use the complete
-  // string — not per keystroke, which would churn the field key) while the
-  // name is still an auto-generated default and the user hasn't customised it.
-  // Mirrors the object Name behaviour; slugify() returns '' for non-Latin
-  // labels, in which case the unique default name is kept.
-  const maybeDeriveName = (label: string) => {
-    if (readOnly) return;
+  // Derive the API name from the label live, per keystroke — with
+  // toFieldNameLoose (prefix-stable, unlike slugify which trims trailing
+  // underscores and would fight mid-word typing) — while the name is still
+  // an auto-generated default and the user hasn't customised it. Mirrors the
+  // object/app Name behaviour. toFieldNameLoose returns '' for non-Latin
+  // labels, in which case the unique default name is kept. Pure — the
+  // caller applies the label and (if any) the derived name in one write,
+  // since two separate writeView() calls from the same stale `entry` closure
+  // would have the second clobber the first.
+  const deriveNameFor = (label: string): string | null => {
+    if (readOnly) return null;
     const base = type === 'select' ? 'status' : type;
     const isAutoName =
       entry.name === base ||
-      (entry.name.startsWith(`${base}_`) && /^\d+$/.test(entry.name.slice(base.length + 1)));
-    if (!isAutoName) return;
-    const derived = slugify(label);
-    if (!derived || derived === entry.name) return;
-    if (view.entries.some((e, i) => i !== idx && e.name === derived)) return;
-    const nextEntries = [...view.entries];
-    nextEntries[idx] = { ...entry, name: derived };
-    writeView({ shape: view.shape, entries: nextEntries });
-    onSelectionChange?.({ kind: 'field', id: derived, label: String(def.label ?? derived) });
+      (entry.name.startsWith(`${base}_`) && /^\d+$/.test(entry.name.slice(base.length + 1))) ||
+      // Freshly added fields are named by nextFieldName() as `field_<N>`
+      // (StudioDesignSurface.tsx), independent of the field's type — match
+      // that scheme too, or a type-typed rename right after add never derives.
+      /^field_\d+$/.test(entry.name);
+    if (!isAutoName) return null;
+    const derived = toFieldNameLoose(label);
+    if (!derived || derived === entry.name) return null;
+    if (view.entries.some((e, i) => i !== idx && e.name === derived)) return null;
+    return derived;
   };
 
   const removeField = () => {
@@ -319,8 +323,19 @@ export function ObjectFieldInspector({
         <InspectorTextField
           label={tr('designer.field.label')}
           value={typeof def.label === 'string' ? (def.label as string) : ''}
-          onCommit={(v) => patchDef({ label: v })}
-          onBlur={maybeDeriveName}
+          onCommit={(v) => {
+            const derivedName = deriveNameFor(v);
+            const nextEntries = [...view.entries];
+            nextEntries[idx] = {
+              ...entry,
+              name: derivedName ?? entry.name,
+              def: { ...def, label: v },
+            };
+            writeView({ shape: view.shape, entries: nextEntries });
+            if (derivedName) {
+              onSelectionChange?.({ kind: 'field', id: derivedName, label: v });
+            }
+          }}
           disabled={readOnly}
           testId="field-label-input"
         />

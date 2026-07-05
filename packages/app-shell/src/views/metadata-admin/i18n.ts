@@ -935,6 +935,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.labelPlaceholder': 'Display name (e.g. Repair Ticket)',
   'engine.studio.data.idPlaceholder': 'Identifier (e.g. repair_ticket)',
   'engine.studio.data.newObject': 'New object',
+  'engine.studio.data.readOnlyPackage': 'This package is read-only — switch to or create a writable package to add objects',
   'engine.studio.data.firstObjectTitle': 'Start with your first object',
   'engine.studio.data.firstObjectHint':
     'Objects are your app’s data foundation (e.g. “Orders”, “Customers”). Enter a display name and identifier at the bottom-left to create one; then design its fields, forms, and automations, and publish once at the end.',
@@ -1807,6 +1808,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.labelPlaceholder': '显示名(如:报修工单)',
   'engine.studio.data.idPlaceholder': '标识符(如:repair_ticket)',
   'engine.studio.data.newObject': '新建对象',
+  'engine.studio.data.readOnlyPackage': '此包为只读——请切换到或新建一个可写的包后再添加对象',
   'engine.studio.data.firstObjectTitle': '从第一个对象开始',
   'engine.studio.data.firstObjectHint':
     '对象是应用的数据基座(如「订单」「客户」)。在左下角输入显示名与标识符即可创建;之后为它设计字段、表单与自动化,最后一次发布。',
