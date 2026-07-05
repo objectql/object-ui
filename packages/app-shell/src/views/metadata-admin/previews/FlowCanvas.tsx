@@ -514,24 +514,21 @@ export function FlowCanvas({
       {/* Toolbar */}
       <div className="absolute right-2 top-2 z-30 flex items-center gap-1.5">
         {editable && (
-          <div className="relative">
+          <NodePalette
+            locale={locale}
+            items={paletteItems}
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            onPick={(type) => addNode(type, { from: selectedId ?? undefined })}
+          >
             <button
               type="button"
-              onClick={() => setPaletteOpen((v) => !v)}
               className="inline-flex items-center gap-1.5 rounded-lg border bg-background/90 px-2.5 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm transition-colors hover:border-primary/50 hover:bg-accent hover:text-foreground"
             >
               <Plus className="h-3.5 w-3.5" />
               {tr('engine.inspector.add.node', locale)}
             </button>
-            {paletteOpen && (
-              <NodePalette
-                locale={locale}
-                items={paletteItems}
-                onClose={() => setPaletteOpen(false)}
-                onPick={(type) => addNode(type, { from: selectedId ?? undefined })}
-              />
-            )}
-          </div>
+          </NodePalette>
         )}
         <div className="flex items-center rounded-lg border bg-background/90 shadow-sm backdrop-blur-sm">
           <button

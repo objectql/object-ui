@@ -35,7 +35,7 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { cn } from '@object-ui/components';
+import { cn, Popover, PopoverTrigger, PopoverContent } from '@object-ui/components';
 import { NODE_W, NODE_H, type Point } from './flow-canvas-layout';
 
 export function nodeIcon(type: string): LucideIcon {
@@ -555,11 +555,14 @@ export interface NodePaletteProps {
   /** Node types to offer. Defaults to the hardcoded {@link NODE_PALETTE}. */
   items?: PaletteItem[];
   onPick: (type: string) => void;
-  onClose: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The trigger button — rendered as the Popover anchor. */
+  children: React.ReactNode;
 }
 
 /** Compact popover listing the node types an author can add, grouped by category. */
-export function NodePalette({ items = NODE_PALETTE, onPick, onClose }: NodePaletteProps) {
+export function NodePalette({ items = NODE_PALETTE, onPick, open, onOpenChange, children }: NodePaletteProps) {
   // Bucket items by category (falling back to the type's inferred category, so
   // engine-only / plugin nodes still land in a sensible section), then render
   // sections in the canonical order. Empty sections are skipped.
@@ -596,10 +599,17 @@ export function NodePalette({ items = NODE_PALETTE, onPick, onClose }: NodePalet
     );
   };
 
+  // Radix Popover (portaled to <body>) — the flow canvas root is
+  // `overflow-hidden` (pan/zoom), so an `absolute` panel used to be clipped at
+  // the canvas edge instead of overlaying it. Portaling escapes that clip.
   return (
-    <>
-      <div className="fixed inset-0 z-20" onClick={onClose} aria-hidden />
-      <div className="absolute right-0 top-full z-30 mt-1.5 max-h-[66vh] w-60 overflow-y-auto rounded-xl border bg-popover/95 p-1.5 shadow-xl shadow-foreground/[0.08] ring-1 ring-black/[0.03] backdrop-blur-md">
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={6}
+        className="max-h-[66vh] w-60 overflow-y-auto rounded-xl border bg-popover/95 p-1.5 shadow-xl shadow-foreground/[0.08] ring-1 ring-black/[0.03] backdrop-blur-md"
+      >
         {grouped.map(([category, list], gi) => (
           <div key={category} className={cn(gi > 0 && 'mt-1 border-t border-border/60 pt-1')}>
             <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
@@ -608,7 +618,7 @@ export function NodePalette({ items = NODE_PALETTE, onPick, onClose }: NodePalet
             {list.map(renderItem)}
           </div>
         ))}
-      </div>
-    </>
+      </PopoverContent>
+    </Popover>
   );
 }
