@@ -72,7 +72,7 @@ import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
 import { useCommandPalette } from '../context/CommandPaletteProvider';
 import { useUrlOverlay } from '../hooks/useUrlOverlay';
-import { KEYBOARD_SHORTCUTS_PARAM } from '../urlParams';
+import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { getProductName } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
@@ -600,6 +600,26 @@ export function AppHeader({
     } else if (routeType) {
       const currentObject = safeObjects.find((o: any) => o.name === routeType);
       if (currentObject) {
+        // Ancestor trail (record → related-record drill-in, `?from=`). Prepend
+        // an object-list + record segment per ancestor so the path reads
+        // `Account → #parent → Invoice → #child`, each crumb a link back. The
+        // ancestor record crumb carries its OWN ancestors so mid-path clicks
+        // preserve everything above them.
+        if (pathParts[3] === 'record' && pathParts[4]) {
+          const trail = decodeRecordTrail(new URLSearchParams(location.search).get(RECORD_TRAIL_PARAM));
+          trail.forEach((entry, k) => {
+            const ancObj = safeObjects.find((o: any) => o.name === entry.o);
+            extraSegments.push({
+              label: ancObj ? objectLabel(ancObj) : humanizeSlug(entry.o),
+              href: `${baseHref}/${entry.o}`,
+            });
+            const ancShortId = entry.i.length > 12 ? `${entry.i.slice(0, 8)}…` : entry.i;
+            extraSegments.push({
+              label: entry.t || `#${ancShortId}`,
+              href: buildRecordTrailHref(baseHref, entry, trail.slice(0, k)),
+            });
+          });
+        }
         extraSegments.push({
           label: objectLabel(currentObject),
           href: `${baseHref}/${routeType}`,

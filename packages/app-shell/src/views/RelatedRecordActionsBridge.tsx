@@ -50,7 +50,7 @@ import {
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
-import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM } from '../urlParams';
+import { RECORD_FORM_PARAM, RECORD_FORM_OBJECT_PARAM, RECORD_FORM_LINK_PARAM, RECORD_TRAIL_PARAM, appendRecordTrail } from '../urlParams';
 
 /**
  * Notify open related lists for `objectName` to refetch.
@@ -78,6 +78,15 @@ export interface RelatedRecordActionsBridgeProps {
   dataSource: any;
   /** Localizes a child action's label (falls back to the raw label). */
   actionLabel: ActionLabelFn;
+  /**
+   * The record this bridge is mounted under — the PARENT of any related row a
+   * user drills into. Threaded into the child record's `?from=` trail so the
+   * breadcrumb can offer a path back (`Account → #parent → Invoice → #child`).
+   * Omit when there is no parent context (e.g. a standalone list).
+   */
+  parentObjectName?: string;
+  parentRecordId?: string;
+  parentTitle?: string;
   children: React.ReactNode;
 }
 
@@ -100,6 +109,9 @@ export function RelatedRecordActionsBridge({
   objects,
   dataSource,
   actionLabel,
+  parentObjectName,
+  parentRecordId,
+  parentTitle,
   children,
 }: RelatedRecordActionsBridgeProps) {
   const navigate = useNavigate();
@@ -150,8 +162,26 @@ export function RelatedRecordActionsBridge({
         const childDef = objects.find((o: any) => o?.name === objectName);
         if (!childDef || !base) return {} as RelatedRecordHandlers;
         const aff = resolveCrudAffordances(childDef);
-        const detailUrl = (id: string | number) =>
-          `${base}/${objectName}/record/${encodeURIComponent(String(id))}`;
+        const detailUrl = (id: string | number) => {
+          const url = `${base}/${objectName}/record/${encodeURIComponent(String(id))}`;
+          // Carry the parent record into the child's `?from=` trail so the
+          // breadcrumb (and the record body's back link) can path back up.
+          // Read the current trail off the live URL — this bridge outlives a
+          // single search-params snapshot, so a fresh read avoids a stale
+          // closure and keeps nested drill-ins accumulating correctly.
+          if (parentObjectName && parentRecordId) {
+            const rawFrom = new URLSearchParams(window.location.search).get(RECORD_TRAIL_PARAM);
+            const trail = appendRecordTrail(rawFrom, {
+              o: parentObjectName,
+              i: parentRecordId,
+              ...(parentTitle ? { t: parentTitle } : {}),
+            });
+            const sp = new URLSearchParams();
+            sp.set(RECORD_TRAIL_PARAM, trail);
+            return `${url}?${sp.toString()}`;
+          }
+          return url;
+        };
 
         const handlers: RelatedRecordHandlers = {
           // Viewing a child record is always allowed when the list is visible.
@@ -190,7 +220,7 @@ export function RelatedRecordActionsBridge({
         return handlers;
       },
     }),
-    [objects, base, navigate, dataSource, actionLabel, runRowAction, openChildForm],
+    [objects, base, navigate, dataSource, actionLabel, runRowAction, openChildForm, parentObjectName, parentRecordId, parentTitle],
   );
 
   return (

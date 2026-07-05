@@ -1454,16 +1454,8 @@ function InterfacesPillar({
               </div>
             )}
           </div>
-          {isSourcePage ? (
-            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-              <Code2 className="h-3 w-3" /> {t('engine.studio.inspector.sourcePageLine2', locale)}
-            </p>
-          ) : isEditable ? (
-            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-              <MousePointer2 className="h-3 w-3" /> {t('engine.studio.if.editHint', locale)}
-            </p>
-          ) : current?.type === 'object' ? (
-            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+          {!isEditable && current?.type === 'object' ? (
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
               <Database className="h-3 w-3" /> {t('engine.studio.if.objectHintPre', locale)}<span className="font-medium">Data</span>{t('engine.studio.if.objectHintPost', locale)}
             </p>
           ) : null}
@@ -2229,9 +2221,6 @@ function DataPillar({
                   </SchemaRendererProvider>
                 </GridFieldAuthoringProvider>
               </div>
-              <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                <MousePointer2 className="h-3 w-3" /> {t('engine.studio.data.gridHint', locale)}
-              </p>
               </>
               ) : (
               <>
@@ -2340,9 +2329,6 @@ function DataPillar({
                   </SchemaRendererProvider>
                 </div>
               </div>
-              <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                <MousePointer2 className="h-3 w-3" /> {t('engine.studio.data.formHint', locale)}
-              </p>
               </>
               )}
               </>
@@ -2791,11 +2777,6 @@ function AutomationsPillar({
               </pre>
             )}
           </div>
-          {isEditable && (
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <MousePointer2 className="h-3 w-3" /> {t('engine.studio.auto.editHint', locale)}
-            </p>
-          )}
         </main>
 
         <aside className="w-72 shrink-0 overflow-auto border-l">

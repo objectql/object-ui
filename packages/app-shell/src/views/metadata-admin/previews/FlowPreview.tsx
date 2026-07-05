@@ -84,7 +84,9 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
   const selectedEdgeId = selection && selection.kind === 'edge' ? selection.id : null;
 
   const [showDebug, setShowDebug] = React.useState(false);
-  const [showVars, setShowVars] = React.useState(true);
+  // Variables panel is opt-in: opening a flow should show the full-width canvas,
+  // not a mostly-empty side panel (most flows declare no variables).
+  const [showVars, setShowVars] = React.useState(false);
   const [showRuns, setShowRuns] = React.useState(false);
   const [showProblems, setShowProblems] = React.useState(false);
   const [runHL, setRunHL] = React.useState<{
