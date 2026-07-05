@@ -621,6 +621,15 @@ export interface DetailViewSchema extends BaseSchema {
    */
   autoTabs?: boolean;
   /**
+   * Initial active tab for `autoTabs` (`details` | `related` | `activity` |
+   * `discussion` | `history`) — typically restored from the host's `?tab=`
+   * URL param (objectui#2257). Ignored when it names a tab that doesn't
+   * render.
+   */
+  defaultTab?: string;
+  /** Called on every tab switch; the host persists it (e.g. writes `?tab=`). */
+  onTabChange?: (value: string) => void;
+  /**
    * Section groups — groups of sections rendered under a collapsible header.
    */
   sectionGroups?: SectionGroup[];

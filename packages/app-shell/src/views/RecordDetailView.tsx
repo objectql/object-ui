@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
 import { DetailView, RecordChatterPanel, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
@@ -27,6 +27,7 @@ import { ActionParamDialog, type ParamDialogState } from './ActionParamDialog';
 import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog';
 import { FlowRunner, type ScreenFlowState } from './FlowRunner';
 import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
+import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { DetailViewSchema, FeedItem, HighlightField } from '@object-ui/types';
@@ -105,6 +106,7 @@ function isSecondaryField(fieldName: string, fieldDef: any): boolean {
 }
 
 export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverride, recordIdOverride, embedded }: RecordDetailViewProps) {
+
   const params = useParams<{
     appName?: string;
     objectName?: string;
@@ -116,6 +118,19 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const { showDebug } = useMetadataInspector();
   const { user } = useAuth();
   const navigate = useNavigate();
+  // objectui#2257 — the active detail tab is URL-addressable (`?tab=`), so it
+  // survives the page subtree remounting (refreshKey-style save refreshes;
+  // dev-StrictMode URL churn). Written with `replace` — switching tabs must
+  // not stack history entries (Back would page through tabs and fight the
+  // overlay contract where Back closes `?form=…`).
+  const [tabSearchParams, setTabSearchParams] = useSearchParams();
+  const activeTabParam = tabSearchParams.get('tab') ?? undefined;
+  const handleTabChange = useCallback((value: string) => {
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('tab') === value) return;
+    sp.set('tab', value);
+    setTabSearchParams(sp, { replace: true });
+  }, [setTabSearchParams]);
   const location = useLocation();
   const originFrom = (location.state as any)?.from as { pathname?: string; label?: string } | undefined;
   const { t } = useObjectTranslation();
@@ -1540,6 +1555,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       primaryField,
       sections,
       autoTabs: true,
+      // objectui#2257 — URL-driven active tab (same `?tab=` contract as the
+      // schema path's page:tabs node).
+      defaultTab: activeTabParam,
+      onTabChange: handleTabChange,
       autoDiscoverRelated: true,
       ...(historyEnabled && {
         history: {
@@ -1558,7 +1577,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       }),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectDef?.name, pureRecordId, childRelatedData, actionRefreshKey, appName, navigate, dataSource, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide, approvals.pendingRequest, approvals.latestRequest, embedded]);
+  }, [objectDef?.name, pureRecordId, childRelatedData, actionRefreshKey, appName, navigate, dataSource, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide, approvals.pendingRequest, approvals.latestRequest, embedded, activeTabParam, handleTabChange]);
 
   if (isLoading) {
     return <SkeletonDetail />;
@@ -1839,7 +1858,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                   dataSource={dataSource}
                   actionLabel={actionLabel}
                 >
-                  <SchemaRenderer schema={renderedPage as any} />
+                  <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
                 </RelatedRecordActionsBridge>
                 {/* Auto-append RecordChatterPanel only when the page
                     schema doesn't already place a `record:discussion` /
