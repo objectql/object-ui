@@ -1379,8 +1379,8 @@ function InterfacesPillar({
         </nav>
 
         {/* canvas */}
-        <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
-          <div className="mb-3 flex items-center gap-2">
+        <main className="flex min-w-0 flex-1 flex-col overflow-auto bg-muted/30 p-4">
+          <div className="mb-3 flex shrink-0 items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
               <Eye className="h-3 w-3" /> {t('engine.studio.if.previewIsRuntime', locale)}
             </span>
@@ -1391,11 +1391,18 @@ function InterfacesPillar({
             )}
           </div>
           {error && (
-            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
+            <div className="mb-3 shrink-0 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
               {error}
             </div>
           )}
-          <div className="rounded-lg border bg-background p-4">
+          <div
+            className={cn(
+              // Source pages: let the live preview fill the canvas height (it
+              // brings its own PreviewShell chrome), so it balances the taller
+              // editor panel instead of floating as a short card.
+              isSourcePage ? 'min-h-0 flex-1 overflow-hidden' : 'rounded-lg border bg-background p-4',
+            )}
+          >
             {appStatus === 'missing' && !error ? (
               <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
@@ -1448,29 +1455,32 @@ function InterfacesPillar({
             )}
           </div>
           {isSourcePage ? (
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
               <Code2 className="h-3 w-3" /> {t('engine.studio.inspector.sourcePageLine2', locale)}
             </p>
           ) : isEditable ? (
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
               <MousePointer2 className="h-3 w-3" /> {t('engine.studio.if.editHint', locale)}
             </p>
           ) : current?.type === 'object' ? (
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
               <Database className="h-3 w-3" /> {t('engine.studio.if.objectHintPre', locale)}<span className="font-medium">Data</span>{t('engine.studio.if.objectHintPost', locale)}
             </p>
           ) : null}
         </main>
 
-        {/* inspector */}
+        {/* inspector — full-height flex column so the source editor fills it
+            top-to-bottom instead of squeezing into a fixed height with dead
+            space below. Widens for source pages so code has room. */}
         <aside
           className={cn(
-            'shrink-0 overflow-auto border-l',
-            // Source pages host a code editor here — give it room to breathe.
-            isSourcePage && !(selection && Inspector && current) && !(editNav && navSel) ? 'w-96' : 'w-72',
+            'flex shrink-0 flex-col overflow-hidden border-l',
+            isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
+              ? 'w-[24rem] xl:w-[30rem] 2xl:w-[36rem]'
+              : 'w-72',
           )}
         >
-          <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
+          <header className="flex shrink-0 items-center gap-2 border-b bg-background/95 px-3 py-2">
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span className="text-[13px] font-medium">{t('engine.studio.inspector.props', locale)}</span>
             {selection && (
@@ -1485,7 +1495,7 @@ function InterfacesPillar({
             )}
           </header>
           {editNav && navSel ? (
-            <div className="p-3">
+            <div className="min-h-0 flex-1 overflow-auto p-3">
               <StudioNavItemInspector
                 navId={navSel.id}
                 appDraft={appDraft}
@@ -1495,7 +1505,7 @@ function InterfacesPillar({
               />
             </div>
           ) : selection && Inspector && current ? (
-            <div className="p-3">
+            <div className="min-h-0 flex-1 overflow-auto p-3">
               <Inspector
                 type={current.type}
                 name={current.name}
@@ -1512,8 +1522,9 @@ function InterfacesPillar({
             <Tabs
               value={inspectorTab}
               onValueChange={(v) => setInspectorTab(v === 'props' ? 'props' : 'source')}
+              className="flex min-h-0 flex-1 flex-col"
             >
-              <TabsList className="mx-3 mt-2">
+              <TabsList className="mx-3 mt-2 shrink-0 self-start">
                 <TabsTrigger value="source" className="gap-1 text-xs">
                   <Code2 className="h-3.5 w-3.5" /> {t('engine.studio.inspector.tabSource', locale)}
                 </TabsTrigger>
@@ -1521,10 +1532,10 @@ function InterfacesPillar({
                   {t('engine.studio.inspector.tabProps', locale)}
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="source" className="mt-2 h-[70vh]">
+              <TabsContent value="source" className="mt-2 min-h-0 flex-1 border-t">
                 <SourcePageEditor mode="editor" draft={draft} onPatch={onPatch} />
               </TabsContent>
-              <TabsContent value="props" className="mt-0 p-3">
+              <TabsContent value="props" className="mt-0 min-h-0 flex-1 overflow-auto p-3">
                 <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
                   <Code2 className="h-5 w-5" />
                   {tFormat('engine.studio.inspector.sourcePageLine1', locale, { kind: sourcePageKind! })}
@@ -1534,7 +1545,7 @@ function InterfacesPillar({
               </TabsContent>
             </Tabs>
           ) : (
-            <div className="p-3">
+            <div className="min-h-0 flex-1 overflow-auto p-3">
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
                 <MousePointer2 className="h-5 w-5" />
                 {t('engine.studio.inspector.emptyLine1', locale)}
@@ -2781,7 +2792,7 @@ function AutomationsPillar({
             )}
           </div>
           {isEditable && (
-            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
               <MousePointer2 className="h-3 w-3" /> {t('engine.studio.auto.editHint', locale)}
             </p>
           )}
