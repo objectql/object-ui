@@ -509,8 +509,12 @@ export function buildDefaultTabs(
   const statusField = options.statusField ?? detectStatusField(def);
   const highlightFields =
     options.highlightFields ?? deriveHighlightFields(def, statusField);
+  // Every tab carries a STABLE, semantic `value` (objectui#2257): the active
+  // tab is URL-addressable (`?tab=<value>`, ADR-0054 C3), so values must
+  // survive related lists being added/removed — an index-derived value
+  // (`tab-2`) would silently point at a different tab after a schema change.
   const items: any[] = [
-    { label: 'Details', children: [buildDefaultDetails(def, options.sections, highlightFields)] },
+    { label: 'Details', value: 'details', children: [buildDefaultDetails(def, options.sections, highlightFields)] },
   ];
   if (
     !options.hideRelatedTab &&
@@ -528,6 +532,7 @@ export function buildDefaultTabs(
     });
     const asOwnTab = (rel: NonNullable<BuildPageOptions['related']>[number]) => ({
       label: rel.title || rel.objectName,
+      value: `related:${rel.objectName}`,
       ...(rel.icon ? { icon: rel.icon } : {}),
       children: [relatedNode(rel)],
     });
@@ -536,7 +541,7 @@ export function buildDefaultTabs(
       for (const rel of options.related) items.push(asOwnTab(rel));
     } else if (options.relatedLayout === 'stack') {
       // App-level override: all related lists share one stacked `Related` tab.
-      items.push({ label: 'Related', children: options.related.map(relatedNode) });
+      items.push({ label: 'Related', value: 'related', children: options.related.map(relatedNode) });
     } else {
       // DEFAULT (rule Z, ADR-0085 prominence): `isPrimary` lists become their
       // own tab; the rest collapse into one `Related` tab. Owned-before-lookup
@@ -547,16 +552,17 @@ export function buildDefaultTabs(
       const rest = options.related.filter((r) => !r.isPrimary);
       for (const rel of primary) items.push(asOwnTab(rel));
       if (rest.length > 0) {
-        items.push({ label: 'Related', children: rest.map(relatedNode) });
+        items.push({ label: 'Related', value: 'related', children: rest.map(relatedNode) });
       }
     }
   }
   if (options.showActivity) {
-    items.push({ label: 'Activity', children: [{ type: 'record:activity' }] });
+    items.push({ label: 'Activity', value: 'activity', children: [{ type: 'record:activity' }] });
   }
   if (options.history) {
     items.push({
       label: 'History',
+      value: 'history',
       children: [
         {
           type: 'record:history',

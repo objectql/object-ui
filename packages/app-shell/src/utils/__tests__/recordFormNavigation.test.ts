@@ -17,6 +17,7 @@ import {
   resolveFormViewLayout,
   resolveNavigateCreateUrl,
   resolveNavigateEditUrl,
+  resolvePostCreateTarget,
 } from '../recordFormNavigation';
 
 describe('resolveRecordFormTarget', () => {
@@ -333,5 +334,55 @@ describe('resolveFormViewLayout', () => {
         formViews: { default: { type: 'simple', sections: legacySections } },
       }),
     ).toEqual({ sections: formSections });
+  });
+});
+
+describe('resolvePostCreateTarget (#2604 save invariant: create lands on the record)', () => {
+  const base = {
+    objectName: 'contract',
+    baseUrl: '/apps/crm',
+    pathname: '/apps/crm/contract',
+  };
+
+  it('heavy record (page surface) → the detail ROUTE', () => {
+    expect(
+      resolvePostCreateTarget({ ...base, surface: 'page', recordId: 'REC-1' }),
+    ).toEqual({ kind: 'detail-page', url: '/apps/crm/contract/record/REC-1' });
+  });
+
+  it('light record (drawer surface) → detail drawer over the CURRENT list route', () => {
+    expect(
+      resolvePostCreateTarget({ ...base, surface: 'drawer', recordId: 'REC-1' }),
+    ).toEqual({ kind: 'detail-drawer', url: '/apps/crm/contract?recordId=REC-1' });
+  });
+
+  it('drawer target preserves existing query state but strips the form overlay param', () => {
+    const target = resolvePostCreateTarget({
+      ...base,
+      pathname: '/apps/crm/contract/view/all_active',
+      search: '?form=new&status=open',
+      surface: 'drawer',
+      recordId: 'REC-2',
+    });
+    expect(target.kind).toBe('detail-drawer');
+    const url = new URL('http://x' + (target as { url: string }).url);
+    expect(url.pathname).toBe('/apps/crm/contract/view/all_active');
+    expect(url.searchParams.get('form')).toBeNull();
+    expect(url.searchParams.get('status')).toBe('open');
+    expect(url.searchParams.get('recordId')).toBe('REC-2');
+  });
+
+  it('URL-encodes the record id in the page route', () => {
+    expect(
+      resolvePostCreateTarget({ ...base, surface: 'page', recordId: 'a b:c' }),
+    ).toEqual({ kind: 'detail-page', url: '/apps/crm/contract/record/a%20b%3Ac' });
+  });
+
+  it('stays put without a usable record id or object name', () => {
+    expect(resolvePostCreateTarget({ ...base, surface: 'page', recordId: null })).toEqual({ kind: 'none' });
+    expect(resolvePostCreateTarget({ ...base, surface: 'page', recordId: '' })).toEqual({ kind: 'none' });
+    expect(
+      resolvePostCreateTarget({ ...base, objectName: '', surface: 'drawer', recordId: 'x' }),
+    ).toEqual({ kind: 'none' });
   });
 });

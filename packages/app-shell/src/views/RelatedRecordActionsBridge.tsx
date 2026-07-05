@@ -16,10 +16,18 @@
  * (mounted inside the page's `ActionProvider`) closes that gap:
  *
  *   - 查看详情 → navigate to the child record's detail route
- *   - 增        → navigate to the child's `/new` page, pre-linking the parent
- *                 via `?<relationshipField>=<parentId>` (the convention
- *                 RecordFormPage already reads as create-mode initial values)
- *   - 改        → navigate to the child record's `/edit` page
+ *   - 增 / 改   → open the child form as an OVERLAY on the parent detail
+ *                 (#2604 D3: a child task's return target is ALWAYS the parent
+ *                 detail with the subtable refreshed — never a route, which
+ *                 would drop the parent's scroll/tab context and refetch it).
+ *                 Implemented by pushing the console's record-form URL params
+ *                 (`?form=…&formObject=…&formLink=…`) — the ONE global record
+ *                 form overlay in `AppContent` picks them up, pre-links the
+ *                 parent from `formLink`, sizes to the CHILD object, and on
+ *                 save stays put + refetches the child's related lists
+ *                 (`notifyRelatedChanged`). URL-driven means browser Back
+ *                 closes the overlay and a refresh reopens it STILL correctly
+ *                 parent-linked.
  *   - 删        → `dataSource.delete(child, id)` (RelatedList shows the confirm
  *                 dialog and refreshes afterwards)
  *   - 子对象 action → the child object's `list_item` actions, executed against
@@ -31,7 +39,7 @@
  */
 
 import { useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   RelatedRecordActionsProvider,
   useAction,
@@ -88,7 +96,24 @@ export function RelatedRecordActionsBridge({
 }: RelatedRecordActionsBridgeProps) {
   const navigate = useNavigate();
   const { execute } = useAction();
+  const [, setSearchParams] = useSearchParams();
   const base = appName ? `/apps/${appName}` : '';
+
+  // #2604 D3 — open a child create/edit task as the console's global record
+  // form overlay, by URL params. Pushes ONE history entry (Back = close, the
+  // parent detail stays mounted underneath). The read side lives in
+  // `AppContent` (see its record-form URL contract).
+  const openChildForm = useCallback(
+    (opts: { objectName: string; recordId?: string; link?: { field: string; parentId: string | number } }) => {
+      const sp = new URLSearchParams(window.location.search);
+      sp.set('form', opts.recordId ?? 'new');
+      sp.set('formObject', opts.objectName);
+      if (opts.link) sp.set('formLink', `${opts.link.field}:${opts.link.parentId}`);
+      else sp.delete('formLink');
+      setSearchParams(sp); // push → Back closes the overlay
+    },
+    [setSearchParams],
+  );
 
   // Execute a child object's row action against the clicked record. Reuses the
   // page's ActionRunner (confirm dialog, toast, param collection are handled by
@@ -129,14 +154,17 @@ export function RelatedRecordActionsBridge({
           handlers.onCreate = () => {
             const canLink =
               relationshipField && parentId != null && parentId !== '';
-            const qs = canLink
-              ? `?${encodeURIComponent(relationshipField as string)}=${encodeURIComponent(String(parentId))}`
-              : '';
-            navigate(`${base}/${objectName}/new${qs}`);
+            openChildForm({
+              objectName,
+              link: canLink
+                ? { field: relationshipField as string, parentId: parentId as string | number }
+                : undefined,
+            });
           };
         }
         if (aff.edit) {
-          handlers.onEdit = (id) => navigate(`${detailUrl(id)}/edit`);
+          handlers.onEdit = (id) =>
+            openChildForm({ objectName, recordId: String(id) });
         }
         if (aff.delete) {
           handlers.onDelete = async (id) => {
@@ -154,7 +182,7 @@ export function RelatedRecordActionsBridge({
         return handlers;
       },
     }),
-    [objects, base, navigate, dataSource, actionLabel, runRowAction],
+    [objects, base, navigate, dataSource, actionLabel, runRowAction, openChildForm],
   );
 
   return (

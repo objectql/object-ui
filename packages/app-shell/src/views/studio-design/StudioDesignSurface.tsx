@@ -1496,7 +1496,7 @@ function DataPillar({
         setCurrent((c) => c ?? items[0] ?? null);
         // First-run: an empty writable package opens the creator right away —
         // the first thing to do here is make an object, so put the inputs up.
-        if (items.length === 0) setCreating(true);
+        if (items.length === 0 && !readOnly) setCreating(true);
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -1506,7 +1506,7 @@ function DataPillar({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId]);
+  }, [client, packageId, readOnly]);
 
   React.useEffect(() => {
     if (!current) return;
@@ -1555,14 +1555,17 @@ function DataPillar({
   }, []);
 
   // "+ add field": append a fresh text field and select it for editing in the panel.
+  // Guarded in addition to being hidden — it's also reachable through
+  // GridFieldAuthoringProvider/ObjectFormDesigner.
   const addField = React.useCallback(() => {
+    if (readOnly) return;
     const view = readFields(objDraft.fields);
     const name = nextFieldName(view.entries.map((e) => e.name));
     view.entries.push(newField(name, 'text', t('engine.studio.data.newFieldLabel', locale)));
     setObjDraft((d) => ({ ...d, fields: writeFields(view) }));
     setDirty(true);
     setFieldSel({ kind: 'field', id: name });
-  }, [objDraft]);
+  }, [objDraft, readOnly]);
 
   // "+ new object": create a fresh object as a DRAFT in this package (runtime
   // create — same path the classic Studio editor uses), seeded with one text
@@ -1570,6 +1573,7 @@ function DataPillar({
   // until the package publish, so we land on 表单·布局 — the metadata-level
   // surface that never fires data SQL.
   const doCreateObject = React.useCallback(async () => {
+    if (readOnly) return;
     const label = newLabel.trim();
     const name = toFieldName(newName.trim() || label);
     if (!label || !name || name === 'field') return; // CJK label → identifier must be typed
@@ -1597,7 +1601,7 @@ function DataPillar({
     } finally {
       setCreateBusy(false);
     }
-  }, [newLabel, newName, objects, client, packageId, onDraftSaved]);
+  }, [newLabel, newName, objects, client, packageId, onDraftSaved, readOnly]);
 
   const doSave = React.useCallback(async () => {
     if (!current) return;

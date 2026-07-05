@@ -930,3 +930,35 @@ describe('buildDefaultPageSchema integration (#2148)', () => {
     expect(types).not.toContain('record:path');
   });
 });
+
+describe('buildDefaultTabs — stable tab values (objectui#2257)', () => {
+  const relA = { title: 'Invoices', objectName: 'invoice', relationshipField: 'account', isPrimary: true };
+  const relB = { title: 'Notes', objectName: 'note', relationshipField: 'account' };
+
+  it('emits semantic values: details / related:<child> (primary) / related (rest) / activity / history', () => {
+    const tabs = buildDefaultTabs(undefined, {
+      related: [relA, relB],
+      showActivity: true,
+      history: { entries: [], loading: false },
+    });
+    expect(tabs.items.map((i: any) => i.value)).toEqual([
+      'details', 'related:invoice', 'related', 'activity', 'history',
+    ]);
+  });
+
+  it('relatedLayout tabs → every child gets related:<child>; stack → one related', () => {
+    const asTabs = buildDefaultTabs(undefined, { related: [relA, relB], relatedLayout: 'tabs' });
+    expect(asTabs.items.map((i: any) => i.value)).toEqual(['details', 'related:invoice', 'related:note']);
+    const stacked = buildDefaultTabs(undefined, { related: [relA, relB], relatedLayout: 'stack' });
+    expect(stacked.items.map((i: any) => i.value)).toEqual(['details', 'related']);
+  });
+
+  it('values stay stable when the related list shrinks (URL tokens must not shift)', () => {
+    const both = buildDefaultTabs(undefined, { related: [relA, relB] });
+    const onlyB = buildDefaultTabs(undefined, { related: [relB] });
+    // 'related' names the same (stacked) tab in both trees — an index value
+    // would have pointed at 'related:invoice' before and 'related' after.
+    expect(both.items.some((i: any) => i.value === 'related')).toBe(true);
+    expect(onlyB.items.some((i: any) => i.value === 'related')).toBe(true);
+  });
+});

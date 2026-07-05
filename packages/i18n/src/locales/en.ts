@@ -1891,6 +1891,12 @@ const en = {
       empty: 'Nothing pending — every draft has been published.',
       kindNew: 'New',
       kindUpdate: 'Update',
+      detailLoading: 'Loading detail…',
+      detailLoadFailed: 'Could not load change detail:',
+      detailNone: 'No differences detected — the draft matches the published version.',
+      detailChangedKeys: 'Also changed:',
+      confirmNote: 'Publishing releases all {{count}} pending drafts of this package atomically.',
+      publishConfirm: 'Publish all',
     },
   },
   renderer: {

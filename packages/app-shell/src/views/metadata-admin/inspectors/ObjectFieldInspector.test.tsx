@@ -1,5 +1,6 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
+import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 
@@ -82,6 +83,59 @@ describe('ObjectFieldInspector — duplicate field', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate field' }));
     const patch = onPatch.mock.calls.at(-1)![0];
     expect(Object.keys(patch.fields)).toContain('email_copy_2');
+  });
+});
+
+describe('ObjectFieldInspector — label derives API name until customised', () => {
+  it('syncs field_<N> (the nextFieldName() auto-name) to the label live, per keystroke', () => {
+    const { onPatch, onSelectionChange } = renderField(
+      { field_2: { type: 'text', label: '' } },
+      'field_2',
+    );
+    fireEvent.change(controlFor('Label'), { target: { value: 'Status' } });
+    const patch = onPatch.mock.calls.at(-1)![0];
+    expect(Object.keys(patch.fields)).toEqual(['status']);
+    expect(patch.fields.status).toMatchObject({ label: 'Status' });
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'field', id: 'status' }),
+    );
+  });
+
+  it('stops deriving once the API name has been hand-edited', () => {
+    // Simulate the real parent, which feeds each onPatch back into `draft` —
+    // a single static-props render (like the other cases here) can't observe
+    // this, since the second edit needs the FIRST edit's rename reflected in
+    // `entry.name` before it decides whether the name is still auto-generated.
+    function Stateful() {
+      const [fields, setFields] = React.useState<Record<string, Record<string, unknown>>>({
+        field_2: { type: 'text', label: '' },
+      });
+      return (
+        <ObjectFieldInspector
+          type="object"
+          name="account"
+          draft={{ name: 'account', fields }}
+          selection={{ kind: 'field', id: Object.keys(fields)[0] }}
+          onPatch={(patch: any) => setFields(patch.fields)}
+          onClearSelection={() => {}}
+          onSelectionChange={() => {}}
+          readOnly={false}
+          locale={'en-US'}
+        />
+      );
+    }
+    render(<Stateful />);
+    fireEvent.change(controlFor('API name'), { target: { value: 'ticket_status' } });
+    fireEvent.change(controlFor('Label'), { target: { value: 'Status' } });
+    expect(controlFor('API name')).toHaveValue('ticket_status');
+  });
+
+  it('leaves an already-meaningful name untouched when the label changes', () => {
+    const { onPatch } = renderField({ priority: { type: 'text', label: 'Priority' } }, 'priority');
+    fireEvent.change(controlFor('Label'), { target: { value: 'Urgency' } });
+    const patch = onPatch.mock.calls.at(-1)![0];
+    expect(Object.keys(patch.fields)).toEqual(['priority']);
+    expect(patch.fields.priority.label).toBe('Urgency');
   });
 });
 

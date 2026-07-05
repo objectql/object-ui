@@ -682,6 +682,11 @@ export const ModalForm: React.FC<ModalFormProps> = ({
                 recordId: schema.recordId,
                 fields: schema.fields as any,
                 sections: schema.sections as any,
+                // Forward create-mode prefills (e.g. a subtable child's parent
+                // pre-link, #2604) — MasterDetailForm consumes them the same
+                // way the flat form path does.
+                initialValues: schema.initialValues,
+                initialData: schema.initialData,
                 submitText: submitLabel,
                 details: subforms as any,
                 onSuccess: async (rec: any) => { await schema.onSuccess?.(rec); schema.onOpenChange?.(false); },

@@ -1989,6 +1989,12 @@ const de = {
       empty: 'Nichts ausstehend — alle Entwürfe wurden veröffentlicht.',
       kindNew: 'Neu',
       kindUpdate: 'Aktualisierung',
+      detailLoading: 'Details werden geladen…',
+      detailLoadFailed: 'Änderungsdetails konnten nicht geladen werden:',
+      detailNone: 'Keine Unterschiede erkannt — der Entwurf entspricht der veröffentlichten Version.',
+      detailChangedKeys: 'Ebenfalls geändert:',
+      confirmNote: 'Beim Veröffentlichen werden alle {{count}} ausstehenden Entwürfe dieses Pakets atomar freigegeben.',
+      publishConfirm: 'Alle veröffentlichen',
     },
   },
   filterBuilder: {

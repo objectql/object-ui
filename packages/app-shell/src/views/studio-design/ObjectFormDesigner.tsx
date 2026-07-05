@@ -70,8 +70,8 @@ export interface ObjectFormDesignerProps {
   selectedField?: string | null;
   /** Select a field → opens the shared field inspector. */
   onSelectField: (name: string) => void;
-  /** Append a new field (reuses the pillar's add-field). */
-  onAddField: () => void;
+  /** Append a new field (reuses the pillar's add-field). Omit to hide the button — e.g. a read-only package. */
+  onAddField?: () => void;
   /** Courtesy gate: layout stays viewable, but add/rename/reorder/delete are off. */
   readOnly?: boolean;
 }
@@ -435,13 +435,15 @@ export function ObjectFormDesigner({
             >
               <Plus className="h-3.5 w-3.5" /> {t('engine.studio.designer.addGroup', locale)}
             </button>
-            <button
-              type="button"
-              onClick={onAddField}
-              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.addField', locale)}
-            </button>
+            {onAddField && (
+              <button
+                type="button"
+                onClick={onAddField}
+                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.addField', locale)}
+              </button>
+            )}
           </>
         )}
       </div>
