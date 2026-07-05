@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/auth",
-  "version": "11.5.0",
+  "version": "12.0.0",
   "type": "module",
   "license": "MIT",
   "description": "Authentication system for Object UI with AuthProvider, useAuth hook, AuthGuard, and form components.",

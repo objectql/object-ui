@@ -1,5 +1,57 @@
 # @object-ui/fields
 
+## 12.0.0
+
+### Minor Changes
+
+- 226fde9: Cascading & role-gated `select` options (#2284).
+
+  `select` options now accept a per-option `visibleWhen` CEL predicate — the option
+  is offered only when it evaluates TRUE against the live record **plus
+  `current_user`** (same engine/env as a field-level `visibleWhen`). Combined with a
+  field-level `dependsOn`, this drives dependent selects (country → province → city)
+  and role/context gating with no bespoke matrix — the same primitives dependent
+  lookups (#2215) already use.
+
+  - `@object-ui/core` exposes `resolveVisibleOptions` / `isOptionGroupGated` /
+    `resolveDependsOnFields` / `isValueStillOffered` (evaluator), reusing the
+    canonical `evalFieldPredicate`.
+  - The form renderer narrows a dependent select's option list, gates the control
+    with a "Select {parent} first" hint while a `dependsOn` field is empty, and
+    clears a now-invalid value when the parent changes.
+  - The standalone `SelectField` widget applies the same resolution via
+    `dependentValues` + the global predicate scope.
+
+  Client-side hiding is UX, not authorization: gate authorization-sensitive option
+  values on the server too. Aligns with `@objectstack/spec` `SelectOption.visibleWhen`.
+
+### Patch Changes
+
+- e36a9c7: Align the DetailView column density with the entry form (objectui#2578 "多列显示").
+
+  - **Detail views now reach up to 4 columns, matching the form.** `inferDetailColumns` was hard-capped at 2 columns and the section column count was derived per-section, so a field-heavy record displayed 2 columns in detail but 4 in the edit form. It now uses the same density scale as the form's `inferColumns` (1 → 2 → 3 → 4 by field count) and `deriveFieldGroupDetailSections` derives the count from the object's _total_ field count and stamps it uniformly on every section — so view and edit read at the same width. The responsive grid classes and `getResponsiveSpanClass` ladder were extended through the 3- and 4-column breakpoints, and the effective column count is clamped to the number of visible fields so a lone field never sits at 1/N width.
+  - **Long JSON values no longer spill into the neighbouring column.** `JsonCellRenderer` (used by `address`/`json`/`object`/`composite`/`record` fields) applied `truncate` to a bare inline `<span>`, where `overflow:hidden`/`text-overflow:ellipsis` never clip (there is no width box) and the accompanying `white-space:nowrap` also defeated the cell's `break-words`; a long name-keyed map or address JSON therefore overflowed into the adjacent GPS/color cell once the grid narrowed to multi-column. The renderer is now a `block max-w-full` element so `truncate` clamps to the cell width (full value still on hover), and the detail cell wrappers carry `min-w-0` so unbreakable values wrap instead of setting the track's min width.
+
+- 68e2d1c: Studio UX audit fixes (objectui#2285) — browser walkthrough of the Studio design surface surfaced one rendering bug and several dead-space/discoverability issues; all fixed and re-verified end to end:
+
+  - **Bug — mobile card view showed `[object Object]` for lookup fields.** `ObjectGrid`'s narrow-viewport card layout dumped raw field values through `String(value)` instead of reusing the type-aware cell renderer the desktop table already used; a lookup's expanded object (`{ id, name }`) rendered as the literal string. Now routed through the shared `coerceToSafeValue` helper (newly exported from `@object-ui/fields`, alongside `pickRecordDisplayName`) and a hoisted `renderRecordDetail`, matching the desktop path.
+  - **Studio has no responsive/mobile layout.** Below the mobile breakpoint, each pillar's rail (Objects / Flows / Nav tree / Permission sets) now collapses into a toggleable overlay drawer instead of permanently squeezing the canvas into ~190px, and the top pillar-tab bar scrolls horizontally instead of clipping Automations/Interfaces/Access off-screen.
+  - **Records tab / Automations canvas had a dead space band.** `ObjectView`'s built-in "+ New" toolbar row (a separate, mostly-empty flex row above the grid) is now folded into the grid's own toolbar via a new optional `onAddRecord` passthrough on `renderListView`; the Automations canvas container now sizes to the pillar's full height instead of its own intrinsic content height.
+  - **Automations "fit view" never actually zoomed in.** `fitToView`'s zoom calculation was hard-capped at 100%, so small (2-4 node) flows stayed stranded in a corner of a mostly-blank canvas even after fitting. Removed the artificial cap (now bounded only by the existing `MAX_ZOOM`) and auto-fit once on mount so opening a flow starts appropriately zoomed instead of a fixed 100%/pan-0,0 default.
+  - **Validations tab didn't default-select the first rule**, unlike the Access pillar's Permission Set list — now consistent.
+  - **HTML/React "source" pages left the Properties panel permanently empty** (no selectable block exists for raw JSX/HTML pages). It now shows a contextual message pointing at the source editor instead of the generic "click a block" empty state.
+  - **Permission matrix column headers (C/R/U/D/Tr/Re/Pu/VA/MA) had no visible legend** — added one above the matrix (the header cells' native tooltips stay as-is).
+  - **App Builder landing page** widened and given the same icon-badge treatment as Home's app cards, with a 3-column grid on wide screens instead of a narrow fixed-width column stranded in the corner of the viewport.
+
+- Updated dependencies [226fde9]
+- Updated dependencies [e4de456]
+  - @object-ui/types@12.0.0
+  - @object-ui/core@12.0.0
+  - @object-ui/components@12.0.0
+  - @object-ui/providers@12.0.0
+  - @object-ui/react@12.0.0
+  - @object-ui/i18n@12.0.0
+
 ## 11.5.0
 
 ### Patch Changes

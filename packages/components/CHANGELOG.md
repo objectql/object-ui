@@ -1,5 +1,47 @@
 # @object-ui/components
 
+## 12.0.0
+
+### Minor Changes
+
+- 226fde9: Cascading & role-gated `select` options (#2284).
+
+  `select` options now accept a per-option `visibleWhen` CEL predicate — the option
+  is offered only when it evaluates TRUE against the live record **plus
+  `current_user`** (same engine/env as a field-level `visibleWhen`). Combined with a
+  field-level `dependsOn`, this drives dependent selects (country → province → city)
+  and role/context gating with no bespoke matrix — the same primitives dependent
+  lookups (#2215) already use.
+
+  - `@object-ui/core` exposes `resolveVisibleOptions` / `isOptionGroupGated` /
+    `resolveDependsOnFields` / `isValueStillOffered` (evaluator), reusing the
+    canonical `evalFieldPredicate`.
+  - The form renderer narrows a dependent select's option list, gates the control
+    with a "Select {parent} first" hint while a `dependsOn` field is empty, and
+    clears a now-invalid value when the parent changes.
+  - The standalone `SelectField` widget applies the same resolution via
+    `dependentValues` + the global predicate scope.
+
+  Client-side hiding is UX, not authorization: gate authorization-sensitive option
+  values on the server too. Aligns with `@objectstack/spec` `SelectOption.visibleWhen`.
+
+- e4de456: Fix form section grouping inconsistencies found in a UX review of grouped forms:
+
+  - **Unified section visual language.** `FormSection`'s Card-wrapped path (used by Modal/Split/Tabbed/Wizard forms) previously rendered as a nearly-invisible white-on-white card (same `bg-card` as the page background, distinguished only by a barely-visible shadow) with a duplicated, inconsistent header (different title size, and a collapse chevron positioned differently) versus the flat `SectionDivider` path used by simple/drawer forms. Both now share the same header treatment (`text-sm font-semibold`, inline-left chevron, bottom border), and the Card path gets a soft `bg-muted/40` tint so grouped sections are visually distinguishable without relying on shadow alone.
+  - **`readonly` no longer renders as `disabled`.** A field marked `readonly` (statically or via `readonlyWhen`) was being folded into the `disabled` prop before reaching field widgets, so widgets with a dedicated readonly display (e.g. `EmailField`'s mailto link, `TextField`'s plain-text view) never received it — every readonly field just looked permanently disabled. `readonly` is now forwarded as its own prop; generic `input`/`textarea` fields get a distinct readonly style (`bg-muted/40`, no `cursor-not-allowed`) instead of the disabled look.
+  - **Section `className`/`gridClassName` now flow through JSON schemas.** `ObjectFormSection` and the per-form-variant section configs (`ModalFormSectionConfig`, `SplitFormSectionConfig`, `FormSectionConfig`, `DrawerFormSectionConfig`) accept `className` (and `gridClassName` where applicable), wired through `ObjectForm`'s form-type dispatch into `FormSection`/`SectionDivider` — closing a gap where section wrappers couldn't be customized from schema despite `FormSection` itself already supporting it.
+
+### Patch Changes
+
+- Updated dependencies [226fde9]
+- Updated dependencies [e4de456]
+  - @object-ui/types@12.0.0
+  - @object-ui/core@12.0.0
+  - @object-ui/react@12.0.0
+  - @object-ui/i18n@12.0.0
+  - @object-ui/react-runtime@12.0.0
+  - @object-ui/sdui-parser@12.0.0
+
 ## 11.5.0
 
 ### Minor Changes

@@ -1,5 +1,17 @@
 # @object-ui/plugin-charts
 
+## 12.0.0
+
+### Patch Changes
+
+- Updated dependencies [226fde9]
+- Updated dependencies [e4de456]
+  - @object-ui/types@12.0.0
+  - @object-ui/core@12.0.0
+  - @object-ui/components@12.0.0
+  - @object-ui/react@12.0.0
+  - @object-ui/i18n@12.0.0
+
 ## 11.5.0
 
 ### Patch Changes

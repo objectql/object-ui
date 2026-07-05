@@ -1,5 +1,16 @@
 # @object-ui/console
 
+## 12.0.0
+
+### Major Changes
+
+- d985fe5: upgrade with objectstack 12
+
+### Patch Changes
+
+- @object-ui/react-runtime@12.0.0
+- @object-ui/sdui-parser@12.0.0
+
 ## 11.5.0
 
 ### Patch Changes
