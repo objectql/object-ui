@@ -17,7 +17,14 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
-import { GridFieldAuthoringProvider, cn, useIsMobile } from '@object-ui/components';
+import {
+  GridFieldAuthoringProvider,
+  cn,
+  useIsMobile,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from '@object-ui/components';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import { ListView } from '@object-ui/plugin-list';
 import { ObjectForm } from '@object-ui/plugin-form';
@@ -213,26 +220,38 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
   }, [newName, newId, navigate]);
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[13px] font-medium hover:bg-muted"
-        title={t('engine.studio.pkg.switchTitle', locale)}
-      >
-        <Boxes className="h-4 w-4" /> {current?.name ?? packageId}
-        {current && !current.writable && (
-          <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-normal text-amber-600 dark:text-amber-300">
-            <Lock className="h-2.5 w-2.5" /> {t('engine.studio.pkg.readonly', locale)}
-          </span>
-        )}
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-      </button>
+    // Radix Popover (portaled to <body>) — the top bar is `overflow-x-auto`,
+    // which forces `overflow-y: auto` too, so an `absolute` panel used to be
+    // CLIPPED by the header instead of overlaying the canvas. Portaling escapes
+    // that clip. Closing (Escape / outside click) also resets the inline
+    // create form so it never re-opens mid-creation.
+    <Popover
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (!v) {
+          setCreating(false);
+          setErr(null);
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[13px] font-medium hover:bg-muted"
+          title={t('engine.studio.pkg.switchTitle', locale)}
+        >
+          <Boxes className="h-4 w-4" /> {current?.name ?? packageId}
+          {current && !current.writable && (
+            <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-normal text-amber-600 dark:text-amber-300">
+              <Lock className="h-2.5 w-2.5" /> {t('engine.studio.pkg.readonly', locale)}
+            </span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-full z-50 mt-1 w-80 rounded-lg border bg-background p-1.5 shadow-lg">
+      <PopoverContent align="start" sideOffset={6} className="w-80 rounded-lg p-1.5">
             <p className="px-2 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               {t('engine.studio.pkg.heading', locale)}
             </p>
@@ -336,10 +355,8 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                 </button>
               )}
             </div>
-          </div>
-        </>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
