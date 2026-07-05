@@ -256,7 +256,7 @@ describe('ObjectFieldInspector — API name derives from label while auto-named'
       { field_2: { type: 'text', label: 'New field' } },
       'field_2',
     );
-    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
+    fireEvent.change(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
     const patch = onPatch.mock.calls.at(-1)![0];
     expect(Object.keys(patch.fields)).toContain('status');
     expect(Object.keys(patch.fields)).not.toContain('field_2');
@@ -270,7 +270,7 @@ describe('ObjectFieldInspector — API name derives from label while auto-named'
       { text_2: { type: 'text', label: 'New field' }, name: { type: 'text' } },
       'text_2',
     );
-    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: 'Serial No' } });
+    fireEvent.change(screen.getByTestId('field-label-input'), { target: { value: 'Serial No' } });
     const patch = onPatch.mock.calls.at(-1)![0];
     expect(Object.keys(patch.fields)).toContain('serial_no');
     expect(Object.keys(patch.fields)).not.toContain('text_2');
@@ -281,7 +281,7 @@ describe('ObjectFieldInspector — API name derives from label while auto-named'
       { my_field: { type: 'text', label: 'New field' } },
       'my_field',
     );
-    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
+    fireEvent.change(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
     const renamed = onPatch.mock.calls.some((c) => Object.keys(c[0].fields ?? {}).includes('status'));
     expect(renamed).toBe(false);
   });
@@ -291,7 +291,7 @@ describe('ObjectFieldInspector — API name derives from label while auto-named'
       { field_2: { type: 'text', label: 'New field' } },
       'field_2',
     );
-    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: '状态' } });
+    fireEvent.change(screen.getByTestId('field-label-input'), { target: { value: '状态' } });
     const renamed = onPatch.mock.calls.some((c) => !Object.keys(c[0].fields ?? {}).includes('field_2'));
     expect(renamed).toBe(false);
   });
@@ -301,7 +301,7 @@ describe('ObjectFieldInspector — API name derives from label while auto-named'
       { status: { type: 'select' }, field_2: { type: 'text', label: 'New field' } },
       'field_2',
     );
-    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
+    fireEvent.change(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
     const stolen = onPatch.mock.calls.some((c) => !Object.keys(c[0].fields ?? {}).includes('field_2'));
     expect(stolen).toBe(false);
   });
