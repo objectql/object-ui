@@ -27,6 +27,31 @@ export function formatNavSelParam(navId: string): string {
   return `nav:${navId}`;
 }
 
+/**
+ * Surface deep-link (#code-block-menu-nav).
+ *
+ * The Interfaces pillar opens ONE nav target's design surface in the canvas
+ * at a time; `?surface=<type>:<name>` records which, so a menu selection is
+ * shareable and survives a reload instead of snapping back to the first leaf.
+ * The value is the surface identity `{type,name}` (e.g. `page:crm_workbench`),
+ * which also drives the nav highlight — types never contain `:`, so a split on
+ * the first colon is unambiguous.
+ */
+export const DESIGNER_SURFACE_PARAM = 'surface';
+
+export function formatSurfaceParam(surface: { type: string; name: string }): string {
+  return `${surface.type}:${surface.name}`;
+}
+
+export function parseSurfaceParam(value: string | null | undefined): { type: string; name: string } | null {
+  if (!value) return null;
+  const idx = value.indexOf(':');
+  if (idx <= 0) return null;
+  const type = value.slice(0, idx);
+  const name = value.slice(idx + 1);
+  return type && name ? { type, name } : null;
+}
+
 interface NavNode {
   id?: string;
   label?: string;

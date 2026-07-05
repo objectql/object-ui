@@ -17,7 +17,15 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
-import { GridFieldAuthoringProvider, cn, useIsMobile } from '@object-ui/components';
+import {
+  GridFieldAuthoringProvider,
+  cn,
+  useIsMobile,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from '@object-ui/components';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import { ListView } from '@object-ui/plugin-list';
 import { ObjectForm } from '@object-ui/plugin-form';
@@ -61,7 +69,11 @@ import {
   formatNavSelParam,
   findNavPositionById,
   navIdAtPosition,
+  DESIGNER_SURFACE_PARAM,
+  parseSurfaceParam,
+  formatSurfaceParam,
 } from '../metadata-admin/nav-selection';
+import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
 import { loadPackageSurfaces } from './packageSurfaces';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons';
@@ -148,6 +160,25 @@ function resolveSurface(node: NavNode): Surface | null {
     default:
       return null;
   }
+}
+
+/**
+ * Walk the nav tree for the leaf that binds to `{type,name}`, returning its
+ * resolved Surface (carrying the node's label so the canvas title / highlight
+ * match). Backs the `?surface=` deep-link restore — a shared URL only names
+ * the target, so we re-derive the label from the live tree.
+ */
+function findSurfaceInTree(nodes: NavNode[], target: { type: string; name: string }): Surface | null {
+  for (const node of nodes) {
+    if (node.type === 'group' || node.children?.length) {
+      const hit = findSurfaceInTree(node.children ?? [], target);
+      if (hit) return hit;
+    } else {
+      const s = resolveSurface(node);
+      if (s && s.type === target.type && s.name === target.name) return s;
+    }
+  }
+  return null;
 }
 
 /** Normalize the framework draft envelope `{ type, name, item }` → body | null. */
@@ -929,6 +960,11 @@ function InterfacesPillar({
   // internal. Selection changes mirror back to the URL (replace).
   const [searchParams, setSearchParams] = useSearchParams();
   const navSelParam = parseNavSelParam(searchParams.get(DESIGNER_SEL_PARAM));
+  // Surface deep-link: capture the `?surface=<type>:<name>` target once, at
+  // mount, so the app-load effect can open it instead of auto-picking the first
+  // leaf. A ref keeps it out of that effect's deps (which is keyed on the
+  // package, not the URL) while the mirror effect below keeps the URL current.
+  const initialSurfaceRef = React.useRef(parseSurfaceParam(searchParams.get(DESIGNER_SURFACE_PARAM)));
   const appliedNavSelRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!navSelParam || navTree.length === 0) return;
@@ -956,6 +992,27 @@ function InterfacesPillar({
   const [navHasDraft, setNavHasDraft] = React.useState(false);
   const [navSaving, setNavSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
+  // Mirror the open surface back to `?surface=<type>:<name>` (replace) so the
+  // selected menu is shareable and reload-stable — the inverse of the mount
+  // capture above. Only write once a surface is open: the first render has
+  // `current === null` before the app-load effect resolves, and clearing the
+  // param there would strip an incoming deep-link before it is applied.
+  React.useEffect(() => {
+    if (!current) return;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set(DESIGNER_SURFACE_PARAM, formatSurfaceParam(current));
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current]);
+  // Inspector tab — source pages carry a `source` string, not a block tree, so
+  // their editor lives in a dedicated Source tab (the Properties tab has no
+  // blocks to inspect). Non-source surfaces never show the tab strip.
+  const [inspectorTab, setInspectorTab] = React.useState<'props' | 'source'>('source');
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
   const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -1056,7 +1113,12 @@ function InterfacesPillar({
           }
           return null;
         })(tree);
-        setCurrent((cur) => cur ?? firstLeaf);
+        // A `?surface=` deep-link wins over the first-leaf default when it
+        // still resolves to a leaf in this app's nav; otherwise fall back.
+        const deepLinked = initialSurfaceRef.current
+          ? findSurfaceInTree(tree, initialSurfaceRef.current)
+          : null;
+        setCurrent((cur) => cur ?? deepLinked ?? firstLeaf);
       } catch (e) {
         if (!cancelled) {
           setError(formatMetadataError(e));
@@ -1364,6 +1426,10 @@ function InterfacesPillar({
               // (preview = runtime). Schema editing lives in the Data pillar, so
               // here we render the object-view grid, not the field-form preview.
               <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
+            ) : isSourcePage ? (
+              // Source pages have no block tree — the canvas shows only the live
+              // preview; the code editor lives in the inspector's Source tab.
+              <SourcePageEditor mode="preview" draft={draft} readOnly />
             ) : Preview ? (
               <Preview
                 type={current.type}
@@ -1381,7 +1447,11 @@ function InterfacesPillar({
               </div>
             )}
           </div>
-          {isEditable ? (
+          {isSourcePage ? (
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Code2 className="h-3 w-3" /> {t('engine.studio.inspector.sourcePageLine2', locale)}
+            </p>
+          ) : isEditable ? (
             <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
               <MousePointer2 className="h-3 w-3" /> {t('engine.studio.if.editHint', locale)}
             </p>
@@ -1393,7 +1463,13 @@ function InterfacesPillar({
         </main>
 
         {/* inspector */}
-        <aside className="w-72 shrink-0 overflow-auto border-l">
+        <aside
+          className={cn(
+            'shrink-0 overflow-auto border-l',
+            // Source pages host a code editor here — give it room to breathe.
+            isSourcePage && !(selection && Inspector && current) && !(editNav && navSel) ? 'w-96' : 'w-72',
+          )}
+        >
           <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
             <SlidersHorizontal className="h-3.5 w-3.5" />
             <span className="text-[13px] font-medium">{t('engine.studio.inspector.props', locale)}</span>
@@ -1408,8 +1484,8 @@ function InterfacesPillar({
               </button>
             )}
           </header>
-          <div className="p-3">
-            {editNav && navSel ? (
+          {editNav && navSel ? (
+            <div className="p-3">
               <StudioNavItemInspector
                 navId={navSel.id}
                 appDraft={appDraft}
@@ -1417,7 +1493,9 @@ function InterfacesPillar({
                 onNavPatch={onNavPatch}
                 onClear={() => setNavSel(null)}
               />
-            ) : selection && Inspector && current ? (
+            </div>
+          ) : selection && Inspector && current ? (
+            <div className="p-3">
               <Inspector
                 type={current.type}
                 name={current.name}
@@ -1429,22 +1507,42 @@ function InterfacesPillar({
                 readOnly={false}
                 locale={locale}
               />
-            ) : isSourcePage ? (
-              <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
-                <Code2 className="h-5 w-5" />
-                {tFormat('engine.studio.inspector.sourcePageLine1', locale, { kind: sourcePageKind! })}
-                <br />
-                {t('engine.studio.inspector.sourcePageLine2', locale)}
-              </div>
-            ) : (
+            </div>
+          ) : isSourcePage ? (
+            <Tabs
+              value={inspectorTab}
+              onValueChange={(v) => setInspectorTab(v === 'props' ? 'props' : 'source')}
+            >
+              <TabsList className="mx-3 mt-2">
+                <TabsTrigger value="source" className="gap-1 text-xs">
+                  <Code2 className="h-3.5 w-3.5" /> {t('engine.studio.inspector.tabSource', locale)}
+                </TabsTrigger>
+                <TabsTrigger value="props" className="text-xs">
+                  {t('engine.studio.inspector.tabProps', locale)}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="source" className="mt-2 h-[70vh]">
+                <SourcePageEditor mode="editor" draft={draft} onPatch={onPatch} />
+              </TabsContent>
+              <TabsContent value="props" className="mt-0 p-3">
+                <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+                  <Code2 className="h-5 w-5" />
+                  {tFormat('engine.studio.inspector.sourcePageLine1', locale, { kind: sourcePageKind! })}
+                  <br />
+                  {t('engine.studio.inspector.sourcePageLine2', locale)}
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="p-3">
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
                 <MousePointer2 className="h-5 w-5" />
                 {t('engine.studio.inspector.emptyLine1', locale)}
                 <br />
                 {t('engine.studio.inspector.emptyLine2', locale)}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </aside>
       </div>
     </div>
