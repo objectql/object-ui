@@ -420,14 +420,21 @@ export function FlowCanvas({
     });
   }, [size.height, size.width]);
 
-  // Auto-fit once on mount so opening a flow shows the whole diagram
-  // centered and appropriately zoomed instead of always starting at a fixed
-  // 100%/pan-{0,0} view — that default left most small (2-4 node) flows
-  // stranded in a corner of a mostly-empty canvas. Deliberately mount-only
-  // (not re-run on every `size` change): re-fitting on every node add/drag
-  // would yank the viewport out from under an actively editing user.
+  // Center the diagram at 100% on mount so opening a flow shows a familiar 1:1
+  // scale with the diagram centered — rather than an auto-fit that zoomed small
+  // (2-4 node) flows up to 160%. Centering (not pan-{0,0}) keeps the diagram
+  // from being stranded in a corner. Authors can still zoom / fit-to-view from
+  // the toolbar. Deliberately mount-only (not re-run on every `size` change):
+  // re-centering on every node add/drag would yank the viewport out from under
+  // an actively editing user.
   React.useEffect(() => {
-    fitToView();
+    const vp = viewportRef.current;
+    if (!vp) return;
+    setZoom(1);
+    setPan({
+      x: (vp.clientWidth - size.width) / 2,
+      y: Math.max(16, (vp.clientHeight - size.height) / 2),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

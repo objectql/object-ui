@@ -2682,11 +2682,6 @@ function AutomationsPillar({
               </pre>
             )}
           </div>
-          {isEditable && (
-            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-              <MousePointer2 className="h-3 w-3" /> {t('engine.studio.auto.editHint', locale)}
-            </p>
-          )}
         </main>
 
         <aside className="w-72 shrink-0 overflow-auto border-l">
