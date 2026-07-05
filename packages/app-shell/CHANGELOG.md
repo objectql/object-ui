@@ -1,5 +1,183 @@
 # @object-ui/app-shell — Changelog
 
+## 11.5.0
+
+### Minor Changes
+
+- 544d8eb: Add the app → Studio reverse bridge (ADR-0080): workspace admins see a "Design in Studio" entry in the app top bar that deep-links to the running app's owning package on the Studio design surface (`/studio/:packageId/data`). Hidden for non-admins and for apps with no owning package; package writability stays server-side (read-only packages open as browse-only).
+- 6fffd3d: Client-side data-invalidation bus — refresh data, don't rebuild UI (objectui#2269 P1).
+
+  - `@object-ui/react` gains the bus: `notifyDataChanged({objectName, recordId?})`, `useDataInvalidation(objectName, recordId?)` (reader nonce), `subscribeDataChanges`, and `useMutationInvalidationBridge(dataSource)` which fans every dataSource write (`MutationEvent`) onto the bus. The bus also dispatches the legacy `objectui:related-changed` window event, so pre-bus listeners keep working.
+  - The `key={refreshKey}` remount of `RecordDetailView` (AppContent) and the `key={actionRefreshKey}` remount of `DetailView` (RecordDetailView) are GONE: record data now refetches in place via the bus — scroll, collapsed sections, tabs and in-progress inline edits survive every save/action/undo. All nine action-success bumps became precisely-scoped `notifyDataChanged` calls; undo/redo use the operation's own `objectName`/`recordId`.
+  - `RelatedCountStore` is wired to the bus (tab count badges refetch after any change to their object) and its `useSyncExternalStore` snapshot is now a monotonic version — previously it returned the same `Map` reference, so `emit()` never re-rendered subscribers and invalidations left badges stale; `useRelatedCountVersion()` is exported and drives the probe effect's re-fetch.
+  - app-shell also gains the reserved URL-param registry (`urlParams.ts` — `form`/`formObject`/`formLink`/`tab`/`recordId`/`palette`/`shortcuts` constants replace scattered string literals) and AGENTS.md Commandment #8 (UI-state classification: state that must survive a data refresh may never live only in an uncontrolled component).
+
+- 9255686: Record detail tabs are URL-addressable (`?tab=`) and survive subtree remounts (objectui#2257, ADR-0054 C3).
+
+  - `buildDefaultTabs` emits STABLE semantic tab values (`details` / `related:<child>` / `related` / `activity` / `history`) instead of leaving the renderer to synthesize index-derived ones.
+  - `PageTabsRenderer` honors `item.value`, a host-provided `schema.defaultTab` (validated against actual tabs) and `schema.onTabChange`; index fallback kept for authored schemas without values.
+  - app-shell `RecordDetailView` restores the active tab from `?tab=` and writes it back with `replace` (tab switches never stack history), via the pure `withPageTabsUrlSync` page-tree injector (never mutates authored/memoized page schemas). Legacy `DetailView.autoTabs` wired to the same contract (`defaultTab`/`onTabChange`).
+  - Fixes the tab strip resetting to Details after save-refresh remounts (`refreshKey`-style) and dev-StrictMode URL churn; enables `?tab=` deep links; invalid values fall back to Details.
+
+- 6c1ad9e: Record task flows open as derived overlays with lossless return (framework#2604, extends framework#2578).
+
+  - **Create/Edit never route** — the global record form is URL-driven (`?form=new` / `?form=<id>`): browser Back closes the overlay with the origin (list scroll/filters, detail state) intact; field-heavy objects derive a full-screen modal (`modalSize:'full'`) via the new `deriveRecordFlowSurface` mirror in plugin-view, light ones keep the auto-sized modal. `editMode:'page'` opt-in unchanged.
+  - **Save invariant** — _edit never moves you_ (origin refetches in place); _create lands on the new record's detail_ on its derived surface (drawer over the still-intact list for light objects, detail route for heavy), with `replace:true` so Back skips the transient form entry.
+  - **Subtable child create/edit = overlay over the parent detail, never a route** — related-list New/Edit push `?form=…&formObject=<child>&formLink=<fk>:<parentId>`; the one global overlay pre-links the parent (refresh-safe), sizes to the CHILD object, and on save stays on the parent while only the child's related lists refetch. ModalForm now forwards `initialValues` into its master-detail (subforms) branch so pre-links survive for children with inline line items.
+
+- fbec4e1: feat(studio): pick a connector action from the chosen connector (no more hand-typed action ids)
+
+  In a flow's **Connector Action** node, the `actionId` field was a free-text box
+  (`sendMessage · send` placeholder) — a typo silently produced a node that fails
+  at run time. It was left as text because a connector's actions have "no flat
+  catalog"; but each connector already advertises its actions in the runtime
+  descriptors (`GET /api/v1/automation/connectors` → `{ name, actions:[{key,label}] }`).
+
+  `actionId` is now a **picker of the chosen connector's actions**, resolved from
+  the sibling `connectorId` (mirroring how `object-field` lists the fields of its
+  resolved object). New reference kind `connector-action` + `connectorSource` on
+  `FlowReferenceSpec`; `useConnectorActionOptions` fetches the descriptors and
+  `resolveConnectorName` reads the connector from the node's `connectorConfig`. Like
+  every reference in the designer it stays an **editable combobox** — with no
+  connector chosen (or none installed) it degrades to free text with a hint
+  ("Choose a Connector above to list its actions" / "Actions of <connector>.").
+
+  Closes the last critical hand-typed-identifier gap in flow-node config (the
+  object / field / flow / role / connector / template references were already
+  pickers). Unit-tested (`resolveConnectorName`, `connectorActionsToOptions`).
+
+- 7a6837c: Studio package-create dogfood follow-ups (objectstack-ai/framework#2615):
+
+  - Read-only packages now gate authoring affordances client-side (Add field, New object/flow/permission set, nav Edit, Save draft, Publish, Create app) with a "switch to a writable package" hint, instead of letting doomed edits pile up until the server 422s (objectui#2259). Records stay fully usable; the field inspector opens read-only.
+  - New fields auto-derive their API name from the label while still auto-named — now also for the Data pillar's generic `field_N` names, so relabeling "New field" to "Status" yields a `status` column instead of `field_2` forever (objectui#2260).
+  - Publish is review-then-confirm: the header button opens the pending-changes panel, whose footer "Publish N change(s)" fires the atomic package publish; panel entries expand to a per-item field/property diff against the live version (objectui#2261).
+  - Create app can scaffold navigation from the package's objects (checkbox, on by default): one spec-valid object menu item per object, closing the "fresh app has zero nav" dead-end (objectui#2262).
+
+- 5ed8d2d: feat(studio): automation enable/disable switch + live status in the Automations rail
+
+  The Automations pillar showed only an icon + label per flow, and no way to turn a
+  flow on or off — so an author couldn't tell whether an automation was live, or
+  stop one without deleting it (the header even said "Off by default · review before
+  enabling", but nothing reflected or controlled it). UX eval #6.
+
+  - **Live status dot** on every flow in the rail — a green "On" / gray "Off",
+    fetched from the engine's `GET /api/v1/automation/_status` (persisted `status`
+    is intent; this is what's actually enabled + bound to its trigger). Refetched
+    after a publish; degrades silently on an older backend. A flow the engine
+    doesn't know yet (never published) shows no dot — the amber "unpublished draft"
+    chip already covers that.
+  - **Enable/Disable switch** in the flow header. It flips the flow's deployment
+    `status` (active ↔ obsolete) and saves the draft immediately; the change goes
+    live when the package is published (so "review before enabling" is preserved).
+    Pairs with framework's engine-side gate (`obsolete`/`invalid` → not bound).
+
+  New `engine.studio.auto.*` i18n keys (en + zh). Unit-tested (`FlowStatusDot`:
+  enabled→On, disabled→Off, no-state→nothing, bound-vs-unbound tooltip). Verified in
+  a live browser: the rail shows a green "On" against every showcase flow and the
+  header switch reads "Enabled".
+
+- 70c4a3f: Studio package-create dogfood follow-ups (framework#2615 — P2 wizard + P3 polish):
+
+  - **Package-id wizard feedback.** The three package wizards (switcher create,
+    landing create, landing duplicate) share a new `PackageIdInput`: illegal
+    characters are still normalized away, but no longer silently — a notice
+    says what was removed — a reverse-domain format hint shows while the id
+    doesn't parse, and a CJK-only name that yields no id suggestion is told to
+    type one manually instead of leaving the id box mysteriously empty.
+  - **Records-grid duplicate "Actions" column.** A field literally named
+    `actions` is now dropped from the Studio grid's data columns, so it no
+    longer collides with the always-pinned row-actions column (it stays
+    editable in the form designer).
+  - **Record-create verb consistency.** The `ObjectView` toolbar create button
+    resolved a hardcoded English "Create"; it now uses the same
+    `console.objectView.new` ("New" / 新建) key as the runtime object pages so
+    Studio and the running app agree.
+  - **Branded cold-load splash.** The console's pre-auth loading gate rendered a
+    bare "Loading…"; it now shows the branded, boot-safe `LoadingScreen`.
+  - **Picklist option editor.** Value/label inputs and CJK option labels no
+    longer truncate — the six controls that shared one cramped row are split
+    into a two-row layout so the inputs get the full panel width.
+  - **Draft-save confirmation.** The Data pillar's "Save draft" now shows a
+    success toast and a "last saved HH:MM" indicator, matching the App and
+    Automations pillars.
+
+### Patch Changes
+
+- ec6bb16: Studio Automations rail now shows authored-but-unpublished (draft) flows.
+
+  The Automations pillar loaded its rail with `client.list('flow', …)` only, which
+  returns published/active metadata — so a flow authored (saved as a draft) but not
+  yet published was invisible in the rail, even while the "Changes · N" counter
+  showed a pending draft existed. Every sibling pillar (Data / Interfaces / Access)
+  already merged `client.listDrafts`; Automations was the sole outlier.
+
+  The published ∪ draft merge is extracted into a shared, unit-tested
+  `loadPackageSurfaces` helper and adopted by the Automations pillar, which also now
+  re-reads on `publishNonce` so drafts that go live collapse back into the published
+  rail after a package publish. A draft-only flow now appears in its rail (badged
+  "Unpublished draft"), is selectable, and loads its draft body for editing —
+  matching the other pillars. Fixes the empty-rail report for writable-base packages
+  whose flows are all still drafts.
+
+- 4fbf910: Stop double-firing action toasts on record-detail script actions and the delete handler.
+
+  `ActionRunner.handlePostExecution` already surfaces a result's `error` as a toast
+  (and a success toast unless `silent`). Two handlers ALSO toasted themselves while
+  returning `{success:false, error}` (or a non-`silent` success), so on a runner
+  seeded with `onToast` the same message fired twice:
+
+  - **`RecordDetailView` `serverActionHandler`** (script actions): the HTTP/inner-fail
+    branch and the catch branch each called `toast.error` before returning the error.
+    #2177 fixed the twin in `useConsoleActionRuntime` (interface pages) but not this
+    copy, so record-detail script-action failures (e.g. a `RECORD_LOCKED` from an
+    approval-locked record) still showed the error twice for everyone on the published
+    console bundle. Both branches now return the error and let the runner toast it once.
+
+  - **`useObjectActions` `delete` handler** (ObjectView list/detail deletes): kept its
+    richer localized toast (label + description, or the bulk succeeded/failed summary)
+    and now returns WITHOUT `error` on failure so the runner doesn't re-toast it, and
+    marks successful deletes `silent` so the runner doesn't append a second generic
+    "Action completed successfully" toast.
+
+  Adds `useObjectActions.test.tsx` asserting exactly one toast on delete
+  success / failure / partial-bulk-failure.
+
+- 6f15e43: test(studio): extend the create-conformance gate to the inline pillar creators
+
+  `createConformance.test.ts` guards that every authorable type's default
+  create-form output passes spec validation — catching the recurring "the designer
+  emits a minimal shape the spec rejects, so create→save 422s" dead-end family. But
+  it read only the metadata-admin registry, so the Studio's **inline** "New X"
+  creators (Data → object, Automations → flow, Interfaces → app, Access →
+  permission) — which build their skeletons directly in `StudioDesignSurface.tsx`,
+  bypassing the registry — were **uncovered**. A future edit to one of those shapes
+  could turn its "New" button into a silent dead-end with nothing to catch it.
+
+  Extracted the four inline skeletons into pure, exported builders
+  (`studio-design/skeletons.ts`) consumed by BOTH the pillars and a new gate block,
+  so the test can't drift from what the "New" button actually emits. No behavior
+  change — the builders return the byte-identical skeletons. The gate now covers all
+  create paths (registry + inline); the four inline skeletons validate clean.
+
+- Updated dependencies [544d8eb]
+- Updated dependencies [6fffd3d]
+- Updated dependencies [9255686]
+- Updated dependencies [fae75e2]
+- Updated dependencies [1072701]
+  - @object-ui/i18n@11.5.0
+  - @object-ui/react@11.5.0
+  - @object-ui/components@11.5.0
+  - @object-ui/types@11.5.0
+  - @object-ui/data-objectstack@11.5.0
+  - @object-ui/fields@11.5.0
+  - @object-ui/layout@11.5.0
+  - @object-ui/plugin-editor@11.5.0
+  - @object-ui/auth@11.5.0
+  - @object-ui/collaboration@11.5.0
+  - @object-ui/core@11.5.0
+  - @object-ui/permissions@11.5.0
+  - @object-ui/providers@11.5.0
+
 ## 11.4.0
 
 ### Minor Changes
