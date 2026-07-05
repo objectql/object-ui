@@ -15,7 +15,7 @@
  */
 
 import * as React from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
 import { GridFieldAuthoringProvider } from '@object-ui/components';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
@@ -53,6 +53,13 @@ import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/pr
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
+import {
+  DESIGNER_SEL_PARAM,
+  parseNavSelParam,
+  formatNavSelParam,
+  findNavPositionById,
+  navIdAtPosition,
+} from '../metadata-admin/nav-selection';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
 import { loadPackageSurfaces } from './packageSurfaces';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons';
@@ -861,6 +868,36 @@ function InterfacesPillar({
   // nav editing — drag-drop reorder / rename / add / remove via AppNavCanvas
   const [editNav, setEditNav] = React.useState(false);
   const [navSel, setNavSel] = React.useState<{ kind: string; id: string } | null>(null);
+
+  // #2272 — designer deep-link: `?sel=nav:<id>` selects the nav item with
+  // that spec `id` and switches the pillar into nav editing. The id is the
+  // stable external contract; positional `navigation[i]` selection ids stay
+  // internal. Selection changes mirror back to the URL (replace).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navSelParam = parseNavSelParam(searchParams.get(DESIGNER_SEL_PARAM));
+  const appliedNavSelRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!navSelParam || navTree.length === 0) return;
+    if (appliedNavSelRef.current === navSelParam) return;
+    const hit = findNavPositionById({ navigation: navTree }, navSelParam);
+    if (!hit) return;
+    appliedNavSelRef.current = navSelParam;
+    setEditNav(true);
+    setNavSel({ kind: 'nav', id: hit.selectionId });
+  }, [navSelParam, navTree]);
+  React.useEffect(() => {
+    const navId = navSel ? navIdAtPosition({ navigation: navTree }, navSel.id) : null;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (navId) next.set(DESIGNER_SEL_PARAM, formatNavSelParam(navId));
+        else next.delete(DESIGNER_SEL_PARAM);
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navSel]);
   const [navDirty, setNavDirty] = React.useState(false);
   const [navHasDraft, setNavHasDraft] = React.useState(false);
   const [navSaving, setNavSaving] = React.useState<false | 'draft' | 'publish'>(false);

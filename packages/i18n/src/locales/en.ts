@@ -1784,6 +1784,7 @@ const en = {
       appsAvailable: '{{count}} apps available',
       addApp: 'Add App',
       editApp: 'Edit App',
+      editNavigation: 'Edit Navigation',
       manageAllApps: 'Manage All Apps',
       systemConsole: 'System Console',
       noAppsConfigured: 'No apps configured',

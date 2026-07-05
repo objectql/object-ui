@@ -10,7 +10,7 @@
  */
 
 import * as React from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Layers } from 'lucide-react';
 import { getIcon as resolveIcon } from '../utils/getIcon';
 import {
@@ -51,8 +51,9 @@ import {
   Pencil,
   ChevronRight,
   Home,
+  ListTree,
 } from 'lucide-react';
-import { NavigationRenderer, resolveHref } from '@object-ui/layout';
+import { NavigationRenderer, resolveHref, resolveActiveNavItem } from '@object-ui/layout';
 import type { NavigationItem } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider';
 import { useExpressionContext, evaluateVisibility } from '../providers/ExpressionProvider';
@@ -141,6 +142,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
   const { user, signOut, isAuthEnabled } = useAuth();
   const isWorkspaceAdmin = useIsWorkspaceAdmin();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useObjectTranslation();
   const { objectLabel: resolveNavObjectLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
 
@@ -372,6 +374,32 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                     <Pencil className="size-4" />
                   </div>
                   <div className="font-medium text-muted-foreground">{t('layout.appSwitcher.editApp')}</div>
+                </DropdownMenuItem>
+                {/* #2272 — jump into the app designer with the CURRENTLY
+                    ACTIVE menu pre-selected. The active item is resolved
+                    semantically (resolveActiveNavItem, the inverse of
+                    resolveHref) and carried by its stable spec `id` via
+                    `?sel=nav:<id>` — never by tree position. */}
+                <DropdownMenuItem
+                  className="gap-2 p-2"
+                  onClick={() => {
+                    const seg = appRouteSegment(activeApp) ?? activeAppName;
+                    const active = resolveActiveNavItem(
+                      processedNavigation,
+                      location.pathname,
+                      location.search,
+                      basePath,
+                      { currentUserId: user?.id ?? null, contextValues },
+                    );
+                    const sel = active ? `?sel=${encodeURIComponent(`nav:${active.id}`)}` : '';
+                    navigate(`/apps/${seg}/metadata/app/${activeAppName}${sel}`);
+                  }}
+                  data-testid="edit-navigation-btn"
+                >
+                  <div className="flex size-6 items-center justify-center rounded-md border bg-background">
+                    <ListTree className="size-4" />
+                  </div>
+                  <div className="font-medium text-muted-foreground">{t('layout.appSwitcher.editNavigation', { defaultValue: 'Edit Navigation' })}</div>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2 p-2" onClick={() => navigate('/apps/setup/system/apps')} data-testid="manage-all-apps-btn">
                   <div className="flex size-6 items-center justify-center rounded-md border bg-background">

@@ -1868,6 +1868,7 @@ const zh = {
       appsAvailable: '共 {{count}} 个可用应用',
       addApp: '新增应用',
       editApp: '编辑应用',
+      editNavigation: '编辑导航',
       manageAllApps: '管理所有应用',
       systemConsole: '系统控制台',
       noAppsConfigured: '尚未配置任何应用',

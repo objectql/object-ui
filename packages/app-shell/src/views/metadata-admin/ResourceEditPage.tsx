@@ -23,6 +23,13 @@
 import * as React from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
+  DESIGNER_SEL_PARAM,
+  parseNavSelParam,
+  formatNavSelParam,
+  findNavPositionById,
+  navIdAtPosition,
+} from './nav-selection';
+import {
   Save,
   RotateCcw,
   Trash2,
@@ -480,6 +487,42 @@ function MetadataResourceEditPageImpl({
   React.useEffect(() => {
     if (!editing) setSelection(null);
   }, [editing]);
+
+  // #2272 — designer deep-link: `?sel=nav:<id>` selects the nav item with
+  // that spec `id` (stable across reorders, unlike the positional selection
+  // ids the canvas/inspector exchange internally). Applied once per
+  // param/item; entering edit mode is implied — a selection is meaningless
+  // in the read-only state (the effect above would clear it).
+  const navSelParam = parseNavSelParam(searchParams.get(DESIGNER_SEL_PARAM));
+  const appliedNavSelRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (type !== 'app' || !navSelParam) return;
+    if (appliedNavSelRef.current === `${name}:${navSelParam}`) return;
+    if (!draft || Object.keys(draft).length === 0) return;
+    const hit = findNavPositionById(draft, navSelParam);
+    if (!hit) return;
+    appliedNavSelRef.current = `${name}:${navSelParam}`;
+    setEditing(true);
+    setSelection({ kind: 'nav', id: hit.selectionId, label: hit.label });
+  }, [type, name, navSelParam, draft]);
+
+  // Mirror nav selections back to the URL (replace — no history spam, same
+  // convention as ADR-0047 `uf_*`) so the designer's selected menu is
+  // shareable and survives reload. Non-nav selections clear the param.
+  React.useEffect(() => {
+    if (type !== 'app') return;
+    const navId = selection?.kind === 'nav' ? navIdAtPosition(draft, selection.id) : null;
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (navId) next.set(DESIGNER_SEL_PARAM, formatNavSelParam(navId));
+        else next.delete(DESIGNER_SEL_PARAM);
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, selection]);
   // Snapshot of the last saved draft. Used by Cancel to revert in-flight
   // edits, and as the source-of-truth when entering edit mode.
   const draftSnapshotRef = React.useRef<Record<string, unknown> | null>(null);
