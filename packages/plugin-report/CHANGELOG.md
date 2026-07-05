@@ -1,5 +1,21 @@
 # @object-ui/plugin-report
 
+## 11.6.0
+
+### Patch Changes
+
+- Updated dependencies [226fde9]
+- Updated dependencies [e36a9c7]
+- Updated dependencies [e4de456]
+- Updated dependencies [68e2d1c]
+  - @object-ui/types@11.6.0
+  - @object-ui/core@11.6.0
+  - @object-ui/components@11.6.0
+  - @object-ui/fields@11.6.0
+  - @object-ui/plugin-grid@11.6.0
+  - @object-ui/react@11.6.0
+  - @object-ui/i18n@11.6.0
+
 ## 11.5.0
 
 ### Patch Changes

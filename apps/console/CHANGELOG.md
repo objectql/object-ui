@@ -1,5 +1,12 @@
 # @object-ui/console
 
+## 11.6.0
+
+### Patch Changes
+
+- @object-ui/react-runtime@11.6.0
+- @object-ui/sdui-parser@11.6.0
+
 ## 11.5.0
 
 ### Patch Changes
