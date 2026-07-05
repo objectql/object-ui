@@ -1,5 +1,7 @@
 # @object-ui/types
 
+## 12.1.0
+
 ## 12.0.0
 
 ### Minor Changes

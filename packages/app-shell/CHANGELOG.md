@@ -1,5 +1,37 @@
 # @object-ui/app-shell — Changelog
 
+## 12.1.0
+
+### Minor Changes
+
+- 572cc6b: Keep a clickable path back when drilling from a record into a related child record (objectui "点击子表标题跳转后如何返回").
+
+  Clicking a related sub-table row opens the child record's detail page, but that page dropped all trace of where you came from: its breadcrumb only led to the child object's _list_ (never the parent record), and the record body's built-in Back button is suppressed on the schema-rendered surface. From a related-list drill-in the only way back was the browser Back button.
+
+  - **New reserved `?from=` URL param carries the ancestor trail.** When you open a related record (both the synth `RelatedRecordActionsBridge.onView` path and the legacy `RecordDetailView` `onRowClick` path), the parent record is appended to a compact, refresh- and share-safe trail encoded in the URL. Nested drill-ins accumulate (`Account → Invoice → Invoice Line`); depth is capped at 8 and titles truncated so the URL can't grow unbounded, and a trailing self-reference is deduped. Codec (`encodeRecordTrail`/`decodeRecordTrail`/`appendRecordTrail`/`buildRecordTrailHref`) is total — a malformed value yields no ancestor crumbs rather than throwing.
+  - **The top-bar breadcrumb renders the trail as clickable segments.** A record route with a `?from=` trail now shows `Account → #parent → Invoice → #child`, each ancestor an `object-list → record` pair that links back, with mid-path crumbs preserving the ancestors above them.
+  - **The record body shows an inline "← back to parent" link** derived from the trail's nearest ancestor, so the immediate-parent affordance survives refresh and shared links (previously it relied on in-session history state that nothing populated for this flow).
+
+- 23132ab: Studio Interfaces: move the source-page code editor into a "Source" inspector tab, silence its bogus TypeScript errors, and deep-link menu selection.
+
+  For `kind:'html'`/`kind:'react'` pages (a `source` string, not a block tree), the code editor now lives in a dedicated **Source** tab in the right-hand properties panel while the canvas shows only the live preview; edits flow through the shared draft so the preview stays in sync. The `SourcePageEditor` gains a `mode` prop (`split` | `editor` | `preview`) to render the halves independently, and a `beforeMount` hook disables the Monaco TypeScript worker's semantic/syntax validation (and configures JSX) so JSX-flavoured HTML — intrinsic tags like `<flex>`, no `import React`, `style={{…}}` object literals — no longer floods the gutter with meaningless red squiggles (the live preview and server-side validation remain the source of truth). Selecting a menu now records the open surface as `?surface=<type>:<name>`, so the design target is shareable and survives a reload instead of snapping back to the first nav leaf.
+
+### Patch Changes
+
+- @object-ui/types@12.1.0
+- @object-ui/core@12.1.0
+- @object-ui/i18n@12.1.0
+- @object-ui/react@12.1.0
+- @object-ui/components@12.1.0
+- @object-ui/fields@12.1.0
+- @object-ui/layout@12.1.0
+- @object-ui/data-objectstack@12.1.0
+- @object-ui/auth@12.1.0
+- @object-ui/permissions@12.1.0
+- @object-ui/plugin-editor@12.1.0
+- @object-ui/collaboration@12.1.0
+- @object-ui/providers@12.1.0
+
 ## 12.0.0
 
 ### Minor Changes

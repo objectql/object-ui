@@ -1,5 +1,14 @@
 # @object-ui/plugin-tree
 
+## 12.1.0
+
+### Patch Changes
+
+- @object-ui/types@12.1.0
+- @object-ui/core@12.1.0
+- @object-ui/react@12.1.0
+- @object-ui/components@12.1.0
+
 ## 12.0.0
 
 ### Patch Changes

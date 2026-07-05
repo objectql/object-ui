@@ -1,5 +1,16 @@
 # @object-ui/components
 
+## 12.1.0
+
+### Patch Changes
+
+- @object-ui/types@12.1.0
+- @object-ui/core@12.1.0
+- @object-ui/i18n@12.1.0
+- @object-ui/react@12.1.0
+- @object-ui/react-runtime@12.1.0
+- @object-ui/sdui-parser@12.1.0
+
 ## 12.0.0
 
 ### Minor Changes
