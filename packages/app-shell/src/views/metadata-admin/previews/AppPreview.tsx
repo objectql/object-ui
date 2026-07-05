@@ -83,8 +83,10 @@ export function AppPreview({ name, draft, editing, selection, onSelectionChange,
     return { rootKey: null, navItems: [] };
   }, [draft]);
 
-  // For Add we need a root key even when empty — default to "nav".
-  const addRootKey = rootKey ?? 'nav';
+  // For Add we need a root key even when empty — default to `navigation`,
+  // the only root key the spec (AppSchema) actually accepts; `nav` /
+  // `tabs` / `items` are read-back tolerances, not write targets (#2245).
+  const addRootKey = rootKey ?? 'navigation';
 
   const designMode = !!(editing && onSelectionChange);
   const canEdit = designMode && !!onPatch;

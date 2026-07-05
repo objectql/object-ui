@@ -37,6 +37,8 @@ import { t, useMetadataLocale } from '../i18n';
 const DND_MIME = 'text/x-objectui-nav';
 
 interface RawNav {
+  id?: string;
+  type?: string;
   label?: string;
   title?: string;
   name?: string;
@@ -177,7 +179,14 @@ export function AppNavCanvas({
   const addItem = React.useCallback(() => {
     if (!onPatch) return;
     const newLabel = t('engine.appNav.newItem', locale);
-    const newItem: RawNav = { label: newLabel, path: '' };
+    // Spec invariants from birth (#2245): a snake_case `id` and a `type`
+    // (object is the 80% case per the app-composition guide) — never the
+    // old `{label, path:''}` placeholder that failed save validation. The
+    // item completes once the inspector's object picker fills `objectName`.
+    const taken = new Set(items.map((it) => (typeof it.id === 'string' ? it.id : '')).filter(Boolean));
+    let navId = `nav_item_${items.length + 1}`;
+    for (let n = items.length + 2; taken.has(navId); n++) navId = `nav_item_${n}`;
+    const newItem: RawNav = { id: navId, type: 'object', label: newLabel };
     const next = appendArray(items, newItem);
     setItems(next);
     onSelectionChange?.({

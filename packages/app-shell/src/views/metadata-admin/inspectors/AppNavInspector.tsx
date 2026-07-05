@@ -8,14 +8,26 @@
  * `<rootKey>[i]` for top-level items, `<rootKey>[i].children[j]` for
  * nested. This inspector walks the same path to read/write.
  *
- * For simplicity v1 only edits the leaf node (label / path / icon /
- * kind). Reparenting and re-ordering happen elsewhere (drag handles,
- * the top-level SchemaForm).
+ * Target editing is contract-first (#2245): a `type` selector plus
+ * per-type typed-target pickers replacing the old off-spec `path` /
+ * `kind` free-text fields the runtime never read. `object` items expose
+ * the four landing modes matching resolveHref precedence (default /
+ * named view / record deep-link / filters slice on `/data`, ADR-0055);
+ * the mode is derived from field presence — never persisted — and every
+ * edit clears the other modes' fields plus all legacy keys, so touching
+ * a legacy item migrates it to spec shape. A live href preview renders
+ * the REAL runtime landing via resolveHref, making "declared =
+ * enforced" visible while editing.
  */
 
 import * as React from 'react';
+import { resolveHref } from '@object-ui/layout';
+import type { NavigationItem } from '@object-ui/types';
+import { Plus, X } from 'lucide-react';
 import type { MetadataInspectorProps } from '../inspector-registry';
 import { t } from '../i18n';
+import { useMetadataClient } from '../useMetadata';
+import { useObjectFields } from '../previews/useObjectFields';
 import {
   InspectorShell,
   InspectorReorderButtons,
@@ -26,22 +38,31 @@ import {
   spliceArray,
   moveArray,
 } from './_shared';
+import { InspectorComboField } from './InspectorComboField';
+import {
+  NAV_ITEM_TYPES,
+  NAV_TYPE_TARGETS,
+  OBJECT_TARGET_MODES,
+  OBJECT_MODE_FIELDS,
+  type NavItemType,
+  type ObjectTargetMode,
+  inferNavItemType,
+  deriveObjectTargetMode,
+  clearedTargetPatch,
+  ensureNavId,
+} from './nav-target';
 
 interface NavItem {
+  id?: string;
   label?: string;
   title?: string;
   name?: string;
-  path?: string;
-  href?: string;
-  route?: string;
   icon?: string;
-  kind?: string;
   children?: NavItem[];
   [k: string]: unknown;
 }
 
 const ROOT_KEYS = ['nav', 'navigation', 'tabs', 'items', 'menu'];
-const KINDS = ['object', 'page', 'dashboard', 'report', 'link', 'group'];
 
 type Hop = { key: string; index: number };
 
@@ -124,9 +145,156 @@ function writeSiblings(draft: Record<string, unknown>, hops: Hop[], nextSiblings
   return { [rootKey]: root };
 }
 
-export function AppNavInspector({ selection, draft, onPatch, onClearSelection, onSelectionChange, locale, readOnly }: MetadataInspectorProps) {
+/** Fetch a metadata type's items as combobox options (name → label (name)). */
+function useMetadataOptions(type: string | undefined): { options: Array<{ value: string; label: string }>; loading: boolean } {
+  const client = useMetadataClient();
+  const [state, setState] = React.useState<{ options: Array<{ value: string; label: string }>; loading: boolean }>({
+    options: [],
+    loading: !!type,
+  });
+  React.useEffect(() => {
+    if (!type) {
+      setState({ options: [], loading: false });
+      return;
+    }
+    let cancelled = false;
+    setState((s) => ({ ...s, loading: true }));
+    client
+      .list<{ name?: string; label?: string }>(type)
+      .then((rows) => {
+        if (cancelled) return;
+        const options = (Array.isArray(rows) ? rows : [])
+          .filter((r) => r && typeof r.name === 'string' && r.name)
+          .map((r) => ({
+            value: String(r.name),
+            label: typeof r.label === 'string' && r.label && r.label !== r.name ? `${r.label} (${r.name})` : String(r.name),
+          }));
+        setState({ options, loading: false });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ options: [], loading: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client, type]);
+  return state;
+}
+
+/** Preview template context that keeps template vars VISIBLE in the href. */
+const PREVIEW_CTX = {
+  currentUserId: '{current_user_id}',
+  currentOrgId: '{current_org_id}',
+};
+
+/** Key/value rows editor for the `filters` landing mode (ADR-0055). */
+function FiltersEditor({
+  objectName,
+  filters,
+  onCommit,
+  disabled,
+  locale,
+}: {
+  objectName: string;
+  filters: Record<string, string>;
+  onCommit: (next: Record<string, string>) => void;
+  disabled?: boolean;
+  locale: MetadataInspectorProps['locale'];
+}) {
+  const { fields } = useObjectFields(objectName || undefined);
+  const fieldOptions = React.useMemo(
+    () => fields.map((f) => ({ value: f.name, label: f.label && f.label !== f.name ? `${f.label} (${f.name})` : f.name })),
+    [fields],
+  );
+  const entries = Object.entries(filters);
+
+  const update = (index: number, key: string, value: string) => {
+    const next = entries.slice();
+    next[index] = [key, value];
+    onCommit(Object.fromEntries(next.filter(([k]) => k !== '')));
+  };
+  const remove = (index: number) => {
+    const next = entries.slice();
+    next.splice(index, 1);
+    onCommit(Object.fromEntries(next));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[11px] font-medium text-muted-foreground">
+        {t('engine.inspector.appNav.filters', locale)}
+      </div>
+      {entries.map(([field, value], i) => (
+        <div key={`${field}-${i}`} className="flex items-center gap-1">
+          <div className="min-w-0 flex-1">
+            <InspectorComboField
+              value={field}
+              onCommit={(v) => update(i, v, value)}
+              options={fieldOptions}
+              placeholder={t('engine.inspector.appNav.filtersField', locale)}
+              disabled={disabled}
+              mono
+            />
+          </div>
+          <span className="text-xs text-muted-foreground">=</span>
+          <input
+            value={value}
+            onChange={(e) => update(i, field, e.target.value)}
+            placeholder={t('engine.inspector.appNav.filtersValue', locale)}
+            disabled={disabled}
+            className="h-7 w-0 min-w-0 flex-1 rounded border bg-background px-2 font-mono text-xs"
+            data-testid={`nav-filter-value-${field || 'new'}`}
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            disabled={disabled}
+            className="rounded p-1 text-muted-foreground hover:bg-muted"
+            aria-label={t('engine.inspector.appNav.filtersRemove', locale)}
+            data-testid={`nav-filter-remove-${field || 'new'}`}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onCommit({ ...filters, '': '' })}
+        disabled={disabled || Object.prototype.hasOwnProperty.call(filters, '')}
+        className="inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
+        data-testid="nav-filter-add"
+      >
+        <Plus className="h-3 w-3" />
+        {t('engine.inspector.appNav.filtersAdd', locale)}
+      </button>
+      <p className="text-[11px] text-muted-foreground">{t('engine.inspector.appNav.filtersHint', locale)}</p>
+    </div>
+  );
+}
+
+export function AppNavInspector({ selection, draft, name, onPatch, onClearSelection, onSelectionChange, locale, readOnly }: MetadataInspectorProps) {
   const hops = parsePath(selection.id);
   const { node, parent, index } = hops ? readAt(draft, hops) : { node: null, parent: [] as NavItem[], index: -1 };
+
+  const navType = node ? inferNavItemType(node) : null;
+  const objectMode: ObjectTargetMode = node ? deriveObjectTargetMode(node) : 'default';
+  const objectName = String(node?.objectName ?? node?.object ?? '');
+
+  // Hooks run unconditionally (before the not-found early return) to keep
+  // the Rules of Hooks satisfied; `undefined` type disables the fetch.
+  const objectOptions = useMetadataOptions(navType === 'object' ? 'object' : undefined);
+  const targetMeta = navType && navType !== 'object' ? NAV_TYPE_TARGETS[navType].metaType : undefined;
+  const targetOptions = useMetadataOptions(targetMeta);
+  const viewOptionsRaw = useMetadataOptions(navType === 'object' && objectMode === 'view' ? 'view' : undefined);
+  // Views are named `<object>.<key>` (MetadataProvider) — scope the picker
+  // to the bound object instead of offering the whole workspace's views.
+  const viewOptions = React.useMemo(
+    () =>
+      objectName
+        ? viewOptionsRaw.options.filter((o) => o.value.startsWith(`${objectName}.`) || !o.value.includes('.'))
+        : viewOptionsRaw.options,
+    [viewOptionsRaw.options, objectName],
+  );
 
   if (!hops || !node) {
     return (
@@ -136,11 +304,35 @@ export function AppNavInspector({ selection, draft, onPatch, onClearSelection, o
     );
   }
 
-  const labelOf = node.label ?? node.title ?? node.name ?? node.path ?? selection.id;
-  const path = node.path ?? node.href ?? node.route ?? '';
+  const labelOf = node.label ?? node.title ?? node.name ?? selection.id;
 
-  const patch = (updates: Partial<NavItem>) => {
-    onPatch(writeAt(draft, hops, { ...node, ...updates }));
+  /**
+   * Every write enforces the spec invariants: snake_case `id`, an explicit
+   * `type`, and the caller-provided field clears — editing a legacy item
+   * IS its migration to spec shape.
+   */
+  const patch = (updates: Record<string, unknown>) => {
+    const nextType = (updates.type ?? node.type ?? navType ?? undefined) as string | undefined;
+    onPatch(
+      writeAt(draft, hops, {
+        ...node,
+        id: ensureNavId(node, parent),
+        ...(nextType ? { type: nextType } : {}),
+        ...updates,
+      } as NavItem),
+    );
+  };
+
+  const switchType = (nextType: NavItemType) => {
+    const targetKey = NAV_TYPE_TARGETS[nextType].targetKey;
+    const keep = nextType === 'object' ? OBJECT_MODE_FIELDS.default : targetKey ? [targetKey] : [];
+    patch({ type: nextType, ...clearedTargetPatch(keep) });
+  };
+
+  const switchObjectMode = (mode: ObjectTargetMode) => {
+    const cleared = clearedTargetPatch(OBJECT_MODE_FIELDS[mode]);
+    if (mode === 'filters') patch({ ...cleared, objectName, filters: (node.filters as Record<string, string>) ?? {} });
+    else patch({ ...cleared, objectName });
   };
 
   const remove = () => {
@@ -156,6 +348,15 @@ export function AppNavInspector({ selection, draft, onPatch, onClearSelection, o
     const newId = prefix ? `${prefix}.${leafKey}[${to}]` : `${leafKey}[${to}]`;
     onSelectionChange?.({ kind: 'nav', id: newId, label: String(labelOf) });
   };
+
+  // Live landing preview — the REAL runtime URL for the current config
+  // (resolveHref is the single source of truth), template vars kept
+  // visible. `#` reads as "no target yet".
+  const previewHref = navType && navType !== 'group'
+    ? resolveHref({ ...(node as Record<string, unknown>), type: navType } as unknown as NavigationItem, `/apps/${name || 'app'}`, PREVIEW_CTX).href
+    : null;
+
+  const target = NAV_TYPE_TARGETS[navType ?? 'group'];
 
   return (
     <InspectorShell
@@ -176,9 +377,121 @@ export function AppNavInspector({ selection, draft, onPatch, onClearSelection, o
       footer={<InspectorRemoveButton label={t('engine.inspector.appNav.remove', locale)} onClick={remove} disabled={readOnly} />}
     >
       <InspectorTextField label={t('engine.inspector.appNav.label', locale)} value={String(node.label ?? node.title ?? node.name ?? '')} onCommit={(v) => patch({ label: v })} disabled={readOnly} />
-      <InspectorTextField label={t('engine.inspector.appNav.path', locale)} value={String(path)} onCommit={(v) => patch({ path: v })} disabled={readOnly} mono />
       <InspectorTextField label={t('engine.inspector.appNav.icon', locale)} value={String(node.icon ?? '')} onCommit={(v) => patch({ icon: v })} disabled={readOnly} />
-      <InspectorSelectField label={t('engine.inspector.appNav.kindField', locale)} value={node.kind} options={KINDS.map((v) => ({ value: v, label: v }))} onCommit={(v) => patch({ kind: v })} disabled={readOnly} />
+
+      <InspectorSelectField
+        label={t('engine.inspector.appNav.typeField', locale)}
+        value={navType ?? ''}
+        options={NAV_ITEM_TYPES.map((v) => ({ value: v, label: t(`engine.inspector.appNav.type.${v}`, locale) }))}
+        onCommit={(v) => switchType(v as NavItemType)}
+        disabled={readOnly}
+      />
+
+      {navType === 'object' && (
+        <>
+          <InspectorComboField
+            label={t('engine.inspector.appNav.object', locale)}
+            value={objectName}
+            options={objectOptions.options}
+            loading={objectOptions.loading}
+            onCommit={(v) => patch({ objectName: v, object: undefined })}
+            disabled={readOnly}
+            mono
+          />
+          <InspectorSelectField
+            label={t('engine.inspector.appNav.targetMode', locale)}
+            value={objectMode}
+            options={OBJECT_TARGET_MODES.map((m) => ({ value: m, label: t(`engine.inspector.appNav.mode.${m}`, locale) }))}
+            onCommit={(v) => switchObjectMode(v as ObjectTargetMode)}
+            disabled={readOnly || !objectName}
+          />
+          {objectMode === 'view' && (
+            <InspectorComboField
+              label={t('engine.inspector.appNav.view', locale)}
+              value={String(node.viewName ?? '')}
+              options={viewOptions}
+              loading={viewOptionsRaw.loading}
+              onCommit={(v) => patch({ viewName: v })}
+              disabled={readOnly}
+              mono
+            />
+          )}
+          {objectMode === 'record' && (
+            <>
+              <InspectorTextField
+                label={t('engine.inspector.appNav.recordId', locale)}
+                value={String(node.recordId ?? '')}
+                onCommit={(v) => patch({ recordId: v })}
+                disabled={readOnly}
+                mono
+              />
+              <p className="text-[11px] text-muted-foreground">{t('engine.inspector.appNav.recordIdHint', locale)}</p>
+              <InspectorSelectField
+                label={t('engine.inspector.appNav.recordMode', locale)}
+                value={String(node.recordMode ?? 'view')}
+                options={[
+                  { value: 'view', label: t('engine.inspector.appNav.recordModeView', locale) },
+                  { value: 'edit', label: t('engine.inspector.appNav.recordModeEdit', locale) },
+                ]}
+                onCommit={(v) => patch({ recordMode: v })}
+                disabled={readOnly}
+              />
+            </>
+          )}
+          {objectMode === 'filters' && (
+            <FiltersEditor
+              objectName={objectName}
+              filters={(node.filters as Record<string, string>) ?? {}}
+              onCommit={(next) => patch({ filters: next })}
+              disabled={readOnly}
+              locale={locale}
+            />
+          )}
+        </>
+      )}
+
+      {navType && navType !== 'object' && navType !== 'group' && target.targetKey && (
+        target.metaType ? (
+          <InspectorComboField
+            label={t(`engine.inspector.appNav.type.${navType}`, locale)}
+            value={String((node as Record<string, unknown>)[target.targetKey] ?? '')}
+            options={targetOptions.options}
+            loading={targetOptions.loading}
+            onCommit={(v) => patch({ [target.targetKey as string]: v })}
+            disabled={readOnly}
+            mono
+          />
+        ) : (
+          <>
+            <InspectorTextField
+              label={t('engine.inspector.appNav.url', locale)}
+              value={String(node.url ?? node.href ?? '')}
+              onCommit={(v) => patch({ url: v, href: undefined })}
+              disabled={readOnly}
+              mono
+            />
+            <InspectorSelectField
+              label={t('engine.inspector.appNav.urlTarget', locale)}
+              value={String(node.target ?? '_self')}
+              options={[
+                { value: '_self', label: t('engine.inspector.appNav.urlTargetSelf', locale) },
+                { value: '_blank', label: t('engine.inspector.appNav.urlTargetBlank', locale) },
+              ]}
+              onCommit={(v) => patch({ target: v })}
+              disabled={readOnly}
+            />
+          </>
+        )
+      )}
+
+      {previewHref && (
+        <div className="rounded border bg-muted/30 px-2 py-1.5" data-testid="nav-target-preview">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t('engine.inspector.appNav.preview', locale)}
+          </div>
+          <div className="break-all font-mono text-[11px]">{previewHref}</div>
+        </div>
+      )}
     </InspectorShell>
   );
 }
