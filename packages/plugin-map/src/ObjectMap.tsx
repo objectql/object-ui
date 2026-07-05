@@ -39,7 +39,16 @@ const MapConfigSchema = z.object({
   descriptionField: z.string().optional(),
   zoom: z.number().optional(),
   center: z.tuple([z.number(), z.number()]).optional(),
+  style: z.string().optional(),
 });
+
+/**
+ * Public MapLibre demo style — free, unauthenticated, but not intended for
+ * production traffic (rate-limited, no uptime guarantee). Used only when no
+ * `style` is configured; a load failure surfaces the banner below rather
+ * than failing silently.
+ */
+const DEFAULT_MAP_STYLE = 'https://demotiles.maplibre.org/style.json';
 
 export interface ObjectMapProps {
   schema: ObjectGridSchema;
@@ -70,6 +79,8 @@ interface MapConfig {
   zoom?: number;
   /** Center coordinates [lat, lng] */
   center?: [number, number];
+  /** MapLibre style URL/spec (overrides the public demo default) */
+  style?: string;
 }
 
 /**
@@ -128,6 +139,12 @@ function convertSortToQueryParams(sort: string | any[] | undefined): Record<stri
  * Helper to get map configuration from schema
  */
 function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
+  // A custom style may be set alongside any of the shapes below — read it
+  // once so every return path can carry it through.
+  const style: string | undefined =
+    (schema as any).style || (schema as any).mapStyle
+    || (schema.filter as any)?.map?.style || (schema as any).map?.style;
+
   // 1. Check top-level properties (ObjectMapSchema style)
   if (schema.locationField || schema.latitudeField) {
       return {
@@ -137,7 +154,8 @@ function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
           titleField: schema.titleField || 'name',
           descriptionField: schema.descriptionField,
           zoom: schema.zoom,
-          center: schema.center
+          center: schema.center,
+          style,
       };
   }
 
@@ -146,7 +164,7 @@ function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
   if (schema.filter && typeof schema.filter === 'object' && 'map' in schema.filter) {
     config = (schema.filter as any).map as MapConfig;
   }
-  
+
   // For backward compatibility, check if schema has map config at root
   else if ((schema as any).map) {
     config = (schema as any).map as MapConfig;
@@ -157,9 +175,9 @@ function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
      if (!result.success) {
        console.warn(`[ObjectMap] Invalid map configuration:`, result.error.format());
      }
-     return config;
+     return { ...config, style: config.style || style };
   }
-  
+
   // Default configuration
   return {
     latitudeField: 'latitude',
@@ -169,6 +187,7 @@ function getMapConfig(schema: ObjectGridSchema | any): MapConfig {
     descriptionField: 'description',
     zoom: 10,
     center: [0, 0],
+    style,
   };
 }
 
@@ -309,6 +328,13 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
   const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geoBusy, setGeoBusy] = useState(false);
+  // Style/tile load failures (bad network, unreachable style server) don't
+  // throw from react-map-gl — they emit an `error` event. Without this, a
+  // failed load renders a blank map with no indication anything went wrong.
+  const [mapStyleError, setMapStyleError] = useState<string | null>(null);
+  const handleMapError = useCallback((e: { error?: Error & { status?: number } }) => {
+    setMapStyleError(e?.error?.message || 'Failed to load the map style/tiles.');
+  }, []);
   const requestUserLocation = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setGeoError('Geolocation is not available in this browser.');
@@ -569,12 +595,22 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
             ref={(r) => { mapRef.current = r as any; }}
             initialViewState={initialViewState}
             style={{ width: '100%', height: '100%' }}
-            mapStyle="https://demotiles.maplibre.org/style.json"
+            mapStyle={mapConfig.style || DEFAULT_MAP_STYLE}
             touchZoomRotate={true}
             dragRotate={true}
             touchPitch={true}
             onZoom={(e) => setCurrentZoom(Math.round(e.viewState.zoom))}
+            onError={handleMapError}
          >
+            {mapStyleError && (
+              <div
+                role="alert"
+                className="absolute inset-x-0 top-0 z-20 p-2 text-sm text-center text-amber-900 bg-amber-50 border-b border-amber-200"
+              >
+                Map failed to load ({mapStyleError}). Markers below are still listed in the search box;{' '}
+                {mapConfig.style ? 'check the configured map style URL.' : 'configure a custom map style for production use.'}
+              </div>
+            )}
             <NavigationControl position="top-right" showCompass={true} showZoom={true} />
 
             {/* Geolocation button — explicit user-initiated location request */}

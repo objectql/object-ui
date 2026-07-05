@@ -51,11 +51,15 @@ ComponentRegistry.register(
     },
   }
 );
-// Alias for generic view
+// Alias for generic view. `chart` collides with the raw data
+// `plugin-charts:chart` (ChartRenderer) registered below, which owns the bare
+// `type: 'chart'` schema keyword; this object/aggregate-query variant is
+// reached via `view:chart` only.
 ComponentRegistry.register('chart', ObjectChart, {
   namespace: 'view',
   category: 'view',
   label: 'Chart',
+  skipFallback: true,
   inputs: [
     { name: 'objectName', type: 'string', label: 'Object Name', required: true },
     { name: 'type', type: 'string', label: 'Chart Type' },

@@ -796,6 +796,18 @@ export interface ObjectFormSection {
  * - `drawer`  – Slide-out form panel (reserved)
  * - `modal`   – Dialog-based form (reserved)
  */
+
+/**
+ * Declarative post-submit behavior — aligned with `@objectstack/spec`'s
+ * `FormView.submitBehavior`. Lets metadata-only forms (which can't pass an
+ * `onSuccess` function) declare what happens after a successful create/update.
+ */
+export type SubmitBehavior =
+  | { kind: 'thank-you'; title?: string; message?: string }
+  | { kind: 'redirect'; url: string; delayMs?: number }
+  | { kind: 'continue' }
+  | { kind: 'next-record' };
+
 export interface ObjectFormSchema extends BaseSchema {
   type: 'object-form';
   
@@ -963,10 +975,17 @@ export interface ObjectFormSchema extends BaseSchema {
 
   /**
    * Reset the form after a successful create so the user can enter another.
-   * Ignored when `navigateOnSuccess` is set.
+   * Ignored when `navigateOnSuccess` or `submitBehavior` is set.
    */
   resetOnSuccess?: boolean;
-  
+
+  /**
+   * Declarative post-submit behavior aligned with `@objectstack/spec`'s
+   * `FormView.submitBehavior`. When present, takes precedence over
+   * `successMessage` / `navigateOnSuccess` / `resetOnSuccess`.
+   */
+  submitBehavior?: SubmitBehavior;
+
   /**
    * Show cancel button
    * @default true
@@ -2033,6 +2052,13 @@ export interface ObjectMapSchema extends BaseSchema {
   locationField?: string;
   /** Field for marker title */
   titleField?: string;
+  /**
+   * MapLibre style URL/spec. Overrides the default demo style
+   * (`https://demotiles.maplibre.org/style.json`), which is a public demo
+   * server unsuited for production use. Named `mapStyle` (not `style`) to
+   * avoid colliding with `BaseSchema.style` (inline CSS properties).
+   */
+  mapStyle?: string;
 }
 
 /**

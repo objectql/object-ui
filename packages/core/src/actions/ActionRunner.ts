@@ -674,7 +674,14 @@ export class ActionRunner {
     }
 
     try {
-      const result = this.evaluator.evaluate(`\${${script}}`);
+      let result = this.evaluator.evaluate(`\${${script}}`);
+      // The expression itself is synchronous, but a formula function it calls
+      // may kick off an async write and return a Promise. Await it so the
+      // caller's success/failure — and the post-execution toast — reflects
+      // whether that write actually completed, not just that we called it.
+      if (result != null && typeof (result as any).then === 'function') {
+        result = await result;
+      }
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: `Script execution failed: ${(error as Error).message}` };

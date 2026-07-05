@@ -175,6 +175,12 @@ export const ObjectFormSchema = BaseSchema.extend({
   successMessage: z.string().optional().describe('Success toast text after create/update when no onSuccess handler is given'),
   navigateOnSuccess: z.string().optional().describe('Navigate here after success ({id}/{recordId} interpolated, same-origin-guarded); precedes the toast'),
   resetOnSuccess: z.boolean().optional().describe('Reset the form after a successful create for another entry'),
+  submitBehavior: z.union([
+    z.object({ kind: z.literal('thank-you'), title: z.string().optional(), message: z.string().optional() }),
+    z.object({ kind: z.literal('redirect'), url: z.string(), delayMs: z.number().optional() }),
+    z.object({ kind: z.literal('continue') }),
+    z.object({ kind: z.literal('next-record') }),
+  ]).optional().describe('Declarative post-submit behavior; takes precedence over successMessage/navigateOnSuccess/resetOnSuccess'),
   showCancel: z.boolean().optional().describe('Show cancel button'),
   cancelText: z.string().optional().describe('Cancel button text'),
   showReset: z.boolean().optional().describe('Show reset button'),
@@ -386,6 +392,7 @@ export const ObjectMapSchema = BaseSchema.extend({
   objectName: z.string().describe('ObjectQL object name'),
   locationField: z.string().optional().describe('Location field'),
   titleField: z.string().optional().describe('Title field'),
+  mapStyle: z.string().optional().describe('MapLibre style URL/spec (overrides the public demo default)'),
 });
 
 /**

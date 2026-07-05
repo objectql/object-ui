@@ -21,6 +21,10 @@ ComponentRegistry.register('calendar',
   ),
   {
     namespace: 'ui',
+    // `calendar` collides with the plugin-calendar full CRUD calendar VIEW,
+    // which owns the bare `type: 'calendar'` schema keyword; this date-picker
+    // primitive is reached via `ui:calendar` only.
+    skipFallback: true,
     label: 'Calendar',
     inputs: [
       { name: 'mode', type: 'enum', enum: ['default', 'single', 'multiple', 'range'], defaultValue: 'single', label: 'Mode' },

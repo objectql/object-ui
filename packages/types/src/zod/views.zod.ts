@@ -49,6 +49,9 @@ export const DetailViewFieldSchema = z.object({
   reference_to: z.string().optional().describe('Referenced object name for lookup/master_detail fields'),
   reference_field: z.string().optional().describe('Display field on the referenced object'),
   currency: z.string().optional().describe('Currency code for currency fields (e.g. USD, EUR)'),
+  dueLike: z.boolean().optional().describe(
+    'Marks a date/datetime field as due/deadline-semantic, gating the relative "Overdue Nd" wording (vs. neutral "Nd ago" for start/end/created dates)',
+  ),
 });
 
 /**

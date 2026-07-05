@@ -112,6 +112,56 @@ function normalize(raw: RawAgent[]): AgentDescriptor[] {
 }
 
 /**
+ * Module-level cache + in-flight dedup keyed by `apiBase`, so remounting a
+ * chat surface on every navigation doesn't re-hit `GET /agents` — the catalog
+ * rarely changes within a session. `refetch()` bypasses both.
+ */
+const AGENTS_CACHE_TTL_MS = 30_000;
+const agentsCache = new Map<string, { data: AgentDescriptor[]; timestamp: number }>();
+const agentsInFlight = new Map<string, Promise<AgentDescriptor[]>>();
+
+function fetchAgentsCached(
+  apiBase: string,
+  headers: Record<string, string> | undefined,
+  force: boolean,
+): Promise<AgentDescriptor[]> {
+  if (force) {
+    agentsCache.delete(apiBase);
+  } else {
+    const cached = agentsCache.get(apiBase);
+    if (cached && Date.now() - cached.timestamp < AGENTS_CACHE_TTL_MS) {
+      return Promise.resolve(cached.data);
+    }
+  }
+
+  const inFlight = agentsInFlight.get(apiBase);
+  if (inFlight && !force) return inFlight;
+
+  const url = `${apiBase.replace(/\/$/, '')}/agents`;
+  const promise = fetch(url, {
+    method: 'GET',
+    headers: { Accept: 'application/json', ...(headers ?? {}) },
+    credentials: 'include',
+  })
+    .then(async (res) => {
+      if (!res.ok) throw new Error(`Failed to load agents (${res.status})`);
+      const payload = (await res.json()) as { agents?: RawAgent[] } | RawAgent[];
+      const list = Array.isArray(payload) ? payload : payload?.agents ?? [];
+      return normalize(list);
+    })
+    .then((normalized) => {
+      agentsCache.set(apiBase, { data: normalized, timestamp: Date.now() });
+      return normalized;
+    })
+    .finally(() => {
+      agentsInFlight.delete(apiBase);
+    });
+
+  agentsInFlight.set(apiBase, promise);
+  return promise;
+}
+
+/**
  * Fetches the active agent catalog from the backend.
  *
  * @example
@@ -133,31 +183,17 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsReturn {
   useEffect(() => {
     if (!enabled || !apiBase) return;
 
-    const controller = new AbortController();
     let cancelled = false;
-
     setIsLoading(true);
     setError(undefined);
 
-    const url = `${apiBase.replace(/\/$/, '')}/agents`;
-    fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json', ...(headersRef.current ?? {}) },
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Failed to load agents (${res.status})`);
-        return res.json() as Promise<{ agents?: RawAgent[] } | RawAgent[]>;
-      })
-      .then((payload) => {
+    fetchAgentsCached(apiBase, headersRef.current, reloadToken > 0)
+      .then((normalized) => {
         if (cancelled) return;
-        const list = Array.isArray(payload) ? payload : payload?.agents ?? [];
-        const normalized = normalize(list);
         setAgents(normalized.length > 0 ? normalized : fallback);
       })
       .catch((err: Error) => {
-        if (cancelled || err.name === 'AbortError') return;
+        if (cancelled) return;
         setError(err);
         setAgents(fallback);
       })
@@ -165,10 +201,7 @@ export function useAgents(options: UseAgentsOptions = {}): UseAgentsReturn {
         if (!cancelled) setIsLoading(false);
       });
 
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
+    return () => { cancelled = true; };
     // `fallback` is intentionally excluded — callers usually pass a fresh array.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBase, enabled, reloadToken]);

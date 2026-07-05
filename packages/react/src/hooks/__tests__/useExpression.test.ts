@@ -83,4 +83,32 @@ describe('useCondition', () => {
 
     expect(result.current).toBe(true);
   });
+
+  describe('{ throwOnError: true } — fail-closed opt-in (mirrors ActionEngine)', () => {
+    // A bare reference to an undeclared identifier — not merely a property
+    // access on an existing object — genuinely throws a ReferenceError from
+    // the compiled expression, the same shape of failure ActionEngine's own
+    // fail-closed regression test uses (a predicate referencing missing context).
+    const THROWING = '${nonexistentIdentifier.field}';
+
+    it('defaults to fail-OPEN (true) on a throwing predicate when not requested', () => {
+      const { result } = renderHook(() => useCondition(THROWING, { data: {} }));
+      expect(result.current).toBe(true);
+    });
+
+    it('fails CLOSED (false) on a throwing predicate when requested', () => {
+      const { result } = renderHook(() =>
+        useCondition(THROWING, { data: {} }, { throwOnError: true }),
+      );
+      expect(result.current).toBe(false);
+    });
+
+    it('still evaluates normally (no change) when the predicate does not throw', () => {
+      const context = { data: { status: 'active' } };
+      const { result } = renderHook(() =>
+        useCondition('${data.status === "active"}', context, { throwOnError: true }),
+      );
+      expect(result.current).toBe(true);
+    });
+  });
 });

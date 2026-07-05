@@ -240,6 +240,13 @@ export default function AdvancedChartImpl({
   // Falls back to the raw value when not parseable as a date.
   const formatTick = React.useCallback((value: any): string => {
     if (value == null || value === '') return '';
+    // A resolved display label for this exact category value — the same
+    // `config[key]?.label` convention already used for series names (below)
+    // and pie/donut legend entries. Wins over the raw value so an
+    // analytics-response-shaped `config` (value → { label }) reaches the
+    // axis too, not just series/legend text.
+    const resolved = config?.[String(value)]?.label;
+    if (resolved != null) return String(resolved);
     const str = typeof value === 'string' ? value : String(value);
     // Detect ISO 8601 date / datetime strings (YYYY-MM-DD or with time component)
     const isoLike = /^\d{4}-\d{2}-\d{2}/.test(str);
@@ -264,7 +271,7 @@ export default function AdvancedChartImpl({
     }
     if (isMobile && str.length > 8) return str.slice(0, 8) + '…';
     return str;
-  }, [data, xAxisKey, isMobile]);
+  }, [data, xAxisKey, isMobile, config]);
 
   // Memoize whether any X-axis label is long enough to warrant angle rotation
   const hasLongLabels = React.useMemo(

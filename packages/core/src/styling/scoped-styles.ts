@@ -42,11 +42,19 @@ const camelToKebab = (k: string): string =>
 
 /** Style-map → `prop: value;` declarations. Values pass through **verbatim** —
  * that is the whole point: arbitrary values (`13px`, `#1a2b3c`) and design
- * tokens (`var(--space-6)`) work with zero build step. */
+ * tokens (`var(--space-6)`) work with zero build step.
+ *
+ * `!important` on every declaration is deliberate: this scoped rule and a
+ * component's own base utility class (e.g. `flex`/`grid` from the layout
+ * renderer) both land on the same element with equal (single-class)
+ * specificity, so without it the winner depends on stylesheet injection
+ * order — which flips between dev (HMR-injected Tailwind CSS) and prod
+ * (head `<link>` precedes body). An explicit per-node style is always the
+ * more specific author intent and must win deterministically. */
 const declarations = (m: StyleMap): string =>
   Object.entries(m)
     .filter(([, v]) => v != null && v !== '')
-    .map(([k, v]) => `${camelToKebab(k)}: ${typeof v === 'number' ? String(v) : v};`)
+    .map(([k, v]) => `${camelToKebab(k)}: ${typeof v === 'number' ? String(v) : v} !important;`)
     .join(' ');
 
 /** True when a node actually carries responsive styles worth compiling. */

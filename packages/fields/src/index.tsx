@@ -362,8 +362,12 @@ export function humanizeLabel(value: string): string {
 
 /**
  * Format date as relative time (e.g., "2 days ago", "Today", "Overdue 3d")
+ *
+ * `dueLike` gates the "Overdue" wording — a past `start_date`/`created_at`
+ * isn't overdue, only a past due/deadline-semantic field is. Non-due-like
+ * past dates render as "Nd ago" instead.
  */
-export function formatRelativeDate(value: string | Date | number): string {
+export function formatRelativeDate(value: string | Date | number, options?: { dueLike?: boolean }): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
@@ -379,7 +383,7 @@ export function formatRelativeDate(value: string | Date | number): string {
   if (diffDays === -1) return 'Yesterday';
   if (diffDays < -1) {
     const absDays = Math.abs(diffDays);
-    if (absDays <= 7) return `Overdue ${absDays}d`;
+    if (absDays <= 7) return options?.dueLike ? `Overdue ${absDays}d` : `${absDays}d ago`;
     return formatDate(date);
   }
   if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
@@ -389,7 +393,7 @@ export function formatRelativeDate(value: string | Date | number): string {
 /**
  * Format date value
  */
-export function formatDate(value: string | Date | number, style?: string): string {
+export function formatDate(value: string | Date | number, style?: string, options?: { dueLike?: boolean }): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
@@ -403,7 +407,7 @@ export function formatDate(value: string | Date | number, style?: string): strin
   }
 
   if (style === 'relative') {
-    return formatRelativeDate(date);
+    return formatRelativeDate(date, options);
   }
   
   // Default format: locale-aware human-readable. Drop the year when it
@@ -597,19 +601,20 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
   const safe = coerceToSafeValue(value);
   const dateField = field as any;
   const style = dateField.format || 'relative';
-  const formatted = formatDate(safe as string | Date, style);
 
-  // Determine if date is overdue (in the past) — but only color it red when the
-  // field is *semantically* a due/deadline. A plain "start_date" or "created_at"
-  // in the past should not render in red.
-  const date = safe != null ? new Date(safe as string | number) : null;
-  const isValidDate = date !== null && !isNaN(date.getTime());
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  // A date is only *semantically* a due/deadline when the field says so — a
+  // plain "start_date" or "created_at" in the past is neither overdue text
+  // nor red, even though it renders in the same relative-time style.
   const fieldName = String(dateField?.name || dateField?.accessorKey || dateField?.key || '').toLowerCase();
   const dueLike =
     dateField?.dueLike === true ||
     /(^|_)(due|deadline|expires?|expiry|expiration|expected_close|target_close|sla|return_by|renewal|next_action)(_|$)/.test(fieldName);
+  const formatted = formatDate(safe as string | Date, style, { dueLike });
+
+  const date = safe != null ? new Date(safe as string | number) : null;
+  const isValidDate = date !== null && !isNaN(date.getTime());
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
   const isOverdue = dueLike && isValidDate && date! < startOfToday;
   const isoString = isValidDate ? date!.toISOString() : String(safe);
 
@@ -2037,6 +2042,12 @@ const FIELD_TYPES_SKIP_FALLBACK = new Set([
   'slider',
   // Display renderer owned by `plugin-markdown:markdown`.
   'markdown',
+  // No other package owns the bare `time`/`address` key, but `registerField`
+  // wraps each call in a fresh `React.lazy(...)`, so re-registration (HMR,
+  // re-import) fails the registry's identity check every time and logs the
+  // same "bare-name fallback overwritten" warning at every boot regardless.
+  'time',
+  'address',
 ]);
 
 export function registerField(fieldType: string): void {
@@ -2093,7 +2104,10 @@ export function registerFields() {
   ComponentRegistry.register('select', createFieldRenderer(SelectField), { namespace: 'field', skipFallback: true });
   ComponentRegistry.register('date', createFieldRenderer(DateField), { namespace: 'field' });
   ComponentRegistry.register('datetime', createFieldRenderer(DateTimeField), { namespace: 'field' });
-  ComponentRegistry.register('time', createFieldRenderer(TimeField), { namespace: 'field' });
+  // Namespaced-only: no other renderer legitimately owns the bare 'time' key,
+  // but the fallback still triggered noisy "bare-name overwritten" warnings on
+  // every re-registration (e.g. hot reload / re-init in a shared registry).
+  ComponentRegistry.register('time', createFieldRenderer(TimeField), { namespace: 'field', skipFallback: true });
   
   // Contact fields - wrapped for documentation compatibility
   // `email` collides with the `ui:email` input variant; namespaced-only so the
@@ -2151,7 +2165,8 @@ export function registerFields() {
   ComponentRegistry.register('code', createFieldRenderer(CodeField), { namespace: 'field' });
   // `avatar` collides with the display avatar widget; namespaced-only.
   ComponentRegistry.register('avatar', createFieldRenderer(AvatarField), { namespace: 'field', skipFallback: true });
-  ComponentRegistry.register('address', createFieldRenderer(AddressField), { namespace: 'field' });
+  // Namespaced-only — see the 'time' registration above for rationale.
+  ComponentRegistry.register('address', createFieldRenderer(AddressField), { namespace: 'field', skipFallback: true });
   ComponentRegistry.register('geolocation', createFieldRenderer(GeolocationField), { namespace: 'field' });
   ComponentRegistry.register('signature', createFieldRenderer(SignatureField), { namespace: 'field' });
   ComponentRegistry.register('qrcode', createFieldRenderer(QRCodeField), { namespace: 'field' });

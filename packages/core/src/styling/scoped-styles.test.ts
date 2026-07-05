@@ -20,8 +20,8 @@ describe('scoped-styles compiler (ADR-0065)', () => {
       large: { padding: '24px', display: 'flex' },
       small: { padding: '12px' },
     });
-    expect(css).toContain('.os-s-card { padding: 24px; display: flex; }');
-    expect(css).toContain('@media (max-width: 640px) { .os-s-card { padding: 12px; } }');
+    expect(css).toContain('.os-s-card { padding: 24px !important; display: flex !important; }');
+    expect(css).toContain('@media (max-width: 640px) { .os-s-card { padding: 12px !important; } }');
     // No declaration ever sits outside a `.selector { … }` block.
     expect(css).not.toMatch(/(^|\n)\s*padding:/);
   });
@@ -33,7 +33,7 @@ describe('scoped-styles compiler (ADR-0065)', () => {
       small: { gap: '8px' },
       xsmall: { gap: '4px' },
     });
-    expect(css.split('\n')[0]).toBe('.x { gap: 16px; }');
+    expect(css.split('\n')[0]).toBe('.x { gap: 16px !important; }');
     expect(css).toContain(`@media (max-width: ${STYLE_BREAKPOINTS.medium}px)`);
     expect(css).toContain(`@media (max-width: ${STYLE_BREAKPOINTS.small}px)`);
     expect(css).toContain(`@media (max-width: ${STYLE_BREAKPOINTS.xsmall}px)`);
@@ -49,10 +49,10 @@ describe('scoped-styles compiler (ADR-0065)', () => {
         gridTemplateColumns: 'repeat(3, 1fr)',
       },
     });
-    expect(css).toContain('font-size: 44px;');
-    expect(css).toContain('color: #1a2b3c;');
-    expect(css).toContain('padding: var(--space-6);');
-    expect(css).toContain('grid-template-columns: repeat(3, 1fr);'); // camel→kebab, value intact
+    expect(css).toContain('font-size: 44px !important;');
+    expect(css).toContain('color: #1a2b3c !important;');
+    expect(css).toContain('padding: var(--space-6) !important;');
+    expect(css).toContain('grid-template-columns: repeat(3, 1fr) !important;'); // camel→kebab, value intact
   });
 
   it('emits nothing for empty / absent styles', () => {
@@ -64,6 +64,17 @@ describe('scoped-styles compiler (ADR-0065)', () => {
     expect(scopeClassFor('plan_solo')).toBe('os-s-plan_solo');
     expect(scopeClassFor(':r0:')).toBe('os-s--r0-'); // React useId() shape
     expect(scopeClassFor('a.b c')).toBe('os-s-a-b-c');
+  });
+
+  it('emits `!important` so a scoped display always beats a same-specificity utility class (regression: flex/grid layout conflict)', () => {
+    // A `type: 'flex'` node also carrying `responsiveStyles: { display: 'grid', ... }`
+    // lands `.flex` (from the Flex renderer) and `.os-s-<id>` (this compiler's
+    // output) on the same element — both single-class selectors, equal
+    // specificity. Without `!important` the winner depends on stylesheet
+    // injection order (flips between dev HMR and prod builds); with it, the
+    // scoped per-node override always wins deterministically.
+    const css = compileScopedStyles('.os-s-x', { large: { display: 'grid' } });
+    expect(css).toBe('.os-s-x { display: grid !important; }');
   });
 
   it('hasResponsiveStyles detects real style payloads', () => {

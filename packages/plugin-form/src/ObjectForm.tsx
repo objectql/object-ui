@@ -18,7 +18,7 @@ import type { ObjectFormSchema, FormField, FormSchema, DataSource } from '@objec
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, formatFileSize } from '@object-ui/fields';
 import { useIsMobile, toast } from '@object-ui/components';
-import { resolveSuccessNavigate } from './successBehavior';
+import { resolveSuccessNavigate, isSameOriginUrl } from './successBehavior';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
 import { WizardForm } from './WizardForm';
@@ -629,6 +629,28 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       // already toasts) so we never double-confirm.
       if (schema.onSuccess) {
         await schema.onSuccess(result);
+      } else if (!schema.submitHandler && schema.submitBehavior) {
+        const behavior = schema.submitBehavior;
+        switch (behavior.kind) {
+          case 'redirect':
+            if (isSameOriginUrl(behavior.url)) {
+              setTimeout(() => window.location.assign(behavior.url), behavior.delayMs ?? 0);
+            }
+            break;
+          case 'continue':
+            // Reset is driven declaratively by `resetOnSubmit` below (mirrors
+            // `resetOnSuccess`) — nothing imperative to do here.
+            break;
+          case 'next-record':
+          case 'thank-you':
+          default:
+            toast.success(
+              behavior.kind === 'thank-you' && behavior.message
+                ? behavior.message
+                : schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'),
+            );
+            break;
+        }
       } else if (!schema.submitHandler) {
         const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
         if (nav) {
@@ -930,7 +952,9 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     cancelLabel: schema.cancelText,
     showSubmit: schema.showSubmit !== false && schema.mode !== 'view',
     showCancel: schema.showCancel !== false,
-    resetOnSubmit: schema.showReset || (schema.resetOnSuccess && schema.mode === 'create'),
+    resetOnSubmit: schema.showReset
+      || schema.submitBehavior?.kind === 'continue'
+      || (!schema.submitBehavior && schema.resetOnSuccess && schema.mode === 'create'),
     defaultValues: finalDefaultValues,
     onSubmit: handleSubmit,
     onCancel: handleCancel,

@@ -109,7 +109,9 @@ function generateNavFromObjects(objects: ObjectSelection[]): NavigationItem[] {
     .map((o) => ({
       id: o.name,
       type: 'object' as const,
-      label: o.label,
+      // Nav entries open a list view — prefer the object's plural label
+      // ('Projects') over its singular label ('Project') when available.
+      label: o.pluralLabel || o.label,
       icon: o.icon,
       objectName: o.name,
     }));

@@ -11,6 +11,11 @@
  *
  * Env vars consumed (all optional):
  *  - `VITE_SENTRY_DSN`         — DSN; absent disables the integration entirely
+ *  - `VITE_SENTRY_ENABLED`     — set to `"false"` to force-disable reporting
+ *    even when a DSN is configured (e.g. a fork that keeps the upstream DSN
+ *    in `.env.production` but doesn't want to report to it). Default: enabled
+ *    whenever a DSN is present — this is an *additional* off switch, not a
+ *    change to that default.
  *  - `VITE_SENTRY_ENVIRONMENT` — defaults to `MODE` (production/development)
  *  - `VITE_SENTRY_RELEASE`     — defaults to `VITE_APP_VERSION` or `unknown`
  *  - `VITE_SENTRY_TRACES_SAMPLE_RATE` — defaults to `0.1`
@@ -43,7 +48,7 @@ export function initSentry(): Promise<boolean> {
   initPromise = (async () => {
     const env = (import.meta as any).env ?? {};
     const dsn = env.VITE_SENTRY_DSN as string | undefined;
-    if (!dsn) return false;
+    if (!dsn || env.VITE_SENTRY_ENABLED === 'false') return false;
 
     try {
       const Sentry = (await import('@sentry/react')) as SentryModule;

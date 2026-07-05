@@ -346,17 +346,18 @@ export function AuthProvider({
 
   // --- Organization methods ---
 
-  const refreshOrganizations = useCallback(async () => {
+  const refreshOrganizations = useCallback(async (isCancelled?: () => boolean) => {
     if (!enabled || isPreviewMode) return;
     setIsOrganizationsLoading(true);
     try {
       const orgs = await client.listOrganizations();
+      if (isCancelled?.()) return;
       setOrganizations(orgs);
       // If no active org is set but orgs exist, try to get active from server
       if (orgs.length > 0 && !activeOrganization) {
         try {
           const active = await client.getActiveOrganization();
-          if (active) {
+          if (active && !isCancelled?.()) {
             setActiveOrganization(active);
             ActiveOrganizationStorage.set(active.id);
           }
@@ -365,9 +366,15 @@ export function AuthProvider({
         }
       }
     } catch (err) {
-      console.warn('[AuthProvider] Failed to load organizations:', err);
+      // A route change / unmount racing the in-flight request is not a real
+      // failure — only warn when this call is still the one that matters.
+      if (!isCancelled?.()) {
+        console.warn('[AuthProvider] Failed to load organizations:', err);
+      }
     } finally {
-      setIsOrganizationsLoading(false);
+      if (!isCancelled?.()) {
+        setIsOrganizationsLoading(false);
+      }
     }
   }, [client, enabled, isPreviewMode, activeOrganization]);
 
@@ -404,9 +411,10 @@ export function AuthProvider({
 
   // Load organizations once user is authenticated
   useEffect(() => {
-    if (user && enabled && !isPreviewMode) {
-      refreshOrganizations();
-    }
+    if (!(user && enabled && !isPreviewMode)) return;
+    let cancelled = false;
+    refreshOrganizations(() => cancelled);
+    return () => { cancelled = true; };
   }, [user, enabled, isPreviewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const switchOrganization = useCallback(

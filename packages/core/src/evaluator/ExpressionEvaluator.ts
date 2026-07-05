@@ -238,9 +238,14 @@ export class ExpressionEvaluator {
     }
     try {
       return Boolean(this.evaluateExpression(trimmed, { sanitize: options.sanitize !== false }));
-    } catch {
+    } catch (error) {
       // Unparseable predicate — preserve the historical "default to
-      // visible/enabled" behaviour rather than hiding/blocking on a typo.
+      // visible/enabled" behaviour rather than hiding/blocking on a typo,
+      // UNLESS the caller opted into fail-closed semantics (mirrors the
+      // `${...}` template path above, which already honors this).
+      if (options.throwOnError) {
+        throw error;
+      }
       return true;
     }
   }

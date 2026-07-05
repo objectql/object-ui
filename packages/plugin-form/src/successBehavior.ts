@@ -13,8 +13,10 @@
  * → here), so the same-origin check is inlined.
  */
 
+export type { SubmitBehavior } from '@object-ui/types';
+
 /** Same-origin guard for declarative navigation (relative or absolute URLs). */
-function isSameOriginUrl(rawUrl: string): boolean {
+export function isSameOriginUrl(rawUrl: string): boolean {
   try {
     if (typeof window === 'undefined') return false;
     const url = new URL(rawUrl, window.location.href);

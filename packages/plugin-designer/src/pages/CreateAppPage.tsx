@@ -28,6 +28,7 @@ export function CreateAppPage() {
   const availableObjects: ObjectSelection[] = (objects || []).map((obj: any) => ({
     name: obj.name,
     label: obj.label || obj.name,
+    pluralLabel: obj.pluralLabel,
     icon: obj.icon,
     selected: false,
   }));

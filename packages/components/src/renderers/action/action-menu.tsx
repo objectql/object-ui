@@ -64,7 +64,9 @@ const ActionMenuItem: React.FC<{
   action: ActionSchema;
   onExecute: (action: ActionSchema) => Promise<void>;
 }> = ({ action, onExecute }) => {
-  const isVisible = useCondition(toPredicateInput(action.visible));
+  // Fails CLOSED on a throwing predicate — mirrors ActionEngine's
+  // getActionsForLocation contract (see action-button.tsx for rationale).
+  const isVisible = useCondition(toPredicateInput(action.visible), undefined, { throwOnError: true });
   const isEnabled = useCondition(toPredicateInput(action.enabled));
 
   const iconElement = useMemo(() => {
@@ -108,7 +110,9 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
     const [loading, setLoading] = useState(false);
     const moreActionsLabel = useMoreActionsLabel();
 
-    const isVisible = useCondition(toPredicateInput(schema.visible));
+    // Fails CLOSED on a throwing predicate — mirrors ActionEngine's
+    // getActionsForLocation contract (see action-button.tsx for rationale).
+    const isVisible = useCondition(toPredicateInput(schema.visible), undefined, { throwOnError: true });
 
     const TriggerIcon = resolveIcon(schema.icon) || MoreHorizontal;
     const variant = schema.variant || 'ghost';

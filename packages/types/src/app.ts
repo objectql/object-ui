@@ -456,8 +456,11 @@ export interface ObjectSelection {
   /** Object name (snake_case) */
   name: string;
 
-  /** Display label */
+  /** Display label (singular) */
   label: string;
+
+  /** Plural display label — preferred for list-style nav entries (falls back to `label`) */
+  pluralLabel?: string;
 
   /** Icon name (Lucide) */
   icon?: string;

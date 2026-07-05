@@ -40,6 +40,7 @@ interface FormViewSpec {
   defaultSort?: any;
   sharing?: any;
   aria?: { ariaLabel?: string; ariaDescribedBy?: string; role?: string };
+  submitBehavior?: any;
 }
 
 function mapField(field: FormField): Record<string, any> {
@@ -100,6 +101,7 @@ export const bridgeFormView: BridgeFn<FormViewSpec> = (
   if (formType) node.formType = formType;
   if (spec.groups) node.groups = spec.groups;
   if (spec.defaultSort) node.defaultSort = spec.defaultSort;
+  if (spec.submitBehavior) node.submitBehavior = spec.submitBehavior;
 
   // P1.6 — i18n & ARIA
   if (spec.sharing) node.sharing = spec.sharing;

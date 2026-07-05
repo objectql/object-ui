@@ -205,6 +205,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       const refTarget = objectDefField.reference_to || objectDefField.reference;
       if (refTarget && !enrichedField.reference_to) enrichedField.reference_to = refTarget;
       if (objectDefField.reference_field && !enrichedField.reference_field) enrichedField.reference_field = objectDefField.reference_field;
+      if ((objectDefField as any).dueLike !== undefined && enrichedField.dueLike === undefined) enrichedField.dueLike = (objectDefField as any).dueLike;
     }
     if (objectName && Array.isArray(enrichedField.options) && enrichedField.options.length > 0) {
       enrichedField.options = translateOptions(objectName, field.name, enrichedField.options as any);

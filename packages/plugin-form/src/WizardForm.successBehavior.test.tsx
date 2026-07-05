@@ -56,6 +56,57 @@ describe('WizardForm — navigateOnSuccess', () => {
   });
 });
 
+describe('WizardForm — submitBehavior', () => {
+  beforeEach(() => toastSuccess.mockClear());
+
+  it('redirect: same-origin-guarded navigate, no navigateOnSuccess/successMessage fallback', async () => {
+    const assign = vi.spyOn(window.location, 'assign').mockImplementation(() => {});
+    const ds = makeDS();
+    const schema = {
+      type: 'object-form', formType: 'wizard', objectName: 'o', mode: 'create',
+      submitBehavior: { kind: 'redirect', url: '/apps/x/done' },
+      sections: [{ label: 'A', fields: ['name'] }],
+    };
+    const { container } = render(<WizardForm schema={schema as any} dataSource={ds as any} />);
+    fireEvent.change(await waitInput(container, 'name'), { target: { value: 'Alpha' } });
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('/apps/x/done'));
+    expect(toastSuccess).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
+  it('thank-you: toasts the custom message', async () => {
+    const ds = makeDS();
+    const schema = {
+      type: 'object-form', formType: 'wizard', objectName: 'o', mode: 'create',
+      submitBehavior: { kind: 'thank-you', message: 'All set!' },
+      sections: [{ label: 'A', fields: ['name'] }],
+    };
+    const { container } = render(<WizardForm schema={schema as any} dataSource={ds as any} />);
+    fireEvent.change(await waitInput(container, 'name'), { target: { value: 'Alpha' } });
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('All set!'));
+  });
+
+  it('continue: returns to a cleared step 1 after create (like resetOnSuccess)', async () => {
+    const ds = makeDS();
+    const schema = {
+      type: 'object-form', formType: 'wizard', objectName: 'o', mode: 'create',
+      submitBehavior: { kind: 'continue' },
+      sections: [{ label: 'A', fields: ['name'] }],
+    };
+    const { container } = render(<WizardForm schema={schema as any} dataSource={ds as any} />);
+    fireEvent.change(await waitInput(container, 'name'), { target: { value: 'Alpha' } });
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    await waitFor(() => expect(ds.create).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      const el = container.querySelector('input[name="name"]') as HTMLInputElement | null;
+      if (!el) throw new Error('not back to step 1');
+      expect(el.value).toBe('');
+    });
+  });
+});
+
 describe('WizardForm — resetOnSuccess', () => {
   beforeEach(() => toastSuccess.mockClear());
   it('returns to a cleared step 1 after create and toasts', async () => {

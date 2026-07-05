@@ -113,7 +113,9 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
       ...rest
     } = props;
 
-    const isVisible = useCondition(toPredicateInput(schema.visible));
+    // Fails CLOSED on a throwing predicate — mirrors ActionEngine's
+    // getActionsForLocation contract (see action-button.tsx for rationale).
+    const isVisible = useCondition(toPredicateInput(schema.visible), undefined, { throwOnError: true });
     const isMobile = useIsMobile();
 
     // Filter business actions by location and deduplicate by name

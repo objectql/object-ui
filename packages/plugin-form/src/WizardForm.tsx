@@ -21,7 +21,7 @@ import { FormSection } from './FormSection';
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { buildSectionFields as buildSectionFieldsShared } from './sectionFields';
 import { sectionFormLayout } from './autoLayout';
-import { resolveSuccessNavigate } from './successBehavior';
+import { resolveSuccessNavigate, isSameOriginUrl, type SubmitBehavior } from './successBehavior';
 import type { FormSectionConfig } from './TabbedForm';
 
 export interface WizardFormSchema {
@@ -80,17 +80,27 @@ export interface WizardFormSchema {
   /**
    * Declarative success toast text shown when no `onSuccess` handler is given
    * (metadata pages cannot pass a function). Falls back to 'Created'/'Saved'.
+   * Ignored when `submitBehavior` is set.
    */
   successMessage?: string;
 
   /** Navigate here after a successful create/update (declarative; metadata
    * pages can't pass onSuccess). Supports `{id}`/`{recordId}` interpolation
-   * from the saved record. Same-origin-guarded. Takes precedence over the toast. */
+   * from the saved record. Same-origin-guarded. Takes precedence over the toast.
+   * Ignored when `submitBehavior` is set. */
   navigateOnSuccess?: string;
 
   /** Reset the wizard (back to step 1, cleared) after a successful create so the
-   * user can enter another. Ignored when `navigateOnSuccess` is set. */
+   * user can enter another. Ignored when `navigateOnSuccess` or `submitBehavior`
+   * is set. */
   resetOnSuccess?: boolean;
+
+  /**
+   * Declarative post-submit behavior aligned with `@objectstack/spec`'s
+   * `FormView.submitBehavior`. When present, takes precedence over
+   * `successMessage` / `navigateOnSuccess` / `resetOnSuccess`.
+   */
+  submitBehavior?: SubmitBehavior;
   
   /**
    * Show cancel button
@@ -297,8 +307,34 @@ export const WizardForm: React.FC<WizardFormProps> = ({
         
         if (schema.onSuccess) {
           await schema.onSuccess(result);
+        } else if (schema.submitBehavior) {
+          const behavior = schema.submitBehavior;
+          switch (behavior.kind) {
+            case 'redirect': {
+              if (isSameOriginUrl(behavior.url)) {
+                setTimeout(() => window.location.assign(behavior.url), behavior.delayMs ?? 0);
+              }
+              break;
+            }
+            case 'continue':
+              // Back to a fresh step 1 for the next entry.
+              setFormData({});
+              setCompletedSteps(new Set());
+              setCurrentStep(0);
+              setResetNonce((n) => n + 1);
+              break;
+            case 'next-record':
+            case 'thank-you':
+            default:
+              toast.success(
+                behavior.kind === 'thank-you' && behavior.message
+                  ? behavior.message
+                  : schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'),
+              );
+              break;
+          }
         } else {
-          // Declarative success behaviors for metadata-only wizards.
+          // Legacy declarative success behaviors for metadata-only wizards.
           const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
           if (nav) {
             // Landing on the saved record is the confirmation — no toast needed.

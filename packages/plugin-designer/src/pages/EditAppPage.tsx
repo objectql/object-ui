@@ -31,6 +31,7 @@ export function EditAppPage() {
   const availableObjects: ObjectSelection[] = (objects || []).map((obj: any) => ({
     name: obj.name,
     label: obj.label || obj.name,
+    pluralLabel: obj.pluralLabel,
     icon: obj.icon,
     selected: appToEdit?.navigation?.some(
       (nav: any) => nav.type === 'object' && nav.objectName === obj.name,

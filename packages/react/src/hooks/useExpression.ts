@@ -115,15 +115,27 @@ export function useExpression(
  */
 export function useCondition(
   condition: string | boolean | undefined,
-  context: Record<string, any> = {}
+  context: Record<string, any> = {},
+  options?: { throwOnError?: boolean }
 ): boolean {
   const scope = usePredicateScope();
   // We evaluate directly without caching the evaluator to avoid issues with context changes
   return useMemo(
     () => {
       const evaluator = new ExpressionEvaluator({ ...scope, ...context });
+      if (options?.throwOnError) {
+        // Fail-closed: a predicate that can't be evaluated hides/disables
+        // rather than defaulting to visible — mirrors ActionEngine's
+        // getActionsForLocation contract, opted into by callers gating a
+        // real action rather than passive display content.
+        try {
+          return evaluator.evaluateCondition(condition, { throwOnError: true });
+        } catch {
+          return false;
+        }
+      }
       return evaluator.evaluateCondition(condition);
     },
-    [condition, context, scope]
+    [condition, context, scope, options?.throwOnError]
   );
 }

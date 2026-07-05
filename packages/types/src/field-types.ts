@@ -228,6 +228,13 @@ export interface DateFieldMetadata extends BaseFieldMetadata {
   format?: string;
   min_date?: string | Date;
   max_date?: string | Date;
+  /**
+   * Marks this field as due/deadline-semantic (vs. a plain start/end/created
+   * date). Gates the relative-time "Overdue Nd" wording and red styling —
+   * without it, a past date renders as neutral "Nd ago" text. Auto-detected
+   * from common due/deadline field-name conventions when omitted.
+   */
+  dueLike?: boolean;
 }
 
 /**

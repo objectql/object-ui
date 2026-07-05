@@ -260,10 +260,13 @@ export function resolveLabel(
 /**
  * Resolve a navigation item label, applying:
  * 1. i18n translation for I18nLabel objects (when `t` is provided)
- * 2. Convention-based i18n for object-type items with plain string labels
- *    (when `resolveObjectLabel` is provided)
- * 3. Convention-based i18n for dashboard-type items with plain string labels
- *    (when `resolveDashboardLabel` is provided)
+ * 2. Convention-based i18n for object-type items whose plain string label was
+ *    never customized (still equal to the bare object/dashboard/item name),
+ *    so standard nav entries still localize automatically
+ *    (when `resolveObjectLabel`/`resolveDashboardLabel`/etc. is provided)
+ * 3. Otherwise, the schema-authored explicit label always wins — an app
+ *    author who wrote a custom label (e.g. a plural 'Projects') must never
+ *    have it silently overridden by an `objects.<name>.label` translation.
  */
 function resolveNavItemLabel(
   item: NavigationItem,
@@ -278,28 +281,37 @@ function resolveNavItemLabel(
   // Only apply convention-based resolution for items with plain string labels.
   // I18nLabel objects (with explicit key/defaultValue) already have their own translation keys.
   if (typeof item.label !== 'string') return base;
+  // An explicit label that differs from the bare target name was authored on
+  // purpose (e.g. a custom plural 'Projects') — never let convention-based
+  // i18n resolution override it.
+  const isCustomized = (target: string | undefined) =>
+    !!target && base.trim().toLowerCase() !== target.trim().toLowerCase();
   if (item.type === 'object' && item.objectName) {
     // View-scoped item — prefer view-specific label so a Kanban / Calendar /
     // custom view in the sidebar doesn't collapse to the parent object's
     // label (which would visually duplicate the object's list entry).
     // Convention: `{ns}.objects.{objectName}._views.{viewName}.label`.
     if (item.viewName) {
+      if (isCustomized(item.viewName)) return base;
       if (viewResolver) return viewResolver(item.objectName, item.viewName, base);
       // No view resolver: respect the schema-provided explicit label rather
       // than overriding with the parent object's i18n label.
       return base;
     }
+    if (isCustomized(item.objectName)) return base;
     if (resolver) return resolver(item.objectName, base);
   }
-  if (dashboardResolver && item.type === 'dashboard' && (item as any).dashboardName) {
-    return dashboardResolver((item as any).dashboardName, base);
+  if (item.type === 'dashboard' && (item as any).dashboardName) {
+    if (isCustomized((item as any).dashboardName)) return base;
+    if (dashboardResolver) return dashboardResolver((item as any).dashboardName, base);
   }
-  if (groupResolver && item.type === 'group' && item.id) {
-    return groupResolver(item.id, base);
+  if (item.type === 'group' && item.id) {
+    if (isCustomized(item.id)) return base;
+    if (groupResolver) return groupResolver(item.id, base);
   }
   // Fallback for non-object/non-dashboard/non-group items (url, page, report,
   // custom) with a stable id — translate via the per-app navigation namespace.
-  if (itemResolver && item.id) {
+  if (itemResolver && item.id && !isCustomized(item.id)) {
     return itemResolver(item.id, base);
   }
   return base;
