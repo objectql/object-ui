@@ -531,59 +531,163 @@ export function resolveHref(
 }
 
 // ---------------------------------------------------------------------------
-// Active-state matching
+// Active-state matching — the inverse of resolveHref (#2272)
 // ---------------------------------------------------------------------------
 
 /**
- * Decide whether a navigation item should render as "active" for the given
- * current pathname.
+ * Match-specificity ranks. The whole tree elects EXACTLY ONE active item:
+ * every leaf gets a score against the current location and the highest
+ * score wins (ties break to tree order). This replaces the old per-item
+ * `computeIsActive` prefix heuristics, whose independent per-item decisions
+ * needed a special case for every "two rows light up at once" report and
+ * could not see search params at all (a `filters` item's href carries
+ * `?filter[...]`, so exact-pathname matching never fired — the item never
+ * highlighted while its bare-object sibling wrongly claimed `/data`).
  *
- * Why this isn't a simple `pathname.startsWith(href)`:
+ * Ranking, most→least specific:
+ *   record deep-link > filters slice > named view > exact non-object href
+ *   ≈ exact bare object > object sub-route (weak claim) > boundary prefix.
  *
- * 1. **Sibling view items.** A bare object item (`/apps/crm/opportunity`) and
- *    a view-scoped item (`/apps/crm/opportunity/view/pipeline_kanban`) share
- *    the object prefix. A naive `startsWith` lights up both rows at once
- *    when the user is on the Kanban — visually claiming the list page is
- *    also active. The view-scoped sibling owns `/view/*` paths.
- *
- * 2. **Adjacent path segments.** `startsWith('/foo')` falsely matches
- *    `/foo-bar`. Anchoring on `/` (or exact equality) prevents that.
- *
- * Rules:
- * - Bare object item (`type: 'object'`, no `viewName`): active on exact match,
- *   on record sub-paths (`/record/...`, `/new`), but NOT on `/view/*` —
- *   those belong to a sibling view item, if one is registered.
- * - View-scoped object item (with `viewName`): exact-match only.
- * - Other leaf types (dashboard / page / report / url): exact match or
- *   path under href with a `/` boundary.
+ * A bare object item weak-claims ALL of its object's sub-routes (`/record`,
+ * `/new`, `/view/*`, `/data`) so the user keeps orientation even when no
+ * more-specific sibling is registered; when one is, its higher rank wins.
  */
-function computeIsActive(item: NavigationItem, href: string, pathname: string): boolean {
-  if (href === '#') return false;
-  if (pathname === href) return true;
+const MATCH_RECORD = 50;
+const MATCH_FILTERS = 40;
+const MATCH_VIEW = 30;
+const MATCH_EXACT = 25;
+const MATCH_OBJECT_SUBROUTE = 10;
+const MATCH_PREFIX = 5;
+
+/** Collect `filter[<field>]=<value>` search params into a map. */
+function parseFilterParams(search: string): Map<string, string> {
+  const out = new Map<string, string>();
+  new URLSearchParams(search).forEach((value, key) => {
+    const m = /^filter\[(.+)\]$/.exec(key);
+    if (m && m[1] && value !== '') out.set(m[1], value);
+  });
+  return out;
+}
+
+/**
+ * Canonical view ids are qualified (`<object>.<key>`, see MetadataProvider)
+ * while nav items usually carry the short key — compare both in short form.
+ */
+function stripViewQualifier(objectName: string, view: string): string {
+  return view.startsWith(`${objectName}.`) ? view.slice(objectName.length + 1) : view;
+}
+
+function itemMatchScore(
+  item: NavigationItem,
+  pathname: string,
+  filterParams: Map<string, string>,
+  basePath: string,
+  ctx: NavTemplateContext | undefined,
+): number {
+  const { href, external } = resolveHref(item, basePath, ctx);
+  if (external || href === '#') return 0;
+
+  if (item.type === 'object' && item.objectName) {
+    const objectPath = `${basePath}/${item.objectName}`;
+    if (pathname !== objectPath && !pathname.startsWith(`${objectPath}/`)) return 0;
+    const segs = pathname === objectPath ? [] : pathname.slice(objectPath.length + 1).split('/');
+
+    // Record deep-link — exact record only. An unresolved template
+    // (logged-out pre-render) falls through to the list-style checks,
+    // mirroring resolveHref's fallback.
+    const rawRecordId = (item as any).recordId as string | undefined;
+    if (rawRecordId) {
+      const resolved = applyNavTemplate(rawRecordId, ctx);
+      if (resolved) {
+        return segs[0] === 'record' && decodeURIComponent(segs[1] ?? '') === resolved
+          ? MATCH_RECORD
+          : 0;
+      }
+    }
+
+    // Filters slice — active only on `/data` with the SAME filter param
+    // set (template-resolved, order-insensitive).
+    const navFilters = (item as any).filters as Record<string, string> | undefined;
+    if (navFilters && typeof navFilters === 'object' && !Array.isArray(navFilters)) {
+      if (segs[0] !== 'data') return 0;
+      const want = new Map<string, string>();
+      for (const [field, raw] of Object.entries(navFilters)) {
+        if (raw === undefined || raw === null || field === '') continue;
+        const resolved = applyNavTemplate(String(raw), ctx);
+        if (resolved !== null) want.set(field, resolved);
+      }
+      if (want.size !== filterParams.size) return 0;
+      for (const [field, value] of want) {
+        if (filterParams.get(field) !== value) return 0;
+      }
+      return MATCH_FILTERS;
+    }
+
+    if (item.viewName) {
+      if (segs[0] !== 'view' || !segs[1]) return 0;
+      const got = stripViewQualifier(item.objectName, decodeURIComponent(segs[1]));
+      const want = stripViewQualifier(item.objectName, item.viewName);
+      return got === want ? MATCH_VIEW : 0;
+    }
+
+    return segs.length === 0 ? MATCH_EXACT : MATCH_OBJECT_SUBROUTE;
+  }
+
+  // Non-object types match against their canonical href (metadata component
+  // hrefs may carry a query string — compare pathnames only).
+  const hrefPath = href.split('?')[0];
+  if (pathname === hrefPath) return MATCH_EXACT;
 
   // Directory/index components (e.g. `metadata:directory`) link to a parent
   // route that also hosts more-specific child items (`metadata:resource`
-  // pointing at `/metadata/:type`). Without this guard, both the index and
-  // the matching child light up at the same time.
+  // pointing at `/metadata/:type`) — the index never claims sub-routes.
   const ref = (item as any).componentRef as string | undefined;
-  if (ref && ref.split(':')[1] === 'directory') return false;
+  if (ref && ref.split(':')[1] === 'directory') return 0;
 
-  if (item.type === 'object' && item.objectName) {
-    if (item.viewName) {
-      // View-scoped item — only exact match. Avoids fighting with its
-      // bare-object sibling for the highlight.
-      return false;
-    }
-    // Bare object item — own record / new sub-paths but cede `/view/*` to
-    // any registered view-scoped sibling.
-    if (!pathname.startsWith(`${href}/`)) return false;
-    const rest = pathname.slice(href.length + 1);
-    if (rest.startsWith('view/')) return false;
-    return true;
-  }
-
-  return pathname.startsWith(`${href}/`);
+  return pathname.startsWith(`${hrefPath}/`) ? MATCH_PREFIX : 0;
 }
+
+/**
+ * Resolve the SINGLE active navigation item for the current location — the
+ * inverse of {@link resolveHref}. Surfaces that need "which menu am I in"
+ * (sidebar highlight, breadcrumbs, recents, designer deep-links) MUST use
+ * this instead of comparing URL strings ad-hoc; the two functions are
+ * round-trip tested together.
+ */
+export function resolveActiveNavItem(
+  items: NavigationItem[],
+  pathname: string,
+  search: string,
+  basePath: string,
+  templateContext?: NavTemplateContext,
+): NavigationItem | null {
+  const filterParams = parseFilterParams(search);
+  let best: NavigationItem | null = null;
+  let bestScore = 0;
+  const visit = (nodes: NavigationItem[] | undefined) => {
+    if (!nodes) return;
+    for (const node of nodes) {
+      if (node.type === 'group') {
+        visit(node.children);
+        continue;
+      }
+      const score = itemMatchScore(node, pathname, filterParams, basePath, templateContext);
+      if (score > bestScore) {
+        best = node;
+        bestScore = score;
+      }
+    }
+  };
+  visit(items);
+  return best;
+}
+
+/**
+ * The elected active item id, provided once at the tree root by
+ * {@link NavigationRenderer} — per-item active state is a plain id
+ * comparison, so at most one row can ever highlight.
+ */
+const ActiveNavIdContext = React.createContext<string | null>(null);
 
 // ---------------------------------------------------------------------------
 // Search filter helper
@@ -742,7 +846,6 @@ function NavigationItemRenderer({
   t?: (key: string, options?: any) => string;
   templateContext?: NavTemplateContext;
 }) {
-  const location = useLocation();
   // iOS-native mobile drawer polish: >=44px tap targets, larger text and
   // icons, rounder rows. Desktop (>=768px) keeps the compact rail untouched.
   const isMobile = useIsMobile();
@@ -770,22 +873,15 @@ function NavigationItemRenderer({
   })();
   const AUTO_COLLAPSE_THRESHOLD = 8;
   const childCount = item.type === 'group' ? (item.children?.length ?? 0) : 0;
+  const activeNavId = React.useContext(ActiveNavIdContext);
   const hasActiveDescendant = React.useMemo(() => {
-    if (item.type !== 'group') return false;
-    const visit = (nodes: NavigationItem[] | undefined): boolean => {
-      if (!nodes) return false;
-      for (const node of nodes) {
-        if (node.type === 'group') {
-          if (visit(node.children)) return true;
-          continue;
-        }
-        const { href } = resolveHref(node, basePath, templateContext);
-        if (computeIsActive(node, href, location.pathname)) return true;
-      }
-      return false;
-    };
+    if (item.type !== 'group' || !activeNavId) return false;
+    const visit = (nodes: NavigationItem[] | undefined): boolean =>
+      !!nodes?.some(
+        (node) => node.id === activeNavId || (node.type === 'group' && visit(node.children)),
+      );
     return visit(item.children);
-  }, [item, basePath, location.pathname]);
+  }, [item, activeNavId]);
   const initialOpen =
     hasActiveDescendant
       ? true
@@ -916,7 +1012,7 @@ function NavigationItemRenderer({
   // --- Leaf items (object / dashboard / page / report / url) ---
   const Icon = resolveIcon(item.icon);
   const { href, external } = resolveHref(item, basePath, templateContext);
-  const isActive = computeIsActive(item, href, location.pathname);
+  const isActive = activeNavId !== null && item.id === activeNavId;
   const itemLabel = resolveNavItemLabel(item, resolveObjectLabel, tProp, resolveDashboardLabel, resolveGroupLabel, resolveViewLabel, resolveItemLabel);
 
   const content = (
@@ -1030,6 +1126,17 @@ export function NavigationRenderer({
   t: tProp,
   templateContext,
 }: NavigationRendererProps) {
+  // --- Active item election (#2272) — computed ONCE for the whole tree
+  // against the full (unfiltered) item list, so search filtering never
+  // changes what counts as active. Per-item state is an id comparison.
+  const location = useLocation();
+  const activeNavId = useMemo(
+    () =>
+      resolveActiveNavItem(items, location.pathname, location.search, basePath, templateContext)
+        ?.id ?? null,
+    [items, location.pathname, location.search, basePath, templateContext],
+  );
+
   // --- Search filtering ---
   const filteredItems = useMemo(
     () => (searchQuery ? filterNavigationItems(items, searchQuery) : items),
@@ -1139,14 +1246,14 @@ export function NavigationRenderer({
     );
 
     return (
-      <>
+      <ActiveNavIdContext.Provider value={activeNavId}>
         {favoritesSection}
         <SidebarGroup>
           <SidebarGroupContent>
             {menuContent}
           </SidebarGroupContent>
         </SidebarGroup>
-      </>
+      </ActiveNavIdContext.Provider>
     );
   }
 
@@ -1193,10 +1300,10 @@ export function NavigationRenderer({
   flushLeaves('leaf-end');
 
   return (
-    <>
+    <ActiveNavIdContext.Provider value={activeNavId}>
       {favoritesSection}
       {fragments}
-    </>
+    </ActiveNavIdContext.Provider>
   );
 }
 

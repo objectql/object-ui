@@ -122,3 +122,93 @@ describe('resolveHref — non-object targets unchanged', () => {
     expect(external).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// resolveActiveNavItem — the inverse mapping (#2272)
+// ---------------------------------------------------------------------------
+
+import { resolveActiveNavItem } from '../NavigationRenderer';
+
+/** Split an href into the (pathname, search) pair resolveActiveNavItem takes. */
+function locOf(href: string): { pathname: string; search: string } {
+  const i = href.indexOf('?');
+  return i >= 0
+    ? { pathname: href.slice(0, i), search: href.slice(i) }
+    : { pathname: href, search: '' };
+}
+
+describe('resolveActiveNavItem — single winner across the tree', () => {
+  const NAV: NavigationItem[] = [
+    { id: 'nav_task', type: 'object', label: 'Tasks', objectName: 'task' },
+    { id: 'nav_board', type: 'object', label: 'Board', objectName: 'task', viewName: 'by_status' },
+    {
+      id: 'nav_my_open', type: 'object', label: 'My Open', objectName: 'task',
+      filters: { owner_id: '{current_user_id}', status: 'open' },
+    },
+    { id: 'nav_profile', type: 'object', label: 'Me', objectName: 'sys_user', recordId: '{current_user_id}' },
+    {
+      id: 'grp', type: 'group', label: 'More',
+      children: [
+        { id: 'nav_kpis', type: 'dashboard', label: 'KPIs', dashboardName: 'kpis' },
+        { id: 'nav_home', type: 'page', label: 'Home', pageName: 'home' },
+      ],
+    },
+  ];
+  const CTX = { currentUserId: 'u_42' };
+
+  const activeId = (pathname: string, search = '') =>
+    resolveActiveNavItem(NAV, pathname, search, BASE, CTX)?.id ?? null;
+
+  it('bare object route → bare object item', () => {
+    expect(activeId(`${BASE}/task`)).toBe('nav_task');
+  });
+
+  it('named view route → view item, not the bare sibling', () => {
+    expect(activeId(`${BASE}/task/view/by_status`)).toBe('nav_board');
+  });
+
+  it('qualified view id in the URL still matches a short viewName', () => {
+    expect(activeId(`${BASE}/task/view/task.by_status`)).toBe('nav_board');
+  });
+
+  it('/data with matching filters → filters item, not the bare sibling (#2255 bug)', () => {
+    expect(activeId(`${BASE}/task/data`, '?filter[owner_id]=u_42&filter[status]=open')).toBe('nav_my_open');
+  });
+
+  it('/data with different filters → bare object weak claim', () => {
+    expect(activeId(`${BASE}/task/data`, '?filter[status]=closed')).toBe('nav_task');
+  });
+
+  it('record route of the deep-link item → record item wins over bare object', () => {
+    expect(activeId(`${BASE}/sys_user/record/u_42`)).toBe('nav_profile');
+  });
+
+  it('record route of another object → its bare item weak-claims', () => {
+    expect(activeId(`${BASE}/task/record/rec_9`)).toBe('nav_task');
+  });
+
+  it('unregistered view still keeps orientation on the bare item', () => {
+    expect(activeId(`${BASE}/task/view/unknown_view`)).toBe('nav_task');
+  });
+
+  it('dashboard / page items match inside groups', () => {
+    expect(activeId(`${BASE}/dashboard/kpis`)).toBe('nav_kpis');
+    expect(activeId(`${BASE}/page/home`)).toBe('nav_home');
+  });
+
+  it('unrelated route → no active item', () => {
+    expect(activeId(`${BASE}/search`)).toBeNull();
+  });
+
+  it('round-trips resolveHref for every leaf item shape', () => {
+    const leaves = [
+      NAV[0], NAV[1], NAV[2], NAV[3],
+      ...(NAV[4] as any).children,
+    ] as NavigationItem[];
+    for (const item of leaves) {
+      const { href } = resolveHref(item, BASE, CTX);
+      const { pathname, search } = locOf(href);
+      expect(resolveActiveNavItem(NAV, pathname, search, BASE, CTX)?.id).toBe(item.id);
+    }
+  });
+});
