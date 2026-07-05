@@ -52,6 +52,7 @@ import {
   Rocket,
   ChevronDown,
   Lock,
+  Settings,
   ExternalLink,
   Home as HomeIcon,
   Shield,
@@ -78,14 +79,17 @@ import {
   readFields,
   writeFields,
   newField,
-  toFieldName,
-  toFieldNameLoose,
 } from '../metadata-admin/previews/object-fields-io';
+import { CreateItemDialog } from './CreateItemDialog';
+import {
+  CreatePackageDialog,
+  PackageDetailSheet,
+  type InstalledPackage,
+} from '../metadata-admin/PackagesPage';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
 import { ObjectValidationsPanel } from './ObjectValidationsPanel';
 import { ObjectSettingsPanel } from './ObjectSettingsPanel';
-import { fetchPackages, createBasePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
-import { PackageIdInput, PackageIdSuggestionHint } from './PackageIdInput';
+import { fetchPackages, type PkgEntry } from './packages-io';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
 import { toast } from 'sonner';
@@ -168,18 +172,18 @@ function extractDraftBody(resp: unknown): Record<string, unknown> | null {
 }
 
 /** Top-bar package switcher: list app packages (可写 base vs 只读 code), switch by
- * navigation, and create a new writable base inline (POST /packages {id,name}). */
+ * navigation, create a new writable base via the standard CreatePackageDialog,
+ * and open the standard PackageDetailSheet (info + disable / duplicate / delete
+ * / publish …) for the current package. */
 function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string }): React.ReactElement {
   const navigate = useNavigate();
   const locale = useMetadataLocale();
   const [open, setOpen] = React.useState(false);
   const [pkgs, setPkgs] = React.useState<PkgEntry[] | null>(null);
-  const [creating, setCreating] = React.useState(false);
-  const [newName, setNewName] = React.useState('');
-  const [newId, setNewId] = React.useState('');
-  const [idTouched, setIdTouched] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [manage, setManage] = React.useState<InstalledPackage | null>(null);
+  const [manageOpen, setManageOpen] = React.useState(false);
+  const [manageBusy, setManageBusy] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -197,44 +201,57 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
 
   const current = pkgs?.find((p) => p.id === packageId) ?? null;
 
-  const doCreate = React.useCallback(async () => {
-    const name = newName.trim();
-    const id = newId.trim();
-    if (!name || !PACKAGE_ID_RE.test(id)) return;
-    setBusy(true);
-    setErr(null);
+  // Open the standard detail/management sheet for a package — fetch its full
+  // installed record (manifest + status) first, since the switcher only holds
+  // the trimmed {id,name,writable} view.
+  const openManage = React.useCallback(async (id: string) => {
+    setOpen(false);
+    setManageBusy(true);
     try {
-      await createBasePackage(id, name);
-      toast.success(tFormat('engine.studio.pkg.created', locale, { name }));
-      setOpen(false);
-      setCreating(false);
-      setNewName('');
-      setNewId('');
-      setIdTouched(false);
-      navigate(`/studio/${encodeURIComponent(id)}/data`);
+      const res = await fetch('/api/v1/packages', {
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      });
+      const data = (await res.json()) as unknown;
+      const root = (data as { data?: unknown })?.data ?? data;
+      const list = (Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? [])) as Array<
+        InstalledPackage & { id?: string }
+      >;
+      const full = list.find((p) => (p?.manifest?.id ?? p?.id) === id) ?? null;
+      setManage(full);
+      setManageOpen(true);
     } catch (e) {
-      setErr(formatMetadataError(e));
+      toast.error(formatMetadataError(e));
     } finally {
-      setBusy(false);
+      setManageBusy(false);
     }
-  }, [newName, newId, navigate]);
+  }, []);
+
+  // A lifecycle action ran in the sheet — refresh the list. If the managed
+  // package was the one we're editing and it's now gone (deleted), leave it.
+  const onManageChanged = React.useCallback(async () => {
+    let list: PkgEntry[] = [];
+    try {
+      list = await fetchPackages();
+      setPkgs(list);
+    } catch {
+      /* keep the stale list */
+    }
+    const managedId = manage?.manifest.id;
+    if (managedId && managedId === packageId && !list.some((p) => p.id === managedId)) {
+      const next = list[0];
+      navigate(next ? `/studio/${encodeURIComponent(next.id)}/${tab}` : '/home');
+    }
+  }, [manage, packageId, tab, navigate]);
 
   return (
     // Radix Popover (portaled to <body>) — the top bar is `overflow-x-auto`,
     // which forces `overflow-y: auto` too, so an `absolute` panel used to be
     // CLIPPED by the header instead of overlaying the canvas. Portaling escapes
-    // that clip. Closing (Escape / outside click) also resets the inline
-    // create form so it never re-opens mid-creation.
-    <Popover
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v);
-        if (!v) {
-          setCreating(false);
-          setErr(null);
-        }
-      }}
-    >
+    // that clip. Create / manage open the standard dialog + sheet (also
+    // portaled), so neither is subject to the header clip either.
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -289,73 +306,42 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
               ))}
             </div>
 
-            <div className="mt-1 border-t pt-1.5">
-              {creating ? (
-                <div className="flex flex-col gap-1.5 px-1 pb-1">
-                  <input
-                    autoFocus
-                    value={newName}
-                    onChange={(e) => {
-                      setNewName(e.target.value);
-                      if (!idTouched) {
-                        const slug = toFieldNameLoose(e.target.value).replace(/_/g, '-');
-                        setNewId(slug ? `com.example.${slug}` : '');
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void doCreate();
-                      if (e.key === 'Escape') setCreating(false);
-                    }}
-                    placeholder={t('engine.studio.pkg.namePlaceholder', locale)}
-                    className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
-                  />
-                  <PackageIdSuggestionHint
-                    show={!idTouched && !!newName.trim() && !newId}
-                    locale={locale}
-                  />
-                  <PackageIdInput
-                    value={newId}
-                    onChange={(v) => {
-                      setIdTouched(true);
-                      setNewId(v);
-                    }}
-                    onEnter={() => void doCreate()}
-                    onEscape={() => setCreating(false)}
-                    placeholder={t('engine.studio.pkg.idPlaceholder', locale)}
-                    locale={locale}
-                    testId="pkg-switcher-id-input"
-                  />
-                  {err && <p className="text-[10px] text-destructive">{err}</p>}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => void doCreate()}
-                      disabled={busy || !newName.trim() || !PACKAGE_ID_RE.test(newId.trim())}
-                      className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
-                    >
-                      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                      {t('engine.studio.pkg.createWritable', locale)}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCreating(false)}
-                      className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
-                    >
-                      {t('engine.studio.cancel', locale)}
-                    </button>
-                  </div>
-                </div>
-              ) : (
+            <div className="mt-1 space-y-0.5 border-t pt-1.5">
+              {current && (
                 <button
                   type="button"
-                  onClick={() => setCreating(true)}
-                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={() => void openManage(packageId)}
+                  disabled={manageBusy}
+                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
                 >
-                  <Plus className="h-3.5 w-3.5" /> {t('engine.studio.pkg.new', locale)}
+                  {manageBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Settings className="h-3.5 w-3.5" />}
+                  {t('engine.studio.pkg.manage', locale)}
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setCreateOpen(true);
+                }}
+                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" /> {t('engine.studio.pkg.new', locale)}
+              </button>
             </div>
       </PopoverContent>
+
+      <CreatePackageDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(id) => navigate(`/studio/${encodeURIComponent(id)}/data`)}
+      />
+      <PackageDetailSheet
+        pkg={manage}
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        onChanged={onManageChanged}
+      />
     </Popover>
   );
 }
@@ -476,10 +462,8 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   // 创建应用 (package has no app yet): create a draft `app` item — the published
   // front-end's on-ramp. The button flips to 打开应用 after the package publish.
   const [appCreating, setAppCreating] = React.useState(false);
-  const [appLabel, setAppLabel] = React.useState('');
-  const [appName, setAppName] = React.useState('');
-  const [appNameTouched, setAppNameTouched] = React.useState(false);
   const [appBusy, setAppBusy] = React.useState(false);
+  const [appErr, setAppErr] = React.useState<string | null>(null);
   const [appDraftPending, setAppDraftPending] = React.useState<string | null>(null);
   // Scaffold the new app's navigation from the package's objects (default on) —
   // otherwise a fresh app has zero menu items and every object must be wired by
@@ -503,32 +487,30 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
     return items;
   }, [shellClient, packageId]);
 
-  const doCreateApp = React.useCallback(async () => {
-    const label = appLabel.trim();
-    const name = toFieldName(appName.trim() || label);
-    if (!label || !name || name === 'field') return;
-    setAppBusy(true);
-    try {
-      const navObjects = appAddObjects ? await loadPackageObjects().catch(() => []) : [];
-      await shellClient.save(
-        'app',
-        name,
-        buildAppSkeleton(name, label, navObjects),
-        { mode: 'draft', packageId },
-      );
-      toast.success(tFormat('engine.studio.app.savedDraft', locale, { label }));
-      setAppDraftPending(label);
-      setAppCreating(false);
-      setAppLabel('');
-      setAppName('');
-      setAppNameTouched(false);
-      setDraftNonce((n) => n + 1);
-    } catch (e) {
-      toast.error(formatMetadataError(e));
-    } finally {
-      setAppBusy(false);
-    }
-  }, [appLabel, appName, appAddObjects, loadPackageObjects, shellClient, packageId]);
+  const doCreateApp = React.useCallback(
+    async (label: string, name: string) => {
+      setAppBusy(true);
+      setAppErr(null);
+      try {
+        const navObjects = appAddObjects ? await loadPackageObjects().catch(() => []) : [];
+        await shellClient.save(
+          'app',
+          name,
+          buildAppSkeleton(name, label, navObjects),
+          { mode: 'draft', packageId },
+        );
+        toast.success(tFormat('engine.studio.app.savedDraft', locale, { label }));
+        setAppDraftPending(label);
+        setAppCreating(false);
+        setDraftNonce((n) => n + 1);
+      } catch (e) {
+        setAppErr(formatMetadataError(e));
+      } finally {
+        setAppBusy(false);
+      }
+    },
+    [appAddObjects, loadPackageObjects, shellClient, packageId, locale],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -611,70 +593,16 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                 {tFormat('engine.studio.app.pending', locale, { label: appDraftPending })}
               </span>
             ) : (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setAppCreating((v) => !v)}
-                  disabled={readOnly}
-                  title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : t('engine.studio.app.noneTitle', locale)}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t('engine.studio.app.create', locale)}
-                </button>
-                {appCreating && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setAppCreating(false)} />
-                    <div className="absolute right-0 top-full z-50 mt-1 flex w-72 flex-col gap-1.5 rounded-lg border bg-background p-2 shadow-lg">
-                      <input
-                        autoFocus
-                        value={appLabel}
-                        onChange={(e) => {
-                          setAppLabel(e.target.value);
-                          if (!appNameTouched) setAppName(toFieldNameLoose(e.target.value));
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void doCreateApp();
-                          if (e.key === 'Escape') setAppCreating(false);
-                        }}
-                        placeholder={t('engine.studio.app.namePlaceholder', locale)}
-                        className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <input
-                        value={appName}
-                        onChange={(e) => {
-                          setAppNameTouched(true);
-                          setAppName(toFieldNameLoose(e.target.value));
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void doCreateApp();
-                          if (e.key === 'Escape') setAppCreating(false);
-                        }}
-                        placeholder={t('engine.studio.app.idPlaceholder', locale)}
-                        className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <label className="flex cursor-pointer items-center gap-1.5 px-0.5 py-0.5 text-[11px] text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={appAddObjects}
-                          onChange={(e) => setAppAddObjects(e.target.checked)}
-                          className="h-3 w-3 accent-primary"
-                        />
-                        {t('engine.studio.app.scaffoldNav', locale)}
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => void doCreateApp()}
-                        disabled={appBusy || !appLabel.trim() || !toFieldName(appName.trim() || appLabel) || toFieldName(appName.trim() || appLabel) === 'field'}
-                        className="inline-flex items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
-                      >
-                        {appBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                        {t('engine.studio.createDraft', locale)}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={() => setAppCreating(true)}
+                disabled={readOnly}
+                title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : t('engine.studio.app.noneTitle', locale)}
+                className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t('engine.studio.app.create', locale)}
+              </button>
             )}
             <button
               type="button"
@@ -732,6 +660,33 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
         packageId={packageId}
         onPublish={readOnly ? undefined : doPublish}
         publishing={publishing}
+      />
+
+      <CreateItemDialog
+        open={appCreating}
+        onOpenChange={setAppCreating}
+        title={t('engine.studio.app.create', locale)}
+        labelFieldLabel={t('engine.studio.app.nameLabel', locale)}
+        labelPlaceholder={t('engine.studio.app.namePlaceholder', locale)}
+        idFieldLabel={t('engine.studio.app.idLabel', locale)}
+        idPlaceholder={t('engine.studio.app.idPlaceholder', locale)}
+        submitLabel={t('engine.studio.createDraft', locale)}
+        submittingLabel={t('engine.studio.creating', locale)}
+        busy={appBusy}
+        error={appErr}
+        locale={locale}
+        onSubmit={({ label, name }) => void doCreateApp(label, name)}
+        extra={
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={appAddObjects}
+              onChange={(e) => setAppAddObjects(e.target.checked)}
+              className="h-3.5 w-3.5 accent-primary"
+            />
+            {t('engine.studio.app.scaffoldNav', locale)}
+          </label>
+        }
       />
     </div>
   );
@@ -1591,9 +1546,6 @@ function DataPillar({
   // Left-rail search + inline "new object" creator (design §4: rail = search + New).
   const [query, setQuery] = React.useState('');
   const [creating, setCreating] = React.useState(false);
-  const [newLabel, setNewLabel] = React.useState('');
-  const [newName, setNewName] = React.useState('');
-  const [nameTouched, setNameTouched] = React.useState(false);
   const [createBusy, setCreateBusy] = React.useState(false);
   // Whether the selected object exists beyond the draft (published/code baseline).
   // A draft-only object has NO physical table yet (DDL lands at publish), so the
@@ -1703,36 +1655,33 @@ function DataPillar({
   // field so the form/grid isn't empty. It stays draft-only (no physical table)
   // until the package publish, so we land on 表单·布局 — the metadata-level
   // surface that never fires data SQL.
-  const doCreateObject = React.useCallback(async () => {
-    if (readOnly) return;
-    const label = newLabel.trim();
-    const name = toFieldName(newName.trim() || label);
-    if (!label || !name || name === 'field') return; // CJK label → identifier must be typed
-    if (objects.some((o) => o.name === name)) {
-      setError(tFormat('engine.studio.data.idExists', locale, { name }));
-      return;
-    }
-    setCreateBusy(true);
-    setError(null);
-    try {
-      const body = buildObjectSkeleton(name, label, t('engine.studio.data.nameFieldLabel', locale));
-      await client.save('object', name, body, { mode: 'draft', packageId });
-      const surface: Surface = { type: 'object', name, label };
-      setObjects((prev) => [...prev, surface]);
-      setCurrent(surface);
-      setViewMode('form');
-      setFormMode('layout');
-      setCreating(false);
-      setNewLabel('');
-      setNewName('');
-      setNameTouched(false);
-      onDraftSaved?.();
-    } catch (e) {
-      setError(formatMetadataError(e));
-    } finally {
-      setCreateBusy(false);
-    }
-  }, [newLabel, newName, objects, client, packageId, onDraftSaved, readOnly]);
+  const doCreateObject = React.useCallback(
+    async (label: string, name: string) => {
+      if (readOnly) return;
+      if (objects.some((o) => o.name === name)) {
+        setError(tFormat('engine.studio.data.idExists', locale, { name }));
+        return;
+      }
+      setCreateBusy(true);
+      setError(null);
+      try {
+        const body = buildObjectSkeleton(name, label, t('engine.studio.data.nameFieldLabel', locale));
+        await client.save('object', name, body, { mode: 'draft', packageId });
+        const surface: Surface = { type: 'object', name, label };
+        setObjects((prev) => [...prev, surface]);
+        setCurrent(surface);
+        setViewMode('form');
+        setFormMode('layout');
+        setCreating(false);
+        onDraftSaved?.();
+      } catch (e) {
+        setError(formatMetadataError(e));
+      } finally {
+        setCreateBusy(false);
+      }
+    },
+    [objects, client, packageId, onDraftSaved, readOnly, locale],
+  );
 
   const doSave = React.useCallback(async () => {
     if (!current) return;
@@ -1896,58 +1845,13 @@ function DataPillar({
               >
                 <Lock className="h-3 w-3" /> {t('engine.studio.pkg.readonly', locale)}
               </p>
-            ) : creating ? (
-              <div className="flex flex-col gap-1.5">
-                <input
-                  autoFocus
-                  value={newLabel}
-                  onChange={(e) => {
-                    setNewLabel(e.target.value);
-                    if (!nameTouched) setNewName(toFieldNameLoose(e.target.value));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void doCreateObject();
-                    if (e.key === 'Escape') setCreating(false);
-                  }}
-                  placeholder={t('engine.studio.data.labelPlaceholder', locale)}
-                  className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
-                />
-                <input
-                  value={newName}
-                  onChange={(e) => {
-                    setNameTouched(true);
-                    setNewName(toFieldNameLoose(e.target.value));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void doCreateObject();
-                    if (e.key === 'Escape') setCreating(false);
-                  }}
-                  placeholder={t('engine.studio.data.idPlaceholder', locale)}
-                  className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
-                />
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void doCreateObject()}
-                    disabled={createBusy || !newLabel.trim() || !toFieldName(newName.trim() || newLabel) || toFieldName(newName.trim() || newLabel) === 'field'}
-                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
-                  >
-                    {createBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                    {t('engine.studio.createDraft', locale)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreating(false)}
-                    className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
-                  >
-                    {t('engine.studio.cancel', locale)}
-                  </button>
-                </div>
-              </div>
             ) : (
               <button
                 type="button"
-                onClick={() => setCreating(true)}
+                onClick={() => {
+                  setError(null);
+                  setCreating(true);
+                }}
                 className="inline-flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
@@ -2290,6 +2194,22 @@ function DataPillar({
           </aside>
         )}
       </div>
+
+      <CreateItemDialog
+        open={creating}
+        onOpenChange={setCreating}
+        title={t('engine.studio.data.newObject', locale)}
+        labelFieldLabel={t('engine.studio.data.nameLabel', locale)}
+        labelPlaceholder={t('engine.studio.data.labelPlaceholder', locale)}
+        idFieldLabel={t('engine.studio.data.idLabel', locale)}
+        idPlaceholder={t('engine.studio.data.idPlaceholder', locale)}
+        submitLabel={t('engine.studio.createDraft', locale)}
+        submittingLabel={t('engine.studio.creating', locale)}
+        busy={createBusy}
+        error={error}
+        locale={locale}
+        onSubmit={({ label, name }) => void doCreateObject(label, name)}
+      />
     </div>
   );
 }
@@ -2357,8 +2277,6 @@ function AutomationsPillar({
   // Inline create — a fresh package starts with zero flows, so the pillar must
   // offer a way to author the first one (mirrors the object/app creators).
   const [creating, setCreating] = React.useState(false);
-  const [newLabel, setNewLabel] = React.useState('');
-  const [newName, setNewName] = React.useState('');
   const [createBusy, setCreateBusy] = React.useState(false);
   const Preview = getMetadataPreview(current?.type ?? '');
   const inspector = getMetadataInspector('flow');
@@ -2416,37 +2334,35 @@ function AutomationsPillar({
     };
   }, [client, packageId, publishNonce]);
 
-  const doCreateFlow = React.useCallback(async () => {
-    const label = newLabel.trim();
-    const name = toFieldName(newName.trim() || label);
-    if (!label || !name || name === 'field') return;
-    setCreateBusy(true);
-    setError(null);
-    try {
-      // Minimal valid, autolaunched skeleton: start → end. The designer fills in
-      // the trigger + nodes; publishing it is a separate, user-initiated step.
-      const skeleton = buildFlowSkeleton(
-        name,
-        label,
-        t('engine.studio.auto.nodeStart', locale),
-        t('engine.studio.auto.nodeEnd', locale),
-      );
-      await client.save('flow', name, skeleton, { mode: 'draft', packageId });
-      const item: Surface = { type: 'flow', name, label };
-      setFlows((fs) => [...fs.filter((f) => f.name !== name), item]);
-      setCurrent(item);
-      setHasDraft(true);
-      setCreating(false);
-      setNewLabel('');
-      setNewName('');
-      onDraftSaved?.();
-      toast.success(tFormat('engine.studio.auto.savedDraft', locale, { label }));
-    } catch (e) {
-      setError(formatMetadataError(e));
-    } finally {
-      setCreateBusy(false);
-    }
-  }, [newLabel, newName, client, packageId, onDraftSaved]);
+  const doCreateFlow = React.useCallback(
+    async (label: string, name: string) => {
+      setCreateBusy(true);
+      setError(null);
+      try {
+        // Minimal valid, autolaunched skeleton: start → end. The designer fills in
+        // the trigger + nodes; publishing it is a separate, user-initiated step.
+        const skeleton = buildFlowSkeleton(
+          name,
+          label,
+          t('engine.studio.auto.nodeStart', locale),
+          t('engine.studio.auto.nodeEnd', locale),
+        );
+        await client.save('flow', name, skeleton, { mode: 'draft', packageId });
+        const item: Surface = { type: 'flow', name, label };
+        setFlows((fs) => [...fs.filter((f) => f.name !== name), item]);
+        setCurrent(item);
+        setHasDraft(true);
+        setCreating(false);
+        onDraftSaved?.();
+        toast.success(tFormat('engine.studio.auto.savedDraft', locale, { label }));
+      } catch (e) {
+        setError(formatMetadataError(e));
+      } finally {
+        setCreateBusy(false);
+      }
+    },
+    [client, packageId, onDraftSaved, locale],
+  );
 
   React.useEffect(() => {
     if (!current) return;
@@ -2584,7 +2500,10 @@ function AutomationsPillar({
             {!readOnly && (
               <button
                 type="button"
-                onClick={() => setCreating((v) => !v)}
+                onClick={() => {
+                  setError(null);
+                  setCreating(true);
+                }}
                 title={t('engine.studio.auto.newTitle', locale)}
                 className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] hover:bg-muted"
               >
@@ -2614,49 +2533,6 @@ function AutomationsPillar({
             <p className="px-2 py-3 text-[11px] text-muted-foreground">
               {error ? t('engine.studio.loadFailed', locale) : !listed ? t('engine.studio.loading', locale) : t('engine.studio.auto.none', locale)}
             </p>
-          )}
-          {creating && (
-            <div className="mt-1 space-y-1.5 rounded-md border bg-muted/30 p-2">
-              <input
-                autoFocus
-                value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void doCreateFlow();
-                  if (e.key === 'Escape') setCreating(false);
-                }}
-                placeholder={t('engine.studio.auto.namePlaceholder', locale)}
-                className="w-full rounded border bg-background px-2 py-1 text-xs"
-              />
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void doCreateFlow();
-                  if (e.key === 'Escape') setCreating(false);
-                }}
-                placeholder={t('engine.studio.auto.idPlaceholder', locale)}
-                className="w-full rounded border bg-background px-2 py-1 font-mono text-[11px]"
-              />
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => void doCreateFlow()}
-                  disabled={!newLabel.trim() || createBusy}
-                  className="inline-flex flex-1 items-center justify-center gap-1 rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
-                >
-                  {createBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                  {t('engine.studio.createDraft', locale)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCreating(false)}
-                  className="rounded border px-2 py-1 text-[11px] hover:bg-muted"
-                >
-                  {t('engine.studio.cancel', locale)}
-                </button>
-              </div>
-            </div>
           )}
         </nav>
 
@@ -2745,6 +2621,22 @@ function AutomationsPillar({
           </div>
         </aside>
       </div>
+
+      <CreateItemDialog
+        open={creating}
+        onOpenChange={setCreating}
+        title={t('engine.studio.auto.newTitle', locale)}
+        labelFieldLabel={t('engine.studio.auto.nameLabel', locale)}
+        labelPlaceholder={t('engine.studio.auto.namePlaceholder', locale)}
+        idFieldLabel={t('engine.studio.auto.idLabel', locale)}
+        idPlaceholder={t('engine.studio.auto.idPlaceholder', locale)}
+        submitLabel={t('engine.studio.createDraft', locale)}
+        submittingLabel={t('engine.studio.creating', locale)}
+        busy={createBusy}
+        error={error}
+        locale={locale}
+        onSubmit={({ label, name }) => void doCreateFlow(label, name)}
+      />
     </div>
   );
 }
@@ -2790,9 +2682,7 @@ function AccessPillar({
   const [query, setQuery] = React.useState('');
   // inline creator (same rail pattern as the Data pillar's object creator)
   const [creating, setCreating] = React.useState(false);
-  const [newLabel, setNewLabel] = React.useState('');
-  const [newName, setNewName] = React.useState('');
-  const [nameTouched, setNameTouched] = React.useState(false);
+  const [createErr, setCreateErr] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
   const load = React.useCallback(async () => {
@@ -2844,29 +2734,27 @@ function AccessPillar({
     // the published rail (ADR-0086 P2).
   }, [load, publishNonce]);
 
-  const doCreate = React.useCallback(async () => {
-    const label = newLabel.trim();
-    const name = toFieldName(newName.trim() || label);
-    if (!label || !name || name === 'field') return;
-    setBusy(true);
-    try {
-      // Package door → create as a DRAFT stamped with this package (D6/D7),
-      // published atomically with the rest of the package.
-      await client.save('permission', name, buildPermissionSkeleton(name, label), { mode: 'draft', packageId });
-      toast.success(tFormat('engine.studio.access.created', locale, { label }));
-      setCreating(false);
-      setNewLabel('');
-      setNewName('');
-      setNameTouched(false);
-      onDraftSaved?.();
-      await load();
-      setCurrent(name);
-    } catch (e) {
-      toast.error(formatMetadataError(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [client, newLabel, newName, load, packageId, onDraftSaved, locale]);
+  const doCreate = React.useCallback(
+    async (label: string, name: string) => {
+      setBusy(true);
+      setCreateErr(null);
+      try {
+        // Package door → create as a DRAFT stamped with this package (D6/D7),
+        // published atomically with the rest of the package.
+        await client.save('permission', name, buildPermissionSkeleton(name, label), { mode: 'draft', packageId });
+        toast.success(tFormat('engine.studio.access.created', locale, { label }));
+        setCreating(false);
+        onDraftSaved?.();
+        await load();
+        setCurrent(name);
+      } catch (e) {
+        setCreateErr(formatMetadataError(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [client, load, packageId, onDraftSaved, locale],
+  );
 
   const filtered = perms.filter(
     (p) =>
@@ -2952,55 +2840,7 @@ function AccessPillar({
             ))}
           </div>
           <div className="shrink-0 border-t p-2">
-            {creating ? (
-              <div className="flex flex-col gap-1.5">
-                <input
-                  autoFocus
-                  value={newLabel}
-                  onChange={(e) => {
-                    setNewLabel(e.target.value);
-                    if (!nameTouched) setNewName(toFieldNameLoose(e.target.value));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void doCreate();
-                    if (e.key === 'Escape') setCreating(false);
-                  }}
-                  placeholder={t('engine.studio.access.labelPlaceholder', locale)}
-                  className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
-                />
-                <input
-                  value={newName}
-                  onChange={(e) => {
-                    setNameTouched(true);
-                    setNewName(toFieldNameLoose(e.target.value));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void doCreate();
-                    if (e.key === 'Escape') setCreating(false);
-                  }}
-                  placeholder={t('engine.studio.access.idPlaceholder', locale)}
-                  className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
-                />
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void doCreate()}
-                    disabled={busy || !newLabel.trim() || !toFieldName(newName.trim() || newLabel) || toFieldName(newName.trim() || newLabel) === 'field'}
-                    className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
-                  >
-                    {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                    {t('engine.studio.create', locale)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreating(false)}
-                    className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
-                  >
-                    {t('engine.studio.cancel', locale)}
-                  </button>
-                </div>
-              </div>
-            ) : readOnly ? (
+            {readOnly ? (
               <p
                 title={t('engine.studio.pkg.readonlyHint', locale)}
                 className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-muted-foreground"
@@ -3010,7 +2850,10 @@ function AccessPillar({
             ) : (
               <button
                 type="button"
-                onClick={() => setCreating(true)}
+                onClick={() => {
+                  setCreateErr(null);
+                  setCreating(true);
+                }}
                 className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <Plus className="h-3.5 w-3.5" /> {t('engine.studio.access.new', locale)}
@@ -3039,6 +2882,22 @@ function AccessPillar({
           )}
         </main>
       </div>
+
+      <CreateItemDialog
+        open={creating}
+        onOpenChange={setCreating}
+        title={t('engine.studio.access.new', locale)}
+        labelFieldLabel={t('engine.studio.access.nameLabel', locale)}
+        labelPlaceholder={t('engine.studio.access.labelPlaceholder', locale)}
+        idFieldLabel={t('engine.studio.access.idLabel', locale)}
+        idPlaceholder={t('engine.studio.access.idPlaceholder', locale)}
+        submitLabel={t('engine.studio.create', locale)}
+        submittingLabel={t('engine.studio.creating', locale)}
+        busy={busy}
+        error={createErr}
+        locale={locale}
+        onSubmit={({ label, name }) => void doCreate(label, name)}
+      />
     </div>
   );
 }
