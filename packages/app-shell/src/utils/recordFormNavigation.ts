@@ -185,8 +185,13 @@ export function resolvePostCreateTarget(opts: {
   pathname: string;
   /** Current location search (query string, with or without leading `?`). */
   search?: string;
-  /** The record's derived VIEW surface (`deriveRecordSurface(objectDef)`). */
-  surface: 'page' | 'drawer';
+  /**
+   * The record's derived VIEW surface (`deriveRecordSurface(objectDef)`).
+   * `deriveRecordSurface` only ever emits `'page'` / `'drawer'`; `'modal'` is
+   * accepted (spec widened `RecordSurface` to include it) and treated like a
+   * drawer — this helper only branches page-vs-not-page.
+   */
+  surface: 'page' | 'drawer' | 'modal';
   /** Saved record id (`result.id ?? result._id`). */
   recordId: unknown;
 }): PostCreateTarget {

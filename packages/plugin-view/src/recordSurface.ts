@@ -7,61 +7,36 @@
  */
 
 /**
- * Local mirror of `@objectstack/spec` `deriveRecordSurface` (framework #2578).
+ * Record-surface derivation — now sourced from `@objectstack/spec/data`
+ * (framework #2578 / #2604). The local mirror this file used to carry existed
+ * only because objectui pinned a spec that predated the export; with the spec
+ * bump to `^12.2.0` the real derivation is available, so we re-export it and
+ * delete the copy (restoring the single-source guarantee the mirror stood in
+ * for).
  *
- * A record's default surface — full `page` vs a `drawer`/`modal` overlay — is
- * DERIVED from how heavy the record is (visible, non-system field count), not
- * authored: per ADR-0085 §2 a `recordSurface` object key would fail the
- * admission test (field count is machine-inferable). Field-heavy objects open
- * create/edit/detail as a full page; light ones as a drawer. Mobile always
- * pages (overlays are cramped on phones). An explicit `schema.layout` or
- * per-view navigation config still wins — this is only the default.
- *
- * Kept local because objectui pins `@objectstack/spec@^11.7.0`, which predates
- * the export. Consolidate to
- * `import { deriveRecordSurface } from '@objectstack/spec/data'` when objectui
- * adopts spec >= 11.10 (framework #2578). The field set + threshold below mirror
- * the spec helper exactly so the two agree.
+ * Only the OVERLAY-SIZE helpers below (`deriveOverlaySize` / `overlayWidthFor`
+ * / `OverlaySize`) stay objectui-local: they map a field count to a
+ * viewport-clamped CSS width, which is a renderer concern the protocol does
+ * not (and should not) own. They reuse spec's `countAuthorableFields` so the
+ * field set stays in lockstep with `deriveRecordSurface`.
  */
 
-/** Audit/system fields excluded from the "how heavy is this record" count. */
-const RECORD_SURFACE_SYSTEM_FIELDS: ReadonlySet<string> = new Set([
-  'created_at', 'created_by', 'updated_at', 'updated_by',
-  'organization_id', 'tenant_id', 'is_deleted', 'deleted_at',
-]);
+export {
+  deriveRecordSurface,
+  deriveRecordFlowSurface,
+  countAuthorableFields,
+  RECORD_SURFACE_PAGE_THRESHOLD,
+} from '@objectstack/spec/data';
+export type {
+  RecordSurface,
+  RecordSurfaceOptions,
+  RecordSurfaceViewport,
+  RecordFlow,
+  RecordFlowContainer,
+  RecordFlowSurface,
+} from '@objectstack/spec/data';
 
-/** At/above this many authorable fields, a record opens as a full page. */
-export const RECORD_SURFACE_PAGE_THRESHOLD = 12;
-
-export type RecordSurface = 'page' | 'drawer';
-
-export interface RecordSurfaceOptions {
-  viewport?: 'mobile' | 'desktop';
-  pageThreshold?: number;
-}
-
-/** Count visible, non-system fields on an object schema. */
-function countAuthorableFields(objectSchema: unknown): number {
-  const fields = (objectSchema as { fields?: unknown } | null)?.fields;
-  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return 0;
-  let n = 0;
-  for (const [name, f] of Object.entries(fields as Record<string, { hidden?: boolean } | undefined>)) {
-    if (f?.hidden === true) continue;
-    if (RECORD_SURFACE_SYSTEM_FIELDS.has(name)) continue;
-    n++;
-  }
-  return n;
-}
-
-/**
- * Derive the default record surface for an object schema. Field-heavy → `page`,
- * otherwise `drawer`; mobile always `page`.
- */
-export function deriveRecordSurface(objectSchema: unknown, opts: RecordSurfaceOptions = {}): RecordSurface {
-  if (opts.viewport === 'mobile') return 'page';
-  const threshold = opts.pageThreshold ?? RECORD_SURFACE_PAGE_THRESHOLD;
-  return countAuthorableFields(objectSchema) >= threshold ? 'page' : 'drawer';
-}
+import { countAuthorableFields } from '@objectstack/spec/data';
 
 /**
  * Overlay size bucket for a drawer/modal (mirrors spec `NavigationConfig.size`
@@ -93,57 +68,4 @@ export function deriveOverlaySize(objectSchema: unknown): OverlaySize {
 export function overlayWidthFor(size: 'auto' | OverlaySize | undefined, objectSchema: unknown): string {
   const bucket = (!size || size === 'auto') ? deriveOverlaySize(objectSchema) : size;
   return `min(92vw, ${OVERLAY_SIZE_PX[bucket]}px)`;
-}
-
-/**
- * Local mirror of `@objectstack/spec` `deriveRecordFlowSurface` (framework
- * #2604 — same consolidation TODO as `deriveRecordSurface` above: swap to the
- * `@objectstack/spec/data` import when the pinned spec ships it).
- *
- * The record flow being opened. `view` shows state; the other four perform a
- * task (create/change a record). For `child-*` flows — a subtable / related-
- * list child created or edited from its PARENT's detail — pass the CHILD
- * object's schema: the overlay sizes to the record being edited, while the
- * return target is always the parent (#2604 D3).
- */
-export type RecordFlow = 'view' | 'create' | 'edit' | 'child-create' | 'child-edit';
-
-/** How the surface is mounted: a navigated route, or an overlay over the origin. */
-export type RecordFlowContainer = 'route' | 'overlay';
-
-export interface RecordFlowSurface {
-  /**
-   * `'route'` only ever for flow `'view'` (a record is shareable state).
-   * Every task flow is an `'overlay'`: close returns to the origin with its
-   * context (scroll / filters / tab) intact — the #2604 return-flow invariant.
-   */
-  container: RecordFlowContainer;
-  /** Includes `'modal'`, which the base heuristic never emits — task flows do. */
-  surface: 'page' | 'modal' | 'drawer';
-  /** Maps onto `modalSize` / `navigation.size`; routes ignore it. */
-  size: 'auto' | 'full';
-}
-
-/**
- * Derive the DEFAULT surface for a record FLOW (#2604). The two axes are
- * independent: how BIG comes from {@link deriveRecordSurface} (unchanged);
- * whether it ROUTES comes from what the flow *is* — viewing a record is
- * state → route-capable; making/changing one is a task → always an overlay,
- * with the derived `'page'` mapped to a FULL-SCREEN MODAL (same big canvas,
- * overlay return semantics). A DEFAULT only: explicit `navigation.mode`/`size`,
- * `FormView.type`/`modalSize`, or an assigned page win.
- */
-export function deriveRecordFlowSurface(
-  objectSchema: unknown,
-  flow: RecordFlow,
-  opts: RecordSurfaceOptions = {},
-): RecordFlowSurface {
-  const surface = deriveRecordSurface(objectSchema, opts);
-  if (flow === 'view') {
-    return { container: surface === 'page' ? 'route' : 'overlay', surface, size: 'auto' };
-  }
-  // Task flows (create / edit / child-*): never a route. Field-heavy (or
-  // mobile, where the base derivation says 'page') → full-screen modal.
-  if (surface === 'page') return { container: 'overlay', surface: 'modal', size: 'full' };
-  return { container: 'overlay', surface, size: 'auto' };
 }

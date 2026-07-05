@@ -2420,6 +2420,9 @@ importers:
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types
+      '@objectstack/spec':
+        specifier: ^12.2.0
+        version: 12.2.0(ai@7.0.4(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
