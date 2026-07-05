@@ -1989,6 +1989,12 @@ const ja = {
       empty: '保留中の変更はありません — すべてのドラフトが公開済みです。',
       kindNew: '新規',
       kindUpdate: '更新',
+      detailLoading: '詳細を読み込み中…',
+      detailLoadFailed: '変更の詳細を読み込めませんでした：',
+      detailNone: '差分は検出されませんでした — ドラフトは公開版と一致しています。',
+      detailChangedKeys: 'その他の変更：',
+      confirmNote: '公開すると、このパッケージの保留中ドラフト {{count}} 件がまとめて（アトミックに）公開されます。',
+      publishConfirm: 'すべて公開',
     },
   },
   filterBuilder: {

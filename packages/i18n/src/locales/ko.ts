@@ -1989,6 +1989,12 @@ const ko = {
       empty: '대기 중인 항목 없음 — 모든 드래프트가 게시되었습니다.',
       kindNew: '신규',
       kindUpdate: '업데이트',
+      detailLoading: '상세 정보 로드 중…',
+      detailLoadFailed: '변경 상세 정보를 불러오지 못했습니다:',
+      detailNone: '차이가 감지되지 않았습니다 — 초안이 게시된 버전과 일치합니다.',
+      detailChangedKeys: '기타 변경:',
+      confirmNote: '게시하면 이 패키지의 대기 중인 초안 {{count}}개가 한 번에(원자적으로) 게시됩니다.',
+      publishConfirm: '모두 게시',
     },
   },
   filterBuilder: {

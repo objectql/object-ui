@@ -1973,6 +1973,12 @@ const zh = {
       empty: '没有待发布的内容 —— 所有草稿均已发布。',
       kindNew: '新增',
       kindUpdate: '更新',
+      detailLoading: '正在加载详情…',
+      detailLoadFailed: '无法加载变更详情：',
+      detailNone: '未检测到差异 —— 草稿与已发布版本一致。',
+      detailChangedKeys: '其他变更：',
+      confirmNote: '发布将一次性（原子地）发布此包全部 {{count}} 个待发布草稿。',
+      publishConfirm: '全部发布',
     },
   },
   renderer: {

@@ -614,9 +614,12 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               <GitBranch className="h-3.5 w-3.5" />
               {t('engine.studio.changes', locale)}{hasPending ? ` · ${pendingCount}` : ''}
             </button>
+            {/* Review-then-publish: the button opens the pending-changes panel,
+              * whose confirm footer runs the actual atomic publish — no more
+              * one-click release of every package draft straight from here. */}
             <button
               type="button"
-              onClick={doPublish}
+              onClick={() => setChangesOpen(true)}
               disabled={publishing || !hasPending}
               title={hasPending ? t('engine.studio.publishTitle', locale) : t('engine.studio.publishNoneTitle', locale)}
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
@@ -651,7 +654,13 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
         </div>
       </div>
 
-      <DraftChangesPanel open={changesOpen} onOpenChange={setChangesOpen} packageId={packageId} />
+      <DraftChangesPanel
+        open={changesOpen}
+        onOpenChange={setChangesOpen}
+        packageId={packageId}
+        onPublish={doPublish}
+        publishing={publishing}
+      />
     </div>
   );
 }
