@@ -106,7 +106,10 @@ export function useObjectActions({
               defaultValue: `Deleted ${succeeded} ${objectLabel || objectName} records`,
             }),
           );
-          return { success: true, reload: true };
+          // `silent`: the handler already toasted the localized summary above;
+          // without this the runner's post-execution hook adds a second, generic
+          // "Action completed successfully" toast (double success toast).
+          return { success: true, reload: true, silent: true };
         }
         toast.error(
           t('objectActions.bulkDeletePartial', {
@@ -115,7 +118,11 @@ export function useObjectActions({
             defaultValue: `${succeeded} deleted, ${failed} failed`,
           }),
         );
-        return { success: false, error: `${failed} failed` };
+        // The toast above is the authoritative feedback (it carries the
+        // succeeded/failed summary the runner can't reconstruct). Return
+        // WITHOUT `error` so the ActionRunner post-execution hook — this runner
+        // has a toastHandler (onToast) — doesn't fire a second, duplicate toast.
+        return { success: false };
       }
 
       const recordId =
@@ -129,12 +136,17 @@ export function useObjectActions({
         await dataSource.delete(objectName, recordId);
         onRefresh?.();
         toast.success(t('objectActions.deleteSuccess', { label: objectLabel || objectName }));
-        return { success: true, reload: true };
+        // `silent`: handler owns the localized success toast above — suppress the
+        // runner's generic duplicate (see the bulk branch).
+        return { success: true, reload: true, silent: true };
       } catch (err: any) {
         toast.error(t('objectActions.deleteFailed', { label: objectLabel || objectName }), {
           description: err.message,
         });
-        return { success: false, error: err.message };
+        // Keep the richer toast above (label + error description) and return
+        // WITHOUT `error` so the ActionRunner post-execution hook doesn't toast
+        // the raw message a second time. See the bulk branch for the rationale.
+        return { success: false };
       }
     });
 

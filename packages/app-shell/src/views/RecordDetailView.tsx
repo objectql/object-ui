@@ -618,9 +618,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       if (!res.ok || (json && json.success === false) || innerFailed) {
         const errMsg = (innerFailed && inner.error) || json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
-        // Surface the failure — this custom new-tab path bypasses
-        // ActionRunner's toast-on-error, so otherwise the user gets no feedback.
-        toast.error(errMsg);
+        // Don't toast here. This handler always runs through the ActionRunner
+        // (registered as the `script` handler on the ActionProvider below, which
+        // wires `onToast`), whose post-execution hook surfaces the returned
+        // `error` as one toast. Toasting again double-fired the message
+        // (e.g. RECORD_LOCKED appeared twice). Mirrors useConsoleActionRuntime.
         return { success: false, error: errMsg };
       }
       const shouldRefresh = action.refreshAfter !== false;
@@ -663,7 +665,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     } catch (error) {
       if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
       const msg = (error as Error).message;
-      toast.error(msg);
+      // Don't toast here — the ActionRunner post-execution hook toasts the
+      // returned `error` once (see the failure branch above).
       return { success: false, error: msg };
     } finally {
       serverActionInFlight.current.delete(inflightKey);
