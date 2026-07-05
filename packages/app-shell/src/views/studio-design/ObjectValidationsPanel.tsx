@@ -28,6 +28,7 @@ import React from 'react';
 import { Plus, Trash2, ShieldAlert } from 'lucide-react';
 import { ConditionBuilder } from '../metadata-admin/inspectors/ConditionBuilder';
 import { readFields } from '../metadata-admin/previews/object-fields-io';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 
 interface ValidationRuleDraft {
   type?: string;
@@ -62,6 +63,7 @@ export function ObjectValidationsPanel({
   onPatch: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
 }) {
+  const locale = useMetadataLocale();
   const rules = readRules(draft.validations);
   const [selected, setSelected] = React.useState<string | null>(null);
 
@@ -104,7 +106,7 @@ export function ObjectValidationsPanel({
       <div className="flex w-72 shrink-0 flex-col rounded-lg border">
         <header className="flex items-center gap-2 border-b px-3 py-2">
           <ShieldAlert className="h-3.5 w-3.5" />
-          <span className="text-[13px] font-medium">验证规则</span>
+          <span className="text-[13px] font-medium">{t('engine.studio.rules.title', locale)}</span>
           <span className="text-[11px] text-muted-foreground">({rules.length})</span>
           {!disabled && (
             <button
@@ -112,16 +114,16 @@ export function ObjectValidationsPanel({
               onClick={addRule}
               className="ml-auto inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] hover:bg-muted"
             >
-              <Plus className="h-3 w-3" /> 新增
+              <Plus className="h-3 w-3" /> {t('engine.studio.new', locale)}
             </button>
           )}
         </header>
         <div className="min-h-0 flex-1 overflow-auto">
           {rules.length === 0 ? (
             <p className="px-3 py-6 text-center text-[11px] leading-5 text-muted-foreground">
-              还没有验证规则。
+              {t('engine.studio.rules.none', locale)}
               <br />
-              规则在保存记录时执行:条件为真 ⇒ 拒绝保存并提示消息。
+              {t('engine.studio.rules.explain', locale)}
             </p>
           ) : (
             rules.map((r) => (
@@ -137,7 +139,7 @@ export function ObjectValidationsPanel({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{r.label || r.name}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">
-                    {r.message || '(无消息)'}
+                    {r.message || t('engine.studio.rules.noMessage', locale)}
                   </span>
                 </span>
                 <span
@@ -160,7 +162,7 @@ export function ObjectValidationsPanel({
       <div className="flex min-w-0 flex-1 flex-col rounded-lg border">
         {!sel ? (
           <div className="flex flex-1 items-center justify-center p-6 text-center text-[12px] text-muted-foreground">
-            选择左侧的规则进行编辑,或点「新增」创建一条。
+            {t('engine.studio.rules.pick', locale)}
           </div>
         ) : sel.type !== 'script' ? (
           <div className="flex flex-1 flex-col gap-2 p-4">
@@ -171,8 +173,7 @@ export function ObjectValidationsPanel({
               </span>
             </p>
             <p className="text-[12px] leading-5 text-muted-foreground">
-              「{sel.type}」类型的规则带有结构化配置(状态机转移表 / 格式约束等),暂不支持在此编辑
-              —— 请在代码包中维护。消息:{sel.message || '(无)'}
+              {tFormat('engine.studio.rules.structured', locale, { type: String(sel.type), message: sel.message || t('engine.studio.rules.none2', locale) })}
             </p>
             {!disabled && (
               <button
@@ -180,14 +181,14 @@ export function ObjectValidationsPanel({
                 onClick={() => removeRule(sel.name!)}
                 className="mt-auto inline-flex w-fit items-center gap-1 rounded border border-destructive/40 px-2 py-1 text-[11px] text-destructive hover:bg-destructive/10"
               >
-                <Trash2 className="h-3 w-3" /> 删除规则
+                <Trash2 className="h-3 w-3" /> {t('engine.studio.rules.deleteRule', locale)}
               </button>
             )}
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
             <label className="block">
-              <span className="mb-1 block text-[11px] text-muted-foreground">规则名(snake_case,唯一)</span>
+              <span className="mb-1 block text-[11px] text-muted-foreground">{t('engine.studio.rules.nameLabel', locale)}</span>
               <input
                 value={sel.name ?? ''}
                 disabled={disabled}
@@ -200,19 +201,19 @@ export function ObjectValidationsPanel({
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-[11px] text-muted-foreground">错误消息(校验失败时展示给用户)</span>
+              <span className="mb-1 block text-[11px] text-muted-foreground">{t('engine.studio.rules.messageLabel', locale)}</span>
               <input
                 value={sel.message ?? ''}
                 disabled={disabled}
                 onChange={(e) => patchRule(sel.name!, { message: e.target.value })}
-                placeholder="例如:完成日期在状态为已完成时必填"
+                placeholder={t('engine.studio.rules.messagePlaceholder', locale)}
                 className="w-full rounded border bg-background px-2 py-1 text-[12px]"
               />
             </label>
             <div>
               <span className="mb-1 block text-[11px] text-muted-foreground">
-                失败条件(CEL)—— 条件为 <b>真</b> 时,拒绝保存并显示上面的消息;新规则默认{' '}
-                <code className="rounded bg-muted px-1">false</code>(永不触发),请改为真实条件
+                {t('engine.studio.rules.celPre', locale)}<b>{t('engine.studio.rules.celTrue', locale)}</b>{t('engine.studio.rules.celMid', locale)}
+                <code className="rounded bg-muted px-1">false</code>{t('engine.studio.rules.celPost', locale)}
               </span>
               <ConditionBuilder
                 value={typeof sel.condition === 'string' ? sel.condition : ''}
@@ -223,14 +224,14 @@ export function ObjectValidationsPanel({
             </div>
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-1.5 text-[12px]">
-                <span className="text-muted-foreground">严重度</span>
+                <span className="text-muted-foreground">{t('engine.studio.rules.severity', locale)}</span>
                 <select
                   value={sel.severity ?? 'error'}
                   disabled={disabled}
                   onChange={(e) => patchRule(sel.name!, { severity: e.target.value as ValidationRuleDraft['severity'] })}
                   className="rounded border bg-background px-1.5 py-0.5 text-[12px]"
                 >
-                  <option value="error">error(拒绝保存)</option>
+                  <option value="error">{t('engine.studio.rules.severityError', locale)}</option>
                   <option value="warning">warning</option>
                   <option value="info">info</option>
                 </select>
@@ -242,7 +243,7 @@ export function ObjectValidationsPanel({
                   disabled={disabled}
                   onChange={(e) => patchRule(sel.name!, { active: e.target.checked })}
                 />
-                启用
+                {t('engine.studio.rules.enabled', locale)}
               </label>
               {!disabled && (
                 <button
@@ -250,7 +251,7 @@ export function ObjectValidationsPanel({
                   onClick={() => removeRule(sel.name!)}
                   className="ml-auto inline-flex items-center gap-1 rounded border border-destructive/40 px-2 py-1 text-[11px] text-destructive hover:bg-destructive/10"
                 >
-                  <Trash2 className="h-3 w-3" /> 删除
+                  <Trash2 className="h-3 w-3" /> {t('engine.studio.rules.delete', locale)}
                 </button>
               )}
             </div>

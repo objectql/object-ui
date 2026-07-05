@@ -32,7 +32,7 @@ describe('ObjectValidationsPanel', () => {
   it('adds a script rule with a VALID never-failing default condition', () => {
     const onPatch = vi.fn();
     render(<ObjectValidationsPanel draft={draft} onPatch={onPatch} />);
-    fireEvent.click(screen.getByText('新增'));
+    fireEvent.click(screen.getByText('New'));
     const patch = onPatch.mock.calls[0][0];
     const added = patch.validations[patch.validations.length - 1];
     // An empty condition 422s the whole draft save (spec ExpressionInputSchema)
@@ -55,14 +55,14 @@ describe('ObjectValidationsPanel', () => {
   it('marks non-script rules read-only (structured configs stay code-authored)', () => {
     render(<ObjectValidationsPanel draft={draft} onPatch={() => {}} />);
     fireEvent.click(screen.getByText('status_flow'));
-    expect(screen.getByText(/暂不支持在此编辑/)).toBeTruthy();
+    expect(screen.getByText(/cannot be edited here yet/)).toBeTruthy();
   });
 
   it('deletes a rule', () => {
     const onPatch = vi.fn();
     render(<ObjectValidationsPanel draft={draft} onPatch={onPatch} />);
     fireEvent.click(screen.getByText('no_negative'));
-    fireEvent.click(screen.getAllByText('删除')[0]);
+    fireEvent.click(screen.getAllByText('Delete')[0]);
     const patch = onPatch.mock.calls[0][0];
     expect(patch.validations).toHaveLength(1);
     expect(patch.validations[0].name).toBe('status_flow');

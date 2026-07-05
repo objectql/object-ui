@@ -1874,13 +1874,14 @@ function DataPillar({
                 </div>
               )}
               {viewMode === 'rules' ? (
-                <ObjectValidationsPanel draft={objDraft} onPatch={onPatch} />
+                <ObjectValidationsPanel draft={objDraft} onPatch={onPatch} disabled={readOnly} />
               ) : viewMode === 'settings' ? (
                 <ObjectSettingsPanel
                   name={current.name}
                   draft={objDraft}
                   onPatch={onPatch}
                   locale={locale}
+                  disabled={readOnly}
                 />
               ) : viewMode === 'grid' && !hasBaseline ? (
                 /* Draft-only object: no physical table until the package publish —

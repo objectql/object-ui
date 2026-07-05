@@ -3,7 +3,7 @@
 /**
  * BuilderLanding — the application builder's front door.
  *
- * The journey from login: Home → Studio app → 「应用构建」 (this page, embedded
+ * The journey from login: Home → Studio app → the App Builder landing (this page, embedded
  * in the app chrome via the `studio:builder` component ref) → pick or create a
  * writable base package → the full-screen pillar builder
  * (`/studio/:packageId/:tab`). Also served standalone at bare `/studio` so the
@@ -19,10 +19,12 @@ import { useNavigate } from 'react-router-dom';
 import { Boxes, Hammer, Lock, Plus, Loader2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { toFieldNameLoose } from '../metadata-admin/previews/object-fields-io';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 import { fetchPackages, createBasePackage, duplicatePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
 
 export function BuilderLanding(): React.ReactElement {
   const navigate = useNavigate();
+  const locale = useMetadataLocale();
   const [pkgs, setPkgs] = React.useState<PkgEntry[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
@@ -66,7 +68,7 @@ export function BuilderLanding(): React.ReactElement {
   const writable = pkgs?.filter((p) => p.writable) ?? [];
   const readonly = pkgs?.filter((p) => !p.writable) ?? [];
 
-  // 复制为可写副本 (ADR-0070 D4): a read-only code package is a STARTING POINT,
+  // Duplicate into a writable copy (ADR-0070 D4): a read-only code package is a STARTING POINT,
   // not a dead end — duplicate re-namespaces it into a new writable base and
   // drops the user straight into its builder. This is also the real substance
   // behind Home's "Start with a template".
@@ -78,7 +80,7 @@ export function BuilderLanding(): React.ReactElement {
 
   const startDup = (p: PkgEntry) => {
     setDupFor(p.id);
-    setDupName(`${p.name} 副本`);
+    setDupName(tFormat('engine.studio.landing.dupDefaultName', locale, { name: p.name }));
     setDupId(`${p.id}-copy`);
     setDupErr(null);
   };
@@ -91,7 +93,7 @@ export function BuilderLanding(): React.ReactElement {
     setDupErr(null);
     try {
       await duplicatePackage(dupFor, id, name);
-      toast.success(`已复制为可写软件包「${name}」`);
+      toast.success(tFormat('engine.studio.landing.dupCreated', locale, { name }));
       open(id);
     } catch (e) {
       setDupErr(e instanceof Error ? e.message : String(e));
@@ -104,11 +106,10 @@ export function BuilderLanding(): React.ReactElement {
     <div className="mx-auto w-full max-w-3xl p-6">
       <div className="mb-1 flex items-center gap-2">
         <Hammer className="h-5 w-5 text-primary" />
-        <h1 className="text-lg font-semibold">应用构建</h1>
+        <h1 className="text-lg font-semibold">{t('engine.studio.landing.title', locale)}</h1>
       </div>
       <p className="mb-5 text-xs leading-5 text-muted-foreground">
-        在一个<b>可写软件包</b>里设计对象、表单、自动化与界面;编辑存为草稿,整包一次发布。
-        源码加载的软件包为只读(仅可浏览)。
+        {t('engine.studio.landing.description', locale)}
       </p>
 
       {error && (
@@ -118,12 +119,12 @@ export function BuilderLanding(): React.ReactElement {
       )}
 
       <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        我的软件包(可写)
+        {t('engine.studio.landing.mineHeading', locale)}
       </h2>
       <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {pkgs === null && <p className="text-[11px] text-muted-foreground">加载中…</p>}
+        {pkgs === null && <p className="text-[11px] text-muted-foreground">{t('engine.studio.loading', locale)}</p>}
         {pkgs !== null && writable.length === 0 && (
-          <p className="text-[11px] text-muted-foreground">还没有可写软件包 — 从右侧新建一个开始。</p>
+          <p className="text-[11px] text-muted-foreground">{t('engine.studio.landing.noneWritable', locale)}</p>
         )}
         {writable.map((p) => (
           <div key={p.id} className="rounded-lg border bg-background">
@@ -140,17 +141,18 @@ export function BuilderLanding(): React.ReactElement {
                 </span>
               </button>
               <span className="rounded bg-emerald-400/15 px-1.5 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-300">
-                可写
+                {t('engine.studio.pkg.writable', locale)}
               </span>
-              {/* ADR-0070 D4 — duplicate base 只对可写 base 有意义:它复制的是
-                * sys_metadata 里的行;code 包的定制走模板/市场安装,不在这里。 */}
+              {/* ADR-0070 D4 — duplicate base only makes sense for writable bases: it
+                * copies sys_metadata rows; customizing a code package goes through
+                * templates / marketplace install, not here. */}
               <button
                 type="button"
                 onClick={() => (dupFor === p.id ? setDupFor(null) : startDup(p))}
-                title="复制这个软件包为新的可写副本(Airtable 的 duplicate base)"
+                title={t('engine.studio.landing.dupTitle', locale)}
                 className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
               >
-                <Copy className="h-3 w-3" /> 复制
+                <Copy className="h-3 w-3" /> {t('engine.studio.landing.dup', locale)}
               </button>
             </div>
             {dupFor === p.id && (
@@ -163,7 +165,7 @@ export function BuilderLanding(): React.ReactElement {
                     if (e.key === 'Enter') void doDup();
                     if (e.key === 'Escape') setDupFor(null);
                   }}
-                  placeholder="副本名称"
+                  placeholder={t('engine.studio.landing.dupNamePlaceholder', locale)}
                   className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
                 />
                 <input
@@ -173,7 +175,7 @@ export function BuilderLanding(): React.ReactElement {
                     if (e.key === 'Enter') void doDup();
                     if (e.key === 'Escape') setDupFor(null);
                   }}
-                  placeholder="副本包 ID"
+                  placeholder={t('engine.studio.landing.dupIdPlaceholder', locale)}
                   className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
                 />
                 {dupErr && <p className="text-[10px] text-destructive">{dupErr}</p>}
@@ -185,14 +187,14 @@ export function BuilderLanding(): React.ReactElement {
                     className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
                   >
                     {dupBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Copy className="h-3 w-3" />}
-                    复制并进入构建器
+                    {t('engine.studio.landing.dupGo', locale)}
                   </button>
                   <button
                     type="button"
                     onClick={() => setDupFor(null)}
                     className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
                   >
-                    取消
+                    {t('engine.studio.cancel', locale)}
                   </button>
                 </div>
               </div>
@@ -217,7 +219,7 @@ export function BuilderLanding(): React.ReactElement {
                 if (e.key === 'Enter') void doCreate();
                 if (e.key === 'Escape') setCreating(false);
               }}
-              placeholder="名称(如:维修中心)"
+              placeholder={t('engine.studio.pkg.namePlaceholder', locale)}
               className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
             />
             <input
@@ -230,7 +232,7 @@ export function BuilderLanding(): React.ReactElement {
                 if (e.key === 'Enter') void doCreate();
                 if (e.key === 'Escape') setCreating(false);
               }}
-              placeholder="包 ID(如:com.example.repairs)"
+              placeholder={t('engine.studio.pkg.idPlaceholder', locale)}
               className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary"
             />
             <div className="flex items-center gap-1.5">
@@ -241,14 +243,14 @@ export function BuilderLanding(): React.ReactElement {
                 className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
               >
                 {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                创建并开始构建
+                {t('engine.studio.landing.createGo', locale)}
               </button>
               <button
                 type="button"
                 onClick={() => setCreating(false)}
                 className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
               >
-                取消
+                {t('engine.studio.cancel', locale)}
               </button>
             </div>
           </div>
@@ -258,7 +260,7 @@ export function BuilderLanding(): React.ReactElement {
             onClick={() => setCreating(true)}
             className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
           >
-            <Plus className="h-4 w-4" /> 新建软件包
+            <Plus className="h-4 w-4" /> {t('engine.studio.pkg.new', locale)}
           </button>
         )}
       </div>
@@ -266,7 +268,7 @@ export function BuilderLanding(): React.ReactElement {
       {readonly.length > 0 && (
         <>
           <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            已安装(只读 · 可浏览)
+            {t('engine.studio.landing.installedHeading', locale)}
           </h2>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {readonly.map((p) => (
@@ -282,7 +284,7 @@ export function BuilderLanding(): React.ReactElement {
                   <span className="block truncate font-mono text-[10px] text-muted-foreground">{p.id}</span>
                 </span>
                 <span className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-300">
-                  <Lock className="h-2.5 w-2.5" /> 只读
+                  <Lock className="h-2.5 w-2.5" /> {t('engine.studio.pkg.readonly', locale)}
                 </span>
               </button>
             ))}

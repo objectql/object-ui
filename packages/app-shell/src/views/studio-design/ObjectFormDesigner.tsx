@@ -51,6 +51,7 @@ import {
   type FieldEntry,
   type FieldsView,
 } from '../metadata-admin/previews/object-fields-io';
+import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 
 const UNGROUPED = '__ungrouped__';
 const cid = (key: string) => `g:${key}`; // container (section) droppable id
@@ -77,6 +78,7 @@ export interface ObjectFormDesignerProps {
 
 /** A faithful, non-interactive preview of a field's control (by type). */
 function FieldControlPreview({ type }: { type: string }): React.ReactElement {
+  const locale = useMetadataLocale();
   const box = 'mt-1 flex items-center rounded-md border bg-muted/30 px-2 text-[11px] text-muted-foreground';
   switch (type) {
     case 'select':
@@ -87,7 +89,7 @@ function FieldControlPreview({ type }: { type: string }): React.ReactElement {
     case 'multiselect':
       return (
         <div className={`${box} h-7 justify-between`}>
-          <span>{type === 'lookup' || type === 'reference' || type === 'user' ? '搜索…' : '请选择…'}</span>
+          <span>{type === 'lookup' || type === 'reference' || type === 'user' ? t('engine.studio.designer.search', locale) : t('engine.studio.designer.select', locale)}</span>
           <span>▾</span>
         </div>
       );
@@ -112,7 +114,7 @@ function FieldControlPreview({ type }: { type: string }): React.ReactElement {
     case 'date':
     case 'datetime':
     case 'time':
-      return <div className={`${box} h-7`}>选择日期…</div>;
+      return <div className={`${box} h-7`}>{t('engine.studio.designer.pickDate', locale)}</div>;
     default:
       return <div className={`${box} h-7`}>&nbsp;</div>;
   }
@@ -128,6 +130,7 @@ function SortableField({
   selected: boolean;
   onSelect: () => void;
 }): React.ReactElement {
+  const locale = useMetadataLocale();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: fid(entry.name) });
   const type = String(entry.def.type ?? 'text');
   const label = String(entry.def.label ?? entry.name);
@@ -139,7 +142,7 @@ function SortableField({
       onClick={onSelect}
       {...attributes}
       {...listeners}
-      aria-label={`${label} — 点选改属性,拖动排序`}
+      aria-label={tFormat('engine.studio.designer.fieldAria', locale, { label })}
       className={
         'group relative flex cursor-grab touch-none select-none items-start gap-1.5 rounded-md border bg-background px-2 py-2 active:cursor-grabbing ' +
         (selected ? 'ring-2 ring-primary' : 'hover:border-foreground/25') +
@@ -191,6 +194,7 @@ function Section({
   onMove: (dir: -1 | 1) => void;
   readOnly?: boolean;
 }): React.ReactElement {
+  const locale = useMetadataLocale();
   const { setNodeRef, isOver } = useDroppable({ id: containerId });
   return (
     <div className={'rounded-lg border ' + (isOver ? 'border-primary bg-primary/5' : 'bg-muted/20')}>
@@ -213,7 +217,7 @@ function Section({
               type="button"
               disabled={!canMoveUp}
               onClick={() => onMove(-1)}
-              aria-label="上移分组"
+              aria-label={t('engine.studio.designer.groupUp', locale)}
               className="rounded p-0.5 text-muted-foreground hover:bg-muted disabled:opacity-30"
             >
               <ChevronUp className="h-3.5 w-3.5" />
@@ -222,7 +226,7 @@ function Section({
               type="button"
               disabled={!canMoveDown}
               onClick={() => onMove(1)}
-              aria-label="下移分组"
+              aria-label={t('engine.studio.designer.groupDown', locale)}
               className="rounded p-0.5 text-muted-foreground hover:bg-muted disabled:opacity-30"
             >
               <ChevronDown className="h-3.5 w-3.5" />
@@ -230,8 +234,8 @@ function Section({
             <button
               type="button"
               onClick={onDelete}
-              aria-label="删除分组"
-              title="删除分组(字段归为未分组)"
+              aria-label={t('engine.studio.designer.groupDelete', locale)}
+              title={t('engine.studio.designer.groupDeleteTitle', locale)}
               className="rounded p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -243,7 +247,7 @@ function Section({
         <div ref={setNodeRef} className="grid min-h-[52px] grid-cols-2 gap-2 p-2.5">
           {fieldIds.length === 0 && (
             <div className="col-span-2 flex items-center justify-center rounded-md border border-dashed py-3 text-[11px] text-muted-foreground">
-              拖字段到这里
+              {t('engine.studio.designer.dropHere', locale)}
             </div>
           )}
           {fieldIds.map((id) => {
@@ -274,6 +278,7 @@ export function ObjectFormDesigner({
   onAddField,
   readOnly = false,
 }: ObjectFormDesignerProps): React.ReactElement {
+  const locale = useMetadataLocale();
   const view = React.useMemo(() => readFields(draft.fields), [draft.fields]);
   const groups = React.useMemo(() => readGroups(draft.fieldGroups), [draft.fieldGroups]);
   const entryByName = React.useMemo(() => new Map(view.entries.map((e) => [e.name, e] as const)), [view]);
@@ -283,9 +288,9 @@ export function ObjectFormDesigner({
   const labelOf = React.useMemo(() => {
     const m = new Map<string, string>();
     for (const g of groups) m.set(cid(g.key), g.label || g.key);
-    m.set(cid(UNGROUPED), '未分组');
+    m.set(cid(UNGROUPED), t('engine.studio.designer.ungrouped', locale));
     return m;
-  }, [groups]);
+  }, [groups, locale]);
 
   // Derive container → ordered field ids from the draft (editable fields only;
   // system/audit fields are preserved on write but never shown in the layout).
@@ -407,7 +412,7 @@ export function ObjectFormDesigner({
     commit(next);
   };
 
-  const addSection = () => onChange({ fieldGroups: addGroup(groups, '新分组') });
+  const addSection = () => onChange({ fieldGroups: addGroup(groups, t('engine.studio.designer.newGroup', locale)) });
   const renameSection = (key: string, label: string) => onChange({ fieldGroups: renameGroup(groups, key, label) });
   const moveSection = (key: string, dir: -1 | 1) => onChange({ fieldGroups: moveGroup(groups, key, dir) });
   const deleteSection = (key: string) =>
@@ -419,7 +424,7 @@ export function ObjectFormDesigner({
     <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background p-4">
       <div className="mb-3 flex items-center gap-2">
         <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Rows3 className="h-3.5 w-3.5" /> 拖动字段排序 / 拖到其它分组 · 点选字段改属性
+          <Rows3 className="h-3.5 w-3.5" /> {t('engine.studio.designer.hint', locale)}
         </span>
         {!readOnly && (
           <>
@@ -428,14 +433,14 @@ export function ObjectFormDesigner({
               onClick={addSection}
               className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <Plus className="h-3.5 w-3.5" /> 添加分组
+              <Plus className="h-3.5 w-3.5" /> {t('engine.studio.designer.addGroup', locale)}
             </button>
             <button
               type="button"
               onClick={onAddField}
               className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <Plus className="h-3.5 w-3.5" /> 添加字段
+              <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.addField', locale)}
             </button>
           </>
         )}
@@ -459,7 +464,7 @@ export function ObjectFormDesigner({
               <Section
                 key={c}
                 containerId={c}
-                title={labelOf.get(c) ?? '未分组'}
+                title={labelOf.get(c) ?? t('engine.studio.designer.ungrouped', locale)}
                 fieldIds={items[c] ?? []}
                 isDeclared={!isUngrouped}
                 canMoveUp={declaredIdx > 0}

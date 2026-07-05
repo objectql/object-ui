@@ -25,7 +25,7 @@ import React from 'react';
 import { Settings2, Sparkles, X } from 'lucide-react';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
 import { readFields } from '../metadata-admin/previews/object-fields-io';
-import type { SupportedLocale } from '../metadata-admin/i18n';
+import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n';
 
 export function ObjectSettingsPanel({
   name,
@@ -60,7 +60,7 @@ export function ObjectSettingsPanel({
       <section className="rounded-lg border">
         <header className="flex items-center gap-2 border-b px-3 py-2">
           <Settings2 className="h-3.5 w-3.5" />
-          <span className="text-[13px] font-medium">基础信息</span>
+          <span className="text-[13px] font-medium">{t('engine.studio.settings.basics', locale)}</span>
         </header>
         <div className="max-w-xl p-3">
           {DefaultInspector ? (
@@ -73,7 +73,7 @@ export function ObjectSettingsPanel({
               locale={locale}
             />
           ) : (
-            <p className="text-[12px] text-muted-foreground">未注册对象默认检查器。</p>
+            <p className="text-[12px] text-muted-foreground">{t('engine.studio.settings.noInspector', locale)}</p>
           )}
         </div>
       </section>
@@ -81,16 +81,16 @@ export function ObjectSettingsPanel({
       <section className="rounded-lg border">
         <header className="flex items-center gap-2 border-b px-3 py-2">
           <Sparkles className="h-3.5 w-3.5" />
-          <span className="text-[13px] font-medium">语义角色</span>
+          <span className="text-[13px] font-medium">{t('engine.studio.settings.semanticRoles', locale)}</span>
           <span className="text-[11px] text-muted-foreground">
-            跨表单 / 列表 / 详情统一生效(ADR-0085)
+            {t('engine.studio.settings.semanticHint', locale)}
           </span>
         </header>
         <div className="grid max-w-xl gap-4 p-3">
           {/* nameField */}
           <label className="block">
             <span className="mb-1 block text-[11px] text-muted-foreground">
-              记录名称字段(nameField)—— 标题、链接、引用处显示的字段
+              {t('engine.studio.settings.nameField', locale)}
             </span>
             <select
               value={nameField}
@@ -98,7 +98,7 @@ export function ObjectSettingsPanel({
               onChange={(e) => onPatch(e.target.value ? { nameField: e.target.value } : { nameField: undefined })}
               className="w-full rounded border bg-background px-2 py-1 text-[12px]"
             >
-              <option value="">(自动推导)</option>
+              <option value="">{t('engine.studio.settings.autoDerive', locale)}</option>
               {fields.map((e) => (
                 <option key={e.name} value={e.name}>
                   {typeof e.def.label === 'string' ? `${e.def.label} (${e.name})` : e.name}
@@ -110,7 +110,7 @@ export function ObjectSettingsPanel({
           {/* stageField */}
           <label className="block">
             <span className="mb-1 block text-[11px] text-muted-foreground">
-              生命周期字段(stageField)—— 详情页顶部进度条按它的选项渲染
+              {t('engine.studio.settings.stageField', locale)}
             </span>
             <select
               value={stageField === false ? '__none__' : (stageField ?? '')}
@@ -121,8 +121,8 @@ export function ObjectSettingsPanel({
               }}
               className="w-full rounded border bg-background px-2 py-1 text-[12px]"
             >
-              <option value="">(自动探测 status/stage 等字段名)</option>
-              <option value="__none__">无 —— 这个对象没有线性流程,不显示进度条</option>
+              <option value="">{t('engine.studio.settings.autoDetect', locale)}</option>
+              <option value="__none__">{t('engine.studio.settings.stageNone', locale)}</option>
               {selectFields.map((e) => (
                 <option key={e.name} value={e.name}>
                   {typeof e.def.label === 'string' ? `${e.def.label} (${e.name})` : e.name}
@@ -134,7 +134,7 @@ export function ObjectSettingsPanel({
           {/* highlightFields */}
           <div>
             <span className="mb-1 block text-[11px] text-muted-foreground">
-              重点字段(highlightFields)—— 默认列表列、卡片、详情顶栏取前 4;顺序即展示顺序
+              {t('engine.studio.settings.highlightFields', locale)}
             </span>
             <div className="flex flex-wrap items-center gap-1.5">
               {highlightFields.map((f) => (
@@ -146,7 +146,7 @@ export function ObjectSettingsPanel({
                   {!disabled && (
                     <button
                       type="button"
-                      aria-label={`移除 ${f}`}
+                      aria-label={tFormat('engine.studio.settings.removeField', locale, { field: f })}
                       onClick={() => onPatch({ highlightFields: highlightFields.filter((x) => x !== f) })}
                       className="rounded-full hover:bg-primary/20"
                     >
@@ -164,7 +164,7 @@ export function ObjectSettingsPanel({
                   }}
                   className="rounded border bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground"
                 >
-                  <option value="">+ 添加字段…</option>
+                  <option value="">{t('engine.studio.settings.addFieldOption', locale)}</option>
                   {highlightCandidates.map((e) => (
                     <option key={e.name} value={e.name}>
                       {typeof e.def.label === 'string' ? `${e.def.label} (${e.name})` : e.name}
@@ -173,7 +173,7 @@ export function ObjectSettingsPanel({
                 </select>
               )}
               {highlightFields.length === 0 && (
-                <span className="text-[11px] text-muted-foreground">(未声明 —— 各处按启发式自动挑选)</span>
+                <span className="text-[11px] text-muted-foreground">{t('engine.studio.settings.undeclared', locale)}</span>
               )}
             </div>
           </div>
