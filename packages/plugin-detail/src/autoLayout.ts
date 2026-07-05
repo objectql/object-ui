@@ -15,13 +15,16 @@
  *
  * Priority: User configuration > Auto-layout inference
  *
- * Column rules for detail views (wider thresholds than forms):
- * - 0-3 fields  → 1 column
- * - 4+ fields   → 2 columns
+ * Column rules mirror the entry form's `inferColumns` so a record reads at the
+ * same width in view and edit (objectui#2578 "多列显示"):
+ * - 0-3 fields   → 1 column
+ * - 4-8 fields   → 2 columns
+ * - 9-15 fields  → 3 columns
+ * - 16+ fields   → 4 columns
  *
- * Note: 3 columns was previously emitted for 11+ fields but produced
- * very sparse rows on typical desktop widths (~30% cell fill rate).
- * Capped at 2 for a denser, more legible grid.
+ * This is the UPPER BOUND; the grid's responsive breakpoints clamp it to the
+ * real container width at render, so a heavy record does not render 4 sparse
+ * columns on a narrow viewport.
  */
 
 import type { DetailViewField } from '@object-ui/types';
@@ -51,18 +54,27 @@ export function isWideFieldType(type: string): boolean {
  * Infer optimal number of columns for a detail section based on field count.
  * When containerWidth is provided, limits columns for narrower viewports.
  *
- * Rules (field-count based):
- * - 0-3 fields → 1 column
- * - 4+ fields  → 2 columns
+ * Rules (field-count based, aligned with the form):
+ * - 0-3 fields   → 1 column
+ * - 4-8 fields   → 2 columns
+ * - 9-15 fields  → 3 columns
+ * - 16+ fields   → 4 columns
  *
  * Responsive capping (when containerWidth is supplied):
  * - containerWidth < 640px → max 1 column
- * - containerWidth >= 640px → no cap (max is already 2)
  */
 export function inferDetailColumns(fieldCount: number, containerWidth?: number): number {
+  // Density scale — the UPPER BOUND, identical to the entry form's
+  // `inferColumns` (plugin-form) so a record reads at the same width in view
+  // and edit (objectui#2578 "多列显示"). The detail path previously
+  // hard-capped at 2, which is why field-heavy records showed 2 columns in
+  // detail but 4 in the form. The grid's breakpoints clamp this to the real
+  // width at render.
   let cols: number;
   if (fieldCount <= 3) cols = 1;
-  else cols = 2;
+  else if (fieldCount <= 8) cols = 2;
+  else if (fieldCount <= 15) cols = 3;
+  else cols = 4;
 
   // Apply responsive capping when container width is known
   if (containerWidth !== undefined) {

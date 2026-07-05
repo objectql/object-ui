@@ -37,7 +37,11 @@ import { useSafeFieldLabel } from '@object-ui/react';
  *
  * For columns=1: no span class (always single column)
  * For columns=2: md:col-span-{min(span,2)}
- * For columns>=3: md:col-span-{min(span,2)} lg:col-span-{min(span,3)}
+ * For columns=3: md:col-span-{min(span,2)} lg:col-span-{min(span,3)}
+ * For columns>=4: …lg:col-span-{min(span,3)} xl:col-span-{min(span,4)}
+ *
+ * Mirrors the grid's breakpoint ladder (md→2, lg→3, xl→4) so a wide field
+ * never spans more cells than exist at any breakpoint (objectui#2578).
  */
 export function getResponsiveSpanClass(span: number | undefined, columns: number): string {
   if (!span || span <= 1 || columns <= 1) return '';
@@ -46,9 +50,16 @@ export function getResponsiveSpanClass(span: number | undefined, columns: number
     return span >= 2 ? 'md:col-span-2' : '';
   }
 
-  // columns >= 3: grid-cols-1 md:grid-cols-2 lg:grid-cols-3
+  if (columns === 3) {
+    if (span === 2) return 'md:col-span-2';
+    if (span >= 3) return 'md:col-span-2 lg:col-span-3';
+    return '';
+  }
+
+  // columns >= 4: grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4
   if (span === 2) return 'md:col-span-2';
-  if (span >= 3) return 'md:col-span-2 lg:col-span-3';
+  if (span === 3) return 'md:col-span-2 lg:col-span-3';
+  if (span >= 4) return 'md:col-span-2 lg:col-span-3 xl:col-span-4';
 
   return '';
 }
@@ -172,10 +183,14 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   if (visibleFields.length === 0 && emptyCount === section.fields.length) return null;
 
   // Apply auto-layout: infer columns and auto-span wide fields
-  const { fields: layoutFields, columns: effectiveColumns } = applyDetailAutoLayout(
+  const { fields: layoutFields, columns: rawColumns } = applyDetailAutoLayout(
     visibleFields,
     section.columns
   );
+  // Never render more columns than there are visible fields — the object-wide
+  // column count (objectui#2578) can exceed a section's visible count when
+  // empty fields are hidden; a lone field shouldn't sit at 1/N width.
+  const effectiveColumns = Math.min(rawColumns, Math.max(1, visibleFields.length));
 
   const renderField = (field: DetailViewField) => {
     const value = data?.[field.name] ?? field.value;
@@ -265,8 +280,12 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     }
 
     // Default field rendering with copy button and touch-friendly targets
+    // min-w-0: a grid item defaults to min-width:auto, so a long unbreakable
+    // value (raw JSON, a GPS pair, a URL) sets the track's min width and
+    // overflows into the neighbouring cell — visible once columns narrow
+    // (objectui#2578). Allowing the item to shrink lets the value wrap.
     return (
-      <div key={field.name} className={cn("space-y-1.5 group", spanClass)}>
+      <div key={field.name} className={cn("space-y-1.5 group min-w-0", spanClass)}>
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {fieldLabel(objectName || '', field.name, field.label || field.name)}
         </div>
@@ -374,7 +393,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
           role={canCopy ? "button" : undefined}
           tabIndex={canCopy ? 0 : undefined}
         >
-          <div className="text-sm flex-1 break-words py-1">
+          <div className="text-sm flex-1 min-w-0 break-words py-1">
             {displayValue}
           </div>
           {canCopy && (
@@ -450,7 +469,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
             effectiveColumns === 1 ? "grid-cols-1" :
             effectiveColumns === 2 ? "grid-cols-1 md:grid-cols-2" :
             effectiveColumns === 3 ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" :
-            "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+            "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
           )}
         >
           {renderedFields.map(renderField)}

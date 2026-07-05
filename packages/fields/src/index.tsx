@@ -1450,7 +1450,13 @@ export function JsonCellRenderer({ value }: CellRendererProps): React.ReactEleme
   } else {
     text = String(value);
   }
-  return <span className="font-mono text-xs text-gray-600 truncate" title={text}>{text}</span>;
+  // inline-block + max-w-full so `truncate` (overflow-hidden/ellipsis/nowrap)
+  // actually clamps to the cell width. On a bare inline <span> truncate never
+  // clips — there is no width box — and its `white-space:nowrap` also defeats
+  // the parent cell's `break-words`, so a long name-keyed map / address JSON
+  // spills into the neighbouring column (objectui#2578). The title keeps the
+  // full value on hover.
+  return <span className="block max-w-full font-mono text-xs text-gray-600 truncate" title={text}>{text}</span>;
 }
 
 /**

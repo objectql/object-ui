@@ -24,6 +24,7 @@
  */
 
 import { deriveFieldGroupLayout } from '@objectstack/spec/data';
+import { inferDetailColumns } from '../autoLayout';
 
 /** Minimal shape of an object definition we read here. We deliberately
  *  duck-type so this helper has zero hard dependency on a specific
@@ -451,6 +452,16 @@ export function deriveFieldGroupDetailSections(
     };
   };
 
+  // Column count is derived ONCE from the object's TOTAL detail-field count and
+  // applied to every section — mirroring the entry form (plugin-form's
+  // `derivedSections` uses `inferColumns(totalFieldCount)` uniformly), so a
+  // record reads at the same width in view and edit (objectui#2578). Without
+  // this each section re-inferred from its OWN field count, so a 15-field group
+  // showed 3 columns in detail while the form showed 4. The grid's CSS
+  // breakpoints still clamp to the real rendered width.
+  const totalFields = derived.reduce((n, s) => n + s.fields.length, 0);
+  const columns = inferDetailColumns(totalFields);
+
   // Untitled trailing bucket: omitting `name`/`title` keeps the section flat
   // (record-details defaults showBorder to false for untitled sections)
   // instead of surfacing an internal key as a header.
@@ -458,6 +469,7 @@ export function deriveFieldGroupDetailSections(
     ...(s.key !== undefined ? { name: s.key, title: s.label ?? s.key } : {}),
     ...(s.collapse !== 'none' ? { collapsible: true } : {}),
     ...(s.collapse === 'collapsed' ? { defaultCollapsed: true } : {}),
+    columns,
     fields: s.fields.map(toField),
   }));
 }
