@@ -195,3 +195,60 @@ describe('ObjectFieldInspector — lookup picker config', () => {
     expect(screen.getByDisplayValue('active')).toBeInTheDocument();
   });
 });
+
+describe('ObjectFieldInspector — API name derives from label while auto-named', () => {
+  it('derives from a generic field_N auto name (Data pillar "+ Add field")', () => {
+    const { onPatch, onSelectionChange } = renderField(
+      { field_2: { type: 'text', label: 'New field' } },
+      'field_2',
+    );
+    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
+    const patch = onPatch.mock.calls.at(-1)![0];
+    expect(Object.keys(patch.fields)).toContain('status');
+    expect(Object.keys(patch.fields)).not.toContain('field_2');
+    expect(onSelectionChange).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'field', id: 'status' }),
+    );
+  });
+
+  it('derives from a type-based auto name (canvas add)', () => {
+    const { onPatch } = renderField(
+      { text_2: { type: 'text', label: 'New field' }, name: { type: 'text' } },
+      'text_2',
+    );
+    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: 'Serial No' } });
+    const patch = onPatch.mock.calls.at(-1)![0];
+    expect(Object.keys(patch.fields)).toContain('serial_no');
+    expect(Object.keys(patch.fields)).not.toContain('text_2');
+  });
+
+  it('does NOT rename once the user customised the API name', () => {
+    const { onPatch } = renderField(
+      { my_field: { type: 'text', label: 'New field' } },
+      'my_field',
+    );
+    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
+    const renamed = onPatch.mock.calls.some((c) => Object.keys(c[0].fields ?? {}).includes('status'));
+    expect(renamed).toBe(false);
+  });
+
+  it('keeps the unique auto name for a CJK-only label (slugify yields nothing)', () => {
+    const { onPatch } = renderField(
+      { field_2: { type: 'text', label: 'New field' } },
+      'field_2',
+    );
+    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: '状态' } });
+    const renamed = onPatch.mock.calls.some((c) => !Object.keys(c[0].fields ?? {}).includes('field_2'));
+    expect(renamed).toBe(false);
+  });
+
+  it('does not steal an existing sibling name on collision', () => {
+    const { onPatch } = renderField(
+      { status: { type: 'select' }, field_2: { type: 'text', label: 'New field' } },
+      'field_2',
+    );
+    fireEvent.blur(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
+    const stolen = onPatch.mock.calls.some((c) => !Object.keys(c[0].fields ?? {}).includes('field_2'));
+    expect(stolen).toBe(false);
+  });
+});

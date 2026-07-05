@@ -200,12 +200,16 @@ export function ObjectFieldInspector({
   // name is still an auto-generated default and the user hasn't customised it.
   // Mirrors the object Name behaviour; slugify() returns '' for non-Latin
   // labels, in which case the unique default name is kept.
+  // Auto-generated defaults come in two shapes: type-based (`status`,
+  // `text_2` — ObjectFormCanvas) and generic (`field_2` — the Data pillar's
+  // "+ Add field"); both must stay derivable or the generic one locks the
+  // record's data column to a meaningless `field_N` forever.
   const maybeDeriveName = (label: string) => {
     if (readOnly) return;
     const base = type === 'select' ? 'status' : type;
-    const isAutoName =
-      entry.name === base ||
-      (entry.name.startsWith(`${base}_`) && /^\d+$/.test(entry.name.slice(base.length + 1)));
+    const isAuto = (n: string, b: string) =>
+      n === b || (n.startsWith(`${b}_`) && /^\d+$/.test(n.slice(b.length + 1)));
+    const isAutoName = isAuto(entry.name, base) || isAuto(entry.name, 'field');
     if (!isAutoName) return;
     const derived = slugify(label);
     if (!derived || derived === entry.name) return;
