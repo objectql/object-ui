@@ -70,7 +70,7 @@ import { detectLocale, t, tFormat } from './i18n';
 /* Types + API                                                                 */
 /* -------------------------------------------------------------------------- */
 
-interface PackageManifest {
+export interface PackageManifest {
   id: string;
   name?: string;
   version?: string;
@@ -79,7 +79,7 @@ interface PackageManifest {
   description?: string;
 }
 
-interface InstalledPackage {
+export interface InstalledPackage {
   manifest: PackageManifest;
   status?: string;
   enabled?: boolean;
@@ -307,7 +307,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
-function PackageDetailSheet({
+export function PackageDetailSheet({
   pkg,
   appBase,
   open,
@@ -315,7 +315,10 @@ function PackageDetailSheet({
   onChanged,
 }: {
   pkg: InstalledPackage | null;
-  appBase: string;
+  /** Base for metadata-browse / draft-review links. Omit (e.g. in Studio, which
+   *  has no console app context) to hide those links; every lifecycle action
+   *  still works without it. */
+  appBase?: string;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onChanged: () => void;
@@ -583,16 +586,19 @@ function PackageDetailSheet({
           )}
         </div>
 
-        <Separator className="my-4" />
-
-        <Link
-          to={`${appBase}/metadata/object?package=${encodeURIComponent(id)}`}
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-          onClick={() => onOpenChange(false)}
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-          {t('engine.packages.detail.browseMetadata', locale)}
-        </Link>
+        {appBase && (
+          <>
+            <Separator className="my-4" />
+            <Link
+              to={`${appBase}/metadata/object?package=${encodeURIComponent(id)}`}
+              className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+              onClick={() => onOpenChange(false)}
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {t('engine.packages.detail.browseMetadata', locale)}
+            </Link>
+          </>
+        )}
 
         {drafts && drafts.length > 0 && (
           <>
@@ -622,20 +628,29 @@ function PackageDetailSheet({
                 </div>
               )}
               <ul className="space-y-1">
-                {drafts.map((d) => (
-                  <li key={`${d.type}/${d.name}`}>
-                    <Link
-                      to={`${appBase}/metadata/${encodeURIComponent(d.type)}/${encodeURIComponent(d.name)}?review=1`}
-                      className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-                      onClick={() => onOpenChange(false)}
-                    >
-                      <FileUp className="h-3.5 w-3.5" />
+                {drafts.map((d) =>
+                  appBase ? (
+                    <li key={`${d.type}/${d.name}`}>
+                      <Link
+                        to={`${appBase}/metadata/${encodeURIComponent(d.type)}/${encodeURIComponent(d.name)}?review=1`}
+                        className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                        onClick={() => onOpenChange(false)}
+                      >
+                        <FileUp className="h-3.5 w-3.5" />
+                        <span className="font-mono text-xs">{d.type}</span>
+                        <span className="text-muted-foreground">·</span>
+                        {d.name}
+                      </Link>
+                    </li>
+                  ) : (
+                    <li key={`${d.type}/${d.name}`} className="inline-flex items-center gap-1.5 text-sm">
+                      <FileUp className="h-3.5 w-3.5 text-muted-foreground" />
                       <span className="font-mono text-xs">{d.type}</span>
                       <span className="text-muted-foreground">·</span>
                       {d.name}
-                    </Link>
-                  </li>
-                ))}
+                    </li>
+                  ),
+                )}
               </ul>
             </div>
           </>

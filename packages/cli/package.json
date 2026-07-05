@@ -1,6 +1,6 @@
 {
   "name": "@object-ui/cli",
-  "version": "11.5.0",
+  "version": "12.0.0",
   "description": "Standalone CLI for Object UI — scaffold, develop, build and validate JSON/YAML schema-driven applications.",
   "type": "module",
   "homepage": "https://www.objectui.org/docs/utilities/cli",

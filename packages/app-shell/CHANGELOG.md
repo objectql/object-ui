@@ -1,5 +1,61 @@
 # @object-ui/app-shell — Changelog
 
+## 12.0.0
+
+### Minor Changes
+
+- 68e2d1c: Studio UX audit fixes (objectui#2285) — browser walkthrough of the Studio design surface surfaced one rendering bug and several dead-space/discoverability issues; all fixed and re-verified end to end:
+
+  - **Bug — mobile card view showed `[object Object]` for lookup fields.** `ObjectGrid`'s narrow-viewport card layout dumped raw field values through `String(value)` instead of reusing the type-aware cell renderer the desktop table already used; a lookup's expanded object (`{ id, name }`) rendered as the literal string. Now routed through the shared `coerceToSafeValue` helper (newly exported from `@object-ui/fields`, alongside `pickRecordDisplayName`) and a hoisted `renderRecordDetail`, matching the desktop path.
+  - **Studio has no responsive/mobile layout.** Below the mobile breakpoint, each pillar's rail (Objects / Flows / Nav tree / Permission sets) now collapses into a toggleable overlay drawer instead of permanently squeezing the canvas into ~190px, and the top pillar-tab bar scrolls horizontally instead of clipping Automations/Interfaces/Access off-screen.
+  - **Records tab / Automations canvas had a dead space band.** `ObjectView`'s built-in "+ New" toolbar row (a separate, mostly-empty flex row above the grid) is now folded into the grid's own toolbar via a new optional `onAddRecord` passthrough on `renderListView`; the Automations canvas container now sizes to the pillar's full height instead of its own intrinsic content height.
+  - **Automations "fit view" never actually zoomed in.** `fitToView`'s zoom calculation was hard-capped at 100%, so small (2-4 node) flows stayed stranded in a corner of a mostly-blank canvas even after fitting. Removed the artificial cap (now bounded only by the existing `MAX_ZOOM`) and auto-fit once on mount so opening a flow starts appropriately zoomed instead of a fixed 100%/pan-0,0 default.
+  - **Validations tab didn't default-select the first rule**, unlike the Access pillar's Permission Set list — now consistent.
+  - **HTML/React "source" pages left the Properties panel permanently empty** (no selectable block exists for raw JSX/HTML pages). It now shows a contextual message pointing at the source editor instead of the generic "click a block" empty state.
+  - **Permission matrix column headers (C/R/U/D/Tr/Re/Pu/VA/MA) had no visible legend** — added one above the matrix (the header cells' native tooltips stay as-is).
+  - **App Builder landing page** widened and given the same icon-badge treatment as Home's app cards, with a 3-column grid on wide screens instead of a narrow fixed-width column stranded in the corner of the viewport.
+
+### Patch Changes
+
+- 77a0953: Consolidate the record-surface mirror onto `@objectstack/spec/data` (objectui#2269 debt paydown).
+
+  `plugin-view/src/recordSurface.ts` re-exports `deriveRecordSurface` / `deriveRecordFlowSurface` / `countAuthorableFields` / `RECORD_SURFACE_PAGE_THRESHOLD` + types from `@objectstack/spec/data` instead of carrying a hand-kept copy — the local mirror only existed because objectui pinned a spec (`^11.7`) predating those exports, and the pin is now `^12.2`. The objectui-local overlay-size helpers (`deriveOverlaySize` / `overlayWidthFor` / `OverlaySize`, a renderer width concern the protocol doesn't own) stay local but reuse spec's `countAuthorableFields`. `RecordSurface` widens to spec's `'page' | 'modal' | 'drawer'` (the heuristic still only emits page/drawer); `resolvePostCreateTarget`'s `surface` param accepts the wider type and treats `'modal'` like a drawer. Behavior is unchanged (mirror unit tests pass verbatim against the re-exported functions); console production build resolves the subpath import.
+
+- 821500f: Studio source-code editors fall back to the textarea instantly when Monaco can't load (offline / air-gapped / CSP).
+
+  The metadata designer's code surfaces — the JSON **Source** tab (`JsonSourceEditor`) and the `kind:'html'`/`kind:'react'` page editor (`SourcePageEditor`) — lazy-load Monaco from a public CDN (jsdelivr). On installs that block it (the console is meant to embed in any ObjectStack server, many shipping a strict CSP), the loader script fails and the panel sat on Monaco's own "Loading…" for a hard-coded 4 seconds before the textarea fallback engaged. A new shared `useMonacoFallback` hook now watches `loader.init()` and flips to the textarea the moment the CDN load rejects (~immediately), keeping the previous `.view-line` DOM-poll as a backstop for the "resolved but painted nothing" case. On working networks Monaco still loads normally. This also makes the Studio Interfaces pillar's "edit it directly in the code panel on the left" hint (added in #2285) actually point at a populated editor instead of a stuck spinner.
+
+- Updated dependencies [226fde9]
+- Updated dependencies [77a0953]
+- Updated dependencies [e36a9c7]
+- Updated dependencies [e4de456]
+- Updated dependencies [68e2d1c]
+  - @object-ui/types@12.0.0
+  - @object-ui/core@12.0.0
+  - @object-ui/components@12.0.0
+  - @object-ui/fields@12.0.0
+  - @object-ui/plugin-view@12.0.0
+  - @object-ui/plugin-detail@12.0.0
+  - @object-ui/plugin-form@12.0.0
+  - @object-ui/plugin-grid@12.0.0
+  - @object-ui/auth@12.0.0
+  - @object-ui/collaboration@12.0.0
+  - @object-ui/data-objectstack@12.0.0
+  - @object-ui/layout@12.0.0
+  - @object-ui/permissions@12.0.0
+  - @object-ui/plugin-calendar@12.0.0
+  - @object-ui/plugin-charts@12.0.0
+  - @object-ui/plugin-chatbot@12.0.0
+  - @object-ui/plugin-dashboard@12.0.0
+  - @object-ui/plugin-designer@12.0.0
+  - @object-ui/plugin-editor@12.0.0
+  - @object-ui/plugin-kanban@12.0.0
+  - @object-ui/plugin-list@12.0.0
+  - @object-ui/plugin-report@12.0.0
+  - @object-ui/providers@12.0.0
+  - @object-ui/react@12.0.0
+  - @object-ui/i18n@12.0.0
+
 ## 11.5.0
 
 ### Minor Changes

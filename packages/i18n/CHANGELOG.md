@@ -1,5 +1,7 @@
 # @object-ui/i18n
 
+## 12.0.0
+
 ## 11.5.0
 
 ### Minor Changes
