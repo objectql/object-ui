@@ -90,6 +90,22 @@ export interface NavigationItem {
    */
   recordMode?: 'view' | 'edit';
 
+  /**
+   * URL filter conditions (for type: 'object') — the entry targets the
+   * parameterized bare data surface `/:objectName/data` with each entry
+   * serialized as a `filter[<field>]=<value>` search param (equality),
+   * instead of anchoring to a saved view. Use for one-off / parameterized
+   * slices ("My open tickets" without authoring a view); slices worth
+   * curating belong in a named view via `viewName`.
+   *
+   * Values support the same template variables as `recordId`
+   * (`{current_user_id}`, `{current_org_id}`); entries whose template can't
+   * be resolved are dropped from the URL.
+   *
+   * Precedence within `type: 'object'`: `recordId` → `filters` → `viewName`.
+   */
+  filters?: Record<string, string>;
+
   /** Target dashboard name (for type: 'dashboard') */
   dashboardName?: string;
 

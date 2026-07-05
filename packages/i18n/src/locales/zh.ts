@@ -1340,6 +1340,15 @@ const zh = {
       dark: '深色',
       system: '系统',
     },
+    objectData: {
+      badge: '数据',
+      description: '由 URL 定义的数据切面——不绑定任何已保存视图。',
+      filteredBy: '筛选条件',
+      removeFilter: '移除筛选 {{field}}',
+      saveAsView: '另存为视图',
+      noAccessTitle: '无访问权限',
+      noAccess: '您没有权限查看此数据。',
+    },
     objectView: {
       systemViewReadonly: '系统视图由代码定义，只读。',
       expandToPage: '以完整页面打开',

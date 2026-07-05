@@ -78,7 +78,7 @@ const SYSTEM_FIELDS = new Set([
   'deleted_at', 'deletedAt', 'created_by', 'createdBy',
   'updated_by', 'updatedBy', '_version', '_rev',
 ]);
-function defaultColumnsFromObject(objectDef: any): string[] {
+export function defaultColumnsFromObject(objectDef: any): string[] {
   const curated = objectDef?.highlightFields;
   if (Array.isArray(curated) && curated.length > 0) {
     return curated.filter((n: string) => objectDef.fields?.[n]);

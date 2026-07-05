@@ -1267,6 +1267,15 @@ const en = {
       dark: 'Dark',
       system: 'System',
     },
+    objectData: {
+      badge: 'Data',
+      description: 'URL-defined data slice — not bound to any saved view.',
+      filteredBy: 'Filtered by',
+      removeFilter: 'Remove filter {{field}}',
+      saveAsView: 'Save as view',
+      noAccessTitle: 'Access denied',
+      noAccess: 'You do not have permission to view this data.',
+    },
     objectView: {
       objectNotFound: 'Object Not Found',
       objectNotFoundDescription: 'The object "{{objectName}}" does not exist in the current configuration.',

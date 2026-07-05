@@ -19,6 +19,7 @@ Say your app has a `project` object:
 |---|---|---|
 | `{ "type": "object", "objectName": "project" }` | `/apps/my_app/project` — the object's **default view** | The full object shell: view switcher, object actions, a create button, record detail routing, search and recent-items integration |
 | `{ "type": "object", "objectName": "project", "viewName": "project.by_status" }` | `/apps/my_app/project/view/project.by_status` | The same shell, with the entry **anchored** to a named view — users can still switch |
+| `{ "type": "object", "objectName": "project", "filters": { "status": "open" } }` | `/apps/my_app/project/data?filter[status]=open` — the **bare data surface** | URL-defined conditions over everything permissions allow, bound to **no saved view**. Conditions show as removable chips; the full filter/sort/group toolbar is available; "Save as view" turns the slice into a named view |
 | `{ "type": "page", "pageName": "project_overview" }` | `/apps/my_app/page/project_overview` | Nothing but your page schema. View switching, actions, and record links must be assembled by hand |
 
 The key asymmetry: a page can imitate the other two, but it **loses the object
@@ -39,15 +40,23 @@ Use the least powerful construct that expresses the requirement:
    `project.by_status`) and anchor the entry to it. `viewName` sets the
    entry point; it does not lock the user in.
 
-3. **Create a page only for composition a single object view cannot express.**
+3. **Use `filters` for one-off or parameterized slices.**
+   A dashboard drill-through, a shared link, "records assigned to me" — put
+   the condition in the URL (`filters: { "owner_id": "{current_user_id}" }`)
+   and let it land on the bare data surface instead of authoring a view.
+   Promote the slice to a named view only when it's curated and reused.
+   Note the surface is not a security feature: it shows exactly what
+   row-level permissions already allow.
+
+4. **Create a page only for composition a single object view cannot express.**
    Multiple objects side by side or in tabs, KPI cards mixed with lists,
    onboarding or static content, parameterized pages. A page that wraps a
    single object's single view is an anti-pattern.
 
-4. **Use `dashboard` for metric/chart aggregation and `report` for tabular
+5. **Use `dashboard` for metric/chart aggregation and `report` for tabular
    analysis** — don't rebuild them as pages of chart blocks.
 
-5. **One entry per target.** Don't offer the same object through both a plain
+6. **One entry per target.** Don't offer the same object through both a plain
    entry and a page that wraps its default view. If one object needs several
    menu entries, make all of them named-view entries — mixing styles breaks
    active-state highlighting in the sidebar.
@@ -66,6 +75,7 @@ field — there is no generic `path` and no `kind`:
   "navigation": [
     { "id": "nav_projects", "type": "object", "objectName": "project", "label": "Projects" },
     { "id": "nav_by_status", "type": "object", "objectName": "project", "viewName": "project.by_status", "label": "By Status" },
+    { "id": "nav_my_open", "type": "object", "objectName": "project", "filters": { "owner_id": "{current_user_id}", "status": "open" }, "label": "My Open Projects" },
     { "id": "nav_kpis", "type": "dashboard", "dashboardName": "company_kpis", "label": "KPIs" },
     { "id": "nav_workbench", "type": "page", "pageName": "cross_object_workbench", "label": "Workbench" },
     { "id": "nav_docs", "type": "url", "url": "https://docs.example.com", "target": "_blank", "label": "Docs" }

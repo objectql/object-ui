@@ -398,6 +398,23 @@ export function resolveHref(
         // pre-render). Fall through to the list view so the link is
         // still well-formed rather than a dead `#`.
       }
+      // `filters` (#2251) targets the parameterized bare data surface
+      // (`/:objectName/data`) instead of a saved view: each entry becomes a
+      // `filter[<field>]=<value>` search param. Values pass through the same
+      // template substitution as `recordId`; entries whose template can't be
+      // resolved are dropped so the link stays well-formed. Precedence:
+      // recordId → filters → viewName.
+      const navFilters = (item as any).filters as Record<string, string> | undefined;
+      if (navFilters && typeof navFilters === 'object' && !Array.isArray(navFilters)) {
+        const usp = new URLSearchParams();
+        for (const [field, raw] of Object.entries(navFilters)) {
+          if (raw === undefined || raw === null || field === '') continue;
+          const resolved = applyNavTemplate(String(raw), templateContext);
+          if (resolved !== null) usp.set(`filter[${field}]`, resolved);
+        }
+        const qs = usp.toString();
+        return { href: qs ? `${objectPath}/data?${qs}` : `${objectPath}/data`, external: false };
+      }
       return { href: item.viewName ? `${objectPath}/view/${item.viewName}` : objectPath, external: false };
     }
     case 'dashboard':

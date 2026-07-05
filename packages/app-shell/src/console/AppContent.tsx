@@ -48,6 +48,7 @@ const ReportView = lazy(() => import('../views/ReportView').then(m => ({ default
 const SearchResultsPage = lazy(() => import('../views/SearchResultsPage').then(m => ({ default: m.SearchResultsPage })));
 const RecordFormPage = lazy(() => import('../views/RecordFormPage').then(m => ({ default: m.RecordFormPage })));
 const ComponentNavView = lazy(() => import('../views/ComponentNavView').then(m => ({ default: m.ComponentNavView })));
+const ObjectDataPage = lazy(() => import('../views/ObjectDataPage').then(m => ({ default: m.ObjectDataPage })));
 
 // Metadata admin — mounted under /apps/:app/metadata. Lives at the top
 // level so URLs read like a normal nested resource (RFC-style) instead of
@@ -559,6 +560,13 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 } />
                 <Route path=":objectName/view/:viewId" element={
                   <ObjectView dataSource={dataSource} objects={allObjects} onEdit={handleEdit} externalRefreshKey={refreshKey} />
+                } />
+                {/* #2251: parameterized bare data surface — URL `filter[...]`
+                    conditions over everything row-level security permits, NOT
+                    anchored to any saved view. `data` is a reserved segment
+                    alongside `new` / `view` / `record`. */}
+                <Route path=":objectName/data" element={
+                  <ObjectDataPage dataSource={dataSource} objects={allObjects} />
                 } />
                 <Route path=":objectName/record/:recordId" element={
                   <RecordDetailView key={refreshKey} dataSource={dataSource} objects={allObjects} onEdit={handleEdit} />
