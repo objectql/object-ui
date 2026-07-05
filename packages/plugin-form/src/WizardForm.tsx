@@ -188,6 +188,11 @@ export const WizardForm: React.FC<WizardFormProps> = ({
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
+  // Terminal state for `submitBehavior: { kind: 'thank-you' | 'next-record' }`.
+  // Without this the last step's form stayed mounted and fully filled after a
+  // successful create, with nothing disabling "Create" — a second click fired
+  // a second create request (duplicate record).
+  const [submitted, setSubmitted] = useState<{ title?: string; message?: string } | null>(null);
 
   // Stable id for the *inner* step form's <form> element. The wizard's
   // Next/Create buttons live in the footer, OUTSIDE that form, and submit it
@@ -325,13 +330,16 @@ export const WizardForm: React.FC<WizardFormProps> = ({
               break;
             case 'next-record':
             case 'thank-you':
-            default:
-              toast.success(
-                behavior.kind === 'thank-you' && behavior.message
-                  ? behavior.message
-                  : schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'),
-              );
+            default: {
+              const message = behavior.kind === 'thank-you' && behavior.message
+                ? behavior.message
+                : schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved');
+              toast.success(message);
+              // Replace the (still fully filled) step form with a confirmation
+              // panel so there's nothing left to resubmit.
+              setSubmitted({ title: behavior.kind === 'thank-you' ? behavior.title : undefined, message });
               break;
+            }
           }
         } else {
           // Legacy declarative success behaviors for metadata-only wizards.
@@ -405,6 +413,19 @@ export const WizardForm: React.FC<WizardFormProps> = ({
       <div className="p-8 text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
         <p className="mt-2 text-sm text-gray-600">Loading form...</p>
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div className={cn('w-full', className, schema.className)}>
+        <div className="rounded-md border bg-card p-8 text-center">
+          <h3 className="text-lg font-semibold">{submitted.title ?? 'Thanks!'}</h3>
+          {submitted.message && (
+            <p className="mt-2 text-sm text-muted-foreground">{submitted.message}</p>
+          )}
+        </div>
       </div>
     );
   }

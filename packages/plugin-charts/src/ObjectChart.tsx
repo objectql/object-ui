@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useCallback, useMemo, useRef } from 'react';
 import { useDataScope, SchemaRendererContext, SchemaRenderer, useDrillNavigation } from '@object-ui/react';
 import { ChartRenderer } from './ChartRenderer';
-import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, type CompareToConfig, type DrillEvent } from '@object-ui/core';
+import { ComponentRegistry, extractRecords, computeDrillFilter, isDrillEnabled, resolveDrillTitle, resolveDateMacros, shiftFilterByCompareTo, compareToTrendLabelKey, buildChartSeries, buildOptionColorMap, buildDimensionLabelMap, relabelDimensions, type CompareToConfig, type DrillEvent, type ChartResultField } from '@object-ui/core';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle, RefreshIndicator, Button, ChartSkeleton } from '@object-ui/components';
 import { AlertCircle, ArrowUpRight } from 'lucide-react';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -244,6 +244,11 @@ export const ObjectChart = (props: any) => {
   }, [fieldOptionLabel]);
   
   const [fetchedData, setFetchedData] = useState<any[]>([]);
+  // Measure/dimension label metadata from a dataset-bound queryDataset()
+  // response (e.g. { name: 'task_count', label: 'Tasks' }) — captured so
+  // buildChartSeries() below can resolve a human series label instead of
+  // falling back to the raw field name.
+  const [datasetFields, setDatasetFields] = useState<ChartResultField[] | null>(null);
   // Start in loading state when we will fetch, so the no-data / empty branch
   // doesn't flash before the fetch effect runs and flips loading to true.
   const [loading, setLoading] = useState<boolean>(() => {
@@ -427,6 +432,7 @@ export const ObjectChart = (props: any) => {
               });
               if (mounted.current) {
                   setFetchedData(Array.isArray(res?.rows) ? res.rows : []);
+                  setDatasetFields(Array.isArray(res?.fields) ? res.fields : null);
               }
               return;
           }
@@ -621,7 +627,7 @@ export const ObjectChart = (props: any) => {
   // series from its dimensions/measures via the shared buildChartSeries helper —
   // this pivots a second dimension into grouped series, matching DatasetWidget.
   const datasetChart = schema.dataset
-    ? buildChartSeries(relabelDimensions(finalData, dimensionLabels), schema.dimensions, schema.values)
+    ? buildChartSeries(relabelDimensions(finalData, dimensionLabels), schema.dimensions, schema.values, datasetFields)
     : null;
 
   const finalSchema = datasetChart

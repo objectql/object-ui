@@ -404,6 +404,40 @@ describe('SpecBridge', () => {
       expect(comp.aria).toEqual({ label: 'Save record' });
     });
 
+    it('maps style and responsiveStyles onto the component node', () => {
+      // Regression: both fields were declared on the PageComponent input type
+      // but never copied onto the SchemaNode, so a page-authored ADR-0065
+      // `responsiveStyles` override (e.g. forcing `display: 'grid'` on a
+      // `type: 'flex'` layout node) silently never reached SchemaRenderer —
+      // the node fell back to its default layout with no way to override it.
+      const node = bridgePage(
+        {
+          regions: [
+            {
+              components: [
+                {
+                  type: 'flex',
+                  id: 'band',
+                  style: { padding: '4px' },
+                  responsiveStyles: {
+                    large: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))' },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        {},
+      );
+
+      const regions = node.body as any[];
+      const comp = regions[0].body[0];
+      expect(comp.style).toEqual({ padding: '4px' });
+      expect(comp.responsiveStyles).toEqual({
+        large: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))' },
+      });
+    });
+
     it('includes template and object when present', () => {
       const node = bridgePage(
         { template: 'two-column', object: 'Account' },

@@ -321,6 +321,11 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
   const [initialData, setInitialData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // Terminal state for `submitBehavior: { kind: 'thank-you' | 'next-record' }`
+  // — without it the form stayed mounted and fully filled after a successful
+  // submit, with nothing disabling re-submission (a second click created a
+  // second record).
+  const [submitted, setSubmitted] = useState<{ title?: string; message?: string } | null>(null);
 
   // Check if using inline fields (fields defined as objects, not just names)
   const hasInlineFields = schema.customFields && schema.customFields.length > 0;
@@ -643,13 +648,16 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
             break;
           case 'next-record':
           case 'thank-you':
-          default:
-            toast.success(
-              behavior.kind === 'thank-you' && behavior.message
-                ? behavior.message
-                : schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved'),
-            );
+          default: {
+            const message = behavior.kind === 'thank-you' && behavior.message
+              ? behavior.message
+              : schema.successMessage || (schema.mode === 'create' ? 'Created' : 'Saved');
+            toast.success(message);
+            // Replace the (still fully filled) form with a confirmation panel
+            // so there's nothing left to resubmit.
+            setSubmitted({ title: behavior.kind === 'thank-you' ? behavior.title : undefined, message });
             break;
+          }
         }
       } else if (!schema.submitHandler) {
         const nav = resolveSuccessNavigate(schema.navigateOnSuccess, result);
@@ -744,6 +752,17 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
       <div className="p-4 sm:p-8 text-center">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
         <p className="mt-2 text-sm text-gray-600">Loading form...</p>
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <div className="rounded-md border bg-card p-6 sm:p-8 text-center">
+        <h3 className="text-lg font-semibold">{submitted.title ?? 'Thanks!'}</h3>
+        {submitted.message && (
+          <p className="mt-2 text-sm text-muted-foreground">{submitted.message}</p>
+        )}
       </div>
     );
   }

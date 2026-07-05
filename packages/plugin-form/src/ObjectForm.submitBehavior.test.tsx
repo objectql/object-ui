@@ -75,6 +75,28 @@ describe('ObjectForm — submitBehavior', () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('All set!'));
   });
 
+  it('thank-you: replaces the filled form with a confirmation panel — no way to resubmit', async () => {
+    const ds = makeDS();
+    const { container, getByText } = render(
+      <ObjectForm
+        schema={{
+          type: 'object-form', objectName: 'o', mode: 'create',
+          submitBehavior: { kind: 'thank-you', title: 'Created', message: 'All set!' },
+        } as any}
+        dataSource={ds as any}
+      />,
+    );
+    fireEvent.change(await waitInput(container, 'name'), { target: { value: 'Alpha' } });
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    await waitFor(() => expect(ds.create).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(getByText('Created')).toBeTruthy());
+    // The form (with its submit button) is gone — previously it stayed
+    // mounted and fully filled, so a second click created a duplicate record.
+    expect(container.querySelector('input[name="name"]')).toBeNull();
+    expect(container.querySelector('form')).toBeNull();
+    expect(ds.create).toHaveBeenCalledTimes(1);
+  });
+
   it('continue: resets the form for another entry', async () => {
     const ds = makeDS();
     const { container } = render(

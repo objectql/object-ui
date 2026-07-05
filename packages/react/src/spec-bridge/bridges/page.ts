@@ -16,6 +16,7 @@ interface PageComponent {
   properties?: Record<string, any>;
   events?: Record<string, any>;
   style?: Record<string, any>;
+  responsiveStyles?: Record<string, any>;
   className?: string;
   visibility?: string;
   dataSource?: any;
@@ -62,6 +63,13 @@ function mapComponent(component: PageComponent): SchemaNode {
 
   if (component.label) node.label = component.label;
   if (component.className) node.className = component.className;
+  if (component.style) node.style = component.style;
+  // ADR-0065 scoped per-breakpoint styles — declared on the page-spec
+  // component (sibling of className/style) but previously dropped here
+  // before reaching SchemaRenderer, so a layout override like
+  // `{ large: { display: 'grid', gridTemplateColumns: '...' } }` never
+  // compiled to CSS and the node fell back to its default layout.
+  if (component.responsiveStyles) node.responsiveStyles = component.responsiveStyles;
   if (component.properties) {
     // Avoid overwriting the component dispatch keys (`type`/`id`) with inner
     // renderer-specific props. E.g. PageTabsProps.properties.type is the tab

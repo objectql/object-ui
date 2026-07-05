@@ -88,6 +88,28 @@ describe('WizardForm — submitBehavior', () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('All set!'));
   });
 
+  it('thank-you: replaces the filled step form with a confirmation panel — no way to resubmit', async () => {
+    const ds = makeDS();
+    const schema = {
+      type: 'object-form', formType: 'wizard', objectName: 'o', mode: 'create',
+      submitBehavior: { kind: 'thank-you', title: 'Project created', message: 'All set!' },
+      sections: [{ label: 'A', fields: ['name'] }],
+    };
+    const { container, getByText, queryByText } = render(<WizardForm schema={schema as any} dataSource={ds as any} />);
+    fireEvent.change(await waitInput(container, 'name'), { target: { value: 'Alpha' } });
+    fireEvent.submit(container.querySelector('form') as HTMLFormElement);
+    await waitFor(() => expect(ds.create).toHaveBeenCalledTimes(1));
+    // Confirmation panel renders title + message...
+    await waitFor(() => expect(getByText('Project created')).toBeTruthy());
+    expect(queryByText('All set!')).toBeTruthy();
+    // ...and the step form (with its Create button) is gone — nothing left to
+    // resubmit. Previously the form stayed mounted and fully filled, so a
+    // second click on "Create" fired a second `dataSource.create()` call.
+    expect(container.querySelector('input[name="name"]')).toBeNull();
+    expect(container.querySelector('form')).toBeNull();
+    expect(ds.create).toHaveBeenCalledTimes(1);
+  });
+
   it('continue: returns to a cleared step 1 after create (like resetOnSuccess)', async () => {
     const ds = makeDS();
     const schema = {
