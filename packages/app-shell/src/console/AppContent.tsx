@@ -26,6 +26,7 @@ import { ExpressionProvider, evaluateVisibility } from '../providers/ExpressionP
 import { useTrackRouteAsRecent } from '../hooks/useTrackRouteAsRecent';
 import { resolveRecordFormTarget, resolveFormViewLayout, resolveNavigateCreateUrl, resolveNavigateEditUrl, resolvePostCreateTarget } from '../utils/recordFormNavigation';
 import { deriveRecordSurface, deriveRecordFlowSurface } from '@object-ui/plugin-view';
+import { notifyRelatedChanged } from '../views/RelatedRecordActionsBridge';
 import { matchAppBySegment } from '../utils/appRoute';
 import { resolveHref, type NavTemplateContext } from '@object-ui/layout';
 import { ExpressionEvaluator } from '@object-ui/core';
@@ -245,10 +246,24 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // ahead in history.
   const [searchParams, setSearchParams] = useSearchParams();
   const recordFormParam = searchParams.get('form');
+  // #2604 D3 — child-task extension of the record-form URL contract:
+  // `formObject` names the object the form edits when it is NOT the route's
+  // object (a subtable child opened over its parent's detail); `formLink`
+  // ("field:id") pre-links the parent on create. Keeping the whole task in
+  // the URL means Back closes the overlay and a refresh reopens it still
+  // correctly parent-linked — no transient component state to lose.
+  const formObjectParam = searchParams.get('formObject');
+  const formLinkParam = searchParams.get('formLink');
   const editingRecord = useMemo(
     () => (recordFormParam && recordFormParam !== 'new' ? { id: recordFormParam } : null),
     [recordFormParam],
   );
+  const formLinkValues = useMemo(() => {
+    if (!formLinkParam) return undefined;
+    const i = formLinkParam.indexOf(':');
+    if (i <= 0) return undefined;
+    return { [formLinkParam.slice(0, i)]: formLinkParam.slice(i + 1) };
+  }, [formLinkParam]);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const isDialogOpen = !!recordFormParam;
@@ -259,8 +274,10 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // post-create redirect below).
   const closeRecordForm = useCallback(() => {
     const sp = new URLSearchParams(window.location.search);
-    if (!sp.has('form')) return;
+    if (!sp.has('form') && !sp.has('formObject') && !sp.has('formLink')) return;
     sp.delete('form');
+    sp.delete('formObject');
+    sp.delete('formLink');
     setSearchParams(sp, { replace: true });
   }, [setSearchParams]);
 
@@ -364,8 +381,16 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
 
   const currentObjectDef = allObjects.find((o: any) => o.name === objectNameFromPath);
 
+  // The object the record-form overlay edits: the route's object by default,
+  // or the `formObject` child override (#2604 D3 — subtable child task opened
+  // over its parent's detail).
+  const formObjectDef = formObjectParam
+    ? allObjects.find((o: any) => o.name === formObjectParam)
+    : currentObjectDef;
+  const isChildFormTask = !!formObjectParam && formObjectParam !== currentObjectDef?.name;
+
   const handleCrudSuccess = useCallback(() => {
-    const label = currentObjectDef ? objectLabel(currentObjectDef as any) : t('common.record', { defaultValue: 'Record' });
+    const label = formObjectDef ? objectLabel(formObjectDef as any) : t('common.record', { defaultValue: 'Record' });
     executeAction({
       type: 'crud_success',
       params: {
@@ -374,7 +399,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
           : t('form.createSuccess', { object: label, defaultValue: `${label} created successfully` }),
       },
     });
-  }, [executeAction, editingRecord, currentObjectDef, objectLabel, t]);
+  }, [executeAction, editingRecord, formObjectDef, objectLabel, t]);
 
   const handleDialogCancel = useCallback(() => {
     executeAction({ type: 'dialog_cancel' });
@@ -388,6 +413,20 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
   // `replace: true` swaps out the transient `?form=…` entry so Back returns
   // to the pre-create origin.
   const handleRecordFormSuccess = useCallback(async (saved: any) => {
+    // Child task (#2604 D3): the parent detail must stay EXACTLY as it was —
+    // active tab, scroll, everything. So do NOT go through crud_success (its
+    // refreshKey bump remounts the whole RecordDetailView, resetting the
+    // tab); only the child's open related lists refetch, via the
+    // related-changed event RelatedList already listens for.
+    if (isChildFormTask) {
+      if (formObjectDef) notifyRelatedChanged(formObjectDef.name);
+      const label = formObjectDef ? objectLabel(formObjectDef as any) : t('common.record', { defaultValue: 'Record' });
+      toast.success(editingRecord
+        ? t('form.updateSuccess', { object: label, defaultValue: `${label} updated successfully` })
+        : t('form.createSuccess', { object: label, defaultValue: `${label} created successfully` }));
+      closeRecordForm();
+      return;
+    }
     handleCrudSuccess();
     if (editingRecord || !currentObjectDef) return;
     const target = resolvePostCreateTarget({
@@ -399,7 +438,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
       recordId: saved?.id ?? saved?._id,
     });
     if (target.kind !== 'none') navigate(target.url, { replace: true });
-  }, [handleCrudSuccess, editingRecord, currentObjectDef, appName, activeApp?.name, location.pathname, navigate]);
+  }, [handleCrudSuccess, isChildFormTask, formObjectDef, editingRecord, currentObjectDef, appName, activeApp?.name, location.pathname, navigate, closeRecordForm, objectLabel, t]);
 
   // Track recent items on route change.
   useTrackRouteAsRecent({
@@ -427,6 +466,10 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
     const rawId = record?.id ?? record?._id;
     const sp = new URLSearchParams(window.location.search);
     sp.set('form', rawId != null && rawId !== '' ? String(rawId) : 'new');
+    // Top-level task on the route's own object — drop any stale child-task
+    // overrides (see the record-form URL contract above).
+    sp.delete('formObject');
+    sp.delete('formLink');
     setSearchParams(sp);
   };
 
@@ -650,23 +693,31 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
               </RouteFader>
             </Suspense>
           </ErrorBoundary>
-          {currentObjectDef && (
+          {formObjectDef && (
             <ModalForm
-              key={editingRecord?.id || 'new'}
+              key={`${formObjectDef.name}:${editingRecord?.id || 'new'}`}
               schema={{
                 type: 'object-form',
                 formType: 'modal',
-                objectName: currentObjectDef.name,
+                objectName: formObjectDef.name,
                 mode: editingRecord ? 'edit' : 'create',
                 recordId: editingRecord?.id,
+                // Child create task (#2604 D3): pre-link the parent from the
+                // `formLink` URL param (refresh-safe — the link survives).
+                ...(formLinkValues && !editingRecord ? { initialValues: formLinkValues } : {}),
                 // #2604 D1: create/edit follow the flow-surface derivation —
                 // field-heavy → full-screen modal (the same big canvas the
                 // detail page gets, with overlay return semantics); light
                 // objects keep the existing auto-sized modal (ModalForm
                 // infers from columns when modalSize is unset). Derived
                 // default only — anything spread later (form view layout)
-                // would win.
-                ...(deriveRecordFlowSurface(currentObjectDef, editingRecord ? 'edit' : 'create').size === 'full'
+                // would win. Child tasks size to the CHILD object's def.
+                ...(deriveRecordFlowSurface(
+                  formObjectDef,
+                  isChildFormTask
+                    ? (editingRecord ? 'child-edit' : 'child-create')
+                    : (editingRecord ? 'edit' : 'create'),
+                ).size === 'full'
                   ? { modalSize: 'full' as const }
                   : {}),
                 // Honor the object's DEFAULT FORM VIEW: curated sections (field
@@ -676,25 +727,25 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 // win over the flat `fields` list below; otherwise this resolves to
                 // {} and `fields` (every field, raw schema order) is used as before.
                 // `formType` stays 'modal' (the container). (#1890 / ADR-0050.)
-                ...resolveFormViewLayout(currentObjectDef as any),
+                ...resolveFormViewLayout(formObjectDef as any),
                 title: editingRecord
-                  ? t('form.editTitle', { object: objectLabel(currentObjectDef as any) })
-                  : t('form.createTitle', { object: objectLabel(currentObjectDef as any) }),
+                  ? t('form.editTitle', { object: objectLabel(formObjectDef as any) })
+                  : t('form.createTitle', { object: objectLabel(formObjectDef as any) }),
                 description: editingRecord
-                  ? t('form.editDescription', { object: objectLabel(currentObjectDef as any) })
-                  : t('form.createDescription', { object: objectLabel(currentObjectDef as any) }),
+                  ? t('form.editDescription', { object: objectLabel(formObjectDef as any) })
+                  : t('form.createDescription', { object: objectLabel(formObjectDef as any) }),
                 open: isDialogOpen,
                 onOpenChange: (open: boolean) => { if (!open) closeRecordForm(); },
                 layout: 'vertical',
-                fields: currentObjectDef.fields
-                  ? (Array.isArray(currentObjectDef.fields)
-                      ? currentObjectDef.fields
+                fields: formObjectDef.fields
+                  ? (Array.isArray(formObjectDef.fields)
+                      ? formObjectDef.fields
                           .filter((f: any) => {
                             if (typeof f === 'string') return true;
                             return evaluateVisibility(f.visible, expressionEvaluator);
                           })
                           .map((f: any) => typeof f === 'string' ? f : f.name)
-                      : Object.entries(currentObjectDef.fields)
+                      : Object.entries(formObjectDef.fields)
                           .filter(([_, f]: [string, any]) => evaluateVisibility(f.visible, expressionEvaluator))
                           .map(([key]: [string, any]) => key))
                   : [],

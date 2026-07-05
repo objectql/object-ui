@@ -20,11 +20,14 @@
  *                 (#2604 D3: a child task's return target is ALWAYS the parent
  *                 detail with the subtable refreshed — never a route, which
  *                 would drop the parent's scroll/tab context and refetch it).
- *                 Create pre-links the parent via
- *                 `initialValues[relationshipField] = parentId`; the overlay
- *                 sizes to the CHILD object (heavy child → full-screen modal).
- *                 On save the parent stays put and only the child's related
- *                 lists refetch (`notifyRelatedChanged`).
+ *                 Implemented by pushing the console's record-form URL params
+ *                 (`?form=…&formObject=…&formLink=…`) — the ONE global record
+ *                 form overlay in `AppContent` picks them up, pre-links the
+ *                 parent from `formLink`, sizes to the CHILD object, and on
+ *                 save stays put + refetches the child's related lists
+ *                 (`notifyRelatedChanged`). URL-driven means browser Back
+ *                 closes the overlay and a refresh reopens it STILL correctly
+ *                 parent-linked.
  *   - 删        → `dataSource.delete(child, id)` (RelatedList shows the confirm
  *                 dialog and refreshes afterwards)
  *   - 子对象 action → the child object's `list_item` actions, executed against
@@ -35,7 +38,7 @@
  * absent (e.g. the Studio designer) the related list stays read-only.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   RelatedRecordActionsProvider,
@@ -45,11 +48,7 @@ import {
   type RelatedRowActionDef,
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
-import { ModalForm } from '@object-ui/plugin-form';
-import { deriveRecordFlowSurface } from '@object-ui/plugin-view';
-import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
-import { resolveFormViewLayout } from '../utils/recordFormNavigation';
 
 /** Notify open related lists for `objectName` to refetch (see RelatedList). */
 export function notifyRelatedChanged(objectName: string): void {
@@ -88,15 +87,6 @@ function deriveRowActions(childDef: any, actionLabel: ActionLabelFn): RelatedRow
     }));
 }
 
-/** A child create/edit task opened as an overlay over the parent detail. */
-interface ChildFormTask {
-  objectName: string;
-  mode: 'create' | 'edit';
-  recordId?: string;
-  /** Create-mode parent pre-link: `{ [relationshipField]: parentId }`. */
-  initialValues?: Record<string, unknown>;
-}
-
 export function RelatedRecordActionsBridge({
   appName,
   objects,
@@ -106,56 +96,24 @@ export function RelatedRecordActionsBridge({
 }: RelatedRecordActionsBridgeProps) {
   const navigate = useNavigate();
   const { execute } = useAction();
-  const { t } = useObjectTranslation();
-  const { objectLabel } = useObjectLabel();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [, setSearchParams] = useSearchParams();
   const base = appName ? `/apps/${appName}` : '';
 
-  // #2604 D3 — the child form overlay. The task PAYLOAD (mode/recordId/parent
-  // pre-link) lives in component state: it is not URL-recoverable (a refreshed
-  // `?childForm=1` could not rebuild the parent link and would silently create
-  // an UNLINKED child). The URL only carries a marker param so browser Back
-  // closes the overlay instead of leaving the parent detail.
-  const [childTask, setChildTask] = useState<ChildFormTask | null>(null);
-  const childFormMarker = searchParams.get('childForm') === '1';
-
-  const openChildTask = useCallback((task: ChildFormTask) => {
-    setChildTask(task);
-    const sp = new URLSearchParams(window.location.search);
-    if (sp.get('childForm') !== '1') {
-      sp.set('childForm', '1');
-      setSearchParams(sp); // push → one history entry; Back = close
-    }
-  }, [setSearchParams]);
-
-  const closeChildTask = useCallback(() => {
-    setChildTask(null);
-    const sp = new URLSearchParams(window.location.search);
-    if (sp.has('childForm')) {
-      sp.delete('childForm');
-      setSearchParams(sp, { replace: true });
-    }
-  }, [setSearchParams]);
-
-  // Marker↔state sync: Back removed the marker → drop the task; marker present
-  // without a task (refresh / hand-built deep link — payload unrecoverable) →
-  // strip the stale marker.
-  useEffect(() => {
-    if (!childFormMarker && childTask) {
-      setChildTask(null);
-    } else if (childFormMarker && !childTask) {
+  // #2604 D3 — open a child create/edit task as the console's global record
+  // form overlay, by URL params. Pushes ONE history entry (Back = close, the
+  // parent detail stays mounted underneath). The read side lives in
+  // `AppContent` (see its record-form URL contract).
+  const openChildForm = useCallback(
+    (opts: { objectName: string; recordId?: string; link?: { field: string; parentId: string | number } }) => {
       const sp = new URLSearchParams(window.location.search);
-      sp.delete('childForm');
-      setSearchParams(sp, { replace: true });
-    }
-  }, [childFormMarker, childTask, setSearchParams]);
-
-  // Save invariant (#2604): the parent detail never navigates — only the
-  // child's open related lists refetch.
-  const handleChildSuccess = useCallback(async () => {
-    if (childTask) notifyRelatedChanged(childTask.objectName);
-    closeChildTask();
-  }, [childTask, closeChildTask]);
+      sp.set('form', opts.recordId ?? 'new');
+      sp.set('formObject', opts.objectName);
+      if (opts.link) sp.set('formLink', `${opts.link.field}:${opts.link.parentId}`);
+      else sp.delete('formLink');
+      setSearchParams(sp); // push → Back closes the overlay
+    },
+    [setSearchParams],
+  );
 
   // Execute a child object's row action against the clicked record. Reuses the
   // page's ActionRunner (confirm dialog, toast, param collection are handled by
@@ -196,18 +154,17 @@ export function RelatedRecordActionsBridge({
           handlers.onCreate = () => {
             const canLink =
               relationshipField && parentId != null && parentId !== '';
-            openChildTask({
+            openChildForm({
               objectName,
-              mode: 'create',
-              initialValues: canLink
-                ? { [relationshipField as string]: parentId }
+              link: canLink
+                ? { field: relationshipField as string, parentId: parentId as string | number }
                 : undefined,
             });
           };
         }
         if (aff.edit) {
           handlers.onEdit = (id) =>
-            openChildTask({ objectName, mode: 'edit', recordId: String(id) });
+            openChildForm({ objectName, recordId: String(id) });
         }
         if (aff.delete) {
           handlers.onDelete = async (id) => {
@@ -225,52 +182,10 @@ export function RelatedRecordActionsBridge({
         return handlers;
       },
     }),
-    [objects, base, navigate, dataSource, actionLabel, runRowAction, openChildTask],
+    [objects, base, navigate, dataSource, actionLabel, runRowAction, openChildForm],
   );
 
-  const childDef = childTask
-    ? objects.find((o: any) => o?.name === childTask.objectName)
-    : null;
-
   return (
-    <RelatedRecordActionsProvider value={value}>
-      {children}
-      {childTask && childDef && (
-        <ModalForm
-          key={childTask.recordId ?? 'new'}
-          schema={{
-            type: 'object-form',
-            formType: 'modal',
-            objectName: childTask.objectName,
-            mode: childTask.mode,
-            recordId: childTask.recordId,
-            initialValues: childTask.initialValues,
-            // #2604 D1/D3: overlay size follows the CHILD object's own derived
-            // flow surface — a fat child gets the full-screen modal, a thin
-            // one keeps the auto-sized modal. Form-view layout (spread after)
-            // stays authoritative for sections/subforms.
-            ...(deriveRecordFlowSurface(childDef, childTask.mode === 'create' ? 'child-create' : 'child-edit').size === 'full'
-              ? { modalSize: 'full' as const }
-              : {}),
-            ...resolveFormViewLayout(childDef),
-            title: childTask.mode === 'edit'
-              ? t('form.editTitle', { object: objectLabel(childDef), defaultValue: `Edit ${objectLabel(childDef)}` })
-              : t('form.createTitle', { object: objectLabel(childDef), defaultValue: `New ${objectLabel(childDef)}` }),
-            open: true,
-            onOpenChange: (open: boolean) => { if (!open) closeChildTask(); },
-            layout: 'vertical',
-            onSuccess: handleChildSuccess,
-            onCancel: closeChildTask,
-            showSubmit: true,
-            showCancel: true,
-            submitText: childTask.mode === 'edit'
-              ? t('form.update', { defaultValue: t('common.save', { defaultValue: 'Save' }) })
-              : t('form.create', { defaultValue: t('common.create', { defaultValue: 'Create' }) }),
-            cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
-          }}
-          dataSource={dataSource}
-        />
-      )}
-    </RelatedRecordActionsProvider>
+    <RelatedRecordActionsProvider value={value}>{children}</RelatedRecordActionsProvider>
   );
 }
