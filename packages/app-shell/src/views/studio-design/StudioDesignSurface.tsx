@@ -54,6 +54,7 @@ import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEdit
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
+import { loadPackageSurfaces } from './packageSurfaces';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import {
@@ -2059,11 +2060,15 @@ function AutomationsPillar({
     let cancelled = false;
     (async () => {
       try {
-        const list = (await client.list('flow', { packageId })) as Array<Record<string, unknown>>;
+        // Published flows ∪ pending DRAFT flows — `list()` only sees
+        // published/active metadata, so a just-authored flow that hasn't been
+        // published yet (or a fresh writable-base package whose flows are all
+        // drafts) would render an empty rail even though "Changes · N" shows the
+        // draft exists. Mirrors the Data / Interfaces / Access pillars, which all
+        // merge their drafts. Keyed on `publishNonce` too so drafts that go live
+        // collapse back into the published rail after a package publish.
+        const items = await loadPackageSurfaces(client, 'flow', packageId);
         if (cancelled) return;
-        const items = (list || [])
-          .map((f) => ({ type: 'flow', name: String(f.name ?? ''), label: String(f.label ?? f.name ?? '') }))
-          .filter((f) => f.name);
         setFlows(items);
         setCurrent((c) => c ?? items[0] ?? null);
       } catch (e) {
@@ -2075,7 +2080,7 @@ function AutomationsPillar({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId]);
+  }, [client, packageId, publishNonce]);
 
   const doCreateFlow = React.useCallback(async () => {
     const label = newLabel.trim();
