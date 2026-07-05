@@ -21,6 +21,12 @@ vi.mock('@object-ui/react', () => {
       </div>
     ),
     SchemaRendererContext: React.createContext(null),
+    // Data-invalidation bus (objectui#2269). `@object-ui/components` — a real,
+    // unmocked transitive dep pulled in here — imports these at module-eval
+    // time, so the mock must expose them or vitest's strict mock throws
+    // ("No 'subscribeDataChanges' export is defined") before any test runs.
+    subscribeDataChanges: () => () => {},
+    notifyDataChanged: () => {},
   };
 });
 

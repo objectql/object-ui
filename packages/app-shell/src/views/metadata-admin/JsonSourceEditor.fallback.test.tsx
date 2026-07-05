@@ -8,7 +8,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-vi.mock('@monaco-editor/react', () => ({ default: () => null }));
+// Monaco "loads" (loader.init resolves) but renders nothing, so the DOM-poll
+// backstop — not the loader fast-fail path — is what must engage here.
+vi.mock('@monaco-editor/react', () => ({
+  default: () => null,
+  loader: { init: () => Promise.resolve({}) },
+}));
 
 import { JsonSourceEditor } from './JsonSourceEditor';
 

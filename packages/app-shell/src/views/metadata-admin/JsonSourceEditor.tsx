@@ -23,6 +23,7 @@ import React from 'react';
 import { Skeleton } from '@object-ui/components';
 import * as jsonc from 'jsonc-parser';
 import { detectLocale, t } from './i18n';
+import { useMonacoFallback } from './useMonacoFallback';
 
 // Lazy: Monaco's React wrapper itself pulls in the editor core
 // (~3MB), so we keep it out of the initial app-shell chunk.
@@ -88,19 +89,11 @@ export function JsonSourceEditor({
   // Monaco's core is fetched lazily and, by default, from a public CDN, and it
   // also spins up web workers. When any of that is blocked — offline /
   // air-gapped / CSP-restricted installs — the editor mounts an empty shell
-  // with no error and the Source tab looks blank. Detect "nothing actually
-  // painted" via the rendered `.view-line` rows and fall back to a plain
-  // textarea so the source is always readable and editable.
-  const containerRef = React.useRef<HTMLDivElement>(null);
-  const [monacoUnavailable, setMonacoUnavailable] = React.useState(false);
-  React.useEffect(() => {
-    if (monacoUnavailable) return;
-    const id = setTimeout(() => {
-      const el = containerRef.current;
-      if (!el || !el.querySelector('.view-line')) setMonacoUnavailable(true);
-    }, fallbackDelayMs);
-    return () => clearTimeout(id);
-  }, [monacoUnavailable, fallbackDelayMs]);
+  // with no error and the Source tab looks blank. `useMonacoFallback` fast-fails
+  // to a plain textarea the moment the CDN loader rejects, and also backstops
+  // the "resolved but painted nothing" case via a `.view-line` DOM poll, so the
+  // source is always readable and editable.
+  const [monacoUnavailable, containerRef] = useMonacoFallback(fallbackDelayMs);
 
   // Match against the dark class our app-shell toggles on <html>; pick
   // a Monaco theme that doesn't fight the rest of the chrome.

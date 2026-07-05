@@ -21,6 +21,7 @@ import * as React from 'react';
 import { Skeleton } from '@object-ui/components';
 import { SchemaRenderer } from '@object-ui/react';
 import { PreviewShell, PreviewErrorBoundary } from './PreviewShell';
+import { useMonacoFallback } from '../useMonacoFallback';
 
 const LazyMonaco = React.lazy(async () => {
   const mod = await import('@monaco-editor/react');
@@ -41,7 +42,6 @@ export function SourcePageEditor({ draft, onPatch, readOnly, fallbackDelayMs = 4
 
   const [text, setText] = React.useState(source);
   const lastCommittedRef = React.useRef(source);
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
 
   // Sync from upstream (Reset / inspector edits) without clobbering keystrokes.
   React.useEffect(() => {
@@ -51,16 +51,10 @@ export function SourcePageEditor({ draft, onPatch, readOnly, fallbackDelayMs = 4
     }
   }, [source]);
 
-  // Monaco-unavailable fallback (headless / CSP) → plain textarea.
-  const [monacoUnavailable, setMonacoUnavailable] = React.useState(false);
-  React.useEffect(() => {
-    if (monacoUnavailable) return;
-    const id = setTimeout(() => {
-      const el = containerRef.current;
-      if (!el || !el.querySelector('.view-line')) setMonacoUnavailable(true);
-    }, fallbackDelayMs);
-    return () => clearTimeout(id);
-  }, [monacoUnavailable, fallbackDelayMs]);
+  // Monaco-unavailable fallback (headless / CSP / air-gapped) → plain textarea.
+  // Fast-fails the moment the CDN loader rejects instead of waiting the full
+  // grace period; see useMonacoFallback.
+  const [monacoUnavailable, containerRef] = useMonacoFallback(fallbackDelayMs);
 
   const [theme, setTheme] = React.useState<'vs-dark' | 'light'>(() =>
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'vs-dark' : 'light',
