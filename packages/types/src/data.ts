@@ -678,6 +678,13 @@ export interface ImportRequestOptions {
   rows?: Array<Record<string, unknown>>;
   /** Source column → target field mapping (compact record or entry array). */
   mapping?: Record<string, string> | ImportFieldMappingEntry[];
+  /**
+   * Name of a registered `mapping` metadata artifact (framework #2611). When
+   * set, the server resolves the mapping by name and applies its
+   * fieldMapping pipeline (rename + transforms, strict projection); mutually
+   * exclusive with the inline `mapping` rename above.
+   */
+  mappingName?: string;
   /** Validate + coerce every row without persisting. @default false */
   dryRun?: boolean;
   /** insert / update / upsert semantics. @default 'insert' */

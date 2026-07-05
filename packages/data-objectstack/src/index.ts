@@ -1890,6 +1890,28 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
+   * List registered import `mapping` artifacts targeting a given object
+   * (framework #2611). Reads the `mapping` metadata kind via the overlay API
+   * and filters by `targetObject` client-side (the metadata index is
+   * name-only). Feeds the import wizard's "saved mapping" selector; a failure
+   * (older server without the `mapping` kind) degrades to an empty list, so
+   * the selector simply doesn't appear.
+   */
+  async listImportMappings(objectName: string): Promise<any[]> {
+    await this.connect();
+    try {
+      const result: any = await this.client.meta.getItems('mapping');
+      const items: any[] = Array.isArray(result?.items)
+        ? result.items
+        : Array.isArray(result) ? result : [];
+      return items.filter((m: any) => m && m.targetObject === objectName);
+    } catch (err) {
+      console.warn('[OBJECTSTACKDataSource] listImportMappings failed:', err);
+      return [];
+    }
+  }
+
+  /**
    * Create a new overlay view for an object. The view's `name` is the
    * stable identifier — must be unique within the project scope. Returns
    * the persisted view spec (or undefined when the server doesn't echo).

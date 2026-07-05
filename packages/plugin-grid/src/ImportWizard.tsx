@@ -29,6 +29,10 @@ import {
   suggestColumnMappings, ImportParseError,
   type InferredType, type ColumnSuggestion, type MappingConfidence,
 } from './importParsers';
+import {
+  asSavedMapping, buildSourceRows, summarizeSavedMapping, savedMappingToDisplayIndexMap,
+  type SavedMapping,
+} from './savedMapping';
 
 /** Default English fallback strings used when no I18nProvider is mounted
  *  (standalone / unit-test usage). Mirrors the keys under `grid.import.*`. */
@@ -58,6 +62,12 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.templateName': 'Template name',
   'grid.import.save': 'Save',
   'grid.import.deleteTemplate': 'Delete template',
+  'grid.import.savedMapping': 'Saved mapping:',
+  'grid.import.chooseSavedMapping': 'Choose a saved mapping…',
+  'grid.import.manualMapping': '— Map columns manually —',
+  'grid.import.transform': 'Transform',
+  'grid.import.savedMappingHint': "Mapping “{{name}}” applies rename + transforms + type coercion on the server. Column mapping is read-only.",
+  'grid.import.savedMappingPreviewNote': "The preview shows your source columns; on import, mapping “{{name}}” applies rename, transforms and type coercion on the server.",
   'grid.import.csvColumn': 'Column',
   'grid.import.mapsTo': 'Maps To',
   'grid.import.typeMismatch': 'Looks like {{type}}',
@@ -205,6 +215,9 @@ export const __testables = {
   get assembleImportRequest() { return assembleImportRequest; },
   get isImportJobActive() { return isImportJobActive; },
   get isImportJobUndoable() { return isImportJobUndoable; },
+  get buildSourceRows() { return buildSourceRows; },
+  get summarizeSavedMapping() { return summarizeSavedMapping; },
+  get savedMappingToDisplayIndexMap() { return savedMappingToDisplayIndexMap; },
 };
 
 /** A reusable column-mapping template, persisted across sessions. Keys are
@@ -250,6 +263,10 @@ export interface ImportWizardProps {
   /** Override the storage backend (defaults to window.localStorage). Use this
    *  to disable persistence (`null`) or to inject an in-memory store in tests. */
   templateStorage?: ImportTemplateStorage | null;
+  /** Registered server-side import mappings for this object (framework #2611).
+   *  When omitted, the wizard fetches them via `dataSource.listImportMappings`
+   *  (feature-detected). Pass explicitly to override / for tests. */
+  savedMappings?: SavedMapping[];
 }
 
 export interface ImportResult {
@@ -471,8 +488,23 @@ function assembleImportRequest(
     runAutomations: boolean;
     skipBlankMatchKey: boolean;
     dryRun?: boolean;
+    /** When set, the server resolves this registered mapping and owns the
+     *  rename + transform + write semantics (framework #2611). `rows` must
+     *  then carry SOURCE headers (see buildSourceRows), and the inline
+     *  column mapping / write-mode are omitted — mutually exclusive per the
+     *  server contract. `runAutomations` is still honored. */
+    mappingName?: string;
   },
 ): ImportRequestOptions {
+  if (opts.mappingName) {
+    return {
+      format: 'json',
+      rows,
+      mappingName: opts.mappingName,
+      runAutomations: opts.runAutomations,
+      ...(opts.dryRun ? { dryRun: true } : {}),
+    };
+  }
   return {
     format: 'json',
     rows,
@@ -809,6 +841,78 @@ const TemplateBar: React.FC<{
   );
 };
 
+/** Selector for a registered server-side import mapping (framework #2611).
+ *  Picking one hands rename + transforms to the server; the manual column
+ *  table is replaced by a read-only summary of the artifact. */
+const SavedMappingBar: React.FC<{
+  mappings: SavedMapping[];
+  activeName: string | null;
+  onSelect: (name: string) => void;
+  onClear: () => void;
+}> = ({ mappings, activeName, onSelect, onClear }) => {
+  const { t } = useImportTranslation();
+  if (mappings.length === 0) return null;
+  return (
+    <div
+      className="mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2"
+      data-testid="import-saved-mapping-bar"
+    >
+      <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+      <span className="text-xs font-medium text-muted-foreground">{t('grid.import.savedMapping')}</span>
+      <Select value={activeName ?? '__none__'} onValueChange={(v) => (v === '__none__' ? onClear() : onSelect(v))}>
+        <SelectTrigger className="h-7 w-56 text-xs" data-testid="import-saved-mapping-select">
+          <SelectValue placeholder={t('grid.import.chooseSavedMapping')} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">{t('grid.import.manualMapping')}</SelectItem>
+          {mappings.map((m) => (
+            <SelectItem key={m.name} value={m.name}>{m.label || m.name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+};
+
+/** Read-only summary of the chosen server mapping — source → target (transform)
+ *  per fieldMapping entry. Names the transforms without re-running them. */
+const SavedMappingSummary: React.FC<{ mapping: SavedMapping }> = ({ mapping }) => {
+  const { t } = useImportTranslation();
+  const rows = summarizeSavedMapping(mapping);
+  return (
+    <div data-testid="import-saved-mapping-summary">
+      <p className="mb-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>{t('grid.import.savedMappingHint', { name: mapping.label || mapping.name })}</span>
+      </p>
+      <div className="max-h-[420px] overflow-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('grid.import.csvColumn')}</TableHead>
+              <TableHead>{t('grid.import.mapsTo')}</TableHead>
+              <TableHead className="w-32 text-center">{t('grid.import.transform')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r, i) => (
+              <TableRow key={i}>
+                <TableCell className="font-medium">{r.source}</TableCell>
+                <TableCell>{r.target}</TableCell>
+                <TableCell className="text-center">
+                  {r.transform
+                    ? <Badge variant="outline" className="text-[10px] font-normal">{r.transform}</Badge>
+                    : <span className="text-muted-foreground">—</span>}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+};
+
 // Step 2: Column Mapping
 const StepMapping: React.FC<{
   headers: string[];
@@ -822,7 +926,11 @@ const StepMapping: React.FC<{
   onSelectTemplate: (id: string) => void;
   onSaveTemplate: (name: string) => void;
   onDeleteTemplate: () => void;
-}> = ({ headers, fields, mapping, onMappingChange, inferredTypes, suggestions, templates, selectedTemplateId, onSelectTemplate, onSaveTemplate, onDeleteTemplate }) => {
+  savedMappings: SavedMapping[];
+  activeMapping: SavedMapping | null;
+  onSelectSavedMapping: (name: string) => void;
+  onClearSavedMapping: () => void;
+}> = ({ headers, fields, mapping, onMappingChange, inferredTypes, suggestions, templates, selectedTemplateId, onSelectTemplate, onSaveTemplate, onDeleteTemplate, savedMappings, activeMapping, onSelectSavedMapping, onClearSavedMapping }) => {
   const { t } = useImportTranslation();
   const usedFields = useMemo(() => new Set(Object.values(mapping)), [mapping]);
   const suggestionByCol = useMemo(() => {
@@ -844,6 +952,16 @@ const StepMapping: React.FC<{
 
   return (
     <div>
+      <SavedMappingBar
+        mappings={savedMappings}
+        activeName={activeMapping?.name ?? null}
+        onSelect={onSelectSavedMapping}
+        onClear={onClearSavedMapping}
+      />
+      {activeMapping ? (
+        <SavedMappingSummary mapping={activeMapping} />
+      ) : (
+      <>
       <TemplateBar
         templates={templates}
         selectedId={selectedTemplateId}
@@ -922,6 +1040,8 @@ const StepMapping: React.FC<{
         </TableBody>
       </Table>
       </div>
+      </>
+      )}
     </div>
   );
 };
@@ -1305,7 +1425,7 @@ const ImportHistoryPanel: React.FC<{
 // Main wizard component
 export const ImportWizard: React.FC<ImportWizardProps> = ({
   objectName, objectLabel, fields, dataSource, onComplete, onCancel, open, onOpenChange, onErrorMode = 'skip',
-  templateStorageKey, templateStorage,
+  templateStorageKey, templateStorage, savedMappings,
 }) => {
   const { t } = useImportTranslation();
   const [step, setStep] = useState<WizardStep>('upload');
@@ -1396,6 +1516,51 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
 
   // Re-hydrate templates if the storage backend or key changes.
   useEffect(() => { setTemplates(loadTemplates(storage, storageKey)); }, [storage, storageKey]);
+
+  // ── Server-registered import mappings (framework #2611) ─────────────
+  // The reusable, governed alternative to hand-building the column mapping.
+  // Supplied via prop, or fetched from the adapter (feature-detected; a data
+  // source without the method simply yields none, hiding the selector).
+  const [fetchedMappings, setFetchedMappings] = useState<SavedMapping[]>([]);
+  const [mappingName, setMappingName] = useState<string | null>(null);
+  useEffect(() => {
+    if (savedMappings) return; // caller-provided; don't fetch
+    let alive = true;
+    const list = (dataSource as { listImportMappings?: (o: string) => Promise<unknown[]> } | undefined)?.listImportMappings;
+    if (typeof list !== 'function') { setFetchedMappings([]); return; }
+    Promise.resolve(list.call(dataSource, objectName))
+      .then((items) => { if (alive) setFetchedMappings((items ?? []).map(asSavedMapping).filter((m): m is SavedMapping => m !== null)); })
+      .catch(() => { if (alive) setFetchedMappings([]); });
+    return () => { alive = false; };
+  }, [dataSource, objectName, savedMappings]);
+  const availableMappings = savedMappings ?? fetchedMappings;
+  const activeMapping = useMemo(
+    () => availableMappings.find((m) => m.name === mappingName) ?? null,
+    [availableMappings, mappingName],
+  );
+
+  // Select a registered mapping: the server owns rename + transforms, so we
+  // set a read-only display mapping (for the preview grid) and reflect the
+  // artifact's write semantics; submit sends source rows + mappingName.
+  const handleSelectSavedMapping = useCallback((name: string) => {
+    const m = availableMappings.find((sm) => sm.name === name);
+    if (!m) return;
+    setMappingName(name);
+    setSelectedTemplateId(null);
+    setMapping(savedMappingToDisplayIndexMap(m, headers));
+    if (m.mode === 'update' || m.mode === 'upsert') setWriteMode(m.mode);
+    if (Array.isArray(m.upsertKey)) setMatchFields(m.upsertKey.filter((f) => typeof f === 'string'));
+    setDryRunResult(null);
+  }, [availableMappings, headers]);
+
+  // Return to hand-mapping: clear the named mapping and re-run auto-mapping.
+  const handleClearSavedMapping = useCallback(() => {
+    setMappingName(null);
+    setWriteMode('insert');
+    setMatchFields([]);
+    setMapping(autoMapColumns(headers, fields, rows));
+    setDryRunResult(null);
+  }, [headers, fields, rows]);
 
   const handleSelectTemplate = useCallback((id: string) => {
     const tpl = templates.find((t) => t.id === id);
@@ -1617,10 +1782,16 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   // `dryRun` reuses the exact same payload the real import will send, so the
   // pre-check validates precisely what would be written.
   const buildImportRequest = useCallback((dryRun = false): ImportRequestOptions =>
-    assembleImportRequest(buildRawRows(), {
-      writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey, dryRun,
-    }),
-  [buildRawRows, writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey]);
+    assembleImportRequest(
+      // A named mapping is applied server-side over SOURCE-header rows; the
+      // hand-mapped, field-keyed rows are for the manual path only.
+      mappingName ? buildSourceRows(headers, rows, corrections) : buildRawRows(),
+      {
+        writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey, dryRun,
+        ...(mappingName ? { mappingName } : {}),
+      },
+    ),
+  [buildRawRows, mappingName, headers, rows, corrections, writeMode, matchFields, createMissingOptions, runAutomations, skipBlankMatchKey]);
 
   const handleImport = useCallback(async () => {
     setImporting(true); setProgress(0);
@@ -1755,7 +1926,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const reset = useCallback(() => {
     cancelPollRef.current = false;
     setStep('upload'); setHeaders([]); setRows([]); setMapping({}); setProgress(0); setResult(null);
-    setCorrections({}); setSelectedTemplateId(null);
+    setCorrections({}); setSelectedTemplateId(null); setMappingName(null);
     setWriteMode('insert'); setMatchFields([]);
     setCreateMissingOptions(false); setRunAutomations(false); setSkipBlankMatchKey(false);
     setJobId(null); setAsyncCounts(null);
@@ -1860,10 +2031,17 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 onSelectTemplate={handleSelectTemplate}
                 onSaveTemplate={handleSaveTemplate}
                 onDeleteTemplate={handleDeleteTemplate}
+                savedMappings={availableMappings}
+                activeMapping={activeMapping}
+                onSelectSavedMapping={handleSelectSavedMapping}
+                onClearSavedMapping={handleClearSavedMapping}
               />
             )}
             {step === 'preview' && (
               <>
+                {/* Write-mode/match options are owned by the artifact when a
+                    named mapping is active; hide the manual panel. */}
+                {!activeMapping && (
                 <ImportOptions
                   fields={fields}
                   mapping={mapping}
@@ -1881,6 +2059,16 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                   backgroundImport={backgroundImport}
                   onBackgroundImport={setBackgroundImport}
                 />
+                )}
+                {activeMapping && (
+                  <div
+                    className="mb-2 flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground"
+                    data-testid="import-saved-mapping-preview-note"
+                  >
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{t('grid.import.savedMappingPreviewNote', { name: activeMapping.label || activeMapping.name })}</span>
+                  </div>
+                )}
                 <StepPreview
                   headers={headers}
                   rows={rows}
@@ -2026,14 +2214,18 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 </Button>
               )}
               {step === 'mapping' && (
-                <Button onClick={() => setStep('preview')} disabled={Object.keys(mapping).length === 0 || missingRequired.length > 0} data-testid="import-next-btn">
+                <Button
+                  onClick={() => setStep('preview')}
+                  disabled={mappingName ? false : (Object.keys(mapping).length === 0 || missingRequired.length > 0)}
+                  data-testid="import-next-btn"
+                >
                   {t('grid.import.next')} <ArrowRight className="ml-1 h-4 w-4" />
                 </Button>
               )}
               {step === 'preview' && (
                 <Button
                   onClick={handleImport}
-                  disabled={importing || (writeMode !== 'insert' && matchFields.length === 0)}
+                  disabled={importing || (!mappingName && writeMode !== 'insert' && matchFields.length === 0)}
                   data-testid="import-run-btn"
                 >
                   {importing ? t('grid.import.importingProgress') : t('grid.import.importNRows', { count: rows.length })}
