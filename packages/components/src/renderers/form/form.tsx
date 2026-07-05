@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveVisibleOptions, isOptionGroupGated, resolveDependsOnFields, isValueStillOffered } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, ValidationRule, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -28,7 +28,7 @@ import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { cn } from '../../lib/utils';
 import React from 'react';
-import { SchemaRendererContext } from '@object-ui/react';
+import { SchemaRendererContext, usePredicateScope } from '@object-ui/react';
 import { createSafeTranslation } from '@object-ui/i18n';
 
 /** Inline section header rendered as a virtual field inside a flat SchemaRenderer field list.
@@ -124,6 +124,8 @@ function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
     mobile_fullscreen: _mobileFullscreen,
     fullscreen: _fullscreen,
     dependentValues: _dependentValues,
+    dependsOn: _dependsOn,
+    emptyHint: _emptyHint,
     ...domProps
   } = props;
 
@@ -144,6 +146,7 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
     mobile_fullscreen: _mobileFullscreen,
     fullscreen: _fullscreen,
     dependentValues,
+    emptyHint: _emptyHint,
     schema: _schema,
     ...fieldProps
   } = props;
@@ -327,6 +330,51 @@ ComponentRegistry.register('form',
     // widgets as a prop so they can dynamically load related records.
     const schemaCtx = React.useContext(SchemaRendererContext);
     const contextDataSource = schemaCtx?.dataSource ?? null;
+
+    // Global predicate scope (from the host shell's ExpressionProvider) — carries
+    // `current_user` etc. so per-option `visibleWhen` can gate on role/context in
+    // addition to sibling field values. Empty object when no provider is mounted.
+    const predicateScope = usePredicateScope();
+
+    // Field name → label, for the "select the parent first" gate hint (#2284).
+    const fieldLabelByName = React.useMemo(() => {
+      const m: Record<string, string> = {};
+      for (const f of fields as FormFieldConfig[]) if (f?.name) m[f.name] = (f as any).label || f.name;
+      return m;
+    }, [fields]);
+
+    // Cascade clear (#2284): when a select/radio's option list narrows — because a
+    // controlling field changed or a role/context predicate flipped — a previously
+    // chosen value may no longer be offered. Drop it so the form never submits a
+    // stale "china + california" pair. Mirrors the dependent-lookup gate but for
+    // static/predicate-driven option sets. Fail-open filtering keeps unrelated
+    // fields untouched (no visibleWhen / dependsOn → nothing recomputed).
+    React.useEffect(() => {
+      for (const f of fields as FormFieldConfig[]) {
+        const name = f?.name;
+        if (!name) continue;
+        const resolvedType = (f as any).widget || f.type;
+        if (resolvedType !== 'select' && resolvedType !== 'radio' && resolvedType !== 'multiselect') continue;
+        const opts = (f as any).options as SelectOption[] | undefined;
+        if (!opts || opts.length === 0) continue;
+        const dependsOn = (f as any).dependsOn;
+        const hasOptionPredicate = opts.some((o) => (o as any)?.visibleWhen != null);
+        if (!hasOptionPredicate && !dependsOn) continue;
+        const current = form.getValues(name);
+        if (current === undefined || current === null || current === '') continue;
+        // While gated (a dependency is empty) the whole list is withheld — clear
+        // any prior value so it can't linger past a parent reset.
+        const gated = isOptionGroupGated(dependsOn, ruleRecord);
+        const visible = gated ? [] : resolveVisibleOptions(opts, ruleRecord, predicateScope);
+        if (!isValueStillOffered(current, visible)) {
+          form.setValue(name, Array.isArray(current) ? [] : undefined, {
+            shouldValidate: false,
+            shouldDirty: true,
+          });
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ruleRecord, predicateScope]);
 
     // React to defaultValues changes — but ONLY when the values actually
     // change, not on every new object identity. Callers often pass a freshly
@@ -629,6 +677,28 @@ ComponentRegistry.register('form',
                 // Resolve the component type: prefer widget override, fallback to field type
                 const resolvedType = widget || type;
 
+                // Cascading / role-gated option lists (#2284). For option fields,
+                // narrow the set by each option's `visibleWhen` (evaluated against
+                // the live record + `current_user`), and gate the whole control
+                // while a declared `dependsOn` parent is still empty — surfacing a
+                // "select the parent first" hint instead of an unfiltered list.
+                const isOptionField =
+                  resolvedType === 'select' || resolvedType === 'radio' || resolvedType === 'multiselect';
+                const rawOptions = (fieldProps as any).options as SelectOption[] | undefined;
+                const dependsOnFields = isOptionField
+                  ? resolveDependsOnFields((field as any).dependsOn)
+                  : [];
+                const optionGroupGated =
+                  dependsOnFields.length > 0 && isOptionGroupGated((field as any).dependsOn, ruleRecord);
+                const effectiveOptions = isOptionField
+                  ? optionGroupGated
+                    ? []
+                    : resolveVisibleOptions(rawOptions, ruleRecord, predicateScope)
+                  : rawOptions;
+                const gatedHint = optionGroupGated
+                  ? `Select ${dependsOnFields.map((fn) => fieldLabelByName[fn] || fn).join(' / ')} first`
+                  : undefined;
+
                 // colSpan classes for grid layout.
                 //
                 // When the container uses container-query-based grid classes
@@ -740,15 +810,19 @@ ComponentRegistry.register('form',
                             field: (field as any).field || field, 
                             ...formField,
                             inputType: fieldProps.inputType,
-                            options: fieldProps.options,
+                            options: isOptionField ? effectiveOptions : fieldProps.options,
                             placeholder: fieldProps.placeholder ?? (resolvedType === 'select' ? t('common.selectOption') : undefined),
                             // `disabled` means "not interactive, muted"; `readonly` means
                             // "shown plainly, not editable" — keep them distinct so widgets
                             // that implement a real readonly display (e.g. EmailField's
                             // mailto link) actually receive it instead of always collapsing
-                            // to the grayed-out disabled look.
-                            disabled: disabled || fieldDisabled || isSubmitting,
+                            // to the grayed-out disabled look. A dependency-gated option
+                            // list (#2284) is disabled until its controlling field is set.
+                            disabled: disabled || fieldDisabled || isSubmitting || optionGroupGated,
                             readonly,
+                            // Gate hint shown when a dependent option list is still
+                            // waiting on its controlling field (#2284).
+                            emptyHint: gatedHint,
                             dataSource: contextDataSource,
                             // Live form values for dependent (cascading) lookups
                             // (#2215): the widget's `dependsOn` gate + filters must
@@ -911,7 +985,7 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
     return <RegisteredComponent schema={fieldSchema} {...registeredProps} />;
   }
 
-  const { inputType, options = [], placeholder, readonly, ...fieldProps } = props;
+  const { inputType, options = [], placeholder, readonly, emptyHint, ...fieldProps } = props;
   const domFieldProps = stripRendererOnlyProps(fieldProps);
   // Text-like controls get a real readonly treatment (native `readOnly` +
   // a soft, non-"disabled" tint) instead of being grayed out. Toggle/choice
@@ -994,9 +1068,16 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
       // For select with react-hook-form, we need to handle the onChange
       const { value: selectValue, onChange: selectOnChange, disabled: selDisabled, ...selectProps } = domFieldProps;
 
-      // Safety check for options
+      // Safety check for options. When a dependent (cascading) select is still
+      // waiting on its controlling field the renderer passes a gate hint (#2284)
+      // — surface that instead of the generic "no options" so the user knows to
+      // pick the parent first rather than reading it as a broken widget.
       if (!options || options.length === 0) {
-        return <div className="text-sm text-muted-foreground">No options available</div>;
+        return (
+          <div className="text-sm text-muted-foreground">
+            {emptyHint || 'No options available'}
+          </div>
+        );
       }
 
       return (

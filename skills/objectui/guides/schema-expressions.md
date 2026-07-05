@@ -235,6 +235,52 @@ paid_on:   Field.date({
   never locks a field. `visibleWhen` is client-only — never rely on it for
   security; use `readonlyWhen`/`requiredWhen` (or a validation rule) for guarantees.
 
+## Cascading & role-gated select options (`option.visibleWhen` + `dependsOn`)
+
+For dependent selects (country → province → city) and role-gated options, do
+**not** invent a `validFor` / `controllingField` matrix. Reuse the two primitives
+you already have — the mechanism is uniform with dependent lookups, so both
+humans and AI author it correctly by pattern-matching:
+
+- **`SelectOption.visibleWhen`** — a per-option CEL predicate; the option is
+  offered only when TRUE. Evaluated against the live `record` **plus
+  `current_user`** (same engine/env as a field-level `visibleWhen`).
+- **`field.dependsOn`** — declares the sibling field(s) the option list reacts
+  to. While any is empty the control is **gated** ("Select country first"); a
+  parent change re-evaluates the list and **auto-clears** a now-invalid value.
+
+```jsonc
+{ "type": "form", "fields": [
+  { "name": "country", "type": "select", "options": [
+    { "label": "China", "value": "cn" }, { "label": "United States", "value": "us" }
+  ]},
+  { "name": "province", "type": "select", "dependsOn": "country", "options": [
+    { "label": "Zhejiang",   "value": "zj", "visibleWhen": "record.country == 'cn'" },
+    { "label": "California", "value": "ca", "visibleWhen": "record.country == 'us'" }
+  ]},
+  // role gating — same predicate, references current_user instead of a sibling:
+  { "name": "tier", "type": "select", "options": [
+    { "label": "Standard",   "value": "standard" },
+    { "label": "Admin only", "value": "admin_only", "visibleWhen": "'admin' in current_user.roles" }
+  ]}
+]}
+```
+
+**Decision rule — options vs. lookup.** Use `option.visibleWhen` only for
+**small, static dictionaries** (a handful of provinces, category → subcategory).
+When the data is large, changes over time, or is shared across forms (real
+country/province/city tables, org units, product catalogs) model each level as a
+**`lookup`** with `depends_on` — the candidate query is filtered and paginated
+server-side. Wrong tool = a 4000-row `<select>`.
+
+**Security.** Option `visibleWhen` only hides the choice on the client; the value
+is still submittable. When an option is gated for **authorization**, the server
+must also reject writes of that value (the rule-validator evaluates the picked
+value's `visibleWhen`). Use it freely for cascades/UX; pair it with server
+enforcement for access control. Multi-field conditions (`record.country == 'cn'
+&& current_user.department == 'sales'`) work — just list every referenced sibling
+in `dependsOn`.
+
 ## Data binding with `bind`
 
 The `bind` field is NOT expression-evaluated. It's a path string resolved by `useDataScope()`:

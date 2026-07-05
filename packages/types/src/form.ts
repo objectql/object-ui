@@ -278,6 +278,19 @@ export interface SelectOption {
    * Option icon
    */
   icon?: string;
+  /**
+   * Per-option visibility predicate (CEL). The option is offered only when this
+   * evaluates TRUE against the live record + `current_user` (same engine/env as
+   * field-level {@link FormFieldConfig.visibleWhen}). Omit = always available.
+   * Expresses both cascading options (`record.country == 'cn'`) and role/context
+   * gating (`'admin' in current_user.roles`). Aligns with @objectstack/spec
+   * SelectOption.visibleWhen.
+   *
+   * Client-side hiding is UX, not authorization — access-control gating must also
+   * be enforced server-side (the rule-validator rejects writes of a value whose
+   * predicate is false).
+   */
+  visibleWhen?: string | { dialect?: string; source: string };
 }
 
 /**

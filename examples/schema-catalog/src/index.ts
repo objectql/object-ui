@@ -343,6 +343,7 @@ import fields_phone_required_phone from './schemas/fields-phone/required-phone.j
 import fields_rich_text_html_editor from './schemas/fields-rich-text/html-editor.json' with { type: 'json' };
 import fields_rich_text_markdown_editor from './schemas/fields-rich-text/markdown-editor.json' with { type: 'json' };
 import fields_select_basic_select from './schemas/fields-select/basic-select.json' with { type: 'json' };
+import fields_select_cascading_options from './schemas/fields-select/cascading-options.json' with { type: 'json' };
 import fields_select_colored_options from './schemas/fields-select/colored-options.json' with { type: 'json' };
 import fields_select_multi_select from './schemas/fields-select/multi-select.json' with { type: 'json' };
 import fields_summary_average_of_field_values from './schemas/fields-summary/average-of-field-values.json' with { type: 'json' };
@@ -3520,6 +3521,15 @@ const REGISTRY: Record<string, Example> = {
       category: 'fields-select',
     },
     schema: fields_select_basic_select,
+  },
+  'fields-select/cascading-options': {
+    id: 'fields-select/cascading-options',
+    meta: {
+      title: "Cascading Options",
+      description: "Dependent select — province options narrow to the chosen country via per-option visibleWhen + dependsOn",
+      category: 'fields-select',
+    },
+    schema: fields_select_cascading_options,
   },
   'fields-select/colored-options': {
     id: 'fields-select/colored-options',

@@ -19,6 +19,73 @@ The Select Field component provides a dropdown for selecting one or more options
 
 <SchemaExample id="fields-select/multi-select" />
 
+## Cascading & Role-Gated Options
+
+An option can carry a `visibleWhen` CEL predicate — it is offered only when the
+predicate is TRUE. The predicate is evaluated against the **live record** plus
+**`current_user`**, the same engine and binding environment as a field-level
+`visibleWhen`. This single mechanism covers two needs:
+
+- **Cascading / dependent options** — narrow a child list by a parent field
+  (country → province → city).
+- **Role / context gating** — offer an option only to certain users.
+
+Declare the sibling field(s) a select reacts to with `dependsOn`. While any is
+empty the control is **gated** (a "Select country first" hint) instead of
+showing an unfiltered list; once the parent changes, the list re-evaluates and
+any now-invalid selection is **cleared automatically** (no stale "China +
+California" pair).
+
+### Cascading (country → province)
+
+<SchemaExample id="fields-select/cascading-options" />
+
+```json
+{
+  "type": "form",
+  "fields": [
+    { "name": "country", "label": "Country", "type": "select", "options": [
+      { "label": "China", "value": "cn" },
+      { "label": "United States", "value": "us" }
+    ]},
+    { "name": "province", "label": "Province", "type": "select", "dependsOn": "country", "options": [
+      { "label": "Zhejiang",   "value": "zj", "visibleWhen": "record.country == 'cn'" },
+      { "label": "Guangdong",  "value": "gd", "visibleWhen": "record.country == 'cn'" },
+      { "label": "California",  "value": "ca", "visibleWhen": "record.country == 'us'" },
+      { "label": "Texas",       "value": "tx", "visibleWhen": "record.country == 'us'" }
+    ]}
+  ]
+}
+```
+
+Chain a third level (`city`, `dependsOn: "province"`) the same way — the gate and
+cascade-clear propagate down the chain.
+
+### Role-gated option
+
+```json
+{ "name": "tier", "type": "select", "options": [
+  { "label": "Standard", "value": "standard" },
+  { "label": "Admin only", "value": "admin_only", "visibleWhen": "'admin' in current_user.roles" }
+]}
+```
+
+> **Security — hiding is UX, not authorization.** A `visibleWhen` on an option
+> only removes it from the dropdown on the client; a determined caller can still
+> submit the value. When an option is gated for **access-control** reasons the
+> **server must also reject** writes of that value (the rule-validator evaluates
+> the picked value's `visibleWhen`). Use option `visibleWhen` for convenience and
+> cascades freely; for real authorization, pair it with server-side enforcement.
+
+### When to use options vs. a lookup
+
+`visibleWhen` options are for **small, static dictionaries** (category →
+subcategory, a handful of provinces). When the data is large, changes over time,
+or is shared across forms (real country/province/city tables, org units, product
+catalogs), model each level as a **`lookup`** with `depends_on` instead — the
+candidate query is filtered server-side and paginated. See
+[Lookup Field](/docs/fields/lookup).
+
 ## Field Schema
 
 ```plaintext
@@ -33,9 +100,14 @@ interface SelectFieldSchema {
   readonly?: boolean;            // Read-only mode
   disabled?: boolean;            // Disabled state
   className?: string;            // Additional CSS classes
-  
+
   // Options
   options: SelectOption[];       // Available options
+
+  // Cascading: sibling field(s) whose value drives this option list. While any
+  // is empty the field is gated ("Select <parent> first"); it re-evaluates as
+  // they change. Same knob dependent lookups use.
+  dependsOn?: string | string[];
 }
 
 interface SelectOption {
@@ -43,6 +115,11 @@ interface SelectOption {
   value: string;                 // Option value
   color?: string;                // Badge color (gray, red, blue, etc.)
   disabled?: boolean;            // Disable specific option
+
+  // Per-option visibility predicate (CEL). The option is offered only when TRUE,
+  // evaluated against the live record + current_user (same engine/env as a
+  // field-level visibleWhen). Omit = always available.
+  visibleWhen?: string;
 }
 ```
 

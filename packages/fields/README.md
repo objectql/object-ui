@@ -55,6 +55,17 @@ Supported types out of the box:
 - **Media**: `file`, `image`
 - **System**: `formula`, `summary`, `auto_number`
 
+### Cascading & role-gated select options
+
+`select` options support a per-option `visibleWhen` CEL predicate (offered only
+when TRUE, evaluated against the live record + `current_user`) and a field-level
+`dependsOn`. Together they drive dependent selects (country → province → city)
+and role-gated options with no bespoke matrix — the same primitives dependent
+lookups use. While a `dependsOn` parent is empty the control is gated; a parent
+change re-filters the list and clears a now-invalid value. Client-side hiding is
+UX only — gate authorization-sensitive values on the server too. See
+[`content/docs/fields/select.mdx`](../../content/docs/fields/select.mdx).
+
 <!-- release-metadata:v3.3.0 -->
 
 ## Compatibility
