@@ -1,5 +1,144 @@
 # @object-ui/fields
 
+## 11.4.0
+
+### Minor Changes
+
+- 19f2533: Detail-page related lists: `relatedList: 'primary'` → own tab, multi-FK & self-referential related lists, unified picker columns (framework #2579).
+
+  - **plugin-detail** (`buildDefaultTabs`): the default related-list layout is now
+    the ADR-0085 prominence rule — lists whose FK declares `relatedList: 'primary'`
+    each get their OWN tab; every other related list collapses into a single
+    "Related" tab. With no primary lists this is byte-for-byte the previous stacked
+    default, so it is opt-in per relationship. `relatedLayout: 'tabs' | 'stack'`
+    remain app-level overrides (force all-own-tabs / all-stacked).
+  - **app-shell** (`deriveRelatedLists`): emits one related list per eligible FK —
+    a child referencing the parent through several relationships (e.g.
+    `primary_account` + `partner_account`) now surfaces each, disambiguated by the
+    FK label; includes self-referential relationships (hierarchies → a "child"
+    list); and carries the `isPrimary` prominence flag through. `RecordDetailView`
+    threads `isPrimary` into the synthesized page.
+  - **fields** (`deriveLookupColumns`): the lookup-picker default columns now
+    prefer the object's ADR-0085 `highlightFields` (then legacy `displayFields`,
+    then the field walk) — the same "how to list this object" source the related
+    list uses, so a picker and a related list of the same object agree with zero
+    per-surface config.
+
+  Pairs with the `@objectstack/spec` change that makes `relatedList` a tri-state
+  (`boolean | 'primary'`) and `record:related_list` `columns` optional.
+
+### Patch Changes
+
+- bce581a: Fix dependent (cascading) lookups: unlock on parent selection and enforce the
+  cascade filter on every candidate surface (#2215).
+
+  Two breaks made `depends_on` unusable end to end:
+
+  - **The gate never unlocked in create mode.** `LookupField` resolved dependent
+    values from `ctx.formValues` — a member `SchemaRendererContext` never had —
+    and nothing injected the `dependentValues` prop, so with a fresh record
+    (`ctx.data = {}`) the child lookup stayed disabled no matter what the user
+    picked in the parent field. The form renderer now injects its live form
+    values (the same reactive snapshot that drives field rules) as
+    `dependentValues` for data-source fields.
+  - **The Level-2 table picker bypassed the cascade.** The `depends_on` chain
+    only reached the quick-select popover filter; `RecordPickerDialog` (and the
+    search-first `PeoplePicker`) received just `lookup_filters`, listing the full
+    unfiltered record set. Both pickers now take a `baseFilter` — a hard
+    `$filter` constraint merged after `lookupFilters` and user filter-bar input,
+    so it can never be widened back out — and `LookupField` passes the dependent
+    chain there, shares the same filter with the popover query, and disables the
+    browse-all button while dependencies are missing.
+
+- 5160832: fix(fields): inline-edit relational fields with the standard picker (not a text box)
+
+  Inline cell editing reuses the form's field widgets, but the inline map
+  (`EDIT_WIDGETS`) was a hand-maintained subset of the form's (`fieldWidgetMap`)
+  and had drifted: **lookup / master_detail / user / owner** had perfectly good
+  form pickers yet fell back to a plain text box inline (you'd type a raw record
+  id). Wire them up — `lookup`/`master_detail` → `LookupField`, `user`/`owner` →
+  `UserField`, the exact widgets the form uses. They read the related-object
+  dataSource from `SchemaRendererContext` (which the grid provides), so the
+  record picker opens, fetches, and selects inline.
+
+  To stop the two lists drifting again, `index` now exports `FORM_FIELD_TYPES`
+  and a drift-guard test pins the contract: every form widget type must have an
+  explicit inline decision — an editor in `EDIT_WIDGETS` or an entry in the new
+  `INLINE_EXCLUDED_FIELD_TYPES` (computed/binary/heavy/container types, each with
+  a reason). A future form widget can no longer silently become a text box (or a
+  missing editor) in the grid.
+
+- 69d6b94: feat(fields): inline-edit structured-value fields (color, address, location, geolocation, code, qrcode)
+
+  Completes the inline-editor ↔ form-widget parity from the previous fix: the six
+  structured types that already had lightweight form widgets — `color`,
+  `address`, `location`, `geolocation`, `code`, `qrcode` — now edit inline with
+  those same widgets instead of being deferred. All are dependency-light (no map
+  or code-editor libraries) and use the standard `FieldWidgetProps`. Verified
+  inline on the field-zoo: color → a color picker, code → a textarea, the rest
+  their value editors. The drift-guard's exclusion set now contains only the
+  genuinely-non-inline types (computed, binary, heavy editors, containers).
+
+- 243a9ba: fix(fields): inline lookup editor shows the selected record's name (not the "Select…" placeholder)
+
+  When editing a `lookup` / `master_detail` / `user` / `owner` field inline in the
+  data grid, the `LookupField` picker showed the placeholder instead of the
+  current record's name. The grid requests `$expand` for visible reference
+  columns, so a lookup cell's value arrives as the related record **object**
+  (`{ id, name }`) rather than a bare id. The read cell (`LookupCellRenderer`)
+  already resolves objects via the display-name path, but the inline editor only
+  matched **primitive** ids (`findOption(value)` with a strict `===`), so an
+  object value never resolved — and the hydration effect made it worse by calling
+  `findOne(referenceTo, <object>)` with a bogus id.
+
+  `LookupField` now resolves an expanded-reference object directly into its
+  display option (mirroring the read cell), skips the pointless per-object fetch,
+  and normalises object values to their id for option matching / multi-select
+  toggle / removal. `FieldEditWidget` also renders the relational pickers
+  `compact` inline — the same single-line, borderless trigger the line-item grid
+  uses — so the record name shows **in** the trigger instead of a chip stacked
+  above a "Select…" button.
+
+- 289be5b: fix(fields): align inline lookup value resolution with the read cell (external-id strings, tolerant id match)
+
+  Follow-up to #2125. `LookupField`'s inline display now resolves every value
+  shape the read cell (`LookupCellRenderer`) does:
+
+  - **JSON-encoded external-id references** (`'{"externalId":"Website Relaunch"}'`)
+    are parsed and shown by their external id, and excluded from the hydration
+    fetch (so we never `findOne` with a raw JSON string). `recordToOption` gained
+    an `externalId` fallback for both the value and the label.
+  - **Tolerant id matching** — a `String()`-coerced fallback (`findOptionLoose`)
+    resolves a numeric cell value against a string-keyed option (and vice versa),
+    matching the read cell's `String(a) === String(b)` comparison. Only consulted
+    when the strict match misses, so homogeneous option lists are unaffected.
+
+  Also adds explicit inline-editor tests for `user` / `owner` fields (they
+  delegate to `LookupField` via `UserField`), completing coverage for the full
+  relational set wired inline in #2122.
+
+- 09e1b26: Show inline line-item (master-detail subform) row actions always, not on hover.
+  In grid mode the per-row remove (🗑) and duplicate buttons were `opacity-0`
+  until the row was hovered (`group-hover`), so they read as "delete not
+  supported" and were unreachable on touch / coarse-pointer devices with no hover.
+  They now render at full opacity (kept muted via `text-muted-foreground`); the
+  action column width was already reserved, so there is no layout shift. Existing
+  `allow_delete: false` / `readonly` / `disabled` / `min_rows` gating is unchanged.
+- Updated dependencies [8bf6295]
+- Updated dependencies [1948c5b]
+- Updated dependencies [bce581a]
+- Updated dependencies [9cd9be1]
+- Updated dependencies [c38d107]
+- Updated dependencies [7782698]
+- Updated dependencies [790558b]
+- Updated dependencies [e84d64d]
+  - @object-ui/types@11.4.0
+  - @object-ui/components@11.4.0
+  - @object-ui/i18n@11.4.0
+  - @object-ui/core@11.4.0
+  - @object-ui/providers@11.4.0
+  - @object-ui/react@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes

@@ -47,6 +47,7 @@ import {
   BookOpen,
   ExternalLink,
   Keyboard,
+  Hammer,
 } from 'lucide-react';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -63,9 +64,9 @@ import type { ConnectionState } from '@object-ui/data-objectstack';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
-import { useAuth, getUserInitials } from '@object-ui/auth';
+import { useAuth, getUserInitials, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel, preferLocal, matchAppBySegment, appRouteSegment } from '../utils';
+import { resolveI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioDesignPath } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
@@ -143,6 +144,9 @@ export function AppHeader({
   // no AI (Community Edition) so it can't dead-end on a chat with no agent.
   // Same signal as the FAB and the `/ai` route guard.
   const { enabled: aiEnabled } = useAiSurfaceEnabled();
+  // Design entry points mutate shared package metadata, so the app → Studio
+  // bridge below is admin-only (mirrors the runtime view/page editors).
+  const isWorkspaceAdmin = useIsWorkspaceAdmin();
   const { t } = useObjectTranslation();
   const { objectLabel, dashboardLabel, pageLabel, reportLabel, viewLabel, appLabel } = useObjectLabel();
   const { apps: metadataApps, dashboards: metadataDashboards, pages: metadataPages, reports: metadataReports } = useMetadata();
@@ -551,6 +555,11 @@ export function AppHeader({
     ? (helpDocs ?? []).filter((d) => d._packageId === currentAppPackageId)
     : [];
 
+  // App → Studio reverse bridge (ADR-0080): admins jump from the running app
+  // to its owning package's design surface. Null when there is nothing to
+  // open (non-admin, or no owning package).
+  const studioDesignPath = isApp ? appStudioDesignPath(currentApp, isWorkspaceAdmin) : null;
+
   const objectSiblings = appObjects.map((o: any) => ({
     label: objectLabel(o),
     href: `${baseHref}/${o.name}`,
@@ -848,6 +857,26 @@ export function AppHeader({
             onMarkAllRead={markAllRead}
             onMarkRead={markNotificationRead}
           />
+
+          {/* Design in Studio — the app → builder reverse bridge (ADR-0080).
+              Admins jump from the running app to its owning package's design
+              surface (/studio/:packageId/data); hidden for everyone else and
+              for apps with no owning package. */}
+          {studioDesignPath && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              asChild
+              data-testid="app-design-in-studio-button"
+              aria-label={t('topbar.designInStudio', { defaultValue: 'Design in Studio' })}
+              title={t('topbar.designInStudio', { defaultValue: 'Design in Studio' })}
+            >
+              <Link to={studioDesignPath}>
+                <Hammer className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
 
           {/* AI Assistant — only when the runtime serves AI (hidden on
               Community Edition so it can't dead-end on an agent-less chat). */}

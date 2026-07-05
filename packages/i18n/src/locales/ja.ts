@@ -1263,6 +1263,7 @@ const ja = {
   },
   topbar: {
     aiAssistant: "AI アシスタント",
+    designInStudio: "Studio でデザイン",
   },
   home: {
     title: "ホーム",

@@ -67,6 +67,7 @@ const KIND_TO_META_TYPE: Partial<Record<ReferenceKind, string>> = {
 export interface ResolvedRef {
   kind: ReferenceKind;
   objectSource?: string;
+  connectorSource?: string;
 }
 
 /**
@@ -80,11 +81,11 @@ export function resolveRefKind(
   sibling: (key: string) => unknown,
 ): ResolvedRef | undefined {
   if (!ref) return undefined;
-  if (ref.kind) return { kind: ref.kind, objectSource: ref.objectSource };
+  if (ref.kind) return { kind: ref.kind, objectSource: ref.objectSource, connectorSource: ref.connectorSource };
   if (ref.kindFrom && ref.map) {
     const disc = sibling(ref.kindFrom);
     const k = typeof disc === 'string' ? ref.map[disc] : undefined;
-    if (k) return { kind: k, objectSource: ref.objectSource };
+    if (k) return { kind: k, objectSource: ref.objectSource, connectorSource: ref.connectorSource };
   }
   return undefined;
 }
@@ -108,6 +109,30 @@ function resolveObjectName(kind: ReferenceKind, objectSource: string | undefined
   }
   // A sibling config key on the same node (CRUD nodes carry their own objectName).
   return configString(ctx.node, src);
+}
+
+/**
+ * Resolve the chosen connector name for a `connector-action` reference — read
+ * from the sibling key on this node's `connectorConfig` block (default
+ * `connectorId`), which is where the connector picker writes it.
+ */
+export function resolveConnectorName(kind: ReferenceKind, connectorSource: string | undefined, ctx: FlowReferenceContext): string | undefined {
+  if (kind !== 'connector-action') return undefined;
+  const cc = ctx.node?.connectorConfig;
+  if (!cc || typeof cc !== 'object' || Array.isArray(cc)) return undefined;
+  const v = (cc as Record<string, unknown>)[connectorSource || 'connectorId'];
+  return typeof v === 'string' && v ? v : undefined;
+}
+
+/** A connector descriptor's action list → combobox options (exported for test). */
+export function connectorActionsToOptions(actions: unknown): Option[] {
+  if (!Array.isArray(actions)) return [];
+  return actions
+    .filter((a): a is { key: string; label?: string } => !!a && typeof (a as { key?: unknown }).key === 'string' && !!(a as { key: string }).key)
+    .map((a) => ({
+      value: a.key,
+      label: typeof a.label === 'string' && a.label && a.label !== a.key ? `${a.label} (${a.key})` : a.key,
+    }));
 }
 
 /**
@@ -150,6 +175,44 @@ function useMetadataListOptions(type: string | undefined): { options: Option[]; 
   return state;
 }
 
+/**
+ * Fetch a connector's actions as combobox options from the runtime connector
+ * descriptors (`GET /api/v1/automation/connectors`, each `{ name, actions:
+ * [{key,label}] }`). `connectorName === undefined` disables the fetch (so the
+ * hook is safe to call unconditionally). Degrades to empty on any failure.
+ */
+function useConnectorActionOptions(connectorName: string | undefined): { options: Option[]; loading: boolean } {
+  const [state, setState] = React.useState<{ options: Option[]; loading: boolean }>({
+    options: [],
+    loading: !!connectorName,
+  });
+  React.useEffect(() => {
+    if (!connectorName) {
+      setState({ options: [], loading: false });
+      return;
+    }
+    let cancelled = false;
+    setState((s) => ({ ...s, loading: true }));
+    fetch('/api/v1/automation/connectors', { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        const connectors = payload?.data?.connectors ?? payload?.connectors ?? [];
+        const conn = Array.isArray(connectors)
+          ? connectors.find((c: { name?: unknown }) => c?.name === connectorName)
+          : undefined;
+        setState({ options: connectorActionsToOptions(conn?.actions), loading: false });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ options: [], loading: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [connectorName]);
+  return state;
+}
+
 export interface ReferenceComboboxProps {
   /** The resolved concrete reference, or undefined → plain free text. */
   resolved: ResolvedRef | undefined;
@@ -178,8 +241,12 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
   const objectName = resolved ? resolveObjectName(resolved.kind, resolved.objectSource, ctx) : undefined;
   const { fields: objectFields } = useObjectFields(kind === 'object-field' ? objectName : undefined);
 
+  // connector-action: resolve the chosen connector, then its action catalog.
+  const connectorName = resolved ? resolveConnectorName(resolved.kind, resolved.connectorSource, ctx) : undefined;
+  const { options: connectorActionOptions } = useConnectorActionOptions(kind === 'connector-action' ? connectorName : undefined);
+
   // Flat metadata-list kinds (object / flow / role / user / team / …).
-  const listType = kind && kind !== 'object-field' && kind !== 'node' ? KIND_TO_META_TYPE[kind] : undefined;
+  const listType = kind && kind !== 'object-field' && kind !== 'node' && kind !== 'connector-action' ? KIND_TO_META_TYPE[kind] : undefined;
   const { options: listOptions } = useMetadataListOptions(listType);
 
   const options = React.useMemo<Option[]>(() => {
@@ -189,6 +256,7 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
         label: f.label && f.label !== f.name ? `${f.label} (${f.name})` : f.name,
       }));
     }
+    if (kind === 'connector-action') return connectorActionOptions;
     if (kind === 'node') {
       const nodes = Array.isArray(ctx.draft.nodes) ? (ctx.draft.nodes as Array<Record<string, unknown>>) : [];
       const currentId = typeof ctx.node?.id === 'string' ? ctx.node.id : undefined;
@@ -202,11 +270,13 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
     }
     if (listType) return listOptions;
     return [];
-  }, [kind, listType, objectFields, listOptions, ctx.draft, ctx.node]);
+  }, [kind, listType, objectFields, connectorActionOptions, listOptions, ctx.draft, ctx.node]);
 
   // For an object-field whose object can't be resolved, tell the author why the
   // suggestions are empty — but still let them type a value.
   const unresolvedObject = kind === 'object-field' && !objectName;
+  // Same for a connector-action with no connector chosen yet.
+  const unresolvedConnector = kind === 'connector-action' && !connectorName;
 
   return (
     <div className="w-full space-y-1">
@@ -235,6 +305,12 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
         <p className="text-[11px] leading-snug text-muted-foreground">
           Set the flow’s trigger object (on the Start node) to list fields.
         </p>
+      )}
+      {showHint && kind === 'connector-action' && connectorName && (
+        <p className="text-[11px] leading-snug text-muted-foreground">Actions of {connectorName}.</p>
+      )}
+      {showHint && unresolvedConnector && (
+        <p className="text-[11px] leading-snug text-muted-foreground">Choose a Connector above to list its actions.</p>
       )}
     </div>
   );

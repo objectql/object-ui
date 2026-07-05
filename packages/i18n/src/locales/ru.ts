@@ -1263,6 +1263,7 @@ const ru = {
   },
   topbar: {
     aiAssistant: "ИИ-ассистент",
+    designInStudio: "Дизайн в Studio",
   },
   home: {
     title: "Главная",

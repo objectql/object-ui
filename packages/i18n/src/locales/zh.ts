@@ -1757,6 +1757,7 @@ const zh = {
   },
   topbar: {
     aiAssistant: 'AI 助手',
+    designInStudio: '在 Studio 中设计',
     openAssistant: '打开{{name}}助手',
     offline: '离线',
     usersOnline: '当前在线用户',

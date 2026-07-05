@@ -152,6 +152,15 @@ for each metadata type. Every type has a pure-renderer **preview** that doubles
 as its **designer** when given `editing` + `onPatch` props — no backend round
 trip is required to edit a draft.
 
+### App → Studio reverse bridge
+
+Inside a running app, workspace admins get a "Design in Studio" entry in the
+top bar (`AppHeader`) that deep-links to the app's owning package on the Studio
+design surface (`/studio/:packageId/data`). It is the reverse of the builder's
+"Open app" bridge (ADR-0080): the entry only renders for admins and only when
+the app has an owning package (`_packageId`), and package writability stays a
+server-side concern — a read-only package opens in Studio as browse-only.
+
 ### Studio package scope
 
 Studio treats the selected package as the authoring scope. The package selector

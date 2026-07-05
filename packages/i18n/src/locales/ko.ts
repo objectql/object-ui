@@ -1263,6 +1263,7 @@ const ko = {
   },
   topbar: {
     aiAssistant: "AI 어시스턴트",
+    designInStudio: "Studio에서 디자인",
   },
   home: {
     title: "홈",

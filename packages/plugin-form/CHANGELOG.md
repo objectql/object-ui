@@ -1,5 +1,97 @@
 # @object-ui/plugin-form
 
+## 11.4.0
+
+### Minor Changes
+
+- 8bf6295: feat: adaptive record surface + semantic field span + responsive columns (framework#2578)
+
+  Field-heavy objects (all metadata is AI-authored) now present themselves without
+  any authored presentation config:
+
+  - **Adaptive surface** — a record's create/edit/detail opens as a full page when
+    the object is field-heavy, or a drawer when it is light. Derived from field
+    count (`deriveRecordSurface`), not authored; mobile always pages. Wired into the
+    app-shell ObjectView detail navigation (an authored view/object `navigation`
+    still wins).
+  - **Semantic field span** — `FormField.span` (`auto`/`full`) is a width primitive
+    decoupled from the (per-surface derived) column count; legacy `colSpan` is
+    clamped so it never overflows. `ObjectForm` now honours per-section `columns`
+    and carries `span`/`colSpan` from section defs — fixes the bug where
+    `type:'simple'` ignored `section.columns` and grouped fields rendered single
+    column.
+  - **Responsive columns** — `inferColumns` scales the column CAP with field count
+    (≤3→1, ≤8→2, ≤15→3, 16+→4); the ACTUAL column count follows the form's real
+    width via CSS container queries, so the same form goes 1→2→3→4 columns as a
+    drawer widens or becomes a page.
+  - **Runtime overlay width** — `NavigationConfig.size` bucket is resolved to a
+    viewport-clamped width at runtime (`overlayWidthFor`); a pixel width is never
+    authored (the author cannot know the client viewport).
+
+- 144ab55: Consume the ADR-0085 object semantic roles from `@objectstack/spec@11.7.0`, retiring the per-surface hint dialects:
+
+  - **Single-source fieldGroups derivation**: `plugin-form`'s `deriveFieldGroupSections` and `plugin-detail`'s `deriveFieldGroupDetailSections` are now thin adapters over the spec's `deriveFieldGroupLayout` (ADR-0085 §5) — forms, modals and detail pages render the SAME grouping from one implementation. The canonical `collapse: 'none' | 'expanded' | 'collapsed'` enum is honoured everywhere (deprecated `collapsible`/`collapsed` and `defaultExpanded` spellings still read for pre-11.7 metadata).
+  - **`stageField` semantic role**: the detail stepper reads the top-level `stageField`; `stageField: false` now actually suppresses stage detection (previously the `false` handling was wired to the removed `detail.stageField` key, so spec-authored `false` fell through to the name heuristic).
+  - **`highlightFields` rename**: default grid columns, card compact views, the detail highlight strip, child-record preview fields and interface-page default columns read the object's `highlightFields` (deprecated `compactLayout` spelling read as fallback for pre-11.7 metadata).
+  - **Removed dead reads**: the never-spec-writable `objectDef.views.*` UI hints and the ADR-0085-removed `detail.*` block (`sections`, `sectionGroups`, `highlightFields`, `stageField`, `useFieldGroups`, `showReferenceRail`, `hideReferenceRail`, `hideRelatedTab`, `relatedLayout`) are no longer consulted. Per-page customization goes through an assigned Page schema (`record:reference_rail` remains available there as a renderer capability). `detail.renderViaSchema` survives only as the legacy-renderer kill-switch and is removed together with that path.
+
+### Patch Changes
+
+- c38d107: Fix view-level `FormField.visibleOn` (CEL) never taking effect (#2212).
+
+  The spec ships `visibleOn` as an Expression object `{ dialect: 'cel', source }`
+  (what the `P` template emits) or a bare string, but the whole chain dropped it:
+
+  - `sectionFields.ts` / `ObjectForm.tsx` only accepted the bare-string shape and
+    attached a dead `visible()` closure no renderer ever called — the Expression
+    object shape was silently discarded.
+  - The form renderer destructured `visibleOn` out of the field config and never
+    evaluated it.
+  - `RecordFormPage` dropped a `simple` form view's `sections` entirely, so
+    page-mode create/edit fell back to the raw schema (every field, no authored
+    selection/grouping) while the modal path honored the same view.
+  - `ObjectForm`'s grouped-sections path matched section fields by name only,
+    dropping per-field `visibleOn` overrides.
+
+  `visibleOn` now flows through normalization verbatim (both wire shapes) and is
+  evaluated reactively by the form renderer with the canonical expression engine
+  (`evalFieldPredicate` — same engine, record scope, and fail-open semantics as
+  field-level `visibleWhen`; both predicates must allow a field for it to show).
+  Sectioned/flat normalization also copies field-level `visibleWhen` /
+  `readonlyWhen` / `requiredWhen` rules it previously lost.
+
+- 1e9145d: Hydrate widget types on hand-authored master-detail subform columns. A view can
+  list a child grid's columns as bare `{ field, label }` (the common authoring
+  form); previously such untyped columns were passed straight to the grid, so a
+  `select` / `lookup` / `date` / `number` field silently rendered as a plain text
+  cell. `MasterDetailForm` (and `deriveDetail`) now resolve each untyped column's
+  `type` (plus `options` / `reference` / computed `expr`) from the child object's
+  schema via the new `hydrateColumns` helper — a picklist becomes a dropdown, a
+  lookup a record picker, a date a date input — while preserving the author's
+  exact column set, order and labels. Columns that already declare a `type` are
+  left untouched (the author's explicit choice still wins).
+- Updated dependencies [8bf6295]
+- Updated dependencies [1948c5b]
+- Updated dependencies [bce581a]
+- Updated dependencies [9cd9be1]
+- Updated dependencies [5160832]
+- Updated dependencies [69d6b94]
+- Updated dependencies [c38d107]
+- Updated dependencies [243a9ba]
+- Updated dependencies [289be5b]
+- Updated dependencies [7782698]
+- Updated dependencies [19f2533]
+- Updated dependencies [790558b]
+- Updated dependencies [09e1b26]
+- Updated dependencies [e84d64d]
+  - @object-ui/types@11.4.0
+  - @object-ui/components@11.4.0
+  - @object-ui/fields@11.4.0
+  - @object-ui/i18n@11.4.0
+  - @object-ui/core@11.4.0
+  - @object-ui/permissions@11.4.0
+  - @object-ui/react@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes

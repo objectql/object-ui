@@ -1263,6 +1263,7 @@ const fr = {
   },
   topbar: {
     aiAssistant: "Assistant IA",
+    designInStudio: "Concevoir dans Studio",
   },
   home: {
     title: "Accueil",

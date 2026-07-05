@@ -1,5 +1,102 @@
 # @object-ui/plugin-grid
 
+## 11.4.0
+
+### Minor Changes
+
+- 144ab55: Consume the ADR-0085 object semantic roles from `@objectstack/spec@11.7.0`, retiring the per-surface hint dialects:
+
+  - **Single-source fieldGroups derivation**: `plugin-form`'s `deriveFieldGroupSections` and `plugin-detail`'s `deriveFieldGroupDetailSections` are now thin adapters over the spec's `deriveFieldGroupLayout` (ADR-0085 §5) — forms, modals and detail pages render the SAME grouping from one implementation. The canonical `collapse: 'none' | 'expanded' | 'collapsed'` enum is honoured everywhere (deprecated `collapsible`/`collapsed` and `defaultExpanded` spellings still read for pre-11.7 metadata).
+  - **`stageField` semantic role**: the detail stepper reads the top-level `stageField`; `stageField: false` now actually suppresses stage detection (previously the `false` handling was wired to the removed `detail.stageField` key, so spec-authored `false` fell through to the name heuristic).
+  - **`highlightFields` rename**: default grid columns, card compact views, the detail highlight strip, child-record preview fields and interface-page default columns read the object's `highlightFields` (deprecated `compactLayout` spelling read as fallback for pre-11.7 metadata).
+  - **Removed dead reads**: the never-spec-writable `objectDef.views.*` UI hints and the ADR-0085-removed `detail.*` block (`sections`, `sectionGroups`, `highlightFields`, `stageField`, `useFieldGroups`, `showReferenceRail`, `hideReferenceRail`, `hideRelatedTab`, `relatedLayout`) are no longer consulted. Per-page customization goes through an assigned Page schema (`record:reference_rail` remains available there as a renderer capability). `detail.renderViaSchema` survives only as the legacy-renderer kill-switch and is removed together with that path.
+
+### Patch Changes
+
+- 1948c5b: fix(plugin-grid): keep the grid's row selection in sync when a bulk-action dialog closes
+
+  Closing a bulk-action result dialog (e.g. 派工 / 下推) on **Done** cleared
+  ObjectGrid's `selectedRows` — which drives the selection toolbar — but never
+  touched the DataTable's internal checkbox state. Two visible problems:
+
+  - **Desync on success.** The toolbar disappeared while every row stayed visibly
+    ticked, because the checkboxes are table-internal state the grid couldn't
+    reach.
+
+  - **Lost selection on total failure.** When the run failed for _every_ row
+    (0 succeeded — a precondition error, say), the toolbar still vanished,
+    stranding the user with no way to retry the exact rows they'd picked.
+
+  The dialog-close handler now gates the reset on `result.succeeded > 0`: a total
+  failure keeps both the selection _and_ the toolbar (and skips the phantom
+  refetch) so the user can fix the cause and retry. When it does reset, a new
+  `selectionResetKey` prop on DataTable clears the internal checkbox selection in
+  lockstep with the toolbar, so the two never drift apart.
+
+- 3e42680: fix(plugin-grid): schema-aware multi-value semantics for bulk-edit params (#2204)
+
+  BulkActionDialog was schema-blind: whether a bulk-edit param rendered a
+  single- or multi-select — and whether the patch shipped a scalar or an
+  array — depended solely on the hand-written `BulkActionParam.multiple`
+  flag. A view author targeting a multi-value field (`multiselect`, `tags`,
+  `checkboxes`, or `select`/`lookup`/`user`/`file`/`image` with
+  `multiple: true`) who forgot the flag got a single-select control and a
+  SCALAR patch, silently corrupting the column shape server-side.
+
+  Now the target object's schema is the fallback:
+
+  - ObjectGrid passes its `objectSchema.fields` into BulkActionDialog and
+    useBulkExecutor.
+  - An explicit `param.multiple` boolean still wins; otherwise `update`
+    params derive multi-ness from the field definition via the new
+    `isMultiValueField` helper.
+  - The executor shape-normalizes every outgoing patch (`run` and `retry`):
+    a lone scalar aimed at a multi-value field is wrapped into a
+    single-element array — mirroring the server-side guard added in
+    framework #2552.
+
+- 2edcaff: Drop the `compactLayout` fallback reads (6 sites: ObjectGrid default columns, deriveHighlightFields, RecordDetailView highlight strip + child preview, ObjectView ×2, InterfaceListPage). The deprecated spelling was retired from the spec by framework#2539 (framework#2536) — served metadata carries `highlightFields` only, so the fallbacks could never fire again; keeping them would teach the retired key to the next reader.
+- 9cd9be1: fix(plugin-grid): make the import wizard's preview step readable — wider columns + friendlier validation errors
+
+  Two problems on the import wizard's 预览 (preview) step:
+
+  - **Cramped preview table.** With many mapped columns crammed into the fixed
+    dialog width, each header collapsed to one character per line (`关联排班计划`
+    stacked vertically) and became unreadable. Columns now get a `min-width` and
+    headers no longer wrap, so the preview area scrolls horizontally instead of
+    crushing every column.
+
+  - **Unreadable dry-run error messages.** A reference cell that couldn't resolve
+    rendered as `第 1 行: product: product: no os_tianshun_ehr_product matches "导管架"`
+    — the field named twice, an internal object api-name leaking through, all in
+    English. The server already tags each failure with a structured `code`, so we
+    now drive the message off that code (localized, with the offending value),
+    resolve the field's api-name to its label, and only fall back to the raw
+    server text — minus the duplicated prefix — for unrecognized codes. The same
+    row now reads `第 1 行: 产品：找不到匹配 "导管架" 的记录`.
+
+- Updated dependencies [8bf6295]
+- Updated dependencies [1948c5b]
+- Updated dependencies [bce581a]
+- Updated dependencies [9cd9be1]
+- Updated dependencies [5160832]
+- Updated dependencies [69d6b94]
+- Updated dependencies [c38d107]
+- Updated dependencies [243a9ba]
+- Updated dependencies [289be5b]
+- Updated dependencies [7782698]
+- Updated dependencies [19f2533]
+- Updated dependencies [790558b]
+- Updated dependencies [09e1b26]
+- Updated dependencies [e84d64d]
+  - @object-ui/types@11.4.0
+  - @object-ui/components@11.4.0
+  - @object-ui/fields@11.4.0
+  - @object-ui/i18n@11.4.0
+  - @object-ui/core@11.4.0
+  - @object-ui/mobile@11.4.0
+  - @object-ui/react@11.4.0
+
 ## 11.3.0
 
 ### Patch Changes

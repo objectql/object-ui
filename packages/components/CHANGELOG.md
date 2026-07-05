@@ -1,5 +1,116 @@
 # @object-ui/components
 
+## 11.4.0
+
+### Patch Changes
+
+- 1948c5b: fix(plugin-grid): keep the grid's row selection in sync when a bulk-action dialog closes
+
+  Closing a bulk-action result dialog (e.g. 派工 / 下推) on **Done** cleared
+  ObjectGrid's `selectedRows` — which drives the selection toolbar — but never
+  touched the DataTable's internal checkbox state. Two visible problems:
+
+  - **Desync on success.** The toolbar disappeared while every row stayed visibly
+    ticked, because the checkboxes are table-internal state the grid couldn't
+    reach.
+
+  - **Lost selection on total failure.** When the run failed for _every_ row
+    (0 succeeded — a precondition error, say), the toolbar still vanished,
+    stranding the user with no way to retry the exact rows they'd picked.
+
+  The dialog-close handler now gates the reset on `result.succeeded > 0`: a total
+  failure keeps both the selection _and_ the toolbar (and skips the phantom
+  refetch) so the user can fix the cause and retry. When it does reset, a new
+  `selectionResetKey` prop on DataTable clears the internal checkbox selection in
+  lockstep with the toolbar, so the two never drift apart.
+
+- bce581a: Fix dependent (cascading) lookups: unlock on parent selection and enforce the
+  cascade filter on every candidate surface (#2215).
+
+  Two breaks made `depends_on` unusable end to end:
+
+  - **The gate never unlocked in create mode.** `LookupField` resolved dependent
+    values from `ctx.formValues` — a member `SchemaRendererContext` never had —
+    and nothing injected the `dependentValues` prop, so with a fresh record
+    (`ctx.data = {}`) the child lookup stayed disabled no matter what the user
+    picked in the parent field. The form renderer now injects its live form
+    values (the same reactive snapshot that drives field rules) as
+    `dependentValues` for data-source fields.
+  - **The Level-2 table picker bypassed the cascade.** The `depends_on` chain
+    only reached the quick-select popover filter; `RecordPickerDialog` (and the
+    search-first `PeoplePicker`) received just `lookup_filters`, listing the full
+    unfiltered record set. Both pickers now take a `baseFilter` — a hard
+    `$filter` constraint merged after `lookupFilters` and user filter-bar input,
+    so it can never be widened back out — and `LookupField` passes the dependent
+    chain there, shares the same filter with the popover query, and disables the
+    browse-all button while dependencies are missing.
+
+- c38d107: Fix view-level `FormField.visibleOn` (CEL) never taking effect (#2212).
+
+  The spec ships `visibleOn` as an Expression object `{ dialect: 'cel', source }`
+  (what the `P` template emits) or a bare string, but the whole chain dropped it:
+
+  - `sectionFields.ts` / `ObjectForm.tsx` only accepted the bare-string shape and
+    attached a dead `visible()` closure no renderer ever called — the Expression
+    object shape was silently discarded.
+  - The form renderer destructured `visibleOn` out of the field config and never
+    evaluated it.
+  - `RecordFormPage` dropped a `simple` form view's `sections` entirely, so
+    page-mode create/edit fell back to the raw schema (every field, no authored
+    selection/grouping) while the modal path honored the same view.
+  - `ObjectForm`'s grouped-sections path matched section fields by name only,
+    dropping per-field `visibleOn` overrides.
+
+  `visibleOn` now flows through normalization verbatim (both wire shapes) and is
+  evaluated reactively by the form renderer with the canonical expression engine
+  (`evalFieldPredicate` — same engine, record scope, and fail-open semantics as
+  field-level `visibleWhen`; both predicates must allow a field for it to show).
+  Sectioned/flat normalization also copies field-level `visibleWhen` /
+  `readonlyWhen` / `requiredWhen` rules it previously lost.
+
+- 7782698: fix(components): page:header record title honours `nameField` via the unified ADR-0079 resolver
+
+  The default console record detail page renders the synthesized `page:header`
+  (`buildDefaultPageSchema`, renderViaSchema default-on), whose record-chip title
+  chain probed `objSchema.primaryField` (not a spec property — always undefined),
+  `titleFormat`, then hardcoded `name`/`full_name`/`title`/`subject`/
+  `display_name`/`label` record keys. It never consulted the object's declared
+  `nameField`/`displayNameField`, so an object titled by e.g. `subject` rendered
+  `<ObjectLabel> <id-prefix>` as its H1 instead of the record's real name.
+
+  `PageHeaderRenderer` now resolves through `getRecordDisplayName(objSchema, data,
+{ deriveFromRecordKeys: false })` after the author overrides and before the
+  legacy probes — mirroring `DetailView.resolveDisplayTitle` so both headers
+  agree. `RecordDetailView`'s `primaryField` derivation and
+  `buildDefaultPageSchema`'s highlight-strip dedup also honour
+  `nameField`/`displayNameField`.
+
+- e84d64d: Block record-scoped toolbar actions launched with zero rows selected (#2210).
+
+  A flow/script action that also mounts on list rows (`locations` includes
+  `list_item`) has no record to run on when triggered from the list toolbar with
+  nothing selected — pre-fix the wizard opened anyway, collected input, and died
+  at its first record-bound node ("Update requires an ID or options.multi=true").
+  The console runtime now blocks up front with "select a row first", mirroring
+  the existing multi-selection guard. Pure object-level toolbar actions
+  (`locations: ['list_toolbar']` only) keep triggering without a record.
+
+  The action renderers (button/icon/menu/group) now forward the `locations`
+  declaration to the ActionRunner — previously it was dropped by their
+  allow-list payloads, so the runtime could not tell the two shapes apart.
+
+- Updated dependencies [8bf6295]
+- Updated dependencies [1948c5b]
+- Updated dependencies [9cd9be1]
+- Updated dependencies [c38d107]
+- Updated dependencies [790558b]
+  - @object-ui/types@11.4.0
+  - @object-ui/i18n@11.4.0
+  - @object-ui/core@11.4.0
+  - @object-ui/react@11.4.0
+  - @object-ui/react-runtime@11.4.0
+  - @object-ui/sdui-parser@11.4.0
+
 ## 11.3.0
 
 ### Minor Changes
