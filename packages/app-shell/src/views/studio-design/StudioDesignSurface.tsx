@@ -1381,11 +1381,7 @@ function InterfacesPillar({
               </div>
             )}
           </div>
-          {isEditable ? (
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <MousePointer2 className="h-3 w-3" /> {t('engine.studio.if.editHint', locale)}
-            </p>
-          ) : current?.type === 'object' ? (
+          {!isEditable && current?.type === 'object' ? (
             <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
               <Database className="h-3 w-3" /> {t('engine.studio.if.objectHintPre', locale)}<span className="font-medium">Data</span>{t('engine.studio.if.objectHintPost', locale)}
             </p>
@@ -2120,9 +2116,6 @@ function DataPillar({
                   </SchemaRendererProvider>
                 </GridFieldAuthoringProvider>
               </div>
-              <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                <MousePointer2 className="h-3 w-3" /> {t('engine.studio.data.gridHint', locale)}
-              </p>
               </>
               ) : (
               <>
@@ -2231,9 +2224,6 @@ function DataPillar({
                   </SchemaRendererProvider>
                 </div>
               </div>
-              <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-                <MousePointer2 className="h-3 w-3" /> {t('engine.studio.data.formHint', locale)}
-              </p>
               </>
               )}
               </>

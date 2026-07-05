@@ -1011,7 +1011,6 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.if.noAppTitle': 'This package has no app yet',
   'engine.studio.if.noAppHint': 'Create an app to design its navigation and interfaces.',
   'engine.studio.if.readonlyPreview': '{type} shows a read-only preview for now; design support is in progress.',
-  'engine.studio.if.editHint': 'Click a block → edit on the right · then “Save draft” → “Publish”',
   'engine.studio.if.objectHintPre': 'Runtime list preview · edit fields / structure in the ',
   'engine.studio.if.objectHintPost': ' pillar',
   'engine.studio.inspector.props': 'Properties',
@@ -1051,8 +1050,6 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.draftObjectHint':
     'The Records grid queries real data, but this object has no table until it’s published. Design fields and groups in “Form · Layout” first, then click “Publish” in the top bar — after publishing, this becomes its live data grid.',
   'engine.studio.data.goDesignFields': 'Go to “Form · Layout” to design fields',
-  'engine.studio.data.gridHint':
-    'Column “+” adds a field · pencil edits properties · drag a header to reorder · then “Save draft” → “Publish”',
   'engine.studio.data.form.layout': 'Layout',
   'engine.studio.data.form.preview': 'Preview',
   'engine.studio.data.form.layoutBadge': 'Layout designer · draft (includes unpublished changes)',
@@ -1062,8 +1059,6 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.form.noPublishedTitle': 'No published definition yet',
   'engine.studio.data.form.noPublishedHint':
     '“Preview” renders the published runtime form, but this object isn’t published yet. Confirm the draft in “Layout”, then click “Publish” in the top bar to preview.',
-  'engine.studio.data.formHint':
-    'Click any field → edit properties on the right · “Add field” adds a field · then “Save draft” → “Publish”',
   'engine.studio.data.fieldProps': 'Field properties',
   // Automations pillar
   'engine.studio.auto.nodeStart': 'Start',
@@ -1088,7 +1083,6 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.auto.idPlaceholder': 'Identifier (e.g. offer_notice)',
   'engine.studio.auto.canvasHint': 'Visual orchestration · click a node to configure',
   'engine.studio.auto.pick': 'Select an automation',
-  'engine.studio.auto.editHint': 'Click a node → configure on the right · then “Save draft” → “Publish”',
   'engine.studio.auto.config': 'Configuration',
   'engine.studio.auto.emptyLine1': 'Click a node on the canvas,',
   'engine.studio.auto.emptyLine2': 'and its configuration appears here.',
@@ -1980,7 +1974,6 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.if.noAppTitle': '这个软件包还没有应用',
   'engine.studio.if.noAppHint': '创建一个应用来设计它的导航与界面。',
   'engine.studio.if.readonlyPreview': '{type} 暂用只读预览,设计能力建设中。',
-  'engine.studio.if.editHint': '点选积木 → 右侧直接改 · 改完「保存草稿」→「发布」',
   'engine.studio.if.objectHintPre': '运行态列表预览 · 改字段 / 结构请到 ',
   'engine.studio.if.objectHintPost': ' 支柱',
   'engine.studio.inspector.props': '属性',
@@ -2020,7 +2013,6 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.draftObjectHint':
     '「记录」网格查询真实数据,而这个对象发布前还没有数据表。请先在「表单 · 布局」里设计字段与分组,然后点顶栏「发布」— 发布后这里就是它的实时数据网格。',
   'engine.studio.data.goDesignFields': '去「表单 · 布局」设计字段',
-  'engine.studio.data.gridHint': '列头「+」加字段 · 笔形改属性 · 拖列头重排 · 改完「保存草稿」→「发布」',
   'engine.studio.data.form.layout': '布局',
   'engine.studio.data.form.preview': '预览',
   'engine.studio.data.form.layoutBadge': '布局设计器 · 草稿(含未发布改动)',
@@ -2030,7 +2022,6 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.form.noPublishedTitle': '尚无已发布定义',
   'engine.studio.data.form.noPublishedHint':
     '「预览」渲染已发布的运行态表单,而这个对象还未发布。在「布局」里确认草稿,点顶栏「发布」后即可预览。',
-  'engine.studio.data.formHint': '点选任意字段 → 右侧改属性 · 「添加字段」加字段 · 改完「保存草稿」→「发布」',
   'engine.studio.data.fieldProps': '字段属性',
   // Automations pillar
   'engine.studio.auto.nodeStart': '开始',
@@ -2055,7 +2046,6 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.auto.idPlaceholder': '标识符(如:offer_notice)',
   'engine.studio.auto.canvasHint': '可视化编排 · 点选节点配置',
   'engine.studio.auto.pick': '选择一个自动化',
-  'engine.studio.auto.editHint': '点选节点 → 右侧配置 · 改完「保存草稿」→「发布」',
   'engine.studio.auto.config': '配置',
   'engine.studio.auto.emptyLine1': '在画布里点选一个节点,',
   'engine.studio.auto.emptyLine2': '它的配置会在这里显示。',
