@@ -52,7 +52,7 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
       )}
       aria-label="Record highlights"
     >
-      <div className={cn('flex flex-wrap gap-x-8 gap-y-3')}>
+      <div className={cn('flex flex-wrap gap-y-4')}>
         {visibleFields.map((field) => {
           const value = data[field.name];
           // Enrich field metadata from objectSchema
@@ -88,8 +88,16 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
           // and look mangled when truncated mid-domain
           // (`zhuangjianguo@gmail.co` swallowing the `…m`). Let those
           // columns grow wider so the address fits on one line. Same
-          // treatment for textarea fields that authors may opt into.
-          const isWide = resolvedType === 'email' || resolvedType === 'url' || resolvedType === 'textarea';
+          // treatment for textarea fields and reference/lookup values —
+          // related-record names (`国家电投江苏海上风电有限公司`) are long
+          // and losing the tail hides the very thing the field identifies.
+          const isWide =
+            resolvedType === 'email' ||
+            resolvedType === 'url' ||
+            resolvedType === 'textarea' ||
+            resolvedType === 'reference' ||
+            resolvedType === 'lookup' ||
+            resolvedType === 'master_detail';
           // BooleanCellRenderer paints a tiny disabled checkbox which
           // reads as "empty input" in the header context. Pills with
           // ✓ / ✗ icons match how every modern enterprise UI
@@ -100,11 +108,18 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
             <div
               key={field.name}
               className={cn(
-                'flex flex-col gap-1 min-w-[8rem] basis-[10rem]',
-                isWide ? 'max-w-[24rem] basis-[16rem]' : 'max-w-[16rem]',
+                // Vertical divider + even padding makes each field read as
+                // its own column (Salesforce Highlights Panel). The first
+                // column drops the rule/left-pad so the row stays flush-left.
+                'flex flex-col gap-1 min-w-[7rem] px-5 border-l border-border/60 first:border-l-0 first:pl-0',
+                // Keep exactly one basis/max-w pair — emitting both
+                // basis-[9rem] and basis-[16rem] lets Tailwind's CSS order
+                // (not source order) pick the winner, so wide columns would
+                // silently collapse to the narrow width and truncate.
+                isWide ? 'basis-[16rem] max-w-[24rem]' : 'basis-[9rem] max-w-[16rem]',
               )}
             >
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <span className="text-xs font-medium text-muted-foreground">
                 {fieldLabel(objectName || '', field.name, field.label)}
               </span>
               {isBoolean ? (
@@ -121,11 +136,14 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
                 )
               ) : (
                 <span
+                  title={typeof value === 'string' ? value : undefined}
                   className={cn(
-                    'block min-w-0 truncate',
-                    isKpi
-                      ? 'text-xl md:text-2xl font-semibold leading-tight tabular-nums tracking-tight'
-                      : 'text-sm font-semibold',
+                    // Uniform value size keeps every field on the same
+                    // baseline — a lone text-2xl KPI towering over text-sm
+                    // neighbours read as unbalanced. Numbers keep
+                    // tabular-nums so columns still align digit-for-digit.
+                    'block min-w-0 truncate text-sm font-semibold',
+                    isKpi && 'tabular-nums tracking-tight',
                   )}
                 >
                   <CellRenderer value={value} field={enrichedField as any} />
