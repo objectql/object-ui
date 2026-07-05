@@ -1,5 +1,11 @@
 # @object-ui/i18n
 
+## 11.5.0
+
+### Minor Changes
+
+- 544d8eb: Add the app → Studio reverse bridge (ADR-0080): workspace admins see a "Design in Studio" entry in the app top bar that deep-links to the running app's owning package on the Studio design surface (`/studio/:packageId/data`). Hidden for non-admins and for apps with no owning package; package writability stays server-side (read-only packages open as browse-only).
+
 ## 11.4.0
 
 ### Patch Changes

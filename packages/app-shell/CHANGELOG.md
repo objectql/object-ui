@@ -1,5 +1,104 @@
 # @object-ui/app-shell — Changelog
 
+## 11.5.0
+
+### Minor Changes
+
+- 544d8eb: Add the app → Studio reverse bridge (ADR-0080): workspace admins see a "Design in Studio" entry in the app top bar that deep-links to the running app's owning package on the Studio design surface (`/studio/:packageId/data`). Hidden for non-admins and for apps with no owning package; package writability stays server-side (read-only packages open as browse-only).
+- fbec4e1: feat(studio): pick a connector action from the chosen connector (no more hand-typed action ids)
+
+  In a flow's **Connector Action** node, the `actionId` field was a free-text box
+  (`sendMessage · send` placeholder) — a typo silently produced a node that fails
+  at run time. It was left as text because a connector's actions have "no flat
+  catalog"; but each connector already advertises its actions in the runtime
+  descriptors (`GET /api/v1/automation/connectors` → `{ name, actions:[{key,label}] }`).
+
+  `actionId` is now a **picker of the chosen connector's actions**, resolved from
+  the sibling `connectorId` (mirroring how `object-field` lists the fields of its
+  resolved object). New reference kind `connector-action` + `connectorSource` on
+  `FlowReferenceSpec`; `useConnectorActionOptions` fetches the descriptors and
+  `resolveConnectorName` reads the connector from the node's `connectorConfig`. Like
+  every reference in the designer it stays an **editable combobox** — with no
+  connector chosen (or none installed) it degrades to free text with a hint
+  ("Choose a Connector above to list its actions" / "Actions of <connector>.").
+
+  Closes the last critical hand-typed-identifier gap in flow-node config (the
+  object / field / flow / role / connector / template references were already
+  pickers). Unit-tested (`resolveConnectorName`, `connectorActionsToOptions`).
+
+- 5ed8d2d: feat(studio): automation enable/disable switch + live status in the Automations rail
+
+  The Automations pillar showed only an icon + label per flow, and no way to turn a
+  flow on or off — so an author couldn't tell whether an automation was live, or
+  stop one without deleting it (the header even said "Off by default · review before
+  enabling", but nothing reflected or controlled it). UX eval #6.
+
+  - **Live status dot** on every flow in the rail — a green "On" / gray "Off",
+    fetched from the engine's `GET /api/v1/automation/_status` (persisted `status`
+    is intent; this is what's actually enabled + bound to its trigger). Refetched
+    after a publish; degrades silently on an older backend. A flow the engine
+    doesn't know yet (never published) shows no dot — the amber "unpublished draft"
+    chip already covers that.
+  - **Enable/Disable switch** in the flow header. It flips the flow's deployment
+    `status` (active ↔ obsolete) and saves the draft immediately; the change goes
+    live when the package is published (so "review before enabling" is preserved).
+    Pairs with framework's engine-side gate (`obsolete`/`invalid` → not bound).
+
+  New `engine.studio.auto.*` i18n keys (en + zh). Unit-tested (`FlowStatusDot`:
+  enabled→On, disabled→Off, no-state→nothing, bound-vs-unbound tooltip). Verified in
+  a live browser: the rail shows a green "On" against every showcase flow and the
+  header switch reads "Enabled".
+
+### Patch Changes
+
+- ec6bb16: Studio Automations rail now shows authored-but-unpublished (draft) flows.
+
+  The Automations pillar loaded its rail with `client.list('flow', …)` only, which
+  returns published/active metadata — so a flow authored (saved as a draft) but not
+  yet published was invisible in the rail, even while the "Changes · N" counter
+  showed a pending draft existed. Every sibling pillar (Data / Interfaces / Access)
+  already merged `client.listDrafts`; Automations was the sole outlier.
+
+  The published ∪ draft merge is extracted into a shared, unit-tested
+  `loadPackageSurfaces` helper and adopted by the Automations pillar, which also now
+  re-reads on `publishNonce` so drafts that go live collapse back into the published
+  rail after a package publish. A draft-only flow now appears in its rail (badged
+  "Unpublished draft"), is selectable, and loads its draft body for editing —
+  matching the other pillars. Fixes the empty-rail report for writable-base packages
+  whose flows are all still drafts.
+
+- 6f15e43: test(studio): extend the create-conformance gate to the inline pillar creators
+
+  `createConformance.test.ts` guards that every authorable type's default
+  create-form output passes spec validation — catching the recurring "the designer
+  emits a minimal shape the spec rejects, so create→save 422s" dead-end family. But
+  it read only the metadata-admin registry, so the Studio's **inline** "New X"
+  creators (Data → object, Automations → flow, Interfaces → app, Access →
+  permission) — which build their skeletons directly in `StudioDesignSurface.tsx`,
+  bypassing the registry — were **uncovered**. A future edit to one of those shapes
+  could turn its "New" button into a silent dead-end with nothing to catch it.
+
+  Extracted the four inline skeletons into pure, exported builders
+  (`studio-design/skeletons.ts`) consumed by BOTH the pillars and a new gate block,
+  so the test can't drift from what the "New" button actually emits. No behavior
+  change — the builders return the byte-identical skeletons. The gate now covers all
+  create paths (registry + inline); the four inline skeletons validate clean.
+
+- Updated dependencies [544d8eb]
+  - @object-ui/i18n@11.5.0
+  - @object-ui/components@11.5.0
+  - @object-ui/fields@11.5.0
+  - @object-ui/react@11.5.0
+  - @object-ui/layout@11.5.0
+  - @object-ui/plugin-editor@11.5.0
+  - @object-ui/types@11.5.0
+  - @object-ui/core@11.5.0
+  - @object-ui/data-objectstack@11.5.0
+  - @object-ui/auth@11.5.0
+  - @object-ui/permissions@11.5.0
+  - @object-ui/collaboration@11.5.0
+  - @object-ui/providers@11.5.0
+
 ## 11.4.0
 
 ### Minor Changes

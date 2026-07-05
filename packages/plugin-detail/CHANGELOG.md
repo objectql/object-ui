@@ -1,5 +1,12 @@
 # @object-ui/plugin-detail
 
+## 11.5.0
+
+### Patch Changes
+
+- Updated dependencies [544d8eb]
+  - @object-ui/i18n@11.5.0
+
 ## 11.4.0
 
 ### Minor Changes
