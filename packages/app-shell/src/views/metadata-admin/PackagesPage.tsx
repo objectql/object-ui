@@ -34,6 +34,7 @@ import {
   Trash2,
   Copy,
   Inbox,
+  Pencil,
 } from 'lucide-react';
 import {
   Button,
@@ -307,6 +308,128 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
   );
 }
 
+/**
+ * Edit an existing package's manifest (name / description / version) via
+ * `PATCH /api/v1/packages/:id`. Mirrors CreatePackageDialog's standard-form
+ * shape; `id` / `scope` / `type` are immutable and not shown as inputs.
+ */
+export function EditPackageDialog({
+  pkg,
+  open,
+  onOpenChange,
+  onSaved,
+}: {
+  pkg: InstalledPackage | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSaved: (updated: InstalledPackage) => void;
+}) {
+  const locale = React.useMemo(() => detectLocale(), []);
+  const [name, setName] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [version, setVersion] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (open && pkg) {
+      setName(pkg.manifest.name ?? '');
+      setDescription(pkg.manifest.description ?? '');
+      setVersion(pkg.manifest.version ?? '');
+      setError(null);
+      setBusy(false);
+    }
+  }, [open, pkg]);
+
+  const versionValid = !version.trim() || VERSION_RE.test(version.trim());
+  const canSubmit = !!name.trim() && versionValid && !busy;
+
+  async function submit() {
+    if (!canSubmit || !pkg) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await apiJson<InstalledPackage>(`${API}/${encodeURIComponent(pkg.manifest.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim(),
+          version: version.trim(),
+        }),
+      });
+      try {
+        window.dispatchEvent(new CustomEvent('objectui:packages-changed'));
+      } catch {
+        /* non-DOM env */
+      }
+      onSaved(updated);
+      onOpenChange(false);
+    } catch (e: any) {
+      setError(e?.message ?? t('engine.packages.edit.failed', locale));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('engine.packages.edit.title', locale)}</DialogTitle>
+          <DialogDescription className="font-mono text-xs">{pkg?.manifest.id}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="pkg-edit-name">{t('engine.packages.create.name', locale)}</Label>
+            <Input
+              id="pkg-edit-name"
+              data-testid="package-edit-name-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pkg-edit-desc">{t('engine.packages.detail.description', locale)}</Label>
+            <Input
+              id="pkg-edit-desc"
+              data-testid="package-edit-desc-input"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pkg-edit-version">{t('engine.packages.create.version', locale)}</Label>
+            <Input
+              id="pkg-edit-version"
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              aria-invalid={!!version.trim() && !versionValid}
+            />
+            {!!version.trim() && !versionValid && (
+              <p className="text-xs text-destructive">{t('engine.packages.create.versionInvalid', locale)}</p>
+            )}
+          </div>
+          {error && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+            {t('engine.cancel', locale)}
+          </Button>
+          <Button onClick={submit} disabled={!canSubmit} data-testid="package-edit-save">
+            {busy ? t('engine.packages.edit.saving', locale) : t('engine.packages.edit.save', locale)}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function PackageDetailSheet({
   pkg,
   appBase,
@@ -331,6 +454,7 @@ export function PackageDetailSheet({
   // package looks empty right after a build. We list them here with a link to
   // the existing per-item review/diff (?review=1) so the user can publish them.
   const [drafts, setDrafts] = React.useState<Array<{ type: string; name: string }> | null>(null);
+  const [editOpen, setEditOpen] = React.useState(false);
 
   React.useEffect(() => {
     setMsg(null);
@@ -668,6 +792,10 @@ export function PackageDetailSheet({
               {t('engine.packages.detail.actions', locale)}
             </p>
             <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setEditOpen(true)} disabled={!!busy}>
+                <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                {t('engine.packages.detail.edit', locale)}
+              </Button>
               <Button size="sm" onClick={publish} disabled={!!busy}>
                 <Upload className="mr-1.5 h-3.5 w-3.5" />
                 {busy === 'publish' ? t('engine.packages.detail.publishing', locale) : t('engine.packages.detail.publish', locale)}
@@ -721,6 +849,16 @@ export function PackageDetailSheet({
             {msg.text}
           </div>
         )}
+
+        <EditPackageDialog
+          pkg={pkg}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onSaved={() => {
+            setMsg({ kind: 'ok', text: t('engine.packages.edit.saved', locale) });
+            onChanged();
+          }}
+        />
       </SheetContent>
     </Sheet>
   );

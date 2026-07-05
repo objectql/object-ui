@@ -204,32 +204,39 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
   // Open the standard detail/management sheet for a package — fetch its full
   // installed record (manifest + status) first, since the switcher only holds
   // the trimmed {id,name,writable} view.
-  const openManage = React.useCallback(async (id: string) => {
-    setOpen(false);
-    setManageBusy(true);
-    try {
-      const res = await fetch('/api/v1/packages', {
-        credentials: 'include',
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      const data = (await res.json()) as unknown;
-      const root = (data as { data?: unknown })?.data ?? data;
-      const list = (Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? [])) as Array<
-        InstalledPackage & { id?: string }
-      >;
-      const full = list.find((p) => (p?.manifest?.id ?? p?.id) === id) ?? null;
-      setManage(full);
-      setManageOpen(true);
-    } catch (e) {
-      toast.error(formatMetadataError(e));
-    } finally {
-      setManageBusy(false);
-    }
+  const fetchFullPackage = React.useCallback(async (id: string): Promise<InstalledPackage | null> => {
+    const res = await fetch('/api/v1/packages', {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    const data = (await res.json()) as unknown;
+    const root = (data as { data?: unknown })?.data ?? data;
+    const list = (Array.isArray(root) ? root : ((root as { packages?: unknown[] })?.packages ?? [])) as Array<
+      InstalledPackage & { id?: string }
+    >;
+    return list.find((p) => (p?.manifest?.id ?? p?.id) === id) ?? null;
   }, []);
 
-  // A lifecycle action ran in the sheet — refresh the list. If the managed
-  // package was the one we're editing and it's now gone (deleted), leave it.
+  const openManage = React.useCallback(
+    async (id: string) => {
+      setOpen(false);
+      setManageBusy(true);
+      try {
+        setManage(await fetchFullPackage(id));
+        setManageOpen(true);
+      } catch (e) {
+        toast.error(formatMetadataError(e));
+      } finally {
+        setManageBusy(false);
+      }
+    },
+    [fetchFullPackage],
+  );
+
+  // A lifecycle action ran in the sheet — refresh the list AND the managed
+  // snapshot (so an edit shows immediately). If the managed package was the one
+  // we're editing and it's now gone (deleted), jump to another package / home.
   const onManageChanged = React.useCallback(async () => {
     let list: PkgEntry[] = [];
     try {
@@ -239,11 +246,22 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
       /* keep the stale list */
     }
     const managedId = manage?.manifest.id;
-    if (managedId && managedId === packageId && !list.some((p) => p.id === managedId)) {
-      const next = list[0];
-      navigate(next ? `/studio/${encodeURIComponent(next.id)}/${tab}` : '/home');
+    if (!managedId) return;
+    if (!list.some((p) => p.id === managedId)) {
+      // Deleted — only navigate away if it was the package we're editing.
+      if (managedId === packageId) {
+        const next = list[0];
+        navigate(next ? `/studio/${encodeURIComponent(next.id)}/${tab}` : '/home');
+      }
+      return;
     }
-  }, [manage, packageId, tab, navigate]);
+    try {
+      const fresh = await fetchFullPackage(managedId);
+      if (fresh) setManage(fresh);
+    } catch {
+      /* keep the current snapshot */
+    }
+  }, [manage, packageId, tab, navigate, fetchFullPackage]);
 
   return (
     // Radix Popover (portaled to <body>) — the top bar is `overflow-x-auto`,
