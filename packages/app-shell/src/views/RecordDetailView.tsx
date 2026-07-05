@@ -28,7 +28,7 @@ import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog
 import { FlowRunner, type ScreenFlowState } from './FlowRunner';
 import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
 import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
-import { RECORD_DETAIL_TAB_PARAM } from '../urlParams';
+import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, appendRecordTrail, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { DetailViewSchema, FeedItem, HighlightField } from '@object-ui/types';
@@ -133,7 +133,24 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     setTabSearchParams(sp, { replace: true });
   }, [setTabSearchParams]);
   const location = useLocation();
-  const originFrom = (location.state as any)?.from as { pathname?: string; label?: string } | undefined;
+  // Inline "← back to parent" link shown above the record body. Prefers an
+  // explicit history-state `from` (legacy, in-session only), then falls back
+  // to the last ancestor in the `?from=` URL trail — which, unlike history
+  // state, survives refresh and shared links. This is the immediate-parent
+  // affordance; the full clickable path lives in the top-bar breadcrumb.
+  const originFromState = (location.state as any)?.from as { pathname?: string; label?: string } | undefined;
+  const originFrom = useMemo<{ pathname?: string; label?: string } | undefined>(() => {
+    if (originFromState?.pathname && originFromState?.label) return originFromState;
+    const trail = decodeRecordTrail(new URLSearchParams(location.search).get(RECORD_TRAIL_PARAM));
+    const parent = trail[trail.length - 1];
+    if (!parent) return undefined;
+    const baseAppUrl = appName ? `/apps/${appName}` : '';
+    const shortId = parent.i.length > 12 ? `${parent.i.slice(0, 8)}…` : parent.i;
+    return {
+      pathname: buildRecordTrailHref(baseAppUrl, parent, trail.slice(0, -1)),
+      label: parent.t || `#${shortId}`,
+    };
+  }, [originFromState, location.search, appName]);
   const { t } = useObjectTranslation();
   const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, actionDescription, fieldLabel, fieldOptionLabel } = useObjectLabel();
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
@@ -1484,7 +1501,22 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       const buildRecordUrl = (row: any) => {
         const rid = row?.id || row?._id;
         if (!rid) return null;
-        return `${baseAppUrl}/${childObject}/record/${encodeURIComponent(String(rid))}`;
+        const url = `${baseAppUrl}/${childObject}/record/${encodeURIComponent(String(rid))}`;
+        // Thread this (the parent) record into the child's `?from=` trail so
+        // the breadcrumb + back link can path back up. Mirrors the synth-path
+        // bridge; both must stay in sync.
+        if (objectName && pureRecordId) {
+          const rawFrom = new URLSearchParams(window.location.search).get(RECORD_TRAIL_PARAM);
+          const trail = appendRecordTrail(rawFrom, {
+            o: objectName,
+            i: pureRecordId,
+            ...(recordTitle ? { t: recordTitle } : {}),
+          });
+          const sp = new URLSearchParams();
+          sp.set(RECORD_TRAIL_PARAM, trail);
+          return `${url}?${sp.toString()}`;
+        }
+        return url;
       };
 
       const onNew = baseAppUrl
@@ -1873,6 +1905,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                   objects={objects}
                   dataSource={dataSource}
                   actionLabel={actionLabel}
+                  parentObjectName={objectName}
+                  parentRecordId={pureRecordId ?? undefined}
+                  parentTitle={recordTitle}
                 >
                   <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
                 </RelatedRecordActionsBridge>
