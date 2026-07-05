@@ -52,6 +52,24 @@
           "\"path\": \"/projects\""
         ]
       }
+    },
+    {
+      "id": 4,
+      "prompt": "On our sales dashboard, the 'Overdue Deals' KPI card should drill through to the underlying opportunity records (status open, past due). Also give me a shareable link for 'opportunities assigned to me'. Generate the nav/link metadata — we don't want to maintain extra saved views for these.",
+      "expected_output": "Uses the parameterized bare data surface instead of authoring views: emits object nav items / links with filters (serialized to /:objectName/data?filter[...]), uses {current_user_id} for the assigned-to-me link, and does not create new view or page metadata for these one-off slices.",
+      "files": [],
+      "assertions": {
+        "must_contain": [
+          "filters",
+          "/data",
+          "{current_user_id}",
+          "\"type\": \"object\""
+        ],
+        "must_not_contain": [
+          "\"type\": \"page\"",
+          "viewName"
+        ]
+      }
     }
   ]
 }
