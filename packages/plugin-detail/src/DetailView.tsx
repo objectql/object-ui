@@ -1193,6 +1193,21 @@ export const DetailView: React.FC<DetailViewProps> = ({
         const hasActivity = !!schema.activities && schema.activities.length > 0;
         const hasDiscussion = !!discussionSlot;
         const hasHistory = !!schema.history;
+        // objectui#2257 — the host may supply the initial tab (restored from
+        // `?tab=`) and a change callback (writes it back). Honored only when
+        // the requested value names a tab that actually renders; the active
+        // tab must survive this component remounting, so it cannot live only
+        // in Radix's uncontrolled state.
+        const tabValues = [
+          'details',
+          ...(hasRelated ? ['related'] : []),
+          ...(hasActivity ? ['activity'] : []),
+          ...(hasDiscussion ? ['discussion'] : []),
+          ...(hasHistory ? ['history'] : []),
+        ];
+        const requestedTab = (schema as any).defaultTab as string | undefined;
+        const initialTab = requestedTab && tabValues.includes(requestedTab) ? requestedTab : 'details';
+        const onTabChange = (schema as any).onTabChange as ((value: string) => void) | undefined;
         const detailsContent = (
           <div className="space-y-3 sm:space-y-4">
             {/* Section Groups */}
@@ -1254,7 +1269,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
         }
 
         return (
-          <Tabs defaultValue="details" className="w-full">
+          <Tabs defaultValue={initialTab} onValueChange={onTabChange} className="w-full">
             <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0">
               <TabsTrigger
                 value="details"

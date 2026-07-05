@@ -1989,6 +1989,12 @@ const fr = {
       empty: 'Rien en attente — tous les brouillons ont été publiés.',
       kindNew: 'Nouveau',
       kindUpdate: 'Mise à jour',
+      detailLoading: 'Chargement des détails…',
+      detailLoadFailed: 'Impossible de charger les détails de la modification :',
+      detailNone: 'Aucune différence détectée — le brouillon correspond à la version publiée.',
+      detailChangedKeys: 'Également modifié :',
+      confirmNote: 'La publication libère atomiquement les {{count}} brouillons en attente de ce paquet.',
+      publishConfirm: 'Tout publier',
     },
   },
   filterBuilder: {

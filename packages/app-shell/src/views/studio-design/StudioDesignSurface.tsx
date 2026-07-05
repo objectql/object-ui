@@ -340,27 +340,28 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
   const tab = params.tab ?? 'interfaces';
   const locale = useMetadataLocale();
 
-  // Courtesy gate (ADR-0057 D10): a read-only code/installed package refuses
-  // authoring server-side (ADR-0070), so don't let the user build up doomed
-  // local edits first — disable the authoring affordances up front. Unknown
-  // writability (fetch failed / still loading) stays ungated; the server gate
-  // remains the authority either way.
-  const [pkgWritable, setPkgWritable] = React.useState<boolean | null>(null);
+  // Courtesy client-side gate (ADR-0057 D10) mirroring the server's
+  // writable_package_required check (ADR-0070) — read-only (code/installed)
+  // packages reject authoring writes late, at save time. Default to `true`
+  // (don't gate) until the fetch resolves or if it fails, so a slow/broken
+  // packages endpoint never blocks legitimate authoring — the server remains
+  // the actual authority either way.
+  const [packageWritable, setPackageWritable] = React.useState(true);
   React.useEffect(() => {
     let cancelled = false;
-    setPkgWritable(null);
     fetchPackages()
-      .then((list) => {
-        if (!cancelled) setPkgWritable(list.find((p) => p.id === packageId)?.writable ?? null);
+      .then((pkgs) => {
+        if (cancelled) return;
+        const current = pkgs.find((p) => p.id === packageId);
+        setPackageWritable(current ? current.writable : true);
       })
       .catch(() => {
-        /* unknown — leave ungated */
+        if (!cancelled) setPackageWritable(true);
       });
     return () => {
       cancelled = true;
     };
   }, [packageId]);
-  const readOnly = pkgWritable === false;
 
   // Package-level publish (ADR-0033/0037/0048): edits accumulate as per-item
   // drafts STAMPED with this package (each save passes packageId → the draft row's
@@ -576,9 +577,8 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
                 <button
                   type="button"
                   onClick={() => setAppCreating((v) => !v)}
-                  disabled={readOnly}
-                  title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : t('engine.studio.app.noneTitle', locale)}
-                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  title={t('engine.studio.app.noneTitle', locale)}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {t('engine.studio.app.create', locale)}
@@ -645,20 +645,14 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               <GitBranch className="h-3.5 w-3.5" />
               {t('engine.studio.changes', locale)}{hasPending ? ` · ${pendingCount}` : ''}
             </button>
+            {/* Review-then-publish: the button opens the pending-changes panel,
+              * whose confirm footer runs the actual atomic publish — no more
+              * one-click release of every package draft straight from here. */}
             <button
               type="button"
-              // Publish is review-then-confirm: open the pending-changes panel,
-              // whose footer button fires the actual atomic package publish —
-              // never straight from this header click (objectui#2261).
               onClick={() => setChangesOpen(true)}
-              disabled={publishing || !hasPending || readOnly}
-              title={
-                readOnly
-                  ? t('engine.studio.pkg.readonlyHint', locale)
-                  : hasPending
-                    ? t('engine.studio.publishTitle', locale)
-                    : t('engine.studio.publishNoneTitle', locale)
-              }
+              disabled={publishing || !hasPending}
+              title={hasPending ? t('engine.studio.publishTitle', locale) : t('engine.studio.publishNoneTitle', locale)}
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
             >
               {publishing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Rocket className="h-3.5 w-3.5" />}
@@ -669,19 +663,23 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
         <div className="min-h-0 flex-1">
           {tab === 'data' ? (
-            <DataPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
+            <DataPillar
+              packageId={packageId}
+              publishNonce={publishNonce}
+              onDraftSaved={onDraftSaved}
+              writable={packageWritable}
+            />
           ) : tab === 'automations' ? (
-            <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
+            <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : tab === 'access' ? (
-            <AccessPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
+            <AccessPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} />
           ) : (
             <InterfacesPillar
               packageId={packageId}
               publishNonce={publishNonce}
               draftNonce={draftNonce}
               onDraftSaved={onDraftSaved}
-              onCreateApp={readOnly ? undefined : () => setAppCreating(true)}
-              readOnly={readOnly}
+              onCreateApp={() => setAppCreating(true)}
             />
           )}
         </div>
@@ -691,7 +689,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
         open={changesOpen}
         onOpenChange={setChangesOpen}
         packageId={packageId}
-        onPublish={readOnly ? undefined : doPublish}
+        onPublish={doPublish}
         publishing={publishing}
       />
     </div>
@@ -870,19 +868,16 @@ function InterfacesPillar({
   draftNonce = 0,
   onDraftSaved,
   onCreateApp,
-  readOnly = false,
 }: {
   packageId: string;
   publishNonce?: number;
-  /** Bumped when a draft is saved elsewhere (e.g. the header's create-app flow) — a
+  /** Bumped when a draft is saved elsewhere (e.g. the header's 创建应用) — a
    * re-resolve signal so a just-created app appears without a reload. */
   draftNonce?: number;
   onDraftSaved?: () => void;
   /** Invoked from the empty state when this package has no app, to open the
    * header's create-app flow (single source of truth for app creation). */
   onCreateApp?: () => void;
-  /** Courtesy gate: hide/disable nav-authoring affordances. */
-  readOnly?: boolean;
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
@@ -1125,8 +1120,7 @@ function InterfacesPillar({
         )}
         <button
           onClick={doSave}
-          disabled={!current || !isEditable || !!saving || readOnly}
-          title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
+          disabled={!current || !isEditable || !!saving}
           className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -1140,7 +1134,7 @@ function InterfacesPillar({
           <div className="shrink-0 border-b px-2 py-1.5">
             <div className="flex items-center justify-between gap-1">
               <p className="truncate text-[11px] font-medium text-muted-foreground">{tFormat('engine.studio.if.navHeading', locale, { app: appLabel })}</p>
-              {appStatus === 'ready' && !readOnly && (
+              {appStatus === 'ready' && (
                 <button
                   type="button"
                   onClick={() => {
@@ -1424,13 +1418,20 @@ function DataPillar({
   packageId,
   publishNonce = 0,
   onDraftSaved,
-  readOnly = false,
+  writable = true,
 }: {
   packageId: string;
   publishNonce?: number;
   onDraftSaved?: () => void;
-  /** Courtesy gate: hide/disable metadata-authoring affordances (records stay usable). */
-  readOnly?: boolean;
+  /**
+   * Courtesy client-side gate (ADR-0057 D10) mirroring the server's
+   * writable_package_required check — a read-only (code/installed) package
+   * rejects authoring writes late, at save time, so hide/disable the "Add
+   * field" and "New object" affordances up front instead of letting the user
+   * mutate the canvas and then hit a save-time error. The server remains the
+   * authority; this only sets expectations.
+   */
+  writable?: boolean;
 }): React.ReactElement {
   const client = useMetadataClient();
   const adapter = useAdapter();
@@ -1496,7 +1497,7 @@ function DataPillar({
         setCurrent((c) => c ?? items[0] ?? null);
         // First-run: an empty writable package opens the creator right away —
         // the first thing to do here is make an object, so put the inputs up.
-        if (items.length === 0) setCreating(true);
+        if (items.length === 0 && writable) setCreating(true);
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -1506,7 +1507,7 @@ function DataPillar({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId]);
+  }, [client, packageId, writable]);
 
   React.useEffect(() => {
     if (!current) return;
@@ -1555,14 +1556,17 @@ function DataPillar({
   }, []);
 
   // "+ add field": append a fresh text field and select it for editing in the panel.
+  // Guarded by `writable` in addition to being hidden — belt-and-suspenders,
+  // since it's also wired through GridFieldAuthoringProvider/ObjectFormDesigner.
   const addField = React.useCallback(() => {
+    if (!writable) return;
     const view = readFields(objDraft.fields);
     const name = nextFieldName(view.entries.map((e) => e.name));
     view.entries.push(newField(name, 'text', t('engine.studio.data.newFieldLabel', locale)));
     setObjDraft((d) => ({ ...d, fields: writeFields(view) }));
     setDirty(true);
     setFieldSel({ kind: 'field', id: name });
-  }, [objDraft]);
+  }, [objDraft, writable]);
 
   // "+ new object": create a fresh object as a DRAFT in this package (runtime
   // create — same path the classic Studio editor uses), seeded with one text
@@ -1570,6 +1574,7 @@ function DataPillar({
   // until the package publish, so we land on 表单·布局 — the metadata-level
   // surface that never fires data SQL.
   const doCreateObject = React.useCallback(async () => {
+    if (!writable) return;
     const label = newLabel.trim();
     const name = toFieldName(newName.trim() || label);
     if (!label || !name || name === 'field') return; // CJK label → identifier must be typed
@@ -1597,7 +1602,7 @@ function DataPillar({
     } finally {
       setCreateBusy(false);
     }
-  }, [newLabel, newName, objects, client, packageId, onDraftSaved]);
+  }, [newLabel, newName, objects, client, packageId, onDraftSaved, writable]);
 
   const doSave = React.useCallback(async () => {
     if (!current) return;
@@ -1670,8 +1675,7 @@ function DataPillar({
         )}
         <button
           onClick={doSave}
-          disabled={!current || !dirty || !!saving || readOnly}
-          title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
+          disabled={!current || !dirty || !!saving}
           className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -1718,13 +1722,13 @@ function DataPillar({
               ))}
           </div>
           <div className="shrink-0 border-t p-2">
-            {readOnly ? (
-              <p
-                title={t('engine.studio.pkg.readonlyHint', locale)}
-                className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-muted-foreground"
+            {!writable ? (
+              <div
+                className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground/60"
+                title={t('engine.studio.data.readOnlyPackage', locale)}
               >
-                <Lock className="h-3 w-3" /> {t('engine.studio.pkg.readonly', locale)}
-              </p>
+                <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
+              </div>
             ) : creating ? (
               <div className="flex flex-col gap-1.5">
                 <input
@@ -1857,7 +1861,7 @@ function DataPillar({
                           ? t('engine.studio.data.badge.formLayout', locale)
                           : t('engine.studio.data.badge.formPreview', locale)}
                 </span>
-                {(viewMode === 'grid' || viewMode === 'form') && !readOnly && (
+                {(viewMode === 'grid' || viewMode === 'form') && writable && (
                   <button
                     type="button"
                     onClick={addField}
@@ -1874,14 +1878,13 @@ function DataPillar({
                 </div>
               )}
               {viewMode === 'rules' ? (
-                <ObjectValidationsPanel draft={objDraft} onPatch={onPatch} disabled={readOnly} />
+                <ObjectValidationsPanel draft={objDraft} onPatch={onPatch} />
               ) : viewMode === 'settings' ? (
                 <ObjectSettingsPanel
                   name={current.name}
                   draft={objDraft}
                   onPatch={onPatch}
                   locale={locale}
-                  disabled={readOnly}
                 />
               ) : viewMode === 'grid' && !hasBaseline ? (
                 /* Draft-only object: no physical table until the package publish —
@@ -1911,15 +1914,8 @@ function DataPillar({
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background">
                 <GridFieldAuthoringProvider
                   value={{
-                    // Read-only package: keep the per-column inspector (view props)
-                    // but drop add-column and drag-reorder — both are doomed writes.
-                    ...(readOnly
-                      ? {}
-                      : {
-                          onAddColumn: addField,
-                          addColumnLabel: t('engine.studio.data.addField', locale),
-                          onReorderFields: doReorderFields,
-                        }),
+                    onAddColumn: writable ? addField : undefined,
+                    addColumnLabel: t('engine.studio.data.addField', locale),
                     onEditColumn: (fieldName) => {
                       // ignore non-field columns (e.g. the row-actions column)
                       if (readFields(objDraft.fields).entries.some((e) => e.name === fieldName)) {
@@ -1927,6 +1923,7 @@ function DataPillar({
                       }
                     },
                     editColumnLabel: t('engine.studio.data.editFieldProps', locale),
+                    onReorderFields: doReorderFields,
                   }}
                 >
                   {/* Provide the adapter as the dataSource context so the object-grid's
@@ -2006,8 +2003,8 @@ function DataPillar({
                   onChange={onPatch}
                   selectedField={fieldSel?.kind === 'field' ? fieldSel.id : null}
                   onSelectField={(name) => setFieldSel({ kind: 'field', id: name })}
-                  onAddField={addField}
-                  readOnly={readOnly}
+                  onAddField={writable ? addField : undefined}
+                  readOnly={!writable}
                 />
               ) : !hasBaseline ? (
                 /* Draft-only object: there is no published definition to preview yet. */
@@ -2102,7 +2099,7 @@ function DataPillar({
                 onPatch,
                 onClearSelection: () => setFieldSel(null),
                 onSelectionChange: setFieldSel,
-                readOnly,
+                readOnly: false,
                 locale,
               })}
             </div>
@@ -2149,13 +2146,10 @@ function AutomationsPillar({
   packageId,
   publishNonce = 0,
   onDraftSaved,
-  readOnly = false,
 }: {
   packageId: string;
   publishNonce?: number;
   onDraftSaved?: () => void;
-  /** Courtesy gate: hide/disable flow-authoring affordances. */
-  readOnly?: boolean;
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
@@ -2363,8 +2357,7 @@ function AutomationsPillar({
         )}
         <button
           onClick={doSave}
-          disabled={!current || !isEditable || !!saving || readOnly}
-          title={readOnly ? t('engine.studio.pkg.readonlyHint', locale) : undefined}
+          disabled={!current || !isEditable || !!saving}
           className="ml-auto inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
           {saving === 'draft' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -2376,16 +2369,14 @@ function AutomationsPillar({
         <nav className="flex w-52 shrink-0 flex-col overflow-auto border-r p-2">
           <div className="flex items-center gap-1 px-2 pb-1 pt-1">
             <p className="flex-1 text-[11px] font-medium text-muted-foreground">{t('engine.studio.auto.heading', locale)}</p>
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={() => setCreating((v) => !v)}
-                title={t('engine.studio.auto.newTitle', locale)}
-                className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] hover:bg-muted"
-              >
-                <Plus className="h-3 w-3" /> {t('engine.studio.new', locale)}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setCreating((v) => !v)}
+              title={t('engine.studio.auto.newTitle', locale)}
+              className="inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[11px] hover:bg-muted"
+            >
+              <Plus className="h-3 w-3" /> {t('engine.studio.new', locale)}
+            </button>
           </div>
           {flows.length > 0 &&
             flows.map((f) => (
@@ -2557,13 +2548,10 @@ function AccessPillar({
   packageId,
   publishNonce,
   onDraftSaved,
-  readOnly = false,
 }: {
   packageId: string;
   publishNonce?: number;
   onDraftSaved?: () => void;
-  /** Courtesy gate: hide/disable permission-authoring affordances. */
-  readOnly?: boolean;
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
@@ -2762,13 +2750,6 @@ function AccessPillar({
                   </button>
                 </div>
               </div>
-            ) : readOnly ? (
-              <p
-                title={t('engine.studio.pkg.readonlyHint', locale)}
-                className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] text-muted-foreground"
-              >
-                <Lock className="h-3 w-3" /> {t('engine.studio.pkg.readonly', locale)}
-              </p>
             ) : (
               <button
                 type="button"

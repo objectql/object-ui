@@ -1989,6 +1989,12 @@ const pt = {
       empty: 'Nada pendente — todos os rascunhos foram publicados.',
       kindNew: 'Novo',
       kindUpdate: 'Atualização',
+      detailLoading: 'Carregando detalhes…',
+      detailLoadFailed: 'Não foi possível carregar os detalhes da alteração:',
+      detailNone: 'Nenhuma diferença detectada — o rascunho corresponde à versão publicada.',
+      detailChangedKeys: 'Também alterado:',
+      confirmNote: 'Publicar libera atomicamente todos os {{count}} rascunhos pendentes deste pacote.',
+      publishConfirm: 'Publicar tudo',
     },
   },
   filterBuilder: {

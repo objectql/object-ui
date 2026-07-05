@@ -94,3 +94,56 @@ export function overlayWidthFor(size: 'auto' | OverlaySize | undefined, objectSc
   const bucket = (!size || size === 'auto') ? deriveOverlaySize(objectSchema) : size;
   return `min(92vw, ${OVERLAY_SIZE_PX[bucket]}px)`;
 }
+
+/**
+ * Local mirror of `@objectstack/spec` `deriveRecordFlowSurface` (framework
+ * #2604 — same consolidation TODO as `deriveRecordSurface` above: swap to the
+ * `@objectstack/spec/data` import when the pinned spec ships it).
+ *
+ * The record flow being opened. `view` shows state; the other four perform a
+ * task (create/change a record). For `child-*` flows — a subtable / related-
+ * list child created or edited from its PARENT's detail — pass the CHILD
+ * object's schema: the overlay sizes to the record being edited, while the
+ * return target is always the parent (#2604 D3).
+ */
+export type RecordFlow = 'view' | 'create' | 'edit' | 'child-create' | 'child-edit';
+
+/** How the surface is mounted: a navigated route, or an overlay over the origin. */
+export type RecordFlowContainer = 'route' | 'overlay';
+
+export interface RecordFlowSurface {
+  /**
+   * `'route'` only ever for flow `'view'` (a record is shareable state).
+   * Every task flow is an `'overlay'`: close returns to the origin with its
+   * context (scroll / filters / tab) intact — the #2604 return-flow invariant.
+   */
+  container: RecordFlowContainer;
+  /** Includes `'modal'`, which the base heuristic never emits — task flows do. */
+  surface: 'page' | 'modal' | 'drawer';
+  /** Maps onto `modalSize` / `navigation.size`; routes ignore it. */
+  size: 'auto' | 'full';
+}
+
+/**
+ * Derive the DEFAULT surface for a record FLOW (#2604). The two axes are
+ * independent: how BIG comes from {@link deriveRecordSurface} (unchanged);
+ * whether it ROUTES comes from what the flow *is* — viewing a record is
+ * state → route-capable; making/changing one is a task → always an overlay,
+ * with the derived `'page'` mapped to a FULL-SCREEN MODAL (same big canvas,
+ * overlay return semantics). A DEFAULT only: explicit `navigation.mode`/`size`,
+ * `FormView.type`/`modalSize`, or an assigned page win.
+ */
+export function deriveRecordFlowSurface(
+  objectSchema: unknown,
+  flow: RecordFlow,
+  opts: RecordSurfaceOptions = {},
+): RecordFlowSurface {
+  const surface = deriveRecordSurface(objectSchema, opts);
+  if (flow === 'view') {
+    return { container: surface === 'page' ? 'route' : 'overlay', surface, size: 'auto' };
+  }
+  // Task flows (create / edit / child-*): never a route. Field-heavy (or
+  // mobile, where the base derivation says 'page') → full-screen modal.
+  if (surface === 'page') return { container: 'overlay', surface: 'modal', size: 'full' };
+  return { container: 'overlay', surface, size: 'auto' };
+}

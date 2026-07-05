@@ -244,6 +244,13 @@ const interpolate = (
 
 interface PageTabsItem {
   label: any;
+  /**
+   * Stable, semantic tab identity (e.g. `details`, `related:<childObject>`) —
+   * used as the Radix value and as the URL token for `?tab=` sync
+   * (objectui#2257). Falls back to an index-derived value when absent, which
+   * is NOT stable across item-list changes; synthesized pages always set it.
+   */
+  value?: string;
   icon?: string;
   /**
    * Optional badge value rendered after the label (e.g. related-list count).
@@ -383,11 +390,14 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     return seenAny ? sum : undefined;
   };
 
-  // PageTabsProps doesn't carry a value, synthesize one from the index so
-  // Radix Tabs (which requires stable values) is happy.
+  // Prefer an item's own STABLE `value` (semantic keys like `details` /
+  // `related:<child>`, emitted by buildDefaultTabs — objectui#2257); fall back
+  // to the index-derived value for authored schemas that don't declare one.
+  // Stable values are what make the active tab URL-addressable: an index
+  // value would silently point at a different tab when the item list changes.
   const itemsWithValue = items.map((it, idx) => ({
     ...it,
-    value: `tab-${idx}`,
+    value: typeof (it as any).value === 'string' && (it as any).value !== '' ? (it as any).value : `tab-${idx}`,
     // pickLocalized first (honours `{ en, zh }` / `{ default }`); translateLabel
     // then maps any plain-English well-known token (Details/Related/…) to the locale.
     labelStr: translateLabel(pickLocalized(it.label, language)),
@@ -397,7 +407,17 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       : computeCount(idx),
   }));
 
-  const defaultValue = itemsWithValue[0]?.value;
+  // Host-provided initial tab (e.g. app-shell restoring `?tab=` — the active
+  // tab is state that must SURVIVE this component remounting, so it cannot
+  // live only in Radix's internal uncontrolled state). Honored only when it
+  // names an actual tab; otherwise the first tab wins as before.
+  const requestedDefault: string | undefined = (schema as any)?.defaultTab;
+  const defaultValue =
+    (requestedDefault && itemsWithValue.some((it) => it.value === requestedDefault)
+      ? requestedDefault
+      : undefined) ?? itemsWithValue[0]?.value;
+  // Host callback on tab switch (app-shell writes `?tab=` with replace).
+  const onTabChange: ((value: string) => void) | undefined = (schema as any)?.onTabChange;
 
   const listClass = cn(
     isVertical && 'flex-col h-auto items-stretch p-1',
@@ -424,6 +444,7 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   return (
     <Tabs
       defaultValue={defaultValue}
+      onValueChange={onTabChange}
       orientation={isVertical ? 'vertical' : 'horizontal'}
       className={cn(className, isVertical && 'flex gap-4 w-full')}
       {...designer}

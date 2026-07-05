@@ -1989,6 +1989,12 @@ const ar = {
       empty: 'لا شيء معلّق — نُشرت كل المسودات.',
       kindNew: 'جديد',
       kindUpdate: 'تحديث',
+      detailLoading: 'جارٍ تحميل التفاصيل…',
+      detailLoadFailed: 'تعذر تحميل تفاصيل التغيير:',
+      detailNone: 'لم يتم اكتشاف اختلافات — المسودة مطابقة للنسخة المنشورة.',
+      detailChangedKeys: 'تغييرات أخرى:',
+      confirmNote: 'النشر يُصدر كل المسودات المعلقة ({{count}}) لهذه الحزمة دفعة واحدة.',
+      publishConfirm: 'نشر الكل',
     },
   },
   filterBuilder: {

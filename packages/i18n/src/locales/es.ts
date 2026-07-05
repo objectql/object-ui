@@ -1989,6 +1989,12 @@ const es = {
       empty: 'Nada pendiente — todos los borradores se han publicado.',
       kindNew: 'Nuevo',
       kindUpdate: 'Actualización',
+      detailLoading: 'Cargando detalles…',
+      detailLoadFailed: 'No se pudieron cargar los detalles del cambio:',
+      detailNone: 'No se detectaron diferencias — el borrador coincide con la versión publicada.',
+      detailChangedKeys: 'También cambió:',
+      confirmNote: 'Publicar libera atómicamente los {{count}} borradores pendientes de este paquete.',
+      publishConfirm: 'Publicar todo',
     },
   },
   filterBuilder: {
