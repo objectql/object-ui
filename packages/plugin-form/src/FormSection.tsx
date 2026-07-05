@@ -16,7 +16,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@object-ui/components';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@object-ui/components';
+import { Card, CardContent, CardHeader } from '@object-ui/components';
 
 export interface FormSectionProps {
   /**
@@ -138,7 +138,7 @@ export const FormSection: React.FC<FormSectionProps> = ({
       )}
       <div className="flex-1">
         {label && (
-          <h3 className="text-base font-semibold text-foreground">
+          <h3 className="text-sm font-semibold text-foreground">
             {label}
           </h3>
         )}
@@ -159,25 +159,9 @@ export const FormSection: React.FC<FormSectionProps> = ({
 
   if (wrapInCard) {
     return (
-      <Card className={cn('form-section', className)}>
-        {headerNode && (
-          <CardHeader className="pb-3">
-            {label && <CardTitle className="text-base">{label}</CardTitle>}
-            {description && <CardDescription>{description}</CardDescription>}
-            {collapsible && (
-              <button
-                type="button"
-                className="absolute right-4 top-4 text-muted-foreground"
-                onClick={handleToggle}
-                aria-expanded={!isCollapsed}
-                aria-label={isCollapsed ? 'Expand section' : 'Collapse section'}
-              >
-                {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </button>
-            )}
-          </CardHeader>
-        )}
-        {contentNode && <CardContent>{contentNode}</CardContent>}
+      <Card className={cn('form-section bg-muted/40 shadow-none', className)}>
+        {headerNode && <CardHeader className="border-b border-border pb-3">{headerNode}</CardHeader>}
+        {contentNode && <CardContent className="pt-4">{contentNode}</CardContent>}
       </Card>
     );
   }

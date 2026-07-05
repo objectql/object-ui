@@ -76,6 +76,10 @@ export interface ModalFormSectionConfig {
   description?: string;
   columns?: 1 | 2 | 3 | 4;
   fields: (string | FormField)[];
+  /** Custom CSS class for the section's Card wrapper. */
+  className?: string;
+  /** Custom CSS class for the section's field grid. */
+  gridClassName?: string;
 }
 
 export interface ModalFormSchema {
@@ -555,7 +559,12 @@ export const ModalForm: React.FC<ModalFormProps> = ({
             </TabsList>
             {sections.map((section, index) => (
               <TabsContent key={sectionKey(section, index)} value={sectionKey(section, index)}>
-                <FormSection description={section.description} columns={1}>
+                <FormSection
+                  description={section.description}
+                  columns={1}
+                  className={section.className}
+                  gridClassName={section.gridClassName}
+                >
                   {renderBody(section)}
                 </FormSection>
               </TabsContent>
@@ -572,6 +581,8 @@ export const ModalForm: React.FC<ModalFormProps> = ({
               label={sectionTitle(section)}
               description={section.description}
               columns={1}
+              className={section.className}
+              gridClassName={section.gridClassName}
             >
               {renderBody(section)}
             </FormSection>

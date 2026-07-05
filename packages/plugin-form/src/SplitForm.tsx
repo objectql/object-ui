@@ -33,6 +33,10 @@ export interface SplitFormSectionConfig {
   description?: string;
   columns?: 1 | 2 | 3 | 4;
   fields: (string | FormField)[];
+  /** Custom CSS class for the section's Card wrapper. */
+  className?: string;
+  /** Custom CSS class for the section's field grid. */
+  gridClassName?: string;
 }
 
 export interface SplitFormSchema {
@@ -230,13 +234,15 @@ export const SplitForm: React.FC<SplitFormProps> = ({
   };
 
   const renderSections = (sections: SplitFormSectionConfig[], showButtons: boolean) => (
-    <div className="space-y-4 p-4">
+    <div className="space-y-6 p-4">
       {sections.map((section, index) => (
         <FormSection
           key={section.name || section.label || index}
           label={section.label}
           description={section.description}
           columns={1}
+          className={section.className}
+          gridClassName={section.gridClassName}
         >
           <SchemaRenderer
             schema={{

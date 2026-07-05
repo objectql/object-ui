@@ -21,6 +21,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/form/:objectName" element={<ObjectFormPage />} />
+              <Route path="/form-modal/:objectName" element={<ObjectFormModalPage />} />
               <Route path="/:objectName" element={<ObjectPage />} />
             </Routes>
           </AppShell>
@@ -59,6 +60,12 @@ function Sidebar() {
           className="block rounded px-3 py-2 text-sm hover:bg-accent"
         >
           Contact Form (grouped)
+        </Link>
+        <Link
+          to="/form-modal/contact"
+          className="block rounded px-3 py-2 text-sm hover:bg-accent"
+        >
+          Contact Form (modal, grouped)
         </Link>
       </div>
 
@@ -167,6 +174,35 @@ function ObjectFormPage() {
         dataSource={mockDataSource}
       />
     </div>
+  );
+}
+
+/**
+ * Modal ObjectForm with explicit `sections` — exercises the Card-wrapped
+ * `FormSection` path (formType: 'modal'/'split'/'tabbed'/'wizard' all share
+ * it), as opposed to `ObjectFormPage` above which renders the flat
+ * divider-only path used by the default `formType: 'simple'` + `fieldGroups`.
+ */
+function ObjectFormModalPage() {
+  const { objectName } = useParams<{ objectName: string }>();
+
+  return (
+    <ObjectForm
+      schema={{
+        type: 'object-form',
+        objectName: objectName || '',
+        mode: 'create',
+        formType: 'modal',
+        title: `New ${objectName}`,
+        description: 'Card-wrapped section layout (formType: modal).',
+        open: true,
+        sections: [
+          { name: 'identity', label: 'Identity', fields: ['name'] },
+          { name: 'contact_info', label: 'Contact Info', fields: ['email', 'phone', 'notes'] },
+        ],
+      }}
+      dataSource={mockDataSource}
+    />
   );
 }
 

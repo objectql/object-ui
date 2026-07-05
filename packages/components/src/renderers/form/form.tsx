@@ -33,18 +33,20 @@ import { createSafeTranslation } from '@object-ui/i18n';
 
 /** Inline section header rendered as a virtual field inside a flat SchemaRenderer field list.
  *  Collapsibility is controlled externally (collapsed state lives in DrawerForm). */
-function SectionDivider({ label, collapsible, collapsed, onToggle }: {
+function SectionDivider({ label, collapsible, collapsed, onToggle, className }: {
   label?: string;
   collapsible?: boolean;
   collapsed?: boolean;
   onToggle?: () => void;
+  className?: string;
 }) {
   if (!label) return null;
   return (
     <div
       className={cn(
         'col-span-full pt-4 pb-1 border-b border-border',
-        collapsible && 'cursor-pointer select-none'
+        collapsible && 'cursor-pointer select-none',
+        className
       )}
       onClick={collapsible ? onToggle : undefined}
       role={collapsible ? 'button' : undefined}
@@ -605,6 +607,7 @@ ComponentRegistry.register('form',
                       collapsible={fp.collapsible}
                       collapsed={fp.collapsed}
                       onToggle={fp.onToggle}
+                      className={fp.className}
                     />
                   );
                 }
@@ -739,7 +742,13 @@ ComponentRegistry.register('form',
                             inputType: fieldProps.inputType,
                             options: fieldProps.options,
                             placeholder: fieldProps.placeholder ?? (resolvedType === 'select' ? t('common.selectOption') : undefined),
-                            disabled: disabled || fieldDisabled || readonly || isSubmitting,
+                            // `disabled` means "not interactive, muted"; `readonly` means
+                            // "shown plainly, not editable" — keep them distinct so widgets
+                            // that implement a real readonly display (e.g. EmailField's
+                            // mailto link) actually receive it instead of always collapsing
+                            // to the grayed-out disabled look.
+                            disabled: disabled || fieldDisabled || isSubmitting,
+                            readonly,
                             dataSource: contextDataSource,
                             // Live form values for dependent (cascading) lookups
                             // (#2215): the widget's `dependsOn` gate + filters must
@@ -881,6 +890,7 @@ interface RenderFieldProps {
   value?: any;
   onChange?: (value: any) => void;
   disabled?: boolean;
+  readonly?: boolean;
   [key: string]: any;
 }
 
@@ -901,8 +911,13 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
     return <RegisteredComponent schema={fieldSchema} {...registeredProps} />;
   }
 
-  const { inputType, options = [], placeholder, ...fieldProps } = props;
+  const { inputType, options = [], placeholder, readonly, ...fieldProps } = props;
   const domFieldProps = stripRendererOnlyProps(fieldProps);
+  // Text-like controls get a real readonly treatment (native `readOnly` +
+  // a soft, non-"disabled" tint) instead of being grayed out. Toggle/choice
+  // controls (checkbox/switch/select) have no meaningful "look but don't
+  // touch" state of their own, so for those `readonly` falls back to disabled.
+  const readonlyInputClass = readonly && 'bg-muted/40 cursor-default focus-visible:ring-0';
 
   switch (type) {
     case 'input':
@@ -911,8 +926,17 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
          const { value, ...fileProps } = domFieldProps;
          return <Input type="file" placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...fileProps} />;
       }
-      return <Input type={inputType || 'text'} placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...domFieldProps} value={domFieldProps.value ?? ''} />;
-      
+      return (
+        <Input
+          type={inputType || 'text'}
+          placeholder={placeholder}
+          className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
+          {...domFieldProps}
+          readOnly={readonly}
+          value={domFieldProps.value ?? ''}
+        />
+      );
+
     case 'textarea': {
       const { mobile_fullscreen, fullscreen, label } = fieldProps as any;
       const { label: _label, ...rest } = stripRendererOnlyProps(fieldProps);
@@ -927,16 +951,25 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
           />
         );
       }
-      return <Textarea placeholder={placeholder} className="min-h-[44px] sm:min-h-0" {...rest} value={rest.value ?? ''} />;
+      return (
+        <Textarea
+          placeholder={placeholder}
+          className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
+          {...rest}
+          readOnly={readonly}
+          value={rest.value ?? ''}
+        />
+      );
     }
-    
+
     case 'checkbox': {
       // For checkbox, we need to handle the value differently
-      const { value, onChange, ...checkboxProps } = domFieldProps;
+      const { value, onChange, disabled: cbDisabled, ...checkboxProps } = domFieldProps;
       return (
-        <Checkbox 
+        <Checkbox
           checked={value}
           onCheckedChange={onChange}
+          disabled={cbDisabled || readonly}
           className="min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
           {...checkboxProps}
         />
@@ -945,28 +978,29 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
 
     case 'switch': {
       // For switch, we need to handle the value differently (same as checkbox)
-      const { value, onChange, ...switchProps } = domFieldProps;
+      const { value, onChange, disabled: swDisabled, ...switchProps } = domFieldProps;
       return (
-        <Switch 
+        <Switch
           checked={value}
           onCheckedChange={onChange}
+          disabled={swDisabled || readonly}
           className="min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
           {...switchProps}
         />
       );
     }
-    
+
     case 'select': {
       // For select with react-hook-form, we need to handle the onChange
-      const { value: selectValue, onChange: selectOnChange, ...selectProps } = domFieldProps;
-      
+      const { value: selectValue, onChange: selectOnChange, disabled: selDisabled, ...selectProps } = domFieldProps;
+
       // Safety check for options
       if (!options || options.length === 0) {
         return <div className="text-sm text-muted-foreground">No options available</div>;
       }
-      
+
       return (
-        <Select value={selectValue} onValueChange={selectOnChange} {...selectProps}>
+        <Select value={selectValue} onValueChange={selectOnChange} disabled={selDisabled || readonly} {...selectProps}>
           <SelectTrigger className="min-h-[44px] sm:min-h-0">
             <SelectValue placeholder={placeholder || 'Select an option'} />
           </SelectTrigger>
@@ -980,8 +1014,16 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
         </Select>
       );
     }
-    
+
     default:
-      return <Input type={inputType || 'text'} placeholder={placeholder} {...domFieldProps} />;
+      return (
+        <Input
+          type={inputType || 'text'}
+          placeholder={placeholder}
+          className={cn(readonlyInputClass)}
+          {...domFieldProps}
+          readOnly={readonly}
+        />
+      );
   }
 }

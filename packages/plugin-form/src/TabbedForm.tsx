@@ -47,6 +47,16 @@ export interface FormSectionConfig {
    * Field names or configurations in this section
    */
   fields: (string | FormField)[];
+
+  /**
+   * Custom CSS class for the section's Card wrapper.
+   */
+  className?: string;
+
+  /**
+   * Custom CSS class for the section's field grid.
+   */
+  gridClassName?: string;
 }
 
 export interface TabbedFormSchema {
@@ -347,6 +357,8 @@ export const TabbedForm: React.FC<TabbedFormProps> = ({
               <FormSection
                 description={section.description}
                 columns={1}
+                className={section.className}
+                gridClassName={section.gridClassName}
               >
                 {/* Render fields for this section. Multi-column is applied to
                     the field container inside the form (sectionFormLayout), not

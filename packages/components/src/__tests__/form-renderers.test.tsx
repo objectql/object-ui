@@ -388,4 +388,28 @@ describe('Form Renderers - Display Issue Detection', () => {
       expect(screen.getByTestId('field:email')).toBeInTheDocument();
     });
   });
+
+  describe('Form field readonly vs disabled (regression)', () => {
+    it('a field marked `readonly` renders read-only, not disabled', () => {
+      renderComponent({
+        type: 'form',
+        fields: [{ name: 'notes', label: 'Notes', type: 'input', readonly: true }],
+      } as any);
+
+      const input = screen.getByTestId('field:notes').querySelector('input');
+      expect(input?.hasAttribute('readonly')).toBe(true);
+      expect(input?.hasAttribute('disabled')).toBe(false);
+    });
+
+    it('a field marked `disabled` still renders disabled, not merely read-only', () => {
+      renderComponent({
+        type: 'form',
+        fields: [{ name: 'notes', label: 'Notes', type: 'input', disabled: true }],
+      } as any);
+
+      const input = screen.getByTestId('field:notes').querySelector('input');
+      expect(input?.hasAttribute('disabled')).toBe(true);
+      expect(input?.hasAttribute('readonly')).toBe(false);
+    });
+  });
 });

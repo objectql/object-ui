@@ -781,6 +781,18 @@ export interface ObjectFormSection {
    * Field names or inline field configurations for this section
    */
   fields: (string | FormField)[];
+
+  /**
+   * Custom CSS class for the section's wrapper (Card, when the form variant
+   * renders sections as cards; the divider header, for the flat/simple path).
+   */
+  className?: string;
+
+  /**
+   * Custom CSS class for the section's field grid. Only used by form variants
+   * that render sections as Card chrome (Modal/Split/Tabbed/Wizard).
+   */
+  gridClassName?: string;
 }
 
 /**

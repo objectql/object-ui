@@ -74,6 +74,8 @@ export interface DrawerFormSectionConfig {
   fields: (string | FormField)[];
   collapsible?: boolean;
   collapsed?: boolean;
+  /** Custom CSS class for the section's divider header. */
+  className?: string;
 }
 
 export interface DrawerFormSchema {
@@ -451,6 +453,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
           onToggle: section.collapsible
             ? () => setCollapsedSections(prev => ({ ...prev, [sectionKey]: !isCollapsed }))
             : undefined,
+          className: (section as any).className,
         } as any);
 
         const sectionFields = buildSectionFields(section);

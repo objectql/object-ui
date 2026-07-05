@@ -516,6 +516,8 @@ export const WizardForm: React.FC<WizardFormProps> = ({
             label={currentSection.label}
             description={currentSection.description}
             columns={1}
+            className={currentSection.className}
+            gridClassName={currentSection.gridClassName}
           >
             {currentSectionFields.length > 0 ? (
               <SchemaRenderer

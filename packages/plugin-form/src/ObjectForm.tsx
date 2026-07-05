@@ -160,6 +160,8 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            className: (s as any).className,
+            gridClassName: (s as any).gridClassName,
           })),
           defaultTab: schema.defaultTab,
           tabPosition: schema.tabPosition,
@@ -182,6 +184,8 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            className: (s as any).className,
+            gridClassName: (s as any).gridClassName,
           })),
           allowSkip: schema.allowSkip,
           showStepIndicator: schema.showStepIndicator,
@@ -207,6 +211,8 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            className: (s as any).className,
+            gridClassName: (s as any).gridClassName,
           })),
           splitDirection: schema.splitDirection,
           splitSize: schema.splitSize,
@@ -235,6 +241,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
             fields: s.fields,
             collapsible: (s as any).collapsible,
             collapsed: (s as any).collapsed,
+            className: (s as any).className,
           })),
           open: schema.open,
           onOpenChange: schema.onOpenChange,
@@ -262,6 +269,8 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
             description: s.description,
             columns: s.columns,
             fields: s.fields,
+            className: (s as any).className,
+            gridClassName: (s as any).gridClassName,
           })),
           open: schema.open,
           onOpenChange: schema.onOpenChange,
@@ -852,6 +861,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           onToggle: section.collapsible
             ? () => setCollapsedSections(prev => ({ ...prev, [sectionKey]: !isCollapsed }))
             : undefined,
+          className: (section as any).className,
         } as FormField);
       }
 
