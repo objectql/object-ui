@@ -25,7 +25,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
-import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import { stateMachineNextValues, isFieldInlineEditable } from './inline-edit-options';
 import {
@@ -1935,6 +1935,96 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1)} Detail`
       : 'Record Detail';
 
+  // Form-based record detail renderer (replaces simple key-value dump).
+  // Hoisted above the mobile card-view's early return (below) so both the
+  // card view's detail overlay and the desktop table's detail overlay share
+  // this same type-aware renderer instead of the card view falling back to
+  // a raw `String(value)` dump (which showed "[object Object]" for lookups).
+  const renderRecordDetail = (record: any) => {
+    const systemFields = ['_id', 'id', 'created_at', 'updated_at', 'created_by', 'updated_by'];
+    const entries = Object.entries(record);
+    // Honor `hidden: true` on the schema field def — internal/system fields
+    // (e.g. database_url, environment_id, is_system) shouldn't leak into the
+    // grid's record-detail drawer just because they're in the record payload.
+    const isHidden = (key: string) => objectSchema?.fields?.[key]?.hidden === true;
+    const regularFields = entries.filter(([key]) => !systemFields.includes(key) && !isHidden(key));
+    const metaFields = entries.filter(([key]) => systemFields.includes(key) && key !== '_id' && key !== 'id');
+
+    const formatFieldLabel = (key: string): string =>
+      key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
+
+    const renderFieldValue = (key: string, value: any): React.ReactNode => {
+      if (value == null || value === '') {
+        return <span className="text-muted-foreground/50 text-sm italic">{t('grid.empty')}</span>;
+      }
+
+      // Use objectSchema field type for type-aware rendering
+      const fieldDef = objectSchema?.fields?.[key];
+      if (fieldDef?.type) {
+        const CellRenderer = getCellRenderer(fieldDef.type);
+        if (CellRenderer) {
+          return <CellRenderer value={value} field={fieldDef} />;
+        }
+      }
+
+      // Fallback: infer from value and key name
+      if (typeof value === 'boolean') {
+        return <Badge variant={value ? 'default' : 'outline'}>{value ? t('grid.yes') : t('grid.no')}</Badge>;
+      }
+      // Detect date-like values
+      if (typeof value === 'string' && !isNaN(Date.parse(value)) && (key.includes('date') || key.includes('_at') || key.includes('time'))) {
+        return <span className="text-sm tabular-nums">{formatDate(value)}</span>;
+      }
+      // Detect currency-like fields by name
+      const currencyFields = ['amount', 'price', 'total', 'revenue', 'cost', 'value', 'budget', 'salary'];
+      if (typeof value === 'number' && currencyFields.some(f => key.toLowerCase().includes(f))) {
+        return <span className="text-sm tabular-nums font-medium">{formatCurrency(value, tenantCurrency)}</span>;
+      }
+      // No field-type match (e.g. a computed/untyped key): never dump a raw
+      // object as a React child — extract a display name/id instead.
+      return <span className="text-sm break-words">{String(coerceToSafeValue(value) ?? '')}</span>;
+    };
+
+    return (
+      <div className="space-y-4" data-testid="record-detail-panel">
+        {/* Regular fields in form-like layout */}
+        <div className="rounded-lg border bg-card">
+          <div className="divide-y">
+            {regularFields.map(([key, value]) => (
+              <div key={key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-4 py-3">
+                <span className="text-xs font-medium text-muted-foreground sm:w-1/3 sm:text-right sm:pt-0.5 uppercase tracking-wide shrink-0">
+                  {formatFieldLabel(key)}
+                </span>
+                <div className="flex-1 min-w-0">
+                  {renderFieldValue(key, value)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* System/meta fields */}
+        {metaFields.length > 0 && (
+          <div className="rounded-lg border bg-muted/30">
+            <div className="px-4 py-2 border-b">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('grid.systemFields')}</span>
+            </div>
+            <div className="divide-y divide-border/50">
+              {metaFields.map(([key, value]) => (
+                <div key={key} className="flex items-center gap-4 px-4 py-2">
+                  <span className="text-xs text-muted-foreground w-1/3 text-right shrink-0">
+                    {formatFieldLabel(key)}
+                  </span>
+                  <span className="text-xs text-muted-foreground flex-1 min-w-0 break-words">{String(coerceToSafeValue(value) ?? '')}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Mobile card-view: below the 768px app breakpoint (matches useIsMobile /
   // Tailwind md: / the responsive page+grid layout), render stacked cards
   // instead of a side-scrolling wide table.
@@ -2052,7 +2142,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                 {/* Title row - Name as bold prominent title */}
                 {titleCol && (
                   <div className="font-semibold text-sm truncate mb-1">
-                    {row[titleCol.accessorKey] != null && typeof row[titleCol.accessorKey] === 'object' ? String(row[titleCol.accessorKey]) : (row[titleCol.accessorKey] ?? '—')}
+                    {coerceToSafeValue(row[titleCol.accessorKey]) ?? '—'}
                   </div>
                 )}
 
@@ -2063,7 +2153,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                       <span className="text-sm tabular-nums font-medium">
                         {typeof row[amountCol.accessorKey] === 'number'
                           ? formatCompactCurrency(row[amountCol.accessorKey], resolveFieldCurrency(amountCol as any, tenantCurrency))
-                          : (row[amountCol.accessorKey] != null && typeof row[amountCol.accessorKey] === 'object' ? String(row[amountCol.accessorKey]) : (row[amountCol.accessorKey] ?? '—'))}
+                          : (coerceToSafeValue(row[amountCol.accessorKey]) ?? '—')}
                       </span>
                     )}
                     {stageCol && row[stageCol.accessorKey] && (() => {
@@ -2124,7 +2214,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
                     <div key={col.accessorKey} className="flex justify-between items-center py-0.5">
                       <span className="text-xs text-muted-foreground">{col.header}</span>
                       <span className="text-xs font-medium truncate ml-2 text-right">
-                        {col.cell ? col.cell(val, row) : String(val)}
+                        {col.cell ? col.cell(val, row) : String(coerceToSafeValue(val) ?? '')}
                       </span>
                     </div>
                   );
@@ -2135,18 +2225,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
         </div>
         {navigation.isOverlay && (
           <NavigationOverlay {...navigation} title={detailTitle}>
-            {(record) => (
-              <div className="space-y-3">
-                {Object.entries(record).map(([key, value]) => (
-                  <div key={key} className="flex flex-col">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      {key.replace(/_/g, ' ')}
-                    </span>
-                    <span className="text-sm">{String(value ?? '—')}</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            {(record) => renderRecordDetail(record)}
           </NavigationOverlay>
         )}
       </>
@@ -2235,90 +2314,6 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       )}
     </div>
   ) : null;
-
-  // Form-based record detail renderer (replaces simple key-value dump)
-  const renderRecordDetail = (record: any) => {
-    const systemFields = ['_id', 'id', 'created_at', 'updated_at', 'created_by', 'updated_by'];
-    const entries = Object.entries(record);
-    // Honor `hidden: true` on the schema field def — internal/system fields
-    // (e.g. database_url, environment_id, is_system) shouldn't leak into the
-    // grid's record-detail drawer just because they're in the record payload.
-    const isHidden = (key: string) => objectSchema?.fields?.[key]?.hidden === true;
-    const regularFields = entries.filter(([key]) => !systemFields.includes(key) && !isHidden(key));
-    const metaFields = entries.filter(([key]) => systemFields.includes(key) && key !== '_id' && key !== 'id');
-
-    const formatFieldLabel = (key: string): string =>
-      key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
-
-    const renderFieldValue = (key: string, value: any): React.ReactNode => {
-      if (value == null || value === '') {
-        return <span className="text-muted-foreground/50 text-sm italic">{t('grid.empty')}</span>;
-      }
-
-      // Use objectSchema field type for type-aware rendering
-      const fieldDef = objectSchema?.fields?.[key];
-      if (fieldDef?.type) {
-        const CellRenderer = getCellRenderer(fieldDef.type);
-        if (CellRenderer) {
-          return <CellRenderer value={value} field={fieldDef} />;
-        }
-      }
-
-      // Fallback: infer from value and key name
-      if (typeof value === 'boolean') {
-        return <Badge variant={value ? 'default' : 'outline'}>{value ? t('grid.yes') : t('grid.no')}</Badge>;
-      }
-      // Detect date-like values
-      if (typeof value === 'string' && !isNaN(Date.parse(value)) && (key.includes('date') || key.includes('_at') || key.includes('time'))) {
-        return <span className="text-sm tabular-nums">{formatDate(value)}</span>;
-      }
-      // Detect currency-like fields by name
-      const currencyFields = ['amount', 'price', 'total', 'revenue', 'cost', 'value', 'budget', 'salary'];
-      if (typeof value === 'number' && currencyFields.some(f => key.toLowerCase().includes(f))) {
-        return <span className="text-sm tabular-nums font-medium">{formatCurrency(value, tenantCurrency)}</span>;
-      }
-      return <span className="text-sm break-words">{String(value)}</span>;
-    };
-
-    return (
-      <div className="space-y-4" data-testid="record-detail-panel">
-        {/* Regular fields in form-like layout */}
-        <div className="rounded-lg border bg-card">
-          <div className="divide-y">
-            {regularFields.map(([key, value]) => (
-              <div key={key} className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 px-4 py-3">
-                <span className="text-xs font-medium text-muted-foreground sm:w-1/3 sm:text-right sm:pt-0.5 uppercase tracking-wide shrink-0">
-                  {formatFieldLabel(key)}
-                </span>
-                <div className="flex-1 min-w-0">
-                  {renderFieldValue(key, value)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* System/meta fields */}
-        {metaFields.length > 0 && (
-          <div className="rounded-lg border bg-muted/30">
-            <div className="px-4 py-2 border-b">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('grid.systemFields')}</span>
-            </div>
-            <div className="divide-y divide-border/50">
-              {metaFields.map(([key, value]) => (
-                <div key={key} className="flex items-center gap-4 px-4 py-2">
-                  <span className="text-xs text-muted-foreground w-1/3 text-right shrink-0">
-                    {formatFieldLabel(key)}
-                  </span>
-                  <span className="text-xs text-muted-foreground flex-1 min-w-0 break-words">{String(value ?? '')}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   // Summary footer row
   const summaryFooter = hasSummary ? (

@@ -27,7 +27,7 @@ const lookupNameCache: Map<string, LookupCacheEntry> = new Map();
  * Pick the most reasonable display name from an arbitrary record object.
  * Tries common name-like keys in priority order, then falls back to undefined.
  */
-function pickRecordDisplayName(
+export function pickRecordDisplayName(
   record: Record<string, unknown> | null | undefined,
   preferredField?: string,
 ): string | undefined {

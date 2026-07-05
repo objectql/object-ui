@@ -22,6 +22,13 @@ const draft = {
 };
 
 describe('ObjectValidationsPanel', () => {
+  it('default-selects the first rule so the detail pane is never a dead pick-one empty state', () => {
+    render(<ObjectValidationsPanel draft={draft} onPatch={() => {}} />);
+    // The first rule ("no_negative", a script rule) should already be open —
+    // its message input is visible without clicking anything.
+    expect(screen.getByDisplayValue('金额不能为负')).toBeTruthy();
+  });
+
   it('lists every rule with its type badge (non-script rules stay visible)', () => {
     render(<ObjectValidationsPanel draft={draft} onPatch={() => {}} />);
     expect(screen.getByText('no_negative')).toBeTruthy();

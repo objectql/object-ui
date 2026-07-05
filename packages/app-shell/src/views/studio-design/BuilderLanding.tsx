@@ -104,12 +104,14 @@ export function BuilderLanding(): React.ReactElement {
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl p-6">
+    <div className="mx-auto w-full max-w-5xl p-6">
       <div className="mb-1 flex items-center gap-2">
-        <Hammer className="h-5 w-5 text-primary" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Hammer className="h-4.5 w-4.5" />
+        </span>
         <h1 className="text-lg font-semibold">{t('engine.studio.landing.title', locale)}</h1>
       </div>
-      <p className="mb-5 text-xs leading-5 text-muted-foreground">
+      <p className="mb-5 max-w-2xl text-xs leading-5 text-muted-foreground">
         {t('engine.studio.landing.description', locale)}
       </p>
 
@@ -122,7 +124,7 @@ export function BuilderLanding(): React.ReactElement {
       <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {t('engine.studio.landing.mineHeading', locale)}
       </h2>
-      <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="mb-6 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
         {pkgs === null && <p className="text-[11px] text-muted-foreground">{t('engine.studio.loading', locale)}</p>}
         {pkgs !== null && writable.length === 0 && (
           <p className="text-[11px] text-muted-foreground">{t('engine.studio.landing.noneWritable', locale)}</p>
@@ -135,7 +137,9 @@ export function BuilderLanding(): React.ReactElement {
                 onClick={() => open(p.id)}
                 className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
               >
-                <Boxes className="h-4 w-4 shrink-0 text-primary" />
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Boxes className="h-4 w-4" />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] font-medium">{p.name}</span>
                   <span className="block truncate font-mono text-[10px] text-muted-foreground">{p.id}</span>
@@ -270,7 +274,7 @@ export function BuilderLanding(): React.ReactElement {
           <h2 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {t('engine.studio.landing.installedHeading', locale)}
           </h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {readonly.map((p) => (
               <button
                 key={p.id}
@@ -278,7 +282,9 @@ export function BuilderLanding(): React.ReactElement {
                 onClick={() => open(p.id)}
                 className="flex items-center gap-2.5 rounded-lg border bg-muted/20 px-3 py-2.5 text-left hover:bg-muted/40"
               >
-                <Boxes className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <Boxes className="h-4 w-4" />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px]">{p.name}</span>
                   <span className="block truncate font-mono text-[10px] text-muted-foreground">{p.id}</span>

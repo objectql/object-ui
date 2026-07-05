@@ -487,6 +487,18 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
           </span>
         </div>
 
+        {/* Column legend — the matrix header cells already carry a native
+            `title` tooltip per column, but a hover-only affordance on
+            unfamiliar two-letter abbreviations (Tr/Re/Pu/VA/MA) is easy to
+            miss. Spell them out once, up front. */}
+        <div className="px-6 py-2 border-b flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          {OBJECT_ACTIONS.map((a) => (
+            <span key={a.key as string} className="whitespace-nowrap">
+              <span className="font-medium text-foreground">{a.short}</span> {a.tip}
+            </span>
+          ))}
+        </div>
+
         {/* Matrix */}
         <div className="flex-1 overflow-auto">
           <PermissionTable

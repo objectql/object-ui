@@ -64,8 +64,14 @@ export function ObjectValidationsPanel({
   disabled?: boolean;
 }) {
   const locale = useMetadataLocale();
-  const rules = readRules(draft.validations);
+  const rules = React.useMemo(() => readRules(draft.validations), [draft.validations]);
   const [selected, setSelected] = React.useState<string | null>(null);
+  // Default to the first rule so the detail pane isn't a dead "pick one" empty
+  // state whenever rules already exist (matches the Access pillar's
+  // Permission Set list, which default-selects its first item). Falls back
+  // automatically when `selected` no longer matches the current rule list
+  // (deleted, or the object switched under us).
+  const effectiveSelected = rules.some((r) => r.name === selected) ? selected : (rules[0]?.name ?? null);
 
   const fields = React.useMemo(
     () =>
@@ -98,7 +104,7 @@ export function ObjectValidationsPanel({
     if (selected === name) setSelected(null);
   };
 
-  const sel = rules.find((r) => r.name === selected) ?? null;
+  const sel = rules.find((r) => r.name === effectiveSelected) ?? null;
 
   return (
     <div className="flex min-h-0 flex-1 gap-4">
@@ -133,7 +139,7 @@ export function ObjectValidationsPanel({
                 onClick={() => setSelected(r.name ?? null)}
                 className={
                   'flex w-full items-start gap-2 border-b px-3 py-2 text-left text-[12px] ' +
-                  (selected === r.name ? 'bg-muted' : 'hover:bg-muted/50')
+                  (effectiveSelected === r.name ? 'bg-muted' : 'hover:bg-muted/50')
                 }
               >
                 <span className="min-w-0 flex-1">

@@ -17,7 +17,7 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
-import { GridFieldAuthoringProvider } from '@object-ui/components';
+import { GridFieldAuthoringProvider, cn, useIsMobile } from '@object-ui/components';
 import { ObjectView as PluginObjectView } from '@object-ui/plugin-view';
 import { ListView } from '@object-ui/plugin-list';
 import { ObjectForm } from '@object-ui/plugin-form';
@@ -33,6 +33,7 @@ import {
   Workflow,
   SlidersHorizontal,
   MousePointer2,
+  Code2,
   Eye,
   Loader2,
   Save,
@@ -47,6 +48,7 @@ import {
   ExternalLink,
   Home as HomeIcon,
   Shield,
+  Menu,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
@@ -534,25 +536,33 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
       {aiSlot ? <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside> : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b px-3 py-2">
+        {/* `overflow-x-auto` — none of Package/pillars/Publish shrink (all
+          * `shrink-0`, and PackageSwitcher's trigger is `whitespace-nowrap`),
+          * so on a narrow viewport this whole strip overflows instead of any
+          * one piece silently clipping off past the screen edge. Scrolling
+          * the header is a worse look than a proper responsive redesign, but
+          * it guarantees every pillar and the Publish button stay reachable. */}
+        <header className="flex items-center gap-3 overflow-x-auto border-b px-3 py-2">
           {/* Never a dead end: walk back to the platform Home / builder landing. */}
           <button
             type="button"
             onClick={() => shellNavigate('/home')}
             title={t('engine.studio.home', locale)}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <HomeIcon className="h-4 w-4" />
           </button>
-          <PackageSwitcher packageId={packageId} tab={tab} />
-          <span className="text-muted-foreground">·</span>
-          <nav className="flex gap-1">
+          <div className="shrink-0">
+            <PackageSwitcher packageId={packageId} tab={tab} />
+          </div>
+          <span className="shrink-0 text-muted-foreground">·</span>
+          <nav className="flex shrink-0 gap-1">
             {PILLARS.map((p) => (
               <Link
                 key={p.key}
                 to={`/studio/${packageId}/${p.key}`}
                 className={
-                  'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
                   (tab === p.key
                     ? 'bg-primary/10 font-medium text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground')
@@ -565,7 +575,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
           </nav>
 
           {/* Package-level draft review + one atomic publish (replaces per-item 发布) */}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             {packageApp ? (
               <button
                 type="button"
@@ -898,6 +908,9 @@ function InterfacesPillar({
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
+  // See DataPillar's rail — same mobile-overlay treatment for the nav tree.
+  const isMobile = useIsMobile();
+  const [railOpen, setRailOpen] = React.useState(false);
 
   const [appLabel, setAppLabel] = React.useState<string>(packageId);
   const [appName, setAppName] = React.useState<string | null>(null);
@@ -1061,6 +1074,13 @@ function InterfacesPillar({
   // Object leaves render as a runtime records grid (preview = runtime); schema
   // editing is the Data pillar's job, so they are not draft-editable in this canvas.
   const isEditable = !!Preview && current?.type !== 'object';
+  // `kind: 'html'`/`'react'` pages are a `source` string (ADR-0080/0081),
+  // rendered by SourcePageEditor as a code-editor + live-preview split — there
+  // is no block tree, so `selection` never populates and the generic "click a
+  // block" Properties empty state below would otherwise be permanently dead
+  // for these pages.
+  const sourcePageKind = current?.type === 'page' ? (draft as { kind?: string })?.kind : undefined;
+  const isSourcePage = sourcePageKind === 'html' || sourcePageKind === 'react';
 
   // Load the selected surface's draft (only for editable preview types).
   React.useEffect(() => {
@@ -1150,6 +1170,14 @@ function InterfacesPillar({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        <button
+          type="button"
+          onClick={() => setRailOpen((v) => !v)}
+          aria-label={t('engine.studio.toggleRail', locale)}
+          className="-ml-1 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
         {current ? (
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="text-[13px] font-medium text-foreground">{current.label}</span>
@@ -1176,9 +1204,22 @@ function InterfacesPillar({
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
+        {isMobile && railOpen && (
+          <div
+            className="absolute inset-0 z-10 bg-black/30"
+            onClick={() => setRailOpen(false)}
+            aria-hidden="true"
+          />
+        )}
         {/* real App navigation tree */}
-        <nav className={(editNav ? 'w-72' : 'w-52') + ' flex shrink-0 flex-col border-r'}>
+        <nav
+          className={cn(
+            (editNav ? 'w-72' : 'w-52') + ' flex shrink-0 flex-col border-r bg-background',
+            isMobile && 'absolute inset-y-0 left-0 z-20 shadow-lg transition-transform duration-200',
+            isMobile && !railOpen && '-translate-x-full',
+          )}
+        >
           <div className="shrink-0 border-b px-2 py-1.5">
             <div className="flex items-center justify-between gap-1">
               <p className="truncate text-[11px] font-medium text-muted-foreground">{tFormat('engine.studio.if.navHeading', locale, { app: appLabel })}</p>
@@ -1263,7 +1304,14 @@ function InterfacesPillar({
                     : t('engine.studio.if.noNavItems', locale)}
               </p>
             ) : (
-              <NavTree nodes={navTree} active={current} onPick={setCurrent} />
+              <NavTree
+                nodes={navTree}
+                active={current}
+                onPick={(s) => {
+                  setCurrent(s);
+                  if (isMobile) setRailOpen(false);
+                }}
+              />
             )}
           </div>
         </nav>
@@ -1381,6 +1429,13 @@ function InterfacesPillar({
                 readOnly={false}
                 locale={locale}
               />
+            ) : isSourcePage ? (
+              <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+                <Code2 className="h-5 w-5" />
+                {tFormat('engine.studio.inspector.sourcePageLine1', locale, { kind: sourcePageKind! })}
+                <br />
+                {t('engine.studio.inspector.sourcePageLine2', locale)}
+              </div>
             ) : (
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
                 <MousePointer2 className="h-5 w-5" />
@@ -1437,8 +1492,9 @@ function renderStudioGridList(props: {
   onEdit?: (record: Record<string, unknown>) => void;
   className?: string;
   refreshKey?: number;
+  onAddRecord?: () => void;
 }): React.ReactElement {
-  const { schema: listSchema, dataSource: ds, onEdit, className, refreshKey } = props;
+  const { schema: listSchema, dataSource: ds, onEdit, className, refreshKey, onAddRecord } = props;
   return (
     <ListView
       schema={
@@ -1452,10 +1508,16 @@ function renderStudioGridList(props: {
           showHideFields: true,
           inlineEdit: true,
           addDeleteRecordsInline: true,
+          // Fold "+ New" into this toolbar (next to Hide fields/Filter/Group/
+          // Sort) instead of ObjectView's separate `showCreate` row above it —
+          // that row was otherwise ~90% empty (nothing else populates its
+          // left side in Studio) and just added a dead band before the grid.
+          addRecord: { enabled: true },
         } as never
       }
       dataSource={ds as never}
       onEdit={onEdit}
+      onAddRecord={onAddRecord}
       className={className}
       refreshKey={refreshKey}
     />
@@ -1477,6 +1539,12 @@ function DataPillar({
   const client = useMetadataClient();
   const adapter = useAdapter();
   const locale = useMetadataLocale();
+  // Below the mobile breakpoint the Objects rail overlays the canvas instead
+  // of a permanent 208px column (which otherwise squeezed the grid/form
+  // canvas down to almost nothing on phones) — closed by default, toggled by
+  // the header's Menu button.
+  const isMobile = useIsMobile();
+  const [railOpen, setRailOpen] = React.useState(false);
   const [objects, setObjects] = React.useState<Surface[]>([]);
   const [objectsLoaded, setObjectsLoaded] = React.useState(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
@@ -1706,6 +1774,14 @@ function DataPillar({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        <button
+          type="button"
+          onClick={() => setRailOpen((v) => !v)}
+          aria-label={t('engine.studio.toggleRail', locale)}
+          className="-ml-1 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
         {current ? (
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="text-[13px] font-medium text-foreground">{current.label}</span>
@@ -1741,8 +1817,21 @@ function DataPillar({
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <nav className="flex w-52 shrink-0 flex-col border-r">
+      <div className="relative flex min-h-0 flex-1">
+        {isMobile && railOpen && (
+          <div
+            className="absolute inset-0 z-10 bg-black/30"
+            onClick={() => setRailOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+        <nav
+          className={cn(
+            'flex w-52 shrink-0 flex-col border-r bg-background',
+            isMobile && 'absolute inset-y-0 left-0 z-20 shadow-lg transition-transform duration-200',
+            isMobile && !railOpen && '-translate-x-full',
+          )}
+        >
           <div className="shrink-0 p-2 pb-1">
             <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">{t('engine.studio.data.objects', locale)}</p>
             <input
@@ -1768,7 +1857,10 @@ function DataPillar({
               .map((o) => (
                 <button
                   key={o.name}
-                  onClick={() => setCurrent(o)}
+                  onClick={() => {
+                    setCurrent(o);
+                    if (isMobile) setRailOpen(false);
+                  }}
                   className={
                     'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
                     (current?.name === o.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
@@ -2001,6 +2093,12 @@ function DataPillar({
                         {
                           type: 'object-view',
                           objectName: current.name,
+                          // "+ New" now lives in the grid's own toolbar (via
+                          // renderStudioGridList's `addRecord.enabled`), next to
+                          // Hide fields/Filter/Group/Sort — suppress ObjectView's
+                          // separate top row so it doesn't render a second,
+                          // mostly-empty toolbar above the grid.
+                          showCreate: false,
                           // No saved view exists in design mode, so show the object's
                           // own fields as columns (in metadata order), dropping
                           // framework-managed/audit fields so the grid opens on the
@@ -2225,6 +2323,9 @@ function AutomationsPillar({
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
+  // See DataPillar's rail — same mobile-overlay treatment for the flow list.
+  const isMobile = useIsMobile();
+  const [railOpen, setRailOpen] = React.useState(false);
   const [flows, setFlows] = React.useState<Surface[]>([]);
   const [current, setCurrent] = React.useState<Surface | null>(null);
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
@@ -2405,6 +2506,14 @@ function AutomationsPillar({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        <button
+          type="button"
+          onClick={() => setRailOpen((v) => !v)}
+          aria-label={t('engine.studio.toggleRail', locale)}
+          className="-ml-1 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
         <span className="text-[11px] text-muted-foreground">{t('engine.studio.auto.defaultOff', locale)}</span>
         {hasDraft && (
           <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300">
@@ -2438,8 +2547,21 @@ function AutomationsPillar({
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <nav className="flex w-52 shrink-0 flex-col overflow-auto border-r p-2">
+      <div className="relative flex min-h-0 flex-1">
+        {isMobile && railOpen && (
+          <div
+            className="absolute inset-0 z-10 bg-black/30"
+            onClick={() => setRailOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+        <nav
+          className={cn(
+            'flex w-52 shrink-0 flex-col overflow-auto border-r bg-background p-2',
+            isMobile && 'absolute inset-y-0 left-0 z-20 shadow-lg transition-transform duration-200',
+            isMobile && !railOpen && '-translate-x-full',
+          )}
+        >
           <div className="flex items-center gap-1 px-2 pb-1 pt-1">
             <p className="flex-1 text-[11px] font-medium text-muted-foreground">{t('engine.studio.auto.heading', locale)}</p>
             {!readOnly && (
@@ -2457,7 +2579,10 @@ function AutomationsPillar({
             flows.map((f) => (
               <button
                 key={f.name}
-                onClick={() => setCurrent(f)}
+                onClick={() => {
+                  setCurrent(f);
+                  if (isMobile) setRailOpen(false);
+                }}
                 className={
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
                   (current?.name === f.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
@@ -2518,19 +2643,22 @@ function AutomationsPillar({
           )}
         </nav>
 
-        <main className="min-w-0 flex-1 overflow-auto bg-muted/30 p-4">
-          <div className="mb-3 flex items-center gap-2">
+        <main className="flex min-w-0 flex-1 flex-col overflow-auto bg-muted/30 p-4">
+          <div className="mb-3 flex shrink-0 items-center gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
               <Workflow className="h-3 w-3" /> {t('engine.studio.auto.canvasHint', locale)}
             </span>
             {current && <span className="text-[11px] text-muted-foreground">flow · {current.name}</span>}
           </div>
           {error && (
-            <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
+            <div className="mb-3 shrink-0 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
               {error}
             </div>
           )}
-          <div className="rounded-lg border bg-background p-4">
+          {/* `flex-1 min-h-0` so the canvas fills the pillar's full remaining
+            * height instead of shrinking to FlowCanvas's intrinsic content
+            * height and leaving a dead band below the bordered frame. */}
+          <div className="min-h-0 flex-1 rounded-lg border bg-background p-4">
             {!current ? (
               <div className="py-16 text-center text-sm text-muted-foreground">{t('engine.studio.auto.pick', locale)}</div>
             ) : loading ? (
@@ -2555,7 +2683,7 @@ function AutomationsPillar({
             )}
           </div>
           {isEditable && (
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+            <p className="mt-2 flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
               <MousePointer2 className="h-3 w-3" /> {t('engine.studio.auto.editHint', locale)}
             </p>
           )}
@@ -2633,6 +2761,9 @@ function AccessPillar({
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
+  // See DataPillar's rail — same mobile-overlay treatment for the permission-set list.
+  const isMobile = useIsMobile();
+  const [railOpen, setRailOpen] = React.useState(false);
   const [perms, setPerms] = React.useState<
     Array<{ name: string; label: string; isProfile?: boolean }>
   >([]);
@@ -2730,6 +2861,14 @@ function AccessPillar({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        <button
+          type="button"
+          onClick={() => setRailOpen((v) => !v)}
+          aria-label={t('engine.studio.toggleRail', locale)}
+          className="-ml-1 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <Shield className="h-3.5 w-3.5" />
           <span className="text-[13px] font-medium text-foreground">{t('engine.studio.access.title', locale)}</span>
@@ -2743,8 +2882,21 @@ function AccessPillar({
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <nav className="flex w-52 shrink-0 flex-col border-r">
+      <div className="relative flex min-h-0 flex-1">
+        {isMobile && railOpen && (
+          <div
+            className="absolute inset-0 z-10 bg-black/30"
+            onClick={() => setRailOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+        <nav
+          className={cn(
+            'flex w-52 shrink-0 flex-col border-r bg-background',
+            isMobile && 'absolute inset-y-0 left-0 z-20 shadow-lg transition-transform duration-200',
+            isMobile && !railOpen && '-translate-x-full',
+          )}
+        >
           <div className="p-2 pb-0">
             <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">{t('engine.studio.access.heading', locale)}</p>
             <input
@@ -2763,7 +2915,10 @@ function AccessPillar({
             {filtered.map((p) => (
               <button
                 key={p.name}
-                onClick={() => setCurrent(p.name)}
+                onClick={() => {
+                  setCurrent(p.name);
+                  if (isMobile) setRailOpen(false);
+                }}
                 className={
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
                   (current === p.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')

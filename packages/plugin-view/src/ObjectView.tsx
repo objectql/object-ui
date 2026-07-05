@@ -159,6 +159,11 @@ export interface ObjectViewProps {
     className?: string;
     /** Current refresh counter — increment signals that a mutation occurred */
     refreshKey?: number;
+    /** Same handler the built-in toolbar's "+ New" button uses — forward it
+     * into the custom list view's own add-record affordance (e.g. ListView's
+     * `addRecord.enabled` toolbar button) so callers can fold record creation
+     * into their list's toolbar instead of the separate `showCreate` row. */
+    onAddRecord?: () => void;
   }) => React.ReactNode;
 
   /**
@@ -1038,6 +1043,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
         onRowClick: handleRowClick,
         className: 'h-full',
         refreshKey,
+        onAddRecord: handleCreate,
       });
     }
 
@@ -1165,6 +1171,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
     if (!open) handleFormCancel();
   }, [handleFormCancel]);
 
+  // Computed once so a `null` toolbar (nothing to show — no named views, no
+  // view switcher, no create button, no addon) doesn't still leave behind an
+  // empty `mb-4` spacer div above the content.
+  const toolbar = renderToolbar();
+
   // For split mode, wrap content inside NavigationOverlay with mainContent
   if (formLayout === 'split') {
     const objectLabel = (objectSchema?.label as string) || schema.objectName;
@@ -1176,7 +1187,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
             {schema.description && <p className="text-muted-foreground mt-1">{schema.description}</p>}
           </div>
         )}
-        <div className="mb-4 shrink-0">{renderToolbar()}</div>
+        {toolbar && <div className="mb-4 shrink-0">{toolbar}</div>}
         <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
           {isFormOpen && selectedRecord ? (
             <NavigationOverlay
@@ -1215,9 +1226,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       )}
 
       {/* Toolbar */}
-      <div className="mb-4 shrink-0">
-        {renderToolbar()}
-      </div>
+      {toolbar && <div className="mb-4 shrink-0">{toolbar}</div>}
 
       {/* Content */}
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden">

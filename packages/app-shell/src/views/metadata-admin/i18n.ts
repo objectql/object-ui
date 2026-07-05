@@ -896,6 +896,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.done': 'Done',
   'engine.studio.close': 'Close',
   'engine.studio.deselect': 'Clear selection',
+  'engine.studio.toggleRail': 'Toggle sidebar',
   'engine.studio.home': 'Back to home',
   // Pillar tab labels
   'engine.studio.pillar.data': 'Data',
@@ -1016,6 +1017,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.inspector.props': 'Properties',
   'engine.studio.inspector.emptyLine1': 'Click a block on the canvas,',
   'engine.studio.inspector.emptyLine2': 'and edit its properties right here.',
+  'engine.studio.inspector.sourcePageLine1': 'This page is {kind} source, not a block tree —',
+  'engine.studio.inspector.sourcePageLine2': 'edit it directly in the code panel on the left.',
   // Data pillar
   'engine.studio.data.newFieldLabel': 'New field',
   'engine.studio.data.nameFieldLabel': 'Name',
@@ -1862,6 +1865,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.done': '完成',
   'engine.studio.close': '关闭',
   'engine.studio.deselect': '取消选择',
+  'engine.studio.toggleRail': '切换侧栏',
   'engine.studio.home': '返回主页',
   // Pillar tab labels
   'engine.studio.pillar.data': '数据',
@@ -1982,6 +1986,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.inspector.props': '属性',
   'engine.studio.inspector.emptyLine1': '在画布里点选一个积木,',
   'engine.studio.inspector.emptyLine2': '它的属性会在这里直接编辑。',
+  'engine.studio.inspector.sourcePageLine1': '这个页面是 {kind} 源码,不是积木树 ——',
+  'engine.studio.inspector.sourcePageLine2': '请直接在左侧代码面板里编辑。',
   // Data pillar
   'engine.studio.data.newFieldLabel': '新字段',
   'engine.studio.data.nameFieldLabel': '名称',

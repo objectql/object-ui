@@ -408,13 +408,28 @@ export function FlowCanvas({
     const pad = 32;
     const zx = (vp.clientWidth - pad) / size.width;
     const zy = (vp.clientHeight - pad) / size.height;
-    const z = clampZoom(Math.min(zx, zy, 1));
+    // No `, 1` cap here: clampZoom already bounds this to MAX_ZOOM (1.6). A
+    // small flow (most flows are 2-4 linear nodes) used to freeze at 100% —
+    // fit-to-view should actually fit, i.e. zoom IN to use the available
+    // canvas, not just center a tiny diagram in a sea of blank space.
+    const z = clampZoom(Math.min(zx, zy));
     setZoom(z);
     setPan({
       x: (vp.clientWidth - size.width * z) / 2,
       y: Math.max(16, (vp.clientHeight - size.height * z) / 2),
     });
   }, [size.height, size.width]);
+
+  // Auto-fit once on mount so opening a flow shows the whole diagram
+  // centered and appropriately zoomed instead of always starting at a fixed
+  // 100%/pan-{0,0} view — that default left most small (2-4 node) flows
+  // stranded in a corner of a mostly-empty canvas. Deliberately mount-only
+  // (not re-run on every `size` change): re-fitting on every node add/drag
+  // would yank the viewport out from under an actively editing user.
+  React.useEffect(() => {
+    fitToView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Pan to center an element when the Problems panel asks to reveal it. Driven
   // by a changing `nonce` so re-clicking the same problem re-centers it.
