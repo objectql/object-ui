@@ -39,8 +39,22 @@ export function buildFlowSkeleton(name: string, label: string, startLabel: strin
   };
 }
 
-export function buildAppSkeleton(name: string, label: string): Record<string, unknown> {
-  return { name, label, active: true, navigation: [] };
+/** An object to seed a new app's navigation with (one menu item per object). */
+export interface AppNavSeed {
+  name: string;
+  label: string;
+}
+
+export function buildAppSkeleton(name: string, label: string, navObjects: AppNavSeed[] = []): Record<string, unknown> {
+  return {
+    name,
+    label,
+    active: true,
+    // Seeding nav from the package's objects closes the create-app dead-end:
+    // a fresh app otherwise ships zero menu items and every object must be
+    // wired by hand in the Interfaces pillar (objectui#2262).
+    navigation: navObjects.map((o) => ({ id: `nav_${o.name}`, type: 'object', label: o.label, objectName: o.name })),
+  };
 }
 
 export function buildPermissionSkeleton(name: string, label: string): Record<string, unknown> {

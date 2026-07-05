@@ -71,6 +71,8 @@ export interface ObjectFormDesignerProps {
   onSelectField: (name: string) => void;
   /** Append a new field (reuses the pillar's add-field). */
   onAddField: () => void;
+  /** Courtesy gate: layout stays viewable, but add/rename/reorder/delete are off. */
+  readOnly?: boolean;
 }
 
 /** A faithful, non-interactive preview of a field's control (by type). */
@@ -173,6 +175,7 @@ function Section({
   onRename,
   onDelete,
   onMove,
+  readOnly = false,
 }: {
   containerId: string;
   title: string;
@@ -186,12 +189,13 @@ function Section({
   onRename: (label: string) => void;
   onDelete: () => void;
   onMove: (dir: -1 | 1) => void;
+  readOnly?: boolean;
 }): React.ReactElement {
   const { setNodeRef, isOver } = useDroppable({ id: containerId });
   return (
     <div className={'rounded-lg border ' + (isOver ? 'border-primary bg-primary/5' : 'bg-muted/20')}>
       <div className="flex items-center gap-1 border-b px-3 py-1.5">
-        {isDeclared ? (
+        {isDeclared && !readOnly ? (
           <input
             defaultValue={title}
             onBlur={(e) => e.target.value.trim() && e.target.value !== title && onRename(e.target.value)}
@@ -203,7 +207,7 @@ function Section({
         ) : (
           <span className="flex-1 px-1 text-[13px] font-medium text-muted-foreground">{title}</span>
         )}
-        {isDeclared && (
+        {isDeclared && !readOnly && (
           <>
             <button
               type="button"
@@ -268,6 +272,7 @@ export function ObjectFormDesigner({
   selectedField,
   onSelectField,
   onAddField,
+  readOnly = false,
 }: ObjectFormDesignerProps): React.ReactElement {
   const view = React.useMemo(() => readFields(draft.fields), [draft.fields]);
   const groups = React.useMemo(() => readGroups(draft.fieldGroups), [draft.fieldGroups]);
@@ -416,24 +421,28 @@ export function ObjectFormDesigner({
         <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
           <Rows3 className="h-3.5 w-3.5" /> 拖动字段排序 / 拖到其它分组 · 点选字段改属性
         </span>
-        <button
-          type="button"
-          onClick={addSection}
-          className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" /> 添加分组
-        </button>
-        <button
-          type="button"
-          onClick={onAddField}
-          className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Plus className="h-3.5 w-3.5" /> 添加字段
-        </button>
+        {!readOnly && (
+          <>
+            <button
+              type="button"
+              onClick={addSection}
+              className="ml-auto inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Plus className="h-3.5 w-3.5" /> 添加分组
+            </button>
+            <button
+              type="button"
+              onClick={onAddField}
+              className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Plus className="h-3.5 w-3.5" /> 添加字段
+            </button>
+          </>
+        )}
       </div>
 
       <DndContext
-        sensors={sensors}
+        sensors={readOnly ? [] : sensors}
         collisionDetection={pointerWithin}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
@@ -461,6 +470,7 @@ export function ObjectFormDesigner({
                 onRename={(label) => renameSection(unCid(c), label)}
                 onDelete={() => deleteSection(unCid(c))}
                 onMove={(dir) => moveSection(unCid(c), dir)}
+                readOnly={readOnly}
               />
             );
           })}

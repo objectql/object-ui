@@ -119,6 +119,15 @@ describe('Studio inline creators: skeletons pass spec validation', () => {
     { type: 'object', skeleton: buildObjectSkeleton('conf_obj', 'Conformance Object', 'Name') },
     { type: 'flow', skeleton: buildFlowSkeleton('conf_flow', 'Conformance Flow', 'Start', 'End') },
     { type: 'app', skeleton: buildAppSkeleton('conf_app', 'Conformance App') },
+    {
+      // Nav-seeded variant (objectui#2262): create-app scaffolds one menu item
+      // per package object — the seeded navigation must be spec-valid too.
+      type: 'app',
+      skeleton: buildAppSkeleton('conf_app_nav', 'Conformance App (nav)', [
+        { name: 'conf_obj', label: 'Conformance Object' },
+        { name: 'conf_other', label: 'Other Object' },
+      ]),
+    },
     { type: 'permission', skeleton: buildPermissionSkeleton('conf_perm', 'Conformance Permission') },
   ];
 

@@ -19,9 +19,10 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { FilePlus2, FilePen, Loader2 } from 'lucide-react';
+import { FilePlus2, FilePen, Loader2, ChevronDown, ChevronRight, Rocket } from 'lucide-react';
 import {
   Badge,
+  Button,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -83,17 +84,93 @@ async function publishedNamesOf(type: string): Promise<Set<string>> {
   );
 }
 
+/**
+ * Per-item drill-in: what publishing this one draft changes, as summary lines.
+ * For objects the `fields` map is diffed field-by-field (added/removed/changed);
+ * every other type lists its changed top-level properties. NEW items list what
+ * they ship instead of a diff (there is no published baseline to compare).
+ */
+async function loadEntryDetail(entry: DraftChangeEntry): Promise<string[]> {
+  const base = `/api/v1/meta/${encodeURIComponent(entry.type)}/${encodeURIComponent(entry.name)}`;
+  const get = async (qs: string): Promise<Record<string, unknown> | null> => {
+    const res = await fetch(`${base}${qs}`, {
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as Record<string, unknown> | { item?: Record<string, unknown> };
+    // draft reads come back in a { type, name, item } envelope; published reads are bare
+    return (data && typeof data === 'object' && 'item' in data ? (data.item as Record<string, unknown>) : data) ?? null;
+  };
+  const [draft, published] = await Promise.all([get('?state=draft'), entry.kind === 'update' ? get('') : Promise.resolve(null)]);
+  if (!draft) return [];
+
+  const lines: string[] = [];
+  const draftFields = (draft.fields ?? {}) as Record<string, unknown>;
+  const pubFields = ((published?.fields ?? {}) as Record<string, unknown>) || {};
+  if (entry.type === 'object') {
+    const names = new Set([...Object.keys(draftFields), ...Object.keys(pubFields)]);
+    for (const f of names) {
+      const inDraft = f in draftFields;
+      const inPub = f in pubFields;
+      if (inDraft && !inPub) lines.push(`+ field ${f}`);
+      else if (!inDraft && inPub) lines.push(`− field ${f}`);
+      else if (JSON.stringify(draftFields[f]) !== JSON.stringify(pubFields[f])) lines.push(`~ field ${f}`);
+    }
+  }
+  // Non-field top-level properties (all types; objects too, e.g. label/validations)
+  const skip = new Set(['fields', 'name']);
+  const keys = new Set([...Object.keys(draft), ...Object.keys(published ?? {})].filter((k) => !skip.has(k)));
+  for (const k of keys) {
+    const dv = JSON.stringify(draft[k]);
+    const pv = published ? JSON.stringify(published[k]) : undefined;
+    if (published === null) {
+      if (dv !== undefined) lines.push(`+ ${k}`);
+    } else if (dv !== pv) {
+      lines.push(`~ ${k}`);
+    }
+  }
+  return lines;
+}
+
 export interface DraftChangesPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** When set, list only pending drafts belonging to this package (Studio is package-scoped). */
   packageId?: string | null;
+  /**
+   * When provided, the panel doubles as the publish CONFIRM step: a footer
+   * button publishes everything listed. The caller keeps ownership of the
+   * actual publish call (and closes the panel on success).
+   */
+  onPublish?: () => void | Promise<void>;
+  /** True while the caller's publish call is in flight (spins the footer button). */
+  publishing?: boolean;
 }
 
-export function DraftChangesPanel({ open, onOpenChange, packageId }: DraftChangesPanelProps) {
+export function DraftChangesPanel({ open, onOpenChange, packageId, onPublish, publishing }: DraftChangesPanelProps) {
   const { t } = useObjectTranslation();
   const [entries, setEntries] = useState<DraftChangeEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [details, setDetails] = useState<Record<string, { loading?: boolean; error?: string; lines?: string[] }>>({});
+
+  const toggleDetail = useCallback(
+    (entry: DraftChangeEntry) => {
+      const key = `${entry.type}:${entry.name}`;
+      setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+      setDetails((prev) => {
+        if (prev[key]) return prev; // already loaded / loading
+        void loadEntryDetail(entry)
+          .then((lines) => setDetails((p) => ({ ...p, [key]: { lines } })))
+          .catch((e) => setDetails((p) => ({ ...p, [key]: { error: (e as Error).message } })));
+        return { ...prev, [key]: { loading: true } };
+      });
+    },
+    [],
+  );
 
   const load = useCallback(async () => {
     setEntries(null);
@@ -175,40 +252,94 @@ export function DraftChangesPanel({ open, onOpenChange, packageId }: DraftChange
                   {type} · {items.length}
                 </h4>
                 <ul className="flex flex-col gap-1">
-                  {items.map((entry) => (
-                    <li
-                      key={`${entry.type}:${entry.name}`}
-                      className="flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm"
-                    >
-                      {entry.kind === 'new' ? (
-                        <FilePlus2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                      ) : entry.kind === 'update' ? (
-                        <FilePen className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-                      ) : (
-                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
-                      )}
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs">{entry.name}</span>
-                      {entry.kind ? (
-                        <Badge
-                          variant="outline"
-                          className={
-                            entry.kind === 'new'
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border-amber-200 bg-amber-50 text-amber-700'
-                          }
+                  {items.map((entry) => {
+                    const key = `${entry.type}:${entry.name}`;
+                    const isOpen = !!expanded[key];
+                    const detail = details[key];
+                    return (
+                      <li key={key} className="rounded-md border text-sm">
+                        <button
+                          type="button"
+                          onClick={() => toggleDetail(entry)}
+                          className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left"
+                          aria-expanded={isOpen}
                         >
-                          {entry.kind === 'new'
-                            ? t('preview.changes.kindNew', { defaultValue: 'New' })
-                            : t('preview.changes.kindUpdate', { defaultValue: 'Update' })}
-                        </Badge>
-                      ) : null}
-                    </li>
-                  ))}
+                          {isOpen ? (
+                            <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          )}
+                          {entry.kind === 'new' ? (
+                            <FilePlus2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                          ) : entry.kind === 'update' ? (
+                            <FilePen className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+                          ) : (
+                            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                          )}
+                          <span className="min-w-0 flex-1 truncate font-mono text-xs">{entry.name}</span>
+                          {entry.kind ? (
+                            <Badge
+                              variant="outline"
+                              className={
+                                entry.kind === 'new'
+                                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                  : 'border-amber-200 bg-amber-50 text-amber-700'
+                              }
+                            >
+                              {entry.kind === 'new'
+                                ? t('preview.changes.kindNew', { defaultValue: 'New' })
+                                : t('preview.changes.kindUpdate', { defaultValue: 'Update' })}
+                            </Badge>
+                          ) : null}
+                        </button>
+                        {isOpen && (
+                          <div className="border-t bg-muted/30 px-2.5 py-1.5">
+                            {detail?.loading ? (
+                              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                {t('preview.changes.detailLoading', { defaultValue: 'Comparing with the live version…' })}
+                              </span>
+                            ) : detail?.error ? (
+                              <span className="text-[11px] text-destructive">{detail.error}</span>
+                            ) : detail?.lines?.length ? (
+                              <ul className="flex flex-col gap-0.5">
+                                {detail.lines.map((line) => (
+                                  <li key={line} className="font-mono text-[11px] text-muted-foreground">
+                                    {line}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground">
+                                {t('preview.changes.detailNone', { defaultValue: 'No property-level differences detected.' })}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             ))
           )}
         </div>
+        {onPublish && (entries?.length ?? 0) > 0 && (
+          <div className="border-t px-4 py-3">
+            <Button
+              className="w-full"
+              onClick={() => void onPublish()}
+              disabled={!!publishing}
+              data-testid="draft-changes-publish"
+            >
+              {publishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Rocket className="mr-1.5 h-3.5 w-3.5" />}
+              {t('preview.changes.publishAll', {
+                defaultValue: 'Publish {{count}} change(s)',
+                count: entries?.length ?? 0,
+              })}
+            </Button>
+          </div>
+        )}
       </SheetContent>
     </Sheet>
   );

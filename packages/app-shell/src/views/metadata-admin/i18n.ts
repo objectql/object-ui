@@ -889,6 +889,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   // Package switcher
   'engine.studio.pkg.switchTitle': 'Switch / create package',
   'engine.studio.pkg.readonly': 'Read-only',
+  'engine.studio.pkg.readonlyHint': 'Read-only package — switch to or create a writable package to edit.',
+  'engine.studio.app.scaffoldNav': "Add this package's objects as menu items",
   'engine.studio.pkg.writable': 'Writable',
   'engine.studio.pkg.heading': 'Packages (apps)',
   'engine.studio.pkg.none': 'No app packages yet',
@@ -1761,6 +1763,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   // Package switcher
   'engine.studio.pkg.switchTitle': '切换 / 新建软件包',
   'engine.studio.pkg.readonly': '只读',
+  'engine.studio.pkg.readonlyHint': '只读软件包 — 请切换或新建可写软件包后再编辑。',
+  'engine.studio.app.scaffoldNav': '将本包的对象添加为菜单项',
   'engine.studio.pkg.writable': '可写',
   'engine.studio.pkg.heading': '软件包(应用)',
   'engine.studio.pkg.none': '暂无应用软件包',
