@@ -109,6 +109,7 @@ See `rules/no-touch-zones.md` for the full list and rationale.
 
 ### Guides
 
+- **App composition — choosing object nav vs views vs pages vs dashboards** → [`guides/app-composition.md`](./guides/app-composition.md)
 - **Page building & schema design** → [`guides/page-builder.md`](./guides/page-builder.md)
 - **Custom plugin development** → [`guides/plugin-development.md`](./guides/plugin-development.md)
 - **Expression syntax & debugging** → [`guides/schema-expressions.md`](./guides/schema-expressions.md)

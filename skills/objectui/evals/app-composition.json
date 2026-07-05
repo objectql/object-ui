@@ -1,0 +1,57 @@
+{
+  "skill_name": "objectui",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Generate the app schema navigation for a project-management app with objects `project` and `task`. Requirements: a Projects menu, a Tasks menu, a 'Tasks by Status' board entry, and a company KPI overview. Use ObjectUI / @objectstack/spec metadata.",
+      "expected_output": "Emits a `navigation` array of typed items: bare object entries for project and task, an object entry with viewName pointing at a named view like `task.by_status`, and a dashboard entry for the KPI overview. No `path`/`kind` keys, snake_case ids, no page wrapping a single view.",
+      "files": [],
+      "assertions": {
+        "must_contain": [
+          "navigation",
+          "\"type\": \"object\"",
+          "objectName",
+          "viewName",
+          "dashboard"
+        ],
+        "must_not_contain": [
+          "\"path\":",
+          "\"kind\":"
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "prompt": "In our app I want a menu item 'My Open Tickets' that shows the ticket object filtered to the current user's open tickets. Should I build a custom page for it? Generate the metadata.",
+      "expected_output": "Recommends a named view (e.g. `ticket.my_open`) plus an object nav entry with viewName instead of a custom page, explains that a page wrapping a single object view is an anti-pattern losing the ObjectView shell, and emits the spec-shaped nav item.",
+      "files": [],
+      "assertions": {
+        "must_contain": [
+          "viewName",
+          "\"type\": \"object\"",
+          "view"
+        ],
+        "must_not_contain": [
+          "\"type\": \"page\"",
+          "\"path\":"
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "prompt": "Our generated app has a nav entry {\"label\": \"Projects\", \"path\": \"/projects\", \"kind\": \"object\"} but clicking it does nothing. Fix the metadata.",
+      "expected_output": "Diagnoses that `path`/`kind` are off-spec keys ignored by resolveHref, and rewrites the item as a discriminated-union member with type 'object', objectName, a snake_case id, and a label — removing path and kind entirely.",
+      "files": [],
+      "assertions": {
+        "must_contain": [
+          "\"type\": \"object\"",
+          "objectName",
+          "id"
+        ],
+        "must_not_contain": [
+          "\"path\": \"/projects\""
+        ]
+      }
+    }
+  ]
+}
