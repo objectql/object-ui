@@ -29,14 +29,17 @@ import {
   useAttachUserStateAdapters,
 } from '../context/UserStateAdapters';
 import { ThemeProvider } from '../chrome/ThemeProvider';
+import { LoadingScreen } from '../chrome/LoadingScreen';
 import { RemediationOverlay } from './RemediationOverlay';
 
+// The console's every pre-React / pre-auth gate (Suspense fallback, adapter
+// not ready, org/auth loading) renders this. It used to be a bare, unbranded
+// "Loading…" line — ~8s of blank chrome before the login redirect on a cold
+// /_console load (framework#2615 P3). Delegate to the branded, boot-safe
+// splash (logo + product name + step list) that the rest of the shell already
+// uses, so the cold load looks like the product from the first frame.
 export function LoadingFallback() {
-  return (
-    <div className="h-screen flex items-center justify-center text-sm text-muted-foreground">
-      Loading…
-    </div>
-  );
+  return <LoadingScreen />;
 }
 
 /**

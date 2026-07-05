@@ -57,6 +57,7 @@ import {
   useIsMobile,
 } from '@object-ui/components';
 import { Plus } from 'lucide-react';
+import { useObjectTranslation } from '@object-ui/i18n';
 import { buildExpandFields } from '@object-ui/core';
 import { SchemaRenderer as ImportedSchemaRenderer } from '@object-ui/react';
 import { ViewSwitcher } from './ViewSwitcher';
@@ -66,6 +67,25 @@ import { deriveRecordSurface } from './recordSurface';
  * SchemaRenderer from @object-ui/react, used to render sub-view schemas.
  */
 const SchemaRendererComponent: React.FC<any> = ImportedSchemaRenderer;
+
+/**
+ * Record-create verb, shared with the runtime object pages: both surfaces
+ * resolve `console.objectView.new` ("New" / 新建) so the Studio grid toolbar
+ * and the running app never disagree (framework#2615 P3). Falls back to
+ * English when no I18nProvider is mounted (standalone usage). The try/catch
+ * mirrors plugin-grid's useGridTranslation — the hook is always attempted
+ * first thing, so call order is stable.
+ */
+function useCreateVerb(): string {
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- always the first call; catch only guards a missing provider
+    const { t } = useObjectTranslation();
+    const value = t('console.objectView.new');
+    return value === 'console.objectView.new' ? 'New' : value;
+  } catch {
+    return 'New';
+  }
+}
 
 export interface ObjectViewProps {
   /**
@@ -223,6 +243,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
   onCreateView,
   onViewAction,
 }) => {
+  const createVerb = useCreateVerb();
   const [objectSchema, setObjectSchema] = useState<Record<string, unknown> | null>(null);
   // Assigned in the render body (not in an effect) so the fetchData effect always
   // reads the latest objectSchema without needing it as a dependency. This matches
@@ -1115,7 +1136,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
               {showCreateButton && (
                 <Button size="sm" onClick={handleCreate}>
                   <Plus className="h-4 w-4" />
-                  Create
+                  {createVerb}
                 </Button>
               )}
             </div>

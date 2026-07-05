@@ -757,61 +757,72 @@ function OptionsEditor({
       {rows.length === 0 ? (
         <div className="text-[11px] italic text-muted-foreground px-1">{t('designer.field.noValues', locale)}</div>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {rows.map((o, i) => (
-            <div key={i} className="flex items-center gap-1">
-              <Input
-                value={o.value}
-                onChange={(e) => update(i, { value: e.target.value })}
-                placeholder={t('designer.field.optValue', locale)}
-                disabled={disabled}
-                className="h-7 text-xs font-mono flex-1"
-              />
-              <Input
-                value={o.label ?? ''}
-                onChange={(e) => update(i, { label: e.target.value })}
-                placeholder={t('designer.field.optLabel', locale)}
-                disabled={disabled}
-                className="h-7 text-xs flex-1"
-              />
-              <input
-                type="color"
-                value={o.color ?? '#cccccc'}
-                onChange={(e) => update(i, { color: e.target.value })}
-                disabled={disabled}
-                className="h-7 w-7 rounded border bg-background cursor-pointer p-0.5"
-                title={t('designer.field.optColor', locale)}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => move(i, i - 1)}
-                disabled={disabled || i === 0}
-                aria-label={t('designer.field.moveUp', locale)}
-              >
-                <ArrowUp className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => move(i, i + 1)}
-                disabled={disabled || i === rows.length - 1}
-                aria-label={t('designer.field.moveDown', locale)}
-              >
-                <ArrowDown className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0 text-destructive"
-                onClick={() => remove(i)}
-                disabled={disabled}
-                aria-label={t('designer.field.removeValue', locale)}
-              >
-                <X className="h-3 w-3" />
-              </Button>
+            // Two rows per option: the value/label inputs get the full panel
+            // width (min-w-0 lets them shrink cleanly instead of clipping their
+            // own placeholders), while the color swatch and reorder/remove
+            // controls sit on a compact strip below — previously all six
+            // controls shared one line, squeezing the inputs until "Value" /
+            // "Label" and CJK option labels truncated (framework#2615 P3).
+            <div key={i} className="rounded-md border border-border/60 p-1.5 space-y-1">
+              <div className="flex items-center gap-1">
+                <Input
+                  value={o.value}
+                  onChange={(e) => update(i, { value: e.target.value })}
+                  placeholder={t('designer.field.optValue', locale)}
+                  disabled={disabled}
+                  className="h-7 min-w-0 flex-1 text-xs font-mono"
+                />
+                <Input
+                  value={o.label ?? ''}
+                  onChange={(e) => update(i, { label: e.target.value })}
+                  placeholder={t('designer.field.optLabel', locale)}
+                  disabled={disabled}
+                  className="h-7 min-w-0 flex-1 text-xs"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="color"
+                  value={o.color ?? '#cccccc'}
+                  onChange={(e) => update(i, { color: e.target.value })}
+                  disabled={disabled}
+                  className="h-6 w-6 rounded border bg-background cursor-pointer p-0.5"
+                  title={t('designer.field.optColor', locale)}
+                />
+                <span className="flex-1" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => move(i, i - 1)}
+                  disabled={disabled || i === 0}
+                  aria-label={t('designer.field.moveUp', locale)}
+                >
+                  <ArrowUp className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => move(i, i + 1)}
+                  disabled={disabled || i === rows.length - 1}
+                  aria-label={t('designer.field.moveDown', locale)}
+                >
+                  <ArrowDown className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 text-destructive"
+                  onClick={() => remove(i)}
+                  disabled={disabled}
+                  aria-label={t('designer.field.removeValue', locale)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
             </div>
           ))}
         </div>

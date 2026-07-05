@@ -138,7 +138,10 @@ describe('ObjectView', () => {
 
       render(<ObjectView schema={schema} dataSource={mockDataSource} />);
 
-      expect(screen.getByText('Create')).toBeDefined();
+      // The record-create verb now matches the runtime object pages ("New" /
+      // console.objectView.new); with no I18nProvider mounted it falls back to
+      // the English default "New" (framework#2615 P3 — verb consistency).
+      expect(screen.getByText('New')).toBeDefined();
     });
 
     it('should hide create button when showCreate is false', () => {
