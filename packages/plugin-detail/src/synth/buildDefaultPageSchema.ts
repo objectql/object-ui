@@ -290,8 +290,11 @@ export function deriveHighlightFields(
   // The record's display/primary field is already shown as the page H1 —
   // surfacing it again in the highlight strip duplicates content and
   // wastes a slot (e.g. Task pages would show 主题 twice). Skip the
-  // common candidates and whatever the def declares as `primaryField`.
+  // common candidates and whatever the def declares as `primaryField`,
+  // `nameField`, or the deprecated `displayNameField` alias (ADR-0079).
   if (def.primaryField) skip.add(def.primaryField);
+  if ((def as any).nameField) skip.add((def as any).nameField);
+  if ((def as any).displayNameField) skip.add((def as any).displayNameField);
   for (const candidate of ['name', 'full_name', 'title', 'subject', 'display_name']) {
     if (candidate in (def.fields || {})) skip.add(candidate);
   }

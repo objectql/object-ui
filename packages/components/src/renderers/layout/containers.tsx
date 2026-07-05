@@ -18,7 +18,7 @@
  */
 
 import React from 'react';
-import { ComponentRegistry, ExpressionEvaluator } from '@object-ui/core';
+import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName } from '@object-ui/core';
 import { useRecordContext, useAction, usePredicateScope } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
@@ -942,6 +942,9 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   //   2. Author hasn't opted out via `recordChrome: false`.
   // When both pass, we resolve the chip title from (in order):
   //   - explicit `schema.title` (interpolated against data),
+  //   - `objectSchema.primaryField` / `titleFormat` (author overrides),
+  //   - the unified ADR-0079 resolver (`nameField` → `displayNameField` →
+  //     type-aware derivation) — same precedence as DetailView's own header,
   //   - common display fields on the record (`name`, `title`, `display_name`),
   //   - `${objectLabel} ${id}` as a last-resort.
   const hasRecord = !!(ctx?.data && (ctx as any)?.objectSchema);
@@ -967,10 +970,25 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     const interpolatedTitleFormat = titleFormatStr
       ? cleanupTitleSeparators(interpolate(titleFormatStr, data, objSchema, fieldOptionLabel, rawObjectName).trim())
       : '';
+    // Unified resolver (ADR-0079): honours the object's declared
+    // `nameField`/`displayNameField` and falls back to type-aware field
+    // derivation. `deriveFromRecordKeys: false` keeps bare record-key
+    // guesses from outranking the legacy probes below; the resolver's
+    // `Record #<id>` floor is detected and skipped so the richer
+    // `${objectLabel} ${id}` fallback still wins for truly unnamed records.
+    const recordId = data?.id ?? data?._id;
+    const unifiedTitle = (() => {
+      const resolved = getRecordDisplayName(objSchema, data, { deriveFromRecordKeys: false });
+      const isFloor =
+        resolved === 'Untitled' ||
+        (recordId !== null && recordId !== undefined && resolved === `Record #${recordId}`);
+      return isFloor ? '' : resolved;
+    })();
     const resolvedTitle =
       explicitTitle ||
       (primaryField && data?.[primaryField]) ||
       (interpolatedTitleFormat && !interpolatedTitleFormat.includes('{') ? interpolatedTitleFormat : '') ||
+      unifiedTitle ||
       data?.name ||
       data?.full_name ||
       data?.title ||

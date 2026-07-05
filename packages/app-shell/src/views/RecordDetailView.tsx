@@ -1233,8 +1233,13 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       return { type: 'detail-view' } as DetailViewSchema;
     }
 
-    // Auto-detect primary field: prefer objectDef metadata, then 'name' or 'title' heuristic
+    // Auto-detect primary field: prefer objectDef metadata — `primaryField`
+    // (objectui-local override), then the spec-canonical `nameField` and its
+    // deprecated `displayNameField` alias (ADR-0079) — then the 'name'/'title'
+    // heuristic.
     const primaryField = objectDef.primaryField
+      || (objectDef as any).nameField
+      || (objectDef as any).displayNameField
       || Object.keys(objectDef.fields || {}).find(
         (key) => key === 'name' || key === 'title'
       );
