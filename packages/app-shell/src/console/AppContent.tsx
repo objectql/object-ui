@@ -561,7 +561,7 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
                 <Route path=":objectName/view/:viewId" element={
                   <ObjectView dataSource={dataSource} objects={allObjects} onEdit={handleEdit} externalRefreshKey={refreshKey} />
                 } />
-                {/* #2251: parameterized bare data surface — URL `filter[...]`
+                {/* ADR-0055: parameterized bare data surface — URL `filter[...]`
                     conditions over everything row-level security permits, NOT
                     anchored to any saved view. `data` is a reserved segment
                     alongside `new` / `view` / `record`. */}

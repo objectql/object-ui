@@ -4,6 +4,7 @@
 **Author**: ObjectUI plugin-view / plugin-list / app-shell team
 **Consumers**: `@object-ui/types`, `@object-ui/plugin-view`, `@object-ui/plugin-list`, `@object-ui/app-shell` (Studio), `@object-ui/cli` (`check`), every app with an object list page or a list-in-a-page interface
 **Supersedes**: the list-tab placement of **ADR-0047** (per-view `tabs` on the object data-mode list)
+**Amended by**: **ADR-0055** (adds a third context — the `/:objectName/data` parameterized bare surface, filters mode anchored to the URL itself)
 
 ---
 

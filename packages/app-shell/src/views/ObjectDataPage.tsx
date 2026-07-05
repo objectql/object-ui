@@ -1,5 +1,5 @@
 /**
- * Object Data Page — the parameterized bare data surface (#2251).
+ * Object Data Page — the parameterized bare data surface (ADR-0055, #2251).
  *
  * Route: `/apps/:appName/:objectName/data` (± `filter[<field>]=<value>` and
  * `uf_<field>` search params).

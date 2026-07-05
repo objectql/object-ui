@@ -54,6 +54,7 @@ The console uses React Router DOM v7 with a simple flat route structure:
 | `/apps/:appName` | Home redirect | Redirects to the first object in navigation |
 | `/apps/:appName/:objectName` | `ObjectView` | Object list with view switcher |
 | `/apps/:appName/:objectName/view/:viewId` | `ObjectView` | Specific view for an object |
+| `/apps/:appName/:objectName/data` | `ObjectDataPage` | Bare data surface — URL `filter[<field>]=<value>` conditions, not bound to any saved view (ADR-0055) |
 | `/apps/:appName/:objectName/record/:recordId` | `RecordDetailView` | Single-record detail |
 | `/apps/:appName/create-app` | `CreateAppPage` | App creation wizard (4-step) |
 | `/apps/:appName/edit-app/:editAppName` | `EditAppPage` | Edit existing app configuration |
