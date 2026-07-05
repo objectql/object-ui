@@ -233,7 +233,7 @@ function agentEmptyState(
   };
 }
 
-function resolveApiBase(explicit?: string): string {
+export function resolveApiBase(explicit?: string): string {
   if (explicit) return explicit.replace(/\/$/, '');
   const env = (import.meta as any).env ?? {};
   const fromEnv = env.VITE_AI_BASE_URL as string | undefined;
@@ -1046,7 +1046,7 @@ interface ChatPaneProps {
   onCanvasOpenChange?: (open: boolean) => void;
 }
 
-function ChatPane({
+export function ChatPane({
   agents,
   agentsLoading,
   agentsError,

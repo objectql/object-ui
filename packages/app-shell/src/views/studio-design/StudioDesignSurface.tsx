@@ -17,6 +17,7 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
+import { StudioAiCopilot } from './StudioAiCopilot';
 import {
   GridFieldAuthoringProvider,
   cn,
@@ -532,7 +533,15 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {aiSlot ? <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside> : null}
+      {/* Left AI copilot (ADR-0080). An explicit `aiSlot` overrides; otherwise the
+        * built-in Studio copilot self-gates on the live agent catalog — it embeds
+        * the build-agent chat scoped to THIS package, or renders nothing when no
+        * agent is served (community edition). */}
+      {aiSlot ? (
+        <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
+      ) : (
+        <StudioAiCopilot packageId={packageId} locale={locale} />
+      )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* `overflow-x-auto` — none of Package/pillars/Publish shrink (all
