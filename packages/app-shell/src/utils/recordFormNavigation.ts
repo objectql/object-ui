@@ -153,6 +153,58 @@ export function resolveFormViewLayout(
 }
 
 /**
+ * Result of the post-create-save navigation decision (#2604 save invariant:
+ * *create takes you to the record you made*). `kind: 'none'` means stay put
+ * (no usable record id came back from the save).
+ */
+export type PostCreateTarget =
+  | { kind: 'none' }
+  | { kind: 'detail-page' | 'detail-drawer'; url: string };
+
+/**
+ * Decide where a CREATE save lands (#2604): the new record's detail, on the
+ * record's own derived surface.
+ *
+ *   - `surface: 'page'` (field-heavy) → the detail ROUTE
+ *     `{baseUrl}/{objectName}/record/{id}` — deep-linkable, and the detail
+ *     page's own "← all records" affordance covers the way back.
+ *   - `surface: 'drawer'` (light) → the CURRENT list route with
+ *     `?recordId={id}` — the detail drawer opens OVER the still-intact list
+ *     (ObjectView treats that param as the drawer's source of truth), so the
+ *     list context is preserved for free.
+ *
+ * The `form` overlay param is stripped from the drawer URL so the create
+ * overlay does not reopen underneath the drawer. Pure and router-free: the
+ * caller derives `surface` (deriveRecordSurface) and performs the navigation
+ * (with `replace: true`, so Back skips the transient form state).
+ */
+export function resolvePostCreateTarget(opts: {
+  objectName: string;
+  baseUrl: string;
+  /** Current location pathname (the list route the create started from). */
+  pathname: string;
+  /** Current location search (query string, with or without leading `?`). */
+  search?: string;
+  /** The record's derived VIEW surface (`deriveRecordSurface(objectDef)`). */
+  surface: 'page' | 'drawer';
+  /** Saved record id (`result.id ?? result._id`). */
+  recordId: unknown;
+}): PostCreateTarget {
+  const { objectName, baseUrl, pathname, search, surface, recordId } = opts;
+  if (recordId == null || recordId === '' || !objectName) return { kind: 'none' };
+  const encoded = encodeURIComponent(String(recordId));
+
+  if (surface === 'page') {
+    return { kind: 'detail-page', url: `${baseUrl}/${objectName}/record/${encoded}` };
+  }
+
+  const sp = new URLSearchParams(search ?? '');
+  sp.delete('form');
+  sp.set('recordId', String(recordId));
+  return { kind: 'detail-drawer', url: `${pathname}?${sp.toString()}` };
+}
+
+/**
  * Action descriptor accepted by the navigate-create / navigate-edit
  * handlers. Loose-typed because the same shape is constructed dynamically
  * from JSON metadata at runtime and we want the helpers to be tolerant of
