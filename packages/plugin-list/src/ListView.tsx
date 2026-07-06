@@ -43,6 +43,15 @@ export interface ListViewProps {
   userFilterSelections?: Record<string, Array<string | number | boolean>>;
   /** Fires with the raw user-filter selections whenever the user changes them. */
   onUserFilterSelectionsChange?: (selections: Record<string, Array<string | number | boolean>>) => void;
+  /**
+   * Initial advanced-filter (FilterBuilder) group to restore at mount, e.g.
+   * from a per-user localStorage cache. Read once by the lazy initializer —
+   * later prop changes don't override in-flight user edits, so hosts remount
+   * (via `key`) when they need to swap the restored value (view switch).
+   */
+  initialFilters?: FilterGroup;
+  /** Initial search term to restore at mount (same one-shot semantics as `initialFilters`). */
+  initialSearchTerm?: string;
   [key: string]: any;
 }
 
@@ -330,6 +339,8 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   showViewSwitcher: showViewSwitcherProp,
   userFilterSelections,
   onUserFilterSelectionsChange,
+  initialFilters,
+  initialSearchTerm,
   ...props
 }, ref) => {
   // The switcher can be enabled either by the host component (prop) or by
@@ -400,7 +411,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const [currentView, setCurrentView] = React.useState<ViewType>(
     (schema.viewType as ViewType)
   );
-  const [searchTerm, setSearchTerm] = React.useState('');
+  const [searchTerm, setSearchTerm] = React.useState(() => initialSearchTerm ?? '');
   const [showSearchPopover, setShowSearchPopover] = React.useState(false);
   
   // Sort State
@@ -460,11 +471,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
 
   const [showFilters, setShowFilters] = React.useState(false);
 
-  const [currentFilters, setCurrentFilters] = React.useState<FilterGroup>({
-    id: 'root',
-    logic: 'and',
-    conditions: []
-  });
+  const [currentFilters, setCurrentFilters] = React.useState<FilterGroup>(() =>
+    initialFilters && Array.isArray(initialFilters.conditions)
+      ? initialFilters
+      : {
+          id: 'root',
+          logic: 'and',
+          conditions: []
+        }
+  );
 
   // Data State
   const dataSource = props.dataSource;

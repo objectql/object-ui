@@ -12,6 +12,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, type ComponentType } from 'react';
 import { useParams, useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
+import { buildListFilterKey, readListFilterState, writeListFilterState } from './listFilterStorage';
 const ObjectChart = lazy(() =>
   import('@object-ui/plugin-charts').then((m) => ({ default: m.ObjectChart })),
 );
@@ -1124,6 +1125,14 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         const key = `${objectName}-${activeView.id}-${combinedRefreshKey}`;
         const viewDef = activeView;
 
+        // Per-user, per-view runtime-filter cache (advanced filter + search).
+        // Restored into ListView at mount so leaving via a nav link and coming
+        // back keeps what the user was filtering — URL params alone don't
+        // survive that (the nav link has no query string). Keyed on the signed-in
+        // user so two accounts on one browser never share filter values.
+        const listFilterKey = buildListFilterKey(user?.id, objectName, activeView.id);
+        const storedListFilters = readListFilterState(listFilterKey);
+
         // Warn in dev mode if flat properties are used instead of nested spec format
         if (process.env.NODE_ENV === 'development') {
             const flatKeys = ['startDateField', 'endDateField', 'dateField', 'groupBy', 'groupField',
@@ -1460,6 +1469,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 }}
                 onFilterChange={(filter: any) => {
                     persistViewPatch(viewDef.id, viewDef, { filter });
+                    writeListFilterState(listFilterKey, { filters: filter });
+                }}
+                onSearchChange={(search: string) => {
+                    writeListFilterState(listFilterKey, { search });
                 }}
                 onHiddenFieldsChange={(hidden: string[]) => {
                     persistViewPatch(viewDef.id, viewDef, { hiddenFields: hidden });
@@ -1472,10 +1485,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 }}
                 userFilterSelections={initialUfSelections}
                 onUserFilterSelectionsChange={handleUserFilterSelectionsChange}
+                initialFilters={storedListFilters?.filters as any}
+                initialSearchTerm={storedListFilters?.search}
                 dataSource={ds}
             />
         );
-    }, [activeView, objectDef, objectName, refreshKey, navOverlay, actions, persistViewPatch, urlFilters, initialUfSelections, handleUserFilterSelectionsChange]);
+    }, [activeView, objectDef, objectName, refreshKey, navOverlay, actions, persistViewPatch, urlFilters, initialUfSelections, handleUserFilterSelectionsChange, user?.id]);
 
     // Memoize the merged views array so PluginObjectView doesn't get a new
     // reference on every render (which would trigger unnecessary data refetches).
