@@ -24,6 +24,7 @@ import {
 } from '../../ui/select';
 import { renderChildren } from '../../lib/utils';
 import { Alert, AlertDescription } from '../../ui/alert';
+import { toast } from '../../ui/sonner';
 import { AlertCircle, ChevronDown, ChevronRight, Loader2, Maximize2, Check, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { cn } from '../../lib/utils';
@@ -469,6 +470,9 @@ ComponentRegistry.register('form',
           // Check if submission returned an error
           if (result?.error) {
             setSubmitError(result.error);
+            // Also surface as a toast so the message is visible even when the
+            // in-form banner has scrolled out of view (long forms in modals/drawers).
+            toast.error(result.error);
             return;
           }
         }
@@ -488,7 +492,10 @@ ComponentRegistry.register('form',
             ? error 
             : 'An error occurred during submission';
         setSubmitError(errorMessage);
-        
+        // Also surface as a toast so the message is visible even when the
+        // in-form banner has scrolled out of view (long forms in modals/drawers).
+        toast.error(errorMessage);
+
         // Log errors for debugging (dev environment only)
         // process may not be defined in all environments
         if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
