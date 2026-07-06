@@ -2058,16 +2058,6 @@ function DataPillar({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setViewMode('settings')}
-                    className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (viewMode === 'settings' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
-                    }
-                  >
-                    {t('engine.studio.data.tab.settings', locale)}
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setViewMode('hooks')}
                     className={
                       'rounded px-2.5 py-0.5 ' +
@@ -2085,6 +2075,16 @@ function DataPillar({
                     }
                   >
                     {t('engine.studio.data.tab.api', locale)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('settings')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (viewMode === 'settings' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    {t('engine.studio.data.tab.settings', locale)}
                   </button>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
