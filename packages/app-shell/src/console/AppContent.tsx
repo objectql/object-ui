@@ -447,7 +447,28 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
       surface: deriveRecordSurface(currentObjectDef),
       recordId: saved?.id ?? saved?._id,
     });
-    if (target.kind !== 'none') navigate(target.url, { replace: true });
+    if (target.kind === 'none') return;
+    if (target.kind === 'detail-page') {
+      // The new record's detail is a fresh route carrying no `?from=` trail,
+      // so on its own it renders NO back affordance — a dead-end. Thread the
+      // create's originating route as a history-state `from`, mirroring
+      // ObjectView's list-row navigation (which is why clicking a row DOES
+      // yield a back link). The origin is a list/view route, not a record, so
+      // it rides history state rather than the record-only `?from=` trail.
+      const originSp = new URLSearchParams(window.location.search);
+      originSp.delete(RECORD_FORM_PARAM);
+      originSp.delete(RECORD_FORM_OBJECT_PARAM);
+      originSp.delete(RECORD_FORM_LINK_PARAM);
+      const originQs = originSp.toString();
+      const originPath = `${location.pathname}${originQs ? `?${originQs}` : ''}`;
+      const originLabel = objectLabel(currentObjectDef as any);
+      navigate(target.url, {
+        replace: true,
+        state: originLabel ? { from: { pathname: originPath, label: originLabel } } : undefined,
+      });
+      return;
+    }
+    navigate(target.url, { replace: true });
   }, [handleCrudSuccess, isChildFormTask, formObjectDef, editingRecord, currentObjectDef, appName, activeApp?.name, location.pathname, navigate, closeRecordForm, objectLabel, t]);
 
   // Track recent items on route change.
