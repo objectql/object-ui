@@ -13,6 +13,7 @@ import { FlowInspector } from './FlowInspector';
 import { AppNavInspector } from './AppNavInspector';
 import { ViewInspector, ViewDefaultInspector } from './ViewInspector';
 import { PageBlockInspector } from './PageBlockInspector';
+import { PageDefaultInspector } from './PageDefaultInspector';
 import { ReportDefaultInspector } from './ReportDefaultInspector';
 import { ObjectFieldInspector } from './ObjectFieldInspector';
 import { ObjectDefaultInspector } from './ObjectDefaultInspector';
@@ -33,6 +34,11 @@ export function registerBuiltinInspectors(): void {
   registerMetadataInspector('view', ViewInspector);
   registerMetadataDefaultInspector('view', ViewDefaultInspector);
   registerMetadataInspector('page', PageBlockInspector);
+  // Interface/list pages (kanban/calendar/gallery/gantt — `type:'list'` +
+  // `interfaceConfig.source`) have no block tree, so the block inspector never
+  // fires. The default inspector renders the spec-driven page/interfaceConfig
+  // form so those pages are editable from the panel, not just the empty state.
+  registerMetadataDefaultInspector('page', PageDefaultInspector);
   // ADR-0021 single-form: a 9.0 report selects dataset measures/dimensions
   // by NAME (no per-column config document), so there is no scoped column
   // inspector — the default inspector owns the whole editing surface.

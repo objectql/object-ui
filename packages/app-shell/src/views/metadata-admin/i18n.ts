@@ -1035,6 +1035,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.inspector.tabSource': 'Source',
   'engine.studio.inspector.emptyLine1': 'Click a block on the canvas,',
   'engine.studio.inspector.emptyLine2': 'and edit its properties right here.',
+  'engine.studio.inspector.noPageSchema': 'Page settings are unavailable — the page schema could not be loaded.',
   'engine.studio.inspector.sourcePageLine1': 'This page is {kind} source, not a block tree —',
   'engine.studio.inspector.sourcePageLine2': 'edit it in the Source tab; the canvas shows the live preview.',
   // Data pillar
@@ -2017,6 +2018,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.inspector.tabSource': '源码',
   'engine.studio.inspector.emptyLine1': '在画布里点选一个积木,',
   'engine.studio.inspector.emptyLine2': '它的属性会在这里直接编辑。',
+  'engine.studio.inspector.noPageSchema': '页面设置不可用——无法加载页面 schema。',
   'engine.studio.inspector.sourcePageLine1': '这个页面是 {kind} 源码,不是积木树 ——',
   'engine.studio.inspector.sourcePageLine2': '请在「源码」标签页里编辑,画布展示实时预览。',
   // Data pillar

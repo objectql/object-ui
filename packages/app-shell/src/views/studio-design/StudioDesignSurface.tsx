@@ -67,6 +67,7 @@ import {
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
+import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import {
   DESIGNER_SEL_PARAM,
@@ -1128,6 +1129,11 @@ function InterfacesPillar({
 
   const Preview = getMetadataPreview(current?.type ?? '');
   const Inspector = getMetadataInspector(current?.type ?? '');
+  // The "home" (no-selection) inspector for the surface type — e.g. a page's
+  // interfaceConfig form. Interface/list pages (kanban/calendar boards) have no
+  // block tree, so `selection` never populates; without this the panel would
+  // sit permanently on the "click a block" empty state.
+  const DefaultInspector = getMetadataDefaultInspector(current?.type ?? '');
   // Object leaves render as a runtime records grid (preview = runtime); schema
   // editing is the Data pillar's job, so they are not draft-editable in this canvas.
   const isEditable = !!Preview && current?.type !== 'object';
@@ -1531,6 +1537,21 @@ function InterfacesPillar({
                 </div>
               </TabsContent>
             </Tabs>
+          ) : DefaultInspector && current && isEditable ? (
+            // No block selected → the surface's "home" inspector (e.g. a page's
+            // interfaceConfig form). Selecting a sub-element from it swaps in the
+            // scoped block inspector above via onSelectionChange.
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              <DefaultInspector
+                type={current.type}
+                name={current.name}
+                draft={draft}
+                onPatch={onPatch}
+                onSelectionChange={setSelection}
+                readOnly={false}
+                locale={locale}
+              />
+            </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto p-3">
               <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
