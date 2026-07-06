@@ -101,6 +101,7 @@ import { ObjectValidationsPanel } from './ObjectValidationsPanel';
 import { ObjectSettingsPanel } from './ObjectSettingsPanel';
 import { ObjectApiPanel } from './ObjectApiPanel';
 import { ObjectHooksPanel } from './ObjectHooksPanel';
+import { getIcon } from '../../utils/getIcon';
 import { fetchPackages, type PkgEntry } from './packages-io';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
@@ -117,6 +118,8 @@ interface Surface {
   type: string;
   name: string;
   label: string;
+  /** Lucide icon name from the object's metadata (`icon` field); falls back per getIcon. */
+  icon?: string;
 }
 
 interface NavNode {
@@ -1714,12 +1717,12 @@ function DataPillar({
         ]);
         if (cancelled) return;
         const items = (list || [])
-          .map((o) => ({ type: 'object', name: String(o.name ?? ''), label: String(o.label ?? o.name ?? '') }))
+          .map((o) => ({ type: 'object', name: String(o.name ?? ''), label: String(o.label ?? o.name ?? ''), icon: o.icon ? String(o.icon) : undefined }))
           .filter((o) => o.name);
         const known = new Set(items.map((o) => o.name));
         for (const d of draftHeaders) {
           if (d.name && !known.has(d.name)) {
-            items.push({ type: 'object', name: d.name, label: d.name });
+            items.push({ type: 'object', name: d.name, label: d.name, icon: undefined });
           }
         }
         setObjects(items);
@@ -1897,6 +1900,12 @@ function DataPillar({
     { key: 'settings', label: t('engine.studio.data.tab.settings', locale) },
   ];
 
+  // The selected object's own icon (from its metadata) — prefer the loaded
+  // draft body, fall back to the rail header. getIcon degrades to Database.
+  const HeaderIcon = getIcon(
+    typeof objDraft.icon === 'string' ? (objDraft.icon as string) : current?.icon,
+  );
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b px-3 py-2">
@@ -1910,7 +1919,7 @@ function DataPillar({
         </button>
         {current ? (
           <span className="flex min-w-0 items-center gap-2">
-            <Database className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <HeaderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="truncate text-[15px] font-semibold leading-none text-foreground">{current.label}</span>
             <span className="shrink-0 rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
               {current.name}
@@ -1985,22 +1994,25 @@ function DataPillar({
                   o.label.toLowerCase().includes(query.trim().toLowerCase()) ||
                   o.name.toLowerCase().includes(query.trim().toLowerCase()),
               )
-              .map((o) => (
-                <button
-                  key={o.name}
-                  onClick={() => {
-                    setCurrent(o);
-                    if (isMobile) setRailOpen(false);
-                  }}
-                  className={
-                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
-                    (current?.name === o.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
-                  }
-                >
-                  <Database className="h-3.5 w-3.5 shrink-0" />
-                  <span className="flex-1 truncate">{o.label}</span>
-                </button>
-              ))}
+              .map((o) => {
+                const Icon = getIcon(o.icon);
+                return (
+                  <button
+                    key={o.name}
+                    onClick={() => {
+                      setCurrent(o);
+                      if (isMobile) setRailOpen(false);
+                    }}
+                    className={
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                      (current?.name === o.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+                    }
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="flex-1 truncate">{o.label}</span>
+                  </button>
+                );
+              })}
           </div>
           <div className="shrink-0 border-t p-2">
             {readOnly ? (
