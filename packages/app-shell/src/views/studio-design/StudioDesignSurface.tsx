@@ -794,7 +794,7 @@ function NavTree({
             <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="flex-1 truncate">{node.label}</span>
             {surface && surface.type !== 'page' && (
-              <span className="rounded bg-muted px-1 py-px text-[9px] uppercase text-muted-foreground">
+              <span className="text-[9px] uppercase tracking-wide text-muted-foreground/60">
                 {surface.type}
               </span>
             )}
@@ -2969,7 +2969,7 @@ function AccessPillar({
                 <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="flex-1 truncate">{p.label}</span>
                 {p.isProfile && (
-                  <span className="rounded bg-muted px-1 py-px text-[9px] uppercase text-muted-foreground">
+                  <span className="text-[9px] uppercase tracking-wide text-muted-foreground/60">
                     profile
                   </span>
                 )}
