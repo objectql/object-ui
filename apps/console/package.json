@@ -88,7 +88,7 @@
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
     "@objectstack/client": "^12.2.0",
-    "@objectstack/spec": "^12.2.0",
+    "@objectstack/spec": "^12.3.0",
     "@tailwindcss/postcss": "^4.3.1",
     "@tailwindcss/typography": "^0.5.20",
     "@testing-library/jest-dom": "^6.9.1",
