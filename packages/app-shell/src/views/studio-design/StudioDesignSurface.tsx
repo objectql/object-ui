@@ -1884,6 +1884,19 @@ function DataPillar({
 
   const inspector = getMetadataInspector('object');
 
+  // The object-level tabs (Data pillar). A shadcn/HIG segmented control: a
+  // recessed `bg-muted` track with an elevated `bg-background` pill on the
+  // active segment — the inverse of the old transparent-track/grey-active
+  // styling, which read as toolbar chrome rather than a distinct nav layer.
+  const dataTabs: ReadonlyArray<{ key: typeof viewMode; label: string }> = [
+    { key: 'grid', label: t('engine.studio.data.tab.records', locale) },
+    { key: 'form', label: t('engine.studio.data.tab.form', locale) },
+    { key: 'rules', label: t('engine.studio.data.tab.rules', locale) },
+    { key: 'hooks', label: t('engine.studio.data.tab.hooks', locale) },
+    { key: 'api', label: t('engine.studio.data.tab.api', locale) },
+    { key: 'settings', label: t('engine.studio.data.tab.settings', locale) },
+  ];
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
@@ -2023,72 +2036,29 @@ function DataPillar({
             )
           ) : (
             <>
-              <div className="mb-3 flex shrink-0 items-center gap-2">
-                {/* view toggle — Records grid ⇄ Form, both the runtime renderer */}
-                <div className="inline-flex rounded-md border p-0.5 text-[11px]">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('grid')}
-                    className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (viewMode === 'grid' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
-                    }
-                  >
-                    {t('engine.studio.data.tab.records', locale)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('form')}
-                    className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (viewMode === 'form' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
-                    }
-                  >
-                    {t('engine.studio.data.tab.form', locale)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('rules')}
-                    className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (viewMode === 'rules' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
-                    }
-                  >
-                    {t('engine.studio.data.tab.rules', locale)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('hooks')}
-                    className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (viewMode === 'hooks' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
-                    }
-                  >
-                    {t('engine.studio.data.tab.hooks', locale)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('api')}
-                    className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (viewMode === 'api' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
-                    }
-                  >
-                    {t('engine.studio.data.tab.api', locale)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('settings')}
-                    className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (viewMode === 'settings' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
-                    }
-                  >
-                    {t('engine.studio.data.tab.settings', locale)}
-                  </button>
+              <div className="mb-4 flex shrink-0 items-center gap-3">
+                {/* Object-level segmented control — the primary nav layer for
+                    the selected object (recessed track, elevated active pill). */}
+                <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-1">
+                  {dataTabs.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setViewMode(tab.key)}
+                      aria-pressed={viewMode === tab.key}
+                      className={
+                        'rounded-md px-3 py-1 text-[13px] transition-all ' +
+                        (viewMode === tab.key
+                          ? 'bg-background font-medium text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground')
+                      }
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-                  <Eye className="h-3 w-3" />{' '}
+                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Eye className="h-3 w-3 opacity-70" />{' '}
                   {viewMode === 'grid'
                     ? t('engine.studio.data.badge.grid', locale)
                     : viewMode === 'rules'
@@ -2221,13 +2191,14 @@ function DataPillar({
               <>
               {/* form sub-mode: 布局 (WYSIWYG drag/section designer) ⇄ 预览 (live form) */}
               <div className="mb-3 flex items-center gap-2">
-                <div className="inline-flex rounded-md border p-0.5 text-[11px]">
+                <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted p-0.5">
                   <button
                     type="button"
                     onClick={() => setFormMode('layout')}
+                    aria-pressed={formMode === 'layout'}
                     className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (formMode === 'layout' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                      'rounded-md px-2.5 py-0.5 text-[12px] transition-all ' +
+                      (formMode === 'layout' ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
                     }
                   >
                     {t('engine.studio.data.form.layout', locale)}
@@ -2235,9 +2206,10 @@ function DataPillar({
                   <button
                     type="button"
                     onClick={() => setFormMode('preview')}
+                    aria-pressed={formMode === 'preview'}
                     className={
-                      'rounded px-2.5 py-0.5 ' +
-                      (formMode === 'preview' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                      'rounded-md px-2.5 py-0.5 text-[12px] transition-all ' +
+                      (formMode === 'preview' ? 'bg-background font-medium text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
                     }
                   >
                     {t('engine.studio.data.form.preview', locale)}
