@@ -179,9 +179,6 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     ? section.fields.filter((field) => !isEmptyValue(field))
     : section.fields;
 
-  // Hide entire section when all fields are empty AND user did not request to show them.
-  if (visibleFields.length === 0 && emptyCount === section.fields.length) return null;
-
   // Apply auto-layout: infer columns and auto-span wide fields
   const { fields: layoutFields, columns: rawColumns } = applyDetailAutoLayout(
     visibleFields,
@@ -449,6 +446,18 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vsEnabled, layoutFields.length, vsBatchSize]);
+
+  // Hide entire section when all fields are empty AND the user has not asked to
+  // reveal them. This early return MUST come AFTER every hook above (including
+  // the virtual-scroll useEffect) — never before. When a section is all-empty
+  // on one render (early return, N hooks) but has data on the next render (the
+  // useEffect runs, N+1 hooks) of the SAME reconciled fiber, the hook count
+  // changes between renders and React throws error #300 ("rendered more hooks
+  // than during the previous render"). This is the master-detail drill-in
+  // crash: navigating account → project reuses this DetailSection fiber, and
+  // its sections flip from empty to populated. Keeping the guard below all
+  // hooks makes the hook count invariant.
+  if (visibleFields.length === 0 && emptyCount === section.fields.length) return null;
 
   const renderedFields = visibleCount !== undefined
     ? layoutFields.slice(0, visibleCount)
