@@ -287,11 +287,12 @@ function formatValue(
 ): string {
   if (value == null || Number.isNaN(value)) return '—';
   let opts = FORMAT_OPTS[format ?? 'number'] ?? FORMAT_OPTS.number;
-  // A `currency`-format metric resolves its ISO code from the tenant default
-  // (localization.currency, ADR-0053) instead of a baked-in USD; falls back to
-  // USD only when no tenant currency is configured.
+  // A `currency`-format metric resolves its ISO code from the field/tenant
+  // default (localization.currency, ADR-0053). When no currency is known,
+  // render a plain number rather than guessing USD — a baked-in `$` silently
+  // mis-displays non-USD orgs (e.g. RMB amounts shown as US$).
   if (format === 'currency') {
-    opts = { ...FORMAT_OPTS.currency, currency: currency || 'USD' };
+    opts = currency ? { ...FORMAT_OPTS.currency, currency } : FORMAT_OPTS.number;
   }
   const body = new Intl.NumberFormat(locale, opts).format(value);
   return `${prefix ?? ''}${body}${suffix ?? ''}`;
