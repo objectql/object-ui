@@ -34,11 +34,24 @@ interface HookItem {
   label?: string;
   object?: string | string[];
   events?: string[];
-  condition?: string;
+  // `ExpressionInputSchema` — a bare CEL string OR an object `{ dialect, source }`
+  // (a CEL tagged template serialises to the latter). Never render it raw.
+  condition?: unknown;
   priority?: number;
   async?: boolean;
   description?: string;
   [key: string]: unknown;
+}
+
+/** The human-readable CEL source of a hook condition, whatever shape it took. */
+function conditionText(condition: unknown): string {
+  if (!condition) return '';
+  if (typeof condition === 'string') return condition;
+  if (typeof condition === 'object') {
+    const src = (condition as { source?: unknown }).source;
+    if (typeof src === 'string') return src;
+  }
+  return '';
 }
 
 /** Does this hook's `object` target match the object we're viewing? */
@@ -126,10 +139,10 @@ export function ObjectHooksPanel({
                 </div>
               )}
 
-              {h.condition && (
+              {conditionText(h.condition) && (
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
                   {t('engine.studio.hooks.condition', locale)}{' '}
-                  <code className="rounded bg-muted px-1">{h.condition}</code>
+                  <code className="rounded bg-muted px-1">{conditionText(h.condition)}</code>
                 </p>
               )}
 
