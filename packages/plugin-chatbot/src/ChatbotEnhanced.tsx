@@ -14,7 +14,7 @@
  *  - tool-call visualisation (Tool* family)
  *  - reasoning / chain-of-thought collapsible (Reasoning*)
  *  - inline citations / sources panel (Sources*)
- *  - suggestion chips on empty state (Suggestion / Suggestions)
+ *  - suggestion chips on empty state (Suggestion; wrapped in a flex-wrap row)
  *  - streaming markdown via streamdown (used by Message internals)
  */
 import * as React from 'react';
@@ -59,7 +59,7 @@ import {
   PromptInputActionAddAttachments,
   type PromptInputMessage,
 } from './elements/prompt-input';
-import { Suggestion, Suggestions } from './elements/suggestion';
+import { Suggestion } from './elements/suggestion';
 import {
   Tool,
   ToolHeader,
@@ -2206,23 +2206,23 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     <Bot className="size-4" />
                   )}
                 </div>
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium text-foreground/90">{L.emptyTitle}</h3>
-                  <p className="text-sm text-muted-foreground">
+                <div className="w-full max-w-full space-y-1">
+                  <h3 className="text-sm font-medium text-foreground/90 break-words">{L.emptyTitle}</h3>
+                  <p className="text-sm text-muted-foreground break-words">
                     {L.emptyDescription}
                   </p>
                 </div>
                 {suggestions && suggestions.length > 0 ? (
-                  <Suggestions className="justify-center gap-2">
+                  <div className="flex w-full max-w-full flex-wrap justify-center gap-2">
                     {suggestions.map((s) => (
                       <Suggestion
                         key={s}
-                        className="h-8 border-border/60 bg-background/80 px-3 text-xs font-medium text-foreground/90 shadow-none hover:bg-muted/60"
+                        className="h-auto min-h-8 min-w-0 max-w-full whitespace-normal break-words rounded-full border-border/60 bg-background/80 px-3 py-1 text-left text-xs font-medium text-foreground/90 shadow-none hover:bg-muted/60"
                         suggestion={s}
                         onClick={handleSuggestionClick}
                       />
                     ))}
-                  </Suggestions>
+                  </div>
                 ) : null}
               </ConversationEmptyState>
             ) : (
