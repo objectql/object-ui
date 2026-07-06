@@ -1899,7 +1899,7 @@ function DataPillar({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b px-3 py-1.5">
+      <div className="flex items-center gap-3 border-b px-3 py-2">
         <button
           type="button"
           onClick={() => setRailOpen((v) => !v)}
@@ -1909,10 +1909,15 @@ function DataPillar({
           <Menu className="h-4 w-4" />
         </button>
         {current ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="text-[13px] font-medium text-foreground">{current.label}</span>
-            <span className="rounded bg-muted px-1.5 py-0.5">object · {current.name}</span>
-            <span>{tFormat('engine.studio.data.fieldCount', locale, { count: fieldCount })}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <Database className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="truncate text-[15px] font-semibold leading-none text-foreground">{current.label}</span>
+            <span className="shrink-0 rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+              {current.name}
+            </span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {tFormat('engine.studio.data.fieldCount', locale, { count: fieldCount })}
+            </span>
           </span>
         ) : (
           <span className="text-[11px] text-muted-foreground">{t('engine.studio.data.pickObject', locale)}</span>
@@ -2057,22 +2062,6 @@ function DataPillar({
                     </button>
                   ))}
                 </div>
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <Eye className="h-3 w-3 opacity-70" />{' '}
-                  {viewMode === 'grid'
-                    ? t('engine.studio.data.badge.grid', locale)
-                    : viewMode === 'rules'
-                      ? t('engine.studio.data.badge.rules', locale)
-                      : viewMode === 'settings'
-                        ? t('engine.studio.data.badge.settings', locale)
-                        : viewMode === 'hooks'
-                          ? t('engine.studio.data.badge.hooks', locale)
-                          : viewMode === 'api'
-                            ? t('engine.studio.data.badge.api', locale)
-                            : formMode === 'layout'
-                              ? t('engine.studio.data.badge.formLayout', locale)
-                              : t('engine.studio.data.badge.formPreview', locale)}
-                </span>
                 {(viewMode === 'grid' || viewMode === 'form') && !readOnly && (
                   <button
                     type="button"

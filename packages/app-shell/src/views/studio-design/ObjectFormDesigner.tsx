@@ -156,7 +156,9 @@ function SortableField({
         <div className="flex items-center gap-1 text-xs font-medium">
           <span className="truncate">{label}</span>
           {required && <span className="text-destructive">*</span>}
-          <span className="ml-1 rounded bg-muted px-1 py-px text-[9px] uppercase text-muted-foreground">{type}</span>
+          {/* Quiet type hint — a faint label, not a boxed chip on every row,
+              so a form full of fields doesn't read as a wall of grey tags. */}
+          <span className="ml-1 text-[9px] uppercase tracking-wide text-muted-foreground/70">{type}</span>
         </div>
         <FieldControlPreview type={type} />
       </div>
