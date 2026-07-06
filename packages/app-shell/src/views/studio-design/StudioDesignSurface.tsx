@@ -101,6 +101,7 @@ import { ObjectValidationsPanel } from './ObjectValidationsPanel';
 import { ObjectSettingsPanel } from './ObjectSettingsPanel';
 import { ObjectApiPanel } from './ObjectApiPanel';
 import { ObjectHooksPanel } from './ObjectHooksPanel';
+import { ObjectActionsPanel } from './ObjectActionsPanel';
 import { getIcon } from '../../utils/getIcon';
 import { fetchPackages, type PkgEntry } from './packages-io';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
@@ -1687,7 +1688,7 @@ function DataPillar({
   // object. Grid/Form are the runtime renderer (same-renderer principle);
   // Validations edits `validations` rules; Settings edits object basics +
   // the ADR-0085 semantic roles. All patch the one `objDraft`.
-  const [viewMode, setViewMode] = React.useState<'grid' | 'form' | 'rules' | 'settings' | 'hooks' | 'api'>('grid');
+  const [viewMode, setViewMode] = React.useState<'grid' | 'form' | 'rules' | 'settings' | 'hooks' | 'actions' | 'api'>('grid');
   // Within the Form view: 布局 (WYSIWYG drag/section designer) ⇄ 预览 (live form).
   const [formMode, setFormMode] = React.useState<'layout' | 'preview'>('layout');
   // Tracks which object's baseline is currently loaded — so we (re)load exactly
@@ -1896,6 +1897,7 @@ function DataPillar({
     { key: 'form', label: t('engine.studio.data.tab.form', locale) },
     { key: 'rules', label: t('engine.studio.data.tab.rules', locale) },
     { key: 'hooks', label: t('engine.studio.data.tab.hooks', locale) },
+    { key: 'actions', label: t('engine.studio.data.tab.actions', locale) },
     { key: 'api', label: t('engine.studio.data.tab.api', locale) },
     { key: 'settings', label: t('engine.studio.data.tab.settings', locale) },
   ];
@@ -2102,6 +2104,8 @@ function DataPillar({
                 />
               ) : viewMode === 'hooks' ? (
                 <ObjectHooksPanel objectName={current.name} packageId={packageId} />
+              ) : viewMode === 'actions' ? (
+                <ObjectActionsPanel draft={objDraft} />
               ) : viewMode === 'api' ? (
                 <ObjectApiPanel name={current.name} draft={objDraft} />
               ) : viewMode === 'grid' && !hasBaseline ? (
