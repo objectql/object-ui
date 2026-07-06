@@ -1062,10 +1062,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.tab.actions': 'Actions',
   'engine.studio.data.tab.api': 'API',
   // Actions view
-  'engine.studio.actions.explain':
-    'Buttons and operations that surface on this object’s records and lists. An action’s behaviour is authored in code or a flow, so this is a read-only inventory.',
   'engine.studio.actions.none': 'No actions on this object.',
-  'engine.studio.actions.shownIn': 'shows in',
+  'engine.studio.actions.pick': 'Select an action to edit its properties.',
   // API view
   'engine.studio.api.subtitle':
     'Auto-generated REST endpoints for this object, derived from its current schema. Copy a request as cURL and call it with your API token.',
@@ -2068,10 +2066,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.tab.actions': '操作',
   'engine.studio.data.tab.api': 'API',
   // Actions view
-  'engine.studio.actions.explain':
-    '在该对象的记录与列表上出现的按钮/操作。操作的行为以代码或流程编写,此处为只读清单。',
   'engine.studio.actions.none': '该对象没有操作。',
-  'engine.studio.actions.shownIn': '出现在',
+  'engine.studio.actions.pick': '选择一个操作以编辑其属性。',
   // API view
   'engine.studio.api.subtitle':
     '该对象自动生成的 REST 端点,依据当前 schema 派生。可复制为 cURL,带上你的 API 令牌调用。',

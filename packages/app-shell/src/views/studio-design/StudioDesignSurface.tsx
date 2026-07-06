@@ -2105,7 +2105,7 @@ function DataPillar({
               ) : viewMode === 'hooks' ? (
                 <ObjectHooksPanel objectName={current.name} packageId={packageId} />
               ) : viewMode === 'actions' ? (
-                <ObjectActionsPanel draft={objDraft} />
+                <ObjectActionsPanel draft={objDraft} onPatch={onPatch} disabled={readOnly} />
               ) : viewMode === 'api' ? (
                 <ObjectApiPanel name={current.name} draft={objDraft} />
               ) : viewMode === 'grid' && !hasBaseline ? (
