@@ -133,6 +133,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
           fields: schema.fields as any,
           title: schema.title,
           submitText: schema.submitText,
+          cancelText: schema.cancelText,
           // Forward the host's submit-visibility so a non-persisting preview
           // can hide the master-detail Save bar (it owns the only Save here).
           showSubmit: (schema as any).showSubmit,

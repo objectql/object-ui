@@ -35,7 +35,50 @@ describe('MasterDetailForm — submit feedback (never silent)', () => {
     toastError.mockClear();
   });
 
-  it('atomic path: shows a success toast + clears the form on create', async () => {
+  it('atomic path: built-in toast (no host onSuccess) + clears the form on create', async () => {
+    const batchTransaction = vi.fn().mockResolvedValue({ results: [{ id: 'po1' }] });
+    const ds = makeDataSource({ batchTransaction });
+
+    const { container } = render(
+      <MasterDetailForm
+        schema={{
+          objectName: 'po',
+          mode: 'create',
+          fields: ['ref'],
+          details: [
+            { childObject: 'po_line', relationshipField: 'po', columns: [{ key: 'qty', label: 'Qty', type: 'number' } as any] },
+          ],
+        } as any}
+        dataSource={ds}
+      />,
+    );
+
+    const input = await waitFor(() => {
+      const el = container.querySelector('input[name="ref"]') as HTMLInputElement | null;
+      if (!el) throw new Error('parent form not ready');
+      return el;
+    });
+    fireEvent.change(input, { target: { value: 'PO-1' } });
+
+    // Drive the bottom action bar's Create button.
+    const createBtn = screen.getByRole('button', { name: /create/i });
+    fireEvent.click(createBtn);
+
+    await waitFor(() => expect(batchTransaction).toHaveBeenCalledTimes(1));
+    // No host onSuccess → the built-in toast is the fallback so the save is never silent.
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    // Parent form remounted (cleared) for the next entry.
+    await waitFor(() => {
+      const el = container.querySelector('input[name="ref"]') as HTMLInputElement | null;
+      expect(el && el.value).toBeFalsy();
+    });
+  });
+
+  it('defers confirmation to a host onSuccess (no built-in toast → no double-confirm)', async () => {
+    // When the host owns feedback (e.g. the console toasts a localized message
+    // via its crud-success handler), MasterDetailForm must NOT also toast — the
+    // same contract flat ObjectForm follows. Regression guard for the double
+    // "Created" + "线索创建成功" toast on record create.
     const batchTransaction = vi.fn().mockResolvedValue({ results: [{ id: 'po1' }] });
     const onSuccess = vi.fn();
     const ds = makeDataSource({ batchTransaction });
@@ -61,19 +104,12 @@ describe('MasterDetailForm — submit feedback (never silent)', () => {
       return el;
     });
     fireEvent.change(input, { target: { value: 'PO-1' } });
-
-    // Drive the bottom action bar's Create button.
-    const createBtn = screen.getByRole('button', { name: /create/i });
-    fireEvent.click(createBtn);
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
 
     await waitFor(() => expect(batchTransaction).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalled()); // <- never silent
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    // Parent form remounted (cleared) for the next entry.
-    await waitFor(() => {
-      const el = container.querySelector('input[name="ref"]') as HTMLInputElement | null;
-      expect(el && el.value).toBeFalsy();
-    });
+    // Host owns confirmation — no built-in toast fires.
+    expect(toastSuccess).not.toHaveBeenCalled();
   });
 
   it('shows an error toast when the atomic write fails (rollback)', async () => {
@@ -206,5 +242,17 @@ describe('MasterDetailForm — showSubmit gate (Studio screen preview)', () => {
     });
     expect(screen.queryByTestId('md-form-submit')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /create|save/i })).not.toBeInTheDocument();
+  });
+
+  it('uses the host-supplied cancelText (i18n is the host\'s job)', async () => {
+    // The plugin is locale-agnostic — the console passes a localized label down.
+    render(
+      <MasterDetailForm
+        schema={{ ...base, cancelText: '取消', onCancel: vi.fn() }}
+        dataSource={makeDataSource()}
+      />,
+    );
+    const cancelBtn = await waitFor(() => screen.getByTestId('md-form-cancel'));
+    expect(cancelBtn).toHaveTextContent('取消');
   });
 });

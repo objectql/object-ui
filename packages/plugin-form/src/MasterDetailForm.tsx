@@ -79,6 +79,9 @@ export interface MasterDetailFormSchema {
   formType?: 'simple' | 'tabbed';
   title?: string;
   submitText?: string;
+  /** Label for the Cancel button in the action bar. i18n is the host's job
+   *  (this plugin is locale-agnostic); defaults to English 'Cancel'. */
+  cancelText?: string;
   /** Hide the bottom Save/Cancel action bar — e.g. a non-persisting design
    *  preview. Defaults to shown (the form owns the only Save in this layout). */
   showSubmit?: boolean;
@@ -490,14 +493,21 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
 
   /**
    * Built-in feedback so a save is NEVER silent (a silent success looks broken
-   * and invites duplicate submits). Shows a toast, and on CREATE clears the
-   * form for the next entry by resetting the line items + remounting the parent
-   * form. A page-supplied `onSuccess` still runs afterwards (e.g. to navigate).
+   * and invites duplicate submits). On CREATE also clears the form for the next
+   * entry by resetting the line items + remounting the parent form.
+   *
+   * The success toast is only our fallback: when the host supplies `onSuccess`
+   * it owns confirmation (e.g. the console toasts a localized message via its
+   * crud-success handler), so we stay quiet to avoid double-confirming — the
+   * same contract flat `ObjectForm` follows. Without a host `onSuccess` we keep
+   * the built-in toast so the save is never silent.
    */
   const handleSaved = useCallback(
     async (parent: any) => {
       releaseSave();
-      toast.success(isEdit ? (schema.title ? `${schema.title} saved` : 'Saved') : 'Created');
+      if (!schema.onSuccess) {
+        toast.success(isEdit ? (schema.title ? `${schema.title} saved` : 'Saved') : 'Created');
+      }
       if (!isEdit) {
         setState(details.map(() => ({ rows: [], original: [] })));
         setFormKey((k) => k + 1);
@@ -753,7 +763,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
         <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
           {schema.onCancel && (
             <Button type="button" variant="outline" onClick={schema.onCancel} disabled={saving} data-testid="md-form-cancel">
-              Cancel
+              {schema.cancelText ?? 'Cancel'}
             </Button>
           )}
           <Button type="button" onClick={handleSave} disabled={saving || (needsDerive && !resolvedDetails)} data-testid="md-form-submit">

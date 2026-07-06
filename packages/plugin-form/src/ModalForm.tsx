@@ -688,6 +688,7 @@ export const ModalForm: React.FC<ModalFormProps> = ({
                 initialValues: schema.initialValues,
                 initialData: schema.initialData,
                 submitText: submitLabel,
+                cancelText: cancelLabel,
                 details: subforms as any,
                 onSuccess: async (rec: any) => { await schema.onSuccess?.(rec); schema.onOpenChange?.(false); },
                 onError: schema.onError,

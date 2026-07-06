@@ -503,6 +503,7 @@ export const DrawerForm: React.FC<DrawerFormProps> = ({
         fields: schema.fields as any,
         sections: schema.sections as any,
         submitText: schema.submitText,
+        cancelText: cancelLabel,
         details: subforms as any,
         onSuccess: async (rec: any) => { await schema.onSuccess?.(rec); schema.onOpenChange?.(false); },
         onError: schema.onError,
