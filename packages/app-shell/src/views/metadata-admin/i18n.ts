@@ -1064,6 +1064,8 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   // Actions view
   'engine.studio.actions.none': 'No actions on this object.',
   'engine.studio.actions.pick': 'Select an action to edit its properties.',
+  'engine.studio.actions.newLabel': 'New action',
+  'engine.studio.actions.delete': 'Delete',
   // API view
   'engine.studio.api.subtitle':
     'Auto-generated REST endpoints for this object, derived from its current schema. Copy a request as cURL and call it with your API token.',
@@ -2068,6 +2070,8 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   // Actions view
   'engine.studio.actions.none': '该对象没有操作。',
   'engine.studio.actions.pick': '选择一个操作以编辑其属性。',
+  'engine.studio.actions.newLabel': '新操作',
+  'engine.studio.actions.delete': '删除',
   // API view
   'engine.studio.api.subtitle':
     '该对象自动生成的 REST 端点,依据当前 schema 派生。可复制为 cURL,带上你的 API 令牌调用。',

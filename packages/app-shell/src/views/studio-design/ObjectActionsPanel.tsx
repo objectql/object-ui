@@ -23,7 +23,7 @@
  */
 
 import React from 'react';
-import { Zap } from 'lucide-react';
+import { Zap, Plus, Trash2 } from 'lucide-react';
 import { getIcon } from '../../utils/getIcon';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
 import { t, useMetadataLocale } from '../metadata-admin/i18n';
@@ -39,6 +39,16 @@ interface ActionItem {
 function readActions(input: unknown): ActionItem[] {
   if (!Array.isArray(input)) return [];
   return input.filter((a): a is ActionItem => !!a && typeof a === 'object');
+}
+
+/** A fresh, unique, snake_case action name scoped to the object. */
+function nextActionName(objectName: string, existing: string[]): string {
+  const base = (objectName || 'action').replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+  const taken = new Set(existing);
+  let i = existing.length + 1;
+  let name = `${base}_action_${i}`;
+  while (taken.has(name)) name = `${base}_action_${++i}`;
+  return name;
 }
 
 /** An I18nLabel may be a string OR a localized object — never render it raw. */
@@ -87,6 +97,35 @@ export function ObjectActionsPanel({
     [actions, sel, onPatch],
   );
 
+  const objectName = typeof draft.name === 'string' ? draft.name : '';
+
+  const addAction = React.useCallback(() => {
+    const name = nextActionName(objectName, actions.map((a) => String(a.name ?? '')));
+    // Minimal *valid* skeleton: a script action bound to this object, seeded
+    // with a runnable body. The body's `language` discriminator is required —
+    // an unseeded `type:'script'` action 422s the whole draft save the moment
+    // the user types into the body (same dead-end class as a fresh validation
+    // rule needing a placeholder condition). The user configures the rest
+    // (behavior/placement/…) in the form on the right.
+    const fresh: ActionItem = {
+      name,
+      label: t('engine.studio.actions.newLabel', locale),
+      type: 'script',
+      objectName,
+      body: { language: 'js', source: 'return { ok: true };' },
+    };
+    onPatch({ actions: [...actions, fresh] });
+    setSelected(name);
+  }, [actions, objectName, onPatch, locale]);
+
+  const removeAction = React.useCallback(
+    (name: string) => {
+      onPatch({ actions: actions.filter((a) => a.name !== name) });
+      setSelected(null);
+    },
+    [actions, onPatch],
+  );
+
   return (
     <div className="flex min-h-0 flex-1 gap-4">
       {/* action list */}
@@ -95,6 +134,15 @@ export function ObjectActionsPanel({
           <Zap className="h-3.5 w-3.5" />
           <span className="text-[13px] font-medium">{t('engine.studio.data.tab.actions', locale)}</span>
           <span className="text-[11px] text-muted-foreground">({actions.length})</span>
+          {!disabled && (
+            <button
+              type="button"
+              onClick={addAction}
+              className="ml-auto inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] hover:bg-muted"
+            >
+              <Plus className="h-3 w-3" /> {t('engine.studio.new', locale)}
+            </button>
+          )}
         </header>
         <div className="min-h-0 flex-1 overflow-auto">
           {actions.length === 0 ? (
@@ -136,14 +184,27 @@ export function ObjectActionsPanel({
             {t('engine.studio.actions.pick', locale)}
           </div>
         ) : Inspector ? (
-          <Inspector
-            type="action"
-            name={String(sel.name ?? '')}
-            draft={sel as Record<string, unknown>}
-            onPatch={patchSelected}
-            readOnly={!!disabled}
-            locale={locale}
-          />
+          <>
+            {!disabled && (
+              <div className="flex shrink-0 items-center justify-end border-b px-2 py-1">
+                <button
+                  type="button"
+                  onClick={() => removeAction(sel.name!)}
+                  className="inline-flex items-center gap-1 rounded border border-destructive/40 px-2 py-0.5 text-[11px] text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-3 w-3" /> {t('engine.studio.actions.delete', locale)}
+                </button>
+              </div>
+            )}
+            <Inspector
+              type="action"
+              name={String(sel.name ?? '')}
+              draft={sel as Record<string, unknown>}
+              onPatch={patchSelected}
+              readOnly={!!disabled}
+              locale={locale}
+            />
+          </>
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-center text-[12px] text-muted-foreground">
             {labelText(sel.label, String(sel.name ?? ''))}
