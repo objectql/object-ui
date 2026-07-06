@@ -262,8 +262,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^12.2.0
-        version: 12.2.0(ai@7.0.15(zod@4.4.3))
+        specifier: ^12.3.0
+        version: 12.3.0(ai@7.0.15(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^12.3.0
         version: 12.3.0(ai@7.0.15(zod@4.4.3))
@@ -1128,8 +1128,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^12.2.0
-        version: 12.2.0(ai@7.0.15(zod@4.4.3))
+        specifier: ^12.3.0
+        version: 12.3.0(ai@7.0.15(zod@4.4.3))
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -3960,12 +3960,12 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@12.2.0':
-    resolution: {integrity: sha512-zPOuxQDQyYHI0ComA7Zi2K3CraXx+fvrEwx5wlg8VOrVi53mFncPOe9XEnt6CGdUH7oHxesOTEkebu2d7Rzp2g==}
+  '@objectstack/client@12.3.0':
+    resolution: {integrity: sha512-cDlnx95lh0AI7DRkhfiVepCkohQ8kbCI2QRFZxlMDiDPRTggrCXqecqYU9ZzrozkixKI46n24/eLRj7mUA+N+A==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/core@12.2.0':
-    resolution: {integrity: sha512-gu81Epg62n+cY4Hwp5k5Plt/ZjtmqwGm9dEtovZPdGqribO7VmhHX8qZAFDjxlCYrbnT/nyrlq5PoGtmth+Qtg==}
+  '@objectstack/core@12.3.0':
+    resolution: {integrity: sha512-YzIZqJjAyRu1dVtA+wWWGCskBWufAPZlXkrfxPxxzgXn8N+7qWZDwtp+4Bg7EonYWZj3FGK7H2kz1nyLvcFQUg==}
     engines: {node: '>=18.0.0'}
 
   '@objectstack/formula@12.2.0':
@@ -12076,16 +12076,16 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@12.2.0(ai@7.0.15(zod@4.4.3))':
+  '@objectstack/client@12.3.0(ai@7.0.15(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 12.2.0(ai@7.0.15(zod@4.4.3))
-      '@objectstack/spec': 12.2.0(ai@7.0.15(zod@4.4.3))
+      '@objectstack/core': 12.3.0(ai@7.0.15(zod@4.4.3))
+      '@objectstack/spec': 12.3.0(ai@7.0.15(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@12.2.0(ai@7.0.15(zod@4.4.3))':
+  '@objectstack/core@12.3.0(ai@7.0.15(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 12.2.0(ai@7.0.15(zod@4.4.3))
+      '@objectstack/spec': 12.3.0(ai@7.0.15(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
