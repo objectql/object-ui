@@ -99,6 +99,8 @@ import {
 import { ObjectFormDesigner } from './ObjectFormDesigner';
 import { ObjectValidationsPanel } from './ObjectValidationsPanel';
 import { ObjectSettingsPanel } from './ObjectSettingsPanel';
+import { ObjectApiPanel } from './ObjectApiPanel';
+import { ObjectHooksPanel } from './ObjectHooksPanel';
 import { fetchPackages, type PkgEntry } from './packages-io';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
@@ -1682,7 +1684,7 @@ function DataPillar({
   // object. Grid/Form are the runtime renderer (same-renderer principle);
   // Validations edits `validations` rules; Settings edits object basics +
   // the ADR-0085 semantic roles. All patch the one `objDraft`.
-  const [viewMode, setViewMode] = React.useState<'grid' | 'form' | 'rules' | 'settings'>('grid');
+  const [viewMode, setViewMode] = React.useState<'grid' | 'form' | 'rules' | 'settings' | 'hooks' | 'api'>('grid');
   // Within the Form view: 布局 (WYSIWYG drag/section designer) ⇄ 预览 (live form).
   const [formMode, setFormMode] = React.useState<'layout' | 'preview'>('layout');
   // Tracks which object's baseline is currently loaded — so we (re)load exactly
@@ -2064,6 +2066,26 @@ function DataPillar({
                   >
                     {t('engine.studio.data.tab.settings', locale)}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('hooks')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (viewMode === 'hooks' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    {t('engine.studio.data.tab.hooks', locale)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('api')}
+                    className={
+                      'rounded px-2.5 py-0.5 ' +
+                      (viewMode === 'api' ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground')
+                    }
+                  >
+                    {t('engine.studio.data.tab.api', locale)}
+                  </button>
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
                   <Eye className="h-3 w-3" />{' '}
@@ -2073,9 +2095,13 @@ function DataPillar({
                       ? t('engine.studio.data.badge.rules', locale)
                       : viewMode === 'settings'
                         ? t('engine.studio.data.badge.settings', locale)
-                        : formMode === 'layout'
-                          ? t('engine.studio.data.badge.formLayout', locale)
-                          : t('engine.studio.data.badge.formPreview', locale)}
+                        : viewMode === 'hooks'
+                          ? t('engine.studio.data.badge.hooks', locale)
+                          : viewMode === 'api'
+                            ? t('engine.studio.data.badge.api', locale)
+                            : formMode === 'layout'
+                              ? t('engine.studio.data.badge.formLayout', locale)
+                              : t('engine.studio.data.badge.formPreview', locale)}
                 </span>
                 {(viewMode === 'grid' || viewMode === 'form') && !readOnly && (
                   <button
@@ -2103,6 +2129,10 @@ function DataPillar({
                   locale={locale}
                   disabled={readOnly}
                 />
+              ) : viewMode === 'hooks' ? (
+                <ObjectHooksPanel objectName={current.name} packageId={packageId} />
+              ) : viewMode === 'api' ? (
+                <ObjectApiPanel name={current.name} draft={objDraft} />
               ) : viewMode === 'grid' && !hasBaseline ? (
                 /* Draft-only object: no physical table until the package publish —
                  * rendering the runtime grid would fire data SQL against a table
