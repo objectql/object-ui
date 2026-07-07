@@ -76,6 +76,7 @@ const useSafeFormTranslation = createSafeTranslation(
     'validation.pattern': '{{field}} format is invalid',
     'validation.email': 'Please enter a valid email address',
     'validation.url': 'Please enter a valid URL',
+    'validation.formInvalid': 'Please check the highlighted fields: {{fields}}',
   },
   'common.selectOption',
 );
@@ -514,6 +515,18 @@ ComponentRegistry.register('form',
       } finally {
         setIsSubmitting(false);
       }
+    }, (validationErrors) => {
+      // Client-side (react-hook-form) validation blocked the submit. The
+      // per-field errors render inline, but in long forms the offending field
+      // is often scrolled out of view — the user clicks 创建 and sees nothing
+      // happen. Surface a toast naming the fields so the feedback is visible
+      // regardless of scroll position (mirrors the server-error toast above).
+      const names = Object.keys(validationErrors || {});
+      if (names.length === 0) return;
+      const labels = names.map((n) => fieldLabelByName[n] || n);
+      const MAX = 3;
+      const fieldsText = labels.slice(0, MAX).join('、') + (labels.length > MAX ? '…' : '');
+      toast.error(t('validation.formInvalid', { fields: fieldsText }));
     });
 
     // Handle cancel

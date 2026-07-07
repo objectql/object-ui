@@ -80,6 +80,7 @@ const pt = {
     email: "Por favor, insira um endereço de e-mail válido",
     url: "Por favor, insira uma URL válida",
     pattern: "O formato de {{field}} é inválido",
+    formInvalid: "Verifique os campos destacados: {{fields}}",
     unique: "{{field}} deve ser único",
     type: "{{field}} deve ser um {{type}} válido",
   },

@@ -83,6 +83,7 @@ const en = {
     email: 'Please enter a valid email address',
     url: 'Please enter a valid URL',
     pattern: '{{field}} format is invalid',
+    formInvalid: 'Please check the highlighted fields: {{fields}}',
     unique: '{{field}} must be unique',
     type: '{{field}} must be a valid {{type}}',
   },

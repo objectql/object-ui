@@ -83,6 +83,7 @@ const zh = {
     email: '请输入有效的邮箱地址',
     url: '请输入有效的URL',
     pattern: '{{field}}格式不正确',
+    formInvalid: '请检查表单中标记的字段:{{fields}}',
     unique: '{{field}}必须唯一',
     type: '{{field}}必须是有效的{{type}}',
   },
