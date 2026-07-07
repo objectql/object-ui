@@ -9,22 +9,23 @@
 /**
  * Data pillar — Hooks view.
  *
- * Unlike Validations (which are an inline `ObjectSchema.validations` array),
- * hooks are a SEPARATE `hook` metadata type whose `object` field targets one
- * object, a list of objects, or `*` (all). This panel lists the hooks that
- * fire on the selected object — the honest inventory of lifecycle logic that
- * runs on its reads/writes.
+ * Unlike validations/actions (inline arrays on the object draft), hooks are a
+ * SEPARATE `hook` metadata type whose `object` field targets one object, a
+ * list, or `*`. So this panel fetches them (client.list) and persists each one
+ * on its own (client.save('hook', …, { mode: 'draft' })) — the object's Save
+ * draft doesn't cover them.
  *
- * Read-only by design: a hook's actual behaviour lives in its `body`/`handler`
- * (an expression or sandboxed JS authored in code), which a row editor can't
- * faithfully edit — same philosophy as the non-`script` validation rules,
- * which are surfaced but not edited. We show name, subscribed events, the
- * optional CEL `condition` gate, priority and async flag so nothing that runs
- * on save is invisible.
+ * Master-detail, editable: a left list of the hooks that fire on this object,
+ * and on the right the platform's own generic metadata form (SchemaForm) — the
+ * same surface the metadata admin uses to edit a hook — with a per-hook Save.
+ * There's no curated `hook` inspector, so SchemaForm synthesises a structured
+ * form from the hook's shape.
  */
 
 import React from 'react';
-import { Webhook } from 'lucide-react';
+import { Webhook, Plus, Loader2, Save } from 'lucide-react';
+import { toast } from 'sonner';
+import { SchemaForm } from '../metadata-admin/SchemaForm';
 import { useMetadataClient } from '../metadata-admin/useMetadata';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 import { formatMetadataError } from './metadataError';
@@ -33,25 +34,15 @@ interface HookItem {
   name?: string;
   label?: string;
   object?: string | string[];
-  events?: string[];
-  // `ExpressionInputSchema` — a bare CEL string OR an object `{ dialect, source }`
-  // (a CEL tagged template serialises to the latter). Never render it raw.
-  condition?: unknown;
-  priority?: number;
   async?: boolean;
-  description?: string;
   [key: string]: unknown;
 }
 
-/** The human-readable CEL source of a hook condition, whatever shape it took. */
-function conditionText(condition: unknown): string {
-  if (!condition) return '';
-  if (typeof condition === 'string') return condition;
-  if (typeof condition === 'object') {
-    const src = (condition as { source?: unknown }).source;
-    if (typeof src === 'string') return src;
-  }
-  return '';
+/** The body out of a getDraft() envelope (`{ item: {...} }`). */
+function draftBody(resp: unknown): HookItem | null {
+  if (!resp || typeof resp !== 'object' || !('item' in resp)) return null;
+  const body = (resp as { item?: unknown }).item;
+  return body && typeof body === 'object' && Object.keys(body).length > 0 ? (body as HookItem) : null;
 }
 
 /** Does this hook's `object` target match the object we're viewing? */
@@ -63,18 +54,35 @@ function targetsObject(hook: HookItem, objectName: string): boolean {
   return false;
 }
 
+/** A fresh, unique, snake_case hook name scoped to the object. */
+function nextHookName(objectName: string, existing: string[]): string {
+  const base = (objectName || 'hook').replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+  const taken = new Set(existing);
+  let i = existing.length + 1;
+  let name = `${base}_hook_${i}`;
+  while (taken.has(name)) name = `${base}_hook_${++i}`;
+  return name;
+}
+
 export function ObjectHooksPanel({
   objectName,
   packageId,
+  disabled,
 }: {
   objectName: string;
   packageId: string;
+  disabled?: boolean;
 }) {
   const locale = useMetadataLocale();
   const client = useMetadataClient();
   const [hooks, setHooks] = React.useState<HookItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [selected, setSelected] = React.useState<string | null>(null);
+  const [draft, setDraft] = React.useState<HookItem | null>(null);
+  const [dirty, setDirty] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [nonce, setNonce] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -82,9 +90,28 @@ export function ObjectHooksPanel({
     setError(null);
     (async () => {
       try {
-        const list = (await client.list('hook', { packageId })) as HookItem[];
+        // `list()` only sees PUBLISHED hooks; a freshly-created (or edited)
+        // hook is a draft, so also pull draft headers and hydrate each body
+        // (headers carry no `object`, so we must load them to filter + edit).
+        // Drafts win over the published row of the same name.
+        const [pub, draftHeaders] = await Promise.all([
+          client.list('hook', { packageId }) as Promise<HookItem[]>,
+          client.listDrafts({ packageId, type: 'hook' }).catch(() => [] as Array<{ name?: string }>),
+        ]);
+        const draftNames = (draftHeaders || []).map((d) => String(d.name ?? '')).filter(Boolean);
+        const bodies = await Promise.all(
+          draftNames.map((n) => client.getDraft('hook', n).then(draftBody).catch(() => null)),
+        );
         if (cancelled) return;
-        setHooks((list || []).filter((h) => targetsObject(h, objectName)));
+        const byName = new Map<string, HookItem>();
+        for (const h of pub || []) {
+          if (h?.name && targetsObject(h, objectName)) byName.set(String(h.name), h);
+        }
+        draftNames.forEach((n, i) => {
+          const body = bodies[i];
+          if (body && targetsObject(body, objectName)) byName.set(n, body);
+        });
+        setHooks([...byName.values()]);
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -94,67 +121,146 @@ export function ObjectHooksPanel({
     return () => {
       cancelled = true;
     };
-  }, [client, packageId, objectName]);
+  }, [client, packageId, objectName, nonce]);
+
+  // Load the selected hook into an editable draft (once per selection change).
+  React.useEffect(() => {
+    const hook = hooks.find((h) => h.name === selected) ?? null;
+    setDraft(hook ? { ...hook } : null);
+    setDirty(false);
+  }, [selected, hooks]);
+
+  const save = React.useCallback(async () => {
+    if (!draft?.name) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await client.save('hook', String(draft.name), draft, { mode: 'draft', packageId });
+      toast.success(tFormat('engine.studio.hooks.saved', locale, { label: String(draft.label || draft.name) }));
+      setDirty(false);
+      setNonce((n) => n + 1);
+    } catch (e) {
+      setError(formatMetadataError(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [client, draft, packageId, locale]);
+
+  const addHook = React.useCallback(async () => {
+    const name = nextHookName(objectName, hooks.map((h) => String(h.name ?? '')));
+    // A complete, *valid* skeleton so the immediate save passes: hooks require
+    // an object, at least one event, and a valid body discriminator.
+    const fresh: HookItem = {
+      name,
+      label: t('engine.studio.hooks.newLabel', locale),
+      object: objectName,
+      events: ['beforeInsert'],
+      body: { language: 'js', source: 'return;' },
+      priority: 100,
+      async: false,
+    };
+    setSaving(true);
+    setError(null);
+    try {
+      await client.save('hook', name, fresh, { mode: 'draft', packageId });
+      setNonce((n) => n + 1);
+      setSelected(name);
+    } catch (e) {
+      setError(formatMetadataError(e));
+    } finally {
+      setSaving(false);
+    }
+  }, [client, objectName, hooks, packageId, locale]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
-      <p className="text-[11px] leading-5 text-muted-foreground">{t('engine.studio.hooks.explain', locale)}</p>
-
-      {error && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <p className="px-1 py-6 text-center text-[11px] text-muted-foreground">{t('engine.studio.loading', locale)}</p>
-      ) : hooks.length === 0 ? (
-        <p className="px-3 py-8 text-center text-[11px] leading-5 text-muted-foreground">{t('engine.studio.hooks.none', locale)}</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {hooks.map((h) => (
-            <div key={h.name} className="rounded-lg border px-3 py-2.5">
-              <div className="flex items-center gap-2">
+    <div className="flex min-h-0 flex-1 gap-4">
+      {/* hook list */}
+      <div className="flex w-72 shrink-0 flex-col rounded-lg border">
+        <header className="flex items-center gap-2 border-b px-3 py-2">
+          <Webhook className="h-3.5 w-3.5" />
+          <span className="text-[13px] font-medium">{t('engine.studio.data.tab.hooks', locale)}</span>
+          <span className="text-[11px] text-muted-foreground">({hooks.length})</span>
+          {!disabled && (
+            <button
+              type="button"
+              onClick={addHook}
+              disabled={saving}
+              className="ml-auto inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] hover:bg-muted disabled:opacity-50"
+            >
+              <Plus className="h-3 w-3" /> {t('engine.studio.new', locale)}
+            </button>
+          )}
+        </header>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {loading ? (
+            <p className="px-3 py-6 text-center text-[11px] text-muted-foreground">{t('engine.studio.loading', locale)}</p>
+          ) : hooks.length === 0 ? (
+            <p className="px-3 py-6 text-center text-[11px] leading-5 text-muted-foreground">{t('engine.studio.hooks.none', locale)}</p>
+          ) : (
+            hooks.map((h) => (
+              <button
+                key={String(h.name)}
+                type="button"
+                onClick={() => setSelected(h.name ?? null)}
+                className={
+                  'flex w-full items-center gap-2 border-b px-3 py-2 text-left text-[12px] ' +
+                  (selected === h.name ? 'bg-muted' : 'hover:bg-muted/50')
+                }
+              >
                 <Webhook className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{h.label || h.name}</span>
-                {h.object === '*' && (
-                  <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    {t('engine.studio.hooks.wildcard', locale)}
-                  </span>
-                )}
+                <span className="min-w-0 flex-1 truncate font-medium">{h.label || h.name}</span>
                 {h.async && (
                   <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
                     {t('engine.studio.hooks.async', locale)}
                   </span>
                 )}
-              </div>
-
-              {Array.isArray(h.events) && h.events.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {h.events.map((ev) => (
-                    <span key={ev} className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                      {ev}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {conditionText(h.condition) && (
-                <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  {t('engine.studio.hooks.condition', locale)}{' '}
-                  <code className="rounded bg-muted px-1">{conditionText(h.condition)}</code>
-                </p>
-              )}
-
-              <p className="mt-1.5 text-[10px] text-muted-foreground">
-                {tFormat('engine.studio.hooks.meta', locale, { priority: h.priority ?? 100 })}
-                {' · '}
-                {t('engine.studio.hooks.code', locale)}
-              </p>
-            </div>
-          ))}
+              </button>
+            ))
+          )}
         </div>
-      )}
+      </div>
+
+      {/* detail — the platform's generic metadata form */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border">
+        {error && (
+          <div className="border-b border-destructive/40 bg-destructive/10 px-3 py-1.5 text-[11px] text-destructive whitespace-pre-line">
+            {error}
+          </div>
+        )}
+        {!draft ? (
+          <div className="flex flex-1 items-center justify-center p-6 text-center text-[12px] text-muted-foreground">
+            {t('engine.studio.hooks.pick', locale)}
+          </div>
+        ) : (
+          <>
+            <div className="flex shrink-0 items-center gap-2 border-b px-3 py-1.5">
+              <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{String(draft.label || draft.name)}</span>
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={save}
+                  disabled={!dirty || saving}
+                  className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] hover:bg-muted disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  {t('engine.studio.hooks.save', locale)}
+                </button>
+              )}
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              <SchemaForm
+                schema={undefined}
+                value={draft as Record<string, unknown>}
+                onChange={(next) => {
+                  setDraft(next as HookItem);
+                  setDirty(true);
+                }}
+                readOnly={!!disabled}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -2115,7 +2115,7 @@ function DataPillar({
                   disabled={readOnly}
                 />
               ) : viewMode === 'hooks' ? (
-                <ObjectHooksPanel objectName={current.name} packageId={packageId} />
+                <ObjectHooksPanel objectName={current.name} packageId={packageId} disabled={readOnly} />
               ) : viewMode === 'actions' ? (
                 <ObjectActionsPanel draft={objDraft} onPatch={onPatch} disabled={readOnly} />
               ) : viewMode === 'api' ? (
