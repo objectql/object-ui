@@ -1766,25 +1766,36 @@ export function formatFileSize(bytes: number): string {
 export function buildValidationRules(field: any): any {
   const rules: any = {};
 
-  // Required validation
+  // Required validation. Emit a bare `true` for the auto-generated case rather
+  // than baking an English message here: the form renderer localizes it via
+  // `t('validation.required', { field })`. A field-authored `required_message`
+  // still wins and is passed through verbatim.
   if (field.required) {
-    rules.required = typeof field.required_message === 'string' 
-      ? field.required_message 
-      : `${field.label || field.name} is required`;
+    rules.required = typeof field.required_message === 'string'
+      ? field.required_message
+      : true;
   }
+
+  // Standard validation messages are localized by the form renderer, which has
+  // an i18n `t` in scope. We therefore emit `message: undefined` for the
+  // auto-generated case and tag each rule with a `messageKey` (+ any interp
+  // vars); a field-authored `*_message` is a string and passes through as-is,
+  // still winning over the localized default. See form.tsx `localizeRule`.
 
   // Length validation for text fields
   if (field.min_length) {
     rules.minLength = {
       value: field.min_length,
-      message: field.min_length_message || `Minimum length is ${field.min_length} characters`,
+      message: typeof field.min_length_message === 'string' ? field.min_length_message : undefined,
+      messageKey: 'validation.minLength',
     };
   }
 
   if (field.max_length) {
     rules.maxLength = {
       value: field.max_length,
-      message: field.max_length_message || `Maximum length is ${field.max_length} characters`,
+      message: typeof field.max_length_message === 'string' ? field.max_length_message : undefined,
+      messageKey: 'validation.maxLength',
     };
   }
 
@@ -1792,14 +1803,16 @@ export function buildValidationRules(field: any): any {
   if (field.min !== undefined) {
     rules.min = {
       value: field.min,
-      message: field.min_message || `Minimum value is ${field.min}`,
+      message: typeof field.min_message === 'string' ? field.min_message : undefined,
+      messageKey: 'validation.min',
     };
   }
 
   if (field.max !== undefined) {
     rules.max = {
       value: field.max,
-      message: field.max_message || `Maximum value is ${field.max}`,
+      message: typeof field.max_message === 'string' ? field.max_message : undefined,
+      messageKey: 'validation.max',
     };
   }
 
@@ -1807,7 +1820,8 @@ export function buildValidationRules(field: any): any {
   if (field.pattern) {
     rules.pattern = {
       value: typeof field.pattern === 'string' ? new RegExp(field.pattern) : field.pattern,
-      message: field.pattern_message || 'Invalid format',
+      message: typeof field.pattern_message === 'string' ? field.pattern_message : undefined,
+      messageKey: 'validation.pattern',
     };
   }
 
@@ -1815,7 +1829,8 @@ export function buildValidationRules(field: any): any {
   if (field.type === 'email') {
     rules.pattern = {
       value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-      message: 'Please enter a valid email address',
+      message: undefined,
+      messageKey: 'validation.email',
     };
   }
 
@@ -1823,7 +1838,8 @@ export function buildValidationRules(field: any): any {
   if (field.type === 'url') {
     rules.pattern = {
       value: /^https?:\/\/.+/,
-      message: 'Please enter a valid URL',
+      message: undefined,
+      messageKey: 'validation.url',
     };
   }
 
