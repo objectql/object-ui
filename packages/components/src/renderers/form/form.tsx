@@ -1025,6 +1025,24 @@ interface RenderFieldProps {
   [key: string]: any;
 }
 
+// Native date/time inputs only open their picker when the user clicks the tiny
+// calendar/clock icon. For these types we open the picker on any click inside the
+// box so they behave like the other field widgets (click-anywhere-to-edit).
+const NATIVE_PICKER_INPUT_TYPES = new Set(['date', 'datetime-local', 'time', 'month', 'week']);
+
+function openNativePickerOnClick(inputType: string | undefined) {
+  if (!inputType || !NATIVE_PICKER_INPUT_TYPES.has(inputType)) return undefined;
+  return (e: React.MouseEvent<HTMLInputElement>) => {
+    const el = e.currentTarget;
+    if (el.disabled || el.readOnly) return;
+    try {
+      (el as HTMLInputElement & { showPicker?: () => void }).showPicker?.();
+    } catch {
+      // Browsers throw when the picker can't be shown; the native icon still works.
+    }
+  };
+}
+
 function renderFieldComponent(type: string, props: RenderFieldProps) {
   // 1. Try to resolve specialized field widget from registry first.
   //    Form fields should always prefer the `field:<type>` namespace when
@@ -1063,6 +1081,10 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
           placeholder={placeholder}
           className={cn('min-h-[44px] sm:min-h-0', readonlyInputClass)}
           {...domFieldProps}
+          onClick={(e) => {
+            openNativePickerOnClick(inputType)?.(e);
+            domFieldProps.onClick?.(e);
+          }}
           readOnly={readonly}
           value={domFieldProps.value ?? ''}
         />
@@ -1160,6 +1182,10 @@ function renderFieldComponent(type: string, props: RenderFieldProps) {
           placeholder={placeholder}
           className={cn(readonlyInputClass)}
           {...domFieldProps}
+          onClick={(e) => {
+            openNativePickerOnClick(inputType)?.(e);
+            domFieldProps.onClick?.(e);
+          }}
           readOnly={readonly}
         />
       );

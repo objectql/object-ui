@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
+import { openNativePicker } from './openNativePicker';
 
 /**
  * TimeField - Time picker input widget
@@ -20,6 +21,10 @@ export function TimeField({ value, onChange, field, readonly, ...props }: FieldW
       type="time"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => {
+        openNativePicker(e.currentTarget);
+        domProps.onClick?.(e);
+      }}
       disabled={readonly || domProps.disabled}
     />
   );

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
+import { openNativePicker } from './openNativePicker';
 
 /**
  * DateField - Date picker input widget
@@ -20,6 +21,10 @@ export function DateField({ value, onChange, field, readonly, ...props }: FieldW
       type="date"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => {
+        openNativePicker(e.currentTarget);
+        domProps.onClick?.(e);
+      }}
       disabled={readonly || domProps.disabled}
     />
   );

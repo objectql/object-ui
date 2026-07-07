@@ -1,6 +1,7 @@
 import React from 'react';
 import { Input, EmptyValue } from '@object-ui/components';
 import { FieldWidgetProps } from './types';
+import { openNativePicker } from './openNativePicker';
 
 /**
  * DateTimeField - Combined date and time picker widget
@@ -26,6 +27,10 @@ export function DateTimeField({ value, onChange, field, readonly, ...props }: Fi
       type="datetime-local"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
+      onClick={(e) => {
+        openNativePicker(e.currentTarget);
+        domProps.onClick?.(e);
+      }}
       disabled={readonly || domProps.disabled}
     />
   );
