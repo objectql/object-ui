@@ -758,10 +758,13 @@ function NavTree({
   nodes,
   active,
   onPick,
+  objectIcons,
 }: {
   nodes: NavNode[];
   active: Surface | null;
   onPick: (s: Surface) => void;
+  /** object name → its metadata icon, so object nav items show their own glyph. */
+  objectIcons?: Record<string, string | undefined>;
 }): React.ReactElement {
   return (
     <>
@@ -773,13 +776,17 @@ function NavTree({
                 <Folder className="h-3 w-3" /> {node.label}
               </p>
               <div className="pl-1.5">
-                <NavTree nodes={node.children ?? []} active={active} onPick={onPick} />
+                <NavTree nodes={node.children ?? []} active={active} onPick={onPick} objectIcons={objectIcons} />
               </div>
             </div>
           );
         }
         const surface = resolveSurface(node);
-        const Icon = navIcon(node.type);
+        // Icon precedence: the nav item's own `icon` (honoured — it was ignored
+        // before), then an object surface's own metadata icon, then the
+        // type-generic fallback.
+        const objIcon = surface?.type === 'object' ? objectIcons?.[surface.name] : undefined;
+        const Icon: React.ElementType = node.icon ? getIcon(node.icon) : objIcon ? getIcon(objIcon) : navIcon(node.type);
         const isActive = !!surface && active?.type === surface.type && active?.name === surface.name;
         return (
           <button
@@ -1027,7 +1034,11 @@ function InterfacesPillar({
   const [appStatus, setAppStatus] = React.useState<'loading' | 'ready' | 'missing'>('loading');
   // Objects in THIS package (published ∪ draft) — the nav item inspector's
   // object picker, so nav can be wired to sibling objects before publishing.
-  const [pkgObjects, setPkgObjects] = React.useState<Array<{ name: string; label: string }>>([]);
+  const [pkgObjects, setPkgObjects] = React.useState<Array<{ name: string; label: string; icon?: string }>>([]);
+  const objectIconMap = React.useMemo(
+    () => Object.fromEntries(pkgObjects.map((o) => [o.name, o.icon])),
+    [pkgObjects],
+  );
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1038,12 +1049,12 @@ function InterfacesPillar({
           client.listDrafts({ packageId, type: 'object' }).catch(() => [] as Array<Record<string, unknown>>),
         ]);
         if (cancelled) return;
-        const byName = new Map<string, { name: string; label: string }>();
+        const byName = new Map<string, { name: string; label: string; icon?: string }>();
         for (const raw of [...(pub || []), ...(drafts || [])]) {
           const o = raw as Record<string, unknown>;
           const name = String(o.name ?? '');
           if (!name || byName.has(name)) continue;
-          byName.set(name, { name, label: String(o.label ?? o.name ?? name) });
+          byName.set(name, { name, label: String(o.label ?? o.name ?? name), icon: o.icon ? String(o.icon) : undefined });
         }
         setPkgObjects([...byName.values()]);
       } catch {
@@ -1376,6 +1387,7 @@ function InterfacesPillar({
               <NavTree
                 nodes={navTree}
                 active={current}
+                objectIcons={objectIconMap}
                 onPick={(s) => {
                   setCurrent(s);
                   if (isMobile) setRailOpen(false);
