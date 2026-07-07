@@ -32,7 +32,7 @@ export { deriveRelatedLists } from './deriveRelatedLists';
 export type { DerivedRelatedList } from './deriveRelatedLists';
 
 export { preferLocal } from './preferLocal';
-export { appRouteSegment, matchAppBySegment, appStudioDesignPath } from './appRoute';
+export { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath } from './appRoute';
 
 /**
  * Resolves an I18nLabel to a plain string.

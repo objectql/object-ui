@@ -11,7 +11,7 @@ import { SchemaRendererContext, SchemaRenderer } from '@object-ui/react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, Dialog, DialogContent, DialogHeader, DialogTitle } from '@object-ui/components';
 import { isDrillEnabled, resolveDrillTitle } from '@object-ui/core';
 import type { DrillDownConfig } from '@object-ui/types';
-import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
+import { resolveFieldCurrency } from '@object-ui/i18n';
 import { MetricWidget } from './MetricWidget';
 import { OpenInListButton } from './OpenInListButton';
 import {
@@ -176,14 +176,17 @@ export const ObjectMetricWidget: React.FC<ObjectMetricWidgetProps> = ({
     return undefined;
   }, [format, valueFieldDef]);
 
-  // Tenant default currency (localization.currency, ADR-0053) backstops a
-  // currency field that declares no explicit code of its own.
-  const { currency: tenantCurrency } = useLocalization();
+  // Currency shows ONLY when explicitly specified — the widget's own `currency`
+  // prop, or the aggregated field's declared code (`currency` /
+  // `currencyConfig.defaultCurrency` / `defaultCurrency`). A KPI is deliberately
+  // NOT backstopped by the tenant default (localization.currency, ADR-0053):
+  // when nothing on this metric names a currency it should read as a plain
+  // number, not inherit an org-wide symbol the dashboard never asked for.
   const inferredCurrency = useMemo(() => {
     if (currency) return currency;
     if (valueFieldDef?.type !== 'currency') return undefined;
-    return resolveFieldCurrency(valueFieldDef, tenantCurrency);
-  }, [currency, valueFieldDef, tenantCurrency]);
+    return resolveFieldCurrency(valueFieldDef);
+  }, [currency, valueFieldDef]);
 
   // Stable JSON keys to prevent infinite refetch loops when callers
   // pass fresh `aggregate` / `filter` object references each render

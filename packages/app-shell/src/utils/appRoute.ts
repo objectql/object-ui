@@ -48,7 +48,41 @@ export function appStudioDesignPath(
   isWorkspaceAdmin: boolean,
 ): string | null {
   if (!isWorkspaceAdmin) return null;
+  const packageId = studioPackageId(app);
+  if (!packageId) return null;
+  return `/studio/${encodeURIComponent(packageId)}/data`;
+}
+
+/**
+ * Deep-link from a running app straight to a specific interface's design
+ * surface in Studio's Interfaces pillar — e.g. viewing a dashboard opens
+ * `/studio/:packageId/interfaces?surface=dashboard:<name>`, which the pillar's
+ * `?surface=` restore honors (see `nav-selection.ts`). Same admin/package
+ * guards as {@link appStudioDesignPath}; returns null when the surface identity
+ * is incomplete so the caller can fall back to the plain design path.
+ *
+ * The `surface` param value is `type:name`; types never contain `:`, so the
+ * pillar splits on the first colon. Only the name is percent-encoded — the
+ * type is a fixed keyword (`dashboard`/`report`/…).
+ */
+export function appStudioSurfacePath(
+  app: AppLike | null | undefined,
+  isWorkspaceAdmin: boolean,
+  surface: { type?: string | null; name?: string | null } | null | undefined,
+): string | null {
+  if (!isWorkspaceAdmin) return null;
+  const packageId = studioPackageId(app);
+  if (!packageId) return null;
+  const type = surface?.type;
+  const name = surface?.name;
+  if (!type || !name) return null;
+  const value = `${type}:${encodeURIComponent(name)}`;
+  return `/studio/${encodeURIComponent(packageId)}/interfaces?surface=${value}`;
+}
+
+/** Shared guard: the owning package id usable by the Studio design surface. */
+function studioPackageId(app: AppLike | null | undefined): string | null {
   const packageId = app?._packageId;
   if (typeof packageId !== 'string' || !packageId || packageId === 'sys_metadata') return null;
-  return `/studio/${encodeURIComponent(packageId)}/data`;
+  return packageId;
 }

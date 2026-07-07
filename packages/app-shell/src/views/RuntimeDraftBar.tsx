@@ -2,8 +2,9 @@
 
 /**
  * RuntimeDraftBar — ADR-0034 step 3 (#1515): the draft/publish chrome for the
- * runtime config panels (ViewConfigPanel / ReportConfigPanel /
- * DashboardConfigPanel).
+ * runtime config panels (ViewConfigPanel / ReportConfigPanel). Dashboard
+ * authoring moved entirely to Studio's Interfaces pillar, so there is no
+ * longer a runtime dashboard config panel.
  *
  * It mirrors studio's `ResourceEditPage` affordances: on open it reads the
  * pending draft (`?state=draft`), shows an "unpublished changes" indicator when

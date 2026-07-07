@@ -66,7 +66,7 @@ import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import type { BreadcrumbItem as BreadcrumbItemType } from '@object-ui/types';
 import { useAuth, getUserInitials, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
-import { resolveI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioDesignPath } from '../utils';
+import { resolveI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioDesignPath, appStudioSurfacePath } from '../utils';
 import { getIcon } from '../utils/getIcon';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
@@ -558,8 +558,15 @@ export function AppHeader({
 
   // App → Studio reverse bridge (ADR-0080): admins jump from the running app
   // to its owning package's design surface. Null when there is nothing to
-  // open (non-admin, or no owning package).
-  const studioDesignPath = isApp ? appStudioDesignPath(currentApp, isWorkspaceAdmin) : null;
+  // open (non-admin, or no owning package). When the current route is a
+  // specific interface (e.g. a dashboard), deep-link straight to THAT surface
+  // in the Interfaces pillar instead of the package's generic Data tab — the
+  // dashboard's design page replaces the retired in-page inline editor.
+  const studioDesignPath = isApp
+    ? (routeType === 'dashboard' && pathParts[3]
+        ? appStudioSurfacePath(currentApp, isWorkspaceAdmin, { type: 'dashboard', name: pathParts[3] })
+        : appStudioDesignPath(currentApp, isWorkspaceAdmin))
+    : null;
 
   const objectSiblings = appObjects.map((o: any) => ({
     label: objectLabel(o),
@@ -881,8 +888,11 @@ export function AppHeader({
 
           {/* Design in Studio — the app → builder reverse bridge (ADR-0080).
               Admins jump from the running app to its owning package's design
-              surface (/studio/:packageId/data); hidden for everyone else and
-              for apps with no owning package. */}
+              surface; on a dashboard route it deep-links to that dashboard's
+              design page in the Interfaces pillar
+              (/studio/:packageId/interfaces?surface=dashboard:<name>), otherwise
+              the package's Data tab. Hidden for everyone else and for apps with
+              no owning package. */}
           {studioDesignPath && (
             <Button
               variant="ghost"

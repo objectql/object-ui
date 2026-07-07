@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appRouteSegment, matchAppBySegment, appStudioDesignPath } from '../appRoute';
+import { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath } from '../appRoute';
 
 /**
  * ADR-0048 (option A) — package-id route segment.
@@ -63,5 +63,35 @@ describe('appStudioDesignPath', () => {
   });
   it('returns null for the DB-authored sys_metadata pseudo-package', () => {
     expect(appStudioDesignPath({ name: 'crm', _packageId: 'sys_metadata' }, true)).toBeNull();
+  });
+});
+
+/**
+ * App → Studio interface deep-link (dashboard design page).
+ */
+describe('appStudioSurfacePath', () => {
+  const crm = { name: 'crm', _packageId: 'com.acme.crm' };
+
+  it('deep-links to the interface surface in the Interfaces pillar', () => {
+    expect(appStudioSurfacePath(crm, true, { type: 'dashboard', name: 'executive_dashboard' })).toBe(
+      '/studio/com.acme.crm/interfaces?surface=dashboard:executive_dashboard',
+    );
+  });
+  it('URL-encodes the package id and the surface name', () => {
+    expect(
+      appStudioSurfacePath({ _packageId: 'com.acme/crm' }, true, { type: 'dashboard', name: 'sales dash' }),
+    ).toBe('/studio/com.acme%2Fcrm/interfaces?surface=dashboard:sales%20dash');
+  });
+  it('returns null for non-admins', () => {
+    expect(appStudioSurfacePath(crm, false, { type: 'dashboard', name: 'd' })).toBeNull();
+  });
+  it('returns null when the surface identity is incomplete', () => {
+    expect(appStudioSurfacePath(crm, true, { type: 'dashboard', name: '' })).toBeNull();
+    expect(appStudioSurfacePath(crm, true, { type: '', name: 'd' })).toBeNull();
+    expect(appStudioSurfacePath(crm, true, null)).toBeNull();
+  });
+  it('returns null for apps with no owning package or the sys_metadata pseudo-package', () => {
+    expect(appStudioSurfacePath({ name: 'crm' }, true, { type: 'dashboard', name: 'd' })).toBeNull();
+    expect(appStudioSurfacePath({ _packageId: 'sys_metadata' }, true, { type: 'dashboard', name: 'd' })).toBeNull();
   });
 });
