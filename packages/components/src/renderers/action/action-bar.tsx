@@ -128,12 +128,23 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
           );
       // Deduplicate by action name — keep first occurrence
       const seen = new Set<string>();
-      return located.filter(a => {
+      const deduped = located.filter(a => {
         if (!a.name) return true;
         if (seen.has(a.name)) return false;
         seen.add(a.name);
         return true;
       });
+      // Order by explicit `order` (lower = earlier / more prominent) before the
+      // inline/overflow split. Stable: actions that leave `order` unset (treated
+      // as 0) keep their incoming order, so this only moves actions that opt in.
+      // This is what lets an injected Approve/Reject with a negative `order`
+      // float into the primary-button slot instead of the "More" overflow menu
+      // (#2670 / objectui#2339), and lets authors order their own record_header
+      // actions declaratively via `Action.order`.
+      if (deduped.some(a => a.order !== undefined)) {
+        return [...deduped].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      }
+      return deduped;
     }, [schema.actions, schema.location]);
 
     // System actions: always go into the overflow menu, deduped by name,

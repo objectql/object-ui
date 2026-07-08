@@ -167,6 +167,71 @@ describe('ActionBar (action:bar)', () => {
     });
   });
 
+  describe('order (#2670)', () => {
+    const inlineButtonsSelector =
+      ':scope > button:not([aria-haspopup]), :scope > [role="button"]:not([aria-haspopup])';
+
+    it('orders inline actions by `order` (lower = earlier / primary slot)', () => {
+      const { container } = renderComponent({
+        type: 'action:bar',
+        location: 'record_header',
+        maxVisible: 5,
+        actions: [
+          // Registration order puts the app action first; `order` must reorder.
+          { name: 'close_deal', label: 'Close', type: 'script', locations: ['record_header'] },
+          { name: 'print', label: 'Print', type: 'script', locations: ['record_header'], order: 5 },
+          { name: 'approve', label: 'Approve', type: 'script', locations: ['record_header'], order: -10 },
+        ],
+      });
+      const toolbar = container.querySelector('[role="toolbar"]');
+      const inlineText = Array.from(toolbar!.querySelectorAll(inlineButtonsSelector))
+        .map(b => b.textContent)
+        .join('|');
+      // approve (-10) → close_deal (unset = 0) → print (5)
+      expect(inlineText.indexOf('Approve')).toBeLessThan(inlineText.indexOf('Close'));
+      expect(inlineText.indexOf('Close')).toBeLessThan(inlineText.indexOf('Print'));
+    });
+
+    it('promotes a low-`order` action into the primary slot even when registered last', () => {
+      const { container } = renderComponent({
+        type: 'action:bar',
+        location: 'record_header',
+        maxVisible: 1,
+        actions: [
+          { name: 'app_action', label: 'App Action', type: 'script', locations: ['record_header'] },
+          { name: 'approve', label: 'Approve', type: 'script', locations: ['record_header'], order: -100 },
+        ],
+      });
+      const toolbar = container.querySelector('[role="toolbar"]');
+      // 1 inline primary button + 1 overflow menu trigger
+      expect(toolbar!.children.length).toBe(2);
+      const inlineText = Array.from(toolbar!.querySelectorAll(inlineButtonsSelector))
+        .map(b => b.textContent)
+        .join(' ');
+      expect(inlineText).toContain('Approve');
+      expect(inlineText).not.toContain('App Action');
+    });
+
+    it('is stable — actions without `order` keep their registration order', () => {
+      const { container } = renderComponent({
+        type: 'action:bar',
+        location: 'record_header',
+        maxVisible: 5,
+        actions: [
+          { name: 'a', label: 'Alpha', type: 'script', locations: ['record_header'] },
+          { name: 'b', label: 'Bravo', type: 'script', locations: ['record_header'] },
+          { name: 'c', label: 'Charlie', type: 'script', locations: ['record_header'] },
+        ],
+      });
+      const toolbar = container.querySelector('[role="toolbar"]');
+      const inlineText = Array.from(toolbar!.querySelectorAll(inlineButtonsSelector))
+        .map(b => b.textContent)
+        .join('|');
+      expect(inlineText.indexOf('Alpha')).toBeLessThan(inlineText.indexOf('Bravo'));
+      expect(inlineText.indexOf('Bravo')).toBeLessThan(inlineText.indexOf('Charlie'));
+    });
+  });
+
   describe('systemActions', () => {
     it('renders a single overflow menu when only systemActions are provided', () => {
       const { container } = renderComponent({

@@ -1418,13 +1418,21 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           type: 'text',
           multiline: true,
         };
+        // A pending approval is THE decision the approver came to make, so the
+        // decision buttons must outrank app `record_header` actions rather than
+        // being appended after them (and buried in overflow). A strongly
+        // negative `order` floats them into the primary slot; the action:bar
+        // stable-sorts by `order`, so app actions keep their relative order
+        // just after the decision. Approve gets the highlighted `primary`
+        // variant; Reject stays `destructive`. (#2670 / objectui#2339)
         base.push({
           name: 'approve_request',
           type: 'approval',
           target: 'approve_request',
           label: t('approvals.approve', { defaultValue: 'Approve' }),
           icon: 'check',
-          variant: 'default',
+          variant: 'primary',
+          order: -100,
           locations: ['record_header'],
           refreshAfter: true,
           collectParams: [commentParam],
@@ -1437,6 +1445,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           label: t('approvals.reject', { defaultValue: 'Reject' }),
           icon: 'x',
           variant: 'destructive',
+          order: -99,
           locations: ['record_header'],
           refreshAfter: true,
           confirmText: t('approvals.rejectConfirm', {

@@ -154,7 +154,16 @@ export interface ActionSchema {
   
   /** Visual component type (defaults to 'action:button') */
   component?: ActionComponent;
-  
+
+  /**
+   * Sort order within a location group (lower = higher / more prominent;
+   * defaults to 0). The action:bar stable-sorts actions by `order` before the
+   * inline/overflow split, so in `record_header` a lower `order` promotes an
+   * action into the primary-button slot and a higher `order` pushes it toward
+   * the "More" (⋯) overflow menu. Mirrors `Action.order` in `@objectstack/spec`.
+   */
+  order?: number;
+
   // === Behavior ===
   
   /** Action execution type */
