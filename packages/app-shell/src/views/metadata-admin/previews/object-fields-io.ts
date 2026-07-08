@@ -144,17 +144,38 @@ export function toFieldNameLoose(raw: string): string {
 export interface FieldGroup {
   key: string;
   label: string;
+  /** Optional group icon (Lucide name). Spec-defined; preserved on round-trip. */
+  icon?: string;
+  /** Optional group description. Spec-defined; preserved on round-trip. */
+  description?: string;
+  /**
+   * Collapse behaviour — the spec-canonical control the form renderer consumes
+   * (via `@objectstack/spec`'s `deriveFieldGroupLayout`): `'none'` → not
+   * collapsible; `'expanded'` → collapsible, open by default; `'collapsed'` →
+   * collapsible, closed by default.
+   */
+  collapse?: 'none' | 'expanded' | 'collapsed';
+  /** Legacy boolean aliases (still normalized by the shared derivation). */
+  collapsible?: boolean;
+  collapsed?: boolean;
+  defaultExpanded?: boolean;
 }
 
-/** Read `draft.fieldGroups` into a normalized, well-typed list. */
+/**
+ * Read `draft.fieldGroups` into a normalized, well-typed list. Unknown/extra
+ * authored props (icon, description, collapse, …) are PRESERVED so a
+ * read-modify-write round-trip (rename/reorder/inspector edit) never silently
+ * drops a property the source set — only `key`/`label` are coerced to strings.
+ */
 export function readGroups(fieldGroupsInput: unknown): FieldGroup[] {
   if (!Array.isArray(fieldGroupsInput)) return [];
   return fieldGroupsInput
-    .filter((g): g is { key?: unknown; label?: unknown } => !!g && typeof g === 'object')
+    .filter((g): g is Record<string, unknown> => !!g && typeof g === 'object')
     .map((g) => ({
+      ...g,
       key: typeof g.key === 'string' ? g.key : '',
       label: typeof g.label === 'string' ? g.label : '',
-    }))
+    }) as FieldGroup)
     .filter((g) => g.key);
 }
 
@@ -184,6 +205,27 @@ export function renameGroup(groups: FieldGroup[], key: string, label: string): F
   const clean = label.trim();
   if (!clean) return groups;
   return groups.map((g) => (g.key === key ? { ...g, label: clean } : g));
+}
+
+/**
+ * Merge a partial patch onto one group (by key). A patch value of `undefined`
+ * REMOVES that property (so e.g. resetting collapse to its `'none'` default
+ * leaves no stale key behind) rather than persisting an explicit `undefined`.
+ */
+export function updateGroup(
+  groups: FieldGroup[],
+  key: string,
+  patch: Partial<FieldGroup>,
+): FieldGroup[] {
+  return groups.map((g) => {
+    if (g.key !== key) return g;
+    const next = { ...g } as Record<string, unknown>;
+    for (const [k, v] of Object.entries(patch)) {
+      if (v === undefined) delete next[k];
+      else next[k] = v;
+    }
+    return next as unknown as FieldGroup;
+  });
 }
 
 /** Remove a group declaration (callers should also clear members' `group`). */

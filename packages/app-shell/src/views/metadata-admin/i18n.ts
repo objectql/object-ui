@@ -1132,6 +1132,16 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.form.noPublishedHint':
     '“Preview” renders the published runtime form, but this object isn’t published yet. Confirm the draft in “Layout”, then click “Publish” in the top bar to preview.',
   'engine.studio.data.fieldProps': 'Field properties',
+  'engine.studio.data.groupProps': 'Group properties',
+  'engine.studio.designer.group.kind': 'Group',
+  'engine.studio.designer.group.settings': 'Group settings',
+  'engine.studio.designer.group.nameLabel': 'Group name',
+  'engine.studio.designer.group.missing': 'This group no longer exists.',
+  'engine.studio.designer.group.collapseLabel': 'Collapse behavior',
+  'engine.studio.designer.group.collapseNone': 'Not collapsible',
+  'engine.studio.designer.group.collapseExpanded': 'Collapsible · expanded by default',
+  'engine.studio.designer.group.collapseCollapsed': 'Collapsible · collapsed by default',
+  'engine.studio.designer.group.collapseHint': 'Controls how this group appears in the actual form (see Preview).',
   // Automations pillar
   'engine.studio.auto.nodeStart': 'Start',
   'engine.studio.auto.nodeEnd': 'End',
@@ -2167,6 +2177,16 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.form.noPublishedHint':
     '「预览」渲染已发布的运行态表单,而这个对象还未发布。在「布局」里确认草稿,点顶栏「发布」后即可预览。',
   'engine.studio.data.fieldProps': '字段属性',
+  'engine.studio.data.groupProps': '分组属性',
+  'engine.studio.designer.group.kind': '分组',
+  'engine.studio.designer.group.settings': '分组设置',
+  'engine.studio.designer.group.nameLabel': '分组名称',
+  'engine.studio.designer.group.missing': '该分组已不存在。',
+  'engine.studio.designer.group.collapseLabel': '折叠方式',
+  'engine.studio.designer.group.collapseNone': '不可折叠',
+  'engine.studio.designer.group.collapseExpanded': '可折叠 · 默认展开',
+  'engine.studio.designer.group.collapseCollapsed': '可折叠 · 默认折叠',
+  'engine.studio.designer.group.collapseHint': '控制该分组在真实表单（预览）中的折叠方式。',
   // Automations pillar
   'engine.studio.auto.nodeStart': '开始',
   'engine.studio.auto.nodeEnd': '结束',

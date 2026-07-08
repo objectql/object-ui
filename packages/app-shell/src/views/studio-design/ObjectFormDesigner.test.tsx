@@ -5,8 +5,8 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
 
@@ -94,5 +94,39 @@ describe('ObjectFormDesigner — responsive field grid (parity with the runtime 
     // A normal field occupies a single cell (no full-row span).
     const plainCard = screen.getByText('Field 1').closest('.cursor-grab') as HTMLElement;
     expect(plainCard.className).not.toContain('col-span-full');
+  });
+});
+
+describe('ObjectFormDesigner — group selection', () => {
+  const draft = {
+    fields: [{ name: 'email', type: 'text', label: 'Email', group: 'contact' }],
+    fieldGroups: [{ key: 'contact', label: 'Contact' }],
+  };
+
+  it('exposes a group-settings affordance that selects the group by key', () => {
+    const onSelectGroup = vi.fn();
+    render(
+      <ObjectFormDesigner
+        draft={draft}
+        systemFieldNames={new Set()}
+        onChange={noop}
+        onSelectField={noop}
+        onSelectGroup={onSelectGroup}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText('Group settings'));
+    expect(onSelectGroup).toHaveBeenCalledWith('contact');
+  });
+
+  it('hides the group-settings affordance when no handler is provided', () => {
+    render(
+      <ObjectFormDesigner
+        draft={draft}
+        systemFieldNames={new Set()}
+        onChange={noop}
+        onSelectField={noop}
+      />,
+    );
+    expect(screen.queryByLabelText('Group settings')).toBeNull();
   });
 });

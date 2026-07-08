@@ -10,6 +10,7 @@ import {
   genGroupKey,
   addGroup,
   renameGroup,
+  updateGroup,
   removeGroup,
   moveGroup,
   clearFieldGroup,
@@ -38,6 +39,18 @@ describe('readGroups', () => {
     ).toEqual([
       { key: 'a', label: 'Alpha' },
       { key: 'b', label: '' },
+    ]);
+  });
+
+  it('preserves extra authored props (icon/description/collapse) for round-trips', () => {
+    // A rename/reorder reads → mutates → writes; if readGroups dropped these,
+    // an author's `collapse: 'collapsed'` would vanish on the next edit.
+    expect(
+      readGroups([
+        { key: 'billing', label: 'Billing', icon: 'wallet', description: 'x', collapse: 'collapsed' },
+      ]),
+    ).toEqual([
+      { key: 'billing', label: 'Billing', icon: 'wallet', description: 'x', collapse: 'collapsed' },
     ]);
   });
 });
@@ -99,6 +112,32 @@ describe('renameGroup', () => {
 
   it('ignores blank labels (no-op)', () => {
     expect(renameGroup(groups, 'a', '   ')).toBe(groups);
+  });
+});
+
+/* ─────────────── updateGroup ─────────────── */
+
+describe('updateGroup', () => {
+  const groups = [
+    { key: 'a', label: 'A' },
+    { key: 'b', label: 'B', collapse: 'collapsed' as const },
+  ];
+
+  it('merges a patch onto the matching group only', () => {
+    expect(updateGroup(groups, 'a', { collapse: 'expanded', icon: 'user' })).toEqual([
+      { key: 'a', label: 'A', collapse: 'expanded', icon: 'user' },
+      { key: 'b', label: 'B', collapse: 'collapsed' },
+    ]);
+  });
+
+  it('removes a property when the patch value is undefined (no stale key)', () => {
+    const [, b] = updateGroup(groups, 'b', { collapse: undefined });
+    expect(b).toEqual({ key: 'b', label: 'B' });
+    expect('collapse' in b).toBe(false);
+  });
+
+  it('is a no-op for an unknown key', () => {
+    expect(updateGroup(groups, 'zzz', { label: 'X' })).toEqual(groups);
   });
 });
 

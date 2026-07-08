@@ -97,6 +97,7 @@ import {
   type InstalledPackage,
 } from '../metadata-admin/PackagesPage';
 import { ObjectFormDesigner } from './ObjectFormDesigner';
+import { ObjectGroupInspector } from './ObjectGroupInspector';
 import { ObjectValidationsPanel } from './ObjectValidationsPanel';
 import { ObjectSettingsPanel } from './ObjectSettingsPanel';
 import { ObjectApiPanel } from './ObjectApiPanel';
@@ -2271,6 +2272,8 @@ function DataPillar({
                   onChange={onPatch}
                   selectedField={fieldSel?.kind === 'field' ? fieldSel.id : null}
                   onSelectField={(name) => setFieldSel({ kind: 'field', id: name })}
+                  selectedGroup={fieldSel?.kind === 'group' ? fieldSel.id : null}
+                  onSelectGroup={(key) => setFieldSel({ kind: 'group', id: key })}
                   onAddField={addField}
                   readOnly={readOnly}
                 />
@@ -2344,12 +2347,16 @@ function DataPillar({
           )}
         </main>
 
-        {/* field inspector — full type list + per-type config (reuses ObjectFieldInspector) */}
-        {current && fieldSel && inspector && (
+        {/* Right rail — property inspector. Fields reuse the shared
+          * ObjectFieldInspector; a selected group opens ObjectGroupInspector
+          * (label + collapse behaviour). */}
+        {current && fieldSel && (fieldSel.kind === 'group' || inspector) && (
           <aside className="flex w-80 shrink-0 flex-col border-l">
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span className="text-[13px] font-medium">{t('engine.studio.data.fieldProps', locale)}</span>
+              <span className="text-[13px] font-medium">
+                {t(fieldSel.kind === 'group' ? 'engine.studio.data.groupProps' : 'engine.studio.data.fieldProps', locale)}
+              </span>
               <button
                 type="button"
                 onClick={() => setFieldSel(null)}
@@ -2360,17 +2367,29 @@ function DataPillar({
               </button>
             </header>
             <div className="min-h-0 flex-1 overflow-auto p-3">
-              {React.createElement(inspector, {
-                type: 'object',
-                name: current.name,
-                draft: objDraft,
-                selection: fieldSel,
-                onPatch,
-                onClearSelection: () => setFieldSel(null),
-                onSelectionChange: setFieldSel,
-                readOnly,
-                locale,
-              })}
+              {fieldSel.kind === 'group' ? (
+                <ObjectGroupInspector
+                  draft={objDraft}
+                  groupKey={fieldSel.id}
+                  onPatch={onPatch}
+                  onClose={() => setFieldSel(null)}
+                  readOnly={readOnly}
+                  locale={locale}
+                />
+              ) : (
+                inspector &&
+                React.createElement(inspector, {
+                  type: 'object',
+                  name: current.name,
+                  draft: objDraft,
+                  selection: fieldSel,
+                  onPatch,
+                  onClearSelection: () => setFieldSel(null),
+                  onSelectionChange: setFieldSel,
+                  readOnly,
+                  locale,
+                })
+              )}
             </div>
           </aside>
         )}

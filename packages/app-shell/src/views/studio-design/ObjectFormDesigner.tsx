@@ -38,7 +38,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Plus, Trash2, ChevronUp, ChevronDown, Rows3 } from 'lucide-react';
+import { GripVertical, Plus, Trash2, ChevronUp, ChevronDown, Rows3, Settings2 } from 'lucide-react';
 import { inferColumns, containerGridColsFor, isWideFieldType } from '@object-ui/plugin-form';
 import {
   readFields,
@@ -73,6 +73,10 @@ export interface ObjectFormDesignerProps {
   onSelectField: (name: string) => void;
   /** Append a new field (reuses the pillar's add-field). Omit to hide the button — e.g. a read-only package. */
   onAddField?: () => void;
+  /** Currently selected group key (its section is highlighted). */
+  selectedGroup?: string | null;
+  /** Select a group (section) → opens the group property inspector. Omit to hide the affordance. */
+  onSelectGroup?: (key: string) => void;
   /** Courtesy gate: layout stays viewable, but add/rename/reorder/delete are off. */
   readOnly?: boolean;
 }
@@ -186,6 +190,8 @@ function Section({
   entryByName,
   selectedField,
   onSelectField,
+  selected = false,
+  onSelect,
   onRename,
   onDelete,
   onMove,
@@ -201,6 +207,8 @@ function Section({
   entryByName: Map<string, FieldEntry>;
   selectedField?: string | null;
   onSelectField: (name: string) => void;
+  selected?: boolean;
+  onSelect?: () => void;
   onRename: (label: string) => void;
   onDelete: () => void;
   onMove: (dir: -1 | 1) => void;
@@ -211,8 +219,13 @@ function Section({
   // `@container` scopes the field grid's container queries to THIS section's
   // width, so a wide screen spreads fields to the same column count the real
   // form uses — while a narrow panel collapses to one column.
+  const stateCls = isOver
+    ? 'border-primary bg-primary/5'
+    : selected
+      ? 'border-primary/50 bg-primary/5 ring-2 ring-primary'
+      : 'bg-muted/20';
   return (
-    <div className={'@container rounded-lg border ' + (isOver ? 'border-primary bg-primary/5' : 'bg-muted/20')}>
+    <div className={'@container rounded-lg border ' + stateCls}>
       <div className="flex items-center gap-1 border-b px-3 py-1.5">
         {isDeclared && !readOnly ? (
           <input
@@ -225,6 +238,20 @@ function Section({
           />
         ) : (
           <span className="flex-1 px-1 text-[13px] font-medium text-muted-foreground">{title}</span>
+        )}
+        {isDeclared && onSelect && (
+          <button
+            type="button"
+            onClick={onSelect}
+            aria-label={t('engine.studio.designer.group.settings', locale)}
+            title={t('engine.studio.designer.group.settings', locale)}
+            className={
+              'rounded p-0.5 hover:bg-muted ' +
+              (selected ? 'text-primary' : 'text-muted-foreground hover:text-foreground')
+            }
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+          </button>
         )}
         {isDeclared && !readOnly && (
           <>
@@ -298,6 +325,8 @@ export function ObjectFormDesigner({
   selectedField,
   onSelectField,
   onAddField,
+  selectedGroup,
+  onSelectGroup,
   readOnly = false,
 }: ObjectFormDesignerProps): React.ReactElement {
   const locale = useMetadataLocale();
@@ -506,6 +535,8 @@ export function ObjectFormDesigner({
                 entryByName={entryByName}
                 selectedField={selectedField}
                 onSelectField={onSelectField}
+                selected={!isUngrouped && selectedGroup === unCid(c)}
+                onSelect={!isUngrouped && onSelectGroup ? () => onSelectGroup(unCid(c)) : undefined}
                 onRename={(label) => renameSection(unCid(c), label)}
                 onDelete={() => deleteSection(unCid(c))}
                 onMove={(dir) => moveSection(unCid(c), dir)}
