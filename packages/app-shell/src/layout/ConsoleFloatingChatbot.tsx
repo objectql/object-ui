@@ -47,7 +47,7 @@ import {
   writeConversationMessagesCache,
   type HydratedUIMessage,
 } from '../hooks';
-import { useAssistant, requestAssistantReview, emitCanvasInvalidate, type AssistantEditorContext } from '../assistant/assistantBus';
+import { useAssistant, requestAssistantReview, emitCanvasInvalidate, emitMetadataRefresh, type AssistantEditorContext } from '../assistant/assistantBus';
 import { fetchPendingDraftCount } from '../preview/draftStatus';
 import { getRuntimeConfig } from '../runtime-config';
 import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi';
@@ -93,9 +93,16 @@ function buildChatLocale(
   const isZh = (language ?? '').toLowerCase().startsWith('zh');
   const agentLabel = localizeAgentLabel(isZh, agentName, fallbackAgentLabel);
   const sampleObjects = objects.slice(0, 2).map((o) => o.label || o.name);
+  // #772: the BUILD persona used to introduce itself with the ask persona's
+  // "query and analyze your data" copy and metadata-Q&A starter chips — the
+  // build entry point masqueraded as a data-question box. Give it its own
+  // pitch and build-flavoured starters.
+  const isBuild = agentRouteName(agentName ?? '') === 'build';
 
   if (isZh) {
-    const suggestions = [
+    const suggestions = isBuild
+      ? ['帮我搭一个客户跟进 CRM', '搭一个项目与任务管理应用', '给当前应用加一个仪表盘']
+      : [
       sampleObjects[0] ? `查询最近创建的${sampleObjects[0]}` : '帮我查询最近的数据',
       sampleObjects[0] ? `统计${sampleObjects[0]}的总数量` : '统计各对象的记录数量',
       sampleObjects[1]
@@ -106,7 +113,9 @@ function buildChatLocale(
       agentLabel,
       labels: {
         emptyTitle: `你好，我是${agentLabel}`,
-        emptyDescription: `随时帮你查询和分析「${appLabel}」中的数据。试试下面的问题，或直接输入你的需求。`,
+        emptyDescription: isBuild
+          ? '告诉我你想管理什么，我会为你搭出完整应用——对象、视图、仪表盘和示例数据一次到位；也可以直接说要改哪里。'
+          : `随时帮你查询和分析「${appLabel}」中的数据。试试下面的问题，或直接输入你的需求。`,
         clear: '清空对话',
         sendHint: '发送',
         agentActivity: '执行过程',
@@ -176,7 +185,9 @@ function buildChatLocale(
     };
   }
 
-  const suggestions = [
+  const suggestions = isBuild
+    ? ['Build me a customer follow-up CRM', 'Build a project & task tracker', 'Add a dashboard to this app']
+    : [
     sampleObjects[0] ? `Show the latest ${sampleObjects[0]}` : 'Show my most recent records',
     sampleObjects[0] ? `How many ${sampleObjects[0]} are there?` : 'Count records by status',
     sampleObjects[1]
@@ -187,7 +198,9 @@ function buildChatLocale(
     agentLabel,
     labels: {
       emptyTitle: `Hi, I'm ${agentLabel}`,
-      emptyDescription: `I can help you query and analyze your ${appLabel} data. Try a prompt below, or just type your question.`,
+      emptyDescription: isBuild
+        ? "Tell me what you want to manage and I'll build the app — objects, views, a dashboard and sample data in one go. Or just say what to change."
+        : `I can help you query and analyze your ${appLabel} data. Try a prompt below, or just type your question.`,
       clear: 'Clear',
       sendHint: 'to send',
       agentActivity: 'Agent activity',
@@ -331,6 +344,43 @@ function buildEditorSuggestions(
     : [`Add fields to ${subject}`, `Suggest validations for ${subject}`, 'Add a status picklist field'];
 }
 
+/**
+ * The language the CONVERSATION is being held in, from its latest user
+ * message — `undefined` when it can't tell (no user turn yet / non-CJK).
+ *
+ * Why this exists (#772): the chat surface's locale used to follow only the
+ * console UI language, so a user chatting in Chinese under an English UI got
+ * English canned messages ("Looks good — build it as proposed."), English
+ * progress labels and English starter chips spliced into their Chinese
+ * thread. The conversation's own language must win; the UI locale is the
+ * fallback for a thread that hasn't started.
+ */
+function detectConversationLanguage(
+  msgs: ReadonlyArray<{ role?: string; content?: unknown; parts?: unknown }> | undefined,
+): string | undefined {
+  if (!Array.isArray(msgs)) return undefined;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i];
+    if (!m || m.role !== 'user') continue;
+    let text = '';
+    if (typeof m.content === 'string') text = m.content;
+    const parts = (m as { parts?: unknown }).parts;
+    if (!text && Array.isArray(parts)) {
+      text = parts
+        .map((p) =>
+          p && typeof p === 'object' && (p as { type?: string }).type === 'text'
+            ? String((p as { text?: unknown }).text ?? '')
+            : '',
+        )
+        .join(' ');
+    }
+    if (!text.trim()) continue;
+    // CJK unified ideographs → the thread is in Chinese.
+    return /[一-鿿]/.test(text) ? 'zh-CN' : undefined;
+  }
+  return undefined;
+}
+
 /** Segments after `:appName` that are route prefixes, not object names. */
 const NON_OBJECT_ROUTE_SEGMENTS = new Set([
   'view', 'record', 'page', 'dashboard', 'design', 'report', 'metadata',
@@ -471,17 +521,8 @@ function ChatbotInner({
     return found?.label ?? activeAgent ?? appLabel;
   }, [agents, activeAgent, appLabel]);
 
-  // Localized labels, placeholder, title and contextual starter prompts.
-  const locale = React.useMemo(
-    () => buildChatLocale(language, appLabel, activeAgent, activeAgentLabel, objects),
-    [language, appLabel, activeAgent, activeAgentLabel, objects],
-  );
-
-  // When a designer is open, prefer starter prompts about that item.
-  const editorSuggestions = React.useMemo(
-    () => buildEditorSuggestions(editor, language),
-    [editor, language],
-  );
+  // (locale is derived below, after the chat hook — it follows the
+  // CONVERSATION language when one is established, not just the UI locale.)
 
   // ADR-0013 D2: reconcile a stream-transport failure instead of blindly
   // retrying. Shared across chat surfaces — see useReconcileOnError.
@@ -548,6 +589,31 @@ function ChatbotInner({
       sanitizeChatMessagesForCache(messages as ChatMessage[]),
     );
   }, [conversationId, messages]);
+
+  // #772 — the chat surface speaks the CONVERSATION's language. A Chinese
+  // thread under an English console used to get English canned messages
+  // ("Looks good — build it as proposed."), progress labels and starter chips
+  // spliced into it. The conversation's own language wins; the UI locale is
+  // the fallback until a thread establishes one.
+  const effectiveLanguage = React.useMemo(
+    () =>
+      detectConversationLanguage(messages as ChatMessage[]) ??
+      detectConversationLanguage(hydratedHistory) ??
+      language,
+    [messages, hydratedHistory, language],
+  );
+
+  // Localized labels, placeholder, title and contextual starter prompts.
+  const locale = React.useMemo(
+    () => buildChatLocale(effectiveLanguage, appLabel, activeAgent, activeAgentLabel, objects),
+    [effectiveLanguage, appLabel, activeAgent, activeAgentLabel, objects],
+  );
+
+  // When a designer is open, prefer starter prompts about that item.
+  const editorSuggestions = React.useMemo(
+    () => buildEditorSuggestions(editor, effectiveLanguage),
+    [editor, effectiveLanguage],
+  );
 
   // HITL bridge — turns the pending-approval tool result envelope from the
   // framework's action-tools.ts into inline approve/reject buttons that talk
@@ -750,8 +816,24 @@ function ChatbotInner({
             if (!res.ok || payload?.success === false) {
               throw new Error(payload?.error?.message || `HTTP ${res.status}`);
             }
+            // #772: the failure toast must say WHAT failed — the old
+            // `throw new Error(String(failed))` surfaced a bare count
+            // ("Publish failed — 2"), which the user cannot act on. Prefer the
+            // per-item failure detail the publish endpoint reports.
             const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
-            if (failed) throw new Error(String(failed));
+            if (failed) {
+              const failures: Array<{ type?: string; name?: string; error?: string }> =
+                payload?.data?.failed ?? payload?.failed ?? [];
+              const first = failures.find((f) => f?.error) ?? failures[0];
+              const detail = first
+                ? `${[first.type, first.name].filter(Boolean).join(' ')}${first.error ? `: ${first.error}` : ''}`
+                : payload?.error?.message;
+              throw new Error(
+                detail
+                  ? `${detail}${failed > 1 ? ` (+${failed - 1} more)` : ''}`
+                  : `${failed} item(s) failed to publish`,
+              );
+            }
             // The protocol materializes published `seed` rows and reports under
             // `seedApplied` — a data problem never fails the publish, so it
             // must be surfaced HERE or the user lands on an app with silently
@@ -768,6 +850,12 @@ function ChatbotInner({
             } else {
               toast.success(locale.publishOk);
             }
+            // #771 — the launcher/app-switcher must learn about the newly
+            // published app WITHOUT a page reload: pulse the metadata bus so
+            // MetadataProvider refetches the 'app' type (AiChatPage's publish
+            // path already does this; the floating panel was the gap that made
+            // "open it from the launcher" a lie until F5).
+            emitMetadataRefresh();
             // Publish & Open: land the user ON the thing they just built rather
             // than leaving them on an empty home with only a toast. Prefer the
             // published App (a full navigable surface); the bare-object case has
@@ -853,10 +941,16 @@ export default function ConsoleFloatingChatbot({
   const [activeAgent, setActiveAgent] = React.useState<string | undefined>(undefined);
   React.useEffect(() => {
     if (!activeAgent && agents.length > 0) {
-      // Mirror the backend's resolution: app.defaultAgent → data_chat →
-      // first agent. This binds the right copilot per app instead of
-      // landing on whichever agent happens to be first in the catalog.
-      const preferred = defaultAgentProp ?? envDefaultAgent;
+      // Resolution: app.defaultAgent → env default → BUILD (when offered) →
+      // catalog fallback. #771: the catalog only serves `build` to users who
+      // can build, and the build surface is the one that RESUMES its
+      // conversation — landing them on the ask tab hid their in-progress
+      // build thread behind a tab switch ("my build chat disappeared"), and
+      // buried the primary capability. Users bound to ask-only see no change.
+      const preferred =
+        defaultAgentProp ??
+        envDefaultAgent ??
+        (agents.some((a) => agentRouteName(a.name) === 'build') ? 'build' : undefined);
       const resolved = resolveDefaultAgentName(agents, preferred);
       if (resolved) setActiveAgent(resolved);
     }

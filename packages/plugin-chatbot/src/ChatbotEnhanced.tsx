@@ -971,6 +971,17 @@ function getToolStateRank(state: ToolSummaryState): number {
   }
 }
 
+/**
+ * The conversation store persists tool-call-only assistant turns with an
+ * internal placeholder as their text ("(called todo_write, propose_blueprint)"
+ * / "(tool call)" / "(no content)"). On re-hydration that placeholder used to
+ * render as a normal prose bubble — internal jargon spliced into the thread
+ * (#772). Detect it so the renderer can collapse it to a quiet activity note.
+ */
+function isToolCallPlaceholder(content: string): boolean {
+  return /^\((?:called [^)]*|tool call|no content)\)$/.test(content.trim());
+}
+
 function summarizeTools(tools: ChatToolInvocation[]): ToolSummaryGroup[] {
   const groups = new Map<string, ToolSummaryGroup>();
 
@@ -2344,7 +2355,20 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       ) : isEmptyAssistantStreaming ? (
                         <ThinkingDots />
                       ) : message.content ? (
-                        <MessageResponse>{message.content}</MessageResponse>
+                        isToolCallPlaceholder(message.content) ? (
+                          // #772: a re-hydrated tool-call-only turn is persisted
+                          // with an internal placeholder ("(called todo_write,
+                          // propose_blueprint)"); render a quiet localized
+                          // activity note instead of leaking it as prose.
+                          <span
+                            className="text-xs italic text-muted-foreground/70"
+                            title={message.content}
+                          >
+                            {L.agentActivity}
+                          </span>
+                        ) : (
+                          <MessageResponse>{message.content}</MessageResponse>
+                        )
                       ) : null}
                       {message.streaming && !isEmptyAssistantStreaming ? (
                         <span
