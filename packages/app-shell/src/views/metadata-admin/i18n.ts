@@ -1028,6 +1028,24 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.settings.removeField': 'Remove {field}',
   'engine.studio.settings.addFieldOption': '+ Add field…',
   'engine.studio.settings.undeclared': '(not declared — surfaces pick heuristically)',
+  'engine.studio.settings.sharing': 'Record sharing (OWD)',
+  'engine.studio.settings.sharingHint': 'Baseline record visibility applied before roles and sharing rules (ADR-0056)',
+  'engine.studio.settings.sharingModel': 'Sharing model (sharingModel) — who can see and edit records another user owns',
+  'engine.studio.settings.sharingUnset': '(not set)',
+  'engine.studio.settings.sharingPrivate': 'Private — owner only',
+  'engine.studio.settings.sharingPublicRead': 'Public read — everyone reads, only the owner writes',
+  'engine.studio.settings.sharingPublicReadWrite': 'Public read/write — everyone reads and writes',
+  'engine.studio.settings.sharingControlledByParent': 'Controlled by parent — inherited from the master record',
+  'engine.studio.settings.sharingDescUnset':
+    'Not set — records are fully public: every user in the tenant can read AND edit all records. Choose Private to isolate records by owner.',
+  'engine.studio.settings.sharingDescPrivate':
+    'Only the owner (plus users granted via roles or sharing rules) can access a record. Read / Edit permissions then apply to owned records only.',
+  'engine.studio.settings.sharingDescPublicRead':
+    'Every user in the tenant can read all records; only the owner can edit.',
+  'engine.studio.settings.sharingDescPublicReadWrite':
+    'Every user in the tenant can read and edit all records.',
+  'engine.studio.settings.sharingDescControlledByParent':
+    'Record visibility is inherited from the parent (master) record through its master-detail relationship.',
   'engine.studio.pkg.writable': 'Writable',
   'engine.studio.pkg.heading': 'Packages (apps)',
   'engine.studio.pkg.none': 'No app packages yet',
@@ -2063,6 +2081,24 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.settings.removeField': '移除 {field}',
   'engine.studio.settings.addFieldOption': '+ 添加字段…',
   'engine.studio.settings.undeclared': '(未声明 —— 各处按启发式自动挑选)',
+  'engine.studio.settings.sharing': '记录共享模型(OWD)',
+  'engine.studio.settings.sharingHint': '在角色与共享规则之前生效的记录可见性基线(ADR-0056)',
+  'engine.studio.settings.sharingModel': '共享模型(sharingModel)—— 谁能查看和编辑他人拥有的记录',
+  'engine.studio.settings.sharingUnset': '(未设置)',
+  'engine.studio.settings.sharingPrivate': 'Private 私有 —— 仅记录所有者',
+  'engine.studio.settings.sharingPublicRead': 'Public read 公共只读 —— 所有人可读,仅所有者可写',
+  'engine.studio.settings.sharingPublicReadWrite': 'Public read/write 公共读写 —— 所有人可读可写',
+  'engine.studio.settings.sharingControlledByParent': 'Controlled by parent 受父级控制 —— 继承自主记录',
+  'engine.studio.settings.sharingDescUnset':
+    '未设置 —— 记录完全公开:租户内每个用户都能读取并编辑所有记录。选择 Private 可按所有者隔离记录。',
+  'engine.studio.settings.sharingDescPrivate':
+    '只有所有者(以及经角色或共享规则授予的用户)能访问记录。此时读取 / 编辑权限仅作用于自己拥有的记录。',
+  'engine.studio.settings.sharingDescPublicRead':
+    '租户内每个用户都能读取所有记录;仅所有者可编辑。',
+  'engine.studio.settings.sharingDescPublicReadWrite':
+    '租户内每个用户都能读取并编辑所有记录。',
+  'engine.studio.settings.sharingDescControlledByParent':
+    '记录可见性通过主从(master-detail)关系继承自父级(主)记录。',
   'engine.studio.pkg.writable': '可写',
   'engine.studio.pkg.heading': '软件包(应用)',
   'engine.studio.pkg.none': '暂无应用软件包',
