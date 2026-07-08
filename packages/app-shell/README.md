@@ -156,10 +156,15 @@ trip is required to edit a draft.
 
 Inside a running app, workspace admins get a "Design in Studio" entry in the
 top bar (`AppHeader`) that deep-links to the app's owning package on the Studio
-design surface (`/studio/:packageId/data`). It is the reverse of the builder's
-"Open app" bridge (ADR-0080): the entry only renders for admins and only when
-the app has an owning package (`_packageId`), and package writability stays a
-server-side concern — a read-only package opens in Studio as browse-only.
+design surface. When the current route names a specific interface — a
+dashboard, page, or report — it opens straight to that surface in the Interfaces
+pillar (`/studio/:packageId/interfaces?surface=<type>:<name>`); on object routes
+and the app root it opens the package's Data tab (`/studio/:packageId/data`).
+The route-type → surface-type decision lives in `appStudioRoutePath`. It is the
+reverse of the builder's "Open app" bridge (ADR-0080): the entry only renders
+for admins and only when the app has an owning package (`_packageId`), and
+package writability stays a server-side concern — a read-only package opens in
+Studio as browse-only.
 
 ### Studio package scope
 

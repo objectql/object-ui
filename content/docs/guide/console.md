@@ -29,7 +29,7 @@ The console opens at **http://localhost:5175** with MSW (Mock Service Worker) pr
 | **Branding** | Per-app colors, favicons, and logos via `AppShell` branding. |
 | **Command Palette** | `⌘+K` opens a searchable command bar for quick navigation. |
 | **Studio Package Scope** | Studio home, metadata counts, quick-create links, and diagnostics follow the selected package. |
-| **Design in Studio** | Workspace admins get a top-bar entry inside a running app that opens its owning package on the Studio design surface. On a dashboard route it deep-links straight to that dashboard's design page in the Interfaces pillar (`/studio/:packageId/interfaces?surface=dashboard:<name>`); elsewhere it opens the package's Data tab (`/studio/:packageId/data`). Dashboards are authored here — there is no in-page edit panel. |
+| **Design in Studio** | Workspace admins get a top-bar entry inside a running app that opens its owning package on the Studio design surface. On an interface route — a dashboard, page, or report — it deep-links straight to that surface's design page in the Interfaces pillar (`/studio/:packageId/interfaces?surface=<type>:<name>`, e.g. `surface=page:showcase_crm_workbench`); elsewhere (objects, the app root) it opens the package's Data tab (`/studio/:packageId/data`). These interfaces are authored in Studio — there is no in-page edit panel. |
 | **App Creation Wizard** | 4-step wizard (Basic Info → Objects → Navigation → Branding) to create or edit apps. |
 | **Error Boundary** | Graceful error handling with a retry button. |
 

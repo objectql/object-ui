@@ -80,6 +80,38 @@ export function appStudioSurfacePath(
   return `/studio/${encodeURIComponent(packageId)}/interfaces?surface=${value}`;
 }
 
+/**
+ * Route types that correspond to a designable **interface** surface in Studio's
+ * Interfaces pillar. The console route type (`/apps/:pkg/<type>/<name>`) doubles
+ * as the Studio surface type — the keywords match `resolveSurface` in
+ * `StudioDesignSurface` (`dashboard` / `page` / `report`). Object/view routes
+ * are deliberately excluded: they belong to the Data pillar, not Interfaces.
+ */
+const INTERFACE_SURFACE_ROUTE_TYPES = new Set(['dashboard', 'page', 'report']);
+
+/**
+ * App → Studio bridge target for a running-app route (ADR-0080). When the route
+ * names a specific interface (a dashboard, page, or report — see
+ * {@link INTERFACE_SURFACE_ROUTE_TYPES}), deep-link straight to THAT surface in
+ * the Interfaces pillar via {@link appStudioSurfacePath}; otherwise fall back to
+ * the package's generic Data tab via {@link appStudioDesignPath}. Returns null
+ * when the bridge should not render (non-admin / no owning package). Centralizes
+ * the route-type → surface-type mapping so `AppHeader` stays declarative and the
+ * decision is unit-tested here.
+ */
+export function appStudioRoutePath(
+  app: AppLike | null | undefined,
+  isWorkspaceAdmin: boolean,
+  route: { type?: string | null; name?: string | null } | null | undefined,
+): string | null {
+  const type = route?.type;
+  const name = route?.name;
+  if (type && name && INTERFACE_SURFACE_ROUTE_TYPES.has(type)) {
+    return appStudioSurfacePath(app, isWorkspaceAdmin, { type, name });
+  }
+  return appStudioDesignPath(app, isWorkspaceAdmin);
+}
+
 /** Shared guard: the owning package id usable by the Studio design surface. */
 function studioPackageId(app: AppLike | null | undefined): string | null {
   const packageId = app?._packageId;

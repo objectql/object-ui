@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath } from '../appRoute';
+import { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath, appStudioRoutePath } from '../appRoute';
 
 /**
  * ADR-0048 (option A) — package-id route segment.
@@ -93,5 +93,54 @@ describe('appStudioSurfacePath', () => {
   it('returns null for apps with no owning package or the sys_metadata pseudo-package', () => {
     expect(appStudioSurfacePath({ name: 'crm' }, true, { type: 'dashboard', name: 'd' })).toBeNull();
     expect(appStudioSurfacePath({ _packageId: 'sys_metadata' }, true, { type: 'dashboard', name: 'd' })).toBeNull();
+  });
+});
+
+/**
+ * App → Studio route bridge — maps a running-app route to its Studio target:
+ * an interface surface (dashboard / page / report) deep-links into the
+ * Interfaces pillar; everything else opens the package's Data tab.
+ */
+describe('appStudioRoutePath', () => {
+  const crm = { name: 'crm', _packageId: 'com.acme.crm' };
+
+  it('deep-links a dashboard route to its Interfaces surface', () => {
+    expect(appStudioRoutePath(crm, true, { type: 'dashboard', name: 'executive_dashboard' })).toBe(
+      '/studio/com.acme.crm/interfaces?surface=dashboard:executive_dashboard',
+    );
+  });
+
+  it('deep-links a page route to its Interfaces surface (the fix — was the Data tab)', () => {
+    expect(appStudioRoutePath(crm, true, { type: 'page', name: 'showcase_crm_workbench' })).toBe(
+      '/studio/com.acme.crm/interfaces?surface=page:showcase_crm_workbench',
+    );
+  });
+
+  it('deep-links a report route to its Interfaces surface', () => {
+    expect(appStudioRoutePath(crm, true, { type: 'report', name: 'pipeline_report' })).toBe(
+      '/studio/com.acme.crm/interfaces?surface=report:pipeline_report',
+    );
+  });
+
+  it('falls back to the Data tab for object routes and the plain app root', () => {
+    // An object route (routeType is the object name) is a Data-pillar surface.
+    expect(appStudioRoutePath(crm, true, { type: 'account', name: undefined })).toBe('/studio/com.acme.crm/data');
+    // No route type at all (bare /apps/:pkg) → Data tab.
+    expect(appStudioRoutePath(crm, true, { type: undefined, name: undefined })).toBe('/studio/com.acme.crm/data');
+  });
+
+  it('falls back to the Data tab for an interface list route (no surface name)', () => {
+    // e.g. /apps/:pkg/page with no specific page selected.
+    expect(appStudioRoutePath(crm, true, { type: 'page', name: undefined })).toBe('/studio/com.acme.crm/data');
+  });
+
+  it('returns null for non-admins (bridge hidden), for both surface and Data targets', () => {
+    expect(appStudioRoutePath(crm, false, { type: 'page', name: 'showcase_crm_workbench' })).toBeNull();
+    expect(appStudioRoutePath(crm, false, { type: 'account', name: undefined })).toBeNull();
+  });
+
+  it('returns null when the app has no owning package (runtime/DB apps)', () => {
+    expect(appStudioRoutePath({ name: 'crm' }, true, { type: 'page', name: 'p' })).toBeNull();
+    expect(appStudioRoutePath({ _packageId: 'sys_metadata' }, true, { type: 'page', name: 'p' })).toBeNull();
   });
 });
