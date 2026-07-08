@@ -32,6 +32,9 @@ import { MemoryRouter } from 'react-router-dom';
 interface Server {
   set: Record<string, unknown>;
   packageObjects: Array<{ name: string; label?: string }>;
+  // Keyed by object name → the merged object definition returned by
+  // get('object', name). `fields` may be an array or a `{ [name]: def }` map.
+  objectFields: Record<string, { fields?: unknown } | undefined>;
   saved: Array<Record<string, unknown>>;
   savedOpts: Array<Record<string, unknown> | undefined>;
 }
@@ -54,7 +57,16 @@ function makeClient(server: Server) {
         void opts;
         return server.packageObjects.map((o) => ({ item: o }));
       }
+      // The field-level editor no longer lists the `field` type; it reads the
+      // merged object definition via get('object', name). A bare list('field')
+      // returning [] would reproduce the "no fields" bug this suite guards.
       return [];
+    },
+    get: async (type: string, name: string) => {
+      // Mirror `GET /api/v1/meta/object/<name>` — the merged definition whose
+      // `fields` reflect the published object (inline + standalone fields).
+      if (type === 'object') return server.objectFields[name] ?? null;
+      return null;
     },
     save: async (_type: string, _name: string, payload: Record<string, unknown>, opts?: Record<string, unknown>) => {
       server.saved.push(payload);
@@ -86,6 +98,22 @@ afterEach(cleanup);
 function freshServer(): Server {
   return {
     packageObjects: [{ name: 'a_account' }, { name: 'a_contact' }],
+    // a_account carries its fields inline on the published object definition
+    // (array form); a_contact uses the keyed-map form. Both must surface.
+    objectFields: {
+      a_account: {
+        fields: [
+          { name: 'name', label: 'Name' },
+          { name: 'industry', label: 'Industry' },
+        ],
+      },
+      a_contact: {
+        fields: {
+          email: { label: 'Email' },
+          phone: { label: 'Phone' },
+        },
+      },
+    },
     saved: [],
     savedOpts: [],
     set: {
@@ -161,5 +189,31 @@ describe('PermissionMatrixEditPage — package scope + slice merge (ADR-0086 P0)
       allowEdit: true,
       viewAllRecords: true,
     });
+  });
+
+  // Regression: expanding an object row for field-level read/write must list
+  // the object's published fields (read via get('object', name)) — not fall
+  // back to "no fields" because list('field') was empty.
+  it('lists an object\'s published fields when its row is expanded', async () => {
+    const server = freshServer();
+    clientImpl = makeClient(server);
+    renderMatrix();
+
+    // Expand a_account (fields provided as an array on the object def).
+    const accountToggle = await screen.findByRole('button', { name: /a_account/ });
+    fireEvent.click(accountToggle);
+
+    // Both inline fields surface with their labels — never "no fields".
+    await screen.findByLabelText('a_account.name readable');
+    expect(screen.getByLabelText('a_account.name editable')).toBeInTheDocument();
+    expect(screen.getByLabelText('a_account.industry readable')).toBeInTheDocument();
+    expect(
+      screen.queryByText('No fields registered for this object.'),
+    ).not.toBeInTheDocument();
+
+    // Expand a_contact (fields provided as a keyed map) — same outcome.
+    fireEvent.click(screen.getByRole('button', { name: /a_contact/ }));
+    await screen.findByLabelText('a_contact.email readable');
+    expect(screen.getByLabelText('a_contact.phone editable')).toBeInTheDocument();
   });
 });

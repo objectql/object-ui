@@ -27,8 +27,11 @@
  * Wiring: registered from `builtinComponents.tsx` as
  *   registerMetadataResource({ type: 'permission', EditPage: PermissionMatrixEditPage })
  *
- * The component reads `/api/v1/meta/object` + `/api/v1/meta/field` to
- * enumerate available objects and their fields. Saves through the
+ * The component reads `/api/v1/meta/object` to enumerate available
+ * objects, and reads each object's merged definition (`GET
+ * /api/v1/meta/object/<name>`, whose `fields` reflect the published
+ * object — inline + standalone) to enumerate that object's fields for
+ * field-level permission editing. Saves through the
  * standard metadata save flow (overlay-aware, OCC, destructive-change
  * dialog already provided by the generic engine — we go through
  * client.save() directly).
@@ -219,14 +222,26 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   async function ensureFields(objectName: string) {
     if (fieldsByObject[objectName]) return;
     try {
-      // Fields are stored as `${object}__${field}` keys under the
-      // `field` metadata type. We resolve by listing then filtering
-      // on the `object` attribute of the item.
-      const items = await client.list<any>('field');
-      const list: FieldSummary[] = ((items as any[]) ?? [])
-        .map((row) => row?.item ?? row)
-        .filter((f) => String(f?.object ?? '') === objectName)
-        .map((f) => ({ name: String(f?.name ?? ''), label: f?.label }))
+      // Read the authoritative, merged object definition (same source the
+      // object settings tab uses for its nameField dropdown). The `field`
+      // LIST endpoint only surfaces standalone/code-package field metadata
+      // and misses fields carried inline on a published object, which left
+      // this editor showing "no fields" for objects that clearly have them.
+      // `fields` may come back as an array or as a `{ [name]: def }` map.
+      const obj = (await client.get<any>('object', objectName)) as
+        | { fields?: Record<string, any> | Array<any> }
+        | null;
+      const raw = obj?.fields;
+      const list: FieldSummary[] = (
+        Array.isArray(raw)
+          ? raw.map((f: any) => ({ name: String(f?.name ?? ''), label: f?.label }))
+          : raw && typeof raw === 'object'
+            ? Object.entries(raw).map(([name, f]: [string, any]) => ({
+                name: String(f?.name ?? name),
+                label: f?.label,
+              }))
+            : []
+      )
         .filter((f) => !!f.name)
         .sort((a, b) => a.name.localeCompare(b.name));
       setFieldsByObject((prev) => ({ ...prev, [objectName]: list }));
