@@ -8,6 +8,23 @@
 
 ---
 
+> **Amendment (2026-07-07, objectui #2338 / framework #2679).** The phase-4
+> blanket ban on `userFilters` in views mode was an over-correction. An object
+> list view MAY now carry a **`dropdown`** (per-field value-chip) `userFilters`
+> — the Airtable "quick filter" pills — because dropdown chips do not compete
+> with the `ViewTabBar`; they sit alongside it. Only **`element: 'tabs'`** stays
+> page-only: a named-preset tab bar would render a *second* tab row and collide
+> with the saved-view switcher. So the two-context rule below now reads:
+> object views allow `listViews` **+ dropdown `userFilters`**; page lists keep the
+> full `dropdown | tabs` range. `ObjectView.renderListView` passes a non-`tabs`
+> `userFilters` through; the framework spec narrows the object schema
+> (`ObjectUserFiltersSchema`, dropdown/toggle only) and the `validate`
+> list-view-mode lint flags `quickFilters` always but `userFilters` only when it
+> carries `tabs`. Want status-style named presets on an object? Still use
+> `listViews`.
+
+---
+
 ## TL;DR
 
 Architecture decision for a metadata-driven, **AI-authored** app platform. A list
@@ -21,7 +38,7 @@ fields** so the conflicting state is literally untypable — rather than adding 
 
 | Context | Mode | Single control | Config field | Owner |
 | --- | --- | --- | --- | --- |
-| Object default list (`ObjectView`) | **views** | `ViewTabBar` switcher | `listViews` | per-user (seeded + user-created) |
+| Object default list (`ObjectView`) | **views** | `ViewTabBar` switcher (+ `dropdown` `userFilters` chips, see Amendment) | `listViews` + `userFilters` (`dropdown` only) | per-user (seeded + user-created) |
 | List in a page (`InterfaceListPage`) | **filters** | `userFilters` (`dropdown`\|`tabs`) | `userFilters` | page author (fixed) |
 
 Sample fixtures are disposable, so we **clean-build** (no runtime back-compat
@@ -73,8 +90,9 @@ list schema (`viewDef.* ?? listSchema.*`). Render paths are already split —
    presentation is unified.
 
 6. **AI-authoring guardrails** (what field-removal can't cover — "wrong context"):
-   - `objectql.zod.ts` `refine`: error if `userFilters` appears on an object
-     data-mode view (it belongs to pages); error on any removed field.
+   - `objectql.zod.ts` `refine`: error on any removed field. **(Amended #2338:
+     a `dropdown` `userFilters` is now allowed on an object data-mode view; only a
+     `tabs` `userFilters` remains page-only — see the Amendment banner above.)**
    - wired into `check` / `doctor`; the AI authoring loop self-corrects on the error.
    - the two-mode rule lives in field `.describe()` / JSDoc the AI reads.
 
