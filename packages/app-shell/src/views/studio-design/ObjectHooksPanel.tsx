@@ -68,10 +68,17 @@ export function ObjectHooksPanel({
   objectName,
   packageId,
   disabled,
+  hookSchema,
 }: {
   objectName: string;
   packageId: string;
   disabled?: boolean;
+  /**
+   * The live server JSONSchema for the `hook` type (`/meta/types`). Drives the
+   * SchemaForm so the fields, enums and grouping come from the real hook
+   * metadata contract rather than being synthesised from the value shape.
+   */
+  hookSchema?: Record<string, unknown>;
 }) {
   const locale = useMetadataLocale();
   const client = useMetadataClient();
@@ -249,7 +256,7 @@ export function ObjectHooksPanel({
             </div>
             <div className="min-h-0 flex-1 overflow-auto p-3">
               <SchemaForm
-                schema={undefined}
+                schema={hookSchema}
                 value={draft as Record<string, unknown>}
                 onChange={(next) => {
                   setDraft(next as HookItem);

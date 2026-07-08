@@ -33,6 +33,24 @@ The console opens at **http://localhost:5175** with MSW (Mock Service Worker) pr
 | **App Creation Wizard** | 4-step wizard (Basic Info → Objects → Navigation → Branding) to create or edit apps. |
 | **Error Boundary** | Graceful error handling with a retry button. |
 
+### Object design (Studio Data tab)
+
+Selecting an object in Studio's **Data** pillar (`/studio/:packageId/data`) opens a
+tab strip over that object — **Records · Form · Validations · Hooks · Actions ·
+API · Settings**. Each of Validations, Hooks and Actions is a no-code **config
+panel driven by the corresponding metadata**, and each supports **adding** new
+entries — no code round-trip required:
+
+| Tab | Edits | Panel |
+|-----|-------|-------|
+| **Validations** | the object's inline `validations[]` (spec `ValidationRuleSchema`) | Master-detail covering **every** rule type — `script`, `cross_field`, `state_machine`, `format`, `json_schema`, `conditional`. The **New** menu adds any type (seeded with a valid, never-firing skeleton); a rule's type can be switched in place. CEL predicates reuse the shared `ConditionBuilder`, fed the object's draft fields. |
+| **Hooks** | the separate `hook` metadata type targeting this object | Master-detail whose editor is the platform `SchemaForm` **driven by the live `hook` JSONSchema from `/meta/types`**, so its fields and enums always match the running server's contract. |
+| **Actions** | the object's inline `actions[]` (spec `ActionSchema`) | Master-detail using the type-aware `ActionDefaultInspector`; anything not curated falls through to a **"More fields"** form fed the live `action` JSONSchema, so no spec property is un-editable. |
+
+Validations and Actions persist with the object's own **Save draft**; Hooks (a
+distinct metadata type) save per-hook. Nothing goes live until the package is
+published from the top-bar **Publish** flow.
+
 ## Configuration
 
 The console reads its configuration from `objectstack.config.ts`:

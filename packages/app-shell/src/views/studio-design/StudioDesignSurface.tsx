@@ -68,7 +68,7 @@ import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/pr
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
-import { useMetadataClient } from '../metadata-admin/useMetadata';
+import { useMetadataClient, useMetadataTypes } from '../metadata-admin/useMetadata';
 import {
   DESIGNER_SEL_PARAM,
   parseNavSelParam,
@@ -1674,6 +1674,15 @@ function DataPillar({
   const client = useMetadataClient();
   const adapter = useAdapter();
   const locale = useMetadataLocale();
+  // Live server JSONSchemas per metadata type (`/meta/types`) — handed to the
+  // Actions/Hooks config panels so their forms are driven by the real metadata
+  // contract (and stay forward-compatible when the server spec adds fields).
+  const { entries: metaTypes } = useMetadataTypes(client);
+  const typeSchemas = React.useMemo(() => {
+    const idx: Record<string, Record<string, unknown> | undefined> = {};
+    for (const e of metaTypes) idx[e.type] = e.schema;
+    return idx;
+  }, [metaTypes]);
   // Below the mobile breakpoint the Objects rail overlays the canvas instead
   // of a permanent 208px column (which otherwise squeezed the grid/form
   // canvas down to almost nothing on phones) — closed by default, toggled by
@@ -2115,9 +2124,19 @@ function DataPillar({
                   disabled={readOnly}
                 />
               ) : viewMode === 'hooks' ? (
-                <ObjectHooksPanel objectName={current.name} packageId={packageId} disabled={readOnly} />
+                <ObjectHooksPanel
+                  objectName={current.name}
+                  packageId={packageId}
+                  disabled={readOnly}
+                  hookSchema={typeSchemas.hook}
+                />
               ) : viewMode === 'actions' ? (
-                <ObjectActionsPanel draft={objDraft} onPatch={onPatch} disabled={readOnly} />
+                <ObjectActionsPanel
+                  draft={objDraft}
+                  onPatch={onPatch}
+                  disabled={readOnly}
+                  actionSchema={typeSchemas.action}
+                />
               ) : viewMode === 'api' ? (
                 <ObjectApiPanel name={current.name} draft={objDraft} />
               ) : viewMode === 'grid' && !hasBaseline ? (

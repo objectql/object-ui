@@ -69,10 +69,18 @@ export function ObjectActionsPanel({
   draft,
   onPatch,
   disabled,
+  actionSchema,
 }: {
   draft: Record<string, unknown>;
   onPatch: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
+  /**
+   * The live server JSONSchema for the `action` type (`/meta/types`). Handed to
+   * ActionDefaultInspector as `serverSchema` so its "More fields" section can
+   * edit any spec property not curated above — keeping this a faithful,
+   * forward-compatible config panel for the action metadata.
+   */
+  actionSchema?: Record<string, unknown>;
 }) {
   const locale = useMetadataLocale();
   const actions = React.useMemo(() => readActions(draft.actions), [draft.actions]);
@@ -203,6 +211,7 @@ export function ObjectActionsPanel({
               onPatch={patchSelected}
               readOnly={!!disabled}
               locale={locale}
+              serverSchema={actionSchema}
             />
           </>
         ) : (
