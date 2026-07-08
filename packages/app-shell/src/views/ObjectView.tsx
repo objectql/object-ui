@@ -1332,12 +1332,19 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             sharing: viewDef.sharing ?? listSchema.sharing,
             addRecord: viewDef.addRecord ?? listSchema.addRecord,
             conditionalFormatting: viewDef.conditionalFormatting ?? listSchema.conditionalFormatting,
-            // ADR-0053: this is the object default list = "views" mode; the
-            // ViewTabBar above is the only nav control. The in-list Airtable-
-            // style filter rows (quickFilters / userFilters / tabs) belong to
-            // page "filters" mode (InterfaceListPage), so suppress them here.
+            // ADR-0047 (amended, objectui #2338): this is the object default
+            // list = "views" mode. `dropdown` (value-chip) userFilters ARE
+            // allowed here — they're the Airtable quick-filter pills. Only the
+            // `tabs` preset style stays page-only (it would collide with the
+            // ViewTabBar above, which owns the tab-bar role — use `listViews`
+            // for named presets). `quickFilters` stays suppressed entirely.
             quickFilters: undefined,
-            userFilters: undefined,
+            userFilters: (() => {
+                const uf = (viewDef.userFilters ?? listSchema.userFilters) as
+                    | { element?: string; tabs?: unknown }
+                    | undefined;
+                return uf && uf.element !== 'tabs' && uf.tabs == null ? uf : undefined;
+            })(),
             showRecordCount: viewDef.showRecordCount ?? listSchema.showRecordCount,
             allowPrinting: viewDef.allowPrinting ?? listSchema.allowPrinting,
             virtualScroll: viewDef.virtualScroll ?? listSchema.virtualScroll,

@@ -7,10 +7,11 @@
  */
 
 /**
- * ADR-0053 wrong-context authoring surfaced instead of silently dropped
- * (#2219): `userFilters` / `quickFilters` on an object list view are
- * suppressed by ObjectView — the author must get a console warning, once
- * per object/view.
+ * ADR-0047 (amended, #2338): a `dropdown` `userFilters` is honored on an object
+ * list view (Airtable quick-filter pills). Only `quickFilters` and a `tabs`
+ * `userFilters` stay page-only and are suppressed by ObjectView — the author
+ * must get a console warning for those, once per object/view. A `dropdown`
+ * userFilters must NOT warn.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -19,9 +20,10 @@ import {
     resetSuppressedListNavWarnings,
 } from '../warnSuppressedListNav';
 
-const USER_FILTERS = { element: 'dropdown', fields: [{ field: 'status' }] };
+const DROPDOWN_FILTERS = { element: 'dropdown', fields: [{ field: 'status' }] };
+const TABS_FILTERS = { element: 'tabs', tabs: [{ label: 'Mine', filter: [] }] };
 
-describe('warnSuppressedListNav (#2219)', () => {
+describe('warnSuppressedListNav (#2338)', () => {
     let warn: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -33,15 +35,22 @@ describe('warnSuppressedListNav (#2219)', () => {
         warn.mockRestore();
     });
 
-    it('warns when the view def carries userFilters', () => {
+    it('does NOT warn for a dropdown userFilters (honored on object views)', () => {
         const hit = warnSuppressedListNav('showcase_task', 'showcase_task.tabular',
-            { userFilters: USER_FILTERS }, {});
+            { userFilters: DROPDOWN_FILTERS }, {});
+        expect(hit).toBe(false);
+        expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('warns when the view def carries a tabs userFilters', () => {
+        const hit = warnSuppressedListNav('showcase_task', 'showcase_task.tabular',
+            { userFilters: TABS_FILTERS }, {});
         expect(hit).toBe(true);
         expect(warn).toHaveBeenCalledTimes(1);
         const msg = warn.mock.calls[0][0] as string;
         expect(msg).toContain('showcase_task.tabular');
         expect(msg).toContain('userFilters');
-        expect(msg).toContain('ADR-0053');
+        expect(msg).toContain('ADR-0047');
     });
 
     it('warns when only the base list schema carries quickFilters', () => {
@@ -53,11 +62,11 @@ describe('warnSuppressedListNav (#2219)', () => {
     });
 
     it('warns only once per object/view across re-renders', () => {
-        warnSuppressedListNav('showcase_task', 'tabular', { userFilters: USER_FILTERS }, {});
-        warnSuppressedListNav('showcase_task', 'tabular', { userFilters: USER_FILTERS }, {});
+        warnSuppressedListNav('showcase_task', 'tabular', { userFilters: TABS_FILTERS }, {});
+        warnSuppressedListNav('showcase_task', 'tabular', { userFilters: TABS_FILTERS }, {});
         expect(warn).toHaveBeenCalledTimes(1);
         // A different view still gets its own warning.
-        warnSuppressedListNav('showcase_task', 'board', { userFilters: USER_FILTERS }, {});
+        warnSuppressedListNav('showcase_task', 'board', { userFilters: TABS_FILTERS }, {});
         expect(warn).toHaveBeenCalledTimes(2);
     });
 
