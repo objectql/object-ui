@@ -81,6 +81,14 @@ import {
 interface ObjectSummary {
   name: string;
   label?: string;
+  /**
+   * [ADR-0066 D2/④] The object's `access.default` posture. A `private`
+   * object is NOT covered by a permission set's `'*'` wildcard grant —
+   * access requires an explicit per-object grant (or the superuser
+   * viewAllRecords/modifyAllRecords bypass). Surfaced as a row badge so
+   * admins editing the matrix know a wildcard-only set does not reach it.
+   */
+  accessDefault?: 'public' | 'private';
 }
 
 interface FieldSummary {
@@ -187,7 +195,11 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
         const list: ObjectSummary[] = ((objList as any[]) ?? [])
           .map((row) => {
             const item = row?.item ?? row;
-            return { name: String(item?.name ?? ''), label: item?.label };
+            return {
+              name: String(item?.name ?? ''),
+              label: item?.label,
+              accessDefault: item?.access?.default as ObjectSummary['accessDefault'],
+            };
           })
           .filter((o) => !!o.name)
           .sort((a, b) => a.name.localeCompare(b.name));
@@ -651,6 +663,15 @@ function PermissionTable({
                       <span className="text-xs text-muted-foreground">({o.name})</span>
                     )}
                   </button>
+                  {o.accessDefault === 'private' && (
+                    <Badge
+                      variant="outline"
+                      className="ml-2 border-amber-500/50 text-amber-600 dark:text-amber-400 text-[10px] px-1.5 py-0 align-middle"
+                      title={t('perm.posture.private.tip')}
+                    >
+                      {t('perm.posture.private')}
+                    </Badge>
+                  )}
                 </td>
                 {objectActions.map((a) => (
                   <td key={a.key as string} className="text-center px-2 py-1.5">

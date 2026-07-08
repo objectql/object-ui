@@ -48,6 +48,7 @@
     "@object-ui/providers": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
+    "@objectstack/lint": "^12.6.0",
     "@objectstack/spec": "^12.3.0",
     "@sentry/react": "^10.63.0",
     "jsonc-parser": "^3.3.1",

@@ -149,3 +149,110 @@ describe('ObjectDefaultInspector — read-only', () => {
     expect(labelledInput('Icon')).toBeDisabled();
   });
 });
+
+describe('ObjectDefaultInspector — access section (ADR-0066 D2/D3/④/⑤)', () => {
+  it('renders the Access section with the public posture by default', () => {
+    render(
+      <ObjectDefaultInspector
+        {...baseProps}
+        name="account"
+        draft={{ name: 'account', label: 'Account' }}
+        onPatch={vi.fn()}
+        readOnly={false}
+      />,
+    );
+    expect(screen.getByText('Access')).toBeInTheDocument();
+    const select = screen.getByTestId('object-access-posture') as HTMLSelectElement;
+    expect(select.value).toBe('public');
+  });
+
+  it('patches access.default=private and clears it back to the spec default', () => {
+    const onPatch = vi.fn();
+    const { rerender } = render(
+      <ObjectDefaultInspector
+        {...baseProps}
+        name="account"
+        draft={{ name: 'account' }}
+        onPatch={onPatch}
+        readOnly={false}
+      />,
+    );
+    fireEvent.change(screen.getByTestId('object-access-posture'), { target: { value: 'private' } });
+    expect(onPatch).toHaveBeenCalledWith({ access: { default: 'private' } });
+
+    rerender(
+      <ObjectDefaultInspector
+        {...baseProps}
+        name="account"
+        draft={{ name: 'account', access: { default: 'private' } }}
+        onPatch={onPatch}
+        readOnly={false}
+      />,
+    );
+    const select = screen.getByTestId('object-access-posture') as HTMLSelectElement;
+    expect(select.value).toBe('private');
+    // The private hint warns that a grant must exist before publishing.
+    expect(screen.getByText(/Make sure some permission set grants/i)).toBeInTheDocument();
+    fireEvent.change(select, { target: { value: 'public' } });
+    // public = spec default → the key is cleared, not written out.
+    expect(onPatch).toHaveBeenCalledWith({ access: undefined });
+  });
+
+  it('edits requiredPermissions as a comma-separated capability list (array form)', () => {
+    const onPatch = vi.fn();
+    render(
+      <ObjectDefaultInspector
+        {...baseProps}
+        name="account"
+        draft={{ name: 'account', requiredPermissions: ['manage_billing'] }}
+        onPatch={onPatch}
+        readOnly={false}
+      />,
+    );
+    const input = screen.getByTestId('object-reqperms-all') as HTMLInputElement;
+    expect(input.value).toBe('manage_billing');
+    fireEvent.change(input, { target: { value: 'manage_billing, approve_invoice' } });
+    expect(onPatch).toHaveBeenCalledWith({ requiredPermissions: ['manage_billing', 'approve_invoice'] });
+    fireEvent.change(input, { target: { value: '' } });
+    expect(onPatch).toHaveBeenCalledWith({ requiredPermissions: undefined });
+  });
+
+  it('renders per-operation inputs when the draft already uses the map form (⑤)', () => {
+    const onPatch = vi.fn();
+    render(
+      <ObjectDefaultInspector
+        {...baseProps}
+        name="account"
+        draft={{ name: 'account', requiredPermissions: { update: ['manage_billing'] } }}
+        onPatch={onPatch}
+        readOnly={false}
+      />,
+    );
+    // Map-form drafts always render per-op inputs (mode is derived from the
+    // value shape, independent of the spec feature-detect for the toggle).
+    const update = screen.getByTestId('object-reqperms-update') as HTMLInputElement;
+    expect(update.value).toBe('manage_billing');
+    fireEvent.change(screen.getByTestId('object-reqperms-read'), { target: { value: 'view_billing' } });
+    expect(onPatch).toHaveBeenCalledWith({
+      requiredPermissions: { update: ['manage_billing'], read: ['view_billing'] },
+    });
+  });
+
+  it('hides the per-operation toggle when the bundled spec lacks the ⑤ union', async () => {
+    render(
+      <ObjectDefaultInspector
+        {...baseProps}
+        name="account"
+        draft={{ name: 'account' }}
+        onPatch={vi.fn()}
+        readOnly={false}
+      />,
+    );
+    // Installed @objectstack/spec (< 12.7) does not export
+    // ObjectRequiredPermissionsSchema, so the feature-detect keeps the mode
+    // toggle hidden (progressive enhancement — no stale UI offering a shape
+    // client-side validation would reject). Let the async detect settle first.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId('object-reqperms-perop')).toBeNull();
+  });
+});

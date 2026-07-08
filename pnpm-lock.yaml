@@ -685,6 +685,9 @@ importers:
       '@object-ui/types':
         specifier: workspace:*
         version: link:../types
+      '@objectstack/lint':
+        specifier: ^12.6.0
+        version: 12.6.0(ai@7.0.15(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^12.3.0
         version: 12.3.0(ai@7.0.15(zod@4.4.3))
@@ -3971,8 +3974,27 @@ packages:
   '@objectstack/formula@12.3.0':
     resolution: {integrity: sha512-1rKkEkNBvB2kXOCI9BEjT0VJzmJGlOMwALtmNDVr86gVNIQWyVoQf4sd0RbwUDPydK+pVm+tWnLQxJQ8mDkdmQ==}
 
+  '@objectstack/formula@12.6.0':
+    resolution: {integrity: sha512-g7gYGNiPxXPwMfPjyNNQBy0YWpiXzjgvBtoSffxbe6+7eM2GnXvJQ6il/e0Sz5mNPXUavL594UN8RDcBW36rwQ==}
+
+  '@objectstack/lint@12.6.0':
+    resolution: {integrity: sha512-27CqhCW9Gqn3sXhl8rU73Sbl8b2gNJVvsdI/Sdmn7WJU6PI9IePWpLqNX3cxMD4yYChxX2nFOzWhIY1RgBGQ2A==}
+    engines: {node: '>=18.0.0'}
+
+  '@objectstack/sdui-parser@12.6.0':
+    resolution: {integrity: sha512-uZKhqfxyI248qEpwR+YZPE34U27n2Syo3Lza8fjQcRf0QMUSWUM0Nx7hTTC4NXLm6M5do3O367rYK1u3VLdehQ==}
+
   '@objectstack/spec@12.3.0':
     resolution: {integrity: sha512-DzLELgGO1D4f7dqQc7MSqJ5rk4NNzNeJz70KzhV9+TLKJLNUjXNDlXqYUNAYWs3qwMYxtWokmjyVVty0hOZM7Q==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      ai: ^7.0.0
+    peerDependenciesMeta:
+      ai:
+        optional: true
+
+  '@objectstack/spec@12.6.0':
+    resolution: {integrity: sha512-n7mgKfKi2wI2qQdyDUmPEW2YfwW9P/id4XXyxZ8fNcmFxWXsDaUMWrcGkoonLo2lPmb1SqELdPR4Dj2avjXuxA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       ai: ^7.0.0
@@ -12102,7 +12124,32 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
+  '@objectstack/formula@12.6.0(ai@7.0.15(zod@4.4.3))':
+    dependencies:
+      '@marcbachmann/cel-js': 7.6.1
+      '@objectstack/spec': 12.6.0(ai@7.0.15(zod@4.4.3))
+    transitivePeerDependencies:
+      - ai
+
+  '@objectstack/lint@12.6.0(ai@7.0.15(zod@4.4.3))':
+    dependencies:
+      '@objectstack/formula': 12.6.0(ai@7.0.15(zod@4.4.3))
+      '@objectstack/sdui-parser': 12.6.0
+      '@objectstack/spec': 12.6.0(ai@7.0.15(zod@4.4.3))
+      sucrase: 3.35.1
+      typescript: 6.0.3
+    transitivePeerDependencies:
+      - ai
+
+  '@objectstack/sdui-parser@12.6.0': {}
+
   '@objectstack/spec@12.3.0(ai@7.0.15(zod@4.4.3))':
+    dependencies:
+      zod: 4.4.3
+    optionalDependencies:
+      ai: 7.0.15(zod@4.4.3)
+
+  '@objectstack/spec@12.6.0(ai@7.0.15(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:

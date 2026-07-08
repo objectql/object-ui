@@ -217,3 +217,24 @@ describe('PermissionMatrixEditPage — package scope + slice merge (ADR-0086 P0)
     expect(screen.getByLabelText('a_contact.phone editable')).toBeInTheDocument();
   });
 });
+
+describe('PermissionMatrixEditor — private posture badge (ADR-0066 ④)', () => {
+  it('shows a Private badge only on rows whose object declares access.default=private', async () => {
+    const server = freshServer();
+    server.packageObjects = [
+      { name: 'a_account', label: 'Account', access: { default: 'private' } } as any,
+      { name: 'a_contact' },
+    ];
+    clientImpl = makeClient(server);
+    renderMatrix();
+
+    await screen.findByText('Account');
+    // The private object's row carries the badge (with the wildcard hint)…
+    const badges = screen.getAllByText('Private');
+    expect(badges).toHaveLength(1);
+    expect(badges[0].closest('tr')!.textContent).toContain('a_account');
+    expect(badges[0]).toHaveAttribute('title', expect.stringContaining('wildcard'));
+    // …and the public row does not.
+    expect(screen.getByText('a_contact').closest('tr')!.textContent).not.toContain('Private');
+  });
+});

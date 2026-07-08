@@ -22,6 +22,7 @@ import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import { publishHealthFromResponse, type PublishHealth } from '@object-ui/plugin-chatbot';
 import { useMetadataClient } from '../views/metadata-admin/useMetadata';
+import { lintDraftCapabilityReferences } from './capabilityLint';
 
 type TranslateFn = (key: string, opts?: Record<string, unknown>) => string;
 
@@ -49,6 +50,12 @@ export function usePublishAllDrafts(t: TranslateFn) {
         toast.info(t('home.pendingDrafts.nothing', { defaultValue: 'Nothing to publish.' }));
         return { ok: true, attempted: 0 };
       }
+
+      // ADR-0066 ⑨ — advisory capability-reference lint over the pending
+      // drafts (a `requiredPermissions` naming a capability registered
+      // nowhere is almost certainly a typo; it fails closed at runtime).
+      // Never blocks: warnings surface as a toast after publish.
+      const capWarnings = await lintDraftCapabilityReferences(client as any, pending);
 
       const packageIds = [...new Set(pending.map((d) => d.packageId).filter((p): p is string => p !== null))];
       const orphans = pending.filter((d) => d.packageId === null);
@@ -109,6 +116,15 @@ export function usePublishAllDrafts(t: TranslateFn) {
                 defaultValue: 'Published & verified — {{count}} sample row(s) live.',
               })
             : t('home.pendingDrafts.published', { defaultValue: 'Published! Your changes are live.' }),
+        );
+      }
+      if (capWarnings.length > 0) {
+        toast.warning(
+          t('home.pendingDrafts.capabilityWarn', {
+            count: capWarnings.length,
+            defaultValue: 'Authoring check: {{count}} capability reference(s) resolve nowhere.',
+          }),
+          { description: capWarnings[0], duration: 10000 },
         );
       }
       return { ok: true, attempted: pending.length };
