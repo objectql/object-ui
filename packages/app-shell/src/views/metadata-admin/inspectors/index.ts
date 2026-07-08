@@ -19,6 +19,7 @@ import { ObjectFieldInspector } from './ObjectFieldInspector';
 import { ObjectDefaultInspector } from './ObjectDefaultInspector';
 import { DatasetDefaultInspector } from './DatasetDefaultInspector';
 import { ActionDefaultInspector } from './ActionDefaultInspector';
+import { HookDefaultInspector } from './HookDefaultInspector';
 
 export function registerBuiltinInspectors(): void {
   registerMetadataInspector('dashboard', DashboardWidgetInspector);
@@ -51,4 +52,8 @@ export function registerBuiltinInspectors(): void {
   // by action type, group inputs/placement/feedback/conditions/AI, fall back to
   // SchemaForm for advanced props.
   registerMetadataDefaultInspector('action', ActionDefaultInspector);
+  // Curated Hook authoring: object PICKER (not free text) + lifecycle events +
+  // a dedicated handler-body code editor, falling back to SchemaForm for
+  // advanced props. Replaces the flat generic form for `hook`.
+  registerMetadataDefaultInspector('hook', HookDefaultInspector);
 }

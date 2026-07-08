@@ -486,6 +486,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   // Action default (home) inspector
   'engine.inspector.action.kind': 'Action',
   'engine.inspector.action.close': 'Close action',
+  'engine.inspector.hook.kind': 'Hook',
   // Dashboard default (home) inspector
   'engine.inspector.dashboard.kind': 'Dashboard',
   'engine.inspector.dashboard.close': 'Close dashboard',
@@ -1525,6 +1526,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   // Action default (home) inspector
   'engine.inspector.action.kind': '动作',
   'engine.inspector.action.close': '关闭动作',
+  'engine.inspector.hook.kind': '钩子',
   // Dashboard default (home) inspector
   'engine.inspector.dashboard.kind': '仪表盘',
   'engine.inspector.dashboard.close': '关闭仪表盘',
