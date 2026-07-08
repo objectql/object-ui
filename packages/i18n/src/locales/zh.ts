@@ -1785,6 +1785,12 @@ const zh = {
       disconnected: '已断开连接',
       error: '连接错误',
     },
+    // 产品名旁的平台阶段徽章（PreviewBadge）。
+    stage: {
+      preview: '预览版',
+      beta: '测试版',
+      tooltip: '本平台处于预览版，功能可能调整。',
+    },
   },
   home: {
     title: '首页',

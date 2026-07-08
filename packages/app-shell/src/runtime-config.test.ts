@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { initRuntimeConfig, getRuntimeConfig, resetRuntimeConfigForTesting } from './runtime-config.js';
+import { initRuntimeConfig, getRuntimeConfig, getPlatformStage, resetRuntimeConfigForTesting } from './runtime-config.js';
 
 function mockConfig(features: Record<string, unknown>) {
     vi.stubGlobal('fetch', vi.fn(async () => ({
@@ -51,5 +51,44 @@ describe('runtime-config commercial features', () => {
         expect(getRuntimeConfig().features.sso).toBe(false);
         // sanity: existing flags still parse
         expect(getRuntimeConfig().features.aiStudio).toBe(true);
+    });
+});
+
+/**
+ * Platform stage drives the top-bar preview/beta badge. It must default to
+ * `'preview'` so the whole platform reads as preview before/without any server
+ * signal, only leave preview when the server sends a recognised stage, and
+ * never blank out on a malformed payload.
+ */
+function mockBranding(branding: Record<string, unknown>) {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ branding }),
+    })) as any);
+}
+
+describe('runtime-config platform stage', () => {
+    it('defaults to preview before init (badge shows out of the box)', () => {
+        resetRuntimeConfigForTesting();
+        expect(getPlatformStage()).toBe('preview');
+    });
+
+    it('honours an explicit stage from the server (e.g. GA hides the badge)', async () => {
+        mockBranding({ stage: 'ga' });
+        await initRuntimeConfig();
+        expect(getPlatformStage()).toBe('ga');
+    });
+
+    it('keeps the preview default when branding omits the stage', async () => {
+        mockBranding({ productName: 'Acme' });
+        await initRuntimeConfig();
+        expect(getRuntimeConfig().branding.productName).toBe('Acme');
+        expect(getPlatformStage()).toBe('preview');
+    });
+
+    it('ignores an unrecognised stage rather than blanking the badge', async () => {
+        mockBranding({ stage: 'nonsense' });
+        await initRuntimeConfig();
+        expect(getPlatformStage()).toBe('preview');
     });
 });

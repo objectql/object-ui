@@ -8,6 +8,8 @@ export { ActivityFeed } from './ActivityFeed';
 export type { ActivityItem } from './ActivityFeed';
 export { LocaleSwitcher } from './LocaleSwitcher';
 export { ModeToggle } from './ModeToggle';
+export { PreviewBadge } from './PreviewBadge';
+export type { PreviewBadgeProps } from './PreviewBadge';
 export { AuthPageLayout } from './AuthPageLayout';
 export { PageHeader } from './PageHeader';
 export type { PageHeaderProps } from './PageHeader';

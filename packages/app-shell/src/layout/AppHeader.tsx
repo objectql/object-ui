@@ -76,6 +76,7 @@ import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildR
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { getProductName } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
+import { PreviewBadge } from './PreviewBadge';
 
 function humanizeSlug(slug: string): string {
   return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -680,6 +681,12 @@ export function AppHeader({
             {getProductName()}
           </span>
         )}
+
+        {/* Platform-stage chip — sits in the brand zone so it rides along on
+            every console surface (home / app / orgs) while the whole platform
+            is in preview. Desktop-only to spare the crowded mobile top bar;
+            renders nothing once runtime-config reports GA. */}
+        <PreviewBadge className="ml-2 hidden sm:inline-flex" />
 
         {/* Workspace (organization) switcher — the global "which org am I in /
             switch org" affordance. Renders just the org name for single-org

@@ -56,11 +56,22 @@ export interface RuntimeFeatures {
   sso?: boolean;
 }
 
+/**
+ * Product lifecycle stage. Surfaced as a small chip next to the product
+ * wordmark: `'preview'` → "Preview", `'beta'` → "Beta"; `'ga'` hides it.
+ * Defaults to `'preview'` while the whole platform is pre-GA — operators flip
+ * it to `'ga'` at launch (via `OS_PRODUCT_STAGE` / `RuntimeConfigPlugin`) with
+ * no code change.
+ */
+export type PlatformStage = 'preview' | 'beta' | 'ga';
+
 export interface RuntimeBranding {
   /** Product name shown in browser title, splash, account chrome. */
   productName: string;
   /** Short variant for PWA shortName / compact spots. */
   productShortName: string;
+  /** Product lifecycle stage — drives the top-bar preview/beta badge. */
+  stage?: PlatformStage;
 }
 
 export interface RuntimeConfig {
@@ -84,8 +95,17 @@ const defaults: RuntimeConfig = {
   defaultOrgId: null,
   defaultEnvironmentId: null,
   features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true, customDomain: false, sso: false },
-  branding: { productName: 'ObjectOS', productShortName: 'ObjectOS' },
+  // `stage: 'preview'` while the whole platform is pre-GA, so the badge shows
+  // out of the box on any runtime that hasn't sent an explicit stage yet.
+  branding: { productName: 'ObjectOS', productShortName: 'ObjectOS', stage: 'preview' },
 };
+
+/** Valid {@link PlatformStage} values, for validating server-pushed config. */
+const PLATFORM_STAGES: readonly PlatformStage[] = ['preview', 'beta', 'ga'];
+
+function isPlatformStage(value: unknown): value is PlatformStage {
+  return typeof value === 'string' && (PLATFORM_STAGES as readonly string[]).includes(value);
+}
 
 let current: RuntimeConfig = { ...defaults };
 let initialised = false;
@@ -153,6 +173,10 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
             typeof body.branding.productShortName === 'string' && body.branding.productShortName.trim()
               ? body.branding.productShortName.trim()
               : current.branding.productShortName,
+          // Only a recognised stage overrides the default; anything else
+          // (missing, typo'd) preserves the current value so the badge never
+          // vanishes on a malformed payload.
+          stage: isPlatformStage(body.branding.stage) ? body.branding.stage : current.branding.stage,
         }
         : current.branding,
     });
@@ -181,6 +205,15 @@ export function getProductName(): string {
 
 export function getProductShortName(): string {
   return current.branding?.productShortName || getProductName();
+}
+
+/**
+ * Product lifecycle stage — drives the top-bar preview/beta badge. Defaults to
+ * `'preview'` until the server (or an operator override) says otherwise, so the
+ * whole platform reads as preview out of the box; set `'ga'` to hide the badge.
+ */
+export function getPlatformStage(): PlatformStage {
+  return current.branding?.stage ?? 'preview';
 }
 
 /** Whether `initRuntimeConfig()` has run at least once. */

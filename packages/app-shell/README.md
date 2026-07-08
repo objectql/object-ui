@@ -585,6 +585,33 @@ go down"):
   pattern in-editor (the repo `Lint` workflow is manual, so the test is the CI
   gate).
 
+## Platform preview badge
+
+While the whole platform is pre-GA, the top bar (`AppHeader`) shows a small
+**Preview** chip next to the product wordmark on every console surface (home /
+app / orgs). It's rendered by `PreviewBadge`, driven by the platform stage in
+runtime-config:
+
+```ts
+// packages/app-shell/src/runtime-config.ts
+branding.stage: 'preview' | 'beta' | 'ga'  // default: 'preview'
+```
+
+- `getPlatformStage()` reads it (defaults to `'preview'`, so the badge shows out
+  of the box on any runtime that hasn't sent a stage yet).
+- The server pushes it via `GET /api/v1/runtime/config` (`branding.stage`).
+  Operators set it with `OS_PRODUCT_STAGE` or `new RuntimeConfigPlugin({ stage })`.
+- At launch, set `stage: 'ga'` — `PreviewBadge` renders nothing and the chip
+  disappears with **no code change**. `'beta'` shows a "Beta" chip instead.
+
+```tsx
+import { PreviewBadge, getPlatformStage } from '@object-ui/app-shell';
+
+<PreviewBadge className="ml-2 hidden sm:inline-flex" />; // used inside AppHeader
+```
+
+Labels are localized under `topbar.stage.*` (`@object-ui/i18n`).
+
 ## Compatibility
 
 - **React:** 18.x or 19.x

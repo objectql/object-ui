@@ -1700,6 +1700,12 @@ const en = {
       disconnected: 'Disconnected',
       error: 'Connection Error',
     },
+    // Platform lifecycle chip shown next to the product wordmark (PreviewBadge).
+    stage: {
+      preview: 'Preview',
+      beta: 'Beta',
+      tooltip: 'This platform is in preview — features may change.',
+    },
   },
   home: {
     title: 'Home',

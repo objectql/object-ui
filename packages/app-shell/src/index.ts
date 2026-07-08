@@ -79,9 +79,10 @@ export {
   ActivityFeed,
   LocaleSwitcher,
   ModeToggle,
+  PreviewBadge,
   AuthPageLayout,
 } from './layout';
-export type { ActivityItem } from './layout';
+export type { ActivityItem, PreviewBadgeProps } from './layout';
 
 // Top-level chrome (dialogs, providers, error boundaries)
 export {
@@ -111,10 +112,11 @@ export {
   getCloudBase,
   getProductName,
   getProductShortName,
+  getPlatformStage,
   isRuntimeConfigInitialised,
   resetRuntimeConfigForTesting,
 } from './runtime-config';
-export type { RuntimeConfig, RuntimeFeatures, RuntimeBranding } from './runtime-config';
+export type { RuntimeConfig, RuntimeFeatures, RuntimeBranding, PlatformStage } from './runtime-config';
 
 // Standard inner-SPA views
 export {
