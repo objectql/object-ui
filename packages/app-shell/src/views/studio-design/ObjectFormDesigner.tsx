@@ -39,6 +39,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Plus, Trash2, ChevronUp, ChevronDown, Rows3 } from 'lucide-react';
+import { inferColumns, containerGridColsFor, isWideFieldType } from '@object-ui/plugin-form';
 import {
   readFields,
   writeFields,
@@ -123,10 +124,12 @@ function FieldControlPreview({ type }: { type: string }): React.ReactElement {
 /** One draggable field card inside a section. */
 function SortableField({
   entry,
+  columns,
   selected,
   onSelect,
 }: {
   entry: FieldEntry;
+  columns: number;
   selected: boolean;
   onSelect: () => void;
 }): React.ReactElement {
@@ -135,6 +138,10 @@ function SortableField({
   const type = String(entry.def.type ?? 'text');
   const label = String(entry.def.label ?? entry.name);
   const required = !!entry.def.required;
+  // Mirror the real form: wide widgets (textarea/markdown/html/…) take the whole
+  // row. `col-span-full` (grid-column: 1/-1) spans every column at ANY container
+  // width, so it stays correct as the responsive grid collapses to one column.
+  const spanFull = columns > 1 && isWideFieldType(type);
   return (
     <div
       ref={setNodeRef}
@@ -145,6 +152,7 @@ function SortableField({
       aria-label={tFormat('engine.studio.designer.fieldAria', locale, { label })}
       className={
         'group relative flex cursor-grab touch-none select-none items-start gap-1.5 rounded-md border bg-background px-2 py-2 active:cursor-grabbing ' +
+        (spanFull ? 'col-span-full ' : '') +
         (selected ? 'ring-2 ring-primary' : 'hover:border-foreground/25') +
         (isDragging ? ' opacity-40' : '')
       }
@@ -171,6 +179,7 @@ function Section({
   containerId,
   title,
   fieldIds,
+  columns,
   isDeclared,
   canMoveUp,
   canMoveDown,
@@ -185,6 +194,7 @@ function Section({
   containerId: string;
   title: string;
   fieldIds: string[];
+  columns: number;
   isDeclared: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -198,8 +208,11 @@ function Section({
 }): React.ReactElement {
   const locale = useMetadataLocale();
   const { setNodeRef, isOver } = useDroppable({ id: containerId });
+  // `@container` scopes the field grid's container queries to THIS section's
+  // width, so a wide screen spreads fields to the same column count the real
+  // form uses — while a narrow panel collapses to one column.
   return (
-    <div className={'rounded-lg border ' + (isOver ? 'border-primary bg-primary/5' : 'bg-muted/20')}>
+    <div className={'@container rounded-lg border ' + (isOver ? 'border-primary bg-primary/5' : 'bg-muted/20')}>
       <div className="flex items-center gap-1 border-b px-3 py-1.5">
         {isDeclared && !readOnly ? (
           <input
@@ -246,9 +259,15 @@ function Section({
         )}
       </div>
       <SortableContext items={fieldIds} strategy={verticalListSortingStrategy}>
-        <div ref={setNodeRef} className="grid min-h-[52px] grid-cols-2 gap-2 p-2.5">
+        {/* Field grid mirrors the real form's density: container-query columns
+            (1 → up to `columns`) via {@link containerGridColsFor}, so the layout
+            designer matches what end users actually see. */}
+        <div
+          ref={setNodeRef}
+          className={'min-h-[52px] p-2.5 ' + (containerGridColsFor(columns) ?? 'grid grid-cols-1 gap-4')}
+        >
           {fieldIds.length === 0 && (
-            <div className="col-span-2 flex items-center justify-center rounded-md border border-dashed py-3 text-[11px] text-muted-foreground">
+            <div className="col-span-full flex items-center justify-center rounded-md border border-dashed py-3 text-[11px] text-muted-foreground">
               {t('engine.studio.designer.dropHere', locale)}
             </div>
           )}
@@ -260,6 +279,7 @@ function Section({
               <SortableField
                 key={id}
                 entry={entry}
+                columns={columns}
                 selected={selectedField === name}
                 onSelect={() => onSelectField(name)}
               />
@@ -284,6 +304,15 @@ export function ObjectFormDesigner({
   const view = React.useMemo(() => readFields(draft.fields), [draft.fields]);
   const groups = React.useMemo(() => readGroups(draft.fieldGroups), [draft.fieldGroups]);
   const entryByName = React.useMemo(() => new Map(view.entries.map((e) => [e.name, e] as const)), [view]);
+
+  // Column count mirrors the real form (objectui#2578): derived ONCE from the
+  // object's editable field count and applied to every section, so the layout
+  // designer reads at the same density end users see. Each section's container
+  // queries then clamp this cap to the actually-rendered width.
+  const formColumns = React.useMemo(
+    () => inferColumns(view.entries.filter((e) => !systemFieldNames.has(e.name)).length),
+    [view.entries, systemFieldNames],
+  );
 
   // Container order: declared groups (in order) then the ungrouped bucket.
   const containerOrder = React.useMemo(() => [...groups.map((g) => cid(g.key)), cid(UNGROUPED)], [groups]);
@@ -458,7 +487,7 @@ export function ObjectFormDesigner({
         onDragEnd={onDragEnd}
         onDragCancel={() => setActiveId(null)}
       >
-        <div className="mx-auto flex max-w-3xl flex-col gap-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3">
           {containerOrder.map((c) => {
             const isUngrouped = c === cid(UNGROUPED);
             // Hide the ungrouped bucket only when it is empty AND groups exist.
@@ -470,6 +499,7 @@ export function ObjectFormDesigner({
                 containerId={c}
                 title={labelOf.get(c) ?? t('engine.studio.designer.ungrouped', locale)}
                 fieldIds={items[c] ?? []}
+                columns={formColumns}
                 isDeclared={!isUngrouped}
                 canMoveUp={declaredIdx > 0}
                 canMoveDown={declaredIdx >= 0 && declaredIdx < groups.length - 1}

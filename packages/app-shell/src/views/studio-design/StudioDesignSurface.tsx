@@ -2285,8 +2285,12 @@ function DataPillar({
                 }
               `}</style>
               <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-background p-6">
+                {/* Match the real display: the runtime form auto-widens (a
+                    field-heavy record opens in a near-full-width modal), so its
+                    container queries reach up to 4 columns on wide screens. A
+                    narrow cap here would misrepresent the end-user layout. */}
                 <div
-                  className="os-form-authoring mx-auto max-w-2xl"
+                  className="os-form-authoring mx-auto max-w-6xl"
                   onClick={(e) => {
                     const el = (e.target as HTMLElement).closest('[data-field]');
                     const name = el?.getAttribute('data-field');
