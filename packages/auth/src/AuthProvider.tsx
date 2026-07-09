@@ -351,20 +351,35 @@ export function AuthProvider({
     setIsOrganizationsLoading(true);
     try {
       const orgs = await client.listOrganizations();
-      if (isCancelled?.()) return;
+      if (isCancelled?.()) return orgs;
       setOrganizations(orgs);
       // If no active org is set but orgs exist, try to get active from server
       if (orgs.length > 0 && !activeOrganization) {
+        let active: AuthOrganization | null = null;
         try {
-          const active = await client.getActiveOrganization();
-          if (active && !isCancelled?.()) {
-            setActiveOrganization(active);
-            ActiveOrganizationStorage.set(active.id);
-          }
+          active = await client.getActiveOrganization();
         } catch {
           // No active org set — that's fine
+          active = null;
+        }
+        // Single-membership repair (ADR-0081): a session created before the
+        // server-side active-org stamp existed carries no active org even
+        // though the user belongs to exactly one — activate it so org-scoped
+        // UI ({current_org_id} nav links, org endpoints) works without a
+        // re-login. With multiple orgs the choice stays with the user.
+        if (!active && orgs.length === 1) {
+          try {
+            active = await client.setActiveOrganization(orgs[0].id);
+          } catch {
+            active = null;
+          }
+        }
+        if (active && !isCancelled?.()) {
+          setActiveOrganization(active);
+          ActiveOrganizationStorage.set(active.id);
         }
       }
+      return orgs;
     } catch (err) {
       // A route change / unmount racing the in-flight request is not a real
       // failure — only warn when this call is still the one that matters.

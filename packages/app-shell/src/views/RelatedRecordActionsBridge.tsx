@@ -142,13 +142,24 @@ export function RelatedRecordActionsBridge({
   const runRowAction = useCallback(
     async (childObject: string, record: any, action: RelatedRowActionDef) => {
       const id = record?.id ?? record?._id;
-      const def = {
-        ...(action as unknown as ActionDef),
+      // Same dispatch shape as ObjectGrid.onActionDef: a metadata action's
+      // `params` is the ActionParam[] COLLECTION DEFINITION — surface it as
+      // `actionParams` (the runner's param-dialog input) and reserve `params`
+      // for the `_rowRecord` stash (apiHandler row-id injection +
+      // `defaultFromRow` prefill). Spreading the array into `params` used to
+      // produce `{0: {...}}`, which downstream consumers sent to the data API
+      // as a fields map → INVALID_FIELD: Unknown field '0'.
+      const { params: rawParams, ...rest } = action as unknown as ActionDef & { params?: unknown };
+      const def: any = {
+        ...rest,
         objectName: childObject,
         ...(id != null ? { recordId: String(id) } : {}),
-        params: { ...(action.params as Record<string, unknown> | undefined) },
-      } as ActionDef;
-      const res = await execute(def);
+        params: { _rowRecord: record },
+      };
+      if (Array.isArray(rawParams) && rawParams.length > 0) {
+        def.actionParams = rawParams;
+      }
+      const res = await execute(def as ActionDef);
       // Refresh open related lists for this child object after a successful
       // mutating action (the row menu handler is otherwise fire-and-forget).
       if (res?.success) notifyRelatedChanged(childObject);

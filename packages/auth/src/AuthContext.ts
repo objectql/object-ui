@@ -93,8 +93,12 @@ export interface AuthContextValue {
   switchOrganization: (orgId: string) => Promise<void>;
   /** Create a new organization */
   createOrganization: (data: { name: string; slug: string; logo?: string }) => Promise<AuthOrganization>;
-  /** Refresh the organizations list */
-  refreshOrganizations: () => Promise<void>;
+  /**
+   * Refresh the organizations list. Returns the freshly fetched list so
+   * callers that need it right away (e.g. the first-run wizard's rename
+   * step) don't read a stale `organizations` closure.
+   */
+  refreshOrganizations: () => Promise<AuthOrganization[] | undefined>;
   /** Update organization details (owner/admin) */
   updateOrganization: (orgId: string, data: Partial<Pick<AuthOrganization, 'name' | 'slug' | 'logo' | 'metadata'>>) => Promise<AuthOrganization>;
   /** Delete an organization (owner) */

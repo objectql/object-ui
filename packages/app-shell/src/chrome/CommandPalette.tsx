@@ -70,8 +70,11 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
   }, [open]);
 
   const baseUrl = `/apps/${appName || appRouteSegment(activeApp)}`;
-  const { user } = useAuth();
-  const templateContext = useMemo(() => ({ currentUserId: user?.id ?? null }), [user?.id]);
+  const { user, activeOrganization } = useAuth();
+  const templateContext = useMemo(
+    () => ({ currentUserId: user?.id ?? null, currentOrgId: activeOrganization?.id ?? null }),
+    [user?.id, activeOrganization?.id],
+  );
 
   const runCommand = useCallback((command: () => void) => {
     setOpen(false);

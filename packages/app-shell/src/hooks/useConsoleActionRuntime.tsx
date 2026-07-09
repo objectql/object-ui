@@ -165,8 +165,17 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       const row = action?.params && !Array.isArray(action.params)
         ? (action.params as Record<string, any>)._rowRecord
         : undefined;
+      // Field-backed params resolve against the action's OWN object when the
+      // dispatch carries one (related-list row actions retarget a CHILD object
+      // — e.g. sys_member rows on an org record page); the page-level object
+      // is only the fallback. Without this, a child action's `field` lookup
+      // ran against the parent object, missed, and degraded to a bare text
+      // input (no select options, no field label).
+      const actionObject = typeof action?.objectName === 'string' && action.objectName
+        ? action.objectName
+        : undefined;
       const resolved = resolveActionParams(params as any, {
-        objectName: objectName || (objectDef as any)?.name || '',
+        objectName: actionObject || objectName || (objectDef as any)?.name || '',
         objects: objects || [],
         fieldLabel,
         fieldOptionLabel,
@@ -174,7 +183,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       });
       // Localize each param's label/placeholder/helpText via the
       // `_actions.<action>.params.<param>.<attr>` convention.
-      const objForI18n = objectName || (objectDef as any)?.name;
+      const objForI18n = actionObject || objectName || (objectDef as any)?.name;
       const localized = (resolved as any[]).map((p: any) => ({
         ...p,
         label: actionParamText(objForI18n, action?.name, p.name, 'label', p.label) ?? p.label,

@@ -117,7 +117,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const objectName = objectNameOverride ?? params.objectName;
   const recordId = recordIdOverride ?? params.recordId;
   const { showDebug } = useMetadataInspector();
-  const { user } = useAuth();
+  const { user, activeOrganization } = useAuth();
   const navigate = useNavigate();
   // objectui#2257 — the active detail tab is URL-addressable (`?tab=`), so it
   // survives the page subtree remounting (refreshKey-style save refreshes;
@@ -362,15 +362,27 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
   const paramCollectionHandler = useCallback((params: ActionParamDef[], action?: any) => {
     return new Promise<Record<string, any> | null>((resolve) => {
+      // Related-list row actions retarget a CHILD object (e.g. sys_member rows
+      // on an org record page) and stash the clicked row under
+      // `params._rowRecord` — resolve field-backed params against the
+      // action's own object and pre-fill `defaultFromRow` from the row, with
+      // the page object only as fallback (mirrors useConsoleActionRuntime).
+      const actionObject = typeof action?.objectName === 'string' && action.objectName
+        ? action.objectName
+        : undefined;
+      const row = action?.params && !Array.isArray(action.params)
+        ? (action.params as Record<string, any>)._rowRecord
+        : undefined;
       const resolved = resolveActionParams(params as any, {
-        objectName: objectName || objectDef?.name || '',
+        objectName: actionObject || objectName || objectDef?.name || '',
         objects: objects || [],
         fieldLabel,
         fieldOptionLabel,
+        row,
       });
       // Localize param label/placeholder/helpText (see ObjectView for the
       // convention); falls back to the metadata literal.
-      const objForI18n = objectName || objectDef?.name;
+      const objForI18n = actionObject || objectName || objectDef?.name;
       const localized = (resolved as any[]).map((p: any) => ({
         ...p,
         label: actionParamText(objForI18n, action?.name, p.name, 'label', p.label) ?? p.label,
@@ -422,12 +434,81 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     }
   }, [navigate]);
 
-  // API action handler — maps logical action targets to dataSource operations
+  // Authenticated fetch for direct backend calls (absolute `type:'api'`
+  // targets below + the flow trigger). Declared before apiHandler.
+  const authFetch = useMemo(() => createAuthenticatedFetch(), []);
+
+  // API action handler — absolute HTTP targets go to the backend verbatim
+  // (the canonical `type:'api'` semantics); logical targets map to
+  // dataSource operations.
   const apiHandler = useCallback(async (action: ActionDef) => {
     try {
       const target = action.target || action.name;
+      const rowRecord = action.params && !Array.isArray(action.params)
+        ? ((action.params as Record<string, any>)._rowRecord as Record<string, any> | undefined)
+        : undefined;
       const params: Record<string, any> = { ...(action.params || {}) };
       delete params._rowRecord;
+
+      // Absolute HTTP target — mirror of useConsoleActionRuntime.apiHandler's
+      // canonical branch (fetch + recordIdParam/bodyExtra/bodyShape +
+      // active-org injection for better-auth endpoints). The legacy
+      // dataSource.update mapping below MUST NOT see these: routing a
+      // better-auth row action (remove_member / update_member_role) through
+      // it either silently no-opped (no collected params) or bypassed
+      // better-auth with a raw table write on a managed identity table.
+      const targetStr = typeof target === 'string' ? target : '';
+      if (targetStr.startsWith('/') || /^https?:\/\//i.test(targetStr)) {
+        const baseUrl = import.meta.env.VITE_SERVER_URL || '';
+        // Interpolate `{field}` tokens in the target URL from the row record.
+        let resolvedTarget = targetStr;
+        if (rowRecord && /\{[a-z_][a-z0-9_]*\}/i.test(resolvedTarget)) {
+          resolvedTarget = resolvedTarget.replace(/\{([a-z_][a-z0-9_]*)\}/gi, (_, k) => {
+            const v = rowRecord[k];
+            return v == null ? '' : encodeURIComponent(String(v));
+          });
+        }
+        const url = resolvedTarget.startsWith('http') ? resolvedTarget : `${baseUrl}${resolvedTarget}`;
+
+        const wrap = action.bodyShape && typeof action.bodyShape === 'object' && (action.bodyShape as any).wrap
+          ? (action.bodyShape as any).wrap
+          : undefined;
+        const body: Record<string, any> = wrap ? { [wrap]: params } : { ...params };
+
+        if (action.recordIdParam) {
+          const rowField = (action as any).recordIdField || 'id';
+          const rowValue = rowRecord?.[rowField] ?? (action as any).recordId
+            ?? (!action.objectName || action.objectName === objectName ? (pageRecord as any)?.[rowField] : undefined);
+          if (rowValue != null) body[action.recordIdParam] = rowValue;
+        }
+
+        // better-auth org endpoints resolve the session's active org; pass it
+        // explicitly so row actions stay correct mid-org-switch.
+        if (/\/api\/v1\/auth\//.test(resolvedTarget) && !body.organizationId && activeOrganization?.id) {
+          body.organizationId = activeOrganization.id;
+        }
+        if (action.bodyExtra && typeof action.bodyExtra === 'object') {
+          Object.assign(body, action.bodyExtra);
+        }
+
+        const method = (action.method || 'POST').toUpperCase();
+        const init: any = {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        };
+        if (method !== 'GET' && method !== 'DELETE') init.body = JSON.stringify(body);
+        const res = await authFetch(url, init);
+        if (!res.ok) {
+          let errBody: any = null;
+          try { errBody = await res.json(); } catch { /* response body not JSON */ }
+          const detail = errBody?.error?.message || errBody?.error || errBody?.message || `HTTP ${res.status}`;
+          return { success: false, error: typeof detail === 'string' ? detail : `HTTP ${res.status}` };
+        }
+        const data = await res.json().catch(() => ({}));
+        if (action.refreshAfter === true) notifyRecordChanged();
+        return { success: true, data, reload: action.refreshAfter === true };
+      }
 
       // Merge `bodyExtra` constant fields into the update payload. Per the
       // ActionSchema contract these are "applied last; overrides user params",
@@ -496,14 +577,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
-  }, [dataSource, objectName, pureRecordId, pageRecord]);
+  }, [dataSource, objectName, pureRecordId, pageRecord, authFetch, activeOrganization]);
 
   // Client-side modal transport: `type:'modal'` actions open here (Dialog /
   // Sheet / Drawer by `placement`) and render arbitrary SchemaNode content.
   const { modalHandler, modalElement } = useActionModal(dataSource);
-
-  // Authenticated fetch for direct backend calls (e.g. flow trigger).
-  const authFetch = useMemo(() => createAuthenticatedFetch(), []);
 
   // Flow action handler — POST to /api/v1/automation/{name}/trigger.
   // Triggered when an Action with `type: 'flow'` is invoked from a record-level

@@ -150,7 +150,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
   const { t } = useObjectTranslation();
   const { objectLabel: resolveNavObjectLabel, dashboardLabel: resolveNavDashboardLabel, navGroupLabel: resolveNavGroupLabel, viewLabel: resolveNavViewLabel } = useObjectLabel();
   const { context, currentAppName } = useNavigationContext();
-  const { user } = useAuth();
+  const { user, activeOrganization } = useAuth();
   const isWorkspaceAdmin = useIsWorkspaceAdmin();
 
   // Swipe-from-left-edge gesture to open sidebar on mobile
@@ -454,7 +454,7 @@ export function UnifiedSidebar({ activeAppName }: UnifiedSidebarProps) {
              ) : undefined}
              resolveViewLabel={(objectName, viewName, fallback) => resolveNavViewLabel(objectName, viewName, fallback)}
              t={t}
-             templateContext={{ currentUserId: user?.id ?? null, contextValues }}
+             templateContext={{ currentUserId: user?.id ?? null, currentOrgId: activeOrganization?.id ?? null, contextValues }}
            />
 
            {/* Recent Items */}

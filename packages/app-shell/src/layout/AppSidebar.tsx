@@ -139,7 +139,7 @@ const getIcon = resolveIcon;
 
 export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: string, onAppChange: (name: string) => void }) {
   const { isMobile, setOpenMobile } = useSidebar();
-  const { user, signOut, isAuthEnabled } = useAuth();
+  const { user, signOut, isAuthEnabled, activeOrganization } = useAuth();
   const isWorkspaceAdmin = useIsWorkspaceAdmin();
   const navigate = useNavigate();
   const location = useLocation();
@@ -389,7 +389,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
                       location.pathname,
                       location.search,
                       basePath,
-                      { currentUserId: user?.id ?? null, contextValues },
+                      { currentUserId: user?.id ?? null, currentOrgId: activeOrganization?.id ?? null, contextValues },
                     );
                     const sel = active ? `?sel=${encodeURIComponent(`nav:${active.id}`)}` : '';
                     navigate(`/apps/${seg}/metadata/app/${activeAppName}${sel}`);
@@ -499,7 +499,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
              resolveObjectLabel={(objectName, fallback) => resolveNavObjectLabel({ name: objectName, label: fallback })}
              resolveViewLabel={(objectName, viewName, fallback) => resolveNavViewLabel(objectName, viewName, fallback)}
              t={t}
-             templateContext={{ currentUserId: user?.id ?? null, contextValues }}
+             templateContext={{ currentUserId: user?.id ?? null, currentOrgId: activeOrganization?.id ?? null, contextValues }}
            />
 
            {/* Recent Items (elevated position for quick access) */}
@@ -686,7 +686,7 @@ export function AppSidebar({ activeAppName, onAppChange }: { activeAppName: stri
           return leaves.slice(0, 5).map((item: any) => {
           const NavIcon = getIcon(item.icon);
           const baseUrl = activeApp ? `/apps/${appRouteSegment(activeApp) ?? activeAppName}` : '';
-          const { href } = resolveHref(item, baseUrl, { currentUserId: user?.id ?? null });
+          const { href } = resolveHref(item, baseUrl, { currentUserId: user?.id ?? null, currentOrgId: activeOrganization?.id ?? null });
           return (
             <Link key={item.id} to={href} className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-muted-foreground hover:text-foreground transition-colors min-w-[44px] min-h-[44px] justify-center">
               <NavIcon className="h-5 w-5" />

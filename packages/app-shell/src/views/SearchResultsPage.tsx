@@ -75,13 +75,13 @@ export function SearchResultsPage() {
   const apps = metadataApps || [];
   const activeApp = matchAppBySegment(apps, appName) || apps[0];
   const baseUrl = `/apps/${appName}`;
-  const { user } = useAuth();
+  const { user, activeOrganization } = useAuth();
 
   // Build searchable items from navigation
   const allItems = useMemo((): SearchResult[] => {
     if (!activeApp) return [];
     const navItems = flattenNavigation(activeApp.navigation || []);
-    const templateContext = { currentUserId: user?.id ?? null };
+    const templateContext = { currentUserId: user?.id ?? null, currentOrgId: activeOrganization?.id ?? null };
     return navItems.map((item: any) => {
       const { href } = resolveHref(item, baseUrl, templateContext);
 

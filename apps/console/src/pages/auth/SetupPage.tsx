@@ -40,7 +40,6 @@ export function SetupPage() {
   const {
     user,
     signUp,
-    organizations,
     refreshOrganizations,
     updateOrganization,
     createOrganization,
@@ -83,10 +82,14 @@ export function SetupPage() {
   }, [bootstrapped, user, navigate]);
 
   useEffect(() => {
-    if (user) {
+    // Already-signed-in visitors bounce home — but NOT mid-submission: signUp
+    // flips `user` while handleSubmit is still renaming the bootstrap org, and
+    // navigating here killed that in-flight rename (the org silently kept the
+    // "Default Organization" name). handleSubmit owns the redirect on success.
+    if (user && !submitting) {
       window.location.assign('/');
     }
-  }, [user]);
+  }, [user, submitting]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,26 +97,43 @@ export function SetupPage() {
     try {
       await signUp(name, email, password);
 
-      // The Security plugin auto-creates a personal "<User>'s Workspace"
-      // on signup so multi-tenant RLS has something to hang on. Don't
-      // create a second org — rename the auto-created one to the user's
-      // chosen name (or create a fresh one if the plugin is disabled).
+      // The server bootstraps the owner's organization (plugin-auth's
+      // default-org bootstrap in single-org mode; org-scoping's in
+      // multi-org) — don't create a second org, RENAME the bootstrap one
+      // to the user's chosen name. Two subtleties:
+      //   - the bootstrap runs off a permission-grant middleware and may
+      //     land moments after signUp() resolves → poll briefly;
+      //   - the `organizations` state from useAuth() is a STALE CLOSURE
+      //     here (refresh just updated it, but this render can't see it) —
+      //     use the list refreshOrganizations() returns. Reading the state
+      //     was the bug that made this path silently fall through to
+      //     createOrganization(), which single-org mode FORBIDs.
       const trimmedName = orgName.trim();
       if (trimmedName) {
         try {
-          await refreshOrganizations();
-          const personal = organizations[0];
+          let personal: { id?: string } | undefined;
+          for (let attempt = 0; attempt < 4 && !personal?.id; attempt++) {
+            if (attempt > 0) await new Promise((r) => setTimeout(r, 500));
+            const orgs = await refreshOrganizations();
+            personal = orgs?.[0];
+          }
+          // CJK/emoji-only names slugify to '' — an empty slug fails the org
+          // update server-side and the whole rename used to be silently
+          // swallowed. The rename is about the DISPLAY name: keep the
+          // existing slug when there's nothing latin to derive, and mint a
+          // stable fallback only when creating from scratch.
+          const slug = slugify(trimmedName);
           let activeOrgId: string | undefined;
           if (personal?.id) {
             await updateOrganization(personal.id, {
               name: trimmedName,
-              slug: slugify(trimmedName),
+              ...(slug ? { slug } : {}),
             });
             activeOrgId = personal.id;
           } else {
             const created = await createOrganization({
               name: trimmedName,
-              slug: slugify(trimmedName),
+              slug: slug || `org-${Date.now().toString(36)}`,
             });
             activeOrgId = created?.id;
           }
