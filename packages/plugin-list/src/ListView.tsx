@@ -127,14 +127,25 @@ export function normalizeFilters(filters: any[]): any[] {
     .filter(f => Array.isArray(f) && f.length > 0);
 }
 
-function convertFilterGroupToAST(group: FilterGroup): any[] {
+export function convertFilterGroupToAST(group: FilterGroup): any[] {
   if (!group || !group.conditions || group.conditions.length === 0) return [];
 
-  const conditions = group.conditions.map(c => {
-    if (c.operator === 'isEmpty') return [c.field, '=', null];
-    if (c.operator === 'isNotEmpty') return [c.field, '!=', null];
-    return [c.field, mapOperator(c.operator), c.value];
-  });
+  const conditions = group.conditions
+    .filter(c => {
+      // isEmpty/isNotEmpty carry no value input — always keep them.
+      if (c.operator === 'isEmpty' || c.operator === 'isNotEmpty') return true;
+      // Skip incomplete rows (no value entered yet). Emitting `[field, op, '']`
+      // would be a silently-wrong filter (matches only empty) rather than
+      // "no filter", excluding all rows. Matches groupToCondition in
+      // datasetFilterCondition.ts (#1964).
+      const v = c.value;
+      return !(v == null || v === '' || (Array.isArray(v) && v.length === 0));
+    })
+    .map(c => {
+      if (c.operator === 'isEmpty') return [c.field, '=', null];
+      if (c.operator === 'isNotEmpty') return [c.field, '!=', null];
+      return [c.field, mapOperator(c.operator), c.value];
+    });
 
   // Normalize in/not-in conditions for backend compatibility
   const normalized = normalizeFilters(conditions);
