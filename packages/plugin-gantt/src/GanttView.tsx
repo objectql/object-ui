@@ -2220,8 +2220,16 @@ export function GanttView({
 
   // Shared row geometry: bars/diamonds/brackets and link anchors must agree
   // on these or arrows visibly miss their targets.
-  const barTop = Math.round(rowHeight * 0.2); // task bar inset from the row top
+  // Task bar geometry. Target a ~27px-tall bar (dhtmlx-like) so its top edge can
+  // host the length (resize) grips and its bottom edge the progress grip without
+  // the two hit areas overlapping. `barTop` is kept an integer and `barHeight`
+  // derived as `rowHeight - 2*barTop`, so the bar stays *exactly* centered
+  // (link anchors assume rowHeight/2) with no sub-pixel drift.
+  const barTop = Math.max(2, Math.round(rowHeight / 2) - 14); // bar inset from the row top
   const barHeight = rowHeight - barTop * 2;
+  // Split the bar vertically: top band drives length (resize), bottom band drives
+  // progress — so the two grips never compete for the same pixels.
+  const resizeHandleHeight = Math.round(barHeight / 2);
   const milestoneSize = Math.max(Math.round(rowHeight * 0.4), 12);
   // The diamond is a square rotated 45° around its center at the task date;
   // its horizontal tips sit half a diagonal out from that center.
@@ -3341,7 +3349,11 @@ export function GanttView({
                           }}
                           onClick={() => {
                             if (suppressNextClickRef.current) return;
-                            onTaskClick?.(task);
+                            // Clicking the bar only selects it — opening the detail
+                            // drawer is reserved for the task-name column, the
+                            // context menu, and keyboard Enter, so a mis-tap while
+                            // aiming to drag never pops the side panel (易误触).
+                            setSelectedTaskId(task.id);
                           }}
                           onContextMenu={(e) => openContextMenu(task, e)}
                         >
@@ -3403,7 +3415,11 @@ export function GanttView({
                           onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
                           onClick={() => {
                             if (suppressNextClickRef.current) return;
-                            onTaskClick?.(task);
+                            // Clicking the bar only selects it — opening the detail
+                            // drawer is reserved for the task-name column, the
+                            // context menu, and keyboard Enter, so a mis-tap while
+                            // aiming to drag never pops the side panel (易误触).
+                            setSelectedTaskId(task.id);
                           }}
                           onContextMenu={(e) => openContextMenu(task, e)}
                           onPointerMove={captureLinkTarget}
@@ -3470,7 +3486,11 @@ export function GanttView({
                         data-testid={`gantt-task-bar-${task.id}`}
                         onClick={() => {
                           if (suppressNextClickRef.current) return;
-                          onTaskClick?.(task);
+                          // Clicking the bar only selects it — opening the detail
+                          // drawer is reserved for the task-name column, the
+                          // context menu, and keyboard Enter, so a mis-tap while
+                          // aiming to drag never pops the side panel (易误触).
+                          setSelectedTaskId(task.id);
                         }}
                         onContextMenu={(e) => openContextMenu(task, e)}
                         onPointerMove={captureLinkTarget}
@@ -3485,8 +3505,8 @@ export function GanttView({
                         {canDrag && liveStyle.width >= 14 && (
                           <>
                             <div
-                              className="gantt-resize-handle absolute left-0 top-0 bottom-0"
-                              style={{ width: 6, cursor: 'ew-resize' }}
+                              className="gantt-resize-handle absolute left-0 top-0"
+                              style={{ width: 6, height: resizeHandleHeight, cursor: 'ew-resize' }}
                               data-testid={`gantt-task-resize-left-${task.id}`}
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
@@ -3495,8 +3515,8 @@ export function GanttView({
                               onClick={(e) => e.stopPropagation()}
                             />
                             <div
-                              className="gantt-resize-handle absolute right-0 top-0 bottom-0"
-                              style={{ width: 6, cursor: 'ew-resize' }}
+                              className="gantt-resize-handle absolute right-0 top-0"
+                              style={{ width: 6, height: resizeHandleHeight, cursor: 'ew-resize' }}
                               data-testid={`gantt-task-resize-right-${task.id}`}
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
