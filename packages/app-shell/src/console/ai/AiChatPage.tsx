@@ -80,6 +80,7 @@ import { useReconcileOnError } from '../../hooks/useReconcileOnError';
 import { ConversationsSidebar } from './ConversationsSidebar';
 import { LiveCanvas } from './LiveCanvas';
 import { BuildDebugDrawer } from './BuildDebugDrawer';
+import { isConversationZh } from './conversationLanguage';
 
 const DEFAULT_AI_PATH = '/api/v1/ai';
 
@@ -1185,6 +1186,25 @@ export function ChatPane({
     );
   }, [conversationId, messages]);
 
+  // #772 — the confirm-card SEND messages must match the CONVERSATION's
+  // language, not the console UI locale: a Chinese thread under an English UI
+  // was sending "Looks good — build it as proposed." into its own chat. The
+  // gate (service-ai-studio) accepts both languages, so this is a cosmetic —
+  // but jarring — mismatch. Override the sent strings to Chinese when the
+  // conversation is Chinese; button LABELS stay on the UI locale.
+  const convZh = useMemo(
+    () => isConversationZh(messages as ChatMessage[]) || isConversationZh(initialMessages),
+    [messages, initialMessages],
+  );
+  const planApproveMessage = convZh
+    ? '确认，开始搭建。'
+    : t('console.ai.planApproveMessage', { defaultValue: 'Looks good — build it as proposed.' });
+  const planApproveDefaultsMessage = convZh
+    ? '确认搭建，未决问题按你的合理假设和默认处理。'
+    : t('console.ai.planApproveDefaultsMessage', {
+        defaultValue: 'Build it with your best assumptions; use sensible defaults for the open questions.',
+      });
+
   // ADR-0037: refresh the live preview when a turn finishes while the canvas is
   // open. The per-artifact `onDraftArtifacts` signal covers a build streaming in,
   // but an incremental edit (add a field, rename) can land without growing the
@@ -1507,12 +1527,8 @@ export function ChatPane({
         planReadyLabel={t('console.ai.planReady', {
           defaultValue: 'The plan is ready. Build it now, or tell me what to adjust.',
         })}
-        planApproveMessage={t('console.ai.planApproveMessage', {
-          defaultValue: 'Looks good — build it as proposed.',
-        })}
-        planApproveDefaultsMessage={t('console.ai.planApproveDefaultsMessage', {
-          defaultValue: 'Build it with your best assumptions; use sensible defaults for the open questions.',
-        })}
+        planApproveMessage={planApproveMessage}
+        planApproveDefaultsMessage={planApproveDefaultsMessage}
         planAnswerMessage={(question, option) =>
           t('console.ai.planAnswerMessage', {
             question,

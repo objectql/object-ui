@@ -52,6 +52,7 @@ import { fetchPendingDraftCount } from '../preview/draftStatus';
 import { getRuntimeConfig } from '../runtime-config';
 import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi';
 import { shouldShowAgentPicker } from './agentPicker';
+import { detectConversationLanguage } from '../console/ai/conversationLanguage';
 
 /**
  * Display names for the two built-in platform agents (ADR-0063: `ask` / `build`,
@@ -342,43 +343,6 @@ function buildEditorSuggestions(
   return zh
     ? [`为「${subject}」补充字段`, `为「${subject}」建议校验规则`, '添加一个状态选项字段']
     : [`Add fields to ${subject}`, `Suggest validations for ${subject}`, 'Add a status picklist field'];
-}
-
-/**
- * The language the CONVERSATION is being held in, from its latest user
- * message — `undefined` when it can't tell (no user turn yet / non-CJK).
- *
- * Why this exists (#772): the chat surface's locale used to follow only the
- * console UI language, so a user chatting in Chinese under an English UI got
- * English canned messages ("Looks good — build it as proposed."), English
- * progress labels and English starter chips spliced into their Chinese
- * thread. The conversation's own language must win; the UI locale is the
- * fallback for a thread that hasn't started.
- */
-function detectConversationLanguage(
-  msgs: ReadonlyArray<{ role?: string; content?: unknown; parts?: unknown }> | undefined,
-): string | undefined {
-  if (!Array.isArray(msgs)) return undefined;
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    const m = msgs[i];
-    if (!m || m.role !== 'user') continue;
-    let text = '';
-    if (typeof m.content === 'string') text = m.content;
-    const parts = (m as { parts?: unknown }).parts;
-    if (!text && Array.isArray(parts)) {
-      text = parts
-        .map((p) =>
-          p && typeof p === 'object' && (p as { type?: string }).type === 'text'
-            ? String((p as { text?: unknown }).text ?? '')
-            : '',
-        )
-        .join(' ');
-    }
-    if (!text.trim()) continue;
-    // CJK unified ideographs → the thread is in Chinese.
-    return /[一-鿿]/.test(text) ? 'zh-CN' : undefined;
-  }
-  return undefined;
 }
 
 /** Segments after `:appName` that are route prefixes, not object names. */

@@ -796,7 +796,32 @@ interface ToolSummaryGroup {
   errorText?: string;
 }
 
-function getToolState(tool: ChatToolInvocation): ToolSummaryState {
+/**
+ * The tool RETURNED, but its result is a confirm-before-change PREVIEW — the
+ * change was proposed, NOT applied. Detects the gate envelopes
+ * (`changes_proposed` from granular edits, `blueprint_proposed` /
+ * `awaiting_confirmation` from the build flow). Tolerates a JSON-string or
+ * object result. #772: without this a proposed edit's activity chip read
+ * "Completed" even though it was still waiting for the user to confirm.
+ */
+export function isProposalResult(result: unknown): boolean {
+  let obj: unknown = result;
+  if (typeof obj === 'string') {
+    try {
+      obj = JSON.parse(obj);
+    } catch {
+      return false;
+    }
+  }
+  const status = (obj as { status?: unknown } | null | undefined)?.status;
+  return (
+    status === 'changes_proposed' ||
+    status === 'blueprint_proposed' ||
+    status === 'awaiting_confirmation'
+  );
+}
+
+export function getToolState(tool: ChatToolInvocation): ToolSummaryState {
   const state =
     tool.state ??
     (tool.errorText
@@ -812,7 +837,9 @@ function getToolState(tool: ChatToolInvocation): ToolSummaryState {
     return 'awaiting';
   }
   if (state === 'output-available') {
-    return 'completed';
+    // A returned-but-not-applied confirm preview is AWAITING the user, not done
+    // (#772): the change only commits when they approve on the next turn.
+    return isProposalResult(tool.result) ? 'awaiting' : 'completed';
   }
   return 'running';
 }
