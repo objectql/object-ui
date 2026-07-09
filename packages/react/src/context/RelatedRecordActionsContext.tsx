@@ -70,6 +70,15 @@ export interface RelatedRecordHandlers {
   rowActions?: RelatedRowActionDef[];
   /** Execute one of {@link rowActions} against a specific child row. */
   onRowAction?: (action: RelatedRowActionDef, record: unknown) => void | Promise<void>;
+  /**
+   * Child object list-level actions (`locations: ['list_toolbar']`),
+   * localized — rendered as header buttons on the related list (e.g.
+   * `invite_user` on an organization's Invitations list). Same bridge
+   * contract as {@link rowActions}, minus the row context.
+   */
+  toolbarActions?: RelatedRowActionDef[];
+  /** Execute one of {@link toolbarActions} (no row context). */
+  onToolbarAction?: (action: RelatedRowActionDef) => void | Promise<void>;
 }
 
 /** Input to {@link RelatedRecordActionsValue.resolve}. */

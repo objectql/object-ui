@@ -140,6 +140,8 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
         add={(schema as any).add}
         rowActions={handlers?.rowActions}
         onRowAction={handlers?.onRowAction}
+        toolbarActions={handlers?.toolbarActions}
+        onToolbarAction={handlers?.onToolbarAction}
         // Create a new child, pre-linked to this parent (增). Host omits when
         // create is denied by lifecycle/permissions, hiding the "New" button.
         onNew={handlers?.onCreate}

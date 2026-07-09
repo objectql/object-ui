@@ -86,6 +86,14 @@ export interface RelatedListProps {
   rowActions?: RelatedRowActionDef[];
   /** Execute one of {@link rowActions} against the clicked row. */
   onRowAction?: (action: RelatedRowActionDef, row: any) => void | Promise<void>;
+  /**
+   * Child-object list actions (`locations: ['list_toolbar']`), already
+   * localized by the host. Rendered as header buttons next to Add/New —
+   * e.g. `invite_user` on an organization's Invitations list.
+   */
+  toolbarActions?: RelatedRowActionDef[];
+  /** Execute one of {@link toolbarActions} (no row context). */
+  onToolbarAction?: (action: RelatedRowActionDef) => void | Promise<void>;
   /** Maximum number of columns to auto-generate. Default 6. */
   maxColumns?: number;
   /** Page size for pagination (enables pagination when set) */
@@ -148,6 +156,8 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   onRowClick,
   rowActions,
   onRowAction,
+  toolbarActions,
+  onToolbarAction,
   add,
   maxColumns = 6,
   pageSize,
@@ -742,6 +752,24 @@ export const RelatedList: React.FC<RelatedListProps> = ({
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {/* Child-object list_toolbar actions (e.g. Invite User) — the
+                related-list equivalent of the object list's toolbar buttons.
+                Rendered before Add/New so the domain action leads. */}
+            {onToolbarAction && (toolbarActions ?? []).map((a) => {
+              const ActionIcon = a.icon ? resolveIconComponent(a.icon) : null;
+              return (
+                <Button
+                  key={a.name}
+                  variant={a.variant === 'primary' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); void onToolbarAction(a); }}
+                  className="gap-1 h-9 sm:h-7 text-xs shadow-none"
+                >
+                  {ActionIcon && <ActionIcon className="h-3.5 w-3.5" />}
+                  {a.label || a.name}
+                </Button>
+              );
+            })}
             {add && (
               <Button
                 variant={isEmpty ? 'ghost' : 'outline'}
