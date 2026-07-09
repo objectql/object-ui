@@ -1601,6 +1601,15 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       // its title so a long blueprint/build call has a visible countdown, not a
       // static "Running" (issue #432).
       const isRunning = state === 'input-streaming' || state === 'input-available';
+      // #772 — the HEADER badge state. A tool that RETURNED a confirm-before-
+      // change PREVIEW (changes_proposed / blueprint_proposed) reads as
+      // "Awaiting Approval", not "Completed": nothing was applied, it's waiting
+      // for the user. Only the header badge is remapped — the local `state`
+      // (which gates payload display / HITL) is untouched.
+      const headerState =
+        state === 'output-available' && isProposalResult(tool.result)
+          ? ('approval-requested' as typeof state)
+          : state;
       const titleNode = (
         <span className="inline-flex min-w-0 items-center gap-2">
           <span>{friendlyTitle || tool.toolName}</span>
@@ -1640,7 +1649,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             isUnstructuredBuildProposal(tool)
           }
         >
-          <ToolHeader type={partType} state={state} title={titleNode} />
+          <ToolHeader type={partType} state={headerState} title={titleNode} />
           <ToolContent>
             {showPayload && tool.args !== undefined ? (
               <ToolInput input={tool.args} />
