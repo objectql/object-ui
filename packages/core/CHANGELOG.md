@@ -1,5 +1,12 @@
 # @object-ui/core
 
+## 12.1.0
+
+### Patch Changes
+
+- Updated dependencies [c31874d]
+  - @object-ui/types@12.1.0
+
 ## 12.0.0
 
 ### Minor Changes

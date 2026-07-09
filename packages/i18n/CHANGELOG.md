@@ -1,5 +1,30 @@
 # @object-ui/i18n
 
+## 12.1.0
+
+### Minor Changes
+
+- e1840bf: Signal the platform's preview stage in the UI.
+
+  The console top bar (`AppHeader`) now shows a small **Preview** chip next to the
+  product wordmark on every surface (home / app / orgs), so users always know the
+  whole platform is pre-GA. It's a new `PreviewBadge` component driven by a
+  `branding.stage` field in runtime-config (`'preview' | 'beta' | 'ga'`, exposed
+  via `getPlatformStage()`), which defaults to `'preview'` so the badge shows out
+  of the box. Operators flip the stage to `'ga'` at launch (`OS_PRODUCT_STAGE` /
+  `RuntimeConfigPlugin`) and the badge disappears with no code change; `'beta'`
+  renders a "Beta" chip instead. Labels are localized under `topbar.stage.*`.
+
+### Patch Changes
+
+- 6cbccf3: Localize form validation messages, toast client-side validation failures, and make native date/time picker icons legible in dark mode.
+
+  Record-form validation messages (required, min/max length, min/max value, pattern, email, URL) were hard-coded English even when the field label was localized — e.g. a Chinese "计划开始日期" field showed "计划开始日期 is required". `buildValidationRules` baked English strings, so the form renderer's `t(...)` fallback never applied. It now emits `required: true` and, for the other rules, a `messageKey` + `undefined` message (a field-authored `*_message` still wins and passes through verbatim); the form renderer fills the blanks via i18n (`validation.*` keys already exist in every locale), so messages track the label's language.
+
+  When client-side validation blocks a submit, the offending field's inline error can sit below the fold in a long modal/drawer form — the user clicks 创建 and sees nothing happen. The form renderer now also fires a `toast.error` naming the fields (`validation.formInvalid`, added to all 10 locales), mirroring the existing server-error toast so the feedback is visible regardless of scroll position.
+
+  Separately, native controls now declare `color-scheme` (`light` on `:root`, `dark` on `.dark`), so the webkit calendar-picker-indicator and other built-in glyphs render light-on-dark instead of vanishing against the dark input background.
+
 ## 12.0.0
 
 ## 11.5.0

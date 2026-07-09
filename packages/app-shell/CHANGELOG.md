@@ -1,5 +1,119 @@
 # @object-ui/app-shell — Changelog
 
+## 12.1.0
+
+### Minor Changes
+
+- 6eca471: Authorization authoring UX — surface the ADR-0066 security primitives the
+  framework now enforces (④ secure-by-default posture, ⑤ per-operation
+  requiredPermissions, ⑨ capability-reference lint).
+
+  **Access matrix — private-posture badge (④).** `PermissionMatrixEditor` object
+  rows now show an amber **Private** badge when the object declares
+  `access: { default: 'private' }`, with a tooltip explaining that a permission
+  set's `'*'` wildcard grant does NOT cover the object — without this, an admin
+  reading the matrix would assume a wildcard set reaches it while the server
+  403s. The object catalog mapping threads `access.default` through
+  (`ObjectSummary.accessDefault`).
+
+  **Object designer — Access section (④ + ⑤).** `ObjectDefaultInspector` (shared
+  by metadata-admin and the Studio Data-pillar settings tab) gains an "Access"
+  section: an exposure-posture select (`public`/`private`, with a warning hint
+  that a private object needs an explicit grant before anyone but platform
+  admins can use it), and a "Required capabilities" editor for the object-level
+  `requiredPermissions` AND-gate. The capability editor supports both shapes —
+  `string[]` (all operations) and the per-operation `{read,create,update,delete}`
+  map — with a mode toggle that converts losslessly (all→per-op copies the list
+  into every operation; per-op→all unions). The per-operation toggle is
+  **feature-detected** against the bundled `@objectstack/spec` (it needs the ⑤
+  union, spec ≥ 12.7) so the UI never offers a shape client-side validation
+  would reject; map-form drafts always render per-operation inputs.
+
+  **Publish — capability-reference lint (⑨).** `usePublishAllDrafts` now runs
+  `validateCapabilityReferences` from `@objectstack/lint` over the pending
+  object/app/action drafts (declaration side = published permission sets ∪
+  pending permission drafts) and surfaces "capability registered nowhere"
+  warnings as a post-publish toast. Strictly advisory and fail-safe: the rule is
+  feature-detected (no-op until the lint dependency ships it), and any
+  client/import/rule failure is swallowed — the lint can never break or block
+  publishing.
+
+- e2e0dbe: Dashboard authoring moves entirely into Studio.
+
+  The in-page dashboard **Edit** button and its inline `DashboardConfigPanel` were removed — `DashboardView` is now a pure viewer, so authoring lives in one place: Studio's Interfaces pillar. The top bar's "Design in Studio" icon is now context-aware — on a dashboard route it deep-links straight to that dashboard's design page (`/studio/:packageId/interfaces?surface=dashboard:<name>`) via the new `appStudioSurfacePath` helper, falling back to the package's Data tab elsewhere.
+
+- e35f880: Studio Data tab: metadata-driven config panels for Validations, Hooks and Actions (with add).
+
+  The object **Validations**, **Hooks** and **Actions** sub-tabs are now no-code config panels driven by the corresponding metadata, each able to **create** new entries:
+
+  - **Validations** — the panel covers every spec rule type, not just `script`: `cross_field`, `state_machine`, `format`, `json_schema` and `conditional` are all authorable (previously they were read-only "maintain in code"). The **New** menu adds any type seeded with a valid, never-firing skeleton, and a rule's type can be switched in place; CEL predicates reuse the shared `ConditionBuilder`.
+  - **Hooks** — a new curated `HookDefaultInspector` replaces the flat generic form: the target object is an **object picker** (multi-select + `*`, not a free-text box), lifecycle events are grouped checkboxes, and the handler is a **dedicated code editor** (language + body). Advanced props fall through to a `SchemaForm` fed the live `hook` JSONSchema from `/meta/types`.
+  - **Actions** — the `ActionDefaultInspector` now receives the live `action` JSONSchema as `serverSchema`, so its "More fields" section can edit any spec property not curated above (nothing is un-editable).
+
+  `DataPillar` resolves the per-type schemas once (via `useMetadataTypes`) and passes them down.
+
+- e1840bf: Signal the platform's preview stage in the UI.
+
+  The console top bar (`AppHeader`) now shows a small **Preview** chip next to the
+  product wordmark on every surface (home / app / orgs), so users always know the
+  whole platform is pre-GA. It's a new `PreviewBadge` component driven by a
+  `branding.stage` field in runtime-config (`'preview' | 'beta' | 'ga'`, exposed
+  via `getPlatformStage()`), which defaults to `'preview'` so the badge shows out
+  of the box. Operators flip the stage to `'ga'` at launch (`OS_PRODUCT_STAGE` /
+  `RuntimeConfigPlugin`) and the badge disappears with no code change; `'beta'`
+  renders a "Beta" chip instead. Labels are localized under `topbar.stage.*`.
+
+- 572cc6b: Keep a clickable path back when drilling from a record into a related child record (objectui "点击子表标题跳转后如何返回").
+
+  Clicking a related sub-table row opens the child record's detail page, but that page dropped all trace of where you came from: its breadcrumb only led to the child object's _list_ (never the parent record), and the record body's built-in Back button is suppressed on the schema-rendered surface. From a related-list drill-in the only way back was the browser Back button.
+
+  - **New reserved `?from=` URL param carries the ancestor trail.** When you open a related record (both the synth `RelatedRecordActionsBridge.onView` path and the legacy `RecordDetailView` `onRowClick` path), the parent record is appended to a compact, refresh- and share-safe trail encoded in the URL. Nested drill-ins accumulate (`Account → Invoice → Invoice Line`); depth is capped at 8 and titles truncated so the URL can't grow unbounded, and a trailing self-reference is deduped. Codec (`encodeRecordTrail`/`decodeRecordTrail`/`appendRecordTrail`/`buildRecordTrailHref`) is total — a malformed value yields no ancestor crumbs rather than throwing.
+  - **The top-bar breadcrumb renders the trail as clickable segments.** A record route with a `?from=` trail now shows `Account → #parent → Invoice → #child`, each ancestor an `object-list → record` pair that links back, with mid-path crumbs preserving the ancestors above them.
+  - **The record body shows an inline "← back to parent" link** derived from the trail's nearest ancestor, so the immediate-parent affordance survives refresh and shared links (previously it relied on in-session history state that nothing populated for this flow).
+
+- c31874d: Record-header actions honour `Action.order`, so approval decisions no longer get buried in the `⋯` overflow menu (objectui#2339 / framework#2670).
+
+  The `action:bar` renderer now stable-sorts its actions by an explicit **`order`** field (lower = higher / more prominent, default `0`) before the inline/overflow split. The sort is stable and treats unset `order` as `0`, so action groups where nobody sets `order` keep their exact registration order — existing toolbars are unaffected. `order` is added to `ActionSchema` in `@object-ui/types`, mirroring `Action.order` in `@objectstack/spec`.
+
+  `RecordDetailView` now assigns the injected **Approve / Reject** decision buttons a strongly-negative `order` (and gives Approve the highlighted `primary` variant), so on a pending-approval record the approver's decision takes the primary-button slot and app `record_header` actions follow it — instead of the app having to hide its own actions to surface the decision.
+
+- bf00df4: The top bar's "Design in Studio" bridge now deep-links pages and reports, not just dashboards.
+
+  Previously only a **dashboard** route deep-linked to its design page in Studio's Interfaces pillar; a **page** or **report** route fell back to the package's generic Data tab, dropping the admin far from the surface they were viewing. The route-type → surface-type mapping now covers all three interface types (`dashboard` / `page` / `report`) via the new `appStudioRoutePath` helper, so e.g. viewing `/apps/:pkg/page/showcase_crm_workbench` and clicking the hammer opens `/studio/:packageId/interfaces?surface=page:showcase_crm_workbench`. Object routes and the app root still open the Data tab.
+
+- d5cb84f: Studio: expose the object record sharing model (OWD) in the Data pillar Settings tab.
+
+  The object designer had no control for an object's `sharingModel` (Org-Wide Default), so record-level isolation was invisible and unconfigurable at design time — an admin who ticked Read/Edit in the permission matrix silently got org-wide read/write, because an unset `sharingModel` falls through to the runtime's fully-public default. `ObjectSettingsPanel` now renders a "Record sharing (OWD)" section with a `sharingModel` selector (`private` / `public_read` / `public_read_write` / `controlled_by_parent`), a per-option description of the runtime effect, and an amber warning when unset that spells out the fully-public default. Legacy aliases (`read` → `public_read`, `read_write`/`full` → `public_read_write`) are normalised to their canonical value for display. Fully localized (en-US / zh-CN).
+
+- 23132ab: Studio Interfaces: move the source-page code editor into a "Source" inspector tab, silence its bogus TypeScript errors, and deep-link menu selection.
+
+  For `kind:'html'`/`kind:'react'` pages (a `source` string, not a block tree), the code editor now lives in a dedicated **Source** tab in the right-hand properties panel while the canvas shows only the live preview; edits flow through the shared draft so the preview stays in sync. The `SourcePageEditor` gains a `mode` prop (`split` | `editor` | `preview`) to render the halves independently, and a `beforeMount` hook disables the Monaco TypeScript worker's semantic/syntax validation (and configures JSX) so JSX-flavoured HTML — intrinsic tags like `<flex>`, no `import React`, `style={{…}}` object literals — no longer floods the gutter with meaningless red squiggles (the live preview and server-side validation remain the source of truth). Selecting a menu now records the open surface as `?surface=<type>:<name>`, so the design target is shareable and survives a reload instead of snapping back to the first nav leaf.
+
+### Patch Changes
+
+- 195121a: Studio form designer + preview now match the runtime form's column density.
+
+  The Data pillar's **Form → Layout** designer laid every section out in a fixed 2-column grid capped at `max-w-3xl`, and **Form → Preview** capped the real `ObjectForm` at `max-w-2xl`. So on a wide screen the studio showed at most 2 columns while the record the end user actually edits spreads to up to 4 — the design surface misrepresented the real layout.
+
+  `ObjectFormDesigner` now derives its column count the same way the runtime form does (`inferColumns` over the object's editable field count, objectui#2578) and lays each section out with the shared container-query grid classes (`containerGridColsFor`) inside a per-section `@container`, so a field-heavy object reaches 4 fields per row on wide screens and collapses to one column when the panel is narrow. Wide widgets (textarea/markdown/html/…) span the full row, mirroring the form. Both the layout and preview canvases were widened to `max-w-6xl` so the container queries can actually reach 4 columns. `containerGridColsFor` is now exported from `@object-ui/plugin-form` as the single source of truth for these grid classes.
+
+- Updated dependencies [6cbccf3]
+- Updated dependencies [e1840bf]
+- Updated dependencies [c31874d]
+  - @object-ui/components@12.1.0
+  - @object-ui/fields@12.1.0
+  - @object-ui/i18n@12.1.0
+  - @object-ui/types@12.1.0
+  - @object-ui/layout@12.1.0
+  - @object-ui/plugin-editor@12.1.0
+  - @object-ui/react@12.1.0
+  - @object-ui/auth@12.1.0
+  - @object-ui/collaboration@12.1.0
+  - @object-ui/core@12.1.0
+  - @object-ui/data-objectstack@12.1.0
+  - @object-ui/permissions@12.1.0
+  - @object-ui/providers@12.1.0
+
 ## 12.0.0
 
 ### Minor Changes

@@ -1,5 +1,19 @@
 # @object-ui/plugin-dashboard
 
+## 12.1.0
+
+### Patch Changes
+
+- Updated dependencies [6cbccf3]
+- Updated dependencies [e1840bf]
+- Updated dependencies [c31874d]
+  - @object-ui/components@12.1.0
+  - @object-ui/fields@12.1.0
+  - @object-ui/i18n@12.1.0
+  - @object-ui/types@12.1.0
+  - @object-ui/react@12.1.0
+  - @object-ui/core@12.1.0
+
 ## 12.0.0
 
 ### Patch Changes

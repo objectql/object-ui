@@ -1,5 +1,17 @@
 # @object-ui/plugin-detail
 
+## 12.1.0
+
+### Patch Changes
+
+- 47e72b8: Fix a React #300 crash when drilling from a master record into a related child record.
+
+  `DetailSection` placed its all-empty `return null` guard _before_ the virtual-scroll `useEffect`, so a section that rendered all-empty on one pass (effect skipped) and populated on the next (effect runs) changed its hook count between renders of the same reconciled fiber — React threw error #300 ("rendered more hooks than during the previous render"). This reliably tripped on the master-detail drill-in (e.g. Account → Project), showing an error boundary and bouncing the user away on refresh. The all-empty guard now runs after every hook, making the hook count invariant.
+
+- Updated dependencies [6cbccf3]
+- Updated dependencies [e1840bf]
+  - @object-ui/i18n@12.1.0
+
 ## 12.0.0
 
 ### Minor Changes

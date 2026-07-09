@@ -1,5 +1,18 @@
 # @object-ui/runner
 
+## 12.1.0
+
+### Patch Changes
+
+- Updated dependencies [6cbccf3]
+- Updated dependencies [c31874d]
+  - @object-ui/components@12.1.0
+  - @object-ui/types@12.1.0
+  - @object-ui/plugin-kanban@12.1.0
+  - @object-ui/plugin-charts@12.1.0
+  - @object-ui/react@12.1.0
+  - @object-ui/core@12.1.0
+
 ## 12.0.0
 
 ### Patch Changes
