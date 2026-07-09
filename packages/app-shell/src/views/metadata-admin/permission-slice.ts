@@ -37,7 +37,8 @@ export interface FieldPerm {
 export interface PermissionSetDraft {
   name: string;
   label?: string;
-  isProfile?: boolean;
+  isDefault?: boolean;   // install-time suggestion (ADR-0090 D5); managedBy/packageId are provenance
+  managedBy?: string;
   objects: Record<string, ObjectPerm>;
   fields?: Record<string, FieldPerm>;
   systemPermissions?: string[];
@@ -88,7 +89,7 @@ export function scopePermissionSet(
  * `base`; in-scope rows are taken entirely from `edited` (so removing a grant
  * in the package panel deletes only that package's row). Set-level identity and
  * any extra keys (systemPermissions, tabPermissions, …) come from `base`, with
- * name / label / isProfile taking the user's edits.
+ * name / label taking the user's edits.
  */
 export function mergePermissionSlice(
   base: PermissionSetDraft,
@@ -117,7 +118,7 @@ export function mergePermissionSlice(
     ...base,
     name: edited.name,
     label: edited.label,
-    isProfile: edited.isProfile,
+    isDefault: edited.isDefault,
     objects,
     fields,
   };

@@ -65,7 +65,8 @@ export function registerBuiltinPreviews(): void {
   registerMetadataPreview('tool', ToolPreview);
   registerMetadataPreview('skill', SkillPreview);
   // Security & Identity
-  // `profile` is a PermissionSet with `isProfile: true` — reuse the same preview.
+  // ADR-0090 D2 removed the Profile concept; the `profile` registration stays
+  // only so metadata from pre-v2 backends still renders (inert otherwise).
   registerMetadataPreview('permission', PermissionPreview);
   registerMetadataPreview('profile', PermissionPreview);
   registerMetadataPreview('role', RolePreview);

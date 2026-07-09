@@ -2850,7 +2850,7 @@ function AccessPillar({
   const isMobile = useIsMobile();
   const [railOpen, setRailOpen] = React.useState(false);
   const [perms, setPerms] = React.useState<
-    Array<{ name: string; label: string; isProfile?: boolean }>
+    Array<{ name: string; label: string; isDefault?: boolean }>
   >([]);
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -2879,14 +2879,14 @@ function AccessPillar({
         client.list('permission', { packageId }) as Promise<Array<Record<string, unknown>>>,
         client.listDrafts({ packageId, type: 'permission' }).catch(() => []),
       ]);
-      const byName = new Map<string, { name: string; label: string; isProfile?: boolean }>();
+      const byName = new Map<string, { name: string; label: string; isDefault?: boolean }>();
       for (const p of list || []) {
         const name = String(p.name ?? (p as Record<string, unknown>).id ?? '');
         if (!name) continue;
         byName.set(name, {
           name,
           label: String(p.label ?? p.name ?? ''),
-          isProfile: !!(p as Record<string, unknown>).isProfile,
+          isDefault: !!(p as Record<string, unknown>).isDefault,
         });
       }
       for (const d of (drafts as Array<{ name?: string }>) || []) {
@@ -3007,9 +3007,9 @@ function AccessPillar({
               >
                 <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="flex-1 truncate">{p.label}</span>
-                {p.isProfile && (
+                {p.isDefault && (
                   <span className="text-[9px] uppercase tracking-wide text-muted-foreground/60">
-                    profile
+                    default
                   </span>
                 )}
               </button>

@@ -92,7 +92,7 @@ registerMetadataResource({
 registerMetadataResource({
   type: 'permission',
   label: 'Permission sets',
-  description: 'Object-level CRUD + VAMA + lifecycle permissions, and field-level R/W. Profiles are permission sets with isProfile=true.',
+  description: 'Object-level CRUD + VAMA + lifecycle permissions, and field-level R/W. The only capability container (ADR-0090); distributed to users via positions.',
   domain: 'security',
   EditPage: PermissionMatrixEditPage,
   searchableFields: ['name', 'label'],
@@ -100,10 +100,10 @@ registerMetadataResource({
     { key: 'name', label: 'Name', width: '30%' },
     { key: 'label', label: 'Label', width: '30%' },
     {
-      key: 'isProfile',
-      label: 'Type',
+      key: 'managedBy',
+      label: 'Source',
       width: '15%',
-      render: (v) => (v ? 'Profile' : 'Permission set'),
+      render: (v) => (v === 'package' ? 'Package' : 'Custom'),
     },
   ],
 });

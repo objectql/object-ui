@@ -89,7 +89,8 @@ export function PermissionPreview({ name, draft }: MetadataPreviewProps) {
   const d = draft as Record<string, unknown>;
   const permName = String(d.name ?? name ?? '');
   const label = String(d.label ?? permName);
-  const isProfile = !!d.isProfile;
+  // ADR-0090 D2: Profile removed; the star now marks the package-suggested default set (D5).
+  const isDefault = !!d.isDefault;
   const objects = (d.objects ?? {}) as Record<string, ObjectPermission>;
   const fields = (d.fields ?? {}) as Record<string, FieldPermission>;
   const systemPerms = Array.isArray(d.systemPermissions) ? (d.systemPermissions as string[]) : [];
@@ -130,7 +131,7 @@ export function PermissionPreview({ name, draft }: MetadataPreviewProps) {
           {/* Header */}
           <div className="rounded border bg-muted/30 p-3">
             <div className="flex items-start gap-2">
-              {isProfile ? (
+              {isDefault ? (
                 <Star className="h-4 w-4 mt-0.5 text-amber-600 shrink-0" />
               ) : (
                 <ShieldCheck className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
@@ -140,7 +141,7 @@ export function PermissionPreview({ name, draft }: MetadataPreviewProps) {
                   <span className="text-sm font-medium truncate">{label}</span>
                   <span className="font-mono text-[10px] text-muted-foreground">{permName}</span>
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {isProfile ? 'Profile' : 'Permission Set'}
+                    {isDefault ? 'Default Permission Set' : 'Permission Set'}
                   </span>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">

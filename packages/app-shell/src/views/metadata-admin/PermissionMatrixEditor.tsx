@@ -17,7 +17,7 @@
  *   {
  *     name: string,
  *     label?: string,
- *     isProfile?: boolean,
+ *     isDefault?: boolean,   // install-time suggestion (ADR-0090 D5); Profile was removed (D2)
  *     objects: { [object_name]: ObjectPermission },
  *     fields?:  { [`${object_name}.${field_name}`]: FieldPermission },
  *     systemPermissions?: string[],
@@ -423,7 +423,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
     <PageShell
       entry={entry ?? { type, label: type }}
       itemName={name}
-      subtitle={draft.isProfile ? t('perm.subtitle.profile') : t('perm.subtitle.set')}
+      subtitle={t('perm.subtitle.set')}
       stats={stats}
       actions={
         <>
@@ -455,7 +455,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
           </div>
         )}
 
-        {/* Header strip — name / label / isProfile */}
+        {/* Header strip — name / label / provenance + default badges */}
         <div className="px-6 py-3 border-b bg-muted/30 flex flex-wrap items-end gap-4">
           <div className="space-y-1">
             <Label htmlFor="perm-name" className="text-xs">{t('perm.field.name')}</Label>
@@ -477,14 +477,18 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
               className="h-8 w-72"
             />
           </div>
-          <div className="flex items-center gap-2 pb-1">
-            <Switch
-              id="perm-is-profile"
-              checked={!!draft.isProfile}
-              disabled={!writable}
-              onCheckedChange={(v) => setDraft((p) => ({ ...p, isProfile: !!v }))}
-            />
-            <Label htmlFor="perm-is-profile" className="text-xs">{t('perm.field.isProfile')}</Label>
+          {/* ADR-0090 D2: the profile toggle is gone. What matters instead is
+              WHO OWNS the set (provenance, ADR-0086 D3) and whether it is the
+              package's suggested default (ADR-0090 D5). */}
+          <div className="flex items-center gap-1.5 pb-1">
+            <Badge variant="outline" className="text-[10px]">
+              {draft.managedBy === 'package' || packageId
+                ? t('perm.badge.package')
+                : t('perm.badge.custom')}
+            </Badge>
+            {!!draft.isDefault && (
+              <Badge variant="secondary" className="text-[10px]">{t('perm.badge.default')}</Badge>
+            )}
           </div>
           {!writable && (
             <Badge variant="secondary" className="ml-auto">
