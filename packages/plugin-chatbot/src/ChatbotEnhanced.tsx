@@ -78,6 +78,7 @@ import {
   SourcesContent,
   Source,
 } from './elements/sources';
+import { parseResultEnvelope } from './mapMessages';
 
 export interface ChatMessage {
   id: string;
@@ -800,20 +801,19 @@ interface ToolSummaryGroup {
  * The tool RETURNED, but its result is a confirm-before-change PREVIEW — the
  * change was proposed, NOT applied. Detects the gate envelopes
  * (`changes_proposed` from granular edits, `blueprint_proposed` /
- * `awaiting_confirmation` from the build flow). Tolerates a JSON-string or
- * object result. #772: without this a proposed edit's activity chip read
- * "Completed" even though it was still waiting for the user to confirm.
+ * `awaiting_confirmation` from the build flow). #772: without this a proposed
+ * edit's activity chip read "Completed" even though it was still waiting for
+ * the user to confirm.
+ *
+ * Uses the shared `parseResultEnvelope` so it peels the Vercel AI SDK tool
+ * output shell `{ type:'text', value:'<json>' }` before reading `.status` —
+ * the real `tool.result` is that wrapped shell, not a bare object/string, so a
+ * hand-rolled `.status` check (which only saw the shell) always returned false
+ * and the collapsed header stayed "Completed" instead of "Awaiting Approval"
+ * (#787 finding B / #2362).
  */
 export function isProposalResult(result: unknown): boolean {
-  let obj: unknown = result;
-  if (typeof obj === 'string') {
-    try {
-      obj = JSON.parse(obj);
-    } catch {
-      return false;
-    }
-  }
-  const status = (obj as { status?: unknown } | null | undefined)?.status;
+  const status = parseResultEnvelope(result)?.status;
   return (
     status === 'changes_proposed' ||
     status === 'blueprint_proposed' ||

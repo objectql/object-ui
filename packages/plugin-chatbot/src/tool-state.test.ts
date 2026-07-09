@@ -15,6 +15,23 @@ describe('isProposalResult', () => {
     expect(isProposalResult('{"status":"changes_proposed"}')).toBe(true);
   });
 
+  // #787 finding B / #2362: the REAL tool.result is the Vercel AI SDK tool
+  // output shell `{ type:'text', value:'<json>' }`, not a bare object/string.
+  // isProposalResult must peel that shell (via parseResultEnvelope) or the
+  // collapsed header reads "Completed" instead of "Awaiting Approval".
+  it('peels the Vercel {type,value} tool-output envelope', () => {
+    expect(
+      isProposalResult({ type: 'text', value: '{"status":"changes_proposed","changes":[]}' }),
+    ).toBe(true);
+    expect(
+      isProposalResult({ type: 'text', value: '{"status":"blueprint_proposed","blueprint":{}}' }),
+    ).toBe(true);
+    // A wrapped, genuinely-applied result stays "Completed".
+    expect(isProposalResult({ type: 'text', value: '{"status":"drafted","drafted":["x"]}' })).toBe(
+      false,
+    );
+  });
+
   it('is false for applied / other results and junk', () => {
     expect(isProposalResult({ status: 'drafted', drafted: ['x'] })).toBe(false);
     expect(isProposalResult({ ok: true })).toBe(false);
@@ -41,6 +58,17 @@ describe('getToolState — proposed preview reads as awaiting', () => {
         toolCallId: 't2',
         toolName: 'propose_blueprint',
         result: { status: 'blueprint_proposed', blueprint: {} },
+      }),
+    ).toBe('awaiting');
+  });
+
+  it('a returned changes_proposed WRAPPED in the Vercel {type,value} shell → awaiting', () => {
+    // The exact shape headerState/renderToolDetail receive at runtime (#787 B).
+    expect(
+      getToolState({
+        toolCallId: 't2b',
+        toolName: 'apply_edit',
+        result: { type: 'text', value: '{"status":"changes_proposed","changes":[{"verb":"add_field"}]}' },
       }),
     ).toBe('awaiting');
   });

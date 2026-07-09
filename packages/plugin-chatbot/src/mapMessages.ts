@@ -74,8 +74,13 @@ function extractReasoning(parts: AnyPart[]): string | undefined {
  * The Vercel SDK wraps tool outputs as `{ type: 'text', value: string }`, so we
  * peel one layer if present, then fall back to the raw value. Returns the first
  * candidate that parses to a plain object.
+ *
+ * Exported so `isProposalResult` (ChatbotEnhanced) shares the exact same
+ * envelope-peeling logic — otherwise a wrapped `{type:'text', value:'…'}`
+ * result slips past its `.status` check and the activity chip mis-reads a
+ * still-pending proposal as "Completed" (#787 finding B / #2362).
  */
-function parseResultEnvelope(result: unknown): Record<string, unknown> | undefined {
+export function parseResultEnvelope(result: unknown): Record<string, unknown> | undefined {
   const tryParse = (value: unknown): Record<string, unknown> | undefined => {
     if (value && typeof value === 'object') return value as Record<string, unknown>;
     if (typeof value !== 'string') return undefined;
