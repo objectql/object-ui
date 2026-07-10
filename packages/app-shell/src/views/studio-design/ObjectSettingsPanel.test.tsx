@@ -93,3 +93,41 @@ describe('ObjectSettingsPanel — external OWD dial (ADR-0090 D11)', () => {
     expect(screen.getByTestId('owd-external-desc').textContent).not.toMatch(/WIDER/);
   });
 });
+
+describe('ObjectSettingsPanel — capabilities (enable.*, framework#2707/#2727)', () => {
+  it('renders only the LIVE flags with effective defaults (opt-in unchecked, opt-out checked)', () => {
+    renderPanel(baseDraft);
+    expect(screen.getByTestId('capabilities-section')).toBeTruthy();
+    // Opt-in flags default OFF…
+    expect((screen.getByTestId('cap-trackHistory') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByTestId('cap-files') as HTMLInputElement).checked).toBe(false);
+    // …opt-out flags default ON.
+    expect((screen.getByTestId('cap-feeds') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByTestId('cap-activities') as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByTestId('cap-clone') as HTMLInputElement).checked).toBe(true);
+    // Dead flags must NOT be offered (Studio only exposes enforced switches).
+    expect(screen.queryByTestId('cap-searchable')).toBeNull();
+    expect(screen.queryByTestId('cap-trash')).toBeNull();
+    expect(screen.queryByTestId('cap-mru')).toBeNull();
+  });
+
+  it('reflects authored values (explicit false on an opt-out, true on an opt-in)', () => {
+    renderPanel({ ...baseDraft, enable: { feeds: false, files: true } });
+    expect((screen.getByTestId('cap-feeds') as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByTestId('cap-files') as HTMLInputElement).checked).toBe(true);
+    // Untouched flags keep their effective defaults.
+    expect((screen.getByTestId('cap-activities') as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('toggling writes an explicit boolean into enable, preserving sibling keys', () => {
+    const onPatch = renderPanel({ ...baseDraft, enable: { files: true } });
+    fireEvent.click(screen.getByTestId('cap-feeds'));
+    expect(onPatch).toHaveBeenCalledWith({ enable: { files: true, feeds: false } });
+  });
+
+  it('enabling an opt-in flag patches enable.trackHistory: true', () => {
+    const onPatch = renderPanel(baseDraft);
+    fireEvent.click(screen.getByTestId('cap-trackHistory'));
+    expect(onPatch).toHaveBeenCalledWith({ enable: { trackHistory: true } });
+  });
+});

@@ -1078,6 +1078,23 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
     'Applies to external principals only (ADR-0090 D11). Never wider than the internal model; unset falls back to Private.',
   'engine.studio.settings.sharingExternalWider':
     'External baseline is WIDER than the internal sharing model — publishing will be rejected (ADR-0090 D11). Narrow it to the internal model or below (private < public read < public read/write).',
+  'engine.studio.settings.capabilities': 'Capabilities (enable.*)',
+  'engine.studio.settings.capabilitiesHint': 'Record-page features — every switch here is enforced by the runtime',
+  'engine.studio.settings.capTrackHistory': 'History tab (trackHistory)',
+  'engine.studio.settings.capTrackHistoryDesc':
+    'Shows the read-only History tab (audit trail) on record pages. Pair with per-field history tracking for human-readable diffs; audit capture itself is always on for compliance.',
+  'engine.studio.settings.capFiles': 'Attachments (files)',
+  'engine.studio.settings.capFilesDesc':
+    'Generic Attachments panel on record pages (upload/download/delete). Off = the server also rejects new attachments targeting this object.',
+  'engine.studio.settings.capFeeds': 'Comments & feed (feeds)',
+  'engine.studio.settings.capFeedsDesc':
+    'Record discussion panel with @mentions and reactions. Off = the panel is hidden AND new comments are rejected server-side.',
+  'engine.studio.settings.capActivities': 'Activity timeline (activities)',
+  'engine.studio.settings.capActivitiesDesc':
+    'Mirrors create/update/delete into the record timeline. Off = no timeline rows for this object (the compliance audit log is unaffected).',
+  'engine.studio.settings.capClone': 'Cloning (clone)',
+  'engine.studio.settings.capCloneDesc':
+    'Allow duplicating records from the record page / API. Off = the clone endpoint returns 403 for this object.',
   'engine.studio.pkg.writable': 'Writable',
   'engine.studio.pkg.heading': 'Packages (apps)',
   'engine.studio.pkg.none': 'No app packages yet',
@@ -2234,6 +2251,23 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
     '仅作用于外部主体(ADR-0090 D11)。不得宽于内部模型;未设置时回落为 Private。',
   'engine.studio.settings.sharingExternalWider':
     '外部基线比内部共享模型更宽 —— 发布会被拒绝(ADR-0090 D11)。请收窄到不超过内部模型(private < public read < public read/write)。',
+  'engine.studio.settings.capabilities': '能力开关(enable.*)',
+  'engine.studio.settings.capabilitiesHint': '记录页能力 —— 这里的每个开关都由运行时真实强制',
+  'engine.studio.settings.capTrackHistory': '历史标签页(trackHistory)',
+  'engine.studio.settings.capTrackHistoryDesc':
+    '在记录页显示只读的历史标签页(审计轨迹)。配合字段级历史跟踪可得到可读的字段级差异;审计采集本身始终开启(合规要求)。',
+  'engine.studio.settings.capFiles': '附件(files)',
+  'engine.studio.settings.capFilesDesc':
+    '记录页通用附件面板(上传/下载/删除)。关闭后服务端同时拒绝指向该对象的新附件。',
+  'engine.studio.settings.capFeeds': '评论与动态(feeds)',
+  'engine.studio.settings.capFeedsDesc':
+    '记录讨论面板(支持 @提及 与表情回应)。关闭后面板隐藏,且服务端拒绝新评论。',
+  'engine.studio.settings.capActivities': '活动时间线(activities)',
+  'engine.studio.settings.capActivitiesDesc':
+    '将创建/更新/删除镜像到记录时间线。关闭后该对象不再产生时间线记录(合规审计日志不受影响)。',
+  'engine.studio.settings.capClone': '克隆(clone)',
+  'engine.studio.settings.capCloneDesc':
+    '允许从记录页/API 复制记录。关闭后克隆接口对该对象返回 403。',
   'engine.studio.pkg.writable': '可写',
   'engine.studio.pkg.heading': '软件包(应用)',
   'engine.studio.pkg.none': '暂无应用软件包',

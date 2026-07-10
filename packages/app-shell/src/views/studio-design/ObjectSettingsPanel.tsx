@@ -25,10 +25,16 @@
  *     These are the ONLY presentation knobs the protocol carries, so the
  *     builder must make them directly editable — otherwise designers fall
  *     back to guessing which heuristic picked their title/stepper/columns.
+ *  4. Capabilities (framework#2707/#2727) — the `enable.*` record-surface
+ *     switches. Only LIVE flags are exposed (every toggle is enforced at
+ *     runtime — writer gates, 403s, or UI surfaces): trackHistory & files
+ *     are opt-IN (spec default false), feeds/activities/clone are opt-OUT
+ *     (spec default true, explicit false disables). Dead flags
+ *     (searchable/trash/mru) are deliberately NOT rendered.
  */
 
 import React from 'react';
-import { Settings2, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { Settings2, ShieldCheck, Sparkles, ToggleRight, X } from 'lucide-react';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
 import { readFields } from '../metadata-admin/previews/object-fields-io';
 import { t, tFormat, type SupportedLocale } from '../metadata-admin/i18n';
@@ -75,6 +81,21 @@ export function ObjectSettingsPanel({
           : sharingModel === 'controlled_by_parent'
             ? 'engine.studio.settings.sharingDescControlledByParent'
             : 'engine.studio.settings.sharingDescUnset';
+
+  // Capabilities (`enable.*`, framework#2707/#2727). Checked = the flag's
+  // EFFECTIVE runtime value; toggling writes an explicit boolean into the
+  // enable block (preserving sibling keys). trackHistory/files are opt-in
+  // (=== true enables); feeds/activities/clone are opt-out (only an explicit
+  // false disables).
+  const enable = (draft.enable && typeof draft.enable === 'object' ? draft.enable : {}) as Record<string, unknown>;
+  const patchEnable = (key: string, value: boolean) => onPatch({ enable: { ...enable, [key]: value } });
+  const CAPABILITIES: Array<{ key: string; optIn: boolean; labelKey: string; descKey: string }> = [
+    { key: 'trackHistory', optIn: true,  labelKey: 'engine.studio.settings.capTrackHistory', descKey: 'engine.studio.settings.capTrackHistoryDesc' },
+    { key: 'files',        optIn: true,  labelKey: 'engine.studio.settings.capFiles',        descKey: 'engine.studio.settings.capFilesDesc' },
+    { key: 'feeds',        optIn: false, labelKey: 'engine.studio.settings.capFeeds',        descKey: 'engine.studio.settings.capFeedsDesc' },
+    { key: 'activities',   optIn: false, labelKey: 'engine.studio.settings.capActivities',   descKey: 'engine.studio.settings.capActivitiesDesc' },
+    { key: 'clone',        optIn: false, labelKey: 'engine.studio.settings.capClone',        descKey: 'engine.studio.settings.capCloneDesc' },
+  ];
 
   // External OWD dial (ADR-0090 D11): baseline for portal/partner principals.
   // Defaults to private when unset; must never be WIDER than the internal
@@ -288,6 +309,38 @@ export function ObjectSettingsPanel({
               )}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border" data-testid="capabilities-section">
+        <header className="flex items-center gap-2 border-b px-3 py-2">
+          <ToggleRight className="h-3.5 w-3.5" />
+          <span className="text-[13px] font-medium">{t('engine.studio.settings.capabilities', locale)}</span>
+          <span className="text-[11px] text-muted-foreground">
+            {t('engine.studio.settings.capabilitiesHint', locale)}
+          </span>
+        </header>
+        <div className="grid max-w-xl gap-3 p-3">
+          {CAPABILITIES.map(({ key, optIn, labelKey, descKey }) => {
+            const raw = enable[key];
+            const checked = optIn ? raw === true : raw !== false;
+            return (
+              <label key={key} className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={disabled}
+                  data-testid={`cap-${key}`}
+                  onChange={(e) => patchEnable(key, e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="min-w-0">
+                  <span className="block text-[12px]">{t(labelKey, locale)}</span>
+                  <span className="block text-[11px] text-muted-foreground">{t(descKey, locale)}</span>
+                </span>
+              </label>
+            );
+          })}
         </div>
       </section>
     </div>
