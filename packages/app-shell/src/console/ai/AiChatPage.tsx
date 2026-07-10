@@ -1229,11 +1229,60 @@ export function ChatPane({
 
   // The real send, shared by a normal submit and by the deferred-first-message
   // replay below (resetSuppression → send → onSent, in that order).
+  //
+  // Spreadsheet attachments (cloud#797 WS3): historically every attachment was
+  // silently dropped between the composer and the transport. Excel/CSV files
+  // are now parsed CLIENT-side (plugin-grid's importParsers; the bytes never
+  // leave the page) and the agent is briefed with a compact structured block —
+  // headers + first sample rows + row count — appended to the user's text. The
+  // agent's solution-design skill takes it from there (match an object, offer
+  // missing fields, point at the object list's Import action). Non-spreadsheet
+  // attachments stay out of scope and are disclosed rather than dropped.
   const doSend = useCallback(
     (content: string, files?: File[]) => {
       resetSuppression();
-      sendMessage(content, files);
-      onSent(content);
+      const sheets = (files ?? []).filter((f) => /\.(xlsx|xlsm|csv|tsv|txt)$/i.test(f.name));
+      if (!sheets.length) {
+        if (files?.length) {
+          // Honest disclosure beats a silent drop — the agent cannot read these.
+          sendMessage(
+            `${content}\n\n(用户上传了 ${files.length} 个附件:${files
+              .map((f) => f.name)
+              .join('、')} — 当前仅支持读取表格类附件(Excel/CSV),这些文件的内容我没有读取。)`,
+          );
+          onSent(content);
+          return;
+        }
+        sendMessage(content);
+        onSent(content);
+        return;
+      }
+      void (async () => {
+        const cap = (s: string) => (s.length > 40 ? `${s.slice(0, 40)}…` : s);
+        const line = (r: string[]) =>
+          r.slice(0, 12).map((c) => cap(String(c ?? '')).replace(/\s+/g, ' ')).join(' | ');
+        let merged = content;
+        for (const f of sheets.slice(0, 2)) {
+          try {
+            const { parseSpreadsheetFile } = await import('@object-ui/plugin-grid');
+            const rows = await parseSpreadsheetFile(f);
+            const headers = rows[0] ?? [];
+            const samples = rows.slice(1, 4);
+            merged += [
+              `\n\n[附件表格 ${f.name} — ${Math.max(0, rows.length - 1)} 数据行 × ${headers.length} 列(控制台已在本地解析,文件本体未上传)]`,
+              `表头: ${line(headers)}`,
+              ...samples.map((r, i) => `样例${i + 1}: ${line(r)}`),
+            ].join('\n');
+          } catch (err) {
+            merged += `\n\n[附件表格 ${f.name}] 解析失败(${err instanceof Error ? err.message : 'unknown'})— 请引导用户改用对象列表的 Import 上传该文件。`;
+          }
+        }
+        if (sheets.length > 2) merged += `\n\n(另有 ${sheets.length - 2} 个表格附件未读取 — 一次最多读取 2 个。)`;
+        const nonSheets = (files ?? []).length - sheets.length;
+        if (nonSheets > 0) merged += `\n\n(另有 ${nonSheets} 个非表格附件,内容未读取。)`;
+        sendMessage(merged);
+        onSent(merged);
+      })();
     },
     [resetSuppression, sendMessage, onSent],
   );

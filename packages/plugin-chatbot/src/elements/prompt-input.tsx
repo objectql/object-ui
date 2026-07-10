@@ -80,8 +80,18 @@ import {
 // Provider Context & Types
 // ============================================================================
 
+/**
+ * An attached file: the AI-SDK `FileUIPart` shape plus a client-side id and —
+ * for same-page consumers such as the spreadsheet-import flow (cloud#797 WS3)
+ * — the ORIGINAL `File` object. Historically only the objectURL survived
+ * `add()`, so downstream `.file` readers (ChatbotEnhanced.handleSubmit) always
+ * came up empty and every attachment was silently dropped. The `File` never
+ * leaves the page: only url/mediaType/filename are ever put on the transport.
+ */
+export type PromptInputFileItem = FileUIPart & { id: string; file?: File };
+
 export type AttachmentsContext = {
-  files: (FileUIPart & { id: string })[];
+  files: PromptInputFileItem[];
   add: (files: File[] | FileList) => void;
   remove: (id: string) => void;
   clear: () => void;
@@ -157,7 +167,7 @@ export function PromptInputProvider({
 
   // ----- attachments state (global when wrapped)
   const [attachmentFiles, setAttachmentFiles] = useState<
-    (FileUIPart & { id: string })[]
+    PromptInputFileItem[]
   >([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const openRef = useRef<() => void>(() => {});
@@ -176,6 +186,9 @@ export function PromptInputProvider({
           url: URL.createObjectURL(file),
           mediaType: file.type,
           filename: file.name,
+          // Keep the original File for same-page consumers (spreadsheet
+          // import). Never serialized — the transport uses url/mediaType only.
+          file,
         }))
       )
     );
@@ -283,7 +296,7 @@ export const usePromptInputAttachments = () => {
 };
 
 export type PromptInputAttachmentProps = HTMLAttributes<HTMLDivElement> & {
-  data: FileUIPart & { id: string };
+  data: PromptInputFileItem;
   className?: string;
 };
 
@@ -382,7 +395,7 @@ export type PromptInputAttachmentsProps = Omit<
   HTMLAttributes<HTMLDivElement>,
   "children"
 > & {
-  children: (attachment: FileUIPart & { id: string }) => ReactNode;
+  children: (attachment: PromptInputFileItem) => ReactNode;
 };
 
 export function PromptInputAttachments({
@@ -485,7 +498,7 @@ export const PromptInput = ({
   const formRef = useRef<HTMLFormElement | null>(null);
 
   // ----- Local attachments (only used when no provider)
-  const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
+  const [items, setItems] = useState<PromptInputFileItem[]>([]);
   const files = usingProvider ? controller.attachments.files : items;
 
   // Keep a ref to files for cleanup on unmount (avoids stale closure)
@@ -553,7 +566,7 @@ export const PromptInput = ({
             message: "Too many files. Some were not added.",
           });
         }
-        const next: (FileUIPart & { id: string })[] = [];
+        const next: PromptInputFileItem[] = [];
         for (const file of capped) {
           next.push({
             id: nanoid(),
@@ -561,6 +574,9 @@ export const PromptInput = ({
             url: URL.createObjectURL(file),
             mediaType: file.type,
             filename: file.name,
+            // Keep the original File for same-page consumers (spreadsheet
+            // import) — mirrors the provider-mode add() above.
+            file,
           });
         }
         return prev.concat(next);
