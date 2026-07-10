@@ -61,11 +61,13 @@ import {
   ExternalLink,
   Home as HomeIcon,
   Shield,
+  ShieldQuestion,
   Menu,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
+import { AccessExplainPanel } from '../metadata-admin/AccessExplainPanel';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
 import { getMetadataDefaultInspector } from '../metadata-admin/default-inspector-registry';
 import { useMetadataClient, useMetadataTypes } from '../metadata-admin/useMetadata';
@@ -2879,6 +2881,8 @@ function AccessPillar({
   const [creating, setCreating] = React.useState(false);
   const [createErr, setCreateErr] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  // [ADR-0090 D6] "why can this user access?" — right-side explain sheet.
+  const [explainOpen, setExplainOpen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     try {
@@ -2974,9 +2978,17 @@ function AccessPillar({
           <span className="text-[13px] font-medium text-foreground">{t('engine.studio.access.title', locale)}</span>
           <span className="rounded bg-muted px-1.5 py-0.5">{t('engine.studio.access.subtitle', locale)}</span>
         </span>
+        <button
+          type="button"
+          onClick={() => setExplainOpen(true)}
+          className="ml-auto flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <ShieldQuestion className="h-3.5 w-3.5" />
+          {t('engine.studio.access.explain.open', locale)}
+        </button>
         <span
           title={t('engine.studio.access.bannerTitle', locale)}
-          className="ml-auto rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
+          className="rounded bg-amber-400/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-300"
         >
           {t('engine.studio.access.banner', locale)}
         </span>
@@ -3077,6 +3089,8 @@ function AccessPillar({
           )}
         </main>
       </div>
+
+      <AccessExplainPanel open={explainOpen} onOpenChange={setExplainOpen} />
 
       <CreateItemDialog
         open={creating}

@@ -1,0 +1,126 @@
+// Copyright (c) 2026 ObjectStack. Licensed under the Apache-2.0 license.
+
+/**
+ * ADR-0090 D6 — integration test for the "why can this user access?" panel.
+ * Drives the REAL AccessExplainPanel against a faked authenticated fetch:
+ *   1. Submits { object, operation } to POST /api/v1/security/explain and
+ *      renders the ExplainDecision — verdict banner, principal chain, the
+ *      nine pipeline layers with verdict badges, and the composed readFilter.
+ *   2. A 403 (manage_users / delegated-scope gate, D12) renders the friendly
+ *      localized message instead of a raw error.
+ */
+
+import '@testing-library/jest-dom/vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+
+const fetchSpy = vi.fn();
+
+vi.mock('@object-ui/auth', () => ({
+  createAuthenticatedFetch: () => fetchSpy,
+}));
+vi.mock('@object-ui/react', () => ({
+  useAdapter: () => ({ find: vi.fn(async () => []) }),
+}));
+// The user picker has its own coverage; a stub keeps this suite focused on
+// the explain round-trip.
+vi.mock('@object-ui/fields', () => ({
+  RecordPickerDialog: () => null,
+}));
+
+import { AccessExplainPanel, type ExplainDecision } from './AccessExplainPanel';
+
+afterEach(() => {
+  cleanup();
+  fetchSpy.mockReset();
+});
+
+const DECISION: ExplainDecision = {
+  allowed: true,
+  object: 'crm_lead',
+  operation: 'read',
+  principal: {
+    userId: 'u_1',
+    positions: ['sales_rep', 'everyone'],
+    permissionSets: ['sales_user', 'member_default'],
+  },
+  layers: [
+    {
+      layer: 'principal',
+      verdict: 'neutral',
+      detail: 'Principal u_1 holds position(s) [sales_rep, everyone] …',
+      contributors: [
+        { kind: 'position', name: 'sales_rep' },
+        { kind: 'permission_set', name: 'sales_user', via: 'position:sales_rep' },
+      ],
+    },
+    { layer: 'object_crud', verdict: 'grants', detail: "read on 'crm_lead' is granted by [sales_user].", contributors: [{ kind: 'permission_set', name: 'sales_user', via: 'position:sales_rep' }] },
+    { layer: 'rls', verdict: 'narrows', detail: 'Row-level security narrows the row set.', contributors: [] },
+  ],
+  readFilter: { owner_id: 'u_1' },
+};
+
+const jsonResponse = (status: number, body: unknown) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  statusText: '',
+  json: async () => body,
+});
+
+function renderPanel() {
+  return render(<AccessExplainPanel open onOpenChange={() => {}} />);
+}
+
+async function submit(object = 'crm_lead') {
+  fireEvent.change(screen.getByLabelText('Object'), { target: { value: object } });
+  fireEvent.click(screen.getByRole('button', { name: /explain$/i }));
+}
+
+describe('AccessExplainPanel (ADR-0090 D6)', () => {
+  it('posts the explain request and renders the decision trace', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse(200, DECISION));
+    renderPanel();
+    await submit();
+
+    await waitFor(() => expect(screen.getByTestId('explain-verdict')).toBeInTheDocument());
+
+    // request shape: POST /api/v1/security/explain with { object, operation }
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/v1\/security\/explain$/);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ object: 'crm_lead', operation: 'read' });
+
+    // verdict + principal chain
+    expect(screen.getByTestId('explain-verdict').textContent).toMatch(/ALLOWED/i);
+    expect(screen.getByText('u_1')).toBeInTheDocument();
+    expect(screen.getAllByText('sales_rep').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('sales_user').length).toBeGreaterThan(0);
+
+    // pipeline layers render with verdict badges
+    expect(screen.getByTestId('explain-layer-object_crud').textContent).toMatch(/grants/i);
+    expect(screen.getByTestId('explain-layer-rls').textContent).toMatch(/narrows/i);
+
+    // machine artifact — composed read filter
+    expect(screen.getByText(/"owner_id": "u_1"/)).toBeInTheDocument();
+  });
+
+  it('renders a denied decision with the destructive banner', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse(200, { ...DECISION, allowed: false, layers: [{ layer: 'object_crud', verdict: 'denies', detail: 'No resolved permission set grants read.', contributors: [] }] }));
+    renderPanel();
+    await submit();
+
+    await waitFor(() => expect(screen.getByTestId('explain-verdict')).toBeInTheDocument());
+    expect(screen.getByTestId('explain-verdict').textContent).toMatch(/DENIED/i);
+    expect(screen.getByTestId('explain-layer-object_crud').textContent).toMatch(/denies/i);
+  });
+
+  it('renders the friendly D12 message on 403 instead of a raw error', async () => {
+    fetchSpy.mockResolvedValue(jsonResponse(403, { code: 'PERMISSION_DENIED', message: '[Security] Access denied: …' }));
+    renderPanel();
+    await submit();
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.getByRole('alert').textContent).toMatch(/manage_users|delegated admin scope/i);
+    expect(screen.queryByTestId('explain-verdict')).not.toBeInTheDocument();
+  });
+});
