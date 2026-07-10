@@ -1,5 +1,14 @@
 # @object-ui/plugin-map
 
+## 13.1.0
+
+### Patch Changes
+
+- @object-ui/types@13.1.0
+- @object-ui/core@13.1.0
+- @object-ui/react@13.1.0
+- @object-ui/components@13.1.0
+
 ## 13.0.0
 
 ### Patch Changes

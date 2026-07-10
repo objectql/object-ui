@@ -1,5 +1,11 @@
 # @object-ui/plugin-detail
 
+## 13.1.0
+
+### Patch Changes
+
+- @object-ui/i18n@13.1.0
+
 ## 13.0.0
 
 ### Patch Changes

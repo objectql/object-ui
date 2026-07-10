@@ -1,5 +1,57 @@
 # @object-ui/app-shell — Changelog
 
+## 13.1.0
+
+### Minor Changes
+
+- 16e2615: ADR-0090 D6 — "why can this user access?" panel in the Studio Access pillar
+  (framework#2696).
+
+  New `AccessExplainPanel` (right-side sheet, opened from the Access pillar
+  header next to the permission matrix): pick a user (defaults to the calling
+  principal), an object and an operation, and it calls the new backend
+  `POST /api/v1/security/explain`, rendering the `ExplainDecision` trace — the
+  allowed/denied verdict banner, the resolved principal chain (positions →
+  permission sets with their `via` attribution), all nine evaluation-pipeline
+  layers (required capabilities, object CRUD, FLS, OWD baseline, depth, sharing,
+  VAMA bypass, RLS) with per-verdict badges, and the composed row filter for
+  reads. A 403 from the manage_users / delegated-admin-scope gate (D12) renders
+  as a friendly localized message. Copy ships in EN + ZH via the metadata-admin
+  string tables.
+
+- 3334bd4: feat(studio): Capabilities section in the object Settings panel (framework#2707/#2727)
+
+  The `enable.*` record-surface switches went fully live in the framework, but
+  only source-mode authors could set them. The Data-pillar object Settings
+  panel now exposes them to builders — **live flags only**, each with a
+  one-line contract description:
+
+  - Opt-in (spec default off): `trackHistory` (History tab),
+    `files` (Attachments panel + server-side attachment gate).
+  - Opt-out (spec default on): `feeds` (discussion panel + comment 403 gate),
+    `activities` (record timeline mirror), `clone` (clone endpoint 403).
+
+  Checkboxes show the flag's EFFECTIVE runtime value; toggling writes an
+  explicit boolean into the `enable` block preserving sibling keys. Dead
+  flags (`searchable`/`trash`/`mru`) are deliberately not rendered — Studio
+  only offers switches the runtime enforces.
+
+### Patch Changes
+
+- @object-ui/types@13.1.0
+- @object-ui/core@13.1.0
+- @object-ui/i18n@13.1.0
+- @object-ui/react@13.1.0
+- @object-ui/components@13.1.0
+- @object-ui/fields@13.1.0
+- @object-ui/layout@13.1.0
+- @object-ui/data-objectstack@13.1.0
+- @object-ui/auth@13.1.0
+- @object-ui/permissions@13.1.0
+- @object-ui/plugin-editor@13.1.0
+- @object-ui/collaboration@13.1.0
+- @object-ui/providers@13.1.0
+
 ## 13.0.0
 
 ### Major Changes

@@ -1,5 +1,18 @@
 # @object-ui/plugin-calendar
 
+## 13.1.0
+
+### Patch Changes
+
+- @object-ui/types@13.1.0
+- @object-ui/core@13.1.0
+- @object-ui/i18n@13.1.0
+- @object-ui/react@13.1.0
+- @object-ui/components@13.1.0
+- @object-ui/fields@13.1.0
+- @object-ui/mobile@13.1.0
+- @object-ui/plugin-detail@13.1.0
+
 ## 13.0.0
 
 ### Patch Changes
