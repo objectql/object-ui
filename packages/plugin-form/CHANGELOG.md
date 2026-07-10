@@ -1,5 +1,20 @@
 # @object-ui/plugin-form
 
+## 13.0.0
+
+### Patch Changes
+
+- Updated dependencies [9e38270]
+- Updated dependencies [ac04b76]
+- Updated dependencies [619097e]
+  - @object-ui/i18n@13.0.0
+  - @object-ui/components@13.0.0
+  - @object-ui/types@13.0.0
+  - @object-ui/fields@13.0.0
+  - @object-ui/react@13.0.0
+  - @object-ui/core@13.0.0
+  - @object-ui/permissions@13.0.0
+
 ## 12.1.0
 
 ### Patch Changes

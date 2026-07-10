@@ -1,5 +1,120 @@
 # @object-ui/app-shell — Changelog
 
+## 13.0.0
+
+### Major Changes
+
+- 619097e: Adopt `@objectstack/spec` 13 (ADR-0090 Permission Model v2) across the workspace.
+
+  Every workspace package now depends on `@objectstack/spec` ^13.0.0 — the v2 major that renames role → position (D3), removes the profile concept (D2), makes OWD default to `private` when unset (D1), and drops the legacy `read`/`read_write`/`full` sharing aliases (D4). UI fallout fixed in the same sweep:
+
+  - **clientValidation**: the `role` draft-schema loader is now `position` → `PositionSchema` (fixes the `RoleSchema does not exist` build break, #2365); the dead `profile` loader is removed (D2).
+  - **Studio previews**: `RolePreview` → `PositionPreview` (flat — positions carry no hierarchy; the old parent-chain breadcrumb and "assign to a Profile" copy are gone). Legacy `role`/`profile` preview keys stay registered for pre-v2 backends.
+  - **OWD control** (`ObjectSettingsPanel`): removed the now-dead alias normalization (spec 13 rejects the aliases at authoring time) and the amber "fully public" warning — an unset sharing model now defaults to Private (D1), and the copy says so in both locales.
+  - **Fallback schemas / anchors / samples**: `position` replaces the hierarchical `role` fallback schema; `isProfile` dropped from the permission create-anchor and previews samples; permission-set viewer no longer renders a profile badge; console System hub counts `sys_position` instead of the removed `sys_role`.
+  - **Studio i18n**: type labels `Role/角色` → `Position/岗位`, `profile` label removed, Access-pillar heading and sharing copy rewritten to the v2 vocabulary.
+  - `@object-ui/types` now exports `SubmitBehavior` (was defined but missing from the public surface, breaking `@object-ui/plugin-form`'s re-export under a clean build).
+  - **External OWD dial (D11)**: the object Settings sharing card gains an `externalSharingModel` select (portal/partner baseline) with an inline wider-than-internal warning mirroring the publish-time lint.
+  - **Permission matrix OWD badges**: every object row now shows its record-level baseline (`OWD Public read`, `Ext Private`, or `OWD Private (default)` for the D1 fail-closed unset case) so grant edits carry their record-reach context.
+
+  The flow designer's approval assignee `role` kind is intentionally unchanged — spec 13 keeps it as the sole D3 exception (better-auth `sys_member.role` org-membership tier).
+
+### Minor Changes
+
+- bc27e53: Book audience mirrors the spec's permission-set gate (ADR-0090).
+
+  `@objectstack/spec` renamed the gated arm of `BookAudience` from
+  `{ profile: string }` to `{ permissionSet: string }` — ADR-0090 D2 removed
+  the Profile concept, and D9 makes the gate a capability reference (a
+  permission-set name the reader must hold, e.g. `crm_admin`). Updated the
+  three mirrors: the metadata-admin default JSON schema (`book.audience`
+  `oneOf`), the `BookPreview` audience chip, and the book list-column
+  renderer. One-step rename, no alias, matching the spec's launch-window
+  discipline.
+
+- 9e38270: feat(setup): "Connect an agent" page widget (`mcp:connect-agent`) — framework#2714 Phase 1, #2363
+
+  The interactive body for the plugin-carried Setup page shipped by
+  `@objectstack/mcp`: the environment's MCP URL (from `/discovery`), per-client
+  connect cards (claude.ai/Desktop, Claude Code incl. the official plugin,
+  Cursor one-click deeplink, VS Code, Codex CLI), the SKILL.md download
+  (`GET /api/v1/mcp/skill`), and show-once API-key minting for headless
+  callers via the existing `POST /api/v1/keys`. Renders a disabled empty state
+  when discovery doesn't advertise `routes.mcp` (deployment opted out).
+  Translations for all nine locales.
+
+- 98a7cfb: feat(detail): honor object `enable.feeds` / `enable.activities` opt-out gates (framework#2707)
+
+  RecordDetailView rendered the discussion panel and merged the sys_activity
+  timeline unconditionally; the object capability flags gating them were dead.
+  Both are now honored with opt-OUT semantics (spec default flips to `true`,
+  so absent block/flag = unchanged behavior; only an explicit `false`
+  disables):
+
+  - `feeds: false` hides the record discussion panel (both the page-schema
+    auto-append and the legacy DetailView `discussionSlot`) and skips the
+    sys_comment fetch. The server independently rejects new comments for such
+    objects (403 FEEDS_DISABLED).
+  - `activities: false` skips the sys_activity fetch/merge — the server stops
+    mirroring CRUD for such objects, so this also keeps the network quiet.
+
+  Also fixes the long-wrong comment claiming plugin-audit's writers were
+  gated by `enable.activities` opt-in (they were unconditional; the new
+  contract is opt-out). The History tab gate (`enable.trackHistory === true`)
+  is unchanged.
+
+- 5f5ee7b: feat(detail): generic record Attachments panel gated on `enable.files: true` (framework#2727)
+
+  New `RecordAttachmentsPanel` — Salesforce "Notes & Attachments" parity for
+  any object that opts in via `enable: { files: true }`:
+
+  - Upload via the canonical presigned three-step storage flow
+    (`createObjectStackUploadAdapter`; blob → `sys_file`), then a
+    `sys_attachment` join row targeting `(parent_object, parent_id)`.
+  - List (name/size/mime), stable download links
+    (`/api/v1/storage/files/:fileId` 302-redirect endpoint), delete.
+  - Rendered by RecordDetailView in both the page-schema and legacy branches.
+    Opt-in: objects without the flag see no panel, and the server
+    independently rejects attachment rows targeting them
+    (403 FILES_DISABLED).
+
+- aa940a7: Studio form designer: select a field group to edit its properties.
+
+  Field groups (sections) in the Data → Form → Layout designer could previously only be renamed inline — there was no way to reach a group's other properties. Each group header now carries a settings affordance that selects the group into a dedicated **Group properties** inspector in the right rail (mirroring the field inspector): edit the group **name** and its **collapse behaviour** — the spec-canonical `collapse` enum (`none` / collapsible-expanded / collapsible-collapsed) that the form renderer consumes via `@objectstack/spec`'s `deriveFieldGroupLayout`, so the setting takes effect in the actual form/preview.
+
+  `readGroups` now preserves all authored group props (icon/description/collapse/…) instead of narrowing to `{key,label}`, so a read-modify-write round-trip (rename/reorder/inspector edit) never silently drops a property the source set. `icon`/`description` are round-trip-preserved but intentionally not surfaced as editable controls yet, since no renderer consumes them (no dead metadata).
+
+### Patch Changes
+
+- Updated dependencies [9e38270]
+- Updated dependencies [ac04b76]
+- Updated dependencies [619097e]
+  - @object-ui/i18n@13.0.0
+  - @object-ui/components@13.0.0
+  - @object-ui/types@13.0.0
+  - @object-ui/fields@13.0.0
+  - @object-ui/plugin-calendar@13.0.0
+  - @object-ui/plugin-charts@13.0.0
+  - @object-ui/plugin-dashboard@13.0.0
+  - @object-ui/plugin-designer@13.0.0
+  - @object-ui/plugin-detail@13.0.0
+  - @object-ui/plugin-form@13.0.0
+  - @object-ui/plugin-grid@13.0.0
+  - @object-ui/plugin-kanban@13.0.0
+  - @object-ui/plugin-list@13.0.0
+  - @object-ui/plugin-report@13.0.0
+  - @object-ui/plugin-view@13.0.0
+  - @object-ui/react@13.0.0
+  - @object-ui/layout@13.0.0
+  - @object-ui/plugin-chatbot@13.0.0
+  - @object-ui/plugin-editor@13.0.0
+  - @object-ui/auth@13.0.0
+  - @object-ui/collaboration@13.0.0
+  - @object-ui/core@13.0.0
+  - @object-ui/data-objectstack@13.0.0
+  - @object-ui/permissions@13.0.0
+  - @object-ui/providers@13.0.0
+
 ## 12.1.0
 
 ### Minor Changes

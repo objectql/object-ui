@@ -1,5 +1,12 @@
 # @object-ui/tenant
 
+## 13.0.0
+
+### Patch Changes
+
+- Updated dependencies [619097e]
+  - @object-ui/types@13.0.0
+
 ## 12.1.0
 
 ### Patch Changes
