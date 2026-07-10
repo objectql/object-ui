@@ -89,6 +89,25 @@ interface ObjectSummary {
    * admins editing the matrix know a wildcard-only set does not reach it.
    */
   accessDefault?: 'public' | 'private';
+  /**
+   * [ADR-0090 D1/D11] The object's authored OWD pair. Record-level baseline
+   * context for the grants edited here: object CRUD in this matrix gates the
+   * operation, the OWD decides WHICH records it reaches (own vs org-wide).
+   * `owd` unset renders as the D1 fail-closed default (private).
+   */
+  owd?: string;
+  owdExternal?: string;
+}
+
+/** Localized short label for an OWD value; falls back to the raw value. */
+function owdLabel(t: (k: string) => string, value: string): string {
+  const key: Record<string, string> = {
+    private: 'perm.owd.private',
+    public_read: 'perm.owd.public_read',
+    public_read_write: 'perm.owd.public_read_write',
+    controlled_by_parent: 'perm.owd.controlled_by_parent',
+  };
+  return key[value] ? t(key[value]) : value;
 }
 
 interface FieldSummary {
@@ -199,6 +218,9 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
               name: String(item?.name ?? ''),
               label: item?.label,
               accessDefault: item?.access?.default as ObjectSummary['accessDefault'],
+              owd: typeof item?.sharingModel === 'string' ? item.sharingModel : undefined,
+              owdExternal:
+                typeof item?.externalSharingModel === 'string' ? item.externalSharingModel : undefined,
             };
           })
           .filter((o) => !!o.name)
@@ -674,6 +696,22 @@ function PermissionTable({
                       title={t('perm.posture.private.tip')}
                     >
                       {t('perm.posture.private')}
+                    </Badge>
+                  )}
+                  <Badge
+                    variant="outline"
+                    className="ml-2 text-[10px] px-1.5 py-0 align-middle text-muted-foreground"
+                    title={t('perm.owd.tip')}
+                  >
+                    {`OWD ${o.owd ? owdLabel(t, o.owd) : t('perm.owd.defaultPrivate')}`}
+                  </Badge>
+                  {o.owdExternal && (
+                    <Badge
+                      variant="outline"
+                      className="ml-1 text-[10px] px-1.5 py-0 align-middle text-muted-foreground"
+                      title={t('perm.owd.ext.tip')}
+                    >
+                      {`Ext ${owdLabel(t, o.owdExternal)}`}
                     </Badge>
                   )}
                 </td>

@@ -76,6 +76,18 @@ export function ObjectSettingsPanel({
             ? 'engine.studio.settings.sharingDescControlledByParent'
             : 'engine.studio.settings.sharingDescUnset';
 
+  // External OWD dial (ADR-0090 D11): baseline for portal/partner principals.
+  // Defaults to private when unset; must never be WIDER than the internal
+  // model (ordering: private < public_read < public_read_write — the D7
+  // security-posture linter rejects the wider shape at publish).
+  const externalSharingModel =
+    typeof draft.externalSharingModel === 'string' ? draft.externalSharingModel : '';
+  const OWD_WIDTH: Record<string, number> = { private: 0, public_read: 1, public_read_write: 2 };
+  const externalWider =
+    externalSharingModel in OWD_WIDTH &&
+    sharingModel in OWD_WIDTH &&
+    OWD_WIDTH[externalSharingModel] > OWD_WIDTH[sharingModel];
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
       <section className="rounded-lg border">
@@ -115,6 +127,7 @@ export function ObjectSettingsPanel({
             <select
               value={sharingModel}
               disabled={disabled}
+              data-testid="owd-internal-select"
               onChange={(e) =>
                 onPatch(e.target.value ? { sharingModel: e.target.value } : { sharingModel: undefined })
               }
@@ -131,6 +144,47 @@ export function ObjectSettingsPanel({
           </label>
           <p className="text-[11px] text-muted-foreground">
             {t(sharingDescKey, locale)}
+          </p>
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-muted-foreground">
+              {t('engine.studio.settings.sharingExternal', locale)}
+            </span>
+            <select
+              value={externalSharingModel}
+              disabled={disabled}
+              data-testid="owd-external-select"
+              onChange={(e) =>
+                onPatch(
+                  e.target.value
+                    ? { externalSharingModel: e.target.value }
+                    : { externalSharingModel: undefined },
+                )
+              }
+              className="w-full rounded border bg-background px-2 py-1 text-[12px]"
+            >
+              <option value="">{t('engine.studio.settings.sharingExternalUnset', locale)}</option>
+              <option value="private">{t('engine.studio.settings.sharingPrivate', locale)}</option>
+              <option value="public_read">{t('engine.studio.settings.sharingPublicRead', locale)}</option>
+              <option value="public_read_write">{t('engine.studio.settings.sharingPublicReadWrite', locale)}</option>
+              <option value="controlled_by_parent">
+                {t('engine.studio.settings.sharingControlledByParent', locale)}
+              </option>
+            </select>
+          </label>
+          <p
+            data-testid="owd-external-desc"
+            className={
+              externalWider
+                ? 'text-[11px] text-amber-600 dark:text-amber-500'
+                : 'text-[11px] text-muted-foreground'
+            }
+          >
+            {t(
+              externalWider
+                ? 'engine.studio.settings.sharingExternalWider'
+                : 'engine.studio.settings.sharingExternalDesc',
+              locale,
+            )}
           </p>
         </div>
       </section>

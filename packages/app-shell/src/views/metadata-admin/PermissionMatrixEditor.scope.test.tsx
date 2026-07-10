@@ -230,11 +230,34 @@ describe('PermissionMatrixEditor — private posture badge (ADR-0066 ④)', () =
 
     await screen.findByText('Account');
     // The private object's row carries the badge (with the wildcard hint)…
-    const badges = screen.getAllByText('Private');
+    // (every row also shows an ADR-0090 OWD badge, so match the exact posture
+    // badge text, not the substring)
+    const badges = screen.getAllByText('Private', { exact: true });
     expect(badges).toHaveLength(1);
     expect(badges[0].closest('tr')!.textContent).toContain('a_account');
     expect(badges[0]).toHaveAttribute('title', expect.stringContaining('wildcard'));
-    // …and the public row does not.
-    expect(screen.getByText('a_contact').closest('tr')!.textContent).not.toContain('Private');
+    // …and the public row does not carry the posture badge.
+    const contactRow = screen.getByText('a_contact').closest('tr')!;
+    expect(within(contactRow).queryByText('Private', { exact: true })).toBeNull();
+  });
+
+  it('shows an OWD badge on every row (authored value or the D1 private default)', async () => {
+    const server = freshServer();
+    server.packageObjects = [
+      { name: 'a_account', label: 'Account', sharingModel: 'public_read', externalSharingModel: 'private' } as any,
+      { name: 'a_contact' },
+    ];
+    clientImpl = makeClient(server);
+    renderMatrix();
+
+    await screen.findByText('Account');
+    // Authored OWD pair renders both dials…
+    const accountRow = screen.getByText('Account').closest('tr')!;
+    expect(accountRow.textContent).toContain('OWD Public read');
+    expect(accountRow.textContent).toContain('Ext Private');
+    // …an unset OWD renders the fail-closed D1 default and no Ext badge.
+    const contactRow = screen.getByText('a_contact').closest('tr')!;
+    expect(contactRow.textContent).toContain('OWD Private (default)');
+    expect(contactRow.textContent).not.toContain('Ext ');
   });
 });
