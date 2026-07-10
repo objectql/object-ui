@@ -13,7 +13,7 @@ import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry } from '@object-ui/core';
 import type { DataTableSchema } from '@object-ui/types';
-import { useObjectTranslation } from '@object-ui/react';
+import { useObjectTranslation, useCondition, toPredicateInput } from '@object-ui/react';
 import { 
   Table, 
   TableHeader, 
@@ -207,6 +207,71 @@ function extractSaveErrorMessage(error: unknown): string {
   }
   return typeof error === 'string' && error.trim() ? error.trim() : 'Unknown error';
 }
+
+/**
+ * The element type of `DataTableSchema.rowActionDefs`. Derived via indexed
+ * access rather than imported by name: `@object-ui/types` defines
+ * `DataTableRowAction` but doesn't re-export it from its public entry, so it's
+ * only reachable structurally through `DataTableSchema`.
+ */
+type RowActionDef = NonNullable<DataTableSchema['rowActionDefs']>[number];
+
+/**
+ * One schema-driven custom row action in the data-table's inline row overflow
+ * menu. Extracted into its own component so the action's `visible` (and
+ * `disabled`) CEL predicate can be evaluated with a hook (`useCondition`)
+ * without violating the rules-of-hooks inside a `.map()`.
+ *
+ * Mirrors `RowActionMenuItem` on the ObjectGrid path so BOTH row-menu
+ * renderers honor `visible`/`disabled` identically. Previously this path
+ * (used by a detail page's related list) rendered every custom action
+ * unconditionally, so e.g. a member row's "Transfer Ownership"
+ * (`visible: "record.role != 'owner' && …"`) showed on the owner's own row.
+ *
+ * Bare field references (`role`) resolve against the row record and `record.`
+ * references (`record.role`) against the same, while `features`/`user` come
+ * from the ambient ExpressionProvider scope — so gating stays consistent with
+ * the grid's own row menu.
+ *
+ * Exported for unit tests — NOT part of the package's public API: the
+ * `@object-ui/components` barrel only side-effect-imports this module (to run
+ * its `ComponentRegistry.register`), so this named export is reachable solely
+ * via the deep module path the colocated test uses.
+ */
+export const DataTableRowActionItem: React.FC<{
+  action: RowActionDef;
+  row: any;
+  onActionDef?: (action: RowActionDef, row: any) => void | Promise<void>;
+}> = ({ action, row, onActionDef }) => {
+  const predicateCtx = { ...(row && typeof row === 'object' ? row : {}), record: row };
+  const visiblePred = action.visible;
+  const isVisible = useCondition(toPredicateInput(visiblePred), predicateCtx);
+  // `disabled` may be a boolean or a CEL predicate evaluated against the row
+  // (e.g. grey out an action once a record reaches a terminal state).
+  const disabledPred = toPredicateInput(action.disabled);
+  const evalDisabled = useCondition(
+    typeof disabledPred === 'string' ? disabledPred : undefined,
+    predicateCtx,
+  );
+  const isDisabled = typeof disabledPred === 'string' ? evalDisabled : disabledPred === true;
+  if (visiblePred && !isVisible) return null;
+  const ActionIcon = resolveIcon(action.icon);
+  return (
+    <DropdownMenuItem
+      disabled={isDisabled}
+      onClick={() => { if (!isDisabled) void onActionDef?.(action, row); }}
+      data-testid={`row-action-${action.name}`}
+      className={cn(
+        action.variant === 'danger' && 'text-destructive focus:text-destructive',
+      )}
+    >
+      {/* Dynamic icon resolution from Lucide, not component creation during render */}
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      {ActionIcon && <ActionIcon className="mr-2 h-4 w-4" />}
+      {action.label || action.name}
+    </DropdownMenuItem>
+  );
+};
 
 /**
  * Enterprise-level data table component with Airtable-like features.
@@ -1533,21 +1598,14 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                         list surfacing the child's `list_item`
                                         actions). Dispatched with the clicked row. */}
                                     {customActions.length > 0 && schema.onRowEdit && <DropdownMenuSeparator />}
-                                    {customActions.map((action) => {
-                                      const ActionIcon = resolveIcon(action.icon);
-                                      return (
-                                        <DropdownMenuItem
-                                          key={action.name}
-                                          onClick={() => { void schema.onRowActionDef?.(action, row); }}
-                                          className={cn(
-                                            action.variant === 'danger' && 'text-destructive focus:text-destructive',
-                                          )}
-                                        >
-                                          {ActionIcon && <ActionIcon className="mr-2 h-4 w-4" />}
-                                          {action.label || action.name}
-                                        </DropdownMenuItem>
-                                      );
-                                    })}
+                                    {customActions.map((action) => (
+                                      <DataTableRowActionItem
+                                        key={action.name}
+                                        action={action}
+                                        row={row}
+                                        onActionDef={schema.onRowActionDef}
+                                      />
+                                    ))}
                                     {schema.onRowDelete && (schema.onRowEdit || customActions.length > 0) && <DropdownMenuSeparator />}
                                     {schema.onRowDelete && (
                                       <DropdownMenuItem
