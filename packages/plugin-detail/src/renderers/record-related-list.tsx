@@ -81,15 +81,28 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
   // create / edit / delete / view it exposes (lifecycle affordances + FLS), so
   // we simply wire whatever comes back. `resolve` is passed the relationship so
   // a newly-created child is pre-linked to the current parent.
+  // [ADR-0090 SDUI panels] Which PARENT field the junction's relationshipField
+  // stores (spec `relationshipValueField`, default 'id'). Name-keyed junctions
+  // (e.g. sys_user_position.position stores sys_position.name) set 'name' —
+  // the resolved value drives the list filter, the Add-picker link value, AND
+  // the pre-filled create form, so all three stay consistent. While the parent
+  // record is still loading a non-id value resolves to null, which RelatedList
+  // treats as "don't fetch yet".
+  const relationshipValueField: string = (schema as any).relationshipValueField || 'id';
+  const parentLinkValue: string | number | null =
+    relationshipValueField === 'id'
+      ? ((ctx?.recordId ?? null) as string | number | null)
+      : ((ctx?.data as any)?.[relationshipValueField] ?? null);
+
   const relatedActions = useRelatedRecordActions();
   const handlers = React.useMemo(
     () =>
       relatedActions?.resolve({
         objectName,
         relationshipField: schema.relationshipField,
-        parentId: (ctx?.recordId ?? null) as string | number | null,
+        parentId: parentLinkValue,
       }) ?? null,
-    [relatedActions, objectName, schema.relationshipField, ctx?.recordId],
+    [relatedActions, objectName, schema.relationshipField, parentLinkValue],
   );
 
   const required: string[] = Array.isArray((schema as any).requiredPermissions)
@@ -133,7 +146,7 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
         api={objectName}
         objectName={objectName}
         referenceField={schema.relationshipField}
-        parentId={ctx?.recordId as any}
+        parentId={parentLinkValue as any}
         columns={filteredColumns as any}
         pageSize={schema.limit}
         dataSource={ctx?.dataSource as any}
