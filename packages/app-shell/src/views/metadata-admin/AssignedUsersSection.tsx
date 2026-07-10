@@ -33,10 +33,13 @@ export interface AssignedUsersSectionProps {
 }
 
 interface AssignedRow {
-  grantId: string;
+  /** Junction row id for DIRECT grants; position-held rows are not removable here. */
+  grantId: string | null;
   userId: string;
   name: string;
   email: string;
+  /** How the user holds the set: a direct grant, or via one or more positions. */
+  via: Array<{ kind: 'direct' } | { kind: 'position'; position: string }>;
 }
 
 /** Minimal locale-aware copy (zh vs everything-else) — keeps the surface in the user's language. */
@@ -56,6 +59,10 @@ function useCopy() {
               'AI 席位已用完(' + n + '/' + n + ')。请先移除一个用户,或在许可证中提升席位上限,再分配新用户。',
             addFailed: '分配失败,请重试。',
             countOf: (n: number) => n + ' 人',
+            direct: '直授',
+            viaPosition: (p: string) => '经岗位 ' + p,
+            everyoneNote: '已绑定到 everyone 锚点 — 所有登录成员都持有此权限集。',
+            positionHeldHint: '经岗位持有 — 在岗位的指派中移除。',
           }
         : {
             title: 'Assigned Users',
@@ -68,6 +75,10 @@ function useCopy() {
               'All ' + n + ' AI seat(s) are in use. Remove a user or raise the license cap before assigning another.',
             addFailed: 'Failed to assign. Please try again.',
             countOf: (n: number) => String(n),
+            direct: 'direct',
+            viaPosition: (p: string) => 'via position ' + p,
+            everyoneNote: 'Bound to the everyone anchor — every signed-in member holds this set.',
+            positionHeldHint: 'Held via a position — remove it on the position’s assignments.',
           },
     [zh],
   );
@@ -85,6 +96,7 @@ export function AssignedUsersSection({ permissionSetName }: AssignedUsersSection
 
   const [setId, setSetId] = React.useState<string | null>(null);
   const [rows, setRows] = React.useState<AssignedRow[]>([]);
+  const [everyoneBound, setEveryoneBound] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [pickerOpen, setPickerOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -100,31 +112,81 @@ export function AssignedUsersSection({ permissionSetName }: AssignedUsersSection
       setSetId(id);
       if (!id) {
         setRows([]);
+        setEveryoneBound(false);
         return;
       }
+
+      // Effective holders = direct grants ∪ holders of every position bound to
+      // the set (objectui#2382). In the ADR-0090 model positions are THE
+      // distribution channel — a direct-grants-only list told the admin
+      // "0 users" for any normally-administered set.
       const grants = asArray(
         await adapter.find('sys_user_permission_set', { $filter: { permission_set_id: id }, $top: 500 }),
       );
-      const userIds = [...new Set(grants.map((g: any) => g.user_id).filter(Boolean).map(String))];
+
+      let positionNames: string[] = [];
+      let boundEveryone = false;
+      try {
+        const bindings = asArray(
+          await adapter.find('sys_position_permission_set', { $filter: { permission_set_id: id }, $top: 200 }),
+        );
+        const positionIds = [...new Set(bindings.map((b: any) => b.position_id).filter(Boolean).map(String))];
+        if (positionIds.length) {
+          const positions = asArray(
+            await adapter.find('sys_position', { $filter: { id: { $in: positionIds } }, $top: 200 }),
+          );
+          const names = positions.map((p: any) => String(p.name ?? '')).filter(Boolean);
+          // The audience anchors are implicit memberships — `everyone` is every
+          // signed-in member; enumerating them as rows would be noise. Surface
+          // a note instead and expand only the explicit positions.
+          boundEveryone = names.includes('everyone');
+          positionNames = names.filter((n) => n !== 'everyone' && n !== 'guest');
+        }
+      } catch {
+        /* position expansion is additive — direct grants still render */
+      }
+
+      const assignments = positionNames.length
+        ? asArray(
+            await adapter.find('sys_user_position', { $filter: { position: { $in: positionNames } }, $top: 1000 }),
+          )
+        : [];
+
+      const viaByUser = new Map<string, AssignedRow['via']>();
+      const grantIdByUser = new Map<string, string>();
+      for (const g of grants) {
+        if (!g?.user_id) continue;
+        const uid = String(g.user_id);
+        grantIdByUser.set(uid, String(g.id));
+        viaByUser.set(uid, [...(viaByUser.get(uid) ?? []), { kind: 'direct' as const }]);
+      }
+      for (const a of assignments) {
+        if (!a?.user_id || !a?.position) continue;
+        const uid = String(a.user_id);
+        viaByUser.set(uid, [...(viaByUser.get(uid) ?? []), { kind: 'position' as const, position: String(a.position) }]);
+      }
+
+      const userIds = [...viaByUser.keys()];
       const users = userIds.length
-        ? asArray(await adapter.find('sys_user', { $filter: { id: { $in: userIds } }, $top: 500 }))
+        ? asArray(await adapter.find('sys_user', { $filter: { id: { $in: userIds } }, $top: 1000 }))
         : [];
       const byId = new Map(users.map((u: any) => [String(u.id), u]));
       setRows(
-        grants
-          .filter((g: any) => g.user_id)
-          .map((g: any) => {
-            const u = byId.get(String(g.user_id));
-            return {
-              grantId: String(g.id),
-              userId: String(g.user_id),
-              name: u ? personLabel(u) : String(g.user_id),
-              email: u?.email ?? '',
-            };
-          }),
+        userIds.map((uid) => {
+          const u = byId.get(uid);
+          return {
+            grantId: grantIdByUser.get(uid) ?? null,
+            userId: uid,
+            name: u ? personLabel(u) : uid,
+            email: u?.email ?? '',
+            via: viaByUser.get(uid) ?? [],
+          };
+        }),
       );
+      setEveryoneBound(boundEveryone);
     } catch {
       setRows([]);
+      setEveryoneBound(false);
     } finally {
       setLoading(false);
     }
@@ -213,36 +275,59 @@ export function AssignedUsersSection({ permissionSetName }: AssignedUsersSection
         </div>
       )}
 
+      {everyoneBound && (
+        <div className="mb-3 flex items-start gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <Users className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>{c.everyoneNote}</span>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           {c.loading}
         </div>
       ) : rows.length === 0 ? (
-        <div className="text-xs text-muted-foreground italic py-3">{c.empty}</div>
+        !everyoneBound && <div className="text-xs text-muted-foreground italic py-3">{c.empty}</div>
       ) : (
         <ul className="divide-y rounded-md border">
           {rows.map((r) => (
-            <li key={r.grantId} className="flex items-center gap-3 px-3 py-2">
+            <li key={r.userId} className="flex items-center gap-3 px-3 py-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-medium shrink-0">
                 {(r.name || '?').slice(0, 1).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm truncate">{r.name}</div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm truncate">{r.name}</span>
+                  {r.via.map((v, i) => (
+                    <span
+                      key={i}
+                      className="shrink-0 rounded border bg-muted/40 px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
+                    >
+                      {v.kind === 'direct' ? c.direct : c.viaPosition(v.position)}
+                    </span>
+                  ))}
+                </div>
                 {r.email && r.email !== r.name && (
                   <div className="text-xs text-muted-foreground truncate">{r.email}</div>
                 )}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void removeUser(r.grantId)}
-                aria-label={c.remove}
-                title={c.remove}
-                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              {r.grantId ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void removeUser(r.grantId!)}
+                  aria-label={c.remove}
+                  title={c.remove}
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              ) : (
+                <span className="shrink-0 text-[10px] text-muted-foreground/70" title={c.positionHeldHint}>
+                  —
+                </span>
+              )}
             </li>
           ))}
         </ul>
