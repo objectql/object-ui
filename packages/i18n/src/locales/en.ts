@@ -2094,6 +2094,46 @@ const en = {
       },
     },
   },
+  connectAgent: {
+    disabled: {
+      title: 'MCP is disabled on this deployment',
+      body: 'The MCP surface is off (OS_MCP_SERVER_ENABLED=false), so there is nothing to connect. Ask your operator to re-enable it.',
+    },
+    url: {
+      title: 'This environment\'s MCP endpoint',
+      body: 'Any MCP-capable AI client connects with this URL. Identity is self-serve: the deployment is its own OAuth 2.1 authorization server, so interactive clients just open a browser login — you connect as yourself, and every call runs under your own permissions and row-level security.',
+      downloadSkill: 'Download SKILL.md',
+      skillHint: 'The portable agent skill: teaches any skills-capable agent how to work with this environment.',
+    },
+    claude: {
+      body: 'Settings → Connectors → Add custom connector, then paste this URL. Sign in through the browser when prompted.',
+      reachability: 'claude.ai (web) connects from Anthropic\'s servers — the deployment must be reachable over public HTTPS. Claude Desktop and local clients also reach intranet deployments.',
+    },
+    claudeCode: {
+      body: 'One command — the OAuth login opens automatically on first use:',
+      plugin: 'Or install the official plugin (adds the ObjectStack skill and a guided /objectstack:connect command):',
+    },
+    cursor: {
+      addButton: 'Add to Cursor',
+      body: 'Use the one-click button, or add this to .cursor/mcp.json:',
+    },
+    vscode: {
+      body: 'Add to .vscode/mcp.json (or via the MCP: Add Server command):',
+    },
+    codex: {
+      body: 'Add to ~/.codex/config.toml. If your Codex version lacks the OAuth flow, use an API key header instead (see below):',
+    },
+    apiKey: {
+      title: 'API keys',
+      badge: 'headless',
+      body: 'For CI, scripts, and agents without a browser. The key acts as you — treat it like a password. It is shown ONCE.',
+      namePlaceholder: 'Key name (e.g. ci-agent)',
+      mint: 'Create key',
+      minting: 'Creating…',
+      showOnce: 'Key "{{name}}" created — copy it now, it will not be shown again:',
+      done: 'Done — hide it',
+    },
+  },
   marketplace: {
     title: 'App Marketplace',
       subtitle: 'Browse approved apps published to the ObjectStack catalog. Click an app to view details and install it into one of your environments.',

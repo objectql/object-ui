@@ -1701,6 +1701,46 @@ const ko = {
       },
     },
   },
+  connectAgent: {
+    disabled: {
+      title: '이 배포에서는 MCP가 비활성화되어 있습니다',
+      body: 'MCP 서비스가 꺼져 있습니다(OS_MCP_SERVER_ENABLED=false). 운영자에게 다시 활성화를 요청하세요.',
+    },
+    url: {
+      title: '이 환경의 MCP 엔드포인트',
+      body: 'MCP를 지원하는 모든 AI 클라이언트가 이 URL로 연결합니다. 인증은 셀프서비스입니다. 배포 자체가 OAuth 2.1 인가 서버이므로 브라우저 로그인만 하면 되고, 모든 호출은 본인의 권한과 행 수준 보안 아래 실행됩니다.',
+      downloadSkill: 'SKILL.md 다운로드',
+      skillHint: '이식 가능한 에이전트 스킬: 스킬을 지원하는 에이전트에게 이 환경 사용법을 알려줍니다.',
+    },
+    claude: {
+      body: '설정 → 커넥터 → 사용자 지정 커넥터 추가에서 이 URL을 붙여넣고 브라우저에서 로그인하세요.',
+      reachability: 'claude.ai(웹)는 Anthropic 서버에서 연결하므로 배포가 공용 HTTPS로 접근 가능해야 합니다. Claude Desktop 등 로컬 클라이언트는 인트라넷 배포에도 연결할 수 있습니다.',
+    },
+    claudeCode: {
+      body: '명령 하나 — 처음 사용할 때 OAuth 로그인이 자동으로 열립니다:',
+      plugin: '또는 공식 플러그인을 설치하세요(ObjectStack 스킬과 안내형 /objectstack:connect 명령 포함):',
+    },
+    cursor: {
+      addButton: 'Cursor에 추가',
+      body: '원클릭 버튼을 사용하거나 아래 내용을 .cursor/mcp.json에 추가하세요:',
+    },
+    vscode: {
+      body: '.vscode/mcp.json에 추가(또는 MCP: Add Server 명령 사용):',
+    },
+    codex: {
+      body: '~/.codex/config.toml에 추가하세요. Codex 버전이 OAuth 흐름을 지원하지 않으면 API 키 헤더를 사용하세요(아래 참조):',
+    },
+    apiKey: {
+      title: 'API 키',
+      badge: '헤드리스',
+      body: 'CI, 스크립트, 브라우저 없는 에이전트용. 키는 본인 권한으로 동작합니다 — 비밀번호처럼 다루세요. 한 번만 표시됩니다.',
+      namePlaceholder: '키 이름(예: ci-agent)',
+      mint: '키 생성',
+      minting: '생성 중…',
+      showOnce: '키 "{{name}}"가 생성되었습니다 — 지금 복사하세요. 다시 표시되지 않습니다:',
+      done: '완료 — 숨기기',
+    },
+  },
   marketplace: {
     title: "앱 마켓플레이스",
     subtitle: "ObjectStack 카탈로그에 게시된 승인된 앱을 탐색하세요. 앱을 클릭하여 세부 정보를 보고 환경 중 하나에 설치하세요.",

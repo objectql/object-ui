@@ -1701,6 +1701,46 @@ const pt = {
       },
     },
   },
+  connectAgent: {
+    disabled: {
+      title: 'O MCP está desativado nesta implantação',
+      body: 'A superfície MCP está desligada (OS_MCP_SERVER_ENABLED=false). Peça ao operador para reativá-la.',
+    },
+    url: {
+      title: 'Endpoint MCP deste ambiente',
+      body: 'Qualquer cliente de IA compatível com MCP conecta-se com esta URL. A identidade é autosserviço: a implantação é seu próprio servidor de autorização OAuth 2.1 — você entra como você mesmo e cada chamada corre sob suas permissões e segurança em nível de linha.',
+      downloadSkill: 'Baixar SKILL.md',
+      skillHint: 'A skill portátil do agente: ensina qualquer agente compatível a trabalhar com este ambiente.',
+    },
+    claude: {
+      body: 'Configurações → Conectores → Adicionar conector personalizado, cole esta URL e faça login no navegador.',
+      reachability: 'claude.ai (web) conecta-se a partir dos servidores da Anthropic — a implantação precisa ser acessível via HTTPS público. Claude Desktop e clientes locais também alcançam implantações de intranet.',
+    },
+    claudeCode: {
+      body: 'Um comando — o login OAuth abre automaticamente no primeiro uso:',
+      plugin: 'Ou instale o plugin oficial (adiciona a skill ObjectStack e o comando guiado /objectstack:connect):',
+    },
+    cursor: {
+      addButton: 'Adicionar ao Cursor',
+      body: 'Use o botão de um clique ou adicione isto ao .cursor/mcp.json:',
+    },
+    vscode: {
+      body: 'Adicionar ao .vscode/mcp.json (ou pelo comando MCP: Add Server):',
+    },
+    codex: {
+      body: 'Adicionar ao ~/.codex/config.toml. Se sua versão do Codex não suportar o fluxo OAuth, use um cabeçalho de chave de API (veja abaixo):',
+    },
+    apiKey: {
+      title: 'Chaves de API',
+      badge: 'headless',
+      body: 'Para CI, scripts e agentes sem navegador. A chave age como você — trate-a como uma senha. É mostrada UMA única vez.',
+      namePlaceholder: 'Nome da chave (ex. ci-agent)',
+      mint: 'Criar chave',
+      minting: 'Criando…',
+      showOnce: 'Chave "{{name}}" criada — copie agora, ela não será mostrada novamente:',
+      done: 'Concluído — ocultar',
+    },
+  },
   marketplace: {
     title: "Marketplace de aplicativos",
     subtitle: "Explore aplicativos aprovados publicados no catálogo ObjectStack. Clique em um aplicativo para ver os detalhes e instalá-lo em um de seus ambientes.",

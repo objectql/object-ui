@@ -1701,6 +1701,46 @@ const fr = {
       },
     },
   },
+  connectAgent: {
+    disabled: {
+      title: 'MCP est désactivé sur ce déploiement',
+      body: 'La surface MCP est désactivée (OS_MCP_SERVER_ENABLED=false). Demandez à votre opérateur de la réactiver.',
+    },
+    url: {
+      title: 'Endpoint MCP de cet environnement',
+      body: 'Tout client IA compatible MCP se connecte avec cette URL. L’identité est en libre-service : le déploiement est son propre serveur d’autorisation OAuth 2.1 — vous vous connectez en votre nom, et chaque appel s’exécute sous vos permissions et la sécurité au niveau des lignes.',
+      downloadSkill: 'Télécharger SKILL.md',
+      skillHint: 'La skill d’agent portable : apprend à tout agent compatible à travailler avec cet environnement.',
+    },
+    claude: {
+      body: 'Paramètres → Connecteurs → Ajouter un connecteur personnalisé, collez cette URL puis connectez-vous dans le navigateur.',
+      reachability: 'claude.ai (web) se connecte depuis les serveurs d’Anthropic — le déploiement doit être accessible en HTTPS public. Claude Desktop et les clients locaux atteignent aussi les déploiements intranet.',
+    },
+    claudeCode: {
+      body: 'Une seule commande — la connexion OAuth s’ouvre automatiquement à la première utilisation :',
+      plugin: 'Ou installez le plugin officiel (ajoute la skill ObjectStack et la commande guidée /objectstack:connect) :',
+    },
+    cursor: {
+      addButton: 'Ajouter à Cursor',
+      body: 'Utilisez le bouton en un clic, ou ajoutez ceci à .cursor/mcp.json :',
+    },
+    vscode: {
+      body: 'À ajouter dans .vscode/mcp.json (ou via la commande MCP: Add Server) :',
+    },
+    codex: {
+      body: 'À ajouter dans ~/.codex/config.toml. Si votre version de Codex ne gère pas le flux OAuth, utilisez un en-tête de clé API (voir ci-dessous) :',
+    },
+    apiKey: {
+      title: 'Clés API',
+      badge: 'headless',
+      body: 'Pour la CI, les scripts et les agents sans navigateur. La clé agit en votre nom — traitez-la comme un mot de passe. Elle n’est affichée qu’UNE fois.',
+      namePlaceholder: 'Nom de la clé (ex. ci-agent)',
+      mint: 'Créer la clé',
+      minting: 'Création…',
+      showOnce: 'Clé « {{name}} » créée — copiez-la maintenant, elle ne sera plus affichée :',
+      done: 'Terminé — masquer',
+    },
+  },
   marketplace: {
     title: "Marketplace d'applications",
     subtitle: "Parcourez les applications approuvées publiées dans le catalogue ObjectStack. Cliquez sur une application pour voir les détails et l'installer dans l'un de vos environnements.",

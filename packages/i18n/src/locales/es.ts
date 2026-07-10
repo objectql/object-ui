@@ -1701,6 +1701,46 @@ const es = {
       },
     },
   },
+  connectAgent: {
+    disabled: {
+      title: 'MCP está deshabilitado en esta implementación',
+      body: 'La superficie MCP está apagada (OS_MCP_SERVER_ENABLED=false). Pida a su operador que la vuelva a habilitar.',
+    },
+    url: {
+      title: 'Endpoint MCP de este entorno',
+      body: 'Cualquier cliente de IA compatible con MCP se conecta con esta URL. La identidad es autoservicio: la implementación es su propio servidor de autorización OAuth 2.1 — inicia sesión como usted mismo y cada llamada corre bajo sus permisos y seguridad a nivel de fila.',
+      downloadSkill: 'Descargar SKILL.md',
+      skillHint: 'La skill portátil del agente: enseña a cualquier agente compatible cómo trabajar con este entorno.',
+    },
+    claude: {
+      body: 'Configuración → Conectores → Añadir conector personalizado, pegue esta URL e inicie sesión en el navegador.',
+      reachability: 'claude.ai (web) se conecta desde los servidores de Anthropic — la implementación debe ser accesible por HTTPS público. Claude Desktop y los clientes locales también alcanzan implementaciones de intranet.',
+    },
+    claudeCode: {
+      body: 'Un comando — el inicio de sesión OAuth se abre automáticamente en el primer uso:',
+      plugin: 'O instale el plugin oficial (añade la skill de ObjectStack y el comando guiado /objectstack:connect):',
+    },
+    cursor: {
+      addButton: 'Añadir a Cursor',
+      body: 'Use el botón de un clic o añada esto a .cursor/mcp.json:',
+    },
+    vscode: {
+      body: 'Añadir a .vscode/mcp.json (o mediante el comando MCP: Add Server):',
+    },
+    codex: {
+      body: 'Añadir a ~/.codex/config.toml. Si su versión de Codex no admite el flujo OAuth, use una cabecera de clave API (ver abajo):',
+    },
+    apiKey: {
+      title: 'Claves API',
+      badge: 'headless',
+      body: 'Para CI, scripts y agentes sin navegador. La clave actúa como usted — trátela como una contraseña. Se muestra UNA sola vez.',
+      namePlaceholder: 'Nombre de la clave (p. ej. ci-agent)',
+      mint: 'Crear clave',
+      minting: 'Creando…',
+      showOnce: 'Clave «{{name}}» creada — cópiela ahora, no se volverá a mostrar:',
+      done: 'Listo — ocultar',
+    },
+  },
   marketplace: {
     title: "Marketplace de aplicaciones",
     subtitle: "Explore aplicaciones aprobadas publicadas en el catálogo de ObjectStack. Haga clic en una aplicación para ver detalles e instalarla en uno de sus entornos.",

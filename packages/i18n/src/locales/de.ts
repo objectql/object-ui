@@ -1701,6 +1701,46 @@ const de = {
       },
     },
   },
+  connectAgent: {
+    disabled: {
+      title: 'MCP ist auf dieser Bereitstellung deaktiviert',
+      body: 'Die MCP-Schnittstelle ist ausgeschaltet (OS_MCP_SERVER_ENABLED=false). Bitten Sie Ihren Betreiber, sie wieder zu aktivieren.',
+    },
+    url: {
+      title: 'MCP-Endpunkt dieser Umgebung',
+      body: 'Jeder MCP-fähige KI-Client verbindet sich über diese URL. Die Identität ist Self-Service: Die Bereitstellung ist ihr eigener OAuth-2.1-Autorisierungsserver — Sie melden sich als Sie selbst an, und jeder Aufruf unterliegt Ihren Berechtigungen und der Zeilensicherheit.',
+      downloadSkill: 'SKILL.md herunterladen',
+      skillHint: 'Die portable Agenten-Skill-Datei: erklärt jedem skill-fähigen Agenten die Arbeit mit dieser Umgebung.',
+    },
+    claude: {
+      body: 'Einstellungen → Connectors → Benutzerdefinierten Connector hinzufügen, dann diese URL einfügen und im Browser anmelden.',
+      reachability: 'claude.ai (Web) verbindet sich von Anthropic-Servern — die Bereitstellung muss über öffentliches HTTPS erreichbar sein. Claude Desktop und lokale Clients erreichen auch Intranet-Bereitstellungen.',
+    },
+    claudeCode: {
+      body: 'Ein Befehl — die OAuth-Anmeldung öffnet sich bei der ersten Nutzung automatisch:',
+      plugin: 'Oder das offizielle Plugin installieren (mit ObjectStack-Skill und geführtem /objectstack:connect):',
+    },
+    cursor: {
+      addButton: 'Zu Cursor hinzufügen',
+      body: 'Ein-Klick-Button verwenden oder Folgendes in .cursor/mcp.json eintragen:',
+    },
+    vscode: {
+      body: 'In .vscode/mcp.json eintragen (oder über den Befehl „MCP: Add Server“):',
+    },
+    codex: {
+      body: 'In ~/.codex/config.toml eintragen. Falls Ihre Codex-Version den OAuth-Flow nicht unterstützt, stattdessen einen API-Schlüssel-Header verwenden (siehe unten):',
+    },
+    apiKey: {
+      title: 'API-Schlüssel',
+      badge: 'headless',
+      body: 'Für CI, Skripte und Agenten ohne Browser. Der Schlüssel handelt als Sie — wie ein Passwort behandeln. Er wird nur EINMAL angezeigt.',
+      namePlaceholder: 'Schlüsselname (z. B. ci-agent)',
+      mint: 'Schlüssel erstellen',
+      minting: 'Wird erstellt…',
+      showOnce: 'Schlüssel „{{name}}“ erstellt — jetzt kopieren, er wird nicht erneut angezeigt:',
+      done: 'Fertig — ausblenden',
+    },
+  },
   marketplace: {
     title: "App-Marktplatz",
     subtitle: "Durchsuchen Sie genehmigte Apps, die im ObjectStack-Katalog veröffentlicht wurden. Klicken Sie auf eine App, um Details zu sehen und sie in eine Ihrer Umgebungen zu installieren.",

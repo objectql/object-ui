@@ -2172,6 +2172,46 @@ const zh = {
       },
     },
   },
+  connectAgent: {
+    disabled: {
+      title: '此部署已停用 MCP',
+      body: 'MCP 服务已关闭(OS_MCP_SERVER_ENABLED=false),暂无可连接的端点。请联系运维人员重新启用。',
+    },
+    url: {
+      title: '本环境的 MCP 端点',
+      body: '任何支持 MCP 的 AI 客户端都用这个 URL 连接。身份是自助的:部署自身就是 OAuth 2.1 授权服务器,交互式客户端只需在浏览器登录——以你自己的身份连接,每次调用都受你的权限和行级安全约束。',
+      downloadSkill: '下载 SKILL.md',
+      skillHint: '可移植的智能体技能文件:教会任何支持技能的智能体如何使用本环境。',
+    },
+    claude: {
+      body: '设置 → 连接器 → 添加自定义连接器,粘贴此 URL,按提示在浏览器登录。',
+      reachability: 'claude.ai(网页版)由 Anthropic 服务器发起连接——部署需公网 HTTPS 可达。Claude Desktop 等本地客户端可直连内网部署。',
+    },
+    claudeCode: {
+      body: '一条命令,首次使用时自动弹出 OAuth 登录:',
+      plugin: '或安装官方插件(附带 ObjectStack 技能和引导式 /objectstack:connect 命令):',
+    },
+    cursor: {
+      addButton: '添加到 Cursor',
+      body: '点击一键按钮,或将以下内容加入 .cursor/mcp.json:',
+    },
+    vscode: {
+      body: '加入 .vscode/mcp.json(或使用 MCP: Add Server 命令):',
+    },
+    codex: {
+      body: '加入 ~/.codex/config.toml。如果你的 Codex 版本不支持 OAuth 流程,请改用 API 密钥请求头(见下):',
+    },
+    apiKey: {
+      title: 'API 密钥',
+      badge: '无头场景',
+      body: '用于 CI、脚本和无浏览器的智能体。密钥等同于你的身份,请像密码一样保管,且仅显示一次。',
+      namePlaceholder: '密钥名称(如 ci-agent)',
+      mint: '创建密钥',
+      minting: '创建中…',
+      showOnce: '密钥「{{name}}」已创建——请立即复制,之后不再显示:',
+      done: '完成——隐藏',
+    },
+  },
   marketplace: {
       title: '应用市场',
       subtitle: '浏览已通过审核、发布到 ObjectStack 目录中的应用。点击应用查看详情并安装到你的某个环境中。',

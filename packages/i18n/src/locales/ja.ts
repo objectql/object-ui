@@ -1701,6 +1701,46 @@ const ja = {
       },
     },
   },
+  connectAgent: {
+    disabled: {
+      title: 'このデプロイメントでは MCP が無効です',
+      body: 'MCP サーフェスがオフになっています(OS_MCP_SERVER_ENABLED=false)。運用担当者に再有効化を依頼してください。',
+    },
+    url: {
+      title: 'この環境の MCP エンドポイント',
+      body: 'MCP 対応の AI クライアントはこの URL で接続します。認証はセルフサービスです:デプロイメント自体が OAuth 2.1 認可サーバーなので、ブラウザでログインするだけ。すべての呼び出しはあなたの権限と行レベルセキュリティの下で実行されます。',
+      downloadSkill: 'SKILL.md をダウンロード',
+      skillHint: 'ポータブルなエージェントスキル:スキル対応エージェントにこの環境の使い方を教えます。',
+    },
+    claude: {
+      body: '設定 → コネクタ → カスタムコネクタを追加で、この URL を貼り付け、ブラウザでログインしてください。',
+      reachability: 'claude.ai(Web)は Anthropic のサーバーから接続するため、デプロイメントはパブリック HTTPS で到達可能である必要があります。Claude Desktop などのローカルクライアントはイントラネット環境にも接続できます。',
+    },
+    claudeCode: {
+      body: 'コマンド一つ — 初回利用時に OAuth ログインが自動で開きます:',
+      plugin: 'または公式プラグインをインストール(ObjectStack スキルとガイド付き /objectstack:connect コマンドを追加):',
+    },
+    cursor: {
+      addButton: 'Cursor に追加',
+      body: 'ワンクリックボタンを使うか、以下を .cursor/mcp.json に追加してください:',
+    },
+    vscode: {
+      body: '.vscode/mcp.json に追加(または MCP: Add Server コマンドで):',
+    },
+    codex: {
+      body: '~/.codex/config.toml に追加してください。Codex が OAuth フロー未対応の場合は API キーのヘッダーをご利用ください(下記参照):',
+    },
+    apiKey: {
+      title: 'API キー',
+      badge: 'ヘッドレス',
+      body: 'CI・スクリプト・ブラウザのないエージェント向け。キーはあなたとして動作します — パスワードと同様に扱ってください。表示は一度きりです。',
+      namePlaceholder: 'キー名(例:ci-agent)',
+      mint: 'キーを作成',
+      minting: '作成中…',
+      showOnce: 'キー「{{name}}」を作成しました — 今すぐコピーしてください。再表示されません:',
+      done: '完了 — 非表示にする',
+    },
+  },
   marketplace: {
     title: "アプリマーケットプレイス",
     subtitle: "ObjectStackカタログに公開された承認済みアプリを参照します。アプリをクリックして詳細を表示し、環境にインストールしてください。",
