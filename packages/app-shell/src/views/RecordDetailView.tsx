@@ -34,6 +34,7 @@ import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
 import type { DetailViewSchema, FeedItem, HighlightField } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals } from '../hooks/useRecordApprovals';
+import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
 import { getRecordDisplayName } from '../utils';
 import { useFavorites } from '../hooks/useFavorites';
 import { useActionModal } from '../hooks/useActionModal';
@@ -924,6 +925,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // empty anyway — skipping keeps the network quiet).
   const feedsEnabled = objectDef?.enable?.feeds !== false;
   const activitiesEnabled = objectDef?.enable?.activities !== false;
+  // `enable.files` (#2727) is opt-IN (spec default `false`): the generic
+  // Attachments panel is a new surface, so it only renders when the object
+  // explicitly declares it. The server enforces the same gate on
+  // sys_attachment creation (403 FILES_DISABLED).
+  const filesEnabled = objectDef?.enable?.files === true;
 
   useEffect(() => {
     if (!dataSource || !pureRecordId || !objectDef || !historyEnabled) {
@@ -2012,6 +2018,19 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 >
                   <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
                 </RelatedRecordActionsBridge>
+                {/* Generic Attachments panel (#2727) — opt-in via
+                    `enable.files: true`; the server rejects attachments
+                    targeting any other object (403 FILES_DISABLED). */}
+                {filesEnabled && pureRecordId && (
+                  <div className="mt-6">
+                    <RecordAttachmentsPanel
+                      objectName={objectName!}
+                      recordId={pureRecordId}
+                      dataSource={dataSource}
+                      currentUserId={currentUser?.id}
+                    />
+                  </div>
+                )}
                 {/* Auto-append RecordChatterPanel only when the page
                     schema doesn't already place a `record:discussion` /
                     `record:chatter` component. Hard opt-out via
@@ -2138,23 +2157,36 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
               }}
               discussionSlot={
                 // `enable.feeds: false` (#2707) suppresses the discussion
-                // panel — same opt-out gate as the page-schema branch above.
-                feedsEnabled ? (
-                  <RecordChatterPanel
-                    config={{
-                      position: 'bottom',
-                      collapsible: false,
-                      feed: {
-                        enableReactions: true,
-                        enableThreading: true,
-                        showCommentInput: true,
-                      },
-                    }}
-                    items={feedItems}
-                    onAddComment={handleAddComment}
-                    onAddReply={handleAddReply}
-                    onToggleReaction={handleToggleReaction}
-                  />
+                // panel; `enable.files: true` (#2727) adds the Attachments
+                // panel — same gates as the page-schema branch above.
+                feedsEnabled || filesEnabled ? (
+                  <div className="space-y-4">
+                    {filesEnabled && pureRecordId && (
+                      <RecordAttachmentsPanel
+                        objectName={objectName!}
+                        recordId={pureRecordId}
+                        dataSource={dataSource}
+                        currentUserId={currentUser?.id}
+                      />
+                    )}
+                    {feedsEnabled && (
+                      <RecordChatterPanel
+                        config={{
+                          position: 'bottom',
+                          collapsible: false,
+                          feed: {
+                            enableReactions: true,
+                            enableThreading: true,
+                            showCommentInput: true,
+                          },
+                        }}
+                        items={feedItems}
+                        onAddComment={handleAddComment}
+                        onAddReply={handleAddReply}
+                        onToggleReaction={handleToggleReaction}
+                      />
+                    )}
+                  </div>
                 ) : undefined
               }
             />
