@@ -84,6 +84,7 @@ import { formatMetadataError, formatPublishFailures, type PublishFailure } from 
 import { loadPackageSurfaces } from './packageSurfaces';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
+import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel';
 import { AppNavCanvas } from '../metadata-admin/previews/AppNavCanvas';
 import {
   readFields,
@@ -2981,6 +2982,37 @@ function AccessPillar({
           {t('engine.studio.access.banner', locale)}
         </span>
       </div>
+
+      {/* ADR-0090 D5/D9 — this package's pending suggested audience bindings
+          (isDefault sets shipped by the package, awaiting the admin's
+          confirm). Renders nothing when there are none or for non-admins;
+          confirm is enforced server-side by the anchor gates. */}
+      {!readOnly && (
+        <SuggestedBindingsPanel
+          packageId={packageId}
+          className="mx-3 mt-2"
+          strings={{
+            describe: (s) =>
+              tFormat(
+                s.anchor === 'guest'
+                  ? 'engine.studio.access.suggestPromptGuest'
+                  : 'engine.studio.access.suggestPromptEveryone',
+                locale,
+                { set: s.permission_set_name },
+              ),
+            confirm: t('engine.studio.access.suggestConfirm', locale),
+            confirming: t('engine.studio.access.suggestConfirming', locale),
+            dismiss: t('engine.studio.access.suggestDismiss', locale),
+            confirmedToast: (s) =>
+              tFormat('engine.studio.access.suggestConfirmedToast', locale, {
+                set: s.permission_set_name,
+                anchor: s.anchor,
+              }),
+            dismissedToast: (s) =>
+              tFormat('engine.studio.access.suggestDismissedToast', locale, { set: s.permission_set_name }),
+          }}
+        />
+      )}
 
       <div className="relative flex min-h-0 flex-1">
         {isMobile && railOpen && (

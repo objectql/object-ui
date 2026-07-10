@@ -1225,6 +1225,15 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.access.bannerTitle':
     'This matrix lists only the objects this package declares, and “Save” merges just that slice — grants contributed by other packages are preserved. Edits are saved as package drafts and go live when you Publish the package (top bar), exactly like Data and Interfaces.',
   'engine.studio.access.banner': 'This package’s objects · saved as draft',
+  // ADR-0090 D5/D9 — pending suggested audience bindings (isDefault sets
+  // awaiting the admin's confirm; the server never auto-binds).
+  'engine.studio.access.suggestPromptEveryone': 'This package suggests granting "{set}" to all signed-in users (Everyone).',
+  'engine.studio.access.suggestPromptGuest': 'This package suggests granting "{set}" to unauthenticated visitors (Guest).',
+  'engine.studio.access.suggestConfirm': 'Grant',
+  'engine.studio.access.suggestConfirming': 'Granting…',
+  'engine.studio.access.suggestDismiss': 'Dismiss',
+  'engine.studio.access.suggestConfirmedToast': '"{set}" is now granted to {anchor}.',
+  'engine.studio.access.suggestDismissedToast': 'Suggestion for "{set}" dismissed.',
   'engine.studio.access.heading': 'Permission sets',
   'engine.studio.access.search': 'Search permissions…',
   'engine.studio.access.none': 'No permission sets yet — create one below',
@@ -2322,6 +2331,14 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.access.bannerTitle':
     '此矩阵仅列出本包声明的对象,「Save」只合并本包切片 —— 其他包贡献的授权原样保留。编辑保存为软件包草稿,点击顶栏「发布」后随整个包一起生效(与数据、界面一致)。',
   'engine.studio.access.banner': '仅本包对象 · 保存为草稿',
+  // ADR-0090 D5/D9 — 待确认的受众绑定建议(isDefault 权限集,管理员确认后生效,服务端绝不自动绑定)
+  'engine.studio.access.suggestPromptEveryone': '此包建议将「{set}」授予所有已登录用户(Everyone 岗位)。',
+  'engine.studio.access.suggestPromptGuest': '此包建议将「{set}」授予未登录访客(Guest 岗位)。',
+  'engine.studio.access.suggestConfirm': '授予',
+  'engine.studio.access.suggestConfirming': '授予中…',
+  'engine.studio.access.suggestDismiss': '忽略',
+  'engine.studio.access.suggestConfirmedToast': '「{set}」已授予 {anchor}。',
+  'engine.studio.access.suggestDismissedToast': '已忽略「{set}」的建议。',
   'engine.studio.access.heading': '权限集',
   'engine.studio.access.search': '搜索权限…',
   'engine.studio.access.none': '还没有权限集 — 在下方新建一个',

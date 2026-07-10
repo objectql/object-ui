@@ -63,12 +63,29 @@ import {
 import { getRuntimeConfig } from '../../runtime-config';
 import { emitMetadataRefresh } from '../../assistant/assistantBus';
 import { useMetadata } from '../../providers/MetadataProvider';
+import { SuggestedBindingsPanel, type SuggestedBindingsStrings } from '../../components/SuggestedBindingsPanel';
+import type { SuggestedBinding } from '../../services/suggestedBindingsApi';
 
 export function MarketplacePackagePage() {
   const navigate = useNavigate();
   const { packageId, appName } = useParams<{ packageId?: string; appName?: string }>();
   const isAdmin = useIsWorkspaceAdmin();
   const { t, language } = useObjectTranslation();
+  // ADR-0090 D5 — install-time suggested audience bindings ("this app
+  // suggests granting <set> to Everyone"), surfaced right after a
+  // successful install into THIS runtime. Confirm/dismiss is admin-gated
+  // server-side; the panel renders nothing for non-admins.
+  const suggestionStrings: SuggestedBindingsStrings = {
+    describe: (s: SuggestedBinding) =>
+      t(s.anchor === 'guest' ? 'marketplace.suggestedBindings.promptGuest' : 'marketplace.suggestedBindings.promptEveryone', { set: s.permission_set_name }),
+    confirm: t('marketplace.suggestedBindings.confirm'),
+    confirming: t('marketplace.suggestedBindings.confirming'),
+    dismiss: t('marketplace.suggestedBindings.dismiss'),
+    confirmedToast: (s: SuggestedBinding) =>
+      t('marketplace.suggestedBindings.confirmedToast', { set: s.permission_set_name, anchor: s.anchor }),
+    dismissedToast: (s: SuggestedBinding) =>
+      t('marketplace.suggestedBindings.dismissedToast', { set: s.permission_set_name }),
+  };
   const basePath = appName ? `/apps/${appName}` : '';
   const { refresh: refreshMetadata } = useMetadata();
 
@@ -706,7 +723,14 @@ export function MarketplacePackagePage() {
           className={`flex items-start gap-2 rounded-md border p-3 text-sm whitespace-pre-wrap ${localResult.ok ? 'border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400' : 'border-destructive/30 bg-destructive/5 text-destructive'}`}
         >
           {localResult.ok ? <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" /> : <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />}
-          <div className="flex-1">{localResult.message}</div>
+          <div className="flex-1">
+            {localResult.message}
+            {/* ADR-0090 D5 — local installs land in this runtime's kernel, so
+                its suggested audience bindings are confirmable right here. */}
+            {localResult.ok && (
+              <SuggestedBindingsPanel packageId={pkg.manifest_id} strings={suggestionStrings} className="mt-2" />
+            )}
+          </div>
           <button
             type="button"
             className="text-xs underline opacity-60 hover:opacity-100"
@@ -868,6 +892,16 @@ export function MarketplacePackagePage() {
             <div className={`rounded-md border p-3 text-sm ${installResult.ok ? 'border-green-500/30 bg-green-500/5 text-green-700' : 'border-destructive/30 bg-destructive/5 text-destructive'}`}>
               {installResult.message}
             </div>
+          )}
+
+          {/* ADR-0090 D5 — after a successful install into THIS runtime,
+              surface the package's suggested audience bindings for the admin
+              to confirm or dismiss (the server never auto-binds). Cross-env
+              installs are resolved from that env's own Studio instead. */}
+          {installResult?.ok === true
+            && getRuntimeConfig().defaultEnvironmentId
+            && getRuntimeConfig().defaultEnvironmentId === selectedEnv && (
+            <SuggestedBindingsPanel packageId={pkg.manifest_id} strings={suggestionStrings} />
           )}
 
           <DialogFooter>

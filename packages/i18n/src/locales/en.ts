@@ -2216,6 +2216,18 @@ const en = {
         localUnauthorized: 'Sign in to this runtime first, then try again.',
         localMarketplaceUnavailable: 'This runtime has no OS_CLOUD_URL configured, so the marketplace catalog is unreachable.',
       },
+      // ADR-0090 D5/D9 — a package's isDefault permission set is an
+      // install-time suggestion to bind it to the everyone/guest position;
+      // the admin confirms here, the server never auto-binds.
+      suggestedBindings: {
+        promptEveryone: 'This app suggests granting "{{set}}" to all signed-in users (the Everyone position).',
+        promptGuest: 'This app suggests granting "{{set}}" to unauthenticated visitors (the Guest position).',
+        confirm: 'Grant',
+        confirming: 'Granting…',
+        dismiss: 'Dismiss',
+        confirmedToast: '"{{set}}" is now granted to {{anchor}}.',
+        dismissedToast: 'Suggestion for "{{set}}" dismissed.',
+      },
       uninstall: {
         confirm: 'Uninstall {{manifestId}} v{{version}} from this runtime?\n\nThe cached manifest will be removed. The app will remain loaded in the running kernel until the next restart.',
         successInList: 'Removed {{manifestId}}. Restart the runtime to fully unload it from the running kernel.',

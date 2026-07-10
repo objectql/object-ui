@@ -2294,6 +2294,17 @@ const zh = {
         localUnauthorized: '请先登录本运行时再试。',
         localMarketplaceUnavailable: '本运行时未配置 OS_CLOUD_URL，无法访问应用市场目录。',
       },
+      // ADR-0090 D5/D9 — 安装时建议：包声明 isDefault 的权限集建议绑定到
+      // everyone/guest 岗位，由管理员在此确认，服务端绝不自动绑定。
+      suggestedBindings: {
+        promptEveryone: '此应用建议将「{{set}}」授予所有已登录用户（Everyone 岗位）。',
+        promptGuest: '此应用建议将「{{set}}」授予未登录访客（Guest 岗位）。',
+        confirm: '授予',
+        confirming: '授予中…',
+        dismiss: '忽略',
+        confirmedToast: '「{{set}}」已授予 {{anchor}}。',
+        dismissedToast: '已忽略「{{set}}」的建议。',
+      },
       uninstall: {
         confirm: '从本运行时卸载 {{manifestId}} v{{version}}？\n\n磁盘上的清单缓存将被移除。运行中的内核仍会保留该应用，直到下次重启运行时才会真正卸载。',
         successInList: '已移除 {{manifestId}}。重启运行时即可从内核中彻底卸载。',
