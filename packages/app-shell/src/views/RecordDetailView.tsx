@@ -914,6 +914,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     return objects.some((o: any) => o.name === 'sys_audit_log');
   }, [objectDef, objects]);
 
+  // ── Capability gates: enable.feeds / enable.activities (#2707) ─────
+  // Both are opt-OUT capabilities (spec default `true`): absent enable
+  // block/flag = on; only an explicit `false` disables. `feeds:false`
+  // hides the discussion panel and skips the sys_comment fetch (the
+  // server also rejects new comments with 403 FEEDS_DISABLED);
+  // `activities:false` skips the sys_activity timeline fetch/merge (the
+  // server stops mirroring CRUD for such objects, so the fetch would be
+  // empty anyway — skipping keeps the network quiet).
+  const feedsEnabled = objectDef?.enable?.feeds !== false;
+  const activitiesEnabled = objectDef?.enable?.activities !== false;
+
   useEffect(() => {
     if (!dataSource || !pureRecordId || !objectDef || !historyEnabled) {
       setHistoryEntries(null);
@@ -1109,7 +1120,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       }));
     };
 
-    dataSource.find('sys_comment', { $filter: { thread_id: threadId }, $orderby: { created_at: 'asc' } })
+    if (feedsEnabled) dataSource.find('sys_comment', { $filter: { thread_id: threadId }, $orderby: { created_at: 'asc' } })
       .then((res: any) => {
         if (!res?.data?.length) return;
         const mapped: FeedItem[] = res.data.map((c: any) => ({
@@ -1137,9 +1148,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
 
     // M10.11: Fetch sys_activity rows for this record and merge into the
     // timeline. plugin-audit's writers populate sys_activity on every
-    // create/update/delete of objects that opt-in via enable.activities,
-    // so this surface — once wired here — gives us a Salesforce-style
-    // "what happened on this record" feed without any per-app glue.
+    // create/update/delete unless the object opts OUT via an explicit
+    // `enable.activities: false` (#2707 — opt-out contract, spec default
+    // true), so this surface gives us a Salesforce-style "what happened
+    // on this record" feed without any per-app glue.
     //
     // We map sys_activity.type to FeedItemType so the existing icon /
     // colour map in RecordActivityTimeline keeps working:
@@ -1166,7 +1178,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       login:     undefined,
       logout:    undefined,
     };
-    dataSource.find('sys_activity', {
+    if (activitiesEnabled) dataSource.find('sys_activity', {
       $filter: { object_name: objectName, record_id: pureRecordId },
       $orderby: { timestamp: 'asc' },
       $top: 200,
@@ -1214,7 +1226,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         });
       })
       .catch(() => {});
-  }, [dataSource, objectName, pureRecordId, currentUser]);
+  }, [dataSource, objectName, pureRecordId, currentUser, feedsEnabled, activitiesEnabled]);
 
   /**
    * Note: comment-mention → notification fan-out lives on the server
@@ -1766,7 +1778,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // into `regions[]` so `buildDefaultPageSchema` output and
     // full-Lightning authored pages are both detected.
     const hasDiscussion = hasExplicitDiscussion(effectivePage as any);
-    const showAutoDiscussion = !disableDiscussion && !hasDiscussion;
+    // `enable.feeds: false` (#2707) suppresses the discussion panel outright —
+    // same opt-out contract the server enforces on sys_comment creation.
+    const showAutoDiscussion = !disableDiscussion && !hasDiscussion && feedsEnabled;
     // Slice 2 — when we're synthesizing (no author assignedPage), rebuild
     // the schema with the actual detailSchema.sections + highlight fields
     // so record:details renders the same field layout the legacy
@@ -2123,21 +2137,25 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 onEdit({ id: pureRecordId });
               }}
               discussionSlot={
-                <RecordChatterPanel
-                  config={{
-                    position: 'bottom',
-                    collapsible: false,
-                    feed: {
-                      enableReactions: true,
-                      enableThreading: true,
-                      showCommentInput: true,
-                    },
-                  }}
-                  items={feedItems}
-                  onAddComment={handleAddComment}
-                  onAddReply={handleAddReply}
-                  onToggleReaction={handleToggleReaction}
-                />
+                // `enable.feeds: false` (#2707) suppresses the discussion
+                // panel — same opt-out gate as the page-schema branch above.
+                feedsEnabled ? (
+                  <RecordChatterPanel
+                    config={{
+                      position: 'bottom',
+                      collapsible: false,
+                      feed: {
+                        enableReactions: true,
+                        enableThreading: true,
+                        showCommentInput: true,
+                      },
+                    }}
+                    items={feedItems}
+                    onAddComment={handleAddComment}
+                    onAddReply={handleAddReply}
+                    onToggleReaction={handleToggleReaction}
+                  />
+                ) : undefined
               }
             />
             {modalElement}
