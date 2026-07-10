@@ -188,8 +188,8 @@ registerMetadataResource({
       render: (v) =>
         v == null
           ? 'org'
-          : typeof v === 'object' && v && 'profile' in (v as Record<string, unknown>)
-            ? `profile: ${(v as { profile: string }).profile}`
+          : typeof v === 'object' && v && 'permissionSet' in (v as Record<string, unknown>)
+            ? `permission set: ${(v as { permissionSet: string }).permissionSet}`
             : String(v),
     },
     {

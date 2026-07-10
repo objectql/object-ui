@@ -260,12 +260,18 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
       },
       audience: {
         title: 'Audience',
-        description: "Access audience. 'org' (default) inherits the package grant; 'public' is anonymously readable; { profile } gates by role.",
-        // Union of the two scalar literals and the { profile } object — kept lax
-        // so the role-gated object form round-trips untouched through the form.
+        description:
+          "Access audience. 'org' (default) inherits the package grant; 'public' is anonymously readable; { permissionSet } gates by a permission set the reader must hold (ADR-0090).",
+        // Union of the two scalar literals and the { permissionSet } object — kept lax
+        // so the permission-set-gated object form round-trips untouched through the form.
         oneOf: [
           { type: 'string', enum: ['org', 'public'] },
-          { type: 'object', title: 'Role-gated', properties: { profile: { type: 'string', title: 'Profile' } }, required: ['profile'] },
+          {
+            type: 'object',
+            title: 'Permission-set gated',
+            properties: { permissionSet: { type: 'string', title: 'Permission set' } },
+            required: ['permissionSet'],
+          },
         ],
       },
       groups: {

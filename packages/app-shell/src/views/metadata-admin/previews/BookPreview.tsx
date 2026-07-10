@@ -35,7 +35,7 @@ import {
 import type { MetadataPreviewProps } from '../preview-registry';
 import { PreviewShell, PreviewErrorBoundary, PreviewEmptyState } from './PreviewShell';
 
-type Audience = 'org' | 'public' | { profile: string } | undefined;
+type Audience = 'org' | 'public' | { permissionSet: string } | undefined;
 type Include = string | { tag: string } | undefined;
 
 interface PageNode {
@@ -116,8 +116,8 @@ function audienceChip(audience: Audience): { icon: React.ReactNode; label: strin
   if (audience === 'public') {
     return { icon: <Globe className="h-3 w-3" />, label: 'Public', tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' };
   }
-  if (audience && typeof audience === 'object' && typeof audience.profile === 'string') {
-    return { icon: <Lock className="h-3 w-3" />, label: `Profile: ${audience.profile}`, tone: 'text-amber-800 bg-amber-50 border-amber-200' };
+  if (audience && typeof audience === 'object' && typeof audience.permissionSet === 'string') {
+    return { icon: <Lock className="h-3 w-3" />, label: `Permission set: ${audience.permissionSet}`, tone: 'text-amber-800 bg-amber-50 border-amber-200' };
   }
   // 'org' (default) or absent — inherits the package grant.
   return { icon: <Building2 className="h-3 w-3" />, label: 'Org', tone: 'text-muted-foreground bg-muted/40 border-muted' };
