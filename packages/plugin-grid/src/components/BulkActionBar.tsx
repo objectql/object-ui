@@ -10,9 +10,47 @@ import React from 'react';
 import { Button } from '@object-ui/components';
 import { Trash2, CheckSquare, X } from 'lucide-react';
 import { LazyIcon, toKebabIconName } from '@object-ui/components';
-import { useObjectTranslation } from '@object-ui/react';
+import { useObjectTranslation, useCondition, toPredicateInput } from '@object-ui/react';
 import type { BulkActionDef } from '@object-ui/types';
 import { formatActionLabel } from './RowActionMenu';
+
+/**
+ * One rich bulk-action button. Extracted into its own component so the def's
+ * `visible` CEL predicate can be evaluated with a hook (`useCondition`)
+ * without violating the rules-of-hooks inside a `.map()` — previously
+ * `bulkActionDefs` rendered unconditionally, ignoring `visible` entirely.
+ *
+ * `visible` is a permission / feature gate evaluated against the ambient
+ * ExpressionProvider scope (`features`/`user`); when it evaluates false the
+ * button is hidden, matching how the row (`RowActionMenuItem` /
+ * `DataTableRowActionItem`) and related-list toolbar renderers treat `visible`.
+ */
+const BulkActionButton: React.FC<{
+  def: BulkActionDef;
+  selectedRows: any[];
+  onActionDef?: (def: BulkActionDef, selectedRows: any[]) => void;
+}> = ({ def, selectedRows, onActionDef }) => {
+  const isVisible = useCondition(toPredicateInput(def.visible));
+  if (def.visible && !isVisible) return null;
+  const isDestructive = def.variant === 'danger' || def.operation === 'delete';
+  const iconName = def.icon ? toKebabIconName(def.icon) : null;
+  return (
+    <Button
+      variant={isDestructive ? 'destructive' : 'outline'}
+      size="sm"
+      className="h-7 px-2.5 text-xs gap-1.5"
+      onClick={() => onActionDef?.(def, selectedRows)}
+      data-testid={`bulk-action-${def.name}`}
+    >
+      {iconName ? (
+        <LazyIcon name={iconName} className="h-3 w-3" />
+      ) : isDestructive ? (
+        <Trash2 className="h-3 w-3" />
+      ) : null}
+      {def.label ?? formatActionLabel(def.name)}
+    </Button>
+  );
+};
 
 export interface BulkActionBarProps {
   /** Array of selected row records */
@@ -136,27 +174,14 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({
         </span>
       </span>
       <div className="flex items-center gap-1.5 ml-3">
-        {hasDefs && actionDefs!.map(def => {
-          const isDestructive = def.variant === 'danger' || def.operation === 'delete';
-          const iconName = def.icon ? toKebabIconName(def.icon) : null;
-          return (
-            <Button
-              key={def.name}
-              variant={isDestructive ? 'destructive' : 'outline'}
-              size="sm"
-              className="h-7 px-2.5 text-xs gap-1.5"
-              onClick={() => onActionDef?.(def, selectedRows)}
-              data-testid={`bulk-action-${def.name}`}
-            >
-              {iconName ? (
-                <LazyIcon name={iconName} className="h-3 w-3" />
-              ) : isDestructive ? (
-                <Trash2 className="h-3 w-3" />
-              ) : null}
-              {def.label ?? formatActionLabel(def.name)}
-            </Button>
-          );
-        })}
+        {hasDefs && actionDefs!.map(def => (
+          <BulkActionButton
+            key={def.name}
+            def={def}
+            selectedRows={selectedRows}
+            onActionDef={onActionDef}
+          />
+        ))}
         {!hasDefs && hasLegacy && actions.map(action => {
           const actionStr = String(action).toLowerCase();
           const isDestructive = actionStr.includes('delete') || actionStr.includes('remove') || actionStr.includes('destroy');

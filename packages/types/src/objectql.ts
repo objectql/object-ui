@@ -342,7 +342,7 @@ export interface BulkActionDef {
   confirmText?: string;
   /** Custom Confirm button label (default: "Run"). */
   confirmLabel?: string;
-  /** Permission check expression — disables the button when it returns falsy. */
+  /** Permission / feature gate expression — hides the button when it evaluates falsy. */
   visible?: string;
   /** Max records the action will operate on; selection above this is blocked. */
   maxRecords?: number;

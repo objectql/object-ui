@@ -105,6 +105,53 @@ const InlineActionButton: React.FC<{
 
 InlineActionButton.displayName = 'InlineActionButton';
 
+/**
+ * One action inside an `action:group`'s dropdown (overflow) menu. Extracted
+ * into its own component so the action's `visible`/`enabled` CEL predicate can
+ * be evaluated with a hook (`useCondition`) without violating the
+ * rules-of-hooks inside a `.map()`. Mirrors `InlineActionButton` (the
+ * inline-mode leaf) so BOTH display modes honor `visible`/`enabled`
+ * identically — previously the dropdown branch rendered every action
+ * unconditionally, so an action with `visible: "record.role != 'owner'"`
+ * showed even when its predicate was false.
+ */
+export const DropdownActionItem: React.FC<{
+  action: ActionSchema;
+  index: number;
+  onSelect: (action: ActionSchema) => void | Promise<void>;
+}> = ({ action, index, onSelect }) => {
+  const isVisible = useCondition(toPredicateInput(action.visible));
+  const isEnabled = useCondition(toPredicateInput(action.enabled));
+  if (action.visible && !isVisible) return null;
+  const Icon = resolveIcon(action.icon);
+  const isDisabled = action.enabled ? !isEnabled : false;
+  const showSeparator = action.tags?.includes('separator-before') && index > 0;
+  return (
+    <>
+      {showSeparator && <DropdownMenuSeparator />}
+      <DropdownMenuItem
+        disabled={isDisabled}
+        onSelect={async (e) => {
+          e.preventDefault();
+          if (isDisabled) return;
+          await onSelect(action);
+        }}
+        className={cn(
+          (action.variant as string) === 'destructive' && 'text-destructive focus:text-destructive',
+          action.className,
+        )}
+      >
+        {/* Dynamic icon resolution from Lucide, not component creation during render */}
+        {/* eslint-disable-next-line react-hooks/static-components */}
+        {Icon && <Icon className="mr-2 h-4 w-4" />}
+        <span>{action.label || action.name}</span>
+      </DropdownMenuItem>
+    </>
+  );
+};
+
+DropdownActionItem.displayName = 'DropdownActionItem';
+
 const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSchema; [key: string]: any }>(
   ({ schema, className, ...props }, ref) => {
     const {
@@ -150,6 +197,20 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
       [execute],
     );
 
+    // Dropdown items share the trigger's loading spinner, so wrap execution to
+    // toggle `dropdownLoading` (inline items manage their own local loading).
+    const handleDropdownSelect = useCallback(
+      async (action: ActionSchema) => {
+        setDropdownLoading(true);
+        try {
+          await handleExecute(action);
+        } finally {
+          setDropdownLoading(false);
+        }
+      },
+      [handleExecute],
+    );
+
     if (schema.visible && !isVisible) return null;
     if (actions.length === 0) return null;
 
@@ -177,33 +238,14 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end">
-            {actions.map((action, index) => {
-              const Icon = resolveIcon(action.icon);
-              const showSeparator = action.tags?.includes('separator-before') && index > 0;
-              return (
-                <React.Fragment key={action.name || index}>
-                  {showSeparator && <DropdownMenuSeparator />}
-                  <DropdownMenuItem
-                    onSelect={async (e) => {
-                      e.preventDefault();
-                      setDropdownLoading(true);
-                      try {
-                        await handleExecute(action);
-                      } finally {
-                        setDropdownLoading(false);
-                      }
-                    }}
-                    className={cn(
-                      action.variant === 'destructive' && 'text-destructive focus:text-destructive',
-                      action.className,
-                    )}
-                  >
-                    {Icon && <Icon className="mr-2 h-4 w-4" />}
-                    <span>{action.label || action.name}</span>
-                  </DropdownMenuItem>
-                </React.Fragment>
-              );
-            })}
+            {actions.map((action, index) => (
+              <DropdownActionItem
+                key={action.name || index}
+                action={action}
+                index={index}
+                onSelect={handleDropdownSelect}
+              />
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       );

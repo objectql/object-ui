@@ -26,7 +26,7 @@ import {
   cn,
   useIsMobile,
 } from '@object-ui/components';
-import { SchemaRenderer, type RelatedRowActionDef } from '@object-ui/react';
+import { SchemaRenderer, useCondition, toPredicateInput, type RelatedRowActionDef } from '@object-ui/react';
 import {
   Plus,
   ExternalLink,
@@ -138,6 +138,45 @@ function resolveIconComponent(name: string | undefined): LucideIcon {
     .join('');
   return ((lucideIcons as Record<string, LucideIcon>)[pascal]) || Inbox;
 }
+
+/**
+ * One `list_toolbar` action button on a related-list header (e.g. "Invite
+ * User" on an organization's Invitations list). Extracted into its own
+ * component so the action's `visible` CEL predicate can be evaluated with a
+ * hook (`useCondition`) without violating the rules-of-hooks inside a `.map()`.
+ *
+ * The SAME bridge (`RelatedRecordActionsBridge.deriveActions`) feeds both a
+ * child object's row actions (`list_item`) and these header toolbar actions
+ * (`list_toolbar`), spreading each action's `visible` predicate through
+ * untouched. The row path already honors `visible` (via the data-table's
+ * `DataTableRowActionItem`); this brings the toolbar path to parity so e.g.
+ * `invite_user` (`visible: "features.organization != false"`) hides when its
+ * predicate is false. `features`/`user` resolve from the ambient
+ * ExpressionProvider scope.
+ */
+export const RelatedToolbarButton: React.FC<{
+  action: RelatedRowActionDef;
+  onToolbarAction: (action: RelatedRowActionDef) => void | Promise<void>;
+}> = ({ action, onToolbarAction }) => {
+  const visiblePred = action.visible;
+  const isVisible = useCondition(toPredicateInput(visiblePred));
+  if (visiblePred && !isVisible) return null;
+  const ActionIcon = action.icon ? resolveIconComponent(action.icon) : null;
+  return (
+    <Button
+      variant={action.variant === 'primary' ? 'default' : 'outline'}
+      size="sm"
+      onClick={(e) => { e.stopPropagation(); void onToolbarAction(action); }}
+      className="gap-1 h-9 sm:h-7 text-xs shadow-none"
+      data-testid={`related-toolbar-action-${action.name}`}
+    >
+      {/* Dynamic icon resolution from Lucide, not component creation during render */}
+      {/* eslint-disable-next-line react-hooks/static-components */}
+      {ActionIcon && <ActionIcon className="h-3.5 w-3.5" />}
+      {action.label || action.name}
+    </Button>
+  );
+};
 
 export const RelatedList: React.FC<RelatedListProps> = ({
   title,
@@ -755,21 +794,13 @@ export const RelatedList: React.FC<RelatedListProps> = ({
             {/* Child-object list_toolbar actions (e.g. Invite User) — the
                 related-list equivalent of the object list's toolbar buttons.
                 Rendered before Add/New so the domain action leads. */}
-            {onToolbarAction && (toolbarActions ?? []).map((a) => {
-              const ActionIcon = a.icon ? resolveIconComponent(a.icon) : null;
-              return (
-                <Button
-                  key={a.name}
-                  variant={a.variant === 'primary' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={(e) => { e.stopPropagation(); void onToolbarAction(a); }}
-                  className="gap-1 h-9 sm:h-7 text-xs shadow-none"
-                >
-                  {ActionIcon && <ActionIcon className="h-3.5 w-3.5" />}
-                  {a.label || a.name}
-                </Button>
-              );
-            })}
+            {onToolbarAction && (toolbarActions ?? []).map((a) => (
+              <RelatedToolbarButton
+                key={a.name}
+                action={a}
+                onToolbarAction={onToolbarAction}
+              />
+            ))}
             {add && (
               <Button
                 variant={isEmpty ? 'ghost' : 'outline'}
