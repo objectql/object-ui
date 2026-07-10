@@ -90,15 +90,16 @@ const LOADERS: Record<string, SchemaLoader> = {
   // security
   // NOTE: use PermissionSetSchema from /security, NOT PluginPermissionSchema from /kernel —
   // the kernel one is the plugin-sandbox permission ({id,resource,actions}), not the
-  // metadata permission set ({name,isProfile,objects,fields}). See
+  // metadata permission set ({name,objects,fields}). See
   // packages/spec/src/kernel/metadata-type-schemas.ts for the canonical mapping.
   permission: async () => (await import('@objectstack/spec/security')).PermissionSetSchema as unknown as ZodLikeSchema,
-  profile: async () => (await import('@objectstack/spec/security')).PermissionSetSchema as unknown as ZodLikeSchema,
   // `policy` intentionally omitted — spec 11.2.0 dropped `PolicySchema` and the metadata-type
   // registry has no `policy` schema; drafts fall through to server-side validation (see top).
+  // `profile` intentionally omitted — ADR-0090 D2 removed the profile concept (spec 13);
+  // `role` is likewise gone, renamed to `position` (ADR-0090 D3).
 
   // identity
-  role: async () => (await import('@objectstack/spec/identity')).RoleSchema as unknown as ZodLikeSchema,
+  position: async () => (await import('@objectstack/spec/identity')).PositionSchema as unknown as ZodLikeSchema,
 
   // api
   api: async () => (await import('@objectstack/spec/api')).ApiEndpointSchema as unknown as ZodLikeSchema,

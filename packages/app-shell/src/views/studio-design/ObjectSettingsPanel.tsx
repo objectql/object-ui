@@ -17,10 +17,9 @@
  *  2. Record sharing (ADR-0056) — the object-level Org-Wide Default (OWD)
  *     `sharingModel` (private | public_read | public_read_write |
  *     controlled_by_parent). This is the baseline record-level visibility the
- *     runtime applies BEFORE roles and sharing rules: without it the platform
- *     treats records as fully public (every tenant user reads AND edits every
- *     record), so record isolation is invisible/unconfigurable at design time
- *     unless the builder exposes it.
+ *     runtime applies BEFORE positions and sharing rules. Since ADR-0090 D1
+ *     an unset value defaults to `private` (secure default) — the old
+ *     fully-public cliff is gone, so leaving it unset is safe.
  *  3. Semantic roles (ADR-0085) — the cross-surface presentation roles:
  *     `nameField`, `stageField` (string | false | unset), `highlightFields`.
  *     These are the ONLY presentation knobs the protocol carries, so the
@@ -62,16 +61,10 @@ export function ObjectSettingsPanel({
     (e) => e.def.hidden !== true && !highlightFields.includes(e.name),
   );
 
-  // Record sharing (OWD). The spec keeps legacy aliases (`read` → public_read,
-  // `read_write`/`full` → public_read_write) for back-compat; normalise them to
-  // the canonical value so the <select> reflects the real runtime behaviour.
-  const rawSharing = typeof draft.sharingModel === 'string' ? draft.sharingModel : '';
-  const sharingModel =
-    rawSharing === 'read'
-      ? 'public_read'
-      : rawSharing === 'read_write' || rawSharing === 'full'
-        ? 'public_read_write'
-        : rawSharing;
+  // Record sharing (OWD). Canonical values only — spec 13 (ADR-0090 D4)
+  // rejects the legacy `read`/`read_write`/`full` aliases at authoring time,
+  // and an unset value defaults to `private` (ADR-0090 D1).
+  const sharingModel = typeof draft.sharingModel === 'string' ? draft.sharingModel : '';
   const sharingDescKey =
     sharingModel === 'private'
       ? 'engine.studio.settings.sharingDescPrivate'
@@ -82,9 +75,6 @@ export function ObjectSettingsPanel({
           : sharingModel === 'controlled_by_parent'
             ? 'engine.studio.settings.sharingDescControlledByParent'
             : 'engine.studio.settings.sharingDescUnset';
-  // Unset falls through to the "fully public" runtime default — flag it so the
-  // designer doesn't silently ship org-wide read/write.
-  const sharingIsUnset = sharingModel === '';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto">
@@ -139,13 +129,7 @@ export function ObjectSettingsPanel({
               </option>
             </select>
           </label>
-          <p
-            className={
-              sharingIsUnset
-                ? 'text-[11px] text-amber-600 dark:text-amber-500'
-                : 'text-[11px] text-muted-foreground'
-            }
-          >
+          <p className="text-[11px] text-muted-foreground">
             {t(sharingDescKey, locale)}
           </p>
         </div>

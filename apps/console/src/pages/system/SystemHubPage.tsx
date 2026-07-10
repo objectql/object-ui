@@ -12,7 +12,7 @@
  *
  * Unified entry point for all system administration functions.
  * Displays card-based overview linking to Apps, Users, Organizations,
- * Roles, Permissions, Audit Log, Profile management pages, and
+ * Positions, Permissions, Audit Log, Profile management pages, and
  * dynamically generated metadata type cards from the registry.
  */
 
@@ -65,7 +65,7 @@ export function SystemHubPage() {
   const [counts, setCounts] = useState<Record<string, number | null>>({
     users: null,
     orgs: null,
-    roles: null,
+    positions: null,
     permissions: null,
     auditLogs: null,
   });
@@ -76,17 +76,17 @@ export function SystemHubPage() {
     setLoading(true);
     try {
       // TODO: Replace with count-specific API endpoint when available
-      const [usersRes, orgsRes, rolesRes, permsRes, logsRes] = await Promise.all([
+      const [usersRes, orgsRes, positionsRes, permsRes, logsRes] = await Promise.all([
         dataSource.find('sys_user').catch(() => ({ data: [] })),
         dataSource.find('sys_org').catch(() => ({ data: [] })),
-        dataSource.find('sys_role').catch(() => ({ data: [] })),
+        dataSource.find('sys_position').catch(() => ({ data: [] })),
         dataSource.find('sys_permission').catch(() => ({ data: [] })),
         dataSource.find('sys_audit_log').catch(() => ({ data: [] })),
       ]);
       setCounts({
         users: usersRes.data?.length ?? 0,
         orgs: orgsRes.data?.length ?? 0,
-        roles: rolesRes.data?.length ?? 0,
+        positions: positionsRes.data?.length ?? 0,
         permissions: permsRes.data?.length ?? 0,
         auditLogs: logsRes.data?.length ?? 0,
       });
@@ -148,12 +148,12 @@ export function SystemHubPage() {
       count: counts.orgs,
     },
     {
-      title: 'Roles',
-      description: 'Configure roles and access levels',
+      title: 'Positions',
+      description: 'Configure positions and access levels',
       icon: Shield,
-      href: `${basePath}/system/roles`,
-      countLabel: 'roles',
-      count: counts.roles,
+      href: `${basePath}/system/positions`,
+      countLabel: 'positions',
+      count: counts.positions,
     },
     {
       title: 'Permissions',
@@ -223,7 +223,7 @@ export function SystemHubPage() {
       <div className="min-w-0">
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">System Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage applications, users, roles, permissions, and system configuration
+          Manage applications, users, positions, permissions, and system configuration
         </p>
       </div>
 

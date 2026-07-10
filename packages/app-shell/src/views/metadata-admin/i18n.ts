@@ -52,10 +52,9 @@ const TYPE_LABELS_EN: Record<string, string> = {
   service: 'Service',
   email_template: 'Email Template',
   book: 'Documentation Book',
-  // Security
+  // Security — ADR-0090: profile removed (D2), role renamed to position (D3).
   permission: 'Permission Set',
-  profile: 'Profile',
-  role: 'Role',
+  position: 'Position',
   // AI
   agent: 'AI Agent',
   tool: 'AI Tool',
@@ -99,8 +98,7 @@ const TYPE_LABELS_ZH: Record<string, string> = {
   email_template: '邮件模板',
   book: '文档手册',
   permission: '权限集',
-  profile: '配置文件',
-  role: '角色',
+  position: '岗位',
   agent: 'AI 智能体',
   tool: 'AI 工具',
   skill: 'AI 技能',
@@ -1049,17 +1047,17 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.settings.addFieldOption': '+ Add field…',
   'engine.studio.settings.undeclared': '(not declared — surfaces pick heuristically)',
   'engine.studio.settings.sharing': 'Record sharing (OWD)',
-  'engine.studio.settings.sharingHint': 'Baseline record visibility applied before roles and sharing rules (ADR-0056)',
+  'engine.studio.settings.sharingHint': 'Baseline record visibility applied before positions and sharing rules (ADR-0056/0090)',
   'engine.studio.settings.sharingModel': 'Sharing model (sharingModel) — who can see and edit records another user owns',
-  'engine.studio.settings.sharingUnset': '(not set)',
+  'engine.studio.settings.sharingUnset': '(not set — defaults to Private)',
   'engine.studio.settings.sharingPrivate': 'Private — owner only',
   'engine.studio.settings.sharingPublicRead': 'Public read — everyone reads, only the owner writes',
   'engine.studio.settings.sharingPublicReadWrite': 'Public read/write — everyone reads and writes',
   'engine.studio.settings.sharingControlledByParent': 'Controlled by parent — inherited from the master record',
   'engine.studio.settings.sharingDescUnset':
-    'Not set — records are fully public: every user in the tenant can read AND edit all records. Choose Private to isolate records by owner.',
+    'Not set — the platform defaults to Private (ADR-0090): only the owner can access records. Pick an explicit model to widen visibility.',
   'engine.studio.settings.sharingDescPrivate':
-    'Only the owner (plus users granted via roles or sharing rules) can access a record. Read / Edit permissions then apply to owned records only.',
+    'Only the owner (plus users granted via positions or sharing rules) can access a record. Read / Edit permissions then apply to owned records only.',
   'engine.studio.settings.sharingDescPublicRead':
     'Every user in the tenant can read all records; only the owner can edit.',
   'engine.studio.settings.sharingDescPublicReadWrite':
@@ -1213,7 +1211,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.access.bannerTitle':
     'This matrix lists only the objects this package declares, and “Save” merges just that slice — grants contributed by other packages are preserved. Edits are saved as package drafts and go live when you Publish the package (top bar), exactly like Data and Interfaces.',
   'engine.studio.access.banner': 'This package’s objects · saved as draft',
-  'engine.studio.access.heading': 'Permission sets / Profiles',
+  'engine.studio.access.heading': 'Permission sets',
   'engine.studio.access.search': 'Search permissions…',
   'engine.studio.access.none': 'No permission sets yet — create one below',
   'engine.studio.access.labelPlaceholder': 'Display name (e.g. Sales permissions)',
@@ -2132,17 +2130,17 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.settings.addFieldOption': '+ 添加字段…',
   'engine.studio.settings.undeclared': '(未声明 —— 各处按启发式自动挑选)',
   'engine.studio.settings.sharing': '记录共享模型(OWD)',
-  'engine.studio.settings.sharingHint': '在角色与共享规则之前生效的记录可见性基线(ADR-0056)',
+  'engine.studio.settings.sharingHint': '在岗位与共享规则之前生效的记录可见性基线(ADR-0056/0090)',
   'engine.studio.settings.sharingModel': '共享模型(sharingModel)—— 谁能查看和编辑他人拥有的记录',
-  'engine.studio.settings.sharingUnset': '(未设置)',
+  'engine.studio.settings.sharingUnset': '(未设置 —— 默认 Private)',
   'engine.studio.settings.sharingPrivate': 'Private 私有 —— 仅记录所有者',
   'engine.studio.settings.sharingPublicRead': 'Public read 公共只读 —— 所有人可读,仅所有者可写',
   'engine.studio.settings.sharingPublicReadWrite': 'Public read/write 公共读写 —— 所有人可读可写',
   'engine.studio.settings.sharingControlledByParent': 'Controlled by parent 受父级控制 —— 继承自主记录',
   'engine.studio.settings.sharingDescUnset':
-    '未设置 —— 记录完全公开:租户内每个用户都能读取并编辑所有记录。选择 Private 可按所有者隔离记录。',
+    '未设置 —— 平台默认 Private(ADR-0090):仅所有者能访问记录。如需放宽可见性请显式选择模型。',
   'engine.studio.settings.sharingDescPrivate':
-    '只有所有者(以及经角色或共享规则授予的用户)能访问记录。此时读取 / 编辑权限仅作用于自己拥有的记录。',
+    '只有所有者(以及经岗位或共享规则授予的用户)能访问记录。此时读取 / 编辑权限仅作用于自己拥有的记录。',
   'engine.studio.settings.sharingDescPublicRead':
     '租户内每个用户都能读取所有记录;仅所有者可编辑。',
   'engine.studio.settings.sharingDescPublicReadWrite':
@@ -2296,7 +2294,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.access.bannerTitle':
     '此矩阵仅列出本包声明的对象,「Save」只合并本包切片 —— 其他包贡献的授权原样保留。编辑保存为软件包草稿,点击顶栏「发布」后随整个包一起生效(与数据、界面一致)。',
   'engine.studio.access.banner': '仅本包对象 · 保存为草稿',
-  'engine.studio.access.heading': '权限集 / Profile',
+  'engine.studio.access.heading': '权限集',
   'engine.studio.access.search': '搜索权限…',
   'engine.studio.access.none': '还没有权限集 — 在下方新建一个',
   'engine.studio.access.labelPlaceholder': '显示名(如:销售权限)',

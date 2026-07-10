@@ -24,7 +24,7 @@ import { PermissionPreview } from './PermissionPreview';
 import { ActionPreview } from './ActionPreview';
 import { JobPreview } from './JobPreview';
 import { TranslationPreview } from './TranslationPreview';
-import { RolePreview } from './RolePreview';
+import { PositionPreview } from './PositionPreview';
 import { SkillPreview } from './SkillPreview';
 import { DatasourcePreview } from './DatasourcePreview';
 import { ValidationPreview } from './ValidationPreview';
@@ -65,9 +65,11 @@ export function registerBuiltinPreviews(): void {
   registerMetadataPreview('tool', ToolPreview);
   registerMetadataPreview('skill', SkillPreview);
   // Security & Identity
-  // ADR-0090 D2 removed the Profile concept; the `profile` registration stays
-  // only so metadata from pre-v2 backends still renders (inert otherwise).
+  // ADR-0090 D2 removed the Profile concept and D3 renamed role → position;
+  // the `profile`/`role` registrations stay only so metadata from pre-v2
+  // backends still renders (inert otherwise).
   registerMetadataPreview('permission', PermissionPreview);
   registerMetadataPreview('profile', PermissionPreview);
-  registerMetadataPreview('role', RolePreview);
+  registerMetadataPreview('position', PositionPreview);
+  registerMetadataPreview('role', PositionPreview);
 }

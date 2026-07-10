@@ -317,7 +317,7 @@ function PermissionView({ name }: ViewerProps) {
       hint="permission"
       icon={ShieldCheck}
       title={perm.label ?? perm.name ?? name}
-      subtitle={<>Object access · {entries.length} object{entries.length === 1 ? '' : 's'}{perm.isProfile ? ' · profile' : ''}</>}
+      subtitle={<>Object access · {entries.length} object{entries.length === 1 ? '' : 's'}</>}
     >
       {entries.length === 0 ? (
         <Placeholder>No object permissions declared.</Placeholder>

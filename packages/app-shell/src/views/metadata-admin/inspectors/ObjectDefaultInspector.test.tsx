@@ -238,7 +238,7 @@ describe('ObjectDefaultInspector — access section (ADR-0066 D2/D3/④/⑤)', (
     });
   });
 
-  it('hides the per-operation toggle when the bundled spec lacks the ⑤ union', async () => {
+  it('shows the per-operation toggle when the bundled spec exports the ⑤ union', async () => {
     render(
       <ObjectDefaultInspector
         {...baseProps}
@@ -248,11 +248,11 @@ describe('ObjectDefaultInspector — access section (ADR-0066 D2/D3/④/⑤)', (
         readOnly={false}
       />,
     );
-    // Installed @objectstack/spec (< 12.7) does not export
-    // ObjectRequiredPermissionsSchema, so the feature-detect keeps the mode
-    // toggle hidden (progressive enhancement — no stale UI offering a shape
-    // client-side validation would reject). Let the async detect settle first.
+    // Installed @objectstack/spec (≥ 12.7) exports
+    // ObjectRequiredPermissionsSchema, so the feature-detect reveals the mode
+    // toggle (progressive enhancement — hidden only when the bundled spec
+    // would reject the map shape). Let the async detect settle first.
     await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByTestId('object-reqperms-perop')).toBeNull();
+    expect(screen.queryByTestId('object-reqperms-perop')).not.toBeNull();
   });
 });

@@ -42,16 +42,16 @@ describe('ObjectSettingsPanel — record sharing (OWD)', () => {
     ).toBeTruthy();
   });
 
-  it('warns that an unset sharing model means fully public records', () => {
+  it('explains that an unset sharing model defaults to private (ADR-0090 D1)', () => {
     renderPanel(baseDraft);
     expect(
-      screen.getByText(/records are fully public/i),
+      screen.getByText(/defaults to Private \(ADR-0090\)/i),
     ).toBeTruthy();
   });
 
   it('patches sharingModel when a model is picked', () => {
     const onPatch = renderPanel(baseDraft);
-    const select = screen.getByDisplayValue('(not set)') as HTMLSelectElement;
+    const select = screen.getByDisplayValue('(not set — defaults to Private)') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: 'private' } });
     expect(onPatch).toHaveBeenCalledWith({ sharingModel: 'private' });
   });
@@ -61,13 +61,5 @@ describe('ObjectSettingsPanel — record sharing (OWD)', () => {
     const select = screen.getByDisplayValue('Private — owner only') as HTMLSelectElement;
     fireEvent.change(select, { target: { value: '' } });
     expect(onPatch).toHaveBeenCalledWith({ sharingModel: undefined });
-  });
-
-  it('normalises legacy aliases (read → public_read) for display', () => {
-    renderPanel({ ...baseDraft, sharingModel: 'read' });
-    const select = screen.getByDisplayValue(
-      'Public read — everyone reads, only the owner writes',
-    ) as HTMLSelectElement;
-    expect(select.value).toBe('public_read');
   });
 });

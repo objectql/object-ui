@@ -238,7 +238,6 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
   permission: {
     name: 'sales_rep',
     label: 'Sales Rep',
-    isProfile: false,
     objects: {
       sales_order: { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: false },
       account: { allowRead: true, allowCreate: false, allowEdit: true, allowDelete: false },
@@ -250,23 +249,10 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     tabPermissions: { crm: 'visible', admin: 'hidden' },
   },
 
-  profile: {
-    name: 'standard_user',
-    label: 'Standard User',
-    isProfile: true,
-    objects: {
-      account: { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: false },
-      sales_order: { allowRead: true, allowCreate: true, allowEdit: true, allowDelete: false },
-    },
-    systemPermissions: ['runReports'],
-    tabPermissions: { crm: 'visible' },
-  },
-
-  role: {
+  position: {
     name: 'sales_manager',
     label: 'Sales Manager',
     description: 'Manages the regional sales team.',
-    parent: 'vp_sales',
   },
 
   datasource: {

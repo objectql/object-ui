@@ -341,6 +341,7 @@ export type {
   ObjectGridSchema,
   ObjectFormSchema,
   ObjectFormSection,
+  SubmitBehavior,
   ObjectViewSchema,
   NamedListView,
   ViewNavigationConfig,

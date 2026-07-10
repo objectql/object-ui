@@ -42,38 +42,16 @@ const headerProps = {
 
 /** Per-type fallback schemas. */
 const SCHEMAS: Record<string, Record<string, unknown>> = {
-  role: {
+  // Position is deliberately flat (ADR-0090 D3) — no level, no parent; the
+  // hierarchy lives on the business-unit tree. `role`/`profile` schemas are
+  // gone with the spec-13 vocabulary (positions replace roles; D2 removed
+  // the profile concept).
+  position: {
     type: 'object',
-    title: 'Role',
+    title: 'Position',
     required: ['name'],
     properties: {
       ...headerProps,
-      level: {
-        type: 'string',
-        title: 'Level',
-        description: 'Coarse seniority tier (used by UI / sort order).',
-        enum: ['member', 'lead', 'manager', 'director', 'executive', 'admin'],
-      },
-      parentRole: {
-        type: 'string',
-        title: 'Parent Role',
-        description: 'Optional parent role name for hierarchy.',
-      },
-    },
-  },
-
-  profile: {
-    type: 'object',
-    title: 'Profile',
-    required: ['name'],
-    properties: {
-      ...headerProps,
-      isProfile: { type: 'boolean', title: 'Is profile', description: 'Profiles are mutually exclusive (one per user).' },
-      objects: {
-        type: 'object',
-        title: 'Object Permissions',
-        description: 'Edit this via the Permission Matrix tab for a row-by-row UI.',
-      },
     },
   },
 

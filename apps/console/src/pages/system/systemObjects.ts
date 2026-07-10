@@ -58,15 +58,15 @@ export const systemObjects = [
     ],
   },
   {
-    name: 'sys_role',
-    label: 'Roles',
+    name: 'sys_position',
+    label: 'Positions',
     icon: 'Shield',
     fields: [
       { name: 'id', type: 'text', label: 'ID', readonly: true },
-      { name: 'name', type: 'text', label: 'Role Name', required: true },
+      { name: 'name', type: 'text', label: 'Position Name', required: true },
       { name: 'description', type: 'textarea', label: 'Description' },
       { name: 'permissions', type: 'text', label: 'Permissions' },
-      { name: 'isSystem', type: 'boolean', label: 'System Role', readonly: true },
+      { name: 'isSystem', type: 'boolean', label: 'System Position', readonly: true },
       { name: 'userCount', type: 'number', label: 'Users', readonly: true },
       { name: 'createdAt', type: 'datetime', label: 'Created At', readonly: true },
     ],
@@ -74,7 +74,7 @@ export const systemObjects = [
     views: [
       {
         name: 'all',
-        label: 'All Roles',
+        label: 'All Positions',
         type: 'grid',
         columns: ['name', 'description', 'isSystem', 'userCount'],
       },

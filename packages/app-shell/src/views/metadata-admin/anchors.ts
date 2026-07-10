@@ -338,7 +338,7 @@ export function registerBuiltinAnchors(): void {
       groupLabel: 'Permissions',
       order: 60,
     }],
-    createFields: ['label', 'name', 'isProfile'],
+    createFields: ['label', 'name'],
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
