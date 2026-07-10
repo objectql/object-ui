@@ -113,6 +113,11 @@ export {
   getProductName,
   getProductShortName,
   getPlatformStage,
+  getBrandColor,
+  getLogoUrl,
+  getFaviconUrl,
+  getPwaDescription,
+  getPwaThemeColor,
   isRuntimeConfigInitialised,
   resetRuntimeConfigForTesting,
 } from './runtime-config';

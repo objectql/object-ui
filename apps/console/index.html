@@ -8,13 +8,41 @@
       - For stricter CSP, serve headers via your web server (see docs/deployment.md) and use
         nonces or hashes instead of 'unsafe-inline'.
     -->
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" id="favicon" />
+    <link rel="icon" type="image/png" href="" id="favicon" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="manifest" href="./manifest.json" />
-    <title>ObjectOS</title>
+    <title></title>
+    <script>
+      // Pre-React branding — fetch runtime config as early as possible so the
+      // browser title and favicon reflect the operator's branding BEFORE React
+      // mounts. Falls back gracefully on any error (non-blocking).
+      (async function applyEarlyBranding() {
+        try {
+          const base = (window.__CONSOLE_SERVER_URL || '').replace(/\/+$/, '');
+          const res = await fetch(base + '/api/v1/runtime/config', {
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+          });
+          if (!res.ok) return;
+          const body = await res.json();
+          if (body?.branding) {
+            if (body.branding.productName) {
+              document.title = body.branding.productName;
+            }
+            if (body.branding.faviconUrl) {
+              var link = document.getElementById('favicon');
+              if (link) {
+                link.href = body.branding.faviconUrl;
+                link.type = body.branding.faviconUrl.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+              }
+            }
+          }
+        } catch (_) { /* non-blocking */ }
+      })();
+    </script>
     <script>
       window.process = window.process || { env: { NODE_ENV: 'development' }, version: '', platform: 'browser' };
     </script>

@@ -72,6 +72,16 @@ export interface RuntimeBranding {
   productShortName: string;
   /** Product lifecycle stage — drives the top-bar preview/beta badge. */
   stage?: PlatformStage;
+  /** Absolute or relative URL for the product logo. */
+  logoUrl?: string;
+  /** Absolute or relative URL for the favicon. */
+  faviconUrl?: string;
+  /** Primary brand hex color (e.g. '#4F46E5'). */
+  brandColor?: string;
+  /** PWA manifest description. */
+  pwaDescription?: string;
+  /** PWA theme color hex. */
+  pwaThemeColor?: string;
 }
 
 export interface RuntimeConfig {
@@ -97,7 +107,7 @@ const defaults: RuntimeConfig = {
   features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true, customDomain: false, sso: false },
   // `stage: 'preview'` while the whole platform is pre-GA, so the badge shows
   // out of the box on any runtime that hasn't sent an explicit stage yet.
-  branding: { productName: 'ObjectOS', productShortName: 'ObjectOS', stage: 'preview' },
+  branding: { productName: 'ObjectOS', productShortName: 'ObjectOS', stage: 'preview', brandColor: '#4F46E5', pwaThemeColor: '#4f46e5' },
 };
 
 /** Valid {@link PlatformStage} values, for validating server-pushed config. */
@@ -177,6 +187,21 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
           // (missing, typo'd) preserves the current value so the badge never
           // vanishes on a malformed payload.
           stage: isPlatformStage(body.branding.stage) ? body.branding.stage : current.branding.stage,
+          logoUrl: typeof body.branding.logoUrl === 'string' && body.branding.logoUrl.trim()
+            ? body.branding.logoUrl.trim()
+            : current.branding.logoUrl,
+          faviconUrl: typeof body.branding.faviconUrl === 'string' && body.branding.faviconUrl.trim()
+            ? body.branding.faviconUrl.trim()
+            : current.branding.faviconUrl,
+          brandColor: typeof body.branding.brandColor === 'string' && body.branding.brandColor.trim()
+            ? body.branding.brandColor.trim()
+            : current.branding.brandColor,
+          pwaDescription: typeof body.branding.pwaDescription === 'string' && body.branding.pwaDescription.trim()
+            ? body.branding.pwaDescription.trim()
+            : current.branding.pwaDescription,
+          pwaThemeColor: typeof body.branding.pwaThemeColor === 'string' && body.branding.pwaThemeColor.trim()
+            ? body.branding.pwaThemeColor.trim()
+            : current.branding.pwaThemeColor,
         }
         : current.branding,
     });
@@ -214,6 +239,26 @@ export function getProductShortName(): string {
  */
 export function getPlatformStage(): PlatformStage {
   return current.branding?.stage ?? 'preview';
+}
+
+export function getBrandColor(): string {
+  return current.branding?.brandColor || '#4F46E5';
+}
+
+export function getLogoUrl(): string | undefined {
+  return current.branding?.logoUrl;
+}
+
+export function getFaviconUrl(): string | undefined {
+  return current.branding?.faviconUrl;
+}
+
+export function getPwaDescription(): string {
+  return current.branding?.pwaDescription || `${getProductName()} — runtime console`;
+}
+
+export function getPwaThemeColor(): string {
+  return current.branding?.pwaThemeColor || getBrandColor();
 }
 
 /** Whether `initRuntimeConfig()` has run at least once. */

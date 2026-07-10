@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
 import { viteCryptoStub } from '../../scripts/vite-crypto-stub';
 import { compression } from 'vite-plugin-compression2';
 import { visualizer } from 'rollup-plugin-visualizer';
@@ -32,6 +33,46 @@ function preloadCriticalChunks(): Plugin {
       }
       if (preloadTags.length === 0) return html;
       return html.replace('</head>', `    ${preloadTags.join('\n    ')}\n  </head>`);
+    },
+  };
+}
+
+/**
+ * Dev-only Vite plugin: serves runtime branding assets at /runtime/assets/*.
+ *
+ * When the console dev server runs standalone (port 5180), the backend does
+ * not proxy /runtime requests.  This plugin looks for assets in the host
+ * project's `runtime/assets/` directory (four levels up from apps/console)
+ * so URLs like /runtime/assets/logo.png resolve.
+ *
+ * Non-blocking — silently skips when the directory doesn't exist.
+ */
+function serveRuntimeAssets(): Plugin {
+  const ASSETS_DIR = path.resolve(__dirname, '../../../../runtime/assets');
+  const MIME: Record<string, string> = {
+    '.png': 'image/png', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg', '.ico': 'image/x-icon', '.webp': 'image/webp',
+  };
+
+  return {
+    name: 'serve-runtime-assets',
+    apply: 'serve', // dev-only — prod builds include assets in the bundle
+    configureServer(server) {
+      if (!fs.existsSync(ASSETS_DIR)) return;
+      server.middlewares.use('/runtime/assets', (req, res, next) => {
+        const filename = (req.url || '').replace(/^\/+/, '').replace(/[?#].*$/, '');
+        if (!filename) { next(); return; }
+        const filePath = path.join(ASSETS_DIR, filename);
+        if (!filePath.startsWith(ASSETS_DIR)) { next(); return; } // path traversal guard
+        try {
+          const content = fs.readFileSync(filePath);
+          res.setHeader('Content-Type', MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream');
+          res.statusCode = 200;
+          res.end(content);
+        } catch {
+          next();
+        }
+      });
     },
   };
 }
@@ -132,6 +173,10 @@ export default defineConfig({
     react(),
     // Inject <link rel="modulepreload"> for critical chunks
     preloadCriticalChunks(),
+    // Dev-only plugin: serve runtime assets (product logo/favicon) from the
+    // host project's runtime/assets directory so branding URLs configured
+    // via OS_LOGO_URL / OS_FAVICON_URL resolve without a fragile symlink.
+    serveRuntimeAssets(),
     // Gzip/Brotli compression & bundle visualizer are skipped on Vercel/CI to
     // reduce memory usage — Vercel's CDN compresses assets automatically.
     ...(!isCI ? [

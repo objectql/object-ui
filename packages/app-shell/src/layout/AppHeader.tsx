@@ -74,7 +74,7 @@ import { useCommandPalette } from '../context/CommandPaletteProvider';
 import { useUrlOverlay } from '../hooks/useUrlOverlay';
 import { KEYBOARD_SHORTCUTS_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
-import { getProductName } from '../runtime-config';
+import { getProductName, getLogoUrl } from '../runtime-config';
 import { LocalizedSidebarTrigger } from './LocalizedSidebarTrigger';
 import { PreviewBadge } from './PreviewBadge';
 
@@ -669,12 +669,16 @@ export function AppHeader({
         <Link
           to="/home"
           className={cn(
-            "flex items-center justify-center h-7 w-7 shrink-0 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors",
+            "flex items-center justify-center h-7 w-7 shrink-0 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors overflow-hidden",
             isApp && "hidden sm:flex"
           )}
           title={getProductName()}
         >
-          <Layers className="h-4 w-4" />
+          {getLogoUrl() ? (
+            <img src={getLogoUrl()} alt={getProductName()} className="h-full w-full object-contain" />
+          ) : (
+            <Layers className="h-4 w-4" />
+          )}
         </Link>
 
         {resolvedVariant === 'home' && (

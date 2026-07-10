@@ -9,10 +9,11 @@
 
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, GalleryVerticalEnd } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { getProductName, getLogoUrl } from '@object-ui/app-shell';
 import {
   Button,
   Card,
@@ -29,10 +30,14 @@ function PageShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-svh w-full flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <a href="#" className="flex items-center gap-2 self-center font-medium">
-          <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <GalleryVerticalEnd className="size-4" />
+          <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground overflow-hidden">
+            {getLogoUrl() ? (
+              <img src={getLogoUrl()} alt={getProductName()} className="h-full w-full object-contain" />
+            ) : (
+              <CheckCircle2 className="size-4" />
+            )}
           </div>
-          ObjectStack
+          {getProductName()}
         </a>
         <div className="flex flex-col gap-6">{children}</div>
       </div>
@@ -237,7 +242,7 @@ export function DeviceAuthPage() {
               </p>
               <p className="font-medium">{runtimeName}</p>
               {runtimeVersion ? (
-                <p className="text-xs text-muted-foreground">objectos {runtimeVersion}</p>
+                <p className="text-xs text-muted-foreground">{getProductName().toLowerCase()} {runtimeVersion}</p>
               ) : null}
             </div>
           ) : null}

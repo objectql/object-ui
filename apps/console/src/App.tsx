@@ -12,7 +12,7 @@
  * with extra `<Route>` children.
  */
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { AuthProvider, AuthGuard, useAuth } from '@object-ui/auth';
 import { DevMasterDetail } from './dev/DevMasterDetail';
@@ -38,6 +38,8 @@ import {
   DefaultAiChatPage,
   StudioDesignSurface,
   BuilderLanding,
+  getProductName,
+  getFaviconUrl,
 } from '@object-ui/app-shell';
 
 import { AppContent } from './AppContent';
@@ -132,12 +134,30 @@ function HomeRoute() {
   );
 }
 
+/** Syncs document title + favicon with runtime branding on every route change. */
+function BrandingSync() {
+  const location = useLocation();
+  useEffect(() => {
+    document.title = getProductName();
+    const faviconUrl = getFaviconUrl();
+    if (faviconUrl) {
+      const link = document.getElementById('favicon') as HTMLLinkElement | null;
+      if (link) {
+        link.href = faviconUrl;
+        link.type = faviconUrl.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+      }
+    }
+  }, [location]);
+  return null;
+}
+
 export function App() {
   return (
     <AuthProvider authUrl={AUTH_URL}>
       <ConsoleToaster position="bottom-right" />
       <MetadataHmrReloader />
       <BrowserRouter basename={BASENAME}>
+        <BrandingSync />
         <ConsoleShell>
           <Routes>
             {/*
@@ -193,7 +213,7 @@ export function App() {
                       title="返回主页"
                       className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[13px] font-semibold hover:bg-muted"
                     >
-                      ObjectOS
+                      {getProductName()}
                     </Link>
                   </header>
                   <div className="min-h-0 flex-1 overflow-auto">

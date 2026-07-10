@@ -9,10 +9,10 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import { App } from './App';
 import { I18nProvider } from '@object-ui/i18n';
-import { MobileProvider } from '@object-ui/mobile';
+import { MobileProvider, generatePWAManifest } from '@object-ui/mobile';
 import { ComponentRegistry } from '@object-ui/core';
 import { registerPlaceholders } from '@object-ui/components';
-import { initSentry, initRuntimeConfig, getProductName, getProductShortName } from '@object-ui/app-shell';
+import { initSentry, initRuntimeConfig, getProductName, getProductShortName, getFaviconUrl, getPwaDescription, getPwaThemeColor } from '@object-ui/app-shell';
 import { loadLanguage } from './loadLanguage';
 import { preflightAuth } from './lib/auth-preflight';
 
@@ -176,6 +176,46 @@ Promise.all([
   initRuntimeConfig(SERVER_BASE),
   preflightAuth(AUTH_URL),
 ]).finally(() => {
+  // Apply runtime branding before React mounts — avoids a flash of the
+  // static defaults for operators who configure OS_PRODUCT_NAME etc.
+  document.title = getProductName();
+
+  // Inject dynamic favicon if the operator configured one.
+  const faviconUrl = getFaviconUrl();
+  if (faviconUrl) {
+    const link = document.getElementById('favicon') as HTMLLinkElement | null;
+    if (link) {
+      link.href = faviconUrl;
+      // Update type attr when switching from svg to png
+      link.type = faviconUrl.endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+    }
+  }
+
+  // Generate a dynamic PWA manifest from runtime branding and inject it.
+  // Blob URL replaces the static /manifest.json so PWA install prompts use
+  // the branded name, short name, description, theme color, and favicon.
+  const manifestJson = generatePWAManifest({
+    enabled: true,
+    name: getProductName(),
+    shortName: getProductShortName(),
+    description: getPwaDescription(),
+    themeColor: getPwaThemeColor(),
+    backgroundColor: '#ffffff',
+    display: 'standalone',
+    startUrl: './',
+    scope: './',
+    orientation: 'any',
+    icons: [{ src: faviconUrl || './favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+  });
+  const blob = new Blob([JSON.stringify(manifestJson)], { type: 'application/json' });
+  const manifestUrl = URL.createObjectURL(blob);
+  const existingManifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+  if (existingManifest) existingManifest.remove();
+  const manifestLink = document.createElement('link');
+  manifestLink.rel = 'manifest';
+  manifestLink.href = manifestUrl;
+  document.head.appendChild(manifestLink);
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <MobileProvider pwa={{ enabled: true, name: getProductName(), shortName: getProductShortName() }}>

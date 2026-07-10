@@ -2,7 +2,7 @@
 import { Spinner, Button } from '@object-ui/components';
 import { Database, CheckCircle2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
-import { getProductName } from '../runtime-config';
+import { getProductName, getLogoUrl } from '../runtime-config';
 import { en as enLocale, zh as zhLocale } from '@object-ui/i18n';
 
 interface LoadingScreenProps {
@@ -58,7 +58,11 @@ export function LoadingScreen({ message, error, onRetry, retrying }: LoadingScre
         <div className="relative">
           <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-xl animate-pulse" />
           <div className="relative bg-linear-to-br from-primary to-primary/80 p-4 rounded-2xl shadow-lg">
-            <Database className="h-10 w-10 text-primary-foreground" />
+            {getLogoUrl() ? (
+              <img src={getLogoUrl()} alt={getProductName()} className="h-10 w-10 object-contain" />
+            ) : (
+              <Database className="h-10 w-10 text-primary-foreground" />
+            )}
           </div>
         </div>
 

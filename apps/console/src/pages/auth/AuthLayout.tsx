@@ -28,7 +28,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { cn } from '@object-ui/components';
-import { getProductName } from '@object-ui/app-shell';
+import { getProductName, getLogoUrl } from '@object-ui/app-shell';
 
 export interface AuthLayoutProps {
   children: ReactNode;
@@ -65,24 +65,29 @@ function currentHost(): string | null {
  */
 function BrandMark() {
   const productName = getProductName();
+  const logoUrl = getLogoUrl();
   return (
     <div className="flex items-center justify-center gap-2.5 select-none">
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-sm shadow-indigo-500/30">
-        <svg
-          viewBox="0 0 24 24"
-          width="18"
-          height="18"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M12 2 2 7l10 5 10-5-10-5Z" />
-          <path d="m2 17 10 5 10-5" />
-          <path d="m2 12 10 5 10-5" />
-        </svg>
+      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-sm shadow-indigo-500/30 overflow-hidden">
+        {logoUrl ? (
+          <img src={logoUrl} alt={productName} className="h-full w-full object-contain" />
+        ) : (
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+            <path d="m2 17 10 5 10-5" />
+            <path d="m2 12 10 5 10-5" />
+          </svg>
+        )}
       </span>
       <span className="text-lg font-semibold tracking-tight text-foreground">{productName}</span>
     </div>
