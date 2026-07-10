@@ -48,6 +48,14 @@ export interface AuthContextValue {
   sendVerificationEmail: (email: string, callbackURL?: string) => Promise<void>;
   /** Reset password with token */
   resetPassword: (token: string, newPassword: string) => Promise<void>;
+  /** framework#2780 — request a sign-in OTP SMS for the phone number. */
+  sendPhoneOtp: (phoneNumber: string) => Promise<void>;
+  /** framework#2780 — sign in by verifying a phone OTP. */
+  signInWithPhoneOtp: (phoneNumber: string, code: string) => Promise<void>;
+  /** framework#2780 — request a password-reset OTP SMS for the phone number. */
+  requestPhonePasswordReset: (phoneNumber: string) => Promise<void>;
+  /** framework#2780 — reset the password with a phone OTP. */
+  resetPasswordWithPhoneOtp: (phoneNumber: string, otp: string, newPassword: string) => Promise<void>;
   /**
    * Change the local (email/password) password. Requires the current
    * password. Use this when `hasLocalPassword()` returns true.

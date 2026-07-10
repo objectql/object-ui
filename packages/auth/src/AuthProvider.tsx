@@ -281,6 +281,69 @@ export function AuthProvider({
     [client],
   );
 
+  // --- Phone-number OTP (framework#2780) --------------------------------
+
+  const sendPhoneOtp = useCallback(
+    async (phoneNumber: string) => {
+      setError(null);
+      try {
+        await client.sendPhoneOtp(phoneNumber);
+      } catch (err) {
+        const authError = err instanceof Error ? err : new Error(String(err));
+        setError(authError);
+        throw authError;
+      }
+    },
+    [client],
+  );
+
+  const signInWithPhoneOtp = useCallback(
+    async (phoneNumber: string, code: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await client.signInWithPhoneOtp(phoneNumber, code);
+        setUser(result.user);
+        setSession(result.session);
+      } catch (err) {
+        const authError = err instanceof Error ? err : new Error(String(err));
+        setError(authError);
+        throw authError;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [client],
+  );
+
+  const requestPhonePasswordReset = useCallback(
+    async (phoneNumber: string) => {
+      setError(null);
+      try {
+        await client.requestPhonePasswordReset(phoneNumber);
+      } catch (err) {
+        const authError = err instanceof Error ? err : new Error(String(err));
+        setError(authError);
+        throw authError;
+      }
+    },
+    [client],
+  );
+
+  const resetPasswordWithPhoneOtp = useCallback(
+    async (phoneNumber: string, otp: string, newPassword: string) => {
+      setError(null);
+      try {
+        await client.resetPasswordWithPhoneOtp(phoneNumber, otp, newPassword);
+      } catch (err) {
+        const authError = err instanceof Error ? err : new Error(String(err));
+        setError(authError);
+        throw authError;
+      }
+    },
+    [client],
+  );
+
   // ADR-0069 — the API fetch interceptor emits an auth-policy gate; raise the
   // remediation overlay. Don't override an already-shown gate.
   useEffect(() => {
@@ -586,6 +649,10 @@ export function AuthProvider({
       forgotPassword,
       sendVerificationEmail,
       resetPassword,
+      sendPhoneOtp,
+      signInWithPhoneOtp,
+      requestPhonePasswordReset,
+      resetPasswordWithPhoneOtp,
       changePassword,
       remediationRequired,
       setRemediationRequired,
@@ -619,6 +686,7 @@ export function AuthProvider({
     [
       user, session, isAuthenticated, isAuthEnabled, isLoading, error, isPreviewMode, previewMode,
       signIn, signUp, signOut, updateUser, forgotPassword, sendVerificationEmail, resetPassword, changePassword, setInitialPassword, hasLocalPassword, getAuthConfig, signInWithProvider,
+      sendPhoneOtp, signInWithPhoneOtp, requestPhonePasswordReset, resetPasswordWithPhoneOtp,
       remediationRequired, enrollTotp, verifyTotp,
       organizations, activeOrganization, activeMember, isOrganizationsLoading, switchOrganization, createOrganization, refreshOrganizations,
       updateOrganization, deleteOrganization, leaveOrganization,

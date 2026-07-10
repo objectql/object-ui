@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createAuthClient } from '../createAuthClient';
+import { createAuthClient, TokenStorage } from '../createAuthClient';
 import type { AuthClient } from '../types';
 
 /**
@@ -269,5 +269,98 @@ describe('createAuthClient', () => {
     expect(calls[0].url).toContain('/api/auth/update-user');
     expect(calls[0].method).toBe('POST');
     expect(result.name).toBe('Updated');
+  });
+});
+
+// framework#2780 — phone-number OTP endpoints.
+describe('createAuthClient — phone-number OTP (framework#2780)', () => {
+  beforeEach(() => {
+    TokenStorage.clear();
+  });
+
+  it('sendPhoneOtp POSTs /phone-number/send-otp with the number', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/phone-number/send-otp': { body: { message: 'code sent' } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await client.sendPhoneOtp('+8613800000000');
+    const call = calls.find((c) => c.url.includes('/phone-number/send-otp'));
+    expect(call?.method).toBe('POST');
+    expect(JSON.parse(call!.body as string)).toEqual({ phoneNumber: '+8613800000000' });
+  });
+
+  it('sendPhoneOtp surfaces the 429 cooldown with code + status', async () => {
+    const { mockFn } = createMockFetch({
+      '/phone-number/send-otp': {
+        status: 429,
+        body: { message: 'Too many verification codes requested for this phone number. Retry in 42s.' },
+      },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(client.sendPhoneOtp('+8613800000000')).rejects.toMatchObject({
+      message: expect.stringContaining('Retry in 42s'),
+      status: 429,
+    });
+  });
+
+  it('signInWithPhoneOtp verifies, stores the session token, and returns user+session', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/phone-number/verify': {
+        body: {
+          status: true,
+          token: 'otp-session-token',
+          user: { id: 'u1', phoneNumber: '+8613800000000', name: 'Phone User' },
+        },
+      },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    const result = await client.signInWithPhoneOtp('+8613800000000', '123456');
+    expect(result.session.token).toBe('otp-session-token');
+    expect(result.user.id).toBe('u1');
+    expect(TokenStorage.get()).toBe('otp-session-token');
+    const call = calls.find((c) => c.url.includes('/phone-number/verify'));
+    expect(JSON.parse(call!.body as string)).toEqual({ phoneNumber: '+8613800000000', code: '123456' });
+  });
+
+  it('signInWithPhoneOtp rejects when the number belongs to no account (token null)', async () => {
+    const { mockFn } = createMockFetch({
+      '/phone-number/verify': { body: { status: true, token: null, user: null } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(client.signInWithPhoneOtp('+8613800000000', '123456')).rejects.toThrow(
+      /No account is registered/,
+    );
+    expect(TokenStorage.get()).toBeNull();
+  });
+
+  it('requestPhonePasswordReset + resetPasswordWithPhoneOtp POST the reset endpoints', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/phone-number/request-password-reset': { body: { status: true } },
+      '/phone-number/reset-password': { body: { status: true } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await client.requestPhonePasswordReset('+8613800000000');
+    await client.resetPasswordWithPhoneOtp('+8613800000000', '654321', 'N3w-Passw0rd!');
+    const req = calls.find((c) => c.url.includes('/phone-number/request-password-reset'));
+    expect(JSON.parse(req!.body as string)).toEqual({ phoneNumber: '+8613800000000' });
+    const reset = calls.find((c) => c.url.includes('/phone-number/reset-password'));
+    expect(JSON.parse(reset!.body as string)).toEqual({
+      phoneNumber: '+8613800000000',
+      otp: '654321',
+      newPassword: 'N3w-Passw0rd!',
+    });
+  });
+
+  it('resetPasswordWithPhoneOtp surfaces INVALID_OTP errors', async () => {
+    const { mockFn } = createMockFetch({
+      '/phone-number/reset-password': {
+        status: 400,
+        body: { message: 'Invalid OTP', code: 'INVALID_OTP' },
+      },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(
+      client.resetPasswordWithPhoneOtp('+8613800000000', '000000', 'x'),
+    ).rejects.toMatchObject({ message: 'Invalid OTP', code: 'INVALID_OTP' });
   });
 });

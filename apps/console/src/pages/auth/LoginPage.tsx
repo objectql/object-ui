@@ -281,6 +281,22 @@ function LoginFormCard({
         submittingButton: t('auth.login.submittingButton', { defaultValue: 'Signing in…' }),
         noAccountText: t('auth.login.noAccountText', { defaultValue: "Don't have an account?" }),
         signUpText: t('auth.login.signUpText', { defaultValue: 'Sign up' }),
+        phoneLabel: t('auth.login.phoneLabel', { defaultValue: 'Phone number' }),
+        phonePlaceholder: t('auth.login.phonePlaceholder', { defaultValue: '+1 555 000 0000' }),
+        otpCodeLabel: t('auth.login.otpCodeLabel', { defaultValue: 'Verification code' }),
+        otpCodePlaceholder: t('auth.login.otpCodePlaceholder', { defaultValue: '6-digit code' }),
+        sendOtpButton: t('auth.login.sendOtpButton', { defaultValue: 'Get code' }),
+        // `{seconds}` (single braces) is the component's own hole — kept out
+        // of i18next's `{{…}}` interpolation on purpose.
+        resendOtpCountdownText: t('auth.login.resendOtpCountdownText', {
+          defaultValue: 'Resend in {seconds}s',
+        }),
+        usePhoneOtpText: t('auth.login.usePhoneOtpText', {
+          defaultValue: 'Sign in with verification code',
+        }),
+        usePasswordSignInText: t('auth.login.usePasswordSignInText', {
+          defaultValue: 'Sign in with password instead',
+        }),
       }}
     />
   );

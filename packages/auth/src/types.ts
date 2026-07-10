@@ -143,6 +143,19 @@ export interface AuthPublicConfig {
      * invite-accept) still work — only fresh creation is forbidden.
      */
     multiOrgEnabled?: boolean;
+    /**
+     * Phone-number sign-in enabled server-side (better-auth phoneNumber
+     * plugin — phone + password, framework#2766).
+     */
+    phoneNumber?: boolean;
+    /**
+     * Phone-number OTP sign-in / self-service reset available — requires the
+     * phoneNumber plugin plus a deliverable SMS service (framework#2780).
+     * Gates the "sign in with verification code" mode and the phone branch
+     * of the forgot-password form; falsy hides them so we never render an
+     * entry point whose code can never arrive.
+     */
+    phoneNumberOtp?: boolean;
   };
 }
 
@@ -172,6 +185,14 @@ export interface AuthClient {
   sendVerificationEmail: (email: string, callbackURL?: string) => Promise<void>;
   /** Reset password with token */
   resetPassword: (token: string, newPassword: string) => Promise<void>;
+  /** framework#2780 — request a sign-in/verification OTP SMS for the phone number. */
+  sendPhoneOtp: (phoneNumber: string) => Promise<void>;
+  /** framework#2780 — verify a phone OTP; signs in the number's user. */
+  signInWithPhoneOtp: (phoneNumber: string, code: string) => Promise<{ user: AuthUser; session: AuthSession }>;
+  /** framework#2780 — request a password-reset OTP SMS for the phone number. */
+  requestPhonePasswordReset: (phoneNumber: string) => Promise<void>;
+  /** framework#2780 — reset the password using a phone OTP. */
+  resetPasswordWithPhoneOtp: (phoneNumber: string, otp: string, newPassword: string) => Promise<void>;
   /** Change password (requires current password). For users who already have a local password. */
   changePassword: (currentPassword: string, newPassword: string, options?: { revokeOtherSessions?: boolean }) => Promise<void>;
   /** ADR-0069 — start TOTP enrollment; returns the otpauth URI + backup codes. */

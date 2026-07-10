@@ -44,6 +44,22 @@ export interface LoginFormLabels {
   usePasswordText?: string;
   /** Link to collapse the revealed break-glass form back to SSO-only (defaults to "Back to single sign-on"). */
   backToSsoText?: string;
+  /** Phone-OTP mode (framework#2780) — phone field label (defaults to "Phone number"). */
+  phoneLabel?: string;
+  /** Phone-OTP mode — phone field placeholder (defaults to "+1 555 000 0000"). */
+  phonePlaceholder?: string;
+  /** Phone-OTP mode — code field label (defaults to "Verification code"). */
+  otpCodeLabel?: string;
+  /** Phone-OTP mode — code field placeholder (defaults to "6-digit code"). */
+  otpCodePlaceholder?: string;
+  /** Phone-OTP mode — "send code" button (defaults to "Get code"). */
+  sendOtpButton?: string;
+  /** Phone-OTP mode — resend countdown, `{seconds}` hole (defaults to "Resend in {seconds}s"). */
+  resendOtpCountdownText?: string;
+  /** Link that switches to phone-OTP sign-in (defaults to "Sign in with verification code"). */
+  usePhoneOtpText?: string;
+  /** Link that switches back to password sign-in (defaults to "Sign in with password instead"). */
+  usePasswordSignInText?: string;
   /** Description shown above the form in SSO-only mode (defaults to "Sign in with your organization's single sign-on"). */
   ssoOnlyDescription?: string;
 }
@@ -125,10 +141,23 @@ export function LoginForm({
   labels = {},
   errorMessages,
 }: LoginFormProps) {
-  const { signIn, isLoading, getAuthConfig } = useAuth();
+  const { signIn, isLoading, getAuthConfig, sendPhoneOtp, signInWithPhoneOtp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Phone-OTP sign-in (framework#2780). Only offered when the server reports
+  // `features.phoneNumberOtp` — i.e. the phoneNumber plugin is on AND a
+  // deliverable SMS service is wired — so the mode never renders as a dead
+  // entry point whose code can never arrive.
+  const [phoneOtpEnabled, setPhoneOtpEnabled] = useState(false);
+  const [mode, setMode] = useState<'password' | 'phone-otp'>('password');
+  const [phone, setPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  // Seconds until another code may be requested — mirrors the server's
+  // per-number cooldown so the button doesn't invite guaranteed 429s.
+  const [otpCooldown, setOtpCooldown] = useState(0);
   const [hasSocialProviders, setHasSocialProviders] = useState(false);
   // Enterprise SSO is opt-in server-side (`@better-auth/sso`). Mirror the
   // social-provider pattern below: ask the server whether SSO is wired and
@@ -153,6 +182,7 @@ export function LoginForm({
       .then((config) => {
         if (cancelled) return;
         setSsoEnabled(config?.features?.sso === true);
+        setPhoneOtpEnabled(config?.features?.phoneNumberOtp === true);
         setSsoEnforced(
           config?.features?.ssoEnforced === true ||
             config?.emailPassword?.enabled === false,
@@ -187,14 +217,33 @@ export function LoginForm({
     backToSsoText: labels.backToSsoText ?? 'Back to single sign-on',
     ssoOnlyDescription:
       labels.ssoOnlyDescription ?? "Sign in with your organization's single sign-on",
+    phoneLabel: labels.phoneLabel ?? 'Phone number',
+    phonePlaceholder: labels.phonePlaceholder ?? '+1 555 000 0000',
+    otpCodeLabel: labels.otpCodeLabel ?? 'Verification code',
+    otpCodePlaceholder: labels.otpCodePlaceholder ?? '6-digit code',
+    sendOtpButton: labels.sendOtpButton ?? 'Get code',
+    resendOtpCountdownText: labels.resendOtpCountdownText ?? 'Resend in {seconds}s',
+    usePhoneOtpText: labels.usePhoneOtpText ?? 'Sign in with verification code',
+    usePasswordSignInText: labels.usePasswordSignInText ?? 'Sign in with password instead',
   };
+
+  // Tick the resend cooldown down once per second while it's armed.
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const timer = setTimeout(() => setOtpCooldown((s) => (s > 1 ? s - 1 : 0)), 1000);
+    return () => clearTimeout(timer);
+  }, [otpCooldown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     try {
-      await signIn(email, password);
+      if (mode === 'phone-otp') {
+        await signInWithPhoneOtp(phone.trim(), otpCode.trim());
+      } else {
+        await signIn(email, password);
+      }
       onSuccess?.();
     } catch (err) {
       const authError = err instanceof Error ? err : new Error(String(err));
@@ -202,6 +251,34 @@ export function LoginForm({
       setError((code && errorMessages?.[code]) || authError.message);
       onError?.(authError);
     }
+  };
+
+  /**
+   * Request a sign-in OTP for the entered number. A 429 (per-number cooldown
+   * / hourly cap, framework#2780) surfaces the server's honest "retry in Ns"
+   * message; any other failure surfaces as-is.
+   */
+  const handleSendOtp = async () => {
+    if (!phone.trim() || otpSending || otpCooldown > 0) return;
+    setError(null);
+    setOtpSending(true);
+    try {
+      await sendPhoneOtp(phone.trim());
+      setOtpSent(true);
+      setOtpCooldown(60);
+    } catch (err) {
+      const authError = err instanceof Error ? err : new Error(String(err));
+      const code = (authError as Error & { code?: string }).code;
+      setError((code && errorMessages?.[code]) || authError.message);
+      onError?.(authError);
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const switchMode = (next: 'password' | 'phone-otp') => {
+    setMode(next);
+    setError(null);
   };
 
   /**
@@ -243,6 +320,81 @@ export function LoginForm({
         <SocialSignInButtons mode="sign-in" onProvidersResolved={(hasProviders) => setHasSocialProviders(hasProviders)} />
 
         {passwordFormVisible ? (
+        mode === 'phone-otp' ? (
+        /* Phone-OTP sign-in (framework#2780): request a code, then verify.
+           Server-side the number is guarded by a per-number cooldown +
+           hourly cap — the resend button mirrors it with a countdown. */
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {hasSocialProviders && <AuthDivider label={l.orText} />}
+
+          {error && <AuthErrorBanner message={error} />}
+
+          <div className="space-y-2">
+            <label htmlFor="login-phone" className={AUTH_FIELD_LABEL_CLASS}>
+              {l.phoneLabel}
+            </label>
+            <input
+              id="login-phone"
+              type="tel"
+              placeholder={l.phonePlaceholder}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              required
+              autoComplete="tel"
+              disabled={isLoading}
+              className={AUTH_INPUT_CLASS}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="login-otp" className={AUTH_FIELD_LABEL_CLASS}>
+              {l.otpCodeLabel}
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="login-otp"
+                type="text"
+                inputMode="numeric"
+                placeholder={l.otpCodePlaceholder}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+                required
+                autoComplete="one-time-code"
+                disabled={isLoading}
+                className={AUTH_INPUT_CLASS}
+              />
+              <button
+                type="button"
+                onClick={handleSendOtp}
+                disabled={otpSending || otpCooldown > 0 || !phone.trim() || isLoading}
+                className="shrink-0 rounded-md border border-input bg-background px-3 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
+              >
+                {otpSending && <AuthSpinner />}
+                {otpCooldown > 0
+                  ? l.resendOtpCountdownText.replace('{seconds}', String(otpCooldown))
+                  : l.sendOtpButton}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isLoading || !otpSent}
+            className={AUTH_PRIMARY_BUTTON_CLASS}
+          >
+            {isLoading && <AuthSpinner />}
+            {isLoading ? l.submittingButton : l.submitButton}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => switchMode('password')}
+            className="w-full text-center text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+          >
+            {l.usePasswordSignInText}
+          </button>
+        </form>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           {hasSocialProviders && <AuthDivider label={l.orText} />}
 
@@ -312,6 +464,16 @@ export function LoginForm({
             </button>
           )}
 
+          {phoneOtpEnabled && (
+            <button
+              type="button"
+              onClick={() => switchMode('phone-otp')}
+              className="w-full text-center text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+            >
+              {l.usePhoneOtpText}
+            </button>
+          )}
+
           {/* Break-glass form was opened under enforced mode — let the user
               collapse back to the SSO-only view. */}
           {ssoEnforced && showPasswordFallback && (
@@ -324,6 +486,7 @@ export function LoginForm({
             </button>
           )}
         </form>
+        )
         ) : (
           /* SSO-only ("enforced"): the federated button(s) above are the path.
              Surface any social-sign-in error and an understated break-glass

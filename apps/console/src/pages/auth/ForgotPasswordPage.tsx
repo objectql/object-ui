@@ -49,6 +49,33 @@ export function ForgotPasswordPage() {
           backToSignInText: t('auth.forgotPassword.backToSignInText', {
             defaultValue: 'Back to sign in',
           }),
+          phoneLabel: t('auth.forgotPassword.phoneLabel', { defaultValue: 'Phone number' }),
+          phonePlaceholder: t('auth.forgotPassword.phonePlaceholder', { defaultValue: '+1 555 000 0000' }),
+          otpCodeLabel: t('auth.forgotPassword.otpCodeLabel', { defaultValue: 'Verification code' }),
+          otpCodePlaceholder: t('auth.forgotPassword.otpCodePlaceholder', { defaultValue: '6-digit code' }),
+          sendOtpButton: t('auth.forgotPassword.sendOtpButton', { defaultValue: 'Get code' }),
+          // `{seconds}` (single braces) is the component's own hole — kept out
+          // of i18next's `{{…}}` interpolation on purpose.
+          resendOtpCountdownText: t('auth.forgotPassword.resendOtpCountdownText', {
+            defaultValue: 'Resend in {seconds}s',
+          }),
+          newPasswordLabel: t('auth.forgotPassword.newPasswordLabel', { defaultValue: 'New password' }),
+          newPasswordPlaceholder: t('auth.forgotPassword.newPasswordPlaceholder', {
+            defaultValue: 'Enter a new password',
+          }),
+          resetButton: t('auth.forgotPassword.resetButton', { defaultValue: 'Reset Password' }),
+          usePhoneResetText: t('auth.forgotPassword.usePhoneResetText', {
+            defaultValue: 'Reset via SMS code',
+          }),
+          useEmailResetText: t('auth.forgotPassword.useEmailResetText', {
+            defaultValue: 'Reset via email instead',
+          }),
+          phoneSuccessTitle: t('auth.forgotPassword.phoneSuccessTitle', {
+            defaultValue: 'Password reset',
+          }),
+          phoneSuccessDescription: t('auth.forgotPassword.phoneSuccessDescription', {
+            defaultValue: 'Your password has been reset. You can now sign in with your new password.',
+          }),
           rememberPasswordText: t('auth.forgotPassword.rememberPasswordText', {
             defaultValue: 'Remember your password?',
           }),

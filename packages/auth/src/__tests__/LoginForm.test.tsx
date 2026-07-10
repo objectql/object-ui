@@ -119,3 +119,79 @@ describe('LoginForm — SSO-only (enforced) mode', () => {
     expect(screen.queryByRole('button', BREAK_GLASS)).toBeNull();
   });
 });
+
+// framework#2780 — the phone-OTP sign-in mode is gated by
+// `features.phoneNumberOtp` (phoneNumber plugin + deliverable SMS service),
+// exactly like the SSO button: never render an entry point whose
+// verification code can never arrive.
+describe('LoginForm — server-gated phone-OTP sign-in', () => {
+  const OTP_LINK = { name: 'Sign in with verification code' } as const;
+
+  it('hides the phone-OTP link when the server does not report features.phoneNumberOtp', async () => {
+    renderLogin(createMockClient({ features: { phoneNumber: true, phoneNumberOtp: false } }));
+    await screen.findByLabelText('Email');
+    expect(screen.queryByRole('button', OTP_LINK)).toBeNull();
+  });
+
+  it('shows the phone-OTP link when the server reports features.phoneNumberOtp = true', async () => {
+    renderLogin(createMockClient({ features: { phoneNumber: true, phoneNumberOtp: true } }));
+    await waitFor(() => {
+      expect(screen.getByRole('button', OTP_LINK)).toBeTruthy();
+    });
+  });
+
+  it('switches to the phone form, sends the OTP, verifies, and calls back', async () => {
+    const sendPhoneOtp = vi.fn().mockResolvedValue(undefined);
+    const signInWithPhoneOtp = vi.fn().mockResolvedValue({
+      user: { id: 'u1', name: '13800000000', email: 'u-x@placeholder.invalid' },
+      session: { token: 'tok-otp' },
+    });
+    const client = createMockClient(
+      { features: { phoneNumber: true, phoneNumberOtp: true } },
+      { sendPhoneOtp, signInWithPhoneOtp },
+    );
+    renderLogin(client);
+
+    fireEvent.click(await screen.findByRole('button', OTP_LINK));
+
+    const phoneInput = await screen.findByLabelText('Phone number');
+    fireEvent.change(phoneInput, { target: { value: '+8613800000000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Get code' }));
+    await waitFor(() => expect(sendPhoneOtp).toHaveBeenCalledWith('+8613800000000'));
+
+    // The resend button now counts down (mirrors the server-side cooldown).
+    await screen.findByRole('button', { name: /Resend in \d+s/ });
+
+    fireEvent.change(screen.getByLabelText('Verification code'), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+    await waitFor(() =>
+      expect(signInWithPhoneOtp).toHaveBeenCalledWith('+8613800000000', '123456'),
+    );
+  });
+
+  it('surfaces the cooldown 429 message from send-otp instead of crashing', async () => {
+    const err = Object.assign(
+      new Error('Too many verification codes requested for this phone number. Retry in 60s.'),
+      { status: 429, code: 'TOO_MANY_REQUESTS' },
+    );
+    const client = createMockClient(
+      { features: { phoneNumberOtp: true } },
+      { sendPhoneOtp: vi.fn().mockRejectedValue(err) },
+    );
+    renderLogin(client);
+
+    fireEvent.click(await screen.findByRole('button', OTP_LINK));
+    fireEvent.change(await screen.findByLabelText('Phone number'), { target: { value: '+8613800000000' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Get code' }));
+
+    await screen.findByText(/Retry in 60s/);
+  });
+
+  it('switches back to the password form', async () => {
+    renderLogin(createMockClient({ features: { phoneNumberOtp: true } }));
+    fireEvent.click(await screen.findByRole('button', OTP_LINK));
+    await screen.findByLabelText('Phone number');
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in with password instead' }));
+    await screen.findByLabelText('Email');
+  });
+});

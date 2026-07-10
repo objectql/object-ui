@@ -198,6 +198,37 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
   // We deliberately cast through `unknown` to bridge from better-auth types
   // to the ObjectUI AuthClient contract.
 
+  /**
+   * POST one of the phoneNumber plugin's endpoints (framework#2780) and
+   * return the parsed JSON. Throws an Error carrying the better-auth `code`
+   * and HTTP `status` so the forms can special-case the per-number cooldown
+   * (429 TOO_MANY_REQUESTS) with an honest "retry in Ns" message.
+   */
+  async function postPhoneNumberEndpoint(
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const response = await bearerFetch(`${origin}${basePath}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    const payload = (await response.json().catch(() => ({}))) as Record<string, unknown> & {
+      message?: string;
+      code?: string;
+    };
+    if (!response.ok) {
+      const err = new Error(
+        payload?.message ?? `Auth request failed with status ${response.status}`,
+      ) as Error & { code?: string; status?: number };
+      if (payload?.code) err.code = payload.code;
+      err.status = response.status;
+      throw err;
+    }
+    return payload ?? {};
+  }
+
   return {
     async signIn(credentials: SignInCredentials) {
       const { data, error } = await betterAuth.signIn.email({
@@ -366,6 +397,40 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       if (error) {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
       }
+    },
+
+    // --- Phone-number OTP (framework#2780) -------------------------------
+    // The better-auth phoneNumber plugin's endpoints, called directly (the
+    // phoneNumberClient plugin adds nothing we need beyond these four POSTs,
+    // and direct fetch keeps the error `code`/status handy for the cooldown
+    // 429 UX). Server availability is gated by `features.phoneNumberOtp`.
+
+    async sendPhoneOtp(phoneNumber: string) {
+      await postPhoneNumberEndpoint('/phone-number/send-otp', { phoneNumber });
+    },
+
+    async signInWithPhoneOtp(phoneNumber: string, code: string) {
+      const payload = await postPhoneNumberEndpoint('/phone-number/verify', { phoneNumber, code });
+      // Response: `{ status, token: string|null, user: object|null }` —
+      // token/user are null when the number belongs to no account (the
+      // endpoint also serves the change-phone verification flow).
+      const token = typeof payload.token === 'string' ? payload.token : undefined;
+      const user = (payload.user ?? null) as AuthUser | null;
+      if (!token || !user) {
+        throw new Error('No account is registered for this phone number.');
+      }
+      TokenStorage.set(token);
+      return { user, session: { token } as AuthSession };
+    },
+
+    async requestPhonePasswordReset(phoneNumber: string) {
+      // Always answers `{status:true}` (no account-existence oracle) — the
+      // OTP only arrives when the number belongs to an account.
+      await postPhoneNumberEndpoint('/phone-number/request-password-reset', { phoneNumber });
+    },
+
+    async resetPasswordWithPhoneOtp(phoneNumber: string, otp: string, newPassword: string) {
+      await postPhoneNumberEndpoint('/phone-number/reset-password', { phoneNumber, otp, newPassword });
     },
 
     async changePassword(currentPassword: string, newPassword: string, options?: { revokeOtherSessions?: boolean }) {
