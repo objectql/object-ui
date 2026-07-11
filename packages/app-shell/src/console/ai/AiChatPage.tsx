@@ -18,6 +18,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { toast } from 'sonner';
+import { useAdapter } from '../../providers/AdapterProvider';
+import { ExcelImportBar } from './ExcelImportBar';
 import {
   Select,
   SelectContent,
@@ -1078,6 +1080,11 @@ export function ChatPane({
   // whole-app build doesn't trigger an invalidation storm.
   const [canvasApp, setCanvasApp] = useState<{ name: string; segment?: string; materialized: boolean } | null>(null);
   const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
+  // cloud#797 Excel→App: the attached spreadsheet the user can load real rows
+  // from (into a built object) via ExcelImportBar. Set when a sheet is sent,
+  // cleared on import/dismiss. `dataSource` drives the wizard's schema + import.
+  const dataSource = useAdapter();
+  const [pendingSheet, setPendingSheet] = useState<File | null>(null);
   const canvasTimerRef = useRef<number | null>(null);
   useEffect(() => () => {
     if (canvasTimerRef.current) window.clearTimeout(canvasTimerRef.current);
@@ -1257,6 +1264,10 @@ export function ChatPane({
         onSent(content);
         return;
       }
+      // Retain the first sheet so ExcelImportBar can load its REAL rows into a
+      // built object (cloud#797) — the agent got a brief; the user gets an
+      // import affordance without re-picking the file.
+      setPendingSheet(sheets[0]);
       void (async () => {
         const cap = (s: string) => (s.length > 40 ? `${s.slice(0, 40)}…` : s);
         const line = (r: string[]) =>
@@ -1405,6 +1416,21 @@ export function ChatPane({
 
   return (
     <div ref={split.containerRef} className="relative flex min-h-0 flex-1 px-0">
+      {/* Excel→App (cloud#797): float the real-data import affordance above the
+          chat when a spreadsheet was attached. Absolute so it doesn't disturb
+          the chat/canvas flex layout; the ImportWizard it opens is a modal. */}
+      {pendingSheet && dataSource ? (
+        <div className="pointer-events-none absolute top-2 left-0 right-0 z-20 flex justify-center px-4">
+          <div className="pointer-events-auto w-full max-w-3xl">
+            <ExcelImportBar
+              file={pendingSheet}
+              dataSource={dataSource}
+              defaultObjectName={canvasApp?.name}
+              onDone={() => setPendingSheet(null)}
+            />
+          </div>
+        </div>
+      ) : null}
       <div
         data-chat-column
         className={

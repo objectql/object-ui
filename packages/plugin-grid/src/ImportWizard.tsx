@@ -267,6 +267,13 @@ export interface ImportWizardProps {
    *  When omitted, the wizard fetches them via `dataSource.listImportMappings`
    *  (feature-detected). Pass explicitly to override / for tests. */
   savedMappings?: SavedMapping[];
+  /** Pre-loaded spreadsheet (cloud#797 Excel→App): when the wizard opens with
+   *  this set, it parses the File in memory and jumps straight to the mapping
+   *  step, skipping the upload UI. Used by the AI build panel to hand off an
+   *  already-attached Excel/CSV so the user goes from "one sentence → app" to
+   *  "my real data is in it" without re-picking the file. Ignored on reopen
+   *  once consumed. */
+  initialFile?: File;
 }
 
 export interface ImportResult {
@@ -1425,7 +1432,7 @@ const ImportHistoryPanel: React.FC<{
 // Main wizard component
 export const ImportWizard: React.FC<ImportWizardProps> = ({
   objectName, objectLabel, fields, dataSource, onComplete, onCancel, open, onOpenChange, onErrorMode = 'skip',
-  templateStorageKey, templateStorage, savedMappings,
+  templateStorageKey, templateStorage, savedMappings, initialFile,
 }) => {
   const { t } = useImportTranslation();
   const [step, setStep] = useState<WizardStep>('upload');
@@ -1614,6 +1621,31 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const handleFileLoaded = useCallback((h: string[], r: string[][]) => {
     setHeaders(h); setRows(r); setMapping(autoMapColumns(h, fields, r)); setCorrections({}); setStep('mapping');
   }, [fields]);
+
+  // cloud#797 Excel→App: when opened with a pre-loaded file (from the AI build
+  // panel's attachment), parse it once and jump straight to mapping — no
+  // re-picking the file the user already attached. Consumed once per File
+  // identity so reopening or a re-render doesn't re-parse or fight the user if
+  // they navigate back to upload.
+  const consumedInitialFileRef = React.useRef<File | null>(null);
+  useEffect(() => {
+    if (!open || !initialFile) return;
+    if (consumedInitialFileRef.current === initialFile) return;
+    consumedInitialFileRef.current = initialFile;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const parsed = await parseSpreadsheetFile(initialFile);
+        if (cancelled) return;
+        if (parsed.length < 2) return; // needs a header + at least one row
+        handleFileLoaded(parsed[0], parsed.slice(1));
+      } catch {
+        // Parse failed — leave the wizard on the upload step so the user can
+        // retry / pick a different file; the upload UI shows its own errors.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, initialFile, handleFileLoaded]);
 
   // Per-column type guesses, sampled from the loaded rows — drives mapping hints.
   const inferredTypes = useMemo<InferredType[]>(
