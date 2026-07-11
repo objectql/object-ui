@@ -156,6 +156,13 @@ export interface AuthPublicConfig {
      * entry point whose code can never arrive.
      */
     phoneNumberOtp?: boolean;
+    /**
+     * better-auth admin plugin mounted server-side (`auth.plugins.admin`;
+     * SCIM forces it on). Gates the admin user-management surfaces — the
+     * sys_user create/set-password actions and the identity import wizard
+     * entry (framework#2766 / #2782).
+     */
+    admin?: boolean;
   };
 }
 

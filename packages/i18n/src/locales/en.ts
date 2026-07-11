@@ -1283,6 +1283,22 @@ const en = {
       noAccessTitle: 'Access denied',
       noAccess: 'You do not have permission to view this data.',
     },
+    identityImport: {
+      policyTitle: 'Sign-in setup for imported users',
+      policy: {
+        none: 'No password (recommended)',
+        invite: 'Send invitations',
+        temporary: 'Temporary passwords',
+      },
+      policyHint: {
+        none: 'Users first sign in with a phone OTP, magic link, or password-reset link, then set their own password.',
+        invite: 'Each created user gets a set-your-password email (or an invitation SMS for phone-only rows). Requires a configured email/SMS service.',
+        temporary: 'For deployments without email/SMS: each created user gets a one-time password, shown ONCE on the result screen. First sign-in forces a change.',
+      },
+      passwordsNote: 'Temporary passwords — shown once, never stored. Save them now; each user must change theirs at first sign-in.',
+      passwordsMore: 'More entries omitted — use the download.',
+      passwordsDownload: 'Download CSV',
+    },
     objectView: {
       objectNotFound: 'Object Not Found',
       objectNotFoundDescription: 'The object "{{objectName}}" does not exist in the current configuration.',

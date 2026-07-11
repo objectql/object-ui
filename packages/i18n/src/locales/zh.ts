@@ -1356,6 +1356,22 @@ const zh = {
       noAccessTitle: '无访问权限',
       noAccess: '您没有权限查看此数据。',
     },
+    identityImport: {
+      policyTitle: '导入用户的登录方式',
+      policy: {
+        none: '不设密码（推荐）',
+        invite: '发送邀请',
+        temporary: '临时密码',
+      },
+      policyHint: {
+        none: '用户通过手机验证码、魔法链接或重置链接首次登录，之后自行设置密码。',
+        invite: '为每个新建用户发送"设置密码"邮件（仅手机号的行发送邀请短信）。需要已配置邮件/短信服务。',
+        temporary: '适用于未配置邮件/短信的部署：为每个新建用户生成一次性密码，仅在结果页显示一次，首次登录强制修改。',
+      },
+      passwordsNote: '临时密码——仅显示一次，不会被保存。请立即保存；用户首次登录时必须修改。',
+      passwordsMore: '更多条目已省略——请使用下载。',
+      passwordsDownload: '下载 CSV',
+    },
     objectView: {
       systemViewReadonly: '系统视图由代码定义，只读。',
       expandToPage: '以完整页面打开',

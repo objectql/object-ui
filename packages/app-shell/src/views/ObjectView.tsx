@@ -49,6 +49,9 @@ import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext
 import { ManagedByBadge } from '../components/ManagedByBadge';
 import { RecordDetailView } from './RecordDetailView';
 import { resolveCrudAffordances } from '../utils/crudAffordances';
+import { createIdentityImportDataSource, IDENTITY_IMPORT_OBJECT, type IdentityPasswordPolicy } from './identityImport';
+import { IdentityImportOptions, IdentityImportResultExtra, identityImportFields } from './IdentityImportPanels';
+import { useExpressionContext } from '../providers/ExpressionProvider';
 import { resolveManagedByEmptyState } from '../utils/managedByEmptyState';
 import { resolveViewId } from '../utils/resolveViewId';
 import { warnSuppressedListNav } from '../utils/warnSuppressedListNav';
@@ -374,6 +377,31 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     // Import wizard open/close state — toolbar entry triggers it.
     const [showImport, setShowImport] = useState(false);
+
+    // ─── Identity import (framework#2782) ────────────────────────────────
+    // sys_user's generic import affordance stays FALSE (a data-layer insert
+    // would bypass better-auth's hashing and never create a credential), but
+    // platform admins get the same wizard wired to the dedicated
+    // /api/v1/auth/admin/import-users pipeline. Gated on the deployment's
+    // admin surface (features.admin from /api/v1/auth/config) plus the
+    // caller being a workspace admin (the server re-checks, ADR-0068).
+    const { features } = useExpressionContext();
+    const isIdentityImport = objectDef.name === IDENTITY_IMPORT_OBJECT;
+    const identityImportEnabled = isIdentityImport && features?.admin === true && isAdmin;
+    const [identityPasswordPolicy, setIdentityPasswordPolicy] = useState<IdentityPasswordPolicy>('none');
+    const identityPolicyRef = useRef<IdentityPasswordPolicy>('none');
+    identityPolicyRef.current = identityPasswordPolicy;
+    const identityDataSource = useMemo(
+      () => (identityImportEnabled
+        ? createIdentityImportDataSource({
+            base: dataSource,
+            authFetch: actionRuntime.authFetch,
+            baseUrl: import.meta.env.VITE_SERVER_URL || '',
+            getPasswordPolicy: () => identityPolicyRef.current,
+          })
+        : undefined),
+      [identityImportEnabled, dataSource, actionRuntime.authFetch],
+    );
 
     // ─── User-defined views (metadata overlay) ──────────────────────────
     // Saved views created via the ViewConfigPanel ("Add View") live in the
@@ -1610,7 +1638,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         are inherently a desk/laptop workflow; the button
                         was eating header space on mobile next to the
                         primary "+" action. */}
-                    {affordances.import && can(objectDef.name, 'create') && (
+                    {(identityImportEnabled || (affordances.import && can(objectDef.name, 'create'))) && (
                     <Button
                         size="sm"
                         variant="outline"
@@ -1686,7 +1714,13 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                    onOpenChange={setShowImport}
                    objectName={objectDef.name}
                    objectLabel={objectLabel(objectDef)}
-                   fields={Object.entries(objectDef.fields || {})
+                   fields={identityImportEnabled
+                     // Identity import has a curated target set — the generic
+                     // writable-field filter below would drop phone_number
+                     // (readonly for CRUD; identity writes go through
+                     // better-auth, framework#2782).
+                     ? identityImportFields(objectDef.fields)
+                     : Object.entries(objectDef.fields || {})
                      // Only writable fields are importable targets. Computed
                      // types (formula/summary/autonumber) and fields flagged
                      // readonly / write:false are server-rejected, so we omit
@@ -1705,7 +1739,18 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                        // Enum options seed the downloadable template's example row.
                        ...(def?.options ? { options: def.options } : {}),
                      }))}
-                   dataSource={dataSource}
+                   dataSource={identityDataSource ?? dataSource}
+                   {...(identityImportEnabled ? {
+                     extraOptionsContent: (
+                       <IdentityImportOptions
+                         policy={identityPasswordPolicy}
+                         onPolicyChange={setIdentityPasswordPolicy}
+                       />
+                     ),
+                     renderResultExtra: (res: any) => (
+                       <IdentityImportResultExtra serverResult={res?.serverResult} />
+                     ),
+                   } : {})}
                    onComplete={(result) => {
                      setRefreshKey(k => k + 1);
                      const ok = result.importedRows;

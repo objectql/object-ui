@@ -274,6 +274,16 @@ export interface ImportWizardProps {
    *  "my real data is in it" without re-picking the file. Ignored on reopen
    *  once consumed. */
   initialFile?: File;
+  /** Extra content rendered above the write-options panel on the preview step.
+   *  Hosts inject domain-specific import options here (e.g. the identity
+   *  import's password policy — framework#2782); any state it collects flows
+   *  back through the host's own `dataSource` wrapper, so the wizard stays
+   *  backend-agnostic. */
+  extraOptionsContent?: React.ReactNode;
+  /** Render extra content at the top of the result step — e.g. one-time
+   *  credentials a domain-specific import endpoint returned in
+   *  `result.serverResult` (framework#2782). */
+  renderResultExtra?: (result: ImportResult) => React.ReactNode;
 }
 
 export interface ImportResult {
@@ -1432,7 +1442,7 @@ const ImportHistoryPanel: React.FC<{
 // Main wizard component
 export const ImportWizard: React.FC<ImportWizardProps> = ({
   objectName, objectLabel, fields, dataSource, onComplete, onCancel, open, onOpenChange, onErrorMode = 'skip',
-  templateStorageKey, templateStorage, savedMappings, initialFile,
+  templateStorageKey, templateStorage, savedMappings, initialFile, extraOptionsContent, renderResultExtra,
 }) => {
   const { t } = useImportTranslation();
   const [step, setStep] = useState<WizardStep>('upload');
@@ -2071,6 +2081,9 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
             )}
             {step === 'preview' && (
               <>
+                {extraOptionsContent && (
+                  <div data-testid="import-extra-options">{extraOptionsContent}</div>
+                )}
                 {/* Write-mode/match options are owned by the artifact when a
                     named mapping is active; hide the manual panel. */}
                 {!activeMapping && (
@@ -2206,6 +2219,9 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               )}
               {result.skippedRows > 0 && <Badge variant="destructive">{t('grid.import.skippedCount', { count: result.skippedRows })}</Badge>}
             </div>
+            {renderResultExtra && (
+              <div className="w-full" data-testid="import-result-extra">{renderResultExtra(result)}</div>
+            )}
             {result.errors.length > 0 && (
               <>
                 <div className="max-h-32 w-full overflow-auto rounded border p-2 text-xs">
