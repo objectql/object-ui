@@ -28,6 +28,18 @@ describe('resolveManagedByEmptyState', () => {
     expect(es?.message).toMatch(/end-users/i);
   });
 
+  it('gives sys_team its own empty state that does not contradict the Create Team button', () => {
+    // sys_team CAN be created by hand — the `create_team` toolbar action hits
+    // better-auth's organization/create-team. The generic "not added by hand
+    // here" identity copy would flatly contradict that visible Create Team
+    // button (the reported empty-state / CTA mismatch). Regression guard.
+    const es = resolveManagedByEmptyState('better-auth', t, 'sys_team');
+    expect(es?.title).toBe('No teams yet');
+    expect(es?.message).toMatch(/create team/i);
+    expect(es?.title).not.toBe('No identity records');
+    expect(es?.message).not.toMatch(/not added by hand here/i);
+  });
+
   it('gives every other identity table a generic, accurate empty state', () => {
     // The single better-auth bucket is shared by ~18 identity tables; only
     // sys_user has a real onboarding answer. Sessions / tokens / jwks must NOT

@@ -576,6 +576,22 @@ ComponentRegistry.register('form',
           showActions: _showActions,
           fieldContainerClass: _fieldContainerClass,
           mobileStickyActions: _mobileStickyActions,
+          // Remaining FormSchema-level props that are NOT valid <form> DOM
+          // attributes. Some callers / the SDUI dispatch spread the whole form
+          // node at the top level (in addition to `schema`), so these arrive in
+          // `props` and would leak onto the DOM — React warns "does not
+          // recognize the `objectName` prop" and "Unknown event handler
+          // property `onDirtyChange`" (seen on every object list view). The
+          // `schema` destructure above already consumes them; drop the
+          // top-level copies here so nothing bleeds through `...formProps`.
+          objectName: _objectName,
+          onDirtyChange: _onDirtyChangeProp,
+          onCancel: _onCancelProp,
+          fields: _fields,
+          layout: _layout,
+          columns: _columns,
+          validationMode: _validationMode,
+          disabled: _disabledProp,
 	        ...formProps
 	    } = props;
 

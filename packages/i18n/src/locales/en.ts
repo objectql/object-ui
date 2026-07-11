@@ -334,6 +334,11 @@ const en = {
         message:
           'User accounts are provisioned by the authentication provider, not created here. Invite teammates to your organization and they appear automatically on first sign-in (SSO just-in-time provisioning). App end-users arrive when they sign up through your app.',
       },
+      betterAuthTeam: {
+        title: 'No teams yet',
+        message:
+          'Teams group members within an organization. Create one with “Create Team”, or they arrive through your auth provider’s organization and SSO provisioning flows.',
+      },
     },
     showAll: 'Show all',
     pullToRefresh: 'Pull to refresh',

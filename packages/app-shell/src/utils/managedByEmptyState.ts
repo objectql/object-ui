@@ -78,6 +78,22 @@ export function resolveManagedByEmptyState(
           }),
         };
       }
+      // `sys_team` is the other identity table that CAN be created by hand —
+      // the `create_team` toolbar action (multi-org gated) hits better-auth's
+      // `organization/create-team`. The generic "not added by hand here" copy
+      // below would flatly contradict that visible Create Team button
+      // (objectui review — the reported empty-state/CTA mismatch). Give teams
+      // their own accurate copy instead of the identity-record disclaimer.
+      if (objectName === 'sys_team') {
+        return {
+          icon: 'Users',
+          title: t('list.managedBy.betterAuthTeam.title', { defaultValue: 'No teams yet' }),
+          message: t('list.managedBy.betterAuthTeam.message', {
+            defaultValue:
+              'Teams group members within an organization. Create one with “Create Team”, or they arrive through your auth provider’s organization and SSO provisioning flows.',
+          }),
+        };
+      }
       return {
         icon: 'ShieldAlert',
         title: t('list.managedBy.betterAuth.title', { defaultValue: 'No identity records' }),
