@@ -315,8 +315,22 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
           const detail = (body as any)?.error || (body as any)?.message || `HTTP ${res.status}`;
           return { success: false, error: detail };
         }
-        const data = await res.json().catch(() => ({}));
+        const json = await res.json().catch(() => ({}));
         if (action.refreshAfter !== false) refresh();
+        // Unwrap the ObjectStack `{ success, data }` envelope so `result.data`
+        // is the inner payload — the contract every `result.data` consumer
+        // expects. The action `resultDialog` field paths (e.g. `user.email`,
+        // `temporaryPassword`) and the dynamic-toast `result.data.message` are
+        // all written relative to the inner `data`. flowHandler and
+        // serverActionHandler already unwrap `json.data`; apiHandler was the
+        // lone handler that leaked the whole envelope, which blanked every
+        // resultDialog whose paths didn't redundantly prefix `data.` (the
+        // "Create User temporary password shows empty" bug). Bare,
+        // non-enveloped responses (some stock better-auth bodies) pass through
+        // unchanged.
+        const data = json && typeof json === 'object' && !Array.isArray(json) && 'data' in json
+          ? (json as { data: unknown }).data
+          : json;
         return { success: true, data, reload: action.refreshAfter !== false };
       }
 

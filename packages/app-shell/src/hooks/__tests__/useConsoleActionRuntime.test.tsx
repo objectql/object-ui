@@ -90,6 +90,43 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
+  it('apiHandler unwraps the `{ success, data }` envelope so result.data is the inner payload (create_user password reveal)', async () => {
+    // The admin/create-user wrapper returns `{ success, data: { user,
+    // temporaryPassword } }`. The action `resultDialog` field paths
+    // (`user.email`, `temporaryPassword`) are written relative to the INNER
+    // `data`, matching flowHandler / serverActionHandler which already unwrap.
+    // Pre-fix apiHandler leaked the whole envelope, so ActionResultDialog's
+    // readPath(envelope, 'user.email') resolved to undefined and BOTH the email
+    // and temporary-password fields rendered blank — the reported bug.
+    authFetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { user: { id: 'u9', email: 'new@acme.co' }, temporaryPassword: 'Tmp-abc123!' },
+      }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.apiHandler({
+        type: 'api', name: 'create_user', target: '/api/v1/auth/admin/create-user',
+        params: { email: 'new@acme.co' },
+      } as any);
+    });
+
+    expect(res.success).toBe(true);
+    // The inner payload — not the envelope. readPath(data, 'user.email') and
+    // readPath(data, 'temporaryPassword') now resolve in ActionResultDialog.
+    expect(res.data).toEqual({
+      user: { id: 'u9', email: 'new@acme.co' },
+      temporaryPassword: 'Tmp-abc123!',
+    });
+    expect((res.data as any).success).toBeUndefined();
+  });
+
   it('apiHandler surfaces a failed response and does not refresh', async () => {
     authFetchSpy.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'Forbidden' }) });
     const onRefresh = vi.fn();
