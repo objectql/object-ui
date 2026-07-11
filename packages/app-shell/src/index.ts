@@ -216,6 +216,9 @@ import './console/marketplace/InstalledListWidget';
 import './console/connect/ConnectAgentWidget';
 // SDUI widget for the Cloud Welcome page's state-aware onboarding next-step.
 import './console/home/CloudOnboardingNext';
+// SDUI widget: read-only admin diagnostic for the env's effective AI model
+// (cloud#797) — fetches GET /api/v1/ai/effective-model.
+import './console/diagnostics/CloudAiModelStatus';
 
 // Phase 3c — generic metadata admin engine. Re-exported so plugins
 // can call `registerMetadataResource()` to override the per-type
