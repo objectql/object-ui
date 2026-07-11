@@ -438,7 +438,26 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     if (!objectSchema) return;
 
     const generatedFields: FormField[] = [];
-    
+
+    // Managed-object blanket lock (ADR-0092 D4). Non-`platform` lifecycle
+    // buckets (config / system / append-only / better-auth) historically had
+    // no generic edit affordance, so every field was disabled as a defensive
+    // default. An object can now OPEN per-record editing for the current mode
+    // via `userActions.{edit,create}` (e.g. sys_user opens `edit` for its
+    // profile fields); when it does, we drop the blanket lock and honor each
+    // field's own `readonly` flag instead. Mirrors the server's
+    // resolveCrudAffordances contract — managed buckets default the affordance
+    // off, so only an explicit `=== true` override unlocks. The server-side
+    // write guard remains the real boundary; this is UX only.
+    const managed = !!objectSchema?.managedBy && objectSchema.managedBy !== 'platform';
+    const modeAffordanceOpen =
+      schema.mode === 'edit'
+        ? (objectSchema as any)?.userActions?.edit === true
+        : schema.mode === 'create'
+          ? (objectSchema as any)?.userActions?.create === true
+          : false;
+    const managedBlanketLock = managed && !modeAffordanceOpen;
+
     // Determine which fields to include
     const fieldsToShow = schema.fields || Object.keys(objectSchema.fields || {});
     
@@ -472,7 +491,7 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           label: fieldLabel(schema.objectName, name, field.label || fieldName),
           type: mapFieldTypeToFormType(field.type),
           required: field.required || false,
-          disabled: schema.readOnly || schema.mode === 'view' || field.readonly || (objectSchema?.managedBy && objectSchema.managedBy !== 'platform'),
+          disabled: schema.readOnly || schema.mode === 'view' || field.readonly || managedBlanketLock,
           placeholder: field.placeholder,
           description: field.help || field.description,
           validation: buildValidationRules(field),
