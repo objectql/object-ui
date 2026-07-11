@@ -1,5 +1,33 @@
 # @object-ui/app-shell — Changelog
 
+## 13.1.1
+
+### Patch Changes
+
+- 672f18e: Access pillar: the 已分配用户 section now lists EFFECTIVE holders — direct
+  grants ∪ holders of every position bound to the set — with per-row
+  attribution badges (直授 / 经岗位 X). Position-held rows are not removable
+  here (remove on the position's assignments); an `everyone`-anchor binding
+  renders as a note ("every signed-in member holds this set") instead of
+  enumerating the tenant (objectui#2382 — the direct-grants-only list told
+  admins "0 users" for any normally-administered set). The explain panel's
+  user field gains a chevron so "pick another user" is discoverable
+  (objectui#2381 — the picker existed but read as static text).
+- Updated dependencies [80901aa]
+  - @object-ui/components@13.1.1
+  - @object-ui/fields@13.1.1
+  - @object-ui/layout@13.1.1
+  - @object-ui/plugin-editor@13.1.1
+  - @object-ui/types@13.1.1
+  - @object-ui/core@13.1.1
+  - @object-ui/i18n@13.1.1
+  - @object-ui/react@13.1.1
+  - @object-ui/data-objectstack@13.1.1
+  - @object-ui/auth@13.1.1
+  - @object-ui/permissions@13.1.1
+  - @object-ui/collaboration@13.1.1
+  - @object-ui/providers@13.1.1
+
 ## 13.1.0
 
 ### Minor Changes

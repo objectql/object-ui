@@ -1,5 +1,12 @@
 # Changelog
 
+## 13.1.1
+
+### Patch Changes
+
+- @object-ui/types@13.1.1
+- @object-ui/core@13.1.1
+
 ## 13.1.0
 
 ### Patch Changes
