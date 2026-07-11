@@ -1118,7 +1118,11 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       maxHeight = '500px',
       enableMarkdown: _enableMarkdown = true,
       enableFileUpload = false,
-      acceptedFileTypes = 'image/*,.pdf,.doc,.docx,.txt',
+      // Spreadsheets included (cloud#797 WS3): the AI build panel parses
+      // .xlsx/.xlsm/.csv/.tsv attachments locally and briefs the agent — an
+      // accept list without them made that whole flow unreachable from the UI
+      // (the composer's type filter rejected the file before anything ran).
+      acceptedFileTypes = 'image/*,.pdf,.doc,.docx,.txt,.csv,.tsv,.xlsx,.xlsm',
       maxFileSize = 10 * 1024 * 1024,
       suggestions,
       labels,
