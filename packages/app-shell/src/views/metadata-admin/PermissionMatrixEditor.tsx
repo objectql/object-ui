@@ -67,7 +67,6 @@ import { PageShell } from './PageShell';
 import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
 import { resolveResourceConfig } from './registry';
 import { t as translate, detectLocale } from './i18n';
-import { AssignedUsersSection } from './AssignedUsersSection';
 import { PermissionAdvancedFacets } from './PermissionAdvancedFacets';
 import {
   mergePermissionSlice,
@@ -625,11 +624,10 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             t={t}
           />
         </div>
-        {/* Manage Assignments — generic "Assigned Users" via the related-list
-            primitive (works for every permission set; `ai_seat` is one of them). */}
-        <div className="shrink-0 border-t max-h-80 overflow-auto bg-background">
-          <AssignedUsersSection permissionSetName={name} />
-        </div>
+        {/* ADR-0056 P4 — user assignment MOVED to the Setup sys_permission_set
+            record page (RecordPermissionAssignmentsRenderer, P1b). In the pure
+            model this editor is the *design* surface (facets only); *assigning*
+            users is a Setup act, so it no longer lives here. */}
       </div>
 
       {/* Destructive-change dialog */}
