@@ -35,6 +35,7 @@ import type { DetailViewSchema, FeedItem, HighlightField } from '@object-ui/type
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals } from '../hooks/useRecordApprovals';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
+import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer';
 import { getRecordDisplayName } from '../utils';
 import { useFavorites } from '../hooks/useFavorites';
 import { useActionModal } from '../hooks/useActionModal';
@@ -2018,6 +2019,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 >
                   <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
                 </RelatedRecordActionsBridge>
+                {/* ADR-0056 P1b — user assignment lives in Setup (the pure
+                    model): the permission set's facets render read-only as
+                    summary + Studio deep-link, and admins add/remove users
+                    here. Rendered directly (mirrors RecordAttachmentsPanel)
+                    inside RecordContextProvider so it reads the set's name. */}
+                {objectName === 'sys_permission_set' && pureRecordId && (
+                  <div className="mt-6">
+                    <RecordPermissionAssignmentsRenderer />
+                  </div>
+                )}
                 {/* Generic Attachments panel (#2727) — opt-in via
                     `enable.files: true`; the server rejects attachments
                     targeting any other object (403 FILES_DISABLED). */}
