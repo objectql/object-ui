@@ -68,6 +68,7 @@ import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from 
 import { resolveResourceConfig } from './registry';
 import { t as translate, detectLocale } from './i18n';
 import { AssignedUsersSection } from './AssignedUsersSection';
+import { PermissionAdvancedFacets } from './PermissionAdvancedFacets';
 import {
   mergePermissionSlice,
   scopePermissionSet,
@@ -190,6 +191,24 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   >(null);
   const [filter, setFilter] = React.useState('');
   const [showOnlyEnabled, setShowOnlyEnabled] = React.useState(false);
+  // All permission-set api-names — the admin-scope editor's assignable
+  // allowlist picks from these (ADR-0056 P3).
+  const [allSetNames, setAllSetNames] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    client
+      .list<{ name?: string }>('permission', {})
+      .then((rows) => {
+        if (!cancelled)
+          setAllSetNames(
+            (rows || []).map((r) => r?.name).filter((n): n is string => !!n),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   /* ── Load draft + object catalog ───────────────────────────── */
   React.useEffect(() => {
@@ -594,6 +613,16 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             onObjectPerm={updateObjectPerm}
             onFieldPerm={updateFieldPerm}
             onBulkSet={bulkSetObject}
+          />
+          {/* Advanced facets (ADR-0056 P3) — RLS / tab visibility / delegated
+              admin scope, structured editors instead of raw JSON. Collapsed by
+              default so they don't crowd the object matrix. */}
+          <PermissionAdvancedFacets
+            draft={draft}
+            setDraft={setDraft}
+            writable={writable}
+            allSetNames={allSetNames}
+            t={t}
           />
         </div>
         {/* Manage Assignments — generic "Assigned Users" via the related-list
