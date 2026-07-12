@@ -61,6 +61,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@object-ui/components';
+import { useAdapter } from '@object-ui/react';
+import { CapabilityMultiSelectField, parseCapabilityNames } from '@object-ui/fields';
 import { PageShell } from './PageShell';
 import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
 import { resolveResourceConfig } from './registry';
@@ -160,6 +162,10 @@ export interface PermissionMatrixEditPageProps {
 export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce }: PermissionMatrixEditPageProps) {
   const navigate = useNavigate();
   const client = useMetadataClient();
+  // Data adapter (records) — the capability picker reads the live sys_capability
+  // registry (ADR-0056 P2). The metadata `client` handles the draft; capability
+  // rows are data, fetched like AssignedUsersSection does.
+  const adapter = useAdapter();
   const { entries } = useMetadataTypes(client);
   const entry: RichMetadataTypeEntry | undefined = entries.find((t) => t.type === type);
   const resolved = resolveResourceConfig(type, entry);
@@ -517,6 +523,28 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
               {t('perm.readOnly')}
             </Badge>
           )}
+        </div>
+
+        {/* System Capabilities (ADR-0056 P2) — set-level platform/org
+            capabilities (e.g. studio.access, manage_users). Designed here in
+            Studio; Setup renders them read-only (PermissionFacetLink). Stored
+            as PermissionSetDraft.systemPermissions (string[]); the picker
+            round-trips via a JSON string, so parse back into the array the
+            draft model uses. Persisted by the whole-record Save at env scope. */}
+        <div className="px-6 py-3 border-b">
+          <Label className="text-xs">{t('perm.field.systemCapabilities')}</Label>
+          <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+            {t('perm.field.systemCapabilitiesHelp')}
+          </p>
+          <CapabilityMultiSelectField
+            value={JSON.stringify(draft.systemPermissions ?? [])}
+            onChange={(v: unknown) =>
+              setDraft((p) => ({ ...p, systemPermissions: parseCapabilityNames(v) }))
+            }
+            field={{ name: 'system_permissions' } as any}
+            dataSource={adapter as any}
+            readonly={!writable}
+          />
         </div>
 
         {/* Filter bar */}

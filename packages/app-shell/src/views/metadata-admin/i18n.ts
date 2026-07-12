@@ -734,6 +734,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'perm.stat.fieldOverrides': 'Field overrides',
   'perm.stat.objectsSuffix': 'objects',
   'perm.subtitle.set': 'Permission set',
+  'perm.field.systemCapabilities': 'System Capabilities',
+  'perm.field.systemCapabilitiesHelp':
+    'Platform / org capabilities granted to holders of this set (e.g. Studio access, user management). Designed here; Setup shows them read-only.',
   'perm.loading': 'Loading permission set {name}…',
   'perm.readOnly': 'Read-only (OS_METADATA_WRITABLE not enabled)',
   // Designer wrapper
@@ -1909,6 +1912,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'perm.stat.fieldOverrides': '字段覆盖',
   'perm.stat.objectsSuffix': '个对象',
   'perm.subtitle.set': '权限集',
+  'perm.field.systemCapabilities': '系统能力',
+  'perm.field.systemCapabilitiesHelp':
+    '授予此权限集持有者的平台/组织能力(如 Studio 访问、用户管理)。在此设计,Setup 中只读展示。',
   'perm.loading': '加载权限集 {name}…',
   'perm.readOnly': '只读（OS_METADATA_WRITABLE 未启用）',
   // Designer wrapper
