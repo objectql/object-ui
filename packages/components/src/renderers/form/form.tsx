@@ -121,7 +121,7 @@ const computeDirty = (
 };
 
 const BUILTIN_FIELD_TYPES = new Set(['input', 'textarea', 'checkbox', 'switch', 'select']);
-const DATA_SOURCE_FIELD_TYPES = new Set(['lookup', 'master_detail', 'tree']);
+const DATA_SOURCE_FIELD_TYPES = new Set(['lookup', 'master_detail', 'tree', 'capability-multiselect']);
 
 function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
   const {

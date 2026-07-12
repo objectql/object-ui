@@ -507,6 +507,12 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
           group: field.group,
           // Important: Pass the original field metadata so widgets can access properties like precision, currency, etc.
           field: field,
+          // A per-field widget override (e.g. capability-multiselect stamped onto
+          // sys_permission_set.system_permissions by MetadataProvider, ADR-0056
+          // P2). `form.tsx` resolves `widget || type`, so this makes the
+          // auto-generated (no-form-view) form honor the override just like the
+          // authored-section path already does (sectionFields.ts).
+          widget: (field as any).widget,
         };
 
         // Add field-specific properties

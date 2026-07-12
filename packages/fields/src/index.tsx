@@ -179,6 +179,7 @@ import { CurrencyField } from './widgets/CurrencyField';
 import { TextAreaField } from './widgets/TextAreaField';
 import { RichTextField } from './widgets/RichTextField';
 import { LookupField } from './widgets/LookupField';
+import { CapabilityMultiSelectField } from './widgets/CapabilityMultiSelectField';
 import { DateTimeField } from './widgets/DateTimeField';
 import { TimeField } from './widgets/TimeField';
 import { PercentField } from './widgets/PercentField';
@@ -2152,6 +2153,12 @@ export function registerFields() {
   // display widget remains the default for { type: 'html', content }.
   ComponentRegistry.register('html', createFieldRenderer(RichTextField), { namespace: 'field', skipFallback: true });
   ComponentRegistry.register('lookup', createFieldRenderer(LookupField), { namespace: 'field' });
+  // Capability multi-select (ADR-0056 P2) — reached only via the field
+  // `widget: 'capability-multiselect'` hint (see MetadataProvider), never a bare
+  // field type. Registered WITHOUT createFieldRenderer: it is a fully-controlled
+  // widget (value/onChange from RHF), so the wrapper's extra label + local value
+  // buffer would only duplicate the form's FormLabel and desync the value.
+  ComponentRegistry.register('capability-multiselect', CapabilityMultiSelectField, { namespace: 'field', skipFallback: true });
   // master_detail = child-side FK lookup (single value, typically required). See
   // fieldWidgetMap above for rationale.
   ComponentRegistry.register('master_detail', createFieldRenderer(LookupField), { namespace: 'field' });
@@ -2212,6 +2219,7 @@ export * from './widgets/PasswordField';
 export * from './widgets/TextAreaField';
 export * from './widgets/RichTextField';
 export * from './widgets/LookupField';
+export * from './widgets/CapabilityMultiSelectField';
 export * from './widgets/RecordPickerDialog';
 export * from './widgets/FileField';
 export * from './widgets/ImageField';

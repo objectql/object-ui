@@ -25,7 +25,7 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
-import { getCellRenderer, resolveCellRendererType, SelectField, BooleanField, LookupField, UserField, coerceToSafeValue } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType, SelectField, BooleanField, LookupField, UserField, CapabilityMultiSelectField, coerceToSafeValue } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
 import { useDetailTranslation } from './useDetailTranslation';
@@ -214,6 +214,10 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       if (objectDefField.precision !== undefined && enrichedField.precision === undefined) enrichedField.precision = objectDefField.precision;
       if ((objectDefField as any).scale !== undefined && (enrichedField as any).scale === undefined) (enrichedField as any).scale = (objectDefField as any).scale;
       if (objectDefField.format && !enrichedField.format) enrichedField.format = objectDefField.format;
+      // Per-field widget override (ADR-0056 P2) — carry it from the object
+      // metadata so the inline-edit widget branch (and read cell) can honor a
+      // structured editor even when the synthesized section field didn't include it.
+      if ((objectDefField as any).widget && !enrichedField.widget) enrichedField.widget = (objectDefField as any).widget;
       const refTarget = objectDefField.reference_to || objectDefField.reference;
       if (refTarget && !enrichedField.reference_to) enrichedField.reference_to = refTarget;
       if (objectDefField.reference_field && !enrichedField.reference_field) enrichedField.reference_field = objectDefField.reference_field;
@@ -290,6 +294,21 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
           <div className="min-h-[44px] sm:min-h-0">
             {(() => {
               const editType = enrichedField.type || field.type;
+              // Per-field widget override (ADR-0056 P2) — honor a `widget` hint
+              // before the type switch so a structured editor (e.g. the
+              // capability multi-select on sys_permission_set.system_permissions)
+              // replaces the raw type in inline edit too, matching the form path.
+              const editWidget = (enrichedField as any).widget || (field as any).widget;
+              if (editWidget === 'capability-multiselect') {
+                return (
+                  <CapabilityMultiSelectField
+                    value={value}
+                    onChange={(v: any) => onFieldChange?.(field.name, v)}
+                    field={enrichedField as any}
+                    dataSource={dataSource}
+                  />
+                );
+              }
               // Picklist → real Select widget so users see localized
               // option labels and can't free-type invalid values.
               if (editType === 'select' && Array.isArray(enrichedField.options) && enrichedField.options.length > 0) {

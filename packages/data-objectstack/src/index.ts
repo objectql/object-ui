@@ -1608,7 +1608,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       const schema = await this.metadataCache.get(objectName, () =>
         this.fetchObjectSchemaFresh(objectName),
       );
-      
+
+      // ADR-0056 P2 (epic #2398): stamp structured-widget hints onto specific
+      // platform fields. This is the single choke point both the record form
+      // (ObjectForm) and the detail view (DetailView/DetailSection) read the
+      // schema through, so one pass here reaches every edit surface.
+      this.applyFieldWidgetOverrides(objectName, schema);
+
       return schema;
     } catch (error: unknown) {
       // Check if it's a 404 error
@@ -1623,6 +1629,35 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       }
       
       throw createErrorFromResponse(errorObj, `getObjectSchema(${objectName})`);
+    }
+  }
+
+  /**
+   * ADR-0056 P2 (epic #2398) — stamp structured-widget hints onto platform
+   * fields whose framework type is a storage primitive (e.g. `textarea`) but
+   * whose authoring UX should be a structured editor. Only the render `widget`
+   * is added; the field's `type` (the storage contract) is untouched. Applied
+   * idempotently to the cached schema so form + detail both honor it. Widget
+   * components are registered as `field:<widget>` in `@object-ui/fields`.
+   */
+  private applyFieldWidgetOverrides(objectName: string, schema: unknown): void {
+    const OVERRIDES: Record<string, Record<string, string>> = {
+      // system_permissions stores a JSON-string array of capability names —
+      // edit it as a capability multi-select, never a raw JSON textarea.
+      sys_permission_set: { system_permissions: 'capability-multiselect' },
+    };
+    const overrides = OVERRIDES[objectName];
+    const fields =
+      schema && typeof schema === 'object' ? (schema as { fields?: unknown }).fields : null;
+    if (!overrides || !fields) return;
+    for (const [fname, widget] of Object.entries(overrides)) {
+      if (Array.isArray(fields)) {
+        const f = fields.find((x: any) => x?.name === fname);
+        if (f && !f.widget) f.widget = widget;
+      } else {
+        const f = (fields as Record<string, any>)[fname];
+        if (f && !f.widget) f.widget = widget;
+      }
     }
   }
 
