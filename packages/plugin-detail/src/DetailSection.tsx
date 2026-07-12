@@ -23,7 +23,7 @@ import {
   TooltipTrigger,
   useIsMobile,
 } from '@object-ui/components';
-import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff, Pencil } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType, SelectField, BooleanField, LookupField, UserField, coerceToSafeValue } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
@@ -108,6 +108,15 @@ export interface DetailSectionProps {
   isEditing?: boolean;
   /** Callback when a field value changes during inline editing */
   onFieldChange?: (field: string, value: any) => void;
+  /**
+   * Enter inline-edit mode focused on a specific field — wired to the per-field
+   * double-click / hover-pencil affordances. Supplied ONLY when the record is
+   * inline-editable (object lifecycle + permission gated upstream), so its
+   * presence is what surfaces those affordances.
+   */
+  onEnterInlineEdit?: (fieldName: string) => void;
+  /** Field to auto-focus when inline edit is entered from a field. */
+  autoFocusField?: string | null;
   /** DataSource used by reference (lookup/master_detail/user) widgets during inline editing */
   dataSource?: any;
   /** Virtual scrolling configuration for sections with many fields */
@@ -122,6 +131,8 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
   objectName,
   isEditing = false,
   onFieldChange,
+  onEnterInlineEdit,
+  autoFocusField,
   dataSource,
   virtualScroll,
 }) => {
@@ -223,6 +234,17 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       enrichedField.options = translateOptions(objectName, field.name, enrichedField.options as any);
     }
 
+    // Inline-edit eligibility for THIS field. Mirrors the input-branch gate so
+    // the pencil / double-click affordance appears iff the field can actually
+    // become an input: computed types (formula/summary/rollup/auto_number) and
+    // fields explicitly flagged `readonly` are never editable. `onEnterInlineEdit`
+    // is only threaded when the record itself is inline-editable, so its presence
+    // carries the object-lifecycle + permission gate.
+    const inlineEditType = enrichedField.type || field.type;
+    const isComputedField = TEXTUAL_REF_FALLBACK_TYPES.has(inlineEditType as string);
+    const fieldEditable = !field.readonly && !isComputedField;
+    const canInlineEditField = fieldEditable && !!onEnterInlineEdit;
+
     const displayValue = (() => {
       const isEmpty = value === null || value === undefined || value === '';
       if (isEmpty) {
@@ -248,6 +270,10 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       return String(value);
     })();
     const canCopy = value !== null && value !== undefined && value !== '';
+    // An editable field surfaces the pencil (edit) affordance instead of the
+    // copy affordance, and reserves single-click for text selection — so
+    // click-to-copy only applies to non-editable fields.
+    const copyInteractive = canCopy && !canInlineEditField;
     const isCopied = copiedField === field.name;
     const fieldLabelText = fieldLabel(objectName || '', field.name, field.label || field.name);
 
@@ -255,7 +281,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     // hairline-separated rows inside the section card. The native-feeling
     // settings/detail form for the mobile target. Editing falls back to the
     // stacked layout below so inputs have room.
-    if (isMobile && !(isEditing && !field.readonly)) {
+    if (isMobile && !(isEditing && fieldEditable)) {
       return (
         <div
           key={field.name}
@@ -286,7 +312,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
           {fieldLabel(objectName || '', field.name, field.label || field.name)}
         </div>
-        {isEditing && !field.readonly ? (
+        {isEditing && fieldEditable ? (
           <div className="min-h-[44px] sm:min-h-0">
             {(() => {
               const editType = enrichedField.type || field.type;
@@ -357,6 +383,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
               return (
                 <input
                   type={inputType}
+                  autoFocus={autoFocusField === field.name}
                   className="w-full px-2 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                   value={inputValue}
                   onChange={(e) => {
@@ -378,22 +405,50 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
         <div
           className={cn(
             "flex items-start justify-between gap-2 min-h-[44px] sm:min-h-0 rounded-md",
-            canCopy && "cursor-pointer active:bg-muted/60 transition-colors"
+            copyInteractive && "cursor-pointer active:bg-muted/60 transition-colors",
+            // Editable fields hint interactivity on hover and enter edit on
+            // double-click (Salesforce/Airtable pattern). The negative margin
+            // keeps the hover highlight flush with the label above.
+            canInlineEditField && "cursor-pointer hover:bg-muted/40 transition-colors -mx-1.5 px-1.5"
           )}
-          onClick={canCopy ? () => handleCopyField(field.name, value) : undefined}
-          onKeyDown={canCopy ? (e: React.KeyboardEvent) => {
+          onClick={copyInteractive ? () => handleCopyField(field.name, value) : undefined}
+          onDoubleClick={canInlineEditField ? () => onEnterInlineEdit?.(field.name) : undefined}
+          onKeyDown={copyInteractive ? (e: React.KeyboardEvent) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
               handleCopyField(field.name, value);
             }
           } : undefined}
-          role={canCopy ? "button" : undefined}
-          tabIndex={canCopy ? 0 : undefined}
+          role={copyInteractive ? "button" : undefined}
+          tabIndex={copyInteractive ? 0 : undefined}
+          title={canInlineEditField ? t('detail.editInlineHint') : undefined}
         >
           <div className="text-sm flex-1 min-w-0 break-words py-1">
             {displayValue}
           </div>
-          {canCopy && (
+          {canInlineEditField ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    aria-label={t('detail.editInlineHint')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEnterInlineEdit?.(field.name);
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {t('detail.editInlineHint')}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : canCopy ? (
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -418,7 +473,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          )}
+          ) : null}
         </div>
         )}
       </div>

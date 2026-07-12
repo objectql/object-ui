@@ -26,6 +26,10 @@ export interface SectionGroupProps {
   objectName?: string;
   isEditing?: boolean;
   onFieldChange?: (field: string, value: any) => void;
+  /** Enter inline-edit mode focused on a field (double-click / hover pencil). */
+  onEnterInlineEdit?: (fieldName: string) => void;
+  /** Field to auto-focus when inline edit is entered from a field. */
+  autoFocusField?: string | null;
   /** DataSource used by reference widgets during inline editing */
   dataSource?: any;
 }
@@ -38,6 +42,8 @@ export const SectionGroup: React.FC<SectionGroupProps> = ({
   objectName,
   isEditing = false,
   onFieldChange,
+  onEnterInlineEdit,
+  autoFocusField,
   dataSource,
 }) => {
   const collapsible = group.collapsible ?? true;
@@ -54,6 +60,8 @@ export const SectionGroup: React.FC<SectionGroupProps> = ({
           objectName={objectName}
           isEditing={isEditing}
           onFieldChange={onFieldChange}
+          onEnterInlineEdit={onEnterInlineEdit}
+          autoFocusField={autoFocusField}
           dataSource={dataSource}
         />
       ))}

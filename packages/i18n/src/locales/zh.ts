@@ -571,6 +571,7 @@ const zh = {
     saveChanges: '保存更改',
     saving: '保存中…',
     editFieldsInline: '编辑字段',
+    editInlineHint: '双击编辑',
     lockedByApproval: '审批中已锁定',
     lockedTooltip: '该记录有待审批的请求，编辑已被锁定',
     cancelApproval: '撤回审批',

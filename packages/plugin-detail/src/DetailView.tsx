@@ -183,6 +183,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const [editedValues, setEditedValues] = React.useState<Record<string, any>>({});
   const [isSaving, setIsSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  // Field to auto-focus when inline edit is entered by double-clicking a field.
+  const [autoFocusField, setAutoFocusField] = React.useState<string | null>(null);
   const [objectSchema, setObjectSchema] = React.useState<any>(null);
   const [idCopied, setIdCopied] = React.useState(false);
   const [reloadTick, setReloadTick] = React.useState(0);
@@ -551,6 +553,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
           }
           setEditedValues({});
           setIsInlineEditing(false);
+          setAutoFocusField(null);
         } catch (err: any) {
           // Roll back optimistic update and stay in edit mode so the user
           // can correct the input or cancel.
@@ -580,10 +583,21 @@ export const DetailView: React.FC<DetailViewProps> = ({
     setEditedValues({});
     setIsInlineEditing(false);
     setSaveError(null);
+    setAutoFocusField(null);
   }, []);
 
   const handleInlineFieldChange = React.useCallback((field: string, value: any) => {
     setEditedValues(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  // Enter whole-record inline edit focused on a single field. Wired to the
+  // per-field double-click / hover-pencil affordances in DetailSection.
+  // Mirrors Salesforce: editing any field flips the record into inline edit
+  // with a single Save/Cancel bar, rather than a standalone "Edit fields" toggle.
+  const handleEnterInlineEditField = React.useCallback((fieldName: string) => {
+    setAutoFocusField(fieldName);
+    setIsInlineEditing(true);
+    setSaveError(null);
   }, []);
 
   // Keyboard shortcuts for prev/next record navigation (← / →)
@@ -677,16 +691,9 @@ export const DetailView: React.FC<DetailViewProps> = ({
         onClick: handleEdit,
       });
     }
-    if (inlineEdit) {
-      items.push({
-        name: 'sys_toggle_inline_edit_mobile',
-        label: isInlineEditing ? t('detail.save') : t('detail.editInline'),
-        icon: 'edit',
-        type: 'script',
-        className: 'sm:hidden',
-        onClick: handleInlineEditToggle,
-      });
-    }
+    // No mobile inline-edit toggle: on touch (no hover / double-click) the
+    // primary Edit CTA — which opens the full form — is the single edit path,
+    // so we don't reintroduce a competing "Edit fields" entry in the overflow.
 
     // Universal record-level utilities (desktop + mobile).
     // Duplicate / Export / View History are intentionally omitted until
@@ -711,11 +718,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
     t,
     schema.showEdit,
     schema.showDelete,
-    inlineEdit,
-    isInlineEditing,
     handleShare,
     handleEdit,
-    handleInlineEditToggle,
     handleDelete,
   ]);
 
@@ -1011,27 +1015,26 @@ export const DetailView: React.FC<DetailViewProps> = ({
               </div>
             )}
 
-            {/* Inline Edit Toggle — desktop-only chrome.
-                Mobile fallback lives inside the unified action:bar overflow
-                menu as a `systemActions` entry with `sm:hidden`. */}
-            {inlineEdit && (
+            {/* Inline-edit Save / Cancel bar — rendered only WHILE editing.
+                There is no idle "Edit fields" toggle: inline edit is entered by
+                double-clicking a field (or its hover pencil). The primary Edit
+                CTA below opens the full record form. */}
+            {inlineEdit && isInlineEditing && (
               <>
-                {isInlineEditing && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleInlineEditCancel}
-                        className="gap-2 hidden sm:inline-flex"
-                      >
-                        <X className="h-4 w-4" />
-                        <span className="hidden sm:inline">{t('detail.cancel')}</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>{t('detail.cancelEdit')}</TooltipContent>
-                  </Tooltip>
-                )}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleInlineEditCancel}
+                      className="gap-2 hidden sm:inline-flex"
+                    >
+                      <X className="h-4 w-4" />
+                      <span className="hidden sm:inline">{t('detail.cancel')}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t('detail.cancelEdit')}</TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -1230,6 +1233,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   objectName={schema.objectName}
                   isEditing={isInlineEditing}
                   onFieldChange={handleInlineFieldChange}
+                  onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                  autoFocusField={autoFocusField}
                   dataSource={dataSource}
                 />
               ))
@@ -1244,6 +1249,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   objectName={schema.objectName}
                   isEditing={isInlineEditing}
                   onFieldChange={handleInlineFieldChange}
+                  onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                  autoFocusField={autoFocusField}
                   dataSource={dataSource}
                 />
               ))
@@ -1259,6 +1266,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                 objectName={schema.objectName}
                 isEditing={isInlineEditing}
                 onFieldChange={handleInlineFieldChange}
+                onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                autoFocusField={autoFocusField}
                 dataSource={dataSource}
               />
             )}
@@ -1408,6 +1417,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   objectName={schema.objectName}
                   isEditing={isInlineEditing}
                   onFieldChange={handleInlineFieldChange}
+                  onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                  autoFocusField={autoFocusField}
                   dataSource={dataSource}
                 />
               ))}
@@ -1426,6 +1437,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
                   objectName={schema.objectName}
                   isEditing={isInlineEditing}
                   onFieldChange={handleInlineFieldChange}
+                  onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+                  autoFocusField={autoFocusField}
                   dataSource={dataSource}
                 />
               ))}
@@ -1444,6 +1457,8 @@ export const DetailView: React.FC<DetailViewProps> = ({
               objectName={schema.objectName}
               isEditing={isInlineEditing}
               onFieldChange={handleInlineFieldChange}
+              onEnterInlineEdit={inlineEdit ? handleEnterInlineEditField : undefined}
+              autoFocusField={autoFocusField}
               dataSource={dataSource}
             />
           )}

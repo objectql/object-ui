@@ -356,10 +356,21 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
       })
     : schema.sections;
 
-  // Inline-edit by default. Matches the default record detail experience
-  // (`RecordDetailView` non-assignedPage branch) where every field is
-  // click-to-edit. Authors can opt out with `inlineEdit: false`.
-  const inlineEditDefault = schema.inlineEdit ?? true;
+  // Inline-edit by default, but gated by the object's lifecycle: system /
+  // append-only / better-auth objects are not user-editable, so the per-field
+  // double-click / pencil affordances must not be offered on them. This mirrors
+  // resolveCrudAffordances (app-shell/utils/crudAffordances.ts) — duplicated
+  // here because plugin-detail cannot depend on app-shell; keep the two in
+  // lockstep. Previously this gate was carried only by the `sys_inline_edit`
+  // header button (removed in #2401); now that double-click is the entry point
+  // the object-editability check has to live at the field-render source.
+  // Authors can still force-disable with `inlineEdit: false`.
+  const NON_EDITABLE_BUCKETS = new Set(['system', 'append-only', 'better-auth']);
+  const managedBy = objSchema?.managedBy as string | undefined;
+  const userEditOverride = (objSchema?.userActions as { edit?: boolean } | undefined)?.edit;
+  const objectInlineEditable =
+    userEditOverride ?? !(managedBy != null && NON_EDITABLE_BUCKETS.has(managedBy));
+  const inlineEditDefault = (schema.inlineEdit ?? true) && objectInlineEditable;
 
   const synthesized: any = {
     type: 'detail-view',

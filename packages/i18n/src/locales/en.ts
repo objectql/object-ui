@@ -491,6 +491,7 @@ const en = {
     saveChanges: 'Save changes',
     saving: 'Saving…',
     editFieldsInline: 'Edit fields',
+    editInlineHint: 'Double-click to edit',
     lockedByApproval: 'Locked for approval',
     lockedTooltip: 'This record has a pending approval request; editing is locked',
     cancelApproval: 'Recall approval',

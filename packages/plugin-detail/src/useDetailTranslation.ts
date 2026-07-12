@@ -64,6 +64,7 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.save': 'Save',
   'detail.saveChanges': 'Save changes',
   'detail.editFieldsInline': 'Edit fields inline',
+  'detail.editInlineHint': 'Double-click to edit',
   'detail.cancel': 'Cancel',
   'detail.cancelEdit': 'Discard changes',
   'detail.openInNewTab': 'Open in new tab',
