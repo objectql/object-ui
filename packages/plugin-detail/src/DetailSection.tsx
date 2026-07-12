@@ -30,6 +30,7 @@ import type { DetailViewSection as DetailViewSectionType, DetailViewField, Field
 import { applyDetailAutoLayout } from './autoLayout';
 import { useDetailTranslation } from './useDetailTranslation';
 import { useSafeFieldLabel } from '@object-ui/react';
+import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 
 /**
  * Compute responsive col-span classes so that col-span never exceeds the
@@ -228,6 +229,13 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     }
 
     const displayValue = (() => {
+      // Per-field widget override (ADR-0056 P1) — a facet designed in Studio
+      // renders read-only as a summary + deep-link, even when empty (so the
+      // admin still sees where to author it), never as raw [Object]/JSON.
+      const displayWidget = (enrichedField as any).widget || (field as any).widget;
+      if (displayWidget === 'permission-facet-link') {
+        return <PermissionFacetLink value={value} field={enrichedField as any} />;
+      }
       const isEmpty = value === null || value === undefined || value === '';
       if (isEmpty) {
         return (
@@ -299,6 +307,11 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
               // capability multi-select on sys_permission_set.system_permissions)
               // replaces the raw type in inline edit too, matching the form path.
               const editWidget = (enrichedField as any).widget || (field as any).widget;
+              // Permission facets are designed in Studio, never edited in Setup —
+              // even in section edit mode they stay a read-only summary + deep-link.
+              if (editWidget === 'permission-facet-link') {
+                return <PermissionFacetLink value={value} field={enrichedField as any} />;
+              }
               if (editWidget === 'capability-multiselect') {
                 return (
                   <CapabilityMultiSelectField

@@ -1642,9 +1642,20 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    */
   private applyFieldWidgetOverrides(objectName: string, schema: unknown): void {
     const OVERRIDES: Record<string, Record<string, string>> = {
-      // system_permissions stores a JSON-string array of capability names —
-      // edit it as a capability multi-select, never a raw JSON textarea.
-      sys_permission_set: { system_permissions: 'capability-multiselect' },
+      // ADR-0056 pure model — a permission set's six authorization facets are
+      // *designed* in Studio's structured editors and only *assigned* (to
+      // users) in Setup. In Setup they render read-only as a summary + a
+      // "Design in Studio →" deep-link (the `permission-facet-link` widget),
+      // never as raw [Object]/JSON. The capability *editor* itself lives in
+      // Studio (epic #2398 P2).
+      sys_permission_set: {
+        object_permissions: 'permission-facet-link',
+        field_permissions: 'permission-facet-link',
+        system_permissions: 'permission-facet-link',
+        row_level_security: 'permission-facet-link',
+        tab_permissions: 'permission-facet-link',
+        admin_scope: 'permission-facet-link',
+      },
     };
     const overrides = OVERRIDES[objectName];
     const fields =

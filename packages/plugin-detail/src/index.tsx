@@ -21,6 +21,7 @@ import { RecordQuickActionsRenderer } from './renderers/record-quick-actions';
 import { RecordHistoryRenderer } from './renderers/record-history';
 import { RecordReferenceRailRenderer } from './renderers/record-reference-rail';
 import { RecordAlertRenderer } from './renderers/record-alert';
+import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import type { DetailViewSchema } from '@object-ui/types';
 
 export { DetailView, DetailSection, DetailTabs, RelatedList };
@@ -324,4 +325,15 @@ ComponentRegistry.register('record:alert', RecordAlertRenderer, {
   category: 'record',
   label: 'Alert Banner',
   icon: 'AlertTriangle',
+});
+
+// ADR-0056 P1 — the `permission-facet-link` field widget renders a
+// `sys_permission_set` authorization facet (object/field/system/RLS/tab/
+// admin_scope) read-only as a summary + Studio deep-link. Registered here so
+// the record form and inline edit resolve `field:permission-facet-link`; the
+// detail read path special-cases it in DetailSection. Setup never edits these
+// facets — they are designed in Studio's structured editors.
+ComponentRegistry.register('permission-facet-link', PermissionFacetLink, {
+  namespace: 'field',
+  skipFallback: true,
 });
