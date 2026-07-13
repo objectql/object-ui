@@ -1587,13 +1587,21 @@ export function ChatPane({
 
   // A1.b bind-on-create: report the binding to the page (which re-keys the
   // conversation and puts `?package=` on the URL). Deferred behind `canBind`
-  // (the conversation id must be in the URL first — see ChatPaneProps); the
-  // dep re-fires it when the mirror lands, and again on a hydrated reload of
-  // a bound thread whose URL lost the `?package=` (self-heal).
+  // (the conversation id must be in the URL first — see ChatPaneProps) AND
+  // behind the turn being idle: the binding draft lands mid-stream, but
+  // re-keying then races the live stream (the scope-change refetch reads the
+  // conversation BEFORE the server persists the turn, and a stream hiccup's
+  // reconcile can then replace the live thread with that not-yet-persisted
+  // EMPTY history — the blanked-pane failure seen live). Waiting for
+  // `isLoading` to drop means the turn is fully persisted server-side, so
+  // every post-bind read returns the real history; the chip binding a moment
+  // after the build lands also matches the "named on first save" idiom. The
+  // deps re-fire the notification on each gate opening (mirror landed, stream
+  // ended, hydrated reload of a bound thread missing `?package=`).
   useEffect(() => {
-    if (!isBuildSurface || !canBind || !boundPackageId || editPackageId) return;
+    if (!isBuildSurface || !canBind || !boundPackageId || editPackageId || isLoading) return;
     onPackageBound?.(boundPackageId);
-  }, [isBuildSurface, canBind, boundPackageId, editPackageId, onPackageBound]);
+  }, [isBuildSurface, canBind, boundPackageId, editPackageId, isLoading, onPackageBound]);
 
   // A1.b switcher menu: every published app with a package identity, deduped
   // by package (apps sharing a package share the build thread — the scope is

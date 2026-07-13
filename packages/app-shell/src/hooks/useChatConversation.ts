@@ -650,7 +650,19 @@ export function useChatConversation(
             writeCache(key, existing.id);
             setConversationId(existing.id);
             const messages = toUIMessages(existing.messages);
-            setInitialMessages(messages.length > 0 ? messages : readMessageCache(existing.id));
+            const next = messages.length > 0 ? messages : readMessageCache(existing.id);
+            // A re-resolve of the conversation we ALREADY hold (e.g. the scope
+            // prop changed after an A1.b re-key, or the URL-mirror flipped
+            // activeId onto the resolved id) can race an in-flight turn: the
+            // server persists a turn at COMPLETION, so a mid-stream read
+            // returns no history. Never let that empty read wipe hydrated
+            // messages we already have for the SAME conversation — a later
+            // pane remount would hydrate from this state and render an empty
+            // thread. `conversationId` here is the effect-time closure value:
+            // exactly "the conversation whose messages we currently hold".
+            if (next.length > 0 || existing.id !== conversationId) {
+              setInitialMessages(next);
+            }
             resolvedForUserRef.current = userId;
             resolvedScopeRef.current = scope;
             return;

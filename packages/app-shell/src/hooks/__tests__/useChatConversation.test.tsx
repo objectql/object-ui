@@ -796,3 +796,68 @@ describe('useChatConversation — A1.b rekeyScope + legacy-scope fallback', () =
     expect(adoptLegacy).not.toHaveBeenCalled();
   });
 });
+
+// The activeId re-resolve (scope re-key / URL-mirror) can race an in-flight
+// turn: the server persists messages at turn COMPLETION, so a mid-stream read
+// returns none. That empty read must never wipe the messages already hydrated
+// for the SAME conversation — a later pane remount would render an empty
+// thread (the A1.b blanked-pane incident).
+describe('useChatConversation — same-conversation empty re-read preserves hydrated messages', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps initialMessages when a scope-change refetch of the held conversation returns none', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        id: 'conv-a',
+        messages: [{ id: 'm1', role: 'user', content: 'build it' }],
+      }),
+    );
+
+    const { result, rerender } = renderHook(
+      ({ scope }: { scope: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope, activeId: 'conv-a' }),
+      { initialProps: { scope: 'build' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+    expect(result.current.initialMessages).toHaveLength(1);
+
+    // The A1.b re-key flips the scope; the effect re-resolves the SAME
+    // activeId while the turn is still streaming server-side → no history yet.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'conv-a', messages: [] }));
+    act(() => result.current.rekeyScope('app:crm:build'));
+    rerender({ scope: 'app:crm:build' });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-a');
+    // The empty mid-turn read did NOT clobber the hydrated history.
+    expect(result.current.initialMessages).toHaveLength(1);
+  });
+
+  it('still replaces messages when the activeId resolves a DIFFERENT conversation', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ id: 'conv-a', messages: [{ id: 'm1', role: 'user', content: 'a' }] }),
+    );
+    const { result, rerender } = renderHook(
+      ({ activeId }: { activeId: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope: 'build', activeId }),
+      { initialProps: { activeId: 'conv-a' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+
+    // Sidebar switch to an (untouched) other conversation: empty is the truth.
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'conv-b', messages: [] }));
+    rerender({ activeId: 'conv-b' });
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-b'));
+    expect(result.current.initialMessages).toHaveLength(0);
+  });
+});
