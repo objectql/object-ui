@@ -325,6 +325,15 @@ degradation.
 - **A1.b — bind-on-create + re-key.** Conversation re-keys to `app:X:build`
   when the build mints package X (with a legacy-scope fallback read so
   existing product-scoped threads stay reachable); chip becomes a switcher.
+  **Shipped (#2466)**: `useChatConversation.rekeyScope` (synchronous scope
+  flip so the #2450 scope gate holds through the `?package=` navigate — no
+  pane remount mid-stream) + a `legacyScope`/`adoptLegacy` migration read
+  (adopt the product-only thread iff its own history is bound to X). Keying
+  is client-side only (the per-`(user, scope)` localStorage cache; no server
+  change). Two decisions made explicit: the legacy product-only key is **not
+  cleared** (dock/FAB and bare `/ai/build` keep resolving through it), and
+  re-keying is **latest-wins** (the bound thread most recently open becomes
+  the app's Edit-with-AI thread; older ones stay in sidebar history).
 - **A1.c — cloud follow-up.** Inject the binding into the build agent's
   context block, and add the pending-blueprint rule: *a new authoring request
   while a blueprint awaits approval defaults to AMENDING that blueprint* (the
