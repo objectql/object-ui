@@ -274,6 +274,67 @@ inert; AI is reached only via MCP.
   layout** (properties vs chat on the right). Both are why the rollout is phased
   and reversible.
 
+## Amendment A1 (2026-07-13, Proposed) — build conversations bind a package, lazily
+
+**Motivation — three defects observed in live browser testing (2026-07-13).**
+Build conversations are only HALF-bound today: the "Edit with AI" / Studio
+entries key the thread `app:{pkg}:build` (ADR-0070), but a bare `/ai/build`
+visit — the **magic flow**, the new user's first experience — degrades to the
+product-only scope. Consequences, all reproduced live:
+
+1. **Agent ambiguity.** With a blueprint Awaiting Approval in the SAME thread,
+   a second handoff made the agent ask *"which app do you mean?"* — it has no
+   declarable binding to reason from, so it guesses.
+2. **Thread mixing.** Every package-less build shares ONE global conversation;
+   two unrelated projects interleave in a single thread.
+3. **Continuity break.** The thread that BUILT app X (product-scope) and the
+   thread "Edit with AI" later opens for X (`app:X:build`) are DIFFERENT
+   conversations — the user's original build history is stranded where they
+   will never look for it.
+
+**Decision (proposed).** Every build conversation carries a **package binding
+— visible, switchable, and lazily established** (the Claude-Code-picks-a-repo
+idiom, but the analogy stops at *display*, never at *gating*):
+
+- **Binding chip** in the build surface header (and the P3 dock header once it
+  lands): bound → `📦 <app label> (<pkg id>)`; unbound → **"✨ New app"**. The
+  user always sees the blast radius of edits.
+- **The magic flow starts UNBOUND** — no create-a-package-first friction, the
+  empty-state prompt stays "describe your app". The moment the build creates
+  the package, the conversation **auto-binds and re-keys** to `app:X:build`
+  (untitled-document idiom: named on first save) — healing defect 3. The
+  server already carries the seed of this ("active package" set by a prior
+  build, ADR-0070); the amendment keys the conversation by it and shows it.
+- **Binding = WRITE target** (a cwd, not a cage): the agent may still read
+  other packages; edits land on the bound one. The system prompt states the
+  binding — or "none: you will create one" — which is the structural fix for
+  defect 1.
+- **Switching the chip switches threads**: each app gets its own build
+  conversation (defect 2), exactly as the Studio copilot already keys; the
+  sidebar can group threads by package.
+
+**Relation to P1.** A refinement, not a reversal: the `(user, app, product)`
+key's `app` axis becomes **always present for `build`**, with a draft
+placeholder for not-yet-created packages instead of the silent product-only
+degradation.
+
+**Phasing.**
+- **A1.a — read-only chip.** Display `editPackageId` / the conversation's
+  server-side active package; "New app" when absent. Fold into P3a's dock
+  header design.
+- **A1.b — bind-on-create + re-key.** Conversation re-keys to `app:X:build`
+  when the build mints package X (with a legacy-scope fallback read so
+  existing product-scoped threads stay reachable); chip becomes a switcher.
+- **A1.c — cloud follow-up.** Inject the binding into the build agent's
+  context block, and add the pending-blueprint rule: *a new authoring request
+  while a blueprint awaits approval defaults to AMENDING that blueprint* (the
+  merge/supersede behavior decided for P4's second handoff, made explicit).
+
+**Costs / open points.** The re-key needs a migration read for existing
+product-scoped threads; a deleted bound package needs a terminal chip state
+(read-only thread); concurrent unbound drafts must not collide (the existing
+`forceNew` path already mints separate threads).
+
 ## Open design questions
 
 1. **Dock side under Studio (P3).** ~~Chat right vs properties right.~~
