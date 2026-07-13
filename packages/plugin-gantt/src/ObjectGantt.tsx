@@ -97,6 +97,17 @@ type GanttConfigEx = GanttConfig & {
    */
   lockField?: string;
   /**
+   * How a summary bar's span is computed (汇总条区间). `'children'` (default)
+   * rolls the bar up from its children — min start / max end / duration-weighted
+   * progress — and IGNORES the record's own dates. `'self'` renders the bar from
+   * the record's OWN start/end/progress (自身日期为准), falling back to rollup
+   * only for records without dates (e.g. pure grouping levels). Use `'self'`
+   * when the parent's schedule is authoritative — e.g. 排班计划 whose 派工单
+   * children are locked history: under rollup, dragging the plan persists its
+   * own dates but the bar snaps back to the children's extent on refetch.
+   */
+  summaryExtent?: 'children' | 'self';
+  /**
    * Auto-collapse tree nodes at/below this 0-indexed depth on first render
    * (默认折叠). Roots are depth 0. Every node at depth `>= defaultCollapsedDepth`
    * with children starts folded; the user can still expand them. Example: a
@@ -292,6 +303,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           parentField: schema.parentField,
           typeField: schema.typeField,
           lockField: schema.lockField,
+          summaryExtent: schema.summaryExtent,
           defaultCollapsedDepth: schema.defaultCollapsedDepth,
           tooltipFields: schema.tooltipFields,
           baselineStartField: schema.baselineStartField,
@@ -449,8 +461,24 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return [];
     }
 
-    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, borderColorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField } = ganttConfig;
+    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, borderColorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField, quickFilters } = ganttConfig;
     const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
+
+    // Fallback value→label maps from the view's quickFilters config. When the
+    // data comes from an `api` provider there is no object schema, so select
+    // fields have no option defs — but the same view often declares the exact
+    // label pairs as quick-filter options (e.g. status: completed→已完成).
+    // Reuse them so the tooltip shows display labels, not raw machine values.
+    const quickFilterLabels = new Map<string, Map<string, string>>();
+    for (const qf of quickFilters ?? []) {
+      if (!qf?.field || !Array.isArray(qf.options) || !qf.options.length) continue;
+      const m = new Map<string, string>();
+      for (const opt of qf.options) {
+        if (typeof opt === 'string') m.set(opt, opt);
+        else if (opt && opt.value != null) m.set(String(opt.value), opt.label ?? String(opt.value));
+      }
+      if (m.size) quickFilterLabels.set(qf.field, m);
+    }
 
     // Resolve a value through nested paths like "account.name". Returns the
     // first non-empty string from the path (so lookups that resolve to either a
@@ -510,6 +538,20 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       if (Array.isArray(options) && options.length) {
         const opt = options.find((o) => String(o.value) === String(value));
         if (opt) return opt.label;
+      }
+      // No schema options (api provider has no object schema) → quick-filter
+      // options declared for the same field carry the display labels.
+      if (typeof value !== 'object') {
+        const qfLabel = quickFilterLabels.get(fieldName)?.get(String(value));
+        if (qfLabel != null) return qfLabel;
+      }
+      // No field def at all → sniff ISO date / datetime strings so raw
+      // `2026-08-14T08:00:00.000Z` payloads still format like real date fields.
+      if (type == null && typeof value === 'string') {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return formatDate(value);
+        if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value) && !isNaN(new Date(value).getTime())) {
+          return formatDateTime(value);
+        }
       }
       switch (type) {
         case 'date':
@@ -607,6 +649,9 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         title,
         start: startDate ? new Date(startDate) : new Date(),
         end: endDate ? new Date(endDate) : new Date(),
+        // Whether the record carried real dates (vs the placeholder "today"
+        // above) — summaryExtent:'self' falls back to rollup when it didn't.
+        hasOwnDates: !!(startDate && endDate),
         progress: Math.min(100, Math.max(0, progress || 0)), // Clamp between 0-100
         dependencies: normalizeDependencies(dependencies),
         parent: parentField ? record[parentField] ?? null : undefined,
@@ -1173,6 +1218,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           }
           groupBy={groupByAccessor}
           defaultCollapsedDepth={ganttConfig?.defaultCollapsedDepth}
+          summaryExtent={ganttConfig?.summaryExtent}
           inlineEdit
           onRefresh={
             // Only meaningful when there's a live source to re-read (object or

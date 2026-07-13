@@ -172,6 +172,12 @@ export interface GanttTask {
    * line in the tooltip.
    */
   fields?: Array<{ label: string; value: string }>
+  /**
+   * Whether `start`/`end` came from real record data (true / undefined) or are
+   * placeholders fabricated for date-less records (false). Only consulted by
+   * `summaryExtent: 'self'`, which falls back to child rollup when false.
+   */
+  hasOwnDates?: boolean
 }
 
 /** Timeline granularity — one column per day, week, month, or quarter. */
@@ -365,6 +371,16 @@ export interface GanttViewProps {
    */
   defaultCollapsedDepth?: number
   /**
+   * How a summary bar's span is computed (汇总条区间). `'children'` (default)
+   * rolls up from the children — min start / max end / duration-weighted
+   * progress — ignoring the summary task's own dates. `'self'` draws the bar
+   * from the task's OWN start/end/progress; tasks flagged `hasOwnDates: false`
+   * still roll up (pure grouping levels have no dates of their own). In `'self'`
+   * mode ancestor bars also stop live-stretching while a child is dragged,
+   * since their extent no longer depends on the children.
+   */
+  summaryExtent?: 'children' | 'self'
+  /**
    * Persist the user's layout tweaks (granularity + column/task-list widths)
    * to `localStorage` under this key. On mount the saved layout is restored;
    * the "保存布局" toolbar button writes the current layout. Omit to disable
@@ -541,6 +557,7 @@ export function GanttView({
   groupBy,
   ungroupedLabel = 'Ungrouped',
   defaultCollapsedDepth,
+  summaryExtent = 'children',
   persistLayoutKey,
   onLayoutChange,
   onRefresh,
@@ -1394,7 +1411,13 @@ export function GanttView({
       const children = byParent.get(key) ?? [];
       const hasChildren = children.length > 0;
       const isSummary = hasChildren || t.type === 'summary';
-      const eff = hasChildren
+      // summaryExtent 'self': the summary's own dates are authoritative — the
+      // bar renders (and survives refetch at) exactly what the record says.
+      // Date-less summaries (hasOwnDates === false, e.g. pure grouping levels)
+      // still roll up from their children.
+      const usesSelfExtent =
+        hasChildren && summaryExtent === 'self' && t.hasOwnDates !== false;
+      const eff = hasChildren && !usesSelfExtent
         ? rollup(t, new Set())
         : { start: t.start, end: t.end, progress: t.progress };
       const isMilestone =
@@ -1413,7 +1436,7 @@ export function GanttView({
     // at the bottom rather than dropping rows silently.
     for (const t of displayTasks) if (!visited.has(String(t.id))) walk(t, 0);
     return out;
-  }, [displayTasks, collapsedIds]);
+  }, [displayTasks, collapsedIds, summaryExtent]);
 
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -2250,7 +2273,13 @@ export function GanttView({
         const previewed = computeDragChanges(dragState);
         return styleFor(previewed.start, previewed.end);
       }
-      if (row.isSummary && dragStretchAncestorIds?.has(String(row.task.id))) {
+      if (
+        row.isSummary &&
+        dragStretchAncestorIds?.has(String(row.task.id)) &&
+        // Self-extent summaries don't stretch with their children — their bar
+        // is pinned to their own dates, which a child drag doesn't change.
+        !(summaryExtent === 'self' && row.task.hasOwnDates !== false)
+      ) {
         // Re-roll this ancestor's span over its leaf descendants, substituting
         // the dragged leaf's previewed dates. Summary tasks' own start/end are
         // ignored (they may be placeholders); only leaves define the extent.

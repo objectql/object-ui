@@ -220,6 +220,55 @@ function renderViewWith(tasks: GanttTask[], extra: Record<string, unknown> = {})
   );
 }
 
+describe('GanttView summaryExtent (汇总条区间)', () => {
+  it("'self' renders the summary bar from its OWN dates and progress, not the children rollup", () => {
+    const tasks = [
+      makeTask('p', '2024-06-05T00:00:00.000Z', '2024-06-06T00:00:00.000Z', { progress: 30, hasOwnDates: true }),
+      makeTask('c1', '2024-06-05T00:00:00.000Z', '2024-06-08T00:00:00.000Z', { parent: 'p', progress: 100 }),
+      makeTask('c2', '2024-06-10T00:00:00.000Z', '2024-06-14T00:00:00.000Z', { parent: 'p', progress: 50 }),
+      // Same span as p's own dates, for geometry comparison.
+      makeTask('ref', '2024-06-05T00:00:00.000Z', '2024-06-06T00:00:00.000Z'),
+    ];
+    const { container } = renderViewWith(tasks, { summaryExtent: 'self' });
+    const summary = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    const ref = container.querySelector('[data-testid="gantt-task-bar-ref"]') as HTMLElement;
+    const s = geometry(summary);
+    const r = geometry(ref);
+    // Bar sits exactly on the summary's own 06-05..06-06 window…
+    expect(s.left).toBeCloseTo(r.left, 0);
+    expect(s.left + s.width).toBeCloseTo(r.left + r.width, 0);
+    // …and progress is the record's own, not the weighted child average (71).
+    expect(summary.getAttribute('data-progress')).toBe('30');
+  });
+
+  it("'self' falls back to children rollup for summaries flagged hasOwnDates:false", () => {
+    const tasks = [
+      makeTask('p', '2024-06-05T00:00:00.000Z', '2024-06-05T00:00:00.000Z', { hasOwnDates: false }),
+      makeTask('c1', '2024-06-05T00:00:00.000Z', '2024-06-08T00:00:00.000Z', { parent: 'p' }),
+      makeTask('c2', '2024-06-10T00:00:00.000Z', '2024-06-14T00:00:00.000Z', { parent: 'p' }),
+    ];
+    const { container } = renderViewWith(tasks, { summaryExtent: 'self' });
+    const summary = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    const c1 = geometry(container.querySelector('[data-testid="gantt-task-bar-c1"]') as HTMLElement);
+    const c2 = geometry(container.querySelector('[data-testid="gantt-task-bar-c2"]') as HTMLElement);
+    const s = geometry(summary);
+    expect(s.left).toBeCloseTo(c1.left, 0);
+    expect(s.left + s.width).toBeCloseTo(c2.left + c2.width, 0);
+  });
+
+  it("default ('children') keeps the rollup even when tasks carry hasOwnDates", () => {
+    const tasks = [
+      makeTask('p', '2024-06-05T00:00:00.000Z', '2024-06-06T00:00:00.000Z', { hasOwnDates: true }),
+      makeTask('c1', '2024-06-05T00:00:00.000Z', '2024-06-08T00:00:00.000Z', { parent: 'p' }),
+      makeTask('c2', '2024-06-10T00:00:00.000Z', '2024-06-14T00:00:00.000Z', { parent: 'p' }),
+    ];
+    const { container } = renderViewWith(tasks);
+    const summary = geometry(container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement);
+    const c2 = geometry(container.querySelector('[data-testid="gantt-task-bar-c2"]') as HTMLElement);
+    expect(summary.left + summary.width).toBeCloseTo(c2.left + c2.width, 0);
+  });
+});
+
 describe('GanttView group nodes (无条 tree headers)', () => {
   it('renders type:group rows with no bar but keeps the expand toggle', () => {
     const { container } = renderViewWith(manufacturingTree());

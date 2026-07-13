@@ -9,12 +9,12 @@ import { DataSource } from '@object-ui/types';
 // for "Create", "View", and "Delete" so CRUD wiring can be unit-tested
 // without rendering the full timeline.
 vi.mock('./GanttView', () => ({
-  GanttView: ({ tasks, onTaskClick, onTaskUpdate, onTaskDelete, onDependencyCreate, onDependencyDelete, rescheduleOnConflict, persistLayoutKey, mobileReadOnly, defaultCollapsedDepth }: any) => {
+  GanttView: ({ tasks, onTaskClick, onTaskUpdate, onTaskDelete, onDependencyCreate, onDependencyDelete, rescheduleOnConflict, persistLayoutKey, mobileReadOnly, defaultCollapsedDepth, summaryExtent }: any) => {
     const byId = (id: any) => tasks.find((t: any) => String(t.id) === String(id));
     return (
-      <div data-testid="gantt-view" data-reschedule-on-conflict={String(!!rescheduleOnConflict)} data-persist-layout-key={persistLayoutKey || ''} data-mobile-readonly={String(!!mobileReadOnly)} data-default-collapsed-depth={defaultCollapsedDepth == null ? '' : String(defaultCollapsedDepth)}>
+      <div data-testid="gantt-view" data-reschedule-on-conflict={String(!!rescheduleOnConflict)} data-persist-layout-key={persistLayoutKey || ''} data-mobile-readonly={String(!!mobileReadOnly)} data-default-collapsed-depth={defaultCollapsedDepth == null ? '' : String(defaultCollapsedDepth)} data-summary-extent={summaryExtent ?? ''}>
         {tasks.map((t: any) => (
-          <div key={t.id} data-testid="gantt-task" data-type={t.type ?? ''} data-locked={String(!!t.locked)} data-border-color={t.borderColor ?? ''}>
+          <div key={t.id} data-testid="gantt-task" data-type={t.type ?? ''} data-locked={String(!!t.locked)} data-border-color={t.borderColor ?? ''} data-has-own-dates={String(t.hasOwnDates)}>
             <span>{t.title}</span>
             {t.fields ? (
               <div data-testid={`gv-fields-${t.id}`}>
@@ -177,6 +177,87 @@ describe('ObjectGantt', () => {
     expect(screen.getByTestId('gv-field-1-0').textContent).toBe('执行责任人=班组长-测, 操作工-测');
     // Array of scalars → joined as-is.
     expect(screen.getByTestId('gv-field-1-1').textContent).toBe('Tags=a, b');
+  });
+
+  it('falls back to quickFilters labels + ISO date sniffing when there is no object schema (api provider)', async () => {
+    // The api provider returns records but no object schema, so tooltip fields
+    // have no defs: machine values and raw ISO strings used to leak through.
+    const schema: any = {
+      type: 'gantt',
+      gantt: {
+        titleField: 'name', startDateField: 'start_date', endDateField: 'end_date',
+        tooltipFields: [
+          { field: 'node_type', label: '层级' },
+          { field: 'status', label: '状态' },
+          { field: 'start_date', label: '计划开始' },
+          { field: 'due_day', label: '截止日' },
+        ],
+        quickFilters: [
+          { field: 'node_type', options: [{ value: 'dispatch', label: '派工单' }, { value: 'plan', label: '排班计划' }] },
+          { field: 'status', options: [{ value: 'completed', label: '已完成' }, { value: 'in_progress', label: '进行中' }] },
+        ],
+      },
+      data: {
+        provider: 'value',
+        items: [{
+          id: '1', name: 'D1', node_type: 'dispatch', status: 'completed',
+          start_date: '2026-08-14T08:00:00.000Z', end_date: '2026-08-16T20:00:00.000Z',
+          due_day: '2026-08-20',
+        }],
+      },
+    };
+    render(<ObjectGantt schema={schema} />);
+    await waitFor(() => expect(screen.getByTestId('gv-fields-1')).toBeDefined());
+
+    // Quick-filter options double as the value→label map.
+    expect(screen.getByTestId('gv-field-1-0').textContent).toBe('层级=派工单');
+    expect(screen.getByTestId('gv-field-1-1').textContent).toBe('状态=已完成');
+    // ISO datetime string is formatted, not echoed raw.
+    const startText = screen.getByTestId('gv-field-1-2').textContent!;
+    expect(startText).not.toContain('T08:00');
+    expect(startText).not.toContain('Z');
+    expect(startText).toContain('2026');
+    // ISO date-only string formats through the date formatter.
+    expect(screen.getByTestId('gv-field-1-3').textContent).not.toContain('2026-08-20T');
+  });
+
+  it('marks tasks with hasOwnDates and forwards summaryExtent to GanttView', async () => {
+    const schema: any = {
+      type: 'gantt',
+      gantt: {
+        titleField: 'name', startDateField: 'start_date', endDateField: 'end_date',
+        typeField: 'gantt_type', summaryExtent: 'self',
+      },
+      data: {
+        provider: 'value',
+        items: [
+          { id: 'grp', name: 'Project', gantt_type: 'group' }, // date-less grouping level
+          { id: 'plan', name: 'Plan', gantt_type: 'summary', parent: 'grp', start_date: '2024-01-01', end_date: '2024-01-05' },
+        ],
+      },
+    };
+    render(<ObjectGantt schema={schema} />);
+    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
+
+    expect(screen.getByTestId('gantt-view').getAttribute('data-summary-extent')).toBe('self');
+    const [grp, plan] = screen.getAllByTestId('gantt-task');
+    expect(grp.getAttribute('data-has-own-dates')).toBe('false');
+    expect(plan.getAttribute('data-has-own-dates')).toBe('true');
+  });
+
+  it('forwards summaryExtent from top-level (flattened ListView) config too', async () => {
+    // The console's ListView spreads view.gantt keys at the TOP level of the
+    // object-gantt schema, which getGanttConfig re-picks key by key — a new
+    // key missing from that pick list silently vanishes on the console path.
+    const schema: any = {
+      type: 'object-gantt',
+      titleField: 'name', startDateField: 'start_date', endDateField: 'end_date',
+      summaryExtent: 'self',
+      data: { provider: 'value', items: [{ id: '1', name: 'T', start_date: '2024-01-01', end_date: '2024-01-02' }] },
+    };
+    render(<ObjectGantt schema={schema} />);
+    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
+    expect(screen.getByTestId('gantt-view').getAttribute('data-summary-extent')).toBe('self');
   });
 
   it('omits tooltip fields when none configured', async () => {
