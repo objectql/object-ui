@@ -357,6 +357,32 @@ describe('GanttView summary group drag', () => {
     expect(byId.get('p').end.toISOString()).toBe('2024-06-17T00:00:00.000Z');
   });
 
+  it('summary drag skips locked descendants — they are neither previewed nor committed', () => {
+    const onTaskUpdate = vi.fn();
+    const family = FAMILY.map((t) => (t.id === 'c1' ? { ...t, locked: true } : t));
+    const { container } = render(
+      <div style={{ width: 1280, height: 600 }}>
+        <GanttView
+          tasks={family}
+          startDate={new Date('2024-06-01T00:00:00.000Z')}
+          endDate={new Date('2024-06-30T00:00:00.000Z')}
+          onTaskUpdate={onTaskUpdate}
+        />
+      </div>
+    );
+    const bracket = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+
+    // +220px → +2 days at columnWidth 110.
+    act(() => { bracket.dispatchEvent(pointer('pointerdown', 500)); });
+    act(() => { window.dispatchEvent(pointer('pointermove', 720)); });
+    act(() => { window.dispatchEvent(pointer('pointerup', 720)); });
+
+    // Summary + c2 + grandchild shift; locked c1 gets NO update at all.
+    expect(onTaskUpdate).toHaveBeenCalledTimes(3);
+    const ids = onTaskUpdate.mock.calls.map(([task]) => String(task.id)).sort();
+    expect(ids).toEqual(['c2', 'gc', 'p']);
+  });
+
   it('summary drag with zero net movement does not emit updates', () => {
     const onTaskUpdate = vi.fn();
     const { container } = renderFamily(onTaskUpdate);

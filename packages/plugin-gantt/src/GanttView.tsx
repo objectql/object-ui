@@ -840,7 +840,9 @@ export function GanttView({
     (updates: Array<{ task: GanttTask; changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>> }>) => {
       if (!onTaskUpdate) return;
       const batch: HistoryItem[] = [];
-      for (const { task, changes } of updates) {
+      // Central belt: a locked row (仅查看) is never committed, whatever the
+      // path — group shift, conflict reschedule, or a future caller.
+      for (const { task, changes } of updates.filter((u) => !u.task.locked)) {
         const before: Partial<GanttTask> = {};
         const after: Partial<GanttTask> = {};
         let dirty = false;
@@ -979,9 +981,10 @@ export function GanttView({
           if (cur.group) {
             // Move the summary and every descendant by the same ms offset so
             // the subtree keeps its internal spacing and durations — recorded as
-            // a single undoable batch.
+            // a single undoable batch. Locked descendants (仅查看) stay put:
+            // they must never be mutated, by drag or by group shift.
             const deltaMs = start.getTime() - cur.originStart.getTime();
-            const shifted = [task, ...collectDescendants(task.id)].map((t) => ({
+            const shifted = [task, ...collectDescendants(task.id).filter((t) => !t.locked)].map((t) => ({
               task: t,
               changes: {
                 start: new Date(t.start.getTime() + deltaMs),
@@ -1018,8 +1021,9 @@ export function GanttView({
     e: React.PointerEvent,
     opts?: { group?: boolean; originStart?: Date; originEnd?: Date }
   ) => {
-    // Synthetic Group-by rows have no real backing task to mutate.
-    if (!onTaskUpdate || task.data?.__group) return;
+    // Synthetic Group-by rows have no real backing task to mutate; locked
+    // rows (仅查看) can't be dragged from any handle, summary bars included.
+    if (!onTaskUpdate || task.data?.__group || task.locked) return;
     e.stopPropagation();
     e.preventDefault();
     setDragState({
@@ -2204,7 +2208,8 @@ export function GanttView({
   const dragGroupIds = React.useMemo(() => {
     if (dragGroupTaskId == null) return null;
     const set = new Set<string>([String(dragGroupTaskId)]);
-    for (const d of collectDescendants(dragGroupTaskId)) set.add(String(d.id));
+    // Locked descendants don't move on commit, so don't preview them moving.
+    for (const d of collectDescendants(dragGroupTaskId)) if (!d.locked) set.add(String(d.id));
     return set;
   }, [dragGroupTaskId, collectDescendants]);
 
