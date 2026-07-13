@@ -1069,8 +1069,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^14.3.0
-        version: 14.3.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^14.6.0
+        version: 14.6.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^14.6.0
         version: 14.6.0(ai@7.0.22(zod@4.4.3))
@@ -3831,11 +3831,6 @@ packages:
   '@maplibre/vt-pbf@4.3.2':
     resolution: {integrity: sha512-j6p0AdjvAR19Z3XaCysle7A4ZSo08tYOzxD0Y9NQylwPAkwJJeYub5b2eVucdeDh7erhv69DahoLOevDRERRUw==}
 
-  '@marcbachmann/cel-js@7.6.1':
-    resolution: {integrity: sha512-YyY8yiDU07ByKb2rJUoNgMAkYeeDvkdrONBREV2MP9siAW7yNft0KfbIoonWTIMY0fGtv8og0EhzKx3Xsi1Nmg==}
-    engines: {node: '>=20.19.0'}
-    hasBin: true
-
   '@marcbachmann/cel-js@8.0.0':
     resolution: {integrity: sha512-oaTrAziGr3zDLFiMt/yLU3nZuRMawyWQB5X1a0I7s9eGy3JYzX9l8ZXXHyMd64nzbeVFZTewuUShwsZQdK6UCA==}
     engines: {node: '>=20.19.0'}
@@ -3976,9 +3971,6 @@ packages:
     resolution: {integrity: sha512-QqTAisn/SkSuz/BxhjEaX7MIf88Hh/kWJfc9qT/BGyTH7AWD0OSLD/3MJOPhfvYa2/YBeDu/cAzuEckmBuzHJQ==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/formula@14.3.0':
-    resolution: {integrity: sha512-QvvQ+2afKVRoXgtD7BQkoH6JXPzMURJFzI6hQ6T41Z5lL9B11+TSpg/w1s6L1y8L0fDGin8D587UyWKwRLjJCg==}
-
   '@objectstack/formula@14.6.0':
     resolution: {integrity: sha512-gKycQFnytF4tRkXYQhv5WrSXslRerWqX9ckcB+uRoW4n4y1ixt8wjGsDTkkW7fkS9bDmqUQwqG9Obgbvm2WT0Q==}
 
@@ -3988,15 +3980,6 @@ packages:
 
   '@objectstack/sdui-parser@14.6.0':
     resolution: {integrity: sha512-TaSZ2zrlKTG7pIDdLcoHBgNRsbFGHYnZ62lOwhaYOyaIS6IQt8aULpNNMN7ykq3dLMZI4ISG70NtpPSKLlUulA==}
-
-  '@objectstack/spec@14.3.0':
-    resolution: {integrity: sha512-SLKNXSJxGP2Ipw+yr95cLPtbZcQv51RJ7I5GC6yEo6DUnPucrdrNIa5qGesFs1YMXu6dwh19gQicPvAOB106OA==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      ai: ^7.0.0
-    peerDependenciesMeta:
-      ai:
-        optional: true
 
   '@objectstack/spec@14.6.0':
     resolution: {integrity: sha512-TW1mKomPtmTcr+dRqmkKmpJcT3MbzooF46Vil1JwSNUbjKBJSTTtG8HCsIHpQxKPUWj4uhuUVI7eX6kFF2H/xA==}
@@ -12124,8 +12107,6 @@ snapshots:
       '@types/geojson': 7946.0.16
       pbf: 5.1.0
 
-  '@marcbachmann/cel-js@7.6.1': {}
-
   '@marcbachmann/cel-js@8.0.0': {}
 
   '@mdx-js/mdx@3.1.1':
@@ -12312,13 +12293,6 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@14.3.0(ai@7.0.22(zod@4.4.3))':
-    dependencies:
-      '@marcbachmann/cel-js': 7.6.1
-      '@objectstack/spec': 14.3.0(ai@7.0.22(zod@4.4.3))
-    transitivePeerDependencies:
-      - ai
-
   '@objectstack/formula@14.6.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 8.0.0
@@ -12337,12 +12311,6 @@ snapshots:
       - ai
 
   '@objectstack/sdui-parser@14.6.0': {}
-
-  '@objectstack/spec@14.3.0(ai@7.0.22(zod@4.4.3))':
-    dependencies:
-      zod: 4.4.3
-    optionalDependencies:
-      ai: 7.0.22(zod@4.4.3)
 
   '@objectstack/spec@14.6.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
