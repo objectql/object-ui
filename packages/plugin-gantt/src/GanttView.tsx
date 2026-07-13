@@ -1223,6 +1223,9 @@ export function GanttView({
     taskId: string | number;
     relation: 'pred' | 'succ';
   } | null>(null);
+  // Search text for the candidate list — cleared on every open so a stale
+  // query never hides candidates from the next picker invocation.
+  const [depPickerQuery, setDepPickerQuery] = React.useState('');
   const depPickerRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!depPicker) return;
@@ -4018,6 +4021,7 @@ export function GanttView({
                   onClick={() => {
                     const at = ctxMenu;
                     setCtxMenu(null);
+                    setDepPickerQuery('');
                     setDepPicker({ x: at.x, y: at.y, taskId: task.id, relation: 'pred' });
                   }}
                 >
@@ -4031,6 +4035,7 @@ export function GanttView({
                   onClick={() => {
                     const at = ctxMenu;
                     setCtxMenu(null);
+                    setDepPickerQuery('');
                     setDepPicker({ x: at.x, y: at.y, taskId: task.id, relation: 'succ' });
                   }}
                 >
@@ -4117,14 +4122,23 @@ export function GanttView({
         const existing = new Set(
           links.map((l) => `${String(l.sourceId)}->${String(l.targetId)}`),
         );
+        // Candidates = rows that can actually participate in a dependency:
+        // 'group' tree headers have no bar to schedule, and locked (仅查看)
+        // rows must not enter new links. Summary rows stay IN — they are
+        // draggable (group move) and in parent-child models (plan → locked
+        // dispatch) the summary row is exactly the linkable record.
         const candidates = tasks.filter((c) => {
           if (String(c.id) === String(anchor.id)) return false;
-          if (c.type === 'summary') return false;
+          if (c.type === 'group' || c.locked) return false;
           const key = depPicker.relation === 'pred'
             ? `${String(c.id)}->${String(anchor.id)}`
             : `${String(anchor.id)}->${String(c.id)}`;
           return !existing.has(key);
         });
+        const query = depPickerQuery.trim().toLowerCase();
+        const visible = query
+          ? candidates.filter((c) => String(c.title ?? '').toLowerCase().includes(query))
+          : candidates;
         return (
           <div
             ref={depPickerRef}
@@ -4136,10 +4150,20 @@ export function GanttView({
             <div className="px-3 py-1 text-xs text-muted-foreground">
               {depPicker.relation === 'pred' ? t('gantt.menu.addPredecessor') : t('gantt.menu.addSuccessor')}
             </div>
-            {candidates.length === 0 ? (
+            <div className="px-2 pb-1">
+              <input
+                className="border rounded px-2 py-1 text-sm w-full bg-background"
+                value={depPickerQuery}
+                onChange={(e) => setDepPickerQuery(e.target.value)}
+                placeholder={t('gantt.menu.searchTasks')}
+                data-testid="gantt-dep-picker-search"
+                autoFocus
+              />
+            </div>
+            {visible.length === 0 ? (
               <div className="px-3 py-1.5 text-muted-foreground">{t('gantt.menu.noCandidates')}</div>
             ) : (
-              candidates.map((c) => (
+              visible.map((c) => (
                 <button
                   key={String(c.id)}
                   type="button"

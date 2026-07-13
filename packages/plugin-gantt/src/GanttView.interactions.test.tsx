@@ -465,6 +465,64 @@ describe('GanttView add predecessor/successor (添加紧前/紧后)', () => {
     fireEvent.click(document.querySelector('[data-testid="gantt-context-menu-add-predecessor"]')!);
     expect(document.querySelector('[data-testid="gantt-dep-picker-option-a"]')).toBeFalsy();
   });
+
+  it('candidates exclude group headers and locked rows but INCLUDE summary rows', () => {
+    const onDependencyCreate = vi.fn();
+    // Parent-child model (排班计划 → 锁定派工单): the summary parent is the
+    // linkable record; the group header and the locked leaf are not.
+    const tasks = [
+      B(),
+      makeTask('s', '2024-06-03T00:00:00.000Z', '2024-06-13T00:00:00.000Z', { type: 'summary' }),
+      makeTask('g', '2024-06-03T00:00:00.000Z', '2024-06-13T00:00:00.000Z', { type: 'group' }),
+      makeTask('l', '2024-06-03T00:00:00.000Z', '2024-06-13T00:00:00.000Z', { locked: true }),
+    ];
+    const { container } = renderView(tasks, { onDependencyCreate });
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-b"]')!, { clientX: 50, clientY: 50 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-context-menu-add-predecessor"]')!);
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-s"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-g"]')).toBeFalsy();
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-l"]')).toBeFalsy();
+  });
+
+  it('the search box filters candidates by title, case-insensitively', () => {
+    const onDependencyCreate = vi.fn();
+    const tasks = [
+      A(), // title 'Task a'
+      B(),
+      makeTask('c', '2024-06-03T00:00:00.000Z', '2024-06-13T00:00:00.000Z', { title: 'Alpha 质检' }),
+    ];
+    const { container } = renderView(tasks, { onDependencyCreate });
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-b"]')!, { clientX: 50, clientY: 50 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-context-menu-add-predecessor"]')!);
+
+    const search = document.querySelector('[data-testid="gantt-dep-picker-search"]') as HTMLInputElement;
+    expect(search).toBeTruthy();
+    fireEvent.change(search, { target: { value: 'alpha' } });
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-c"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-a"]')).toBeFalsy();
+
+    // No match → the empty-state row, and picking is still possible after clearing.
+    fireEvent.change(search, { target: { value: 'zzz' } });
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-c"]')).toBeFalsy();
+    fireEvent.change(search, { target: { value: '质检' } });
+    fireEvent.click(document.querySelector('[data-testid="gantt-dep-picker-option-c"]')!);
+    expect(onDependencyCreate).toHaveBeenCalledTimes(1);
+    expect(onDependencyCreate.mock.calls[0][0].id).toBe('c');
+  });
+
+  it('a stale search query does not leak into the next picker invocation', () => {
+    const onDependencyCreate = vi.fn();
+    const { container } = renderView([A(), B()], { onDependencyCreate });
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-b"]')!, { clientX: 50, clientY: 50 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-context-menu-add-predecessor"]')!);
+    fireEvent.change(document.querySelector('[data-testid="gantt-dep-picker-search"]')!, { target: { value: 'zzz' } });
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-a"]')).toBeFalsy();
+    // Close (Escape) and reopen: the full candidate list must be back.
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-b"]')!, { clientX: 50, clientY: 50 });
+    fireEvent.click(document.querySelector('[data-testid="gantt-context-menu-add-predecessor"]')!);
+    expect(document.querySelector('[data-testid="gantt-dep-picker-option-a"]')).toBeTruthy();
+  });
 });
 
 describe('GanttView drag conflict reschedule (拖拽冲突校验 + 顺延确认)', () => {

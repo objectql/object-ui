@@ -431,6 +431,17 @@ const en = {
       addSuccessor: 'Add successor…',
       removeDependency: 'Remove dependency',
       noCandidates: 'No available tasks',
+      searchTasks: 'Search tasks…',
+    },
+    delete: {
+      title: 'Delete this task?',
+      body: '"{{title}}" will be permanently removed. This action cannot be undone.',
+      cancel: 'Cancel',
+      confirm: 'Delete',
+      deleting: 'Deleting…',
+    },
+    drawer: {
+      fallbackTitle: 'Task Details',
     },
     linkType: {
       fs: 'Finish → Start',

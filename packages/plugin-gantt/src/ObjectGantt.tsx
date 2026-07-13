@@ -54,6 +54,7 @@ import { ResourceWorkload } from './ResourceWorkload';
 import { QuickFilterBar, type QuickFilterField, type QuickFilterOption } from './QuickFilterBar';
 import type { WorkingCalendar } from './scheduling';
 import { normalizeShiftSegments, type ShiftSegmentsConfig } from './shifts';
+import { useGanttTranslation } from './useGanttTranslation';
 
 /**
  * One quick-filter dimension (快速筛选维度). Generic by design: the page configures
@@ -338,6 +339,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const [objectSchema, setObjectSchema] = useState<any>(null);
   // Tenant default currency (ADR-0053) for currency tooltips lacking a code.
   const { currency: tenantCurrency } = useLocalization();
+  const { t } = useGanttTranslation();
 
   const rawDataConfig = getDataConfig(schema);
   // Memoize dataConfig using deep comparison to prevent infinite loops
@@ -1193,8 +1195,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         const recordId = rec.id ?? rec._id;
         if (!objectName || recordId == null) return null;
         const titleText = ganttConfig?.titleField
-          ? String(rec[ganttConfig.titleField] ?? 'Task Details')
-          : 'Task Details';
+          ? String(rec[ganttConfig.titleField] ?? t('gantt.drawer.fallbackTitle'))
+          : t('gantt.drawer.fallbackTitle');
         // Row-level lock (lockField) and global readOnly must also lock the
         // drawer: omitting onFieldSave/onDelete renders it strictly read-only.
         const recLocked =
@@ -1239,22 +1241,22 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       <AlertDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open && !deleting) setPendingDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+            <AlertDialogTitle>{t('gantt.delete.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDelete ? (
-                <>"{pendingDelete.title}" will be permanently removed. This action cannot be undone.</>
-              ) : null}
+              {pendingDelete
+                ? t('gantt.delete.body', { title: pendingDelete.title })
+                : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t('gantt.delete.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => { e.preventDefault(); void confirmDelete(); }}
               disabled={deleting}
               data-testid="gantt-delete-confirm"
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleting ? 'Deleting…' : 'Delete'}
+              {deleting ? t('gantt.delete.deleting') : t('gantt.delete.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -507,6 +507,17 @@ const zh = {
       addSuccessor: '添加后置任务…',
       removeDependency: '移除依赖',
       noCandidates: '无可用任务',
+      searchTasks: '搜索任务…',
+    },
+    delete: {
+      title: '删除此任务？',
+      body: '"{{title}}" 将被永久删除，此操作无法撤销。',
+      cancel: '取消',
+      confirm: '删除',
+      deleting: '删除中…',
+    },
+    drawer: {
+      fallbackTitle: '任务详情',
     },
     linkType: {
       fs: '完成 → 开始',

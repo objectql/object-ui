@@ -268,6 +268,12 @@ describe('ObjectGantt', () => {
     // Request deletion for task id=1 — should open confirmation dialog.
     fireEvent.click(screen.getByTestId('gv-delete-1'));
     const confirm = await screen.findByTestId('gantt-delete-confirm');
+    // i18n: dialog copy resolves through useGanttTranslation (host dictionary
+    // first, bundled fallback here) and the body interpolates the task title —
+    // the raw {{title}} placeholder must never surface.
+    const dialogText = document.body.textContent || '';
+    expect(dialogText).toContain('Delete this task?');
+    expect(dialogText).not.toContain('{{title}}');
     fireEvent.click(confirm);
 
     await waitFor(() => expect(del).toHaveBeenCalledTimes(1));
