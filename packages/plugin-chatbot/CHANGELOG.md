@@ -1,5 +1,106 @@
 # @object-ui/plugin-chatbot
 
+## 13.3.0
+
+### Minor Changes
+
+- 7b4fc36: feat(console-ai): ask→build handoff carries conversation context (ADR-0057 P4 / cloud#817)
+
+  The P4 "Open in Builder →" handoff previously carried only the build prompt + an
+  optional package, so the Builder started cold and the user re-explained
+  themselves. It now also carries the **source `ask` conversation** as context —
+  ADR-0057 P4 / cloud#817 — so the build agent's first turn starts with the thread
+  the user already had.
+
+  - `@object-ui/app-shell`: both handoff sites (the full-page `AiChatPage` and the
+    console FAB) now append `?parentConversationId=<ask thread id>` to the
+    `/ai/build` URL. The build surface reads it and forwards it to `useObjectChat`;
+    the existing URL-mirror drops it once the build conversation id is minted, so a
+    reload never re-carries it.
+  - `@object-ui/plugin-chatbot`: `useObjectChat` accepts `parentConversationId` and
+    sends it as `context.parentConversationId` on the **first turn only** (held in a
+    ref, consumed once) — the backend redeems it into the turn's context and the
+    client owns history from there. New pure helper `withHandoffContext` (unit
+    tested) does the non-mutating `context` merge.
+
+  Requires the cloud handoff-context contract (service-ai, cloud#817): the build
+  agent redeems `context.parentConversationId` into a single system block on its
+  first turn — ownership-checked, and carrying only the user/assistant text the
+  user already saw (ADR-0063 governance boundary). Without it the console degrades
+  cleanly: the id is sent but ignored, and the handoff is a (working) cold start.
+
+- 7dea792: feat(console-ai): explicit "Open in Builder →" ask→build handoff (ADR-0057 P4)
+
+  When the `ask` agent declines an app-authoring request it now calls the cloud
+  `suggest_builder` tool (structured decline). The console renders that as an
+  explicit **"Open in Builder →"** action that opens the full-page build surface
+  seeded with the handoff prompt — ADR-0063 decline-and-redirect: an explicit,
+  user-initiated switch, never a silent re-route into authoring.
+
+  - `@object-ui/plugin-chatbot`: `detectBuilderHandoff` lifts the
+    `{ status:'build_handoff', prompt, packageId? }` result onto the tool
+    invocation; `ChatbotEnhanced` renders the "Open in Builder →" card and calls a
+    new `onOpenBuilder` prop (disabled when no host wires it).
+  - `@object-ui/app-shell`: the full-page `AiChatPage` (`ask`) and the console FAB
+    wire `onOpenBuilder` to navigate to `/ai/build?package=…&handoffPrompt=…`; the
+    build surface seeds that prompt as its first message (auto-sent once the
+    conversation is minted), and the URL-mirror strips `?handoffPrompt` so a reload
+    never re-sends it. Full ask-conversation context transfer is a later upgrade
+    (cloud#817); v1 carries the build prompt + optional package.
+
+  Requires the cloud `suggest_builder` signal (service-ai-studio) to light up; the
+  console degrades cleanly (no card) without it.
+
+- 9d0fdb1: feat(console-ai): render agent behavior by declared capability (cloud#816 / ADR-0057 "B+")
+
+  `GET /api/v1/ai/agents` now serves per-agent `capabilities`; the console
+  consumes them instead of hard-coding `isBuildAgent(name)`:
+
+  - `@object-ui/plugin-chatbot`: `AgentDescriptor.capabilities` (normalized from
+    the catalog) + new `agentHasCapability(agents, name, cap)` — declaration wins
+    when present; falls back to the legacy `isBuildAgent(name)` check when absent
+    (older server), so shipping order doesn't matter.
+  - `@object-ui/app-shell`: the build-doctor drawer + `showDebug` key off
+    `'debug'`, the FAB's resume-vs-fresh keys off `'resume'`, HomePage's
+    "Build with AI" availability keys off `'authoring'`. The ADR-0063 product-axis
+    sites (surface→agent resolver, conversation scope keying, picker availability)
+    intentionally stay name-based — capability describes RENDERED behavior, not
+    which product an agent is.
+
+  A future skill-driven build variant now needs no console change.
+
+### Patch Changes
+
+- 1273f1e: fix(console-ai): reliable ask→build handoff auto-send + second-handoff context re-carry (ADR-0057 P4)
+
+  Two follow-ups to the P4 "Open in Builder →" handoff:
+
+  - **Auto-send swallow.** The handoff's auto-sent first message could be dropped on
+    a brand-new build conversation: the seed gated on the async-resolved
+    `activeAgent`, which can settle _after_ the conversation id is minted, so the
+    deferred-send replay ran with an empty pending and never re-fired. The seed now
+    gates on the **route** (`agentSegment`, synchronous) and bumps a `pendingSignal`
+    that `useDeferredFirstSend` lists in its replay deps, so the seed always fires —
+    no more empty build conversation on handoff.
+
+  - **Second-handoff re-carry.** A second "Open in Builder →" into the (singleton)
+    build conversation now re-carries the latest ask context. The transport re-arms
+    `parentConversationId` on each falsy→truthy transition of the prop (the ask
+    thread is a singleton, so the same id repeats — the fresh-arrival signal is the
+    transition the URL-mirror produces, not a changed value), and the seed re-arms
+    on each new `handoffPrompt`.
+
+  Unit-tested: deferred-send replays a post-id seed via the signal; the transport
+  re-carries across a strip→re-supply cycle.
+
+- Updated dependencies [443360a]
+- Updated dependencies [a44e7b6]
+- Updated dependencies [6a74160]
+  - @object-ui/core@13.3.0
+  - @object-ui/components@13.3.0
+  - @object-ui/types@13.3.0
+  - @object-ui/react@13.3.0
+
 ## 13.2.0
 
 ### Patch Changes
