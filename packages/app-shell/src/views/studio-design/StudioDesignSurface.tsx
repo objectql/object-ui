@@ -77,13 +77,11 @@ import {
   formatNavSelParam,
   findNavPositionById,
   navIdAtPosition,
-  DESIGNER_SURFACE_PARAM,
-  parseSurfaceParam,
-  formatSurfaceParam,
 } from '../metadata-admin/nav-selection';
 import { SourcePageEditor } from '../metadata-admin/previews/SourcePageEditor';
 import { formatMetadataError, formatPublishFailures, type PublishFailure } from './metadataError';
 import { loadPackageSurfaces } from './packageSurfaces';
+import { useSurfaceDeepLink, resolveSurfaceDeepLink } from './useSurfaceDeepLink';
 import { buildObjectSkeleton, buildFlowSkeleton, buildAppSkeleton, buildPermissionSkeleton } from './skeletons';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
 import { SuggestedBindingsPanel } from '../../components/SuggestedBindingsPanel';
@@ -973,11 +971,6 @@ function InterfacesPillar({
   // internal. Selection changes mirror back to the URL (replace).
   const [searchParams, setSearchParams] = useSearchParams();
   const navSelParam = parseNavSelParam(searchParams.get(DESIGNER_SEL_PARAM));
-  // Surface deep-link: capture the `?surface=<type>:<name>` target once, at
-  // mount, so the app-load effect can open it instead of auto-picking the first
-  // leaf. A ref keeps it out of that effect's deps (which is keyed on the
-  // package, not the URL) while the mirror effect below keeps the URL current.
-  const initialSurfaceRef = React.useRef(parseSurfaceParam(searchParams.get(DESIGNER_SURFACE_PARAM)));
   const appliedNavSelRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (!navSelParam || navTree.length === 0) return;
@@ -1005,23 +998,8 @@ function InterfacesPillar({
   const [navHasDraft, setNavHasDraft] = React.useState(false);
   const [navSaving, setNavSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
-  // Mirror the open surface back to `?surface=<type>:<name>` (replace) so the
-  // selected menu is shareable and reload-stable — the inverse of the mount
-  // capture above. Only write once a surface is open: the first render has
-  // `current === null` before the app-load effect resolves, and clearing the
-  // param there would strip an incoming deep-link before it is applied.
-  React.useEffect(() => {
-    if (!current) return;
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.set(DESIGNER_SURFACE_PARAM, formatSurfaceParam(current));
-        return next;
-      },
-      { replace: true },
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current]);
+  // `?surface=` capture + mirror — shared plumbing (see useSurfaceDeepLink).
+  const initialSurface = useSurfaceDeepLink(current);
   // Inspector tab — source pages carry a `source` string, not a block tree, so
   // their editor lives in a dedicated Source tab (the Properties tab has no
   // blocks to inspect). Non-source surfaces never show the tab strip.
@@ -1132,9 +1110,7 @@ function InterfacesPillar({
         })(tree);
         // A `?surface=` deep-link wins over the first-leaf default when it
         // still resolves to a leaf in this app's nav; otherwise fall back.
-        const deepLinked = initialSurfaceRef.current
-          ? findSurfaceInTree(tree, initialSurfaceRef.current)
-          : null;
+        const deepLinked = initialSurface ? findSurfaceInTree(tree, initialSurface) : null;
         setCurrent((cur) => cur ?? deepLinked ?? firstLeaf);
       } catch (e) {
         if (!cancelled) {
@@ -1693,16 +1669,13 @@ function DataPillar({
   // the header's Menu button.
   const isMobile = useIsMobile();
   const [railOpen, setRailOpen] = React.useState(false);
-  // Object deep-link: capture the `?surface=object:<name>` target once, at
-  // mount. The app→Studio bridge (ADR-0080) opens a running object's records
-  // page straight to THAT object here (see `appStudioObjectPath`); without this
-  // the rail always snapped to the first object. Captured in a ref so later
-  // in-pillar selections don't re-trigger the restore.
-  const [searchParams] = useSearchParams();
-  const initialObjectRef = React.useRef(parseSurfaceParam(searchParams.get(DESIGNER_SURFACE_PARAM)));
   const [objects, setObjects] = React.useState<Surface[]>([]);
   const [objectsLoaded, setObjectsLoaded] = React.useState(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
+  // `?surface=object:<name>` capture + mirror — the app→Studio bridge
+  // (ADR-0080, `appStudioObjectPath`) lands here with a specific object;
+  // shared plumbing (see useSurfaceDeepLink).
+  const initialSurface = useSurfaceDeepLink(current);
   const [objDraft, setObjDraft] = React.useState<Record<string, unknown>>({});
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -1761,8 +1734,7 @@ function DataPillar({
         setObjects(items);
         // Honor a `?surface=object:<name>` deep-link when it names an object we
         // actually have; otherwise open the first object as before.
-        const wanted = initialObjectRef.current;
-        const deepLinked = wanted?.type === 'object' ? items.find((o) => o.name === wanted.name) : undefined;
+        const deepLinked = resolveSurfaceDeepLink(items, initialSurface, 'object');
         setCurrent((c) => c ?? deepLinked ?? items[0] ?? null);
         // First-run: an empty writable package opens the creator right away —
         // the first thing to do here is make an object, so put the inputs up.
@@ -2479,6 +2451,10 @@ function AutomationsPillar({
   const [railOpen, setRailOpen] = React.useState(false);
   const [flows, setFlows] = React.useState<Surface[]>([]);
   const [current, setCurrent] = React.useState<Surface | null>(null);
+  // `?surface=flow:<name>` capture + mirror — shared plumbing (see
+  // useSurfaceDeepLink). No producer emits this link yet; honoring it keeps
+  // the pillars uniform so a future "design this flow" bridge just works.
+  const initialSurface = useSurfaceDeepLink(current);
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
   const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -2536,7 +2512,8 @@ function AutomationsPillar({
         const items = await loadPackageSurfaces(client, 'flow', packageId);
         if (cancelled) return;
         setFlows(items);
-        setCurrent((c) => c ?? items[0] ?? null);
+        const deepLinked = resolveSurfaceDeepLink(items, initialSurface, 'flow');
+        setCurrent((c) => c ?? deepLinked ?? items[0] ?? null);
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -2888,6 +2865,14 @@ function AccessPillar({
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [current, setCurrent] = React.useState<string | null>(null);
+  // `?surface=permission:<name>` capture + mirror — shared plumbing (see
+  // useSurfaceDeepLink). This rail keys `current` by name, so wrap it in the
+  // surface identity the param carries.
+  const currentSurface = React.useMemo(
+    () => (current ? { type: 'permission', name: current } : null),
+    [current],
+  );
+  const initialSurface = useSurfaceDeepLink(currentSurface);
   const [query, setQuery] = React.useState('');
   // inline creator (same rail pattern as the Data pillar's object creator)
   const [creating, setCreating] = React.useState(false);
@@ -2931,7 +2916,8 @@ function AccessPillar({
       }
       const scoped = [...byName.values()];
       setPerms(scoped);
-      setCurrent((c) => c ?? scoped[0]?.name ?? null);
+      const deepLinked = resolveSurfaceDeepLink(scoped, initialSurface, 'permission');
+      setCurrent((c) => c ?? deepLinked?.name ?? scoped[0]?.name ?? null);
     } catch (e) {
       setError(formatMetadataError(e));
     } finally {
