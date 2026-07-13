@@ -29,6 +29,7 @@ import {
   Save,
   Lock,
   Crosshair,
+  RefreshCw,
 } from "lucide-react"
 import {
   cn,
@@ -361,6 +362,15 @@ export interface GanttViewProps {
    * layout in your own store instead of (or alongside) `persistLayoutKey`.
    */
   onLayoutChange?: (layout: GanttLayout) => void
+  /**
+   * Show a manual refresh button in the toolbar (手动刷新). The host re-reads
+   * its data source so server-computed fields (rollups, alert colors) and
+   * other users' edits reach the chart without a full page reload. Omit to
+   * hide the button (e.g. inline `value` data has nothing to re-read).
+   */
+  onRefresh?: () => void | Promise<void>
+  /** Disables the refresh button while a host-driven reload is in flight. */
+  refreshing?: boolean
 }
 
 /** Persisted layout snapshot written by the "保存布局" toolbar button. */
@@ -517,6 +527,8 @@ export function GanttView({
   defaultCollapsedDepth,
   persistLayoutKey,
   onLayoutChange,
+  onRefresh,
+  refreshing = false,
 }: GanttViewProps) {
   const { t, language } = useGanttTranslation();
   // Locale for every user-facing date label. Falls back to the runtime default
@@ -2734,6 +2746,20 @@ export function GanttView({
           >
             {t('gantt.toolbar.thisMonth')}
           </Button>
+          {onRefresh ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => void onRefresh()}
+              disabled={refreshing}
+              aria-label={t('gantt.toolbar.refresh')}
+              aria-busy={refreshing}
+              data-testid="gantt-refresh"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          ) : null}
           {onTaskUpdate ? (
             <>
               <Button

@@ -22,7 +22,7 @@
  * - Works with object/api/value data providers
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { useNavigationOverlay } from '@object-ui/react';
@@ -339,54 +339,67 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const ganttConfig = getGanttConfig(schema);
   const hasInlineData = dataConfig?.provider === 'value';
 
-  // Fetch data based on provider
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        // 1. Check for data prop (Unified ListView)
-        if ((rest as any).data && Array.isArray((rest as any).data)) {
-            setData((rest as any).data);
-            setLoading(false);
-            return;
-        }
-
-        
-        if (hasInlineData && dataConfig?.provider === 'value') {
-          setData(dataConfig.items as any[]);
-          setLoading(false);
+  // Load (and re-load) data based on provider. `silent: true` re-reads the
+  // source WITHOUT flipping `loading`, so GanttView stays mounted and keeps
+  // its scroll/collapse state — used by the write-readback below and the
+  // toolbar refresh button (写后回读 / 手动刷新, #2436 第 6/7 项). Concurrent
+  // reloads are sequenced: only the newest request may commit its result,
+  // so a slow earlier response can't clobber a fresher one.
+  const [refreshing, setRefreshing] = useState(false);
+  const reloadSeqRef = useRef(0);
+  const reload = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const seq = ++reloadSeqRef.current;
+    const isCurrent = () => reloadSeqRef.current === seq;
+    try {
+      if (silent) setRefreshing(true);
+      else setLoading(true);
+      // 1. Check for data prop (Unified ListView)
+      if ((rest as any).data && Array.isArray((rest as any).data)) {
+          if (isCurrent()) setData((rest as any).data);
           return;
-        }
-
-        if (!dataSource || typeof dataSource.find !== 'function') {
-          throw new Error('DataSource required for object/api providers');
-        }
-
-        if (dataConfig?.provider === 'object') {
-          const objectName = dataConfig.object;
-          // Auto-inject $expand for lookup/master_detail fields
-          const expand = buildExpandFields(objectSchema?.fields);
-          const result = await dataSource.find(objectName, {
-            $filter: schema.filter,
-            $orderby: convertSortToQueryParams(schema.sort),
-            ...(expand.length > 0 ? { $expand: expand } : {}),
-          });
-          let items: any[] = extractRecords(result);
-          setData(items);
-        } else if (dataConfig?.provider === 'api') {
-          console.warn('API provider not yet implemented for ObjectGantt');
-          setData([]);
-        }
-        
-        setLoading(false);
-      } catch (err) {
-        setError(err as Error);
-        setLoading(false);
       }
-    };
 
-    fetchData();
+      if (hasInlineData && dataConfig?.provider === 'value') {
+        if (isCurrent()) setData(dataConfig.items as any[]);
+        return;
+      }
+
+      if (!dataSource || typeof dataSource.find !== 'function') {
+        throw new Error('DataSource required for object/api providers');
+      }
+
+      if (dataConfig?.provider === 'object') {
+        const objectName = dataConfig.object;
+        // Auto-inject $expand for lookup/master_detail fields
+        const expand = buildExpandFields(objectSchema?.fields);
+        const result = await dataSource.find(objectName, {
+          $filter: schema.filter,
+          $orderby: convertSortToQueryParams(schema.sort),
+          ...(expand.length > 0 ? { $expand: expand } : {}),
+        });
+        const items: any[] = extractRecords(result);
+        if (isCurrent()) setData(items);
+      } else if (dataConfig?.provider === 'api') {
+        console.warn('API provider not yet implemented for ObjectGantt');
+        if (isCurrent()) setData([]);
+      }
+    } catch (err) {
+      if (silent) {
+        // Background refresh failure keeps the last good data on screen.
+        console.error('[ObjectGantt] Failed to refresh data:', err);
+      } else if (isCurrent()) {
+        setError(err as Error);
+      }
+    } finally {
+      if (silent) setRefreshing(false);
+      else setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- (rest as any).data intentionally untracked, matching the original effect
   }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   // Fetch object schema for field metadata
   useEffect(() => {
@@ -883,12 +896,16 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
 
       try {
         await dataSource.update(objectName, String(recordId), patch);
+        // Read back so server-computed fields (parent rollups, alert
+        // colors, recalculated durations) refresh — the optimistic patch
+        // only knows what the client wrote (#2436 第 6 项).
+        void reload({ silent: true });
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist task update:', err);
         setData(prevSnapshot); // revert
       }
     },
-    [ganttConfig, dataConfig, dataSource, schema.objectName, data],
+    [ganttConfig, dataConfig, dataSource, schema.objectName, data, reload],
   );
 
   // Re-serialize a normalized dependency list back onto a record field,
@@ -927,12 +944,13 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       );
       try {
         await dataSource.update(objectName, String(targetId), { [depField]: nextValue });
+        void reload({ silent: true }); // 写后回读 — see handleTaskUpdateDefault
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist dependency:', err);
         setData(prevSnapshot); // revert
       }
     },
-    [ganttConfig, dataConfig, dataSource, schema.objectName, data],
+    [ganttConfig, dataConfig, dataSource, schema.objectName, data, reload],
   );
 
   // Persist a created/updated dependency (依赖增 + 类型选择): upsert the source
@@ -1025,6 +1043,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     try {
       await dataSource.delete(objectName, String(recordId));
       setPendingDelete(null);
+      void reload({ silent: true }); // 写后回读 — parent rollups shrink after a child delete
     } catch (err) {
       console.error('[ObjectGantt] Failed to delete:', err);
       setData(prevSnapshot); // revert
@@ -1032,7 +1051,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     } finally {
       setDeleting(false);
     }
-  }, [pendingDelete, dataConfig, dataSource, schema.objectName, data]);
+  }, [pendingDelete, dataConfig, dataSource, schema.objectName, data, reload]);
 
   if (loading) {
     return (
@@ -1123,6 +1142,14 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           groupBy={groupByAccessor}
           defaultCollapsedDepth={ganttConfig?.defaultCollapsedDepth}
           inlineEdit
+          onRefresh={
+            // Only meaningful when there's a live source to re-read; inline
+            // `value` items and the data prop are owned by the host.
+            dataConfig?.provider === 'object' && typeof dataSource?.find === 'function'
+              ? () => reload({ silent: true })
+              : undefined
+          }
+          refreshing={refreshing}
         />
         )}
       </div>
@@ -1155,6 +1182,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
                   ? { ...r, [field]: value }
                   : r,
               ));
+              void reload({ silent: true }); // 写后回读 — see handleTaskUpdateDefault
             }}
             onDelete={async () => {
               if (!dataSource?.delete) return;

@@ -80,6 +80,29 @@ describe('GanttView export buttons (导出 PNG / PDF)', () => {
   });
 });
 
+describe('GanttView refresh button (手动刷新)', () => {
+  it('hides the refresh button when onRefresh is not provided', () => {
+    const { queryByTestId } = renderView();
+    expect(queryByTestId('gantt-refresh')).toBeNull();
+  });
+
+  it('shows the refresh button and forwards clicks to onRefresh', () => {
+    const onRefresh = vi.fn();
+    const { getByTestId } = renderView({ onRefresh });
+    act(() => { fireEvent.click(getByTestId('gantt-refresh')); });
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables the button while a refresh is in flight', () => {
+    const onRefresh = vi.fn();
+    const { getByTestId } = renderView({ onRefresh, refreshing: true });
+    const btn = getByTestId('gantt-refresh') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    fireEvent.click(btn);
+    expect(onRefresh).not.toHaveBeenCalled();
+  });
+});
+
 describe('GanttView save layout (保存布局)', () => {
   it('hides the save-layout button without persistLayoutKey/onLayoutChange', () => {
     const { queryByTestId } = renderView();
