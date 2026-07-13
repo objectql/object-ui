@@ -577,3 +577,222 @@ describe('toUIMessages — remaps the ModelMessage tool-call part type', () => {
     expect(ui[0]?.parts[0]?.type).toBe('tool-call');
   });
 });
+
+// ADR-0057 Amendment A1.b — bind-on-create re-key + the legacy-scope migration
+// read. `rekeyScope` re-keys the CURRENT conversation under a new scope
+// without re-resolving (build thread binds the package it just minted); the
+// legacy fallback lets an app-scoped visit (`app:X:build`) adopt a thread
+// still cached under the product-only scope, but ONLY when the host's
+// predicate confirms the thread is actually bound to that app.
+describe('useChatConversation — A1.b rekeyScope + legacy-scope fallback', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('rekeyScope writes the new scope key, keeps the legacy key, and flips conversationScope', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'conv-a', messages: [] }));
+
+    const { result, rerender } = renderHook(
+      ({ scope }: { scope: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope }),
+      { initialProps: { scope: 'build' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+    expect(result.current.conversationScope).toBe('build');
+
+    act(() => result.current.rekeyScope('app:crm:build'));
+
+    // Same conversation id under BOTH keys — the product-only key is
+    // deliberately left intact (dock/FAB still resolve through it).
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1:app:crm:build`)).toBe('conv-a');
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1:build`)).toBe('conv-a');
+    rerender({ scope: 'build' }); // conversationScope is ref-backed; read after a render
+    expect(result.current.conversationScope).toBe('app:crm:build');
+  });
+
+  it('a scope change to the rekeyed scope resumes the SAME conversation without re-resolving', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'conv-a', messages: [] }));
+
+    const { result, rerender } = renderHook(
+      ({ scope }: { scope: string }) =>
+        useChatConversation({ userId: 'u1', apiBase: API_BASE, scope }),
+      { initialProps: { scope: 'build' } },
+    );
+    await waitFor(() => expect(result.current.conversationId).toBe('conv-a'));
+    const callsBefore = fetchMock.mock.calls.length;
+
+    // The host rekeys and THEN flips its scope (the ?package= navigate) — the
+    // resolve guard must treat the new scope as already-resolved: same id, no
+    // create, no refetch, and crucially no setConversationId(undefined) window.
+    act(() => result.current.rekeyScope('app:crm:build'));
+    rerender({ scope: 'app:crm:build' });
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-a');
+    expect(result.current.conversationScope).toBe('app:crm:build');
+    expect(fetchMock.mock.calls.length).toBe(callsBefore);
+    const createCalls = fetchMock.mock.calls.filter(
+      (c) => c[0] === `${API_BASE}/conversations` && c[1]?.method === 'POST',
+    );
+    expect(createCalls.length).toBe(1); // only the original resolve created one
+  });
+
+  it('rekeyScope is a no-op before a conversation is resolved', async () => {
+    const { result } = renderHook(() =>
+      useChatConversation({ userId: undefined, apiBase: API_BASE, scope: 'build' }),
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    act(() => result.current.rekeyScope('app:crm:build'));
+    expect(localStorage.getItem(`${CACHE_PREFIX}:app:crm:build`)).toBeNull();
+    expect(Object.keys(localStorage).filter((k) => k.startsWith(CACHE_PREFIX))).toEqual([]);
+  });
+
+  it('adopts the legacy-scope thread when the predicate matches (pre-A1.b migration read)', async () => {
+    localStorage.setItem(`${CACHE_PREFIX}:u1:build`, 'conv-legacy');
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        id: 'conv-legacy',
+        messages: [{ id: 'm1', role: 'user', content: 'build a crm' }],
+      }),
+    );
+    const adoptLegacy = vi.fn(
+      (messages: { parts: Array<{ text?: string }> }[]) =>
+        messages.some((m) => m.parts.some((p) => p.text === 'build a crm')),
+    );
+
+    const { result } = renderHook(() =>
+      useChatConversation({
+        userId: 'u1',
+        apiBase: API_BASE,
+        scope: 'app:crm:build',
+        legacyScope: 'build',
+        adoptLegacy,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-legacy');
+    expect(result.current.conversationScope).toBe('app:crm:build');
+    expect(adoptLegacy).toHaveBeenCalled();
+    // Adopted: the app scope now caches the same id; the legacy key survives.
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1:app:crm:build`)).toBe('conv-legacy');
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1:build`)).toBe('conv-legacy');
+    // ONE fetch (the legacy GET) — no create.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/conversations/conv-legacy`);
+  });
+
+  it('creates a fresh conversation when the predicate rejects, leaving the legacy key intact', async () => {
+    localStorage.setItem(`${CACHE_PREFIX}:u1:build`, 'conv-other');
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ id: 'conv-other', messages: [] }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'conv-fresh', messages: [] }));
+
+    const { result } = renderHook(() =>
+      useChatConversation({
+        userId: 'u1',
+        apiBase: API_BASE,
+        scope: 'app:crm:build',
+        legacyScope: 'build',
+        adoptLegacy: () => false,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-fresh');
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1:app:crm:build`)).toBe('conv-fresh');
+    // The legacy product-only thread was NOT hijacked or unlinked.
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1:build`)).toBe('conv-other');
+  });
+
+  it('treats a failing legacy fetch as a miss (creates fresh) instead of dead-ending', async () => {
+    localStorage.setItem(`${CACHE_PREFIX}:u1:build`, 'conv-legacy');
+    fetchMock
+      .mockResolvedValueOnce(new Response('boom', { status: 500 }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'conv-fresh', messages: [] }));
+
+    const { result } = renderHook(() =>
+      useChatConversation({
+        userId: 'u1',
+        apiBase: API_BASE,
+        scope: 'app:crm:build',
+        legacyScope: 'build',
+        adoptLegacy: () => true,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-fresh');
+  });
+
+  it('feeds the predicate the local message cache when the server returns no history', async () => {
+    localStorage.setItem(`${CACHE_PREFIX}:u1:build`, 'conv-legacy');
+    // The sanitized cache path (documented cache-fallback): the draft card —
+    // and its packageId — may only survive locally.
+    writeConversationMessagesCache('conv-legacy', [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-apply_blueprint',
+            toolCallId: 'tc1',
+            toolName: 'apply_blueprint',
+            state: 'output-available',
+            output: { status: 'drafted', drafted: [], packageId: 'crm' },
+          },
+        ],
+      },
+    ]);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'conv-legacy', messages: [] }));
+    const adoptLegacy = vi.fn(
+      (messages: { parts: Array<{ output?: { packageId?: string } }> }[]) =>
+        messages.some((m) => m.parts.some((p) => p.output?.packageId === 'crm')),
+    );
+
+    const { result } = renderHook(() =>
+      useChatConversation({
+        userId: 'u1',
+        apiBase: API_BASE,
+        scope: 'app:crm:build',
+        legacyScope: 'build',
+        adoptLegacy,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-legacy');
+    expect(adoptLegacy).toHaveBeenCalled();
+    // The adopted thread also hydrates from that cache (not an empty pane).
+    expect(result.current.initialMessages.length).toBe(1);
+  });
+
+  it('the legacy fallback never runs when the primary scope key is cached', async () => {
+    localStorage.setItem(`${CACHE_PREFIX}:u1:app:crm:build`, 'conv-app');
+    localStorage.setItem(`${CACHE_PREFIX}:u1:build`, 'conv-legacy');
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 'conv-app', messages: [] }));
+    const adoptLegacy = vi.fn(() => true);
+
+    const { result } = renderHook(() =>
+      useChatConversation({
+        userId: 'u1',
+        apiBase: API_BASE,
+        scope: 'app:crm:build',
+        legacyScope: 'build',
+        adoptLegacy,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.conversationId).toBe('conv-app');
+    expect(adoptLegacy).not.toHaveBeenCalled();
+  });
+});

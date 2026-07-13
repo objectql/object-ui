@@ -42,9 +42,15 @@ import {
   Empty,
   EmptyTitle,
   EmptyDescription,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   cn,
 } from '@object-ui/components';
-import { Bug, PanelLeft, PanelLeftClose, PanelLeftOpen, Share2 } from 'lucide-react';
+import { Bug, Check, ChevronDown, PanelLeft, PanelLeftClose, PanelLeftOpen, Share2 } from 'lucide-react';
 import {
   ChatbotEnhanced,
   useAgents,
@@ -727,7 +733,29 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     ? chatConversationScope({ appId: editPackageId, product: chatProductOfAgent(activeAgent) })
     : undefined;
 
-  const { conversationId, conversationScope, initialMessages } = useChatConversation({
+  // A1.b migration read: an "Edit with AI" entry (`?package=X`) whose
+  // `app:X:build` scope has never been cached may still have its thread under
+  // the product-only key — a build conversation from before bind-on-create
+  // shipped (or whose re-key never ran in this browser). Offer that thread to
+  // the resolve; adopt it only if its own history is actually bound to X
+  // (latest draft/handoff package), so an unrelated product-scoped thread
+  // never gets hijacked into an app scope.
+  const activeProduct = activeAgent ? chatProductOfAgent(activeAgent) : undefined;
+  const legacyBuildScope =
+    editPackageId && activeProduct === 'build' && chatScope !== activeProduct
+      ? activeProduct
+      : undefined;
+  const adoptLegacyBuildThread = useCallback(
+    (messages: HydratedUIMessage[]) =>
+      Boolean(editPackageId) &&
+      deriveBoundPackageId(
+        hydratedMessagesToChatMessages(messages) as unknown as readonly PackageBearingMessage[],
+        undefined,
+      ) === editPackageId,
+    [editPackageId],
+  );
+
+  const { conversationId, conversationScope, initialMessages, rekeyScope } = useChatConversation({
     // Gate resolution on the agent being known: resolving while `activeAgent`
     // is still undefined (catalog loading) would bind a SCOPELESS conversation
     // that the per-(user,scope) guard then sticks with — so the agent surface
@@ -738,6 +766,8 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     apiBase,
     activeId: urlConversationId ?? legacyConversationId,
     forceNew: forceNewConversation,
+    legacyScope: legacyBuildScope,
+    adoptLegacy: legacyBuildScope ? adoptLegacyBuildThread : undefined,
   });
 
   // #2450 — feed <ChatPane> ONLY a scope-matched conversation. Right after a
@@ -890,6 +920,45 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     const pkgQuery = editPackageId ? `?package=${encodeURIComponent(editPackageId)}` : '';
     navigate(`/ai/${activeAgentRoute}/${conversationId}${pkgQuery}`, { replace: true });
   }, [segmentIsAgent, urlConversationId, conversationId, conversationScope, chatScope, activeAgentRoute, editPackageId, navigate]);
+
+  // ── A1.b bind-on-create ─────────────────────────────────────────────────
+  // The pane's build just minted (or its hydrated history reveals) package
+  // `pkg` while this conversation is keyed product-only: re-key it to
+  // `app:${pkg}:build` so a later "Edit with AI" entry for that app resumes
+  // THIS thread (the untitled-document idiom — named on first save), then put
+  // `?package=` on the URL so the scope survives a reload. Order matters:
+  // `rekeyScope` flips `conversationScope` synchronously BEFORE the navigate
+  // re-render recomputes `chatScope`, so the #2450 scope gate stays matched
+  // and the mounted pane (and any in-flight stream) is never remounted.
+  // Only fires with the conversation id already in the URL (post-mirror) —
+  // the single-navigator rule: the URL-mirror effect above is dormant once
+  // `urlConversationId` is set, so the two can never fight over the URL from
+  // stale closures. Idempotent under StrictMode double-effects.
+  const handlePackageBound = useCallback(
+    (pkg: string) => {
+      if (!pkg || editPackageId || activeProduct !== 'build' || !activeAgentRoute) return;
+      // Re-key only a settled, scope-matched, product-only conversation whose
+      // id already reached the URL.
+      if (chatScope !== activeProduct || conversationScope !== chatScope) return;
+      if (!conversationId || urlConversationId !== conversationId) return;
+      rekeyScope(chatConversationScope({ appId: pkg, product: activeProduct }));
+      navigate(
+        `/ai/${activeAgentRoute}/${encodeURIComponent(conversationId)}?package=${encodeURIComponent(pkg)}`,
+        { replace: true },
+      );
+    },
+    [
+      editPackageId,
+      activeProduct,
+      activeAgentRoute,
+      chatScope,
+      conversationScope,
+      conversationId,
+      urlConversationId,
+      rekeyScope,
+      navigate,
+    ],
+  );
 
   const titledRef = useRef<Set<string>>(new Set());
 
@@ -1095,6 +1164,8 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             apiBase={apiBase}
             conversationId={paneConversationId}
             editPackageId={editPackageId}
+            onPackageBound={handlePackageBound}
+            canBind={Boolean(urlConversationId)}
             parentHandoffConversationId={handoffParentConversationId}
             initialMessages={paneInitialMessages}
             pendingFirstMessageRef={pendingFirstMessageRef}
@@ -1174,6 +1245,15 @@ interface ChatPaneProps {
   /** ADR-0070 "Edit with AI": the package the user opened to edit (from `?package=`),
    *  forwarded to the build agent as `context.packageId` to scope it to that app. */
   editPackageId?: string;
+  /** A1.b bind-on-create: fired when this pane's build history binds to a package
+   *  while the surface has no `?package=` — the page re-keys the conversation to
+   *  `app:${pkg}:build` and writes `?package=` onto the URL. */
+  onPackageBound?: (pkg: string) => void;
+  /** A1.b — true once the conversation id is mirrored into the URL. Binding is
+   *  deferred until then (single-navigator rule vs the page's URL-mirror effect);
+   *  keeping it in the bind effect's deps re-fires the notification when the
+   *  mirror lands, covering a hydrated bound thread opened via bare `/ai/build`. */
+  canBind?: boolean;
   /** ADR-0057 P4 / cloud#817 — source `ask` conversation id (from `?parentConversationId=`),
    *  forwarded to the build agent's FIRST turn as `context.parentConversationId` so it
    *  starts with the ask thread as context. Undefined outside a handoff. */
@@ -1204,6 +1284,8 @@ export function ChatPane({
   apiBase,
   conversationId,
   editPackageId,
+  onPackageBound,
+  canBind,
   parentHandoffConversationId,
   initialMessages,
   pendingFirstMessageRef,
@@ -1503,6 +1585,30 @@ export function ChatPane({
     return app ? appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }) : boundPackageId;
   }, [boundPackageId, metadataApps, appLabel, t]);
 
+  // A1.b bind-on-create: report the binding to the page (which re-keys the
+  // conversation and puts `?package=` on the URL). Deferred behind `canBind`
+  // (the conversation id must be in the URL first — see ChatPaneProps); the
+  // dep re-fires it when the mirror lands, and again on a hydrated reload of
+  // a bound thread whose URL lost the `?package=` (self-heal).
+  useEffect(() => {
+    if (!isBuildSurface || !canBind || !boundPackageId || editPackageId) return;
+    onPackageBound?.(boundPackageId);
+  }, [isBuildSurface, canBind, boundPackageId, editPackageId, onPackageBound]);
+
+  // A1.b switcher menu: every published app with a package identity, deduped
+  // by package (apps sharing a package share the build thread — the scope is
+  // per-package). Selecting one navigates to its Edit-with-AI surface, which
+  // resumes (or mints) that app's own build conversation.
+  const switchablePackages = useMemo(() => {
+    const byPackage = new Map<string, string>();
+    for (const app of metadataApps ?? []) {
+      const pkg = (app as { _packageId?: string })._packageId;
+      if (!pkg || byPackage.has(pkg)) continue;
+      byPackage.set(pkg, appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }));
+    }
+    return Array.from(byPackage, ([id, label]) => ({ id, label }));
+  }, [metadataApps, appLabel, t]);
+
   const headerSlot = (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-4 pb-2 pt-3 sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -1569,24 +1675,66 @@ export function ChatPane({
           </span>
         )}
         {isBuildSurface ? (
-          boundPackageId ? (
-            <span
+          // A1.b — the binding chip is a SWITCHER now: each app gets its own
+          // build conversation (the scope is per-package), so picking one here
+          // switches threads via its Edit-with-AI entry; "New app" opens a
+          // fresh unbound draft (`?new=1` mints a separate thread).
+          <DropdownMenu>
+            <DropdownMenuTrigger
               data-testid="ai-build-package-chip"
               title={boundPackageId}
-              className="inline-flex min-w-0 items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-xs text-foreground/80"
+              aria-label={t('console.ai.switchApp', { defaultValue: 'Switch app' })}
+              className={cn(
+                'inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-0.5 text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border/80',
+                boundPackageId
+                  ? 'bg-muted/40 text-foreground/80'
+                  : 'border-dashed text-muted-foreground',
+              )}
             >
-              <PackageIcon className="size-3 shrink-0" />
-              <span className="max-w-[10rem] truncate">{boundPackageLabel}</span>
-            </span>
-          ) : (
-            <span
-              data-testid="ai-build-package-chip"
-              className="inline-flex items-center gap-1 rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground"
-            >
-              <SparklesIcon className="size-3 shrink-0" />
-              {t('console.ai.newApp', { defaultValue: 'New app' })}
-            </span>
-          )
+              {boundPackageId ? (
+                <>
+                  <PackageIcon className="size-3 shrink-0" />
+                  <span className="max-w-[10rem] truncate">{boundPackageLabel}</span>
+                </>
+              ) : (
+                <>
+                  <SparklesIcon className="size-3 shrink-0" />
+                  {t('console.ai.newApp', { defaultValue: 'New app' })}
+                </>
+              )}
+              <ChevronDown className="size-3 shrink-0 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                {t('console.ai.switchAppLabel', { defaultValue: 'Build conversations by app' })}
+              </DropdownMenuLabel>
+              {switchablePackages.map((pkg) => (
+                <DropdownMenuItem
+                  key={pkg.id}
+                  data-testid={`ai-build-package-option-${pkg.id}`}
+                  className="text-xs"
+                  onSelect={() => {
+                    if (pkg.id !== boundPackageId) {
+                      navigate(`/ai/build?package=${encodeURIComponent(pkg.id)}`);
+                    }
+                  }}
+                >
+                  <PackageIcon className="size-3 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{pkg.label}</span>
+                  {pkg.id === boundPackageId ? <Check className="size-3 shrink-0" /> : null}
+                </DropdownMenuItem>
+              ))}
+              {switchablePackages.length > 0 ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem
+                data-testid="ai-build-package-option-new"
+                className="text-xs"
+                onSelect={() => navigate('/ai/build?new=1')}
+              >
+                <SparklesIcon className="size-3 shrink-0" />
+                {t('console.ai.newApp', { defaultValue: 'New app' })}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">

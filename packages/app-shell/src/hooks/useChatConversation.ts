@@ -69,6 +69,25 @@ export interface UseChatConversationOptions {
    * Ignored when `activeId` or `forceNew` is set.
    */
   resumeMode?: 'resume' | 'fresh';
+  /**
+   * ADR-0057 Amendment A1.b — migration read for threads keyed under an OLDER
+   * scope. When the PRIMARY cache key for `scope` misses on a plain visit (no
+   * `activeId`, no `forceNew`), the id cached under `legacyScope` is fetched
+   * and offered to {@link adoptLegacy}; on a match it is ADOPTED — written
+   * under the NEW scope's cache key and resumed — instead of minting a fresh
+   * thread. The legacy key itself is left intact (other product-only surfaces
+   * keep resolving through it). No-op without `adoptLegacy`.
+   */
+  legacyScope?: string;
+  /**
+   * Predicate deciding whether the `legacyScope` conversation actually belongs
+   * to the requesting scope (e.g. "is this build thread bound to package X?").
+   * Receives the conversation's hydrated messages — from the server, or from
+   * the localStorage message cache when the server returns none (the same
+   * cache-fallback the resolve path already uses). Returning false (or the
+   * fetch failing) falls through to creating a fresh conversation.
+   */
+  adoptLegacy?: (messages: HydratedUIMessage[]) => boolean;
 }
 
 export interface UseChatConversationReturn {
@@ -91,6 +110,19 @@ export interface UseChatConversationReturn {
    * with {@link reset}, which deletes the current conversation first.
    */
   startNew: () => Promise<void>;
+  /**
+   * ADR-0057 Amendment A1.b "bind on create" — re-key the CURRENT conversation
+   * under `newScope` without re-resolving: the id is written to the new scope's
+   * cache key and `conversationScope` flips to `newScope` SYNCHRONOUSLY (a ref
+   * write, visible to the very next render). Call it right before navigating
+   * to the URL that makes the host compute `newScope` as its scope, so the
+   * host's `conversationScope === scope` gate (#2450) holds through the
+   * transition and the mounted pane never sees a mismatched window (which
+   * would remount it mid-stream). The PREVIOUS scope's cache key is left
+   * intact — other surfaces still keyed there (dock/FAB) keep resolving.
+   * No-op until a conversation is resolved.
+   */
+  rekeyScope: (newScope: string) => void;
 }
 
 /**
@@ -540,7 +572,21 @@ async function deleteConversation(apiBase: string, id: string): Promise<void> {
 export function useChatConversation(
   options: UseChatConversationOptions,
 ): UseChatConversationReturn {
-  const { userId, scope, apiBase, activeId, forceNew, resumeMode = 'resume' } = options;
+  const {
+    userId,
+    scope,
+    apiBase,
+    activeId,
+    forceNew,
+    resumeMode = 'resume',
+    legacyScope,
+    adoptLegacy,
+  } = options;
+  // Ref'd so the resolve effect reads the LATEST predicate without depending on
+  // its identity (hosts pass inline closures; re-resolving on every render of
+  // the host would defeat the resolved-once guard).
+  const adoptLegacyRef = useRef(adoptLegacy);
+  adoptLegacyRef.current = adoptLegacy;
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const [initialMessages, setInitialMessages] = useState<HydratedUIMessage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(userId));
@@ -614,6 +660,40 @@ export function useChatConversation(
           writeConversationMessagesCache(activeId, []);
         } else if (!forceNew) {
           const cached = readCache(key);
+          // A1.b migration read: nothing cached under THIS scope yet — the
+          // thread may predate the scope (e.g. a build conversation keyed
+          // product-only before bind-on-create shipped). Offer the legacy
+          // scope's conversation to the host's predicate; adopt on match.
+          if (!cached && legacyScope && adoptLegacyRef.current) {
+            const legacyId = readCache(cacheKey(userId, legacyScope));
+            if (legacyId) {
+              // Inner try/catch: a failing legacy fetch must degrade to a
+              // plain miss (create fresh below), not dead-end the resolve —
+              // the outer catch would leave the surface with no conversation
+              // where, pre-A1.b, it would have happily created one.
+              try {
+                const legacy = await fetchConversation(apiBase, legacyId);
+                if (cancelled) return;
+                if (legacy) {
+                  const messages = toUIMessages(legacy.messages);
+                  // Server returned no history (it can) → judge the message
+                  // cache instead, same fallback the resume path renders from.
+                  const judged = messages.length > 0 ? messages : readMessageCache(legacy.id);
+                  if (adoptLegacyRef.current?.(judged)) {
+                    writeCache(key, legacy.id);
+                    setConversationId(legacy.id);
+                    setInitialMessages(judged);
+                    resolvedForUserRef.current = userId;
+                    resolvedScopeRef.current = scope;
+                    return;
+                  }
+                }
+              } catch {
+                /* treat as a miss — fall through to create */
+              }
+              if (cancelled) return;
+            }
+          }
           if (cached) {
             const existing = await fetchConversation(apiBase, cached);
             if (cancelled) return;
@@ -670,9 +750,11 @@ export function useChatConversation(
     };
     // `conversationId` intentionally omitted: it's only read inside the
     // short-circuit guard, which is governed by the ref. Including it would
-    // re-run the effect after we successfully resolved an id.
+    // re-run the effect after we successfully resolved an id. `adoptLegacy` is
+    // read through a ref for the same reason (inline closures would re-resolve
+    // every host render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, scope, apiBase, activeId, forceNew, resumeMode]);
+  }, [userId, scope, apiBase, activeId, forceNew, resumeMode, legacyScope]);
 
   const reset = useCallback(async () => {
     if (!userId) return;
@@ -723,8 +805,25 @@ export function useChatConversation(
     }
   }, [userId, scope, apiBase]);
 
+  // A1.b bind-on-create. Synchronous on purpose: the caller invokes this
+  // immediately before the navigation that flips its own scope computation to
+  // `newScope`, so by the time that navigation's render commits,
+  // `conversationScope` (the ref) already agrees with the new scope and the
+  // #2450 scope-match gate never opens a remount window. The subsequent
+  // resolve-effect run (scope prop changed, `activeId` present) refetches the
+  // same id — the same benign refetch the URL-mirror already induces today.
+  const rekeyScope = useCallback(
+    (newScope: string) => {
+      if (!userId || !conversationId) return;
+      writeCache(cacheKey(userId, newScope), conversationId);
+      resolvedForUserRef.current = userId;
+      resolvedScopeRef.current = newScope;
+    },
+    [userId, conversationId],
+  );
+
   // `resolvedScopeRef` is updated in lockstep with every `setConversationId`
   // (same async tick), so at render time it always describes the scope the
   // current `conversationId` was resolved under.
-  return { conversationId, conversationScope: resolvedScopeRef.current, initialMessages, isLoading, reset, startNew };
+  return { conversationId, conversationScope: resolvedScopeRef.current, initialMessages, isLoading, reset, startNew, rekeyScope };
 }
