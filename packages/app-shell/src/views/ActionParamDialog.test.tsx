@@ -51,4 +51,15 @@ describe('filterVisibleParams', () => {
     const params = [p('x', 'this is ((( not valid')];
     expect(filterVisibleParams(params, {}).map((x) => x.name)).toEqual(['x']);
   });
+
+  it('handles the normalized {dialect, source} form the spec serializes to', () => {
+    // The framework's ExpressionInputSchema normalizes the authored string to
+    // `{ dialect: 'cel', source: '...' }`, so the served param carries the object
+    // form — the evaluator unwraps `.source`, so gating still works.
+    const params: ActionParamDef[] = [
+      { name: 'phoneNumber', label: 'Phone', type: 'text', visible: { dialect: 'cel', source: 'features.phoneNumber == true' } as any },
+    ];
+    expect(filterVisibleParams(params, { features: { phoneNumber: false } })).toEqual([]);
+    expect(filterVisibleParams(params, { features: { phoneNumber: true } }).map((x) => x.name)).toEqual(['phoneNumber']);
+  });
 });
