@@ -790,8 +790,15 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     // until the hook re-resolves under the new one. Mirroring it would write
     // it onto the new agent's URL and resume the wrong chat.
     if (conversationScope !== chatScope) return;
-    navigate(`/ai/${activeAgentRoute}/${conversationId}`, { replace: true });
-  }, [segmentIsAgent, urlConversationId, conversationId, conversationScope, chatScope, activeAgentRoute, navigate]);
+    // Preserve the `?package=` binding (ADR-0070 "Edit with AI") across the
+    // mirror. Without it the rewrite to `/ai/:agent/:conversationId` drops the
+    // query, so `editPackageId` goes undefined and the conversation scope falls
+    // back from `app:${package}:${product}` to the product alone (ADR-0057) —
+    // which would then let a bare `/ai/build` visit resume this package-scoped
+    // thread. The consumed `agent`/`new` params stay stripped as before.
+    const pkgQuery = editPackageId ? `?package=${encodeURIComponent(editPackageId)}` : '';
+    navigate(`/ai/${activeAgentRoute}/${conversationId}${pkgQuery}`, { replace: true });
+  }, [segmentIsAgent, urlConversationId, conversationId, conversationScope, chatScope, activeAgentRoute, editPackageId, navigate]);
 
   const titledRef = useRef<Set<string>>(new Set());
 
