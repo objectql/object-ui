@@ -285,13 +285,17 @@ export function RecordDetailDrawer({
         <div className="px-6 pt-6 pb-6">
           <DetailView
             dataSource={dataSource}
-            inlineEdit
+            // Capability = handler presence: a caller that omits onFieldSave /
+            // onDelete gets a strictly read-only drawer (no inline editors, no
+            // delete action) — e.g. a gantt row locked via lockField. Hardcoding
+            // these on would let the drawer bypass row-level locks.
+            inlineEdit={!!onFieldSave}
             schema={{
               type: 'detail-view',
               objectName,
               resourceId: String(recordId),
               data: record,
-              showDelete: true,
+              showDelete: !!onDelete,
               columns,
               fields,
               // Fold "Open in new tab" into DetailView's unified header
@@ -318,21 +322,21 @@ export function RecordDetailDrawer({
                   ]
                 : undefined,
             } as any}
-            onFieldSave={async (field, value) => {
+            onFieldSave={onFieldSave ? async (field, value) => {
               try {
-                await onFieldSave?.(field, value);
+                await onFieldSave(field, value);
               } catch (err) {
                 console.error('[RecordDetailDrawer] inline field save failed:', err);
               }
-            }}
-            onDelete={async () => {
+            } : undefined}
+            onDelete={onDelete ? async () => {
               try {
-                await onDelete?.();
+                await onDelete();
                 onClose();
               } catch (err) {
                 console.error('[RecordDetailDrawer] delete failed:', err);
               }
-            }}
+            } : undefined}
           />
         </div>
       </SheetContent>

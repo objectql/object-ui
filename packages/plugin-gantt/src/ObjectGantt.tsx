@@ -1134,6 +1134,11 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         const titleText = ganttConfig?.titleField
           ? String(rec[ganttConfig.titleField] ?? 'Task Details')
           : 'Task Details';
+        // Row-level lock (lockField) and global readOnly must also lock the
+        // drawer: omitting onFieldSave/onDelete renders it strictly read-only.
+        const recLocked =
+          !!(schema as any).readOnly ||
+          (ganttConfig?.lockField ? !!rec[ganttConfig.lockField] : false);
 
         return (
           <RecordDetailDrawer
@@ -1147,7 +1152,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             objectSchema={objectSchema as any}
             width={navigation.width as any}
             fullPageHref={deriveRecordPageHref(objectName, recordId) ?? undefined}
-            onFieldSave={async (field, value) => {
+            onFieldSave={recLocked ? undefined : async (field, value) => {
               if (!dataSource?.update) return;
               await dataSource.update(objectName, String(recordId), { [field]: value });
               setData((prev) => prev.map((r) =>
@@ -1156,7 +1161,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
                   : r,
               ));
             }}
-            onDelete={async () => {
+            onDelete={recLocked ? undefined : async () => {
               if (!dataSource?.delete) return;
               await dataSource.delete(objectName, String(recordId));
               setData((prev) => prev.filter((r) =>
