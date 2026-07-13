@@ -98,6 +98,14 @@ type GanttConfigEx = GanttConfig & {
    */
   lockField?: string;
   /**
+   * Record field carrying the row's OBJECT API NAME (行级对象名). Mixed-object
+   * trees (an `api` provider composing e.g. 排班计划 rows with 派工单 children)
+   * need the detail drawer and its full-page link to follow each row's REAL
+   * object — otherwise a child row's 「→」 builds a URL under the view's bound
+   * object and 404s. Empty/missing value → falls back to the bound object.
+   */
+  objectField?: string;
+  /**
    * How a summary bar's span is computed (汇总条区间). `'children'` (default)
    * rolls the bar up from its children — min start / max end / duration-weighted
    * progress — and IGNORES the record's own dates. `'self'` renders the bar from
@@ -304,6 +312,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           parentField: schema.parentField,
           typeField: schema.typeField,
           lockField: schema.lockField,
+          objectField: schema.objectField,
           summaryExtent: schema.summaryExtent,
           defaultCollapsedDepth: schema.defaultCollapsedDepth,
           tooltipFields: schema.tooltipFields,
@@ -606,9 +615,14 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         const fieldName = typeof entry === 'string' ? entry : entry?.field;
         if (!fieldName) continue;
         const explicitLabel = typeof entry === 'object' ? entry.label : undefined;
+        const raw = resolvePath(record, fieldName);
+        // Per-level tooltips (悬浮分层字段): mixed trees list the UNION of every
+        // level's fields here; a row omits the ones that don't apply to it, so
+        // an absent value must drop the line, not render a placeholder dash.
+        if (raw == null || raw === '' || (Array.isArray(raw) && raw.length === 0)) continue;
         rows.push({
           label: resolveFieldLabel(fieldName, explicitLabel),
-          value: formatFieldValue(resolvePath(record, fieldName), fieldName),
+          value: formatFieldValue(raw, fieldName),
         });
       }
       return rows.length ? rows : undefined;
@@ -891,11 +905,65 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     });
   }, [quickFilterDefs, objectSchema, lookupOptions, data, resolveFilterKey]);
 
-  const [filterValues, setFilterValues] = useState<Record<string, string[]>>({});
+  // 保存布局 covers the quick-filter chips too: GanttView persists its own
+  // snapshot under persistLayoutKey and fires onLayoutChange; the chips live up
+  // here, so they get a sibling localStorage key and restore on mount.
+  const persistLayoutKey =
+    (schema as any).persistLayout === false
+      ? undefined
+      : `${schema.objectName || (dataConfig?.provider === 'object' ? dataConfig.object : '') || 'gantt'}:${(schema as any).viewName || 'default'}`;
+  const filtersStorageKey = persistLayoutKey ? `gantt-layout:${persistLayoutKey}:filters` : null;
+  const [filterValues, setFilterValues] = useState<Record<string, string[]>>(() => {
+    if (!filtersStorageKey || typeof window === 'undefined') return {};
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(filtersStorageKey) || 'null');
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      const out: Record<string, string[]> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (Array.isArray(v)) out[k] = v.filter((x): x is string => typeof x === 'string');
+      }
+      return out;
+    } catch {
+      return {};
+    }
+  });
+  const persistFilters = useCallback(() => {
+    if (!filtersStorageKey || typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(filtersStorageKey, JSON.stringify(filterValues));
+    } catch {
+      /* storage unavailable / full — non-fatal */
+    }
+  }, [filtersStorageKey, filterValues]);
   const handleFilterChange = useCallback((field: string, values: string[]) => {
     setFilterValues((prev) => ({ ...prev, [field]: values }));
   }, []);
   const clearFilters = useCallback(() => setFilterValues({}), []);
+
+  // Detail-page href for a row, honouring objectField (mixed-object trees):
+  // the link must follow the ROW's object, not the view's bound one — a 派工单
+  // row opened under the 排班计划 route otherwise builds a 404 URL.
+  // deriveRecordPageHref needs the routed object's segment in the current path
+  // (a foreign row object never appears there), so derive from the routed
+  // object and swap the segment. Shared by the drawer's 整页 link and the
+  // context menu's 移动端二维码.
+  const recordDetailHref = useCallback(
+    (rec: Record<string, any>): { objectName: string; recordId: string | number; href: string | null } | null => {
+      const rowObject = ganttConfig?.objectField
+        ? String(rec[ganttConfig.objectField] ?? '').trim()
+        : '';
+      const objectName = rowObject || resource;
+      const recordId = rec.id ?? rec._id;
+      if (!objectName || recordId == null) return null;
+      const routedHref = resource ? deriveRecordPageHref(resource, recordId) : null;
+      const href =
+        !resource || objectName === resource
+          ? routedHref
+          : routedHref?.replace(`/${resource}/record/`, `/${objectName}/record/`) ?? null;
+      return { objectName, recordId, href };
+    },
+    [ganttConfig?.objectField, resource],
+  );
 
   // Apply the active filters in memory: a task matches when, for every dimension
   // with a non-empty selection, its resolved key is among the selected values.
@@ -1200,6 +1268,20 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             navigation.handleClick(task.data);
             onTaskClick?.(task.data);
           }}
+          taskUrl={(task) => {
+            const rec = task.data as Record<string, any> | undefined;
+            if (!rec) return null;
+            // With objectField configured, rows lacking a value are synthetic
+            // group rows (项目/产品) — no detail page exists, so no QR item.
+            if (ganttConfig?.objectField && !String(rec[ganttConfig.objectField] ?? '').trim()) {
+              return null;
+            }
+            const href = recordDetailHref(rec)?.href;
+            if (!href) return null;
+            // Absolute URL: the QR is scanned on another device, so a
+            // path-relative href would be useless there.
+            return typeof window === 'undefined' ? href : new URL(href, window.location.href).toString();
+          }}
           onTaskUpdate={handleTaskUpdateDefault}
           onTaskDelete={requestDelete}
           onDependencyCreate={ganttConfig?.dependenciesField ? handleDependencyCreate : undefined}
@@ -1213,11 +1295,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           showBaselines={(schema as any).showBaselines !== false}
           readOnly={!!(schema as any).readOnly}
           mobileReadOnly={(schema as any).mobileReadOnly !== false}
-          persistLayoutKey={
-            (schema as any).persistLayout === false
-              ? undefined
-              : `${schema.objectName || (dataConfig?.provider === 'object' ? dataConfig.object : '') || 'gantt'}:${(schema as any).viewName || 'default'}`
-          }
+          persistLayoutKey={persistLayoutKey}
+          onLayoutChange={filtersStorageKey ? persistFilters : undefined}
           groupBy={groupByAccessor}
           defaultCollapsedDepth={ganttConfig?.defaultCollapsedDepth}
           summaryExtent={ganttConfig?.summaryExtent}
@@ -1236,10 +1315,11 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         )}
       </div>
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
-        const objectName = resource;
         const rec = navigation.selectedRecord as Record<string, any>;
-        const recordId = rec.id ?? rec._id;
-        if (!objectName || recordId == null) return null;
+        const detail = recordDetailHref(rec);
+        if (!detail) return null;
+        const { objectName, recordId } = detail;
+        const fullPageHref = detail.href ?? undefined;
         const titleText = ganttConfig?.titleField
           ? String(rec[ganttConfig.titleField] ?? t('gantt.drawer.fallbackTitle'))
           : t('gantt.drawer.fallbackTitle');
@@ -1258,12 +1338,12 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             objectName={objectName}
             recordId={recordId}
             dataSource={effectiveDataSource ?? undefined}
-            objectSchema={objectSchema as any}
+            objectSchema={objectName === resource ? (objectSchema as any) : undefined}
             width={navigation.width as any}
-            fullPageHref={deriveRecordPageHref(objectName, recordId) ?? undefined}
+            fullPageHref={fullPageHref}
             onFieldSave={recLocked ? undefined : async (field, value) => {
               if (!effectiveDataSource?.update) return;
-              await effectiveDataSource.update(resource, String(recordId), { [field]: value });
+              await effectiveDataSource.update(objectName, String(recordId), { [field]: value });
               setData((prev) => prev.map((r) =>
                 String(r.id ?? r._id) === String(recordId)
                   ? { ...r, [field]: value }
@@ -1273,7 +1353,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             }}
             onDelete={recLocked ? undefined : async () => {
               if (!effectiveDataSource?.delete) return;
-              await effectiveDataSource.delete(resource, String(recordId));
+              await effectiveDataSource.delete(objectName, String(recordId));
               setData((prev) => prev.filter((r) =>
                 String(r.id ?? r._id) !== String(recordId),
               ));

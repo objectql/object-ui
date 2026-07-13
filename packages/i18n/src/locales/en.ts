@@ -416,6 +416,7 @@ const en = {
       expand: 'Expand',
       collapse: 'Collapse',
       locate: 'Locate on timeline',
+      open: 'Open details',
     },
     aria: {
       taskList: 'Task list',
@@ -432,6 +433,14 @@ const en = {
       removeDependency: 'Remove dependency',
       noCandidates: 'No available tasks',
       searchTasks: 'Search tasks…',
+      qrcode: 'Mobile QR code',
+    },
+    qr: {
+      title: 'Open on mobile',
+      hint: 'Scan with a phone to open the details',
+      copy: 'Copy link',
+      copied: 'Copied',
+      close: 'Close',
     },
     delete: {
       title: 'Delete this task?',
@@ -463,6 +472,7 @@ const en = {
     },
     readOnly: 'Read-only',
     readOnlyHint: 'Editing is disabled for this view.',
+    lockedHint: 'No edit permission',
   },
   view: {
     editViewConfig: 'Edit view config',

@@ -47,9 +47,16 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.row.expand': 'Expand',
   'gantt.row.collapse': 'Collapse',
   'gantt.row.locate': 'Locate on timeline',
+  'gantt.row.open': 'Open details',
   'gantt.aria.taskList': 'Task list',
   'gantt.tooltip.days': 'd',
   'gantt.menu.view': 'View details',
+  'gantt.menu.qrcode': 'Mobile QR code',
+  'gantt.qr.title': 'Open on mobile',
+  'gantt.qr.hint': 'Scan with a phone to open the details',
+  'gantt.qr.copy': 'Copy link',
+  'gantt.qr.copied': 'Copied',
+  'gantt.qr.close': 'Close',
   'gantt.menu.edit': 'Edit inline',
   'gantt.menu.delete': 'Delete',
   'gantt.menu.addPredecessor': 'Add predecessor…',
@@ -79,6 +86,7 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.resource.empty': 'No tasks to allocate.',
   'gantt.readOnly': 'Read-only',
   'gantt.readOnlyHint': 'Editing is disabled for this view.',
+  'gantt.lockedHint': 'No edit permission',
 };
 
 function fallback(key: string, options?: Record<string, unknown>): string {

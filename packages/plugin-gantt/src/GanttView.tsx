@@ -30,7 +30,12 @@ import {
   Lock,
   Crosshair,
   RefreshCw,
+  ArrowRight,
+  QrCode,
+  Copy,
+  Check,
 } from "lucide-react"
+import { toDataURL as qrToDataURL } from "qrcode"
 import {
   cn,
   Button,
@@ -264,6 +269,13 @@ export interface GanttViewProps {
   /** Extra vertical marker lines rendered like the Today marker. */
   markers?: GanttMarker[]
   onTaskClick?: (task: GanttTask) => void
+  /**
+   * Absolute detail-page URL for a task, used by the context menu's
+   * 「移动端二维码」 item (QR + copy link for opening on a phone). Return
+   * null/undefined for rows without a detail page (synthetic group rows) to
+   * hide the item.
+   */
+  taskUrl?: (task: GanttTask) => string | null | undefined
   onTaskUpdate?: (task: GanttTask, changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>) => void
   onTaskDelete?: (task: GanttTask) => void
   /** Notified when the user switches granularity from the toolbar. */
@@ -412,6 +424,12 @@ export interface GanttLayout {
   taskListCollapsed: boolean
   /** User-dragged task-list (name column) width in px, or null when auto-sized. */
   taskListWidth?: number | null
+  /**
+   * Ids of rows the user had collapsed when saving (展开状态). Present (even
+   * empty) means the saved expand/collapse state wins over
+   * `defaultCollapsedDepth`; absent (older snapshots) leaves the default.
+   */
+  collapsedIds?: string[]
 }
 
 // --- Export helpers (导出 PNG / PDF) — module-level, no React deps. ---
@@ -514,7 +532,10 @@ function readSavedLayout(key: string | undefined): GanttLayout | null {
       typeof p.columnWidth === 'number' && isFinite(p.columnWidth) ? p.columnWidth : null;
     const taskListWidth =
       typeof p.taskListWidth === 'number' && isFinite(p.taskListWidth) ? p.taskListWidth : null;
-    return { viewMode, columnWidth, taskListCollapsed: !!p.taskListCollapsed, taskListWidth };
+    const collapsedIds = Array.isArray(p.collapsedIds)
+      ? p.collapsedIds.filter((x): x is string => typeof x === 'string')
+      : undefined;
+    return { viewMode, columnWidth, taskListCollapsed: !!p.taskListCollapsed, taskListWidth, collapsedIds };
   } catch {
     return null;
   }
@@ -537,6 +558,7 @@ export function GanttView({
   endDate,
   markers,
   onTaskClick,
+  taskUrl,
   onTaskUpdate: onTaskUpdateProp,
   onTaskDelete: onTaskDeleteProp,
   onViewChange,
@@ -787,9 +809,9 @@ export function GanttView({
   }, [childrenByParent]);
 
   // Drag-and-drop state for rescheduling a bar (move + resize from either edge).
-  // unitDelta is the snapped offset, in columns of the active granularity, from
-  // the original position; preview is rendered by overriding left/width when
-  // dragState.taskId matches.
+  // unitDelta is the snapped offset from the original position — in DAYS on
+  // every granularity except day-with-shift-bands, where it counts bands;
+  // preview is rendered by overriding left/width when dragState.taskId matches.
   type DragMode = 'move' | 'resize-left' | 'resize-right';
   const [dragState, setDragState] = React.useState<{
     taskId: string | number;
@@ -814,10 +836,13 @@ export function GanttView({
       segActive && shiftSegments
         ? Math.min(...shiftSegments.bands.map((b) => b.durMs))
         : MS_PER_DAY;
-    // Folded axes advance by working columns (Fri +1 → Mon); otherwise snap to
-    // whole calendar units. foldShiftRef is set during render (below).
+    // Folded/segmented axes advance by visible columns (Fri +1 → Mon, band →
+    // band); both only exist in day mode. Every other granularity snaps by
+    // whole DAYS — dragging in week/month view must not jump 7/30 days per
+    // step (unitDelta is a day count there; the pointer handler divides the
+    // pixel delta by pxPerDay to match).
     const shift = (date: Date, n: number) =>
-      foldShiftRef.current ? foldShiftRef.current(date, n) : addUnits(date, n, viewMode);
+      foldShiftRef.current ? foldShiftRef.current(date, n) : addUnits(date, n, 'day');
     let start = new Date(s.originStart);
     let end = new Date(s.originEnd);
     if (s.mode === 'move') {
@@ -975,11 +1000,14 @@ export function GanttView({
     if (!dragState) return;
     // In shift mode each drag step is one band wide (smallest band, so every
     // band boundary is reachable), not a whole day — so Δx / bandWidth = bands
-    // moved, matching shiftByWorkingColumns walking band columns.
+    // moved, matching shiftByWorkingColumns walking band columns. In every
+    // other granularity a step is one DAY of pixels (pxPerDay), matching
+    // computeDragChanges advancing by days — coarse views (week/month/…) snap
+    // per day instead of per column. In plain day view pxPerDay === columnWidth.
     const segActive = viewMode === 'day' && !!shiftSegments && shiftSegments.bands.length > 0;
     const dragColWidth = segActive && shiftSegments
       ? (pxPerDay * Math.min(...shiftSegments.bands.map((b) => b.durMs))) / MS_PER_DAY
-      : columnWidth;
+      : pxPerDay;
     const onMove = (e: PointerEvent) => {
       const cur = dragStateRef.current;
       if (!cur) return;
@@ -1204,6 +1232,36 @@ export function GanttView({
     };
   }, [ctxMenu]);
 
+  // --- 移动端二维码 (share-to-mobile QR) -------------------------------------
+  // Context-menu item: encode the row's absolute detail URL as a QR so the
+  // record opens on a phone by scanning, plus a copy-link button. The data URL
+  // is generated async when the dialog opens; null while pending/failed.
+  const [qrShare, setQrShare] = React.useState<{ task: GanttTask; url: string } | null>(null);
+  const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
+  const [qrCopied, setQrCopied] = React.useState(false);
+  React.useEffect(() => {
+    if (!qrShare) { setQrDataUrl(null); setQrCopied(false); return; }
+    let cancelled = false;
+    qrToDataURL(qrShare.url, { width: 220, margin: 1 })
+      .then((d) => { if (!cancelled) setQrDataUrl(d); })
+      .catch(() => { if (!cancelled) setQrDataUrl(null); });
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setQrShare(null); };
+    window.addEventListener('keydown', onKey);
+    return () => { cancelled = true; window.removeEventListener('keydown', onKey); };
+  }, [qrShare]);
+  const copyQrLink = React.useCallback(() => {
+    if (!qrShare) return;
+    const done = () => {
+      setQrCopied(true);
+      window.setTimeout(() => setQrCopied(false), 1500);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(qrShare.url).then(done).catch(() => {
+        /* clipboard denied — the URL stays visible/selectable in the dialog */
+      });
+    }
+  }, [qrShare]);
+
   // --- Dependency link context menu (依赖增删 + 类型选择) ---------------------
   // Right-clicking a dependency link opens a small menu to switch its type
   // (FS/SS/FF/SF) or remove it. Closing mirrors the task context menu.
@@ -1272,9 +1330,11 @@ export function GanttView({
     e.preventDefault();
     e.stopPropagation();
     setSelectedTaskId(task.id);
-    if (!hasTaskMenuActions) return;
+    // 移动端二维码 alone justifies a menu — but only when this row actually
+    // yields a URL (synthetic group rows return null), so no empty menu opens.
+    if (!hasTaskMenuActions && !(taskUrl && taskUrl(task))) return;
     setCtxMenu({ x: e.clientX, y: e.clientY, taskId: task.id });
-  }, [hasTaskMenuActions]);
+  }, [hasTaskMenuActions, taskUrl]);
 
   const openLinkContextMenu = React.useCallback(
     (sourceId: string | number, targetId: string | number, type: GanttLinkType, e: React.MouseEvent) => {
@@ -1304,7 +1364,9 @@ export function GanttView({
     progress: number;
   };
 
-  const [collapsedIds, setCollapsedIds] = React.useState<Set<string>>(() => new Set());
+  const [collapsedIds, setCollapsedIds] = React.useState<Set<string>>(
+    () => new Set(restoredLayout?.collapsedIds ?? [])
+  );
   const toggleCollapsed = React.useCallback((id: string | number) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev);
@@ -1318,7 +1380,9 @@ export function GanttView({
   // the parent chain to derive each node's 0-indexed depth and fold every node
   // at/below the threshold that actually has children. Runs a single time so the
   // user's later expand/collapse is never clobbered by a data refresh.
-  const defaultCollapseSeeded = React.useRef(false);
+  // A saved layout that recorded collapsedIds (even an empty list = all
+  // expanded) IS the user's intent — skip the defaultCollapsedDepth seed.
+  const defaultCollapseSeeded = React.useRef(restoredLayout?.collapsedIds != null);
   React.useEffect(() => {
     if (defaultCollapseSeeded.current) return;
     if (defaultCollapsedDepth == null || displayTasks.length === 0) return;
@@ -2600,11 +2664,12 @@ export function GanttView({
       columnWidth: columnWidthOverride,
       taskListCollapsed,
       taskListWidth: taskListWidthOverride,
+      collapsedIds: Array.from(collapsedIds),
     };
     if (persistLayoutKey) writeSavedLayout(persistLayoutKey, layout);
     onLayoutChange?.(layout);
     setLayoutSaved(true);
-  }, [viewMode, columnWidthOverride, taskListCollapsed, taskListWidthOverride, persistLayoutKey, onLayoutChange]);
+  }, [viewMode, columnWidthOverride, taskListCollapsed, taskListWidthOverride, collapsedIds, persistLayoutKey, onLayoutChange]);
   // Briefly reflect a save in the button's aria-pressed for feedback/testability.
   React.useEffect(() => {
     if (!layoutSaved) return;
@@ -3077,6 +3142,7 @@ export function GanttView({
                 )}
                 style={{ height: rowHeight, touchAction: 'manipulation' }}
                 role="treeitem"
+                data-testid={`gantt-task-row-${task.id}`}
                 aria-level={row.depth + 1}
                 aria-selected={isSelected}
                 aria-expanded={row.hasChildren ? !isCollapsed : undefined}
@@ -3104,10 +3170,15 @@ export function GanttView({
                 } : undefined}
                 onContextMenu={(e) => openContextMenu(task, e)}
                 onClick={() => {
+                  // Focus 查看: a single row click selects + locates the bar on
+                  // the timeline (scroll + pulse) WITHOUT opening the detail
+                  // drawer. Detail is on double-click, the row's 「→」 button,
+                  // the context menu 查看 and keyboard Enter.
                   setSelectedTaskId(task.id);
-                  if (!isEditing) onTaskClick?.(task);
+                  if (!isEditing) scrollToTask(row.start, row.end, task.id);
                 }}
                 onDoubleClick={() => {
+                  if (isEditing) return;
                   if (inlineEdit && onTaskUpdate && !row.isSummary && !task.locked) {
                     setEditingTask(task.id);
                     setEditValues({
@@ -3116,6 +3187,8 @@ export function GanttView({
                       end: task.end.toLocaleDateString('en-CA'),
                       progress: String(task.progress),
                     });
+                  } else {
+                    onTaskClick?.(task);
                   }
                 }}
               >
@@ -3213,8 +3286,9 @@ export function GanttView({
                     type="button"
                     title={t('gantt.row.locate')}
                     aria-label={t('gantt.row.locate')}
+                    data-testid={`gantt-row-locate-${task.id}`}
                     className="gantt-locate-btn hidden sm:block absolute top-1/2 -translate-y-1/2"
-                    style={{ right: 1 }}
+                    style={{ right: onTaskClick ? 20 : 1 }}
                     onClick={(e) => {
                       e.stopPropagation();
                       scrollToTask(row.start, row.end, row.task.id);
@@ -3223,10 +3297,28 @@ export function GanttView({
                     <Crosshair className="w-3 h-3" />
                   </button>
                 )}
-                {/* Row actions removed: View / Edit / Delete are reachable
-                    from the side drawer that opens on row click (DetailView
-                    has inline-edit + a delete in its more-actions menu).
-                    Inline edit is also still triggerable via row double-click. */}
+                {/* 跳转详情「→」: opens the detail drawer / page — the row click
+                    itself is reserved for Focus-locate, so detail needs its own
+                    always-reachable affordance besides double-click. */}
+                {!isEditing && onTaskClick && (
+                  <button
+                    type="button"
+                    title={t('gantt.row.open')}
+                    aria-label={t('gantt.row.open')}
+                    data-testid={`gantt-row-open-${task.id}`}
+                    className="gantt-locate-btn hidden sm:block absolute top-1/2 -translate-y-1/2"
+                    style={{ right: 1 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTaskClick(task);
+                    }}
+                  >
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+                {/* Row View/Edit/Delete stay reachable from the detail drawer
+                    (double-click / 「→」 / context menu / Enter); inline edit is
+                    still triggerable via row double-click when enabled. */}
               </div>
               );
             })}
@@ -3435,6 +3527,15 @@ export function GanttView({
                            {' · '}{Math.round(row.progress)}%
                          </div>
                        )}
+                       {task.locked || (effectiveReadOnly && !onTaskUpdate) ? (
+                         <div
+                           className="text-muted-foreground"
+                           style={{ marginTop: 4 }}
+                           data-testid={`gantt-tooltip-locked-${task.id}`}
+                         >
+                           {'🚫 '}{t('gantt.lockedHint')}
+                         </div>
+                       ) : null}
                      </div>
                    ) : null;
 
@@ -4020,6 +4121,21 @@ export function GanttView({
                 {t('gantt.menu.view')}
               </button>
             )}
+            {taskUrl && (() => {
+              const url = taskUrl(task);
+              if (!url) return null;
+              return (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={itemCls}
+                  data-testid="gantt-context-menu-qrcode"
+                  onClick={() => { setCtxMenu(null); setQrShare({ task, url }); }}
+                >
+                  {t('gantt.menu.qrcode')}
+                </button>
+              );
+            })()}
             {inlineEdit && onTaskUpdate && row && !row.isSummary && !task.locked && (
               <button
                 type="button"
@@ -4086,6 +4202,62 @@ export function GanttView({
           </div>
         );
       })()}
+
+      {/* 移动端二维码 dialog — scan to open the record's detail page on a phone. */}
+      {qrShare && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          data-testid="gantt-qr-dialog"
+          onClick={() => setQrShare(null)}
+        >
+          <div
+            role="dialog"
+            aria-label={t('gantt.qr.title')}
+            className="w-[280px] rounded-lg border bg-popover text-popover-foreground p-4 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-1 flex items-center gap-2 text-sm font-medium">
+              <QrCode className="h-4 w-4 shrink-0" />
+              <span className="truncate">{qrShare.task.title}</span>
+            </div>
+            <div className="mb-2 text-xs text-muted-foreground">{t('gantt.qr.hint')}</div>
+            {qrDataUrl ? (
+              <img
+                src={qrDataUrl}
+                alt={t('gantt.qr.title')}
+                data-testid="gantt-qr-image"
+                className="mx-auto block h-[220px] w-[220px] rounded bg-white"
+              />
+            ) : (
+              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
+                …
+              </div>
+            )}
+            <div className="mt-2 break-all text-[11px] text-muted-foreground" data-testid="gantt-qr-url">
+              {qrShare.url}
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="gantt-qr-copy"
+                onClick={copyQrLink}
+              >
+                {qrCopied ? <Check className="mr-1 h-3 w-3" /> : <Copy className="mr-1 h-3 w-3" />}
+                {qrCopied ? t('gantt.qr.copied') : t('gantt.qr.copy')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid="gantt-qr-close"
+                onClick={() => setQrShare(null)}
+              >
+                {t('gantt.qr.close')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Dependency link context menu (类型选择 + 移除) — fixed-position. */}
       {linkCtxMenu && (() => {
