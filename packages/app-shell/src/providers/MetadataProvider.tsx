@@ -6,10 +6,11 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import { MetadataClient, type ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { type ObjectStackAdapter } from '@object-ui/data-objectstack';
 import { resolveInlineMode } from '@object-ui/plugin-form';
 import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataState } from '@object-ui/react';
 import { usePreviewDrafts } from '../preview/PreviewModeContext';
+import { createConsoleMetadataClient } from '../views/metadata-admin/metadataClientFactory';
 import { subscribeCanvasInvalidate, subscribeMetadataRefresh } from '../assistant/assistantBus';
 
 export type { MetadataState, MetadataContextValue };
@@ -333,13 +334,13 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
   // reads come from the REST `?preview=draft` overlay (pending ADR-0033
   // drafts win over active) instead of the adapter SDK. The MetadataClient
   // is used because the SDK's meta API doesn't carry the preview flag; same
-  // endpoints, same cookie auth. Reads only — every write path is unchanged.
+  // endpoints, same authenticated fetch (Bearer token) as every other console
+  // client — see `createConsoleMetadataClient`. Reads only — every write path
+  // is unchanged.
   const previewDrafts = usePreviewDrafts();
   const previewClient = useMemo(() => {
     if (!previewDrafts) return null;
-    const baseUrl =
-      (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_SERVER_URL) || '';
-    return new MetadataClient({ baseUrl, previewDrafts: true });
+    return createConsoleMetadataClient({ previewDrafts: true });
   }, [previewDrafts]);
   const previewClientRef = useRef(previewClient);
   previewClientRef.current = previewClient;
