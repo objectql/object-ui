@@ -2427,3 +2427,85 @@ describe('ListView — inline-edit toggle drives grid editability', () => {
     expect(editableCalls.at(-1)).toBe(false);
   });
 });
+
+describe('ListView — gantt view fed by an api-provider ViewData', () => {
+  // A gantt view authored with `data: {provider:'api', read, write}` is fed by
+  // a composite endpoint that ObjectGantt resolves itself (resolveDataSource →
+  // ApiDataSource). ListView must (a) forward schema.data into the gantt
+  // component schema, (b) NOT fetch schema.objectName rows itself, and (c) NOT
+  // pass its rows `data` prop down — an array prop short-circuits the
+  // renderer's own fetch, replacing the endpoint's tree with raw object rows.
+  let prevObjectGantt: ReturnType<typeof ComponentRegistry.get>;
+  let ganttCalls: any[];
+
+  beforeAll(() => {
+    prevObjectGantt = ComponentRegistry.get('object-gantt');
+    ComponentRegistry.register('object-gantt', (props: any) => {
+      ganttCalls.push(props);
+      return <div data-testid="gantt-stub" />;
+    });
+  });
+  afterAll(() => {
+    if (prevObjectGantt) {
+      ComponentRegistry.register('object-gantt', prevObjectGantt);
+    } else {
+      ComponentRegistry.unregister('object-gantt');
+    }
+  });
+  beforeEach(() => {
+    ganttCalls = [];
+    mockDataSource.find.mockClear();
+  });
+
+  const apiData = {
+    provider: 'api' as const,
+    read: { url: '/api/gantt/tree', method: 'GET' as const },
+    write: { url: '/api/gantt/task', method: 'PATCH' as const },
+  };
+
+  it('forwards schema.data to the gantt schema, skips its own fetch, and withholds the rows prop', async () => {
+    const schema = {
+      type: 'list-view',
+      objectName: 'production_plan',
+      viewType: 'gantt',
+      fields: ['name'],
+      data: apiData,
+      gantt: { startDateField: 'start_date', endDateField: 'end_date' },
+    } as unknown as ListViewSchema;
+
+    renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+    expect(await screen.findByTestId('gantt-stub')).toBeInTheDocument();
+
+    // (a) the ViewData config reached the component schema
+    const last = ganttCalls.at(-1);
+    expect(last?.schema?.data).toEqual(apiData);
+    // (b) ListView did not query the bound object itself
+    expect(mockDataSource.find).not.toHaveBeenCalled();
+    // (c) no rows array prop — the schema-spread `data` (the ViewData object)
+    // must be what arrives, so ObjectGantt's own api fetch is not bypassed
+    expect(Array.isArray(last?.data)).toBe(false);
+  });
+
+  it('keeps the legacy object-provider path: ListView fetches and passes rows down', async () => {
+    mockDataSource.find.mockResolvedValue([
+      { id: '1', name: 'P1', start_date: '2026-01-01', end_date: '2026-01-02' },
+    ]);
+    const schema = {
+      type: 'list-view',
+      objectName: 'production_plan',
+      viewType: 'gantt',
+      fields: ['name'],
+      gantt: { startDateField: 'start_date', endDateField: 'end_date' },
+    } as unknown as ListViewSchema;
+
+    renderWithProvider(<ListView schema={schema} dataSource={mockDataSource} />);
+    expect(await screen.findByTestId('gantt-stub')).toBeInTheDocument();
+
+    await vi.waitFor(() => {
+      const last = ganttCalls.at(-1);
+      expect(Array.isArray(last?.data)).toBe(true);
+      expect(last?.data).toHaveLength(1);
+    });
+    expect(mockDataSource.find).toHaveBeenCalled();
+  });
+});

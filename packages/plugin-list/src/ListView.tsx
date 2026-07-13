@@ -512,6 +512,17 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     ) {
       return false;
     }
+    // Renderer-owned data (gantt + api provider): ListView never fetches,
+    // so don't flash its skeleton either.
+    if (
+      schema.viewType === 'gantt' &&
+      schema.data &&
+      typeof schema.data === 'object' &&
+      !Array.isArray(schema.data) &&
+      (schema.data as any).provider === 'api'
+    ) {
+      return false;
+    }
     return true;
   });
   const [objectDef, setObjectDef] = React.useState<any>(null);
@@ -862,6 +873,19 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   // gate further down the file.
   const perms = usePermissions();
 
+  // A gantt view whose `data` names the api provider is fed by a composite
+  // endpoint that ObjectGantt resolves itself (resolveDataSource →
+  // ApiDataSource, reads AND write-backs). ListView must neither fetch
+  // schema.objectName rows for it nor pass its `data` prop down — the prop
+  // short-circuits the renderer's own fetch, so stale object rows would
+  // replace the endpoint's tree.
+  const ganttOwnsData =
+    currentView === 'gantt' &&
+    !!schema.data &&
+    typeof schema.data === 'object' &&
+    !Array.isArray(schema.data) &&
+    (schema.data as any).provider === 'api';
+
   // Fetch data effect — supports schema.data (ViewDataSchema) provider modes
   React.useEffect(() => {
     let isMounted = true;
@@ -898,6 +922,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         );
       }
       setData(items);
+      setLoading(false);
+      setDataLimitReached(false);
+      return;
+    }
+
+    // Renderer-owned data (gantt + api provider): the view component fetches
+    // from its endpoint itself; just clear the loading state.
+    if (ganttOwnsData) {
       setLoading(false);
       setDataLimitReached(false);
       return;
@@ -1129,7 +1161,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     fetchData();
 
     return () => { isMounted = false; };
-  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
+  }, [schema.objectName, schema.data, dataSource, schema.filters, effectivePageSize, currentSort, currentFilters, userFilterConditions, refreshKey, searchTerm, schema.searchableFields, expandFields, objectDefLoaded, schema.refreshTrigger, perms, serverPage, currentView, groupingConfig, ganttOwnsData]); // Re-fetch on filter/sort/search/refreshTrigger/perms/page change
 
   // Any change to the result-defining inputs (object, filters, sort, search,
   // grouping, page size) invalidates the current page number — snap back to
@@ -1429,6 +1461,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         return {
           type: 'object-gantt',
           ...baseProps,
+          // ViewData pass-through: a view authored with `data: {provider:'api',
+          // read, write}` (composite endpoint) must reach ObjectGantt, whose
+          // getDataConfig prefers schema.data over the objectName fallback.
+          ...(schema.data ? { data: schema.data } : {}),
           startDateField: schema.gantt?.startDateField || schema.options?.gantt?.startDateField || 'start_date',
           endDateField: schema.gantt?.endDateField || schema.options?.gantt?.endDateField || 'end_date',
           progressField: schema.gantt?.progressField || schema.options?.gantt?.progressField || 'progress',
@@ -2381,7 +2417,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           <SchemaRenderer
             schema={viewComponentSchema}
             {...props}
-            data={data}
+            {...(ganttOwnsData ? {} : { data })}
             loading={loading}
             onRowSelect={setSelectedRows}
             {...(currentView === 'grid' && !(groupingConfig?.fields?.length) && serverTotal != null

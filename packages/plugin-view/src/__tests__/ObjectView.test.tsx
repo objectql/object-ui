@@ -674,6 +674,68 @@ describe('ObjectView', () => {
       expect(callSchema?.showSort).toBe(false);
     });
 
+    it('should propagate the ViewData `data` block (api provider) into the renderListView schema', async () => {
+      const apiData = {
+        provider: 'api',
+        read: { url: '/api/gantt/tree', method: 'GET' },
+        write: { url: '/api/gantt/task', method: 'PATCH' },
+      };
+      const schema = {
+        type: 'object-view',
+        objectName: 'production_plan',
+        data: apiData,
+      } as unknown as ObjectViewSchema;
+
+      const renderListViewSpy = vi.fn(() => (
+        <div data-testid="custom-list">Custom ListView</div>
+      ));
+
+      render(
+        <ObjectView
+          schema={schema}
+          dataSource={mockDataSource}
+          renderListView={renderListViewSpy}
+        />,
+      );
+
+      expect(renderListViewSpy).toHaveBeenCalled();
+      const callSchema = (renderListViewSpy.mock.calls[0] as any)?.[0]?.schema;
+      expect(callSchema?.data).toEqual(apiData);
+    });
+
+    it('should let activeView.data override the schema-level ViewData block', async () => {
+      const viewData = {
+        provider: 'api',
+        read: { url: '/api/gantt/tree' },
+      };
+      const schema = {
+        type: 'object-view',
+        objectName: 'production_plan',
+      } as unknown as ObjectViewSchema;
+
+      const renderListViewSpy = vi.fn(() => (
+        <div data-testid="custom-list">Custom ListView</div>
+      ));
+
+      const views = [
+        { id: 'v1', label: 'View 1', type: 'gantt' as const, data: viewData } as any,
+      ];
+
+      render(
+        <ObjectView
+          schema={schema}
+          dataSource={mockDataSource}
+          views={views}
+          activeViewId="v1"
+          renderListView={renderListViewSpy}
+        />,
+      );
+
+      expect(renderListViewSpy).toHaveBeenCalled();
+      const callSchema = (renderListViewSpy.mock.calls[0] as any)?.[0]?.schema;
+      expect(callSchema?.data).toEqual(viewData);
+    });
+
     it('should propagate userFilters from activeView in renderListView', async () => {
       const schema: ObjectViewSchema = {
         type: 'object-view',

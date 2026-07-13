@@ -1319,6 +1319,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             fieldTextColor: viewDef.fieldTextColor ?? listSchema.fieldTextColor,
             prefixField: viewDef.prefixField ?? listSchema.prefixField,
             showDescription: viewDef.showDescription ?? listSchema.showDescription,
+            // ViewData source override (spec `data` key): a view authored with
+            // `data: {provider:'api', read, write}` must survive this explicit
+            // picklist, or ObjectGantt falls back to provider:'object'.
+            data: (viewDef as any).data ?? (listSchema as any).data,
             // Propagate new spec properties (P0/P1/P2)
             navigation: viewDef.navigation ?? listSchema.navigation,
             selection: viewDef.selection ?? listSchema.selection,

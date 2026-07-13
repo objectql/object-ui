@@ -1015,6 +1015,10 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           fieldTextColor: activeView?.fieldTextColor ?? (schema as any).fieldTextColor,
           prefixField: activeView?.prefixField ?? (schema as any).prefixField,
           showDescription: activeView?.showDescription ?? (schema as any).showDescription,
+          // ViewData source override (spec `data` key) — e.g. gantt views fed
+          // by a composite api endpoint; without this pick the api provider
+          // never reaches the renderer.
+          data: (currentNamedViewConfig as any)?.data ?? (activeView as any)?.data ?? (schema as any).data,
           // Propagate new spec properties (P0/P1/P2)
           navigation: activeView?.navigation ?? (schema as any).navigation,
           selection: activeView?.selection ?? (schema as any).selection,
