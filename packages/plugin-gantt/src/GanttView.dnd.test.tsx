@@ -11,7 +11,7 @@
 import React from 'react';
 import { render, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GanttView, type GanttTask } from './GanttView';
+import { GanttView, resolveBarDragMode, type GanttTask } from './GanttView';
 
 // Force the container width to >=1024 so columnWidth=110 (deterministic).
 beforeEach(() => {
@@ -147,6 +147,92 @@ describe('GanttView drag-and-drop', () => {
     act(() => { window.dispatchEvent(pointer('pointermove', 510)); });
     act(() => { window.dispatchEvent(pointer('pointerup', 510)); });
     expect(onTaskUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveBarDragMode (edge-zone hit detection)', () => {
+  const rect = { left: 100, width: 110 };
+
+  it('resizes the left edge within RESIZE_EDGE_PX of the start', () => {
+    expect(resolveBarDragMode(100, rect)).toBe('resize-left'); // exact edge
+    expect(resolveBarDragMode(107, rect)).toBe('resize-left'); // 7px in
+  });
+
+  it('resizes the right edge within RESIZE_EDGE_PX of the end', () => {
+    expect(resolveBarDragMode(210, rect)).toBe('resize-right'); // exact edge
+    expect(resolveBarDragMode(203, rect)).toBe('resize-right'); // 7px from end
+  });
+
+  it('moves when the pointer is in the middle band', () => {
+    expect(resolveBarDragMode(155, rect)).toBe('move');
+    expect(resolveBarDragMode(120, rect)).toBe('move'); // 20px in — past the edge
+  });
+
+  it('falls back to move for an unlaid-out bar (jsdom zero rect)', () => {
+    expect(resolveBarDragMode(500, { left: 0, width: 0 })).toBe('move');
+  });
+
+  it('never lets the two edge bands overlap on a very short bar', () => {
+    // width 12 → edge clamps to 4px each; the middle stays grabbable.
+    const tiny = { left: 0, width: 12 };
+    expect(resolveBarDragMode(3, tiny)).toBe('resize-left');
+    expect(resolveBarDragMode(9, tiny)).toBe('resize-right');
+    expect(resolveBarDragMode(6, tiny)).toBe('move');
+  });
+});
+
+describe('GanttView bar-edge resize (laid-out hit detection)', () => {
+  // jsdom returns a zero-size rect for every element, so drive the layout-aware
+  // path by stubbing the bar's client rect the way a real (headless) browser
+  // reports it: a 110px-wide bar starting at x=100.
+  function renderWithLaidOutBar(onTaskUpdate: (t: GanttTask, c: any) => void) {
+    const { container } = renderView(onTaskUpdate);
+    const bar = container.querySelector('[data-testid="gantt-task-bar-t1"]') as HTMLElement;
+    bar.getBoundingClientRect = () =>
+      ({ left: 100, right: 210, width: 110, top: 100, bottom: 127, x: 100, y: 100, height: 27, toJSON() {} }) as DOMRect;
+    return { container, bar };
+  }
+
+  it('pointerdown near the left edge resizes start only (not a move)', () => {
+    const onTaskUpdate = vi.fn();
+    const { bar } = renderWithLaidOutBar(onTaskUpdate);
+
+    act(() => { bar.dispatchEvent(pointer('pointerdown', 104)); }); // 4px from left edge
+    act(() => { window.dispatchEvent(pointer('pointermove', -116)); }); // -220px → -2 days
+    act(() => { window.dispatchEvent(pointer('pointerup', -116)); });
+
+    expect(onTaskUpdate).toHaveBeenCalledTimes(1);
+    const [, changes] = onTaskUpdate.mock.calls[0];
+    expect(changes.start.toISOString()).toBe('2024-06-08T00:00:00.000Z');
+    expect(changes.end.toISOString()).toBe('2024-06-15T00:00:00.000Z'); // unchanged
+  });
+
+  it('pointerdown near the right edge resizes end only (not a move)', () => {
+    const onTaskUpdate = vi.fn();
+    const { bar } = renderWithLaidOutBar(onTaskUpdate);
+
+    act(() => { bar.dispatchEvent(pointer('pointerdown', 206)); }); // 4px from right edge
+    act(() => { window.dispatchEvent(pointer('pointermove', 426)); }); // +220px → +2 days
+    act(() => { window.dispatchEvent(pointer('pointerup', 426)); });
+
+    expect(onTaskUpdate).toHaveBeenCalledTimes(1);
+    const [, changes] = onTaskUpdate.mock.calls[0];
+    expect(changes.start.toISOString()).toBe('2024-06-10T00:00:00.000Z'); // unchanged
+    expect(changes.end.toISOString()).toBe('2024-06-17T00:00:00.000Z');
+  });
+
+  it('pointerdown in the middle still moves the whole bar', () => {
+    const onTaskUpdate = vi.fn();
+    const { bar } = renderWithLaidOutBar(onTaskUpdate);
+
+    act(() => { bar.dispatchEvent(pointer('pointerdown', 155)); }); // center
+    act(() => { window.dispatchEvent(pointer('pointermove', 485)); }); // +330px → +3 days
+    act(() => { window.dispatchEvent(pointer('pointerup', 485)); });
+
+    expect(onTaskUpdate).toHaveBeenCalledTimes(1);
+    const [, changes] = onTaskUpdate.mock.calls[0];
+    expect(changes.start.toISOString()).toBe('2024-06-13T00:00:00.000Z');
+    expect(changes.end.toISOString()).toBe('2024-06-18T00:00:00.000Z');
   });
 });
 

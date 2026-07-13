@@ -43,6 +43,35 @@ import { useGanttTranslation } from "./useGanttTranslation"
 const HEADER_HEIGHT = 50;
 const COLUMN_WIDTH = 100; // Time column width
 
+// Width, in px, of the resize "grab zone" at each end of a task bar. The visible
+// grip is only a few px, but pointer synthesis in headless browsers quantizes the
+// click coordinate, so a click aimed at the edge routinely lands a pixel or two
+// inside the bar body — starting a MOVE instead of a resize (命中不稳). Treating a
+// full-height band at each end as a resize edge makes the hit deterministic.
+const RESIZE_EDGE_PX = 8;
+
+/**
+ * Decide whether a pointerdown on a task bar should move it or resize an edge,
+ * from the pointer's horizontal offset within the bar's client rect.
+ *
+ * Kept a pure module function so it can be unit-tested without a layout engine.
+ * `rect.width <= 0` means the bar isn't laid out (jsdom, off-screen) — we can't
+ * tell the edges apart, so fall back to 'move'. The edge band is clamped to a
+ * third of the bar so a very short bar still keeps a grabbable middle and the
+ * two edges never overlap into an ambiguous center.
+ */
+export function resolveBarDragMode(
+  clientX: number,
+  rect: { left: number; width: number },
+): 'move' | 'resize-left' | 'resize-right' {
+  if (rect.width <= 0) return 'move';
+  const edge = Math.min(RESIZE_EDGE_PX, rect.width / 3);
+  const offset = clientX - rect.left;
+  if (offset <= edge) return 'resize-left';
+  if (offset >= rect.width - edge) return 'resize-right';
+  return 'move';
+}
+
 /**
  * Container-aware sizing helpers — replace the legacy viewport (`window.innerWidth`)
  * checks so the Gantt adapts to whatever slot it sits in (cards, sidebars, popups…).
@@ -3495,10 +3524,14 @@ export function GanttView({
                         onContextMenu={(e) => openContextMenu(task, e)}
                         onPointerMove={captureLinkTarget}
                         onPointerDown={canDrag ? (e) => {
-                          // Body of bar = move; resize handles get their own onPointerDown
-                          // and stopPropagation so they win.
+                          // The corner grips get their own onPointerDown + stopPropagation
+                          // so a direct hit still wins. But a click aimed at the edge often
+                          // lands just inside the bar (headless coordinate quantization), so
+                          // resolve the mode from the pointer's offset here too: the end
+                          // bands resize, the middle moves (dhtmlx-style edge zones).
                           if (e.button !== 0) return;
-                          beginDrag(task, 'move', e);
+                          const mode = resolveBarDragMode(e.clientX, e.currentTarget.getBoundingClientRect());
+                          beginDrag(task, mode, e);
                         } : undefined}
                       >
                         {/* Resize handles — only when bar is wide enough to host them */}
@@ -3506,7 +3539,7 @@ export function GanttView({
                           <>
                             <div
                               className="gantt-resize-handle absolute left-0 top-0"
-                              style={{ width: 6, height: resizeHandleHeight, cursor: 'ew-resize' }}
+                              style={{ width: RESIZE_EDGE_PX, height: resizeHandleHeight, cursor: 'ew-resize' }}
                               data-testid={`gantt-task-resize-left-${task.id}`}
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
@@ -3516,7 +3549,7 @@ export function GanttView({
                             />
                             <div
                               className="gantt-resize-handle absolute right-0 top-0"
-                              style={{ width: 6, height: resizeHandleHeight, cursor: 'ew-resize' }}
+                              style={{ width: RESIZE_EDGE_PX, height: resizeHandleHeight, cursor: 'ew-resize' }}
                               data-testid={`gantt-task-resize-right-${task.id}`}
                               onPointerDown={(e) => {
                                 if (e.button !== 0) return;
