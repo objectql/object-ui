@@ -31,6 +31,13 @@ export interface AppShellProps {
   defaultOpen?: boolean;
   /** App branding — applies CSS custom properties for theming */
   branding?: AppShellBranding;
+  /**
+   * Optional right-side rail rendered as a flex sibling of the main content, so
+   * it reflows the content beside it (VS Code / Cursor idiom) rather than
+   * overlaying it (ADR-0057 P3a ChatDock). Absent → unchanged single-pane layout;
+   * this is purely additive.
+   */
+  rightRail?: React.ReactNode;
 }
 
 /**
@@ -231,6 +238,7 @@ export function AppShell({
   className,
   defaultOpen = true,
   branding,
+  rightRail,
 }: AppShellProps) {
   // Apply branding CSS custom properties
   useAppShellBranding(branding, branding?.title);
@@ -242,7 +250,7 @@ export function AppShell({
         {navbar}
       </header>
 
-      {/* 2. Lower section: sidebar + main content */}
+      {/* 2. Lower section: sidebar + main content (+ optional right rail) */}
       <div className="flex flex-1 min-h-0 w-full">
         {sidebar}
         <SidebarInset className="min-w-0">
@@ -250,6 +258,8 @@ export function AppShell({
             {children}
           </main>
         </SidebarInset>
+        {/* ADR-0057 P3a — additive right rail (ChatDock); absent → unchanged. */}
+        {rightRail}
       </div>
     </SidebarProvider>
   );

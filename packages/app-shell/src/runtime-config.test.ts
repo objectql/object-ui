@@ -52,6 +52,17 @@ describe('runtime-config commercial features', () => {
         // sanity: existing flags still parse
         expect(getRuntimeConfig().features.aiStudio).toBe(true);
     });
+
+    it('ADR-0057 P3a chatDock defaults OFF and is opt-in (rollout flag)', async () => {
+        expect(getRuntimeConfig().features.chatDock).toBeFalsy();
+        mockConfig({ chatDock: true });
+        await initRuntimeConfig();
+        expect(getRuntimeConfig().features.chatDock).toBe(true);
+        resetRuntimeConfigForTesting();
+        mockConfig({ aiStudio: true }); // older runtime, no chatDock key
+        await initRuntimeConfig();
+        expect(getRuntimeConfig().features.chatDock).toBeFalsy();
+    });
 });
 
 /**

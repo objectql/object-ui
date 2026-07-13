@@ -54,6 +54,14 @@ export interface RuntimeFeatures {
    * (treated as off). Server-derived from the plan entitlements.
    */
   sso?: boolean;
+  /**
+   * ADR-0057 P3a — render the console AI chat as a right-docked, collapsible
+   * rail (the VS Code / Cursor idiom) in addition to the floating FAB. Rollout
+   * flag, DEFAULT OFF: the dock is additive and changes nothing until an
+   * operator opts in (`OS_AI_CHAT_DOCK=1` / RuntimeConfigPlugin). The FAB stays
+   * the canonical entry until P3b retires it into the dock's launcher.
+   */
+  chatDock?: boolean;
 }
 
 /**
@@ -171,6 +179,8 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
           // them — never show a paid surface on an unknown/older runtime.
           customDomain: body.features.customDomain === true,
           sso: body.features.sso === true,
+          // ADR-0057 P3a rollout flag — default OFF (additive dock).
+          chatDock: body.features.chatDock === true,
         }
         : current.features,
       branding: body.branding

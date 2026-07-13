@@ -15,6 +15,8 @@ import { AppShell } from '@object-ui/layout';
 // shiki, streamdown, mermaid, @ai-sdk, ~20MB) only downloads on first
 // hover/click. See ConsoleChatbotFab.tsx.
 import { ConsoleChatbotFab } from './ConsoleChatbotFab';
+import { useChatDockState, ChatDockPanel, ChatDockLauncher } from './ChatDock';
+import { matchChatDockShortcut } from './chatDockState';
 import { DraftPreviewBar } from '../preview/DraftPreviewBar';
 import { UnpublishedAppBar } from '../preview/UnpublishedAppBar';
 import { UnifiedSidebar } from './UnifiedSidebar';
@@ -25,7 +27,7 @@ import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { useNavigationContext } from '../context/NavigationContext';
 import { CommandPaletteProvider } from '../context/CommandPaletteProvider';
 import { resolveI18nLabel } from '../utils';
-import { getProductName } from '../runtime-config';
+import { getProductName, getRuntimeConfig } from '../runtime-config';
 import type { ConnectionState } from '@object-ui/data-objectstack';
 
 /** Minimal object shape used by the chatbot context */
@@ -78,11 +80,29 @@ export function ConsoleLayout({
   // nowhere else; it now lives in exactly one place.
   const { setContext, setCurrentAppName } = useNavigationContext();
 
+  // ADR-0057 P3a — the right-docked chat rail. DEFAULT OFF: gated on the
+  // `chatDock` rollout flag AND the same AI-surface gate as the FAB, so it is
+  // strictly additive and renders nothing on OSS / opt-out runtimes.
+  const dock = useChatDockState();
+  const dockEnabled = showChatbot && getRuntimeConfig().features.chatDock === true;
+
   // Set navigation context to 'app' when this layout mounts
   useEffect(() => {
     setContext('app');
     setCurrentAppName(activeAppName);
   }, [setContext, setCurrentAppName, activeAppName]);
+
+  // ⌘/Ctrl+Shift+I toggles the dock (composer-safe; see matchChatDockShortcut).
+  useEffect(() => {
+    if (!dockEnabled) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (matchChatDockShortcut(e) !== 'toggle') return;
+      e.preventDefault();
+      dock.toggle();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [dockEnabled, dock]);
 
   return (
     // One shared, URL-addressable command-palette open state for both the
@@ -107,6 +127,9 @@ export function ConsoleLayout({
           />
       }
       className="!p-0 overflow-y-auto overflow-x-hidden bg-muted/5"
+      rightRail={
+        dockEnabled && dock.expanded ? <ChatDockPanel dock={dock} userId={userId} /> : undefined
+      }
       branding={
         activeApp?.branding
           ? {
@@ -144,6 +167,11 @@ export function ConsoleLayout({
           userId={userId}
         />
       )}
+
+      {/* ADR-0057 P3a — collapsed dock affordance (edge launcher). Shown only
+          when the dock is enabled and collapsed; expanding renders the rail via
+          AppShell `rightRail` above. */}
+      {dockEnabled && !dock.expanded && <ChatDockLauncher onExpand={dock.expand} />}
     </AppShell>
     </MobileViewSwitcherProvider>
     </CommandPaletteProvider>
