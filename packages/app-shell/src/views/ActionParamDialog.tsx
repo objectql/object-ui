@@ -10,7 +10,7 @@
  * Returns collected param values or null on cancel.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,8 @@ import {
 } from '@object-ui/components';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionParamDef } from '@object-ui/core';
+import { ExpressionEvaluator } from '@object-ui/core';
+import { usePredicateScope } from '@object-ui/react';
 import { LookupField } from '@object-ui/fields';
 
 export interface ParamDialogState {
@@ -49,16 +51,46 @@ interface ActionParamDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Filter action params by their optional `visible` CEL predicate, evaluated
+ * against the expression scope (features / user / app / data). A param with no
+ * predicate is always kept; a predicate that throws defaults to visible (mirrors
+ * the ExpressionProvider "auth config not loaded yet → visible" contract). Pure
+ * + exported so the gating is unit-testable without the dialog render tree.
+ */
+export function filterVisibleParams(
+  params: ActionParamDef[],
+  scope: Record<string, any>,
+): ActionParamDef[] {
+  const evaluator = new ExpressionEvaluator(scope);
+  return params.filter((p) => {
+    if (!p.visible) return true;
+    try {
+      return evaluator.evaluateCondition(p.visible);
+    } catch {
+      return true;
+    }
+  });
+}
+
 export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProps) {
   const { t, language } = useObjectTranslation();
   const [values, setValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
 
+  // A param may carry a `visible` predicate (CEL) gating it on the same scope as
+  // action visibility (features / user / app / data) — e.g. `create_user`'s
+  // phoneNumber param is `features.phoneNumber == true`, so the form never offers
+  // a field the backend rejects. Absent = visible; a predicate that errors
+  // defaults to visible (mirrors the ExpressionProvider "config not loaded" note).
+  const scope = usePredicateScope();
+  const visibleParams = useMemo(() => filterVisibleParams(state.params, scope), [state.params, scope]);
+
   // Reset values when params change
   useEffect(() => {
     if (state.open) {
       const defaults: Record<string, any> = {};
-      for (const param of state.params) {
+      for (const param of visibleParams) {
         if (param.defaultValue !== undefined) {
           defaults[param.name] = param.defaultValue;
         }
@@ -66,7 +98,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
       setValues(defaults);
       setErrors({});
     }
-  }, [state.open, state.params]);
+  }, [state.open, visibleParams]);
 
   const isMissingValue = (value: unknown): boolean => {
     if (value === undefined || value === null) return true;
@@ -80,7 +112,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
   const handleSubmit = () => {
     // Validate required fields
     const newErrors: Record<string, boolean> = {};
-    for (const param of state.params) {
+    for (const param of visibleParams) {
       if (param.required && isMissingValue(values[param.name])) {
         newErrors[param.name] = true;
       }
@@ -116,7 +148,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {state.params.map((rawParam) => {
+          {visibleParams.map((rawParam) => {
             const param = {
               ...rawParam,
               label: pickLocalized(rawParam.label, language),
