@@ -10,7 +10,6 @@
 
 import React, { useEffect } from 'react';
 import { AppShell } from '@object-ui/layout';
-import { isBuildAgent } from '@object-ui/plugin-chatbot';
 
 // Lightweight FAB stub — the heavy chat chunk graph (plugin-chatbot,
 // shiki, streamdown, mermaid, @ai-sdk, ~20MB) only downloads on first
@@ -26,7 +25,7 @@ import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { useNavigationContext } from '../context/NavigationContext';
 import { CommandPaletteProvider } from '../context/CommandPaletteProvider';
 import { resolveI18nLabel } from '../utils';
-import { getProductName, getRuntimeConfig } from '../runtime-config';
+import { getProductName } from '../runtime-config';
 import type { ConnectionState } from '@object-ui/data-objectstack';
 
 /** Minimal object shape used by the chatbot context */
@@ -72,18 +71,11 @@ export function ConsoleLayout({
   // top-bar AI link): show the chatbot only when the server actually serves AI,
   // or when an explicit `VITE_AI_BASE_URL` opt-in points at an external server.
   const { enabled: showChatbot } = useAiSurfaceEnabled();
-  // AI Studio (AI-driven metadata authoring / "online development") can be
-  // turned off per deployment. When off, suppress the metadata-authoring
-  // assistant so the chatbot falls back to the generic data assistant — the
-  // generic data-chat experience stays available.
-  const aiStudioEnabled = getRuntimeConfig().features.aiStudio !== false;
-  // Alias-aware: the build/authoring agent is `build` (new) or
-  // `metadata_assistant` (legacy). When AI Studio is off, drop it so the FAB
-  // falls back to the generic data assistant.
-  const effectiveDefaultAgent =
-    !aiStudioEnabled && isBuildAgent(activeApp?.defaultAgent)
-      ? undefined
-      : activeApp?.defaultAgent;
+  // ADR-0057 P2: the AI-Studio-off downgrade (a `build` default falls back to
+  // `ask` when authoring is deployment-disabled) is no longer spelled here — it
+  // is folded into the ONE `resolveSurfaceAgent` resolver, which the FAB applies
+  // to the raw `app.defaultAgent` below. This was the special case that existed
+  // nowhere else; it now lives in exactly one place.
   const { setContext, setCurrentAppName } = useNavigationContext();
 
   // Set navigation context to 'app' when this layout mounts
@@ -147,7 +139,7 @@ export function ConsoleLayout({
         <ConsoleChatbotFab
           appLabel={appLabel}
           appName={activeAppName}
-          defaultAgent={effectiveDefaultAgent}
+          defaultAgent={activeApp?.defaultAgent}
           objects={objects}
           userId={userId}
         />

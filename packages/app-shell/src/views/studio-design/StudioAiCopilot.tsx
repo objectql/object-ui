@@ -4,9 +4,10 @@ import React from 'react';
 import { useAuth } from '@object-ui/auth';
 import { Button } from '@object-ui/components';
 import { Sparkles, PanelLeftClose } from 'lucide-react';
-import { useAgents, resolveDefaultAgentName, isBuildAgent } from '@object-ui/plugin-chatbot';
+import { useAgents } from '@object-ui/plugin-chatbot';
 import { useChatConversation } from '../../hooks/useChatConversation';
 import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
+import { resolveSurfaceAgent } from '../../hooks/surfaceAgent';
 import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../../console/ai/AiChatPage';
 
 export interface StudioAiCopilotProps {
@@ -39,12 +40,13 @@ export function StudioAiCopilot({ packageId, locale }: StudioAiCopilotProps): Re
 
   const { agents, isLoading: agentsLoading, error: agentsError } = useAgents({ apiBase });
 
-  // Prefer the build agent (metadata authoring); fall back to the platform default.
-  const activeAgent = React.useMemo(() => {
-    if (agents.length === 0) return undefined;
-    const build = agents.find((a) => isBuildAgent(a.name));
-    return build?.name ?? resolveDefaultAgentName(agents, undefined);
-  }, [agents]);
+  // ADR-0057 P2: the Studio authoring surface resolves through the ONE
+  // declarative resolver (`studio-build` → build, else platform default), not a
+  // local `isBuildAgent` pick. Same result, single source of truth.
+  const activeAgent = React.useMemo(
+    () => resolveSurfaceAgent('studio-build', { agents }),
+    [agents],
+  );
 
   const chatApi = activeAgent
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`

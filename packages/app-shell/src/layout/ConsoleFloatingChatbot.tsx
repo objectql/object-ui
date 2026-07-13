@@ -18,7 +18,6 @@ import {
   useAgents,
   useAiModels,
   useHitlInChat,
-  resolveDefaultAgentName,
   uiMessagesToChatMessages,
   publishHealthFromResponse,
   agentRouteName,
@@ -50,6 +49,7 @@ import {
 import { useAssistant, requestAssistantReview, emitCanvasInvalidate, emitMetadataRefresh, type AssistantEditorContext } from '../assistant/assistantBus';
 import { fetchPendingDraftCount } from '../preview/draftStatus';
 import { getRuntimeConfig } from '../runtime-config';
+import { resolveSurfaceAgent } from '../hooks/surfaceAgent';
 import { cloudPricingDeepLink } from '../console/marketplace/marketplaceApi';
 import { shouldShowAgentPicker } from './agentPicker';
 import { detectConversationLanguage } from '../console/ai/conversationLanguage';
@@ -905,17 +905,23 @@ export default function ConsoleFloatingChatbot({
   const [activeAgent, setActiveAgent] = React.useState<string | undefined>(undefined);
   React.useEffect(() => {
     if (!activeAgent && agents.length > 0) {
-      // Resolution: app.defaultAgent → env default → BUILD (when offered) →
-      // catalog fallback. #771: the catalog only serves `build` to users who
-      // can build, and the build surface is the one that RESUMES its
-      // conversation — landing them on the ask tab hid their in-progress
-      // build thread behind a tab switch ("my build chat disappeared"), and
-      // buried the primary capability. Users bound to ask-only see no change.
-      const preferred =
-        defaultAgentProp ??
-        envDefaultAgent ??
-        (agents.some((a) => agentRouteName(a.name) === 'build') ? 'build' : undefined);
-      const resolved = resolveDefaultAgentName(agents, preferred);
+      // ADR-0057 P2: resolve through the ONE `resolveSurfaceAgent` resolver. The
+      // FAB is the `default` (ask) surface. #771: the catalog only serves `build`
+      // to users who can build, and the build surface is the one that RESUMES its
+      // conversation — landing a builder on the ask tab hid their in-progress
+      // build thread behind a tab switch. So we PREFER build when the catalog
+      // unlocks it and neither the app nor env pinned a product — expressed as
+      // the surface's default PRODUCT input, so the resolver still owns the
+      // ask/build bounding AND the AI-Studio-off downgrade (which now applies to
+      // this preference too, closing the leak where an authoring-disabled
+      // deployment still opened build). Users bound to ask-only see no change.
+      const buildUnlocked = agents.some((a) => agentRouteName(a.name) === 'build');
+      const resolved = resolveSurfaceAgent('default', {
+        agents,
+        appDefaultAgent:
+          defaultAgentProp ?? envDefaultAgent ?? (buildUnlocked ? 'build' : undefined),
+        aiStudioEnabled: getRuntimeConfig().features.aiStudio !== false,
+      });
       if (resolved) setActiveAgent(resolved);
     }
   }, [agents, activeAgent, defaultAgentProp, envDefaultAgent]);
