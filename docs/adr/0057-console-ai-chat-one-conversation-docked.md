@@ -1,0 +1,328 @@
+# ADR-0057: Console AI chat is one system — surfaces are views over one conversation, docked as the canonical shell
+
+**Status**: Proposed (2026-07-13). Console-layer realization of the two-agent,
+surface-bound model (cloud ADR-0063). **No agent, boundary, or commercial-model
+change** — this ADR only rearranges how the objectui console *renders and wires*
+chat surfaces.
+**Author**: ObjectUI app-shell / Studio team
+**Consumers**: `@object-ui/app-shell`
+(`console/ai/AiChatPage.tsx`, `layout/ConsoleFloatingChatbot.tsx`,
+`layout/ConsoleChatbotFab.tsx`, `layout/ConsoleLayout.tsx`, `layout/agentPicker.ts`,
+`views/studio-design/StudioAiCopilot.tsx`, `views/studio-design/StudioDesignSurface.tsx`,
+`assistant/assistantBus.ts`, `hooks/useChatConversation.ts`,
+`hooks/useConversationList.ts`, `hooks/useAiSurface.ts`),
+`@object-ui/plugin-chatbot`
+(`ChatbotEnhanced.tsx`, `FloatingChatbot*.tsx`, `useObjectChat.ts`, `useAgents.ts`,
+`agentAliases.ts`, `renderer.tsx` — the SDUI `type: 'chatbot'` component)
+**Relates to (framework/cloud)**: **cloud ADR-0063** (two agents `ask` / `build`,
+bound by surface, no roster / no per-turn classifier — the invariant this ADR
+enforces UI-side; itself the reversal of ADR-0040's unified assistant),
+**cloud ADR-0025** (the in-UI AI runtime is cloud-owned; OSS ships MCP / BYO-AI
+only — so this whole surface must degrade to nothing on community builds),
+**ADR-0080** (Studio WYSIWYG design surface — the `aiSlot` this copilot fills),
+**ADR-0037** (Live Canvas — the build focus view), **ADR-0068** (per-user AI seat →
+the access-filtered agent catalog), **ADR-0013** (durable turns / `turnId`,
+share links)
+**Relates to (objectui)**: **ADR-0053 / ADR-0055** (nav / surface-context
+precedent), **ADR-0054** (UI-testability contract — a browser proof per phase)
+**Tracking**: objectstack-ai/objectui#2409 (epic — "Unify console AI chat surfaces");
+cloud dependencies objectstack-ai/cloud#816 (agent `capabilities`) and
+objectstack-ai/cloud#817 (ask→build handoff contract)
+
+---
+
+> **Cross-repo numbering note.** ObjectUI keeps its own ADR sequence (latest is
+> ADR-0056); this is ADR-0057 in **that** sequence. The `framework` repo has an
+> unrelated ADR-0057 (RLS depth / business-unit tree) and `cloud` runs its own
+> 0063 / 0025 / 0080. Every cross-reference above is given **by title + repo**,
+> not by number alone, because the three repos' ADR numbers have always collided.
+> If reviewers prefer this decision live in the AI-platform series, it becomes
+> **cloud ADR-00xx** instead — see *Alternatives considered* A5 (chosen against,
+> because every decision here is an objectui UI-surface-ownership call).
+
+## TL;DR
+
+The console renders AI chat through **three parallel shells over one backend**,
+and the shells **fork the conversation**:
+
+- **`ConsoleFloatingChatbot`** — a **bottom-right floating FAB** (`ask`), an
+  overlay, with its own conversation wiring (`assistantBus`, reconcile-on-error).
+- **`AiChatPage`** — full-page `/ai/build` + `/ai/ask` (with the **Live Canvas**
+  for build), resolving the agent from the route.
+- **`StudioAiCopilot`** — a **left-docked panel** inside the Studio design surface
+  (`build`), keyed on scope `studio:${packageId}:${agent}`.
+- (+ the SDUI `type: 'chatbot'` embedded inside runtime **end-user** apps.)
+
+They already share the render body (`ChatbotEnhanced`) and the transport
+(`POST /api/v1/ai/agents/:name/chat`), but **above** that there are **two
+conversation-state layers**, **~5 divergent surface→agent picks**, **two
+enablement gates**, and **surface-forked conversations** — so the *same app's*
+build chat can exist as **two disjoint threads** (an empty "Build with AI" copilot
+next to an active full-page build conversation).
+
+This is **not** a proposal to merge `ask` and `build`. Cloud ADR-0063 already
+settled that: **two products, bound by surface, no roster, no per-turn
+classifier** (ADR-0040's unified-classifier assistant was reversed). The problem
+is **console-layer surface sprawl**, not the agent model.
+
+**Decision — one console chat *system*, on a single principle:**
+
+> **surface = view · conversation = model · product (`ask` / `build`) = the
+> binding axis.** Today's bug is that the *model* is forked per *view*.
+
+1. **One conversation/session context**, keyed on **`(user, app, product)` — not
+   on surface.** Every shell becomes a thin view over it. (Fixes the forked
+   threads; the `studio:` scope prefix is the bug and is dropped.)
+2. **One declarative surface→agent resolver** enforcing ADR-0063
+   (`studio-build → build`; everything else `→ ask`; `app.defaultAgent` may
+   override, but only within `ask` / `build`). Replaces the scattered
+   `isBuildAgent` picks — a roster becomes structurally unrepresentable.
+3. **Canonical presentation = a right-docked, collapsible, resizable panel**
+   (the VS Code / Cursor idiom). The floating FAB **retires** to a launcher /
+   shortcut that opens the same dock. Full-page `/ai` becomes the same panel
+   **maximized** (focus mode + Live Canvas), sharing the thread.
+4. **Runtime end-user apps keep the bubble.** A support-widget presentation is
+   the right *audience* idiom; same state code, different chrome. **Presentation
+   is decoupled from state.**
+5. **One enablement gate** — the access-filtered agent catalog (`useAiSurface`,
+   ADR-0068). The `discovery.services.ai` (`isAiEnabled`) path and its per-user
+   403 gap are deleted.
+6. **OSS degrades to nothing** (cloud ADR-0025): empty catalog → the whole
+   surface hides; the only AI is MCP.
+
+## Context
+
+### The three shells, and the forked conversation
+
+All three shells ultimately hit **one** backend endpoint
+(`POST /api/v1/ai/agents/:name/chat`, cloud `service-ai`) and share **one**
+conversation/message model (`ai_conversations` / `ai_messages`), one stream
+(Vercel Data Stream), one LLM adapter. They differ only in **shell + state
+wiring**:
+
+- **`layout/ConsoleFloatingChatbot.tsx`** — the global FAB. Lazy-mounted,
+  overlay, wired to `assistantBus` (open signal + "what am I editing" context)
+  and `useReconcileOnError`. Picks its agent at
+  `ConsoleFloatingChatbot.tsx:915` (`defaultAgentProp ?? envDefaultAgent ??
+  (has build ? 'build' : undefined)` → `resolveDefaultAgentName`).
+- **`console/ai/AiChatPage.tsx`** — the full-page surface owning **both**
+  `/ai/build` and `/ai/ask`, plus the Live Canvas iframe (ADR-0037). Exports the
+  reusable `ChatPane`. Resolves the agent from the route param
+  (`AiChatPage.tsx:610`).
+- **`views/studio-design/StudioAiCopilot.tsx`** — the ADR-0080 `aiSlot`, a
+  **left** panel (`w-96`, `border-r`) that **reuses `ChatPane`** but forces
+  `build` (`StudioAiCopilot.tsx:44`) and binds a **surface-specific** conversation
+  scope `studio:${packageId}:${activeAgent}` (`:56`).
+
+Because the copilot's scope carries the `studio:` prefix and the full-page uses
+its own resolution, opening the same app in both yields **two conversations**.
+
+### What is already unified (do not rebuild)
+
+- **Backend**: one endpoint, one conversation model, one stream, one adapter.
+- **Render body**: `ChatbotEnhanced` + `useObjectChat` + `useAgents`
+  (`@object-ui/plugin-chatbot`) are reused by all three shells;
+  `StudioAiCopilot` literally imports `ChatPane` from `AiChatPage`.
+- **The correct gate already exists**: `hooks/useAiSurface.ts` keys off the
+  access-filtered agent catalog (ADR-0068) and its docstring **explicitly warns**
+  against collapsing back to `discovery.services.ai`.
+- **The context bridge already exists**: `assistant/assistantBus.ts` connects
+  the metadata designers to the global chat (editor context, open signal, review
+  signal per ADR-0033, canvas invalidation per ADR-0037, live-metadata refresh).
+  This ADR **generalizes and keeps** that bus — it is the fusion seam, not a
+  thing to rebuild.
+
+### Why the sprawl is the wrong surface
+
+1. **Forked threads read as a bug.** An active build conversation beside an empty
+   build copilot for the *same* app is indistinguishable from data loss.
+2. **Two state layers.** `app-shell` hooks (`useChatConversation`,
+   `useConversationList`, `useAiSurface`, `conversationLanguage`, `reconcileTurn`,
+   `assistantBus`) vs `plugin-chatbot` hooks (`useObjectChat`, `useAgents`,
+   `usePendingActions`, `useHitlInChat`). No single conversation owner.
+3. **~5 re-implementations of the ADR-0063 resolution chain**, with **drift** —
+   e.g. `ConsoleLayout.tsx:84` carries an `!aiStudioEnabled &&
+   isBuildAgent(app.defaultAgent) → downgrade` special case that exists **nowhere
+   else**. One rule, five spellings.
+4. **Two gates.** `useAiSurface` (correct, per-user) vs `discovery.services.ai`
+   (`isAiEnabled`, identical for every user → seat-less users see controls that
+   403 on click).
+5. **Inconsistent presentation.** Studio docks **left**, the FAB floats
+   **bottom-right**, `/ai` is **full-screen** — no muscle memory; and a
+   bottom-right popup is cramped for a long agentic build turn (plan → draft →
+   verify → publish, tool-call chips, review diffs) that wants to sit *beside*
+   the canvas, not over it.
+
+### Do not over-split the surfaces
+
+`console-data` (the console's ambient `ask` — FAB / full-page) and `runtime-app`
+(the `ask` chat embedded in a shipped end-user app) differ only in **scope**
+(which app / which RLS — a *model* concern, carried in the conversation key) and
+**view** (FAB vs SDUI bubble — a *presentation* concern). **They do not differ in
+agent** — both bind `ask`, and a runtime app can never reach `build` (end users
+don't author metadata; ADR-0063 routes "change the app" to the Builder). So the
+surface→agent resolver is effectively a single question — *"is this the Studio
+authoring surface?"* — `build` if yes, `ask` otherwise.
+
+## Decision
+
+**One console chat system. Surface is a view; the conversation is the model; the
+product (`ask` / `build`) is the axis that binds — resolved by the surface, never
+chosen.** The six points of the TL;DR, expanded:
+
+### 1 · One conversation/session context
+
+Introduce a single `ChatSessionProvider` (or consolidate into
+`@object-ui/plugin-chatbot`) that owns agent resolution, conversation binding,
+list, streaming, pending actions, and reconcile. Conversations are keyed on
+**`(user, app, product)`**; the surface is **not** part of the key. The Studio
+copilot's `studio:${packageId}:${agent}` becomes `app:${packageId}:${product}`,
+so the full-page focus view and the docked copilot are the **same thread**.
+
+### 2 · One declarative surface→agent resolver (enforces ADR-0063)
+
+```ts
+const SURFACE_DEFAULT = { 'studio-build': 'build', 'default': 'ask' } as const;
+
+function resolveSurfaceAgent(surface, { catalog, appDefaultAgent, aiStudioEnabled }) {
+  const want = appDefaultAgent ?? SURFACE_DEFAULT[surface] ?? 'ask';
+  // the ConsoleLayout special case, folded in ONCE:
+  const eff = !aiStudioEnabled && isBuildAgent(want) ? 'ask' : want;
+  return resolveAgentParam(eff, catalog) ?? resolveDefaultAgentName(catalog);
+}
+```
+
+Every call site (`StudioAiCopilot`, `ConsoleFloatingChatbot`, `ConsoleLayout`,
+`AiChatPage`, `agentPicker`) uses this one function. There is no place to add a
+roster or a per-turn classifier — ADR-0063 becomes a structural guarantee, not a
+convention repeated five times.
+
+### 3 · The dock, concretely — three modes over one code
+
+- **Docked rail (console default).** Right side, collapsible, **default
+  collapsed**, resizable. Replaces the FAB as the canonical console chat; the FAB
+  button becomes the launcher / keyboard toggle (⌘I / ⌘L idiom). Default-collapsed
+  preserves the FAB's virtue — zero layout cost, no reflow of dense data grids —
+  until invoked.
+- **Focus / full-screen.** `/ai` = the same panel **maximized** (build + Live
+  Canvas). "Expand" from the rail, "collapse" back — **same thread**. Deep links
+  (`/ai/build/:conversationId`, share links, ADR-0013) open the dock maximized on
+  that thread.
+- **Bubble / embedded.** Runtime apps + the SDUI `chatbot` keep the
+  support-widget chrome; **same state code**, different presentation.
+- **Side = right** (VS Code / Cursor norm; the left is nav). **Consequence:**
+  Studio's current `[left: copilot] [center: canvas] [right: properties]` becomes
+  `[left: nav/tree] [center: canvas + properties] [right: chat]`. This is the one
+  non-trivial layout change and is scoped to P3.
+
+### 4 · Runtime apps keep the bubble; 5 · one gate; 6 · OSS → nothing
+
+End-user business apps render the support bubble (audience idiom), over the same
+`ChatSessionProvider`. `useAiSurface` is the **only** enablement gate everywhere;
+`isAiEnabled` / `discovery.services.ai` is deleted. On OSS (cloud ADR-0025) the
+catalog is empty → the entire surface (rail, launcher, focus route, bubble) is
+inert; AI is reached only via MCP.
+
+### Phased rollout — each step reversible; no big-bang on the most-used AI entry
+
+- **P1 — one conversation context + one gate.** Stand up `ChatSessionProvider`;
+  all three shells read it; key on `(user, app, product)` (drop `studio:`); delete
+  `isAiEnabled`, `useAiSurface` everywhere. **No visible change** — safe to land
+  first. *Proof (ADR-0054): the same thread is visible in the full-page surface
+  and the Studio copilot for one app.*
+- **P2 — declarative resolver (B).** Extract `resolveSurfaceAgent` +
+  `SURFACE_DEFAULT`; every site uses it; delete the scattered picks including the
+  `ConsoleLayout` downgrade. *Proof: a unit table for ADR-0063 — Studio→build,
+  console/app→ask, aiStudio-off downgrade, `app.defaultAgent` bounded to
+  ask/build.*
+- **P3 — docked rail + Studio right-side reflow; retire the FAB.** `ChatDock`
+  renders the shared panel as a collapsible right rail; the FAB → launcher; the
+  Studio copilot moves to the shared right dock (properties reflow); `/ai` =
+  maximized dock, same thread; runtime SDUI unchanged (bubble). *Proof: chat
+  location is identical across console pages; expand/collapse preserves the
+  thread.*
+- **P4 — ask→build handoff (explicit).** In `ask`, a build-shaped request
+  surfaces an explicit **"Open in Builder →"** that carries the conversation
+  context through the generalized `assistantBus` — ADR-0063's *decline-and-
+  redirect*, never a silent re-route into authoring. *Optional cloud dependency: a
+  handoff-context contract (objectstack-ai/cloud#817).* *Proof: an ask thread opens
+  the Builder with context; no authoring ever happens on the ask surface.*
+
+## Consequences
+
+- **One presentation, one place.** Chat is always the right rail (console) —
+  muscle memory; long build turns get a workbench beside the canvas, not a popup
+  over it.
+- **~5 divergent picks + 2 state layers + 2 gates collapse to one each.** Large
+  maintainability win; ADR-0063 is enforced structurally, not by five conventions.
+- **OSS degradation is one decision** (empty catalog → hidden); the MCP-only
+  story (cloud ADR-0025) stays intact.
+- **Presentation is decoupled from state**, so future surfaces (mobile, an
+  in-record inline assistant) are cheap *views* over the same context, and runtime
+  apps keep their own idiom.
+- **Cloud follow-ups (optional, separate issues, not blocking):**
+  1. **B+** (objectstack-ai/cloud#816) — have `GET /api/v1/ai/agents` return
+     per-agent `capabilities` (`{ authoring, canvas, debug, resume }`) so the
+     panel renders behavior by **declared capability**, not by
+     `isBuildAgent(...)` name checks (future skill-driven variants then need no
+     console change).
+  2. A **handoff-context contract** for P4 (objectstack-ai/cloud#817) — carry the
+     ask thread's context into the Builder.
+- **Costs.** P3 touches the **most-used AI entry** (the FAB) and the **Studio
+  layout** (properties vs chat on the right). Both are why the rollout is phased
+  and reversible.
+
+## Open design questions
+
+1. **Dock side under Studio (P3).** Chat right vs properties right. Proposed: chat
+   right, properties folded into a center/left tab. Confirm the three-pane reflow.
+2. **FAB retirement path (P3).** Hard-retire, or keep the FAB as the *collapsed
+   affordance* of the dock (a bottom-right button that expands the right rail)?
+   The latter is a gentler migration and preserves the familiar entry point.
+3. **Handoff aggressiveness (P4).** Explicit "Open in Builder →" (proposed, safe)
+   vs a more seamless in-place product switch. The records-vs-app-definition
+   governance boundary (ADR-0063) argues for **explicit**.
+4. **`app.defaultAgent` post-ADR-0063.** Now bounded to `ask` / `build` (tenant
+   custom agents withdrawn). Confirm the resolver **rejects** anything else rather
+   than silently falling through.
+5. **Focus-mode routing.** Does `/ai/build/:conversationId` stay a deep-linkable,
+   shareable URL (ADR-0013) once the dock is canonical? Proposed: **yes** — the
+   URL opens the dock maximized on that thread.
+
+## Alternatives considered
+
+- **A1 — Keep three shells, just share more hooks.** Rejected: the forked-thread
+  bug is a *state-ownership* problem; sharing render hooks fixes neither the
+  conversation forking nor the divergent resolution.
+- **A2 — Keep the FAB as the only console chat (no dock).** Rejected: a
+  bottom-right popup is cramped for agentic build and cannot sit beside the
+  canvas, and it never unifies with Studio's already-docked copilot.
+- **A3 — Dock everywhere, including runtime end-user apps.** Rejected: end users
+  of a business app expect a support bubble, not a developer rail. Presentation is
+  a view concern; forcing one look fights the audience.
+- **A4 — Merge `ask` + `build` into one assistant with a picker/classifier.**
+  Rejected — this is exactly ADR-0040, **already reversed by cloud ADR-0063**.
+  Out of scope and against the invariant.
+- **A5 — File this in `cloud`, not objectui.** Rejected: this is a **console
+  presentation/state** decision; `cloud` is backend-only and ships no chat UI. The
+  agent / boundary / commercial decisions (ADR-0063 / ADR-0025) live in cloud and
+  this references them — same split as ADR-0056 A5. The optional B+ / handoff
+  contract *are* cloud changes and get their own small cloud issues.
+
+## References
+
+- objectui: `packages/app-shell/src/console/ai/AiChatPage.tsx`,
+  `layout/ConsoleFloatingChatbot.tsx`, `layout/ConsoleChatbotFab.tsx`,
+  `layout/ConsoleLayout.tsx`, `layout/agentPicker.ts`,
+  `views/studio-design/StudioAiCopilot.tsx`,
+  `views/studio-design/StudioDesignSurface.tsx`, `assistant/assistantBus.ts`,
+  `hooks/useChatConversation.ts`, `hooks/useConversationList.ts`,
+  `hooks/useAiSurface.ts`;
+  `packages/plugin-chatbot/src/{ChatbotEnhanced,FloatingChatbot,FloatingChatbotProvider,useObjectChat,useAgents,agentAliases,renderer}.tsx`.
+- cloud / framework ADRs (by title): ADR-0063 (two agents `ask` / `build`, bound
+  by surface), ADR-0025 (in-UI AI is cloud-owned; OSS = MCP only), ADR-0080
+  (Studio WYSIWYG design surface / `aiSlot`), ADR-0037 (Live Canvas), ADR-0068
+  (per-user AI seat → agent catalog gate), ADR-0033 (draft → review), ADR-0013
+  (durable turns / `turnId`).
+- objectui ADRs: ADR-0053 / ADR-0055 (nav / surface context), ADR-0054
+  (UI-testability contract).
