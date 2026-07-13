@@ -1,6 +1,8 @@
 # ADR-0057: Console AI chat is one system — surfaces are views over one conversation, docked as the canonical shell
 
-**Status**: Proposed (2026-07-13). Console-layer realization of the two-agent,
+**Status**: Accepted (2026-07-13) — P1+P2 shipped (#2414), P4 shipped
+(#2439 / #2444 + cloud#818/#819; reliability follow-ups #2449 + cloud#820);
+P3 planned (implementation plan on epic #2409). Console-layer realization of the two-agent,
 surface-bound model (cloud ADR-0063). **No agent, boundary, or commercial-model
 change** — this ADR only rearranges how the objectui console *renders and wires*
 chat surfaces.
@@ -274,14 +276,18 @@ inert; AI is reached only via MCP.
 
 ## Open design questions
 
-1. **Dock side under Studio (P3).** Chat right vs properties right. Proposed: chat
-   right, properties folded into a center/left tab. Confirm the three-pane reflow.
-2. **FAB retirement path (P3).** Hard-retire, or keep the FAB as the *collapsed
-   affordance* of the dock (a bottom-right button that expands the right rail)?
-   The latter is a gentler migration and preserves the familiar entry point.
-3. **Handoff aggressiveness (P4).** Explicit "Open in Builder →" (proposed, safe)
-   vs a more seamless in-place product switch. The records-vs-app-definition
-   governance boundary (ADR-0063) argues for **explicit**.
+1. **Dock side under Studio (P3).** ~~Chat right vs properties right.~~
+   **DECIDED (2026-07-13): chat right**; properties fold into a center tab —
+   `[left: nav/tree] [center: canvas + properties] [right: chat]`.
+2. **FAB retirement path (P3).** ~~Hard-retire, or keep the FAB as the collapsed
+   affordance?~~ **DECIDED (2026-07-13): the FAB becomes the dock's collapsed
+   affordance** — the bottom-right button stays and expands the right rail
+   (gentle migration; the familiar entry point survives).
+3. **Handoff aggressiveness (P4).** **DECIDED & SHIPPED: explicit** "Open in
+   Builder →" (#2439), carrying the ask conversation as first-turn context
+   (#2444 + cloud#819). A second handoff landing on a pending blueprint simply
+   auto-sends — the agent sees the awaiting plan in context and decides
+   merge/supersede itself (product decision 2026-07-13).
 4. **`app.defaultAgent` post-ADR-0063.** Now bounded to `ask` / `build` (tenant
    custom agents withdrawn). Confirm the resolver **rejects** anything else rather
    than silently falling through.
