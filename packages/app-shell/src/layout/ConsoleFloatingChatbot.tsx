@@ -21,6 +21,7 @@ import {
   uiMessagesToChatMessages,
   publishHealthFromResponse,
   agentRouteName,
+  agentHasCapability,
   type ChatMessage,
   type AgentDescriptor,
 } from '@object-ui/plugin-chatbot';
@@ -948,8 +949,9 @@ export default function ConsoleFloatingChatbot({
   // drafts + the awaiting-confirm plan would otherwise be orphaned on reload);
   // the ASK/data surface opens a fresh thread each visit (each question is
   // largely self-contained, and resuming stale data answers is confusing). See
-  // `resumeMode` in useChatConversation.
-  const isBuildAgent = activeAgent ? agentRouteName(activeAgent) === 'build' : false;
+  // `resumeMode` in useChatConversation. cloud#816: decided by the agent's
+  // DECLARED `resume` capability (legacy name-check fallback inside the helper).
+  const agentResumes = agentHasCapability(agents, activeAgent, 'resume');
 
   // Server-backed conversation. Scoped by agent so each agent gets its own
   // persistent history. Hook is inert until `userId` is provided; without it
@@ -960,7 +962,7 @@ export default function ConsoleFloatingChatbot({
     userId: activeAgent ? userId : undefined,
     scope: activeAgent,
     apiBase,
-    resumeMode: isBuildAgent ? 'resume' : 'fresh',
+    resumeMode: agentResumes ? 'resume' : 'fresh',
   });
 
   // `key` forces a clean remount whenever the chat endpoint OR the resolved

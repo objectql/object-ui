@@ -22,7 +22,7 @@ import { useRecentItems } from '../../hooks/useRecentItems';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
-import { useAgents, isBuildAgent, isAskAgent } from '@object-ui/plugin-chatbot';
+import { useAgents, isAskAgent, agentHasCapability } from '@object-ui/plugin-chatbot';
 import { HomeAppsStrip } from './HomeAppsStrip';
 import { HomeActionCenter, HomeContinue, HomeActivity } from './HomeRail';
 import { useHomeInbox } from '../../hooks/useHomeInbox';
@@ -55,7 +55,8 @@ function useHomeAiAvailability(): {
   return {
     aiEnabled: agents.length > 0,
     askAvailable: agents.some((a) => isAskAgent(a.name)),
-    buildAvailable: agents.some((a) => isBuildAgent(a.name)),
+    // cloud#816 — authoring availability by DECLARED capability (name-check fallback inside).
+    buildAvailable: agents.some((a) => agentHasCapability(agents, a.name, 'authoring')),
   };
 }
 

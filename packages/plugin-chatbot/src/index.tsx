@@ -249,11 +249,12 @@ export { useObjectChat } from './useObjectChat';
 export type { UseObjectChatOptions, UseObjectChatReturn } from './useObjectChat';
 
 // Export the agent catalog hook (talks to @objectstack/service-ai)
-export { useAgents, resolveDefaultAgentName, PLATFORM_DEFAULT_AGENT } from './useAgents';
+export { useAgents, resolveDefaultAgentName, PLATFORM_DEFAULT_AGENT, agentHasCapability } from './useAgents';
 export type {
   UseAgentsOptions,
   UseAgentsReturn,
   AgentDescriptor,
+  AgentCapabilities,
 } from './useAgents';
 
 // Export the AI-model picker allowlist hook (ADR-0028; GET /api/v1/ai/models).

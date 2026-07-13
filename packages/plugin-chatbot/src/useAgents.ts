@@ -11,7 +11,25 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { resolveAgentParam } from './agentAliases';
+import { resolveAgentParam, isBuildAgent } from './agentAliases';
+
+/**
+ * cloud#816 / ADR-0057 "B+" — per-agent capabilities DECLARED by the server
+ * (`GET /api/v1/ai/agents`), so hosts render agent-specific behavior (debug
+ * drawer, Live Canvas, resume-vs-fresh) by capability instead of hard-coded
+ * `isBuildAgent(name)` checks. Optional: older servers omit it, and consumers
+ * fall back to the name check via {@link agentHasCapability}.
+ */
+export interface AgentCapabilities {
+  /** Authors app metadata — the Builder product. */
+  authoring: boolean;
+  /** Drives the ADR-0037 Live Canvas split view. */
+  canvas: boolean;
+  /** Exposes the build-doctor debug drawer. */
+  debug: boolean;
+  /** Turns resume durable multi-step runs. */
+  resume: boolean;
+}
 
 export interface AgentDescriptor {
   /** Stable identifier used in the chat URL (e.g. "sales_assistant"). */
@@ -24,6 +42,8 @@ export interface AgentDescriptor {
   role?: string;
   /** Whether this agent is currently active on the server. */
   active?: boolean;
+  /** Declared capabilities (cloud#816); absent on older servers. */
+  capabilities?: AgentCapabilities;
 }
 
 export interface UseAgentsOptions {
@@ -53,7 +73,37 @@ interface RawAgent {
   description?: string;
   role?: string;
   active?: boolean;
+  capabilities?: Partial<Record<keyof AgentCapabilities, unknown>>;
   [key: string]: unknown;
+}
+
+/** Coerce a served `capabilities` object to strict booleans; undefined if absent. */
+function normalizeCapabilities(raw: RawAgent['capabilities']): AgentCapabilities | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  return {
+    authoring: raw.authoring === true,
+    canvas: raw.canvas === true,
+    debug: raw.debug === true,
+    resume: raw.resume === true,
+  };
+}
+
+/**
+ * Whether `name`'s agent declares `cap` (cloud#816). Falls back to the legacy
+ * `isBuildAgent(name)` name check when the catalog entry carries no
+ * `capabilities` (older server) or the agent isn't in the list yet — so
+ * behavior is unchanged until the server ships the field, and degrades the
+ * same way afterwards.
+ */
+export function agentHasCapability(
+  agents: readonly AgentDescriptor[],
+  name: string | undefined,
+  cap: keyof AgentCapabilities,
+): boolean {
+  if (!name) return false;
+  const found = agents.find((a) => a.name === name);
+  if (found?.capabilities) return found.capabilities[cap];
+  return isBuildAgent(name);
 }
 
 /**
@@ -108,6 +158,7 @@ function normalize(raw: RawAgent[]): AgentDescriptor[] {
       description: a.description,
       role: a.role,
       active: a.active !== false,
+      capabilities: normalizeCapabilities(a.capabilities),
     }));
 }
 

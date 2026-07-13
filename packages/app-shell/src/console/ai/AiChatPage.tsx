@@ -54,6 +54,7 @@ import {
   resolveAgentParam,
   isBuiltinAgentName,
   isBuildAgent,
+  agentHasCapability,
   isAskAgent,
   publishHealthFromResponse,
   detectDraftResult,
@@ -999,7 +1000,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
           publicBaseUrl={publicShareBase}
         />
       )}
-      {conversationId && isBuildAgent(activeAgent) && (
+      {conversationId && agentHasCapability(agents, activeAgent, 'debug') && (
         <BuildDebugDrawer
           apiBase={apiBase}
           conversationId={conversationId}
@@ -1069,7 +1070,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             onSent={handleSent}
             onShare={() => setShareOpen(true)}
             onDebug={() => setDebugOpen(true)}
-            showDebug={isBuildAgent(activeAgent)}
+            showDebug={agentHasCapability(agents, activeAgent, 'debug')}
             onCanvasOpenChange={handleCanvasOpenChange}
           />
         </main>
