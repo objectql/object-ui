@@ -252,3 +252,38 @@ describe('LoginForm — phone + password sign-in (framework#2780)', () => {
     expect(signInWithPhonePassword).not.toHaveBeenCalled();
   });
 });
+
+describe('LoginForm — SSO button pending state (objectui#2458 item 1)', () => {
+  it('disables the SSO button while /sign-in/sso is in flight and surfaces failure inline', async () => {
+    let resolveFetch!: (r: Response) => void;
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() => new Promise<Response>((resolve) => { resolveFetch = resolve; }));
+    try {
+      renderLogin(createMockClient({ features: { sso: true } }));
+      const button = await screen.findByRole('button', SSO_BUTTON);
+
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'a@corp.example' } });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(button).toBeDisabled();
+        expect(button).toHaveAttribute('aria-busy', 'true');
+      });
+      // A second click while pending must not fire another request.
+      fireEvent.click(button);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      resolveFetch(new Response(JSON.stringify({ message: 'No SSO provider is configured for this email domain.' }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      }));
+
+      const alert = await screen.findByRole('alert');
+      expect(alert.textContent).toMatch(/No SSO provider/);
+      expect(button).not.toBeDisabled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});

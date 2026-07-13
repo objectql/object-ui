@@ -391,3 +391,40 @@ describe('createAuthClient — phone-number OTP (framework#2780)', () => {
     ).rejects.toMatchObject({ message: 'Invalid OTP', code: 'INVALID_OTP' });
   });
 });
+
+describe('createAuthClient — signInWithProvider redirect contract (objectui#2458 item 1)', () => {
+  // A provider sign-in that resolves WITHOUT a redirect URL used to resolve
+  // silently — the user clicked "Continue with …" and nothing happened. The
+  // client must throw so the buttons can surface an inline error.
+
+  it('oidc: rejects when /sign-in/oauth2 returns no url', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/sign-in/oauth2': { body: { redirect: false } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(
+      client.signInWithProvider('objectstack-cloud', { type: 'oidc', callbackURL: '/x' }),
+    ).rejects.toThrow(/did not return a redirect URL/);
+    expect(calls.some((c) => c.url.includes('/sign-in/oauth2') && c.method === 'POST')).toBe(true);
+  });
+
+  it('social: rejects when /sign-in/social returns no url', async () => {
+    const { mockFn } = createMockFetch({
+      '/sign-in/social': { body: {} },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(
+      client.signInWithProvider('google', { type: 'social' }),
+    ).rejects.toThrow(/did not return a redirect URL/);
+  });
+
+  it('oidc: rejects with the server message when the endpoint errors', async () => {
+    const { mockFn } = createMockFetch({
+      '/sign-in/oauth2': { status: 400, body: { message: 'Provider not found' } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(
+      client.signInWithProvider('objectstack-cloud', { type: 'oidc' }),
+    ).rejects.toThrow('Provider not found');
+  });
+});
