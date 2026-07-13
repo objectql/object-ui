@@ -39,7 +39,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.3",
     "react-router-dom": "^7.18.1",
-    "vite": "^8.1.3",
+    "vite": "^8.1.4",
     "vite-plugin-dts": "^5.0.3"
   },
   "description": "Layout components for Object UI — AppShell, Page, SidebarNav and responsive containers with React Router integration",
