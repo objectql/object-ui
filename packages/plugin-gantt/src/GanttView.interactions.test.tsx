@@ -240,6 +240,83 @@ describe('GanttView drag-to-create dependency', () => {
   });
 });
 
+describe('GanttView dependency creation guards', () => {
+  function dragLink(container: HTMLElement, fromDot: string, toBar: string) {
+    const dot = container.querySelector(`[data-testid="${fromDot}"]`) as HTMLElement;
+    expect(dot).toBeTruthy();
+    fireEvent.pointerDown(dot, { button: 0, clientX: 600, clientY: 20 });
+    act(() => { window.dispatchEvent(pointer('pointermove', 700, 60)); });
+    const bar = container.querySelector(`[data-testid="${toBar}"]`) as HTMLElement;
+    expect(bar).toBeTruthy();
+    fireEvent.pointerMove(bar, { clientX: 980, clientY: 60 });
+    act(() => { window.dispatchEvent(pointer('pointerup', 980, 60)); });
+  }
+
+  it('rejects dropping onto a locked row', () => {
+    const onDependencyCreate = vi.fn();
+    const lockedB = makeTask('b', '2024-06-17T00:00:00.000Z', '2024-06-21T00:00:00.000Z', { locked: true });
+    const { container } = renderView([A(), lockedB], { onDependencyCreate });
+
+    dragLink(container, 'gantt-link-dot-end-a', 'gantt-task-bar-b');
+    expect(onDependencyCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects a link that would close a dependency cycle', () => {
+    // a already depends on b (edge b→a); dragging a→b would close the loop.
+    const onDependencyCreate = vi.fn();
+    const a = makeTask('a', '2024-06-03T00:00:00.000Z', '2024-06-13T00:00:00.000Z', { dependencies: ['b'] });
+    const { container } = renderView([a, B()], { onDependencyCreate });
+
+    dragLink(container, 'gantt-link-dot-end-a', 'gantt-task-bar-b');
+    expect(onDependencyCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects a transitive cycle even when the middle of the chain is collapsed', () => {
+    // Chain a→c→d where c lives inside collapsed group p. The rendered links
+    // derive from visible rows only, so the a→c and c→d edges vanish from the
+    // view — the guard must still block dragging d→a using the full task set.
+    const onDependencyCreate = vi.fn();
+    const a = makeTask('a', '2024-06-03T00:00:00.000Z', '2024-06-06T00:00:00.000Z');
+    const p = makeTask('p', '2024-06-07T00:00:00.000Z', '2024-06-12T00:00:00.000Z');
+    const c = makeTask('c', '2024-06-08T00:00:00.000Z', '2024-06-11T00:00:00.000Z', { parent: 'p', dependencies: ['a'] });
+    const dTask = makeTask('d', '2024-06-13T00:00:00.000Z', '2024-06-15T00:00:00.000Z', { dependencies: ['c'] });
+    const { container } = renderView([a, p, c, dTask], { onDependencyCreate });
+
+    // Collapse p (rows: a, p, c, d → two ArrowDowns select p).
+    const body = container.querySelector('[data-testid="gantt-body"]') as HTMLElement;
+    fireEvent.keyDown(body, { key: 'ArrowDown' });
+    fireEvent.keyDown(body, { key: 'ArrowDown' });
+    fireEvent.keyDown(body, { key: 'ArrowLeft' });
+    expect(container.querySelector('[data-testid="gantt-task-bar-c"]')).toBeFalsy();
+
+    dragLink(container, 'gantt-link-dot-end-d', 'gantt-task-bar-a');
+    expect(onDependencyCreate).not.toHaveBeenCalled();
+  });
+
+  it('onBeforeDependencyCreate can veto the link', () => {
+    const onDependencyCreate = vi.fn();
+    const onBeforeDependencyCreate = vi.fn().mockReturnValue(false);
+    const { container } = renderView([A(), B()], { onDependencyCreate, onBeforeDependencyCreate });
+
+    dragLink(container, 'gantt-link-dot-end-a', 'gantt-task-bar-b');
+    expect(onBeforeDependencyCreate).toHaveBeenCalledTimes(1);
+    const [source, target, type] = onBeforeDependencyCreate.mock.calls[0];
+    expect(source.id).toBe('a');
+    expect(target.id).toBe('b');
+    expect(type).toBe('fs');
+    expect(onDependencyCreate).not.toHaveBeenCalled();
+  });
+
+  it('onBeforeDependencyCreate returning true lets the link through', () => {
+    const onDependencyCreate = vi.fn();
+    const onBeforeDependencyCreate = vi.fn().mockReturnValue(true);
+    const { container } = renderView([A(), B()], { onDependencyCreate, onBeforeDependencyCreate });
+
+    dragLink(container, 'gantt-link-dot-end-a', 'gantt-task-bar-b');
+    expect(onDependencyCreate).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('GanttView row drag-to-reorder', () => {
   function makeDataTransfer() {
     const store: Record<string, string> = {};
