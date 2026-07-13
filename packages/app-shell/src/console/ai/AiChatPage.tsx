@@ -44,7 +44,7 @@ import {
   EmptyDescription,
   cn,
 } from '@object-ui/components';
-import { Bug, PanelLeft, PanelLeftClose, PanelLeftOpen, Share2 } from 'lucide-react';
+import { Bug, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Share2 } from 'lucide-react';
 import {
   ChatbotEnhanced,
   useAgents,
@@ -69,6 +69,7 @@ import {
 } from '@object-ui/plugin-chatbot';
 
 import { AppHeader } from '../../layout/AppHeader';
+import { armChatDockExpanded } from '../../layout/chatDockState';
 import { fetchPendingDraftCount } from '../../preview/draftStatus';
 import { emitMetadataRefresh } from '../../assistant/assistantBus';
 import { getRuntimeConfig } from '../../runtime-config';
@@ -507,6 +508,19 @@ export function matchAiChatShortcut(e: {
     default:
       return null;
   }
+}
+
+/**
+ * ADR-0057 P3c — where the "collapse to dock" affordance navigates: back
+ * through history when react-router has an in-app entry to return to
+ * (`window.history.state.idx > 0` — the router stamps a monotonically
+ * increasing `idx` on entries it creates), else `/home` (the page was the
+ * entry point: a deep link, a fresh tab). The dock itself is armed to open
+ * expanded separately ({@link armChatDockExpanded}); this only picks the
+ * landing. Pure + exported for tests.
+ */
+export function resolveCollapseToDockTarget(historyIdx: unknown): -1 | '/home' {
+  return typeof historyIdx === 'number' && historyIdx > 0 ? -1 : '/home';
 }
 
 /** A composer submission held until the conversation id that will carry it exists. */
@@ -994,6 +1008,34 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
         <div className="min-w-0 flex-1">
           <AppHeader variant="home" />
         </div>
+        {/* ADR-0057 P3c — "/ai = the ChatDock maximized": tuck this full-page
+            surface back into the console's right rail. Arms the dock to mount
+            expanded, then returns to the page the user came from (or /home on
+            a cold deep link) — the rail resolves the same (user, product)
+            conversation scope, so it shows THE SAME THREAD. Desktop-only
+            (the dock itself is `hidden md:flex`) and flag-gated: with
+            `features.chatDock` off this button does not exist and the page is
+            pixel-identical to pre-P3c. */}
+        {!noAgents && getRuntimeConfig().features.chatDock === true && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden h-8 w-8 shrink-0 md:inline-flex"
+            data-testid="ai-chat-collapse-to-dock"
+            aria-label={t('console.ai.collapseToDock', { defaultValue: 'Collapse to side panel' })}
+            title={t('console.ai.collapseToDock', { defaultValue: 'Collapse to side panel' })}
+            onClick={() => {
+              armChatDockExpanded();
+              const target = resolveCollapseToDockTarget(
+                (window.history.state as { idx?: unknown } | null)?.idx,
+              );
+              if (target === -1) navigate(-1);
+              else navigate(target);
+            }}
+          >
+            <PanelRightOpen className="h-4 w-4" />
+          </Button>
+        )}
       </header>
       {noAgents ? (
         <AiUnavailable
