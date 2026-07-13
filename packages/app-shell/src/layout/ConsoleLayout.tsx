@@ -15,7 +15,7 @@ import { AppShell } from '@object-ui/layout';
 // shiki, streamdown, mermaid, @ai-sdk, ~20MB) only downloads on first
 // hover/click. See ConsoleChatbotFab.tsx.
 import { ConsoleChatbotFab } from './ConsoleChatbotFab';
-import { useChatDockState, ChatDockPanel, ChatDockLauncher } from './ChatDock';
+import { useChatDockState, ChatDockPanel } from './ChatDock';
 import { matchChatDockShortcut } from './chatDockState';
 import { DraftPreviewBar } from '../preview/DraftPreviewBar';
 import { UnpublishedAppBar } from '../preview/UnpublishedAppBar';
@@ -165,13 +165,13 @@ export function ConsoleLayout({
           defaultAgent={activeApp?.defaultAgent}
           objects={objects}
           userId={userId}
+          // ADR-0057 P3b — when the dock is enabled, the FAB becomes its
+          // launcher (opens the rail) instead of the floating overlay. This
+          // supersedes P3a's edge launcher: the dock is gated on `showChatbot`,
+          // so the FAB is always present to launch it.
+          onOpenDock={dockEnabled ? dock.expand : undefined}
         />
       )}
-
-      {/* ADR-0057 P3a — collapsed dock affordance (edge launcher). Shown only
-          when the dock is enabled and collapsed; expanding renders the rail via
-          AppShell `rightRail` above. */}
-      {dockEnabled && !dock.expanded && <ChatDockLauncher onExpand={dock.expand} />}
     </AppShell>
     </MobileViewSwitcherProvider>
     </CommandPaletteProvider>

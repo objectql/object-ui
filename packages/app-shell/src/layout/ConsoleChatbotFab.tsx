@@ -26,25 +26,38 @@ const prefetchChatbot = () => {
 
 import type { ConsoleFloatingChatbotProps } from './ConsoleFloatingChatbot';
 
-export type ConsoleChatbotFabProps = ConsoleFloatingChatbotProps;
+export type ConsoleChatbotFabProps = ConsoleFloatingChatbotProps & {
+  /**
+   * ADR-0057 P3b — when the ChatDock is enabled, the FAB becomes the dock's
+   * LAUNCHER: a click (and a designer "Ask AI" open signal) opens the docked
+   * rail instead of arming the floating overlay, and the heavy floating chatbot
+   * is never mounted (the dock owns the chat). Absent → unchanged floating-FAB
+   * behavior.
+   */
+  onOpenDock?: () => void;
+};
 
-export function ConsoleChatbotFab(props: ConsoleChatbotFabProps) {
+export function ConsoleChatbotFab({ onOpenDock, ...props }: ConsoleChatbotFabProps) {
   const [armed, setArmed] = useState(false);
   const { t } = useObjectTranslation();
 
   // A designer surface can ask the assistant to open (e.g. an "Ask AI"
   // button) via the assistant bus — arming the lazy chatbot just like a
   // click does. Once armed, the chatbot's own trigger owns open/close.
+  // When the dock is the target (P3b), the open signal opens the dock instead.
   const { openSeq } = useAssistant();
   const seenOpenSeq = useRef(openSeq);
   useEffect(() => {
     if (openSeq !== seenOpenSeq.current) {
       seenOpenSeq.current = openSeq;
-      setArmed(true);
+      if (onOpenDock) onOpenDock();
+      else setArmed(true);
     }
-  }, [openSeq]);
+  }, [openSeq, onOpenDock]);
 
-  if (armed) {
+  // Dock mode (P3b): stay the lightweight launcher — never mount the floating
+  // overlay; the click opens the rail, which loads the chat on demand.
+  if (armed && !onOpenDock) {
     return (
       <Suspense fallback={null}>
         <ConsoleFloatingChatbot {...props} defaultOpen />
@@ -56,9 +69,9 @@ export function ConsoleChatbotFab(props: ConsoleChatbotFabProps) {
     <button
       type="button"
       aria-label={t('topbar.openAssistant', { defaultValue: 'Open {{name}} assistant', name: props.appLabel })}
-      onClick={() => setArmed(true)}
-      onMouseEnter={prefetchChatbot}
-      onFocus={prefetchChatbot}
+      onClick={() => (onOpenDock ? onOpenDock() : setArmed(true))}
+      onMouseEnter={onOpenDock ? undefined : prefetchChatbot}
+      onFocus={onOpenDock ? undefined : prefetchChatbot}
       className="fixed bottom-20 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-1 ring-primary/20 transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:bottom-6"
       data-testid="console-chatbot-fab"
     >
