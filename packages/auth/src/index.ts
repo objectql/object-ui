@@ -33,6 +33,7 @@ export { SocialSignInButtons, type SocialSignInButtonsProps } from './SocialSign
 export { UserMenu, type UserMenuProps } from './UserMenu';
 export { PreviewBanner, type PreviewBannerProps } from './PreviewBanner';
 export { createAuthClient, TokenStorage } from './createAuthClient';
+export { normalizePhoneIdentifier, looksLikePhoneIdentifier } from './phone-identifier';
 export { createAuthenticatedFetch, ActiveOrganizationStorage, type AuthenticatedAdapterOptions } from './createAuthenticatedFetch';
 export { getUserInitials } from './types';
 

@@ -196,6 +196,8 @@ export interface AuthClient {
   sendPhoneOtp: (phoneNumber: string) => Promise<void>;
   /** framework#2780 — verify a phone OTP; signs in the number's user. */
   signInWithPhoneOtp: (phoneNumber: string, code: string) => Promise<{ user: AuthUser; session: AuthSession }>;
+  /** framework#2780 — sign in with phone number + password (no SMS; gated by `features.phoneNumber`). */
+  signInWithPhonePassword: (phoneNumber: string, password: string) => Promise<{ user: AuthUser; session: AuthSession }>;
   /** framework#2780 — request a password-reset OTP SMS for the phone number. */
   requestPhonePasswordReset: (phoneNumber: string) => Promise<void>;
   /** framework#2780 — reset the password using a phone OTP. */

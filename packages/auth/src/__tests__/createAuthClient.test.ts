@@ -333,6 +333,33 @@ describe('createAuthClient — phone-number OTP (framework#2780)', () => {
     expect(TokenStorage.get()).toBeNull();
   });
 
+  it('signInWithPhonePassword POSTs /sign-in/phone-number, stores the token, returns user+session', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/sign-in/phone-number': {
+        body: { token: 'pw-session-token', user: { id: 'u2', phoneNumber: '+8613800000000' } },
+      },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    const result = await client.signInWithPhonePassword('+8613800000000', 'S3cret-pass!');
+    expect(result.session.token).toBe('pw-session-token');
+    expect(result.user.id).toBe('u2');
+    expect(TokenStorage.get()).toBe('pw-session-token');
+    const call = calls.find((c) => c.url.includes('/sign-in/phone-number'));
+    expect(call?.method).toBe('POST');
+    expect(JSON.parse(call!.body as string)).toEqual({ phoneNumber: '+8613800000000', password: 'S3cret-pass!' });
+  });
+
+  it('signInWithPhonePassword rejects invalid credentials and stores no token', async () => {
+    const { mockFn } = createMockFetch({
+      '/sign-in/phone-number': { status: 401, body: { message: 'Invalid phone number or password', code: 'INVALID_PHONE_NUMBER_OR_PASSWORD' } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(client.signInWithPhonePassword('+8613800000000', 'wrong')).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(TokenStorage.get()).toBeNull();
+  });
+
   it('requestPhonePasswordReset + resetPasswordWithPhoneOtp POST the reset endpoints', async () => {
     const { mockFn, calls } = createMockFetch({
       '/phone-number/request-password-reset': { body: { status: true } },

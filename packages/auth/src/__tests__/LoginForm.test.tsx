@@ -129,7 +129,8 @@ describe('LoginForm — server-gated phone-OTP sign-in', () => {
 
   it('hides the phone-OTP link when the server does not report features.phoneNumberOtp', async () => {
     renderLogin(createMockClient({ features: { phoneNumber: true, phoneNumberOtp: false } }));
-    await screen.findByLabelText('Email');
+    // phoneNumber:true relabels the identifier field (phone+password enabled).
+    await screen.findByLabelText('Email or phone number');
     expect(screen.queryByRole('button', OTP_LINK)).toBeNull();
   });
 
@@ -193,5 +194,61 @@ describe('LoginForm — server-gated phone-OTP sign-in', () => {
     await screen.findByLabelText('Phone number');
     fireEvent.click(screen.getByRole('button', { name: 'Sign in with password instead' }));
     await screen.findByLabelText('Email');
+  });
+});
+
+// Phone + password (framework#2780): the password-mode identifier accepts an
+// email OR a phone number, gated on `features.phoneNumber` (plugin on — no SMS
+// needed). The form routes by identifier shape to /sign-in/email vs
+// /sign-in/phone-number.
+describe('LoginForm — phone + password sign-in (framework#2780)', () => {
+  it('keeps the "Email" label when features.phoneNumber is off', async () => {
+    renderLogin(createMockClient({ features: { phoneNumber: false } }));
+    await screen.findByLabelText('Email');
+    expect(screen.queryByLabelText('Email or phone number')).toBeNull();
+  });
+
+  it('relabels the identifier field when features.phoneNumber is on', async () => {
+    renderLogin(createMockClient({ features: { phoneNumber: true } }));
+    await screen.findByLabelText('Email or phone number');
+    expect(screen.queryByLabelText('Email')).toBeNull();
+  });
+
+  it('routes a phone-shaped identifier to signInWithPhonePassword (normalized like the backend)', async () => {
+    const signIn = vi.fn();
+    const signInWithPhonePassword = vi.fn().mockResolvedValue({
+      user: { id: 'u2' },
+      session: { token: 'pw-tok' },
+    });
+    renderLogin(createMockClient({ features: { phoneNumber: true } }, { signIn, signInWithPhonePassword }));
+
+    fireEvent.change(await screen.findByLabelText('Email or phone number'), {
+      target: { value: '+86 138-0013-8000' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'S3cret!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    await waitFor(() =>
+      expect(signInWithPhonePassword).toHaveBeenCalledWith('+8613800138000', 'S3cret!'),
+    );
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it('routes an email identifier to signIn even when phone is enabled', async () => {
+    const signIn = vi.fn().mockResolvedValue({ user: { id: '1' }, session: { token: 't' } });
+    const signInWithPhonePassword = vi.fn();
+    renderLogin(createMockClient({ features: { phoneNumber: true } }, { signIn, signInWithPhonePassword }));
+
+    fireEvent.change(await screen.findByLabelText('Email or phone number'), {
+      target: { value: 'user@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+
+    // client.signIn takes a { email, password } credentials object.
+    await waitFor(() =>
+      expect(signIn).toHaveBeenCalledWith({ email: 'user@example.com', password: 'pw' }),
+    );
+    expect(signInWithPhonePassword).not.toHaveBeenCalled();
   });
 });

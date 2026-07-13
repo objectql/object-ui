@@ -423,6 +423,21 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       return { user, session: { token } as AuthSession };
     },
 
+    async signInWithPhonePassword(phoneNumber: string, password: string) {
+      // Phone + password sign-in (better-auth `/sign-in/phone-number`). Needs
+      // no SMS service — gated server-side by `features.phoneNumber` (plugin
+      // on), NOT `features.phoneNumberOtp`. Response: `{ token, user }`, mirror
+      // of signInWithPhoneOtp.
+      const payload = await postPhoneNumberEndpoint('/sign-in/phone-number', { phoneNumber, password });
+      const token = typeof payload.token === 'string' ? payload.token : undefined;
+      const user = (payload.user ?? null) as AuthUser | null;
+      if (!token || !user) {
+        throw new Error('Invalid phone number or password.');
+      }
+      TokenStorage.set(token);
+      return { user, session: { token } as AuthSession };
+    },
+
     async requestPhonePasswordReset(phoneNumber: string) {
       // Always answers `{status:true}` (no account-existence oracle) — the
       // OTP only arrives when the number belongs to an account.

@@ -52,6 +52,8 @@ export interface AuthContextValue {
   sendPhoneOtp: (phoneNumber: string) => Promise<void>;
   /** framework#2780 — sign in by verifying a phone OTP. */
   signInWithPhoneOtp: (phoneNumber: string, code: string) => Promise<void>;
+  /** framework#2780 — sign in with phone number + password (no SMS required). */
+  signInWithPhonePassword: (phoneNumber: string, password: string) => Promise<void>;
   /** framework#2780 — request a password-reset OTP SMS for the phone number. */
   requestPhonePasswordReset: (phoneNumber: string) => Promise<void>;
   /** framework#2780 — reset the password with a phone OTP. */

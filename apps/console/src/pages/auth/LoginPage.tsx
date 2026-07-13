@@ -274,6 +274,10 @@ function LoginFormCard({
       labels={{
         emailLabel: t('auth.login.emailLabel', { defaultValue: 'Email' }),
         emailPlaceholder: t('auth.login.emailPlaceholder', { defaultValue: 'name@example.com' }),
+        emailOrPhoneLabel: t('auth.login.emailOrPhoneLabel', { defaultValue: 'Email or phone number' }),
+        emailOrPhonePlaceholder: t('auth.login.emailOrPhonePlaceholder', {
+          defaultValue: 'name@example.com or +1 555 000 0000',
+        }),
         passwordLabel: t('auth.login.passwordLabel', { defaultValue: 'Password' }),
         passwordPlaceholder: t('auth.login.passwordPlaceholder', { defaultValue: 'Enter your password' }),
         forgotPasswordText: t('auth.login.forgotPasswordText', { defaultValue: 'Forgot password?' }),

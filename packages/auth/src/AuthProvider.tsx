@@ -316,6 +316,25 @@ export function AuthProvider({
     [client],
   );
 
+  const signInWithPhonePassword = useCallback(
+    async (phoneNumber: string, password: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await client.signInWithPhonePassword(phoneNumber, password);
+        setUser(result.user);
+        setSession(result.session);
+      } catch (err) {
+        const authError = err instanceof Error ? err : new Error(String(err));
+        setError(authError);
+        throw authError;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [client],
+  );
+
   const requestPhonePasswordReset = useCallback(
     async (phoneNumber: string) => {
       setError(null);
@@ -651,6 +670,7 @@ export function AuthProvider({
       resetPassword,
       sendPhoneOtp,
       signInWithPhoneOtp,
+      signInWithPhonePassword,
       requestPhonePasswordReset,
       resetPasswordWithPhoneOtp,
       changePassword,
@@ -686,7 +706,7 @@ export function AuthProvider({
     [
       user, session, isAuthenticated, isAuthEnabled, isLoading, error, isPreviewMode, previewMode,
       signIn, signUp, signOut, updateUser, forgotPassword, sendVerificationEmail, resetPassword, changePassword, setInitialPassword, hasLocalPassword, getAuthConfig, signInWithProvider,
-      sendPhoneOtp, signInWithPhoneOtp, requestPhonePasswordReset, resetPasswordWithPhoneOtp,
+      sendPhoneOtp, signInWithPhoneOtp, signInWithPhonePassword, requestPhonePasswordReset, resetPasswordWithPhoneOtp,
       remediationRequired, enrollTotp, verifyTotp,
       organizations, activeOrganization, activeMember, isOrganizationsLoading, switchOrganization, createOrganization, refreshOrganizations,
       updateOrganization, deleteOrganization, leaveOrganization,

@@ -9,6 +9,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
 import { SocialSignInButtons } from './SocialSignInButtons';
+import { looksLikePhoneIdentifier, normalizePhoneIdentifier } from './phone-identifier';
 import type { AuthLinkComponentProps } from './types';
 import {
   AUTH_FIELD_LABEL_CLASS,
@@ -25,6 +26,10 @@ import {
 export interface LoginFormLabels {
   emailLabel?: string;
   emailPlaceholder?: string;
+  /** Identifier label when phone+password is enabled (defaults to "Email or phone number"). */
+  emailOrPhoneLabel?: string;
+  /** Identifier placeholder when phone+password is enabled. */
+  emailOrPhonePlaceholder?: string;
   passwordLabel?: string;
   passwordPlaceholder?: string;
   forgotPasswordText?: string;
@@ -141,7 +146,7 @@ export function LoginForm({
   labels = {},
   errorMessages,
 }: LoginFormProps) {
-  const { signIn, isLoading, getAuthConfig, sendPhoneOtp, signInWithPhoneOtp } = useAuth();
+  const { signIn, isLoading, getAuthConfig, sendPhoneOtp, signInWithPhoneOtp, signInWithPhonePassword } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +155,11 @@ export function LoginForm({
   // deliverable SMS service is wired — so the mode never renders as a dead
   // entry point whose code can never arrive.
   const [phoneOtpEnabled, setPhoneOtpEnabled] = useState(false);
+  // Phone + password sign-in (framework#2780). Offered when the server reports
+  // `features.phoneNumber` — the phoneNumber plugin is on. Unlike OTP this needs
+  // no SMS service, so it's gated on the coarser flag: the password-mode
+  // identifier field then accepts an email OR a phone number.
+  const [phonePasswordEnabled, setPhonePasswordEnabled] = useState(false);
   const [mode, setMode] = useState<'password' | 'phone-otp'>('password');
   const [phone, setPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
@@ -183,6 +193,7 @@ export function LoginForm({
         if (cancelled) return;
         setSsoEnabled(config?.features?.sso === true);
         setPhoneOtpEnabled(config?.features?.phoneNumberOtp === true);
+        setPhonePasswordEnabled(config?.features?.phoneNumber === true);
         setSsoEnforced(
           config?.features?.ssoEnforced === true ||
             config?.emailPassword?.enabled === false,
@@ -204,6 +215,8 @@ export function LoginForm({
   const l = {
     emailLabel: labels.emailLabel ?? 'Email',
     emailPlaceholder: labels.emailPlaceholder ?? 'name@example.com',
+    emailOrPhoneLabel: labels.emailOrPhoneLabel ?? 'Email or phone number',
+    emailOrPhonePlaceholder: labels.emailOrPhonePlaceholder ?? 'name@example.com or +1 555 000 0000',
     passwordLabel: labels.passwordLabel ?? 'Password',
     passwordPlaceholder: labels.passwordPlaceholder ?? 'Enter your password',
     forgotPasswordText: labels.forgotPasswordText ?? 'Forgot password?',
@@ -241,6 +254,11 @@ export function LoginForm({
     try {
       if (mode === 'phone-otp') {
         await signInWithPhoneOtp(phone.trim(), otpCode.trim());
+      } else if (phonePasswordEnabled && looksLikePhoneIdentifier(email)) {
+        // Unified identifier: a phone-shaped entry routes to phone+password.
+        // Normalize identically to the backend (strip formatting, no country
+        // code) or the phoneNumber lookup fails.
+        await signInWithPhonePassword(normalizePhoneIdentifier(email) ?? email.trim(), password);
       } else {
         await signIn(email, password);
       }
@@ -289,6 +307,11 @@ export function LoginForm({
    */
   const handleSso = async () => {
     setError(null);
+    // SSO routes by email domain — a phone-shaped identifier can't map to an IdP.
+    if (looksLikePhoneIdentifier(email)) {
+      setError('Enter your email address to sign in with SSO.');
+      return;
+    }
     try {
       const base = window.location.pathname.replace(/\/login(?:\/.*)?$/, '');
       const res = await fetch('/api/v1/auth/sign-in/sso', {
@@ -402,16 +425,19 @@ export function LoginForm({
 
           <div className="space-y-2">
             <label htmlFor="login-email" className={AUTH_FIELD_LABEL_CLASS}>
-              {l.emailLabel}
+              {phonePasswordEnabled ? l.emailOrPhoneLabel : l.emailLabel}
             </label>
             <input
               id="login-email"
-              type="email"
-              placeholder={l.emailPlaceholder}
+              // `text` (not `email`) when a phone number is also accepted, so the
+              // browser doesn't reject a phone-shaped value on native validation.
+              type={phonePasswordEnabled ? 'text' : 'email'}
+              inputMode={phonePasswordEnabled ? 'text' : 'email'}
+              placeholder={phonePasswordEnabled ? l.emailOrPhonePlaceholder : l.emailPlaceholder}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              autoComplete="email"
+              autoComplete="username"
               disabled={isLoading}
               className={AUTH_INPUT_CLASS}
             />

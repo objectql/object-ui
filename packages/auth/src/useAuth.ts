@@ -45,6 +45,7 @@ export function useAuth(): AuthContextValue {
       resetPassword: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       sendPhoneOtp: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       signInWithPhoneOtp: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
+      signInWithPhonePassword: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       requestPhonePasswordReset: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       resetPasswordWithPhoneOtp: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
       changePassword: async () => { throw new Error('useAuth must be used within an AuthProvider'); },
