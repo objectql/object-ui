@@ -87,7 +87,7 @@
     "@object-ui/providers": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/client": "^14.3.0",
+    "@objectstack/client": "^14.6.0",
     "@objectstack/spec": "^14.3.0",
     "@tailwindcss/postcss": "^4.3.2",
     "@tailwindcss/typography": "^0.5.20",
