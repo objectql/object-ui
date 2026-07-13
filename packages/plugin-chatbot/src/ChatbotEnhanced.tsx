@@ -610,6 +610,8 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   builderHandoffTitleLabel?: string;
   /** Label for the handoff card's primary action button (default "Open in Builder →"). */
   builderHandoffOpenLabel?: string;
+  /** Tooltip on a superseded (older) handoff card's disabled button (default "A newer request is available"). */
+  builderHandoffSupersededTitle?: string;
   /** Label for the publish-drafts button (default "Publish"). */
   publishDraftsLabel?: string;
   /** Label for the published-state badge that replaces the button (default "Published"). */
@@ -1178,6 +1180,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planTitleLabel = 'Proposed plan',
       builderHandoffTitleLabel = 'Build this in the Builder',
       builderHandoffOpenLabel = 'Open in Builder →',
+      builderHandoffSupersededTitle = 'A newer request is available',
       onOpenBuilder,
       planExtendLabel = 'Adding to existing app',
       planQuestionsLabel = 'Confirm before building',
@@ -1562,6 +1565,21 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       return ids;
     }, [messages]);
 
+    // #2458 UX#5 — only the LATEST "Open in Builder →" handoff card stays
+    // actionable; older cards carry a now-stale prompt and go inert, so a thread
+    // that accumulated several can't re-fire an outdated request. Derived from
+    // message order (not click state), so it survives the navigation the button
+    // triggers and the pane remount that follows.
+    const latestHandoffToolCallId = React.useMemo(() => {
+      let latest: string | undefined;
+      for (const message of messages) {
+        for (const tool of message.toolInvocations ?? []) {
+          if (tool.builderHandoff && tool.toolCallId) latest = tool.toolCallId;
+        }
+      }
+      return latest;
+    }, [messages]);
+
     // A granular 确认修改 card collapses to a static 已确认 badge once the change
     // has been applied — i.e. a LATER invocation of the SAME tool committed (no
     // longer a changes_proposed preview). Positional + per-tool so an earlier
@@ -1924,15 +1942,25 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                   {builderHandoffTitleLabel}
                 </span>
                 <p className="text-xs text-muted-foreground">{tool.builderHandoff.prompt}</p>
-                <button
-                  type="button"
-                  onClick={() => onOpenBuilder?.(tool.builderHandoff!)}
-                  disabled={!onOpenBuilder}
-                  data-testid="builder-handoff-open"
-                  className="inline-flex w-fit items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {builderHandoffOpenLabel}
-                </button>
+                {(() => {
+                  // #2458 UX#5 — only the LATEST handoff card stays actionable;
+                  // an older (superseded) card's prompt is stale, so its button is
+                  // disabled rather than re-firing an outdated request.
+                  const superseded =
+                    !!latestHandoffToolCallId && tool.toolCallId !== latestHandoffToolCallId;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => onOpenBuilder?.(tool.builderHandoff!)}
+                      disabled={!onOpenBuilder || superseded}
+                      data-testid={superseded ? 'builder-handoff-superseded' : 'builder-handoff-open'}
+                      title={superseded ? builderHandoffSupersededTitle : undefined}
+                      className="inline-flex w-fit items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {builderHandoffOpenLabel}
+                    </button>
+                  );
+                })()}
               </div>
             ) : null}
             {tool.proposedPlan ? (
@@ -2661,13 +2689,13 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     ))}
                   </select>
                 ) : null}
+                {/* #2458 UX#7 — the composer sends on PLAIN Enter (Shift+Enter =
+                    newline); the old `⌘` glyph implied Cmd+Enter and misled users.
+                    Show the real keys. */}
                 <span
                   className="hidden items-center gap-1 text-[10px] text-muted-foreground sm:inline-flex"
                   aria-hidden="true"
                 >
-                  <kbd className="inline-flex h-4 items-center rounded border bg-muted px-1 font-mono text-[10px] leading-none">
-                    ⌘
-                  </kbd>
                   <CornerDownLeft className="h-3 w-3" />
                   <span className="opacity-70">{L.sendHint}</span>
                 </span>

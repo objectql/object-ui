@@ -108,6 +108,38 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     });
   });
 
+  it('keeps only the LATEST handoff card actionable; older ones are superseded/inert (#2458 UX#5)', () => {
+    const onOpenBuilder = vi.fn();
+    const messages: ChatMessage[] = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        toolInvocations: [
+          { toolCallId: 't1', toolName: 'suggest_builder', state: 'output-available', builderHandoff: { prompt: 'first request' } },
+        ],
+      },
+      {
+        id: 'a2',
+        role: 'assistant',
+        content: '',
+        toolInvocations: [
+          { toolCallId: 't2', toolName: 'suggest_builder', state: 'output-available', builderHandoff: { prompt: 'second request' } },
+        ],
+      },
+    ];
+    render(<ChatbotEnhanced messages={messages} onOpenBuilder={onOpenBuilder} />);
+    // The older card (t1) is inert; the latest (t2) is actionable.
+    const superseded = screen.getByTestId('builder-handoff-superseded');
+    expect(superseded).toBeDisabled();
+    const actionable = screen.getByTestId('builder-handoff-open');
+    fireEvent.click(actionable);
+    expect(onOpenBuilder).toHaveBeenCalledWith({ prompt: 'second request' });
+    // Clicking the superseded one does nothing (disabled).
+    fireEvent.click(superseded);
+    expect(onOpenBuilder).toHaveBeenCalledTimes(1);
+  });
+
   it('disables "Open in Builder" when no host wired onOpenBuilder', () => {
     const messages: ChatMessage[] = [
       {

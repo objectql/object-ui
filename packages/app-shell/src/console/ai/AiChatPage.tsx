@@ -16,9 +16,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
-import { useObjectTranslation } from '@object-ui/i18n';
+import { useObjectTranslation, useObjectLabel } from '@object-ui/i18n';
 import { toast } from 'sonner';
+import { Package as PackageIcon, Sparkles as SparklesIcon } from 'lucide-react';
 import { useAdapter } from '../../providers/AdapterProvider';
+import { useMetadata } from '../../providers/MetadataProvider';
+import { resolveI18nLabel } from '../../utils';
 import { ExcelImportBar } from './ExcelImportBar';
 import {
   Select,
@@ -173,6 +176,35 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
       ...(buildProgress ? { buildProgress } : {}),
     };
   });
+}
+
+/**
+ * #2458 / ADR-0057 Amendment A1.a — the package a build conversation is bound to:
+ * the explicit `?package=` edit target (ADR-0070) if present, else the most
+ * recent package a build/draft in THIS thread produced (`draftReview` /
+ * `builderHandoff` tool results, newest wins). `undefined` = not-yet-bound —
+ * the magic-flow "New app" draft, which binds the moment its build mints a
+ * package. Exported for unit testing.
+ */
+interface PackageBearingMessage {
+  toolInvocations?: ReadonlyArray<{
+    draftReview?: { packageId?: string };
+    builderHandoff?: { packageId?: string };
+  }>;
+}
+export function deriveBoundPackageId(
+  messages: readonly PackageBearingMessage[],
+  editPackageId: string | undefined,
+): string | undefined {
+  if (editPackageId) return editPackageId;
+  let latest: string | undefined;
+  for (const message of messages) {
+    for (const tool of message.toolInvocations ?? []) {
+      const pkg = tool.draftReview?.packageId || tool.builderHandoff?.packageId;
+      if (pkg) latest = pkg;
+    }
+  }
+  return latest;
 }
 
 function firstUserMessageText(messages: HydratedUIMessage[]): string | undefined {
@@ -1452,6 +1484,25 @@ export function ChatPane({
     agentRoute: activeAgent ? agentRouteName(activeAgent) : undefined,
   });
 
+  // #2458 / ADR-0057 Amendment A1.a — the package this build conversation is
+  // bound to, surfaced as a header chip so the edit blast-radius is always
+  // visible (the Claude-Code-shows-the-repo idiom). The magic flow starts
+  // unbound ("New app") and binds the moment its build mints a package.
+  const isBuildSurface = activeAgent ? agentRouteName(activeAgent) === 'build' : false;
+  const { apps: metadataApps } = useMetadata();
+  const { appLabel } = useObjectLabel();
+  const boundPackageId = useMemo(
+    () => deriveBoundPackageId(messages as unknown as readonly PackageBearingMessage[], editPackageId),
+    [messages, editPackageId],
+  );
+  const boundPackageLabel = useMemo(() => {
+    if (!boundPackageId) return undefined;
+    const app = (metadataApps ?? []).find(
+      (a) => (a as { _packageId?: string })._packageId === boundPackageId,
+    );
+    return app ? appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }) : boundPackageId;
+  }, [boundPackageId, metadataApps, appLabel, t]);
+
   const headerSlot = (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 px-4 pb-2 pt-3 sm:px-6">
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -1517,6 +1568,26 @@ export function ChatPane({
             {activeAgentLabel}
           </span>
         )}
+        {isBuildSurface ? (
+          boundPackageId ? (
+            <span
+              data-testid="ai-build-package-chip"
+              title={boundPackageId}
+              className="inline-flex min-w-0 items-center gap-1 rounded-md border bg-muted/40 px-2 py-0.5 text-xs text-foreground/80"
+            >
+              <PackageIcon className="size-3 shrink-0" />
+              <span className="max-w-[10rem] truncate">{boundPackageLabel}</span>
+            </span>
+          ) : (
+            <span
+              data-testid="ai-build-package-chip"
+              className="inline-flex items-center gap-1 rounded-md border border-dashed px-2 py-0.5 text-xs text-muted-foreground"
+            >
+              <SparklesIcon className="size-3 shrink-0" />
+              {t('console.ai.newApp', { defaultValue: 'New app' })}
+            </span>
+          )
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {showDebug && onDebug ? (
