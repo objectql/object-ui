@@ -752,8 +752,16 @@ ComponentRegistry.register('form',
                 // Use field.id or field.name for stable keys (never use index alone)
                 const fieldKey = field.id ?? name;
 
-                // Resolve the component type: prefer widget override, fallback to field type
-                const resolvedType = widget || type;
+                // Resolve the component type: prefer an explicit form-config
+                // `widget`, then the object-schema field's own `widget` render
+                // hint (carried on the field metadata, e.g. `object-ref`,
+                // `filter-condition`, `recipient-picker`), then the bare `type`.
+                // The nested-metadata fallback matters because some field
+                // builders (e.g. the field-group/section layout path in
+                // ObjectForm) pass the field metadata through without hoisting
+                // its `widget` to the top-level form-config, which would
+                // otherwise degrade a picker field to its raw `type` input.
+                const resolvedType = widget || (fieldProps as any).field?.widget || type;
 
                 // Cascading / role-gated option lists (#2284). For option fields,
                 // narrow the set by each option's `visibleWhen` (evaluated against
