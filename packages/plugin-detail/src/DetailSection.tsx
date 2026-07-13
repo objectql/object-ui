@@ -31,6 +31,7 @@ import { applyDetailAutoLayout } from './autoLayout';
 import { useDetailTranslation } from './useDetailTranslation';
 import { useSafeFieldLabel } from '@object-ui/react';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
+import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 
 /**
  * Compute responsive col-span classes so that col-span never exceeds the
@@ -247,7 +248,15 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
     // carries the object-lifecycle + permission gate.
     const inlineEditType = enrichedField.type || field.type;
     const isComputedField = TEXTUAL_REF_FALLBACK_TYPES.has(inlineEditType as string);
-    const fieldEditable = !field.readonly && !isComputedField;
+    // Honor the OBJECT metadata's read-only flag too — the enrichment above
+    // intentionally doesn't copy `readonly` into enrichedField, so read it
+    // straight off objectDefField (covers formula / non-updateable fields the
+    // framework flags `readonly:true` even when the view schema doesn't). And
+    // never offer inline edit on immutable audit/identity fields by name
+    // (created_at / id / …), in case a schema surfaces one as a section row.
+    const isReadonly = field.readonly === true || objectDefField?.readonly === true;
+    const isSystemField = NON_EDITABLE_SYSTEM_FIELDS.has(field.name);
+    const fieldEditable = !isReadonly && !isComputedField && !isSystemField;
     const canInlineEditField = fieldEditable && !!onEnterInlineEdit;
 
     const displayValue = (() => {

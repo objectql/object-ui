@@ -124,3 +124,63 @@ describe('DetailSection double-click inline-edit affordance', () => {
     expect(screen.getByDisplayValue('Hello')).toHaveFocus();
   });
 });
+
+/**
+ * #2402 hardening — inline edit must also respect the OBJECT metadata's
+ * `readonly` flag (the view-schema field may not carry it) and immutable
+ * system/audit fields by name (created_at / id / …), not just view-schema
+ * `readonly` + computed types.
+ */
+describe('DetailSection inline-edit — object-readonly & system-field gate', () => {
+  beforeAll(() => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+  });
+
+  const section: DetailViewSection = {
+    fields: [
+      { name: 'title', label: 'Title' },
+      { name: 'ext_id', label: 'External ID' }, // readonly in OBJECT schema only
+      { name: 'created_at', label: 'Created' },  // immutable system field by name
+    ],
+  } as DetailViewSection;
+
+  // View-schema fields carry NO `readonly`; the object metadata marks ext_id.
+  const objectSchema = {
+    fields: {
+      title: { type: 'text' },
+      ext_id: { type: 'text', readonly: true },
+      created_at: { type: 'text' }, // gated by NAME, type is irrelevant here
+    },
+  };
+
+  const data = { title: 'Hello', ext_id: 'EXT-9', created_at: 'CR-1' };
+
+  it('does not offer inline edit for a field the OBJECT schema marks readonly', () => {
+    const onEnter = vi.fn();
+    render(
+      <DetailSection section={section} data={data} objectSchema={objectSchema} onEnterInlineEdit={onEnter} />,
+    );
+    fireEvent.doubleClick(screen.getByText('EXT-9'));
+    expect(onEnter).not.toHaveBeenCalled();
+    // …but a normal field still enters edit.
+    fireEvent.doubleClick(screen.getByText('Hello'));
+    expect(onEnter).toHaveBeenCalledWith('title');
+  });
+
+  it('never inline-edits an immutable system field, nor turns object-readonly into an input', () => {
+    const onEnter = vi.fn();
+    const { rerender } = render(
+      <DetailSection section={section} data={data} objectSchema={objectSchema} onEnterInlineEdit={onEnter} />,
+    );
+    fireEvent.doubleClick(screen.getByText('CR-1')); // system field (created_at)
+    expect(onEnter).not.toHaveBeenCalled();
+
+    // Even in global inline-edit mode, both stay read-only; only title is an input.
+    rerender(
+      <DetailSection section={section} data={data} objectSchema={objectSchema} isEditing onEnterInlineEdit={onEnter} />,
+    );
+    expect(screen.getByDisplayValue('Hello')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('EXT-9')).toBeNull();
+    expect(screen.queryByDisplayValue('CR-1')).toBeNull();
+  });
+});
