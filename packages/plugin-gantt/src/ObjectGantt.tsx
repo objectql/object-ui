@@ -108,6 +108,14 @@ type GanttConfigEx = GanttConfig & {
   baselineStartField?: string;
   baselineEndField?: string;
   /**
+   * Record field carrying a per-task alert stroke color (逐任务预警描边):any CSS
+   * color or semantic palette name (red/orange/…). When present the bar keeps
+   * its fill but gets an outline + halo in that color — e.g. 超期红、临期橙,
+   * typically a server-computed alert field. Empty/null → no stroke. Maps to
+   * {@link GanttTask.borderColor}.
+   */
+  borderColorField?: string;
+  /**
    * Dynamic Group by (动态 Group by). When set, leaf tasks are bucketed by this
    * field and rendered under one synthesized summary row per distinct value
    * (replacing the parent hierarchy). Select options / lookups resolve to their
@@ -280,6 +288,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           progressField: schema.progressField,
           dependenciesField: schema.dependenciesField || schema.dependencyField,
           colorField: schema.colorField,
+          borderColorField: schema.borderColorField,
           parentField: schema.parentField,
           typeField: schema.typeField,
           lockField: schema.lockField,
@@ -418,7 +427,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return [];
     }
 
-    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField } = ganttConfig;
+    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, borderColorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField } = ganttConfig;
     const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
 
     // Resolve a value through nested paths like "account.name". Returns the
@@ -563,6 +572,13 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           if (name) color = getSemanticHex(name);
         }
       }
+      // Alert stroke (预警描边): semantic palette names map to their hex;
+      // anything else (hex, css color) passes through untouched.
+      const borderColorRaw = borderColorField ? record[borderColorField] : undefined;
+      const borderColor =
+        borderColorRaw != null && borderColorRaw !== ''
+          ? getSemanticHex(String(borderColorRaw), String(borderColorRaw))
+          : undefined;
 
       return {
         id: record.id || record._id || `task-${index}`,
@@ -575,6 +591,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         type: typeField ? normalizeTaskType(record[typeField]) : undefined,
         locked: lockField ? !!record[lockField] : undefined,
         color,
+        borderColor,
         baselineStart: baselineStart && !isNaN(baselineStart.getTime()) ? baselineStart : undefined,
         baselineEnd: baselineEnd && !isNaN(baselineEnd.getTime()) ? baselineEnd : undefined,
         fields: buildTooltipFields(record),

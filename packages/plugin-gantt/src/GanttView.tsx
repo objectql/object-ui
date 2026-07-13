@@ -130,6 +130,14 @@ export interface GanttTask {
   end: Date
   progress: number
   color?: string
+  /**
+   * Per-task alert stroke (逐任务预警描边). When set, the bar/milestone/summary
+   * is outlined in this color (border + 2px halo) without touching its fill —
+   * e.g. red for 超期, amber for 临期, unset for normal. Maps from the view's
+   * `borderColorField` in ObjectGantt. The critical-path overlay, when active,
+   * takes precedence on the rows it marks.
+   */
+  borderColor?: string
   data?: any
   dependencies?: GanttDependency[]
   /** Parent task id — builds the hierarchy. Unknown ids render as roots. */
@@ -3373,8 +3381,8 @@ export function GanttView({
                             // read-only cursor from style rather than a class.
                             cursor: onTaskUpdate ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                             backgroundColor: summaryColor,
-                            borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
-                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
+                            borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
+                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
                           }}
                           data-critical={isCrit ? 'true' : undefined}
                           data-testid={`gantt-summary-bar-${task.id}`}
@@ -3449,8 +3457,8 @@ export function GanttView({
                             // read-only cursor from style rather than a class.
                             cursor: canDrag ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                             backgroundColor: isCrit ? CRIT_COLOR : task.color || '#3b82f6',
-                            borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
-                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
+                            borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
+                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
                           }}
                           data-critical={isCrit ? 'true' : undefined}
                           data-testid={`gantt-milestone-${task.id}`}
@@ -3526,8 +3534,8 @@ export function GanttView({
                           // read-only cursor from style rather than a class.
                           cursor: canDrag ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                           backgroundColor: task.color || '#3b82f6',
-                          borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
-                          boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
+                          borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
+                          boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
                         }}
                         data-critical={isCrit ? 'true' : undefined}
                         data-testid={`gantt-task-bar-${task.id}`}

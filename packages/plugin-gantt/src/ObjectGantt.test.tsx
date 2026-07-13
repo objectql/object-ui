@@ -14,7 +14,7 @@ vi.mock('./GanttView', () => ({
     return (
       <div data-testid="gantt-view" data-reschedule-on-conflict={String(!!rescheduleOnConflict)} data-persist-layout-key={persistLayoutKey || ''} data-mobile-readonly={String(!!mobileReadOnly)} data-default-collapsed-depth={defaultCollapsedDepth == null ? '' : String(defaultCollapsedDepth)}>
         {tasks.map((t: any) => (
-          <div key={t.id} data-testid="gantt-task" data-type={t.type ?? ''} data-locked={String(!!t.locked)}>
+          <div key={t.id} data-testid="gantt-task" data-type={t.type ?? ''} data-locked={String(!!t.locked)} data-border-color={t.borderColor ?? ''}>
             <span>{t.title}</span>
             {t.fields ? (
               <div data-testid={`gv-fields-${t.id}`}>
@@ -432,6 +432,31 @@ describe('ObjectGantt', () => {
     expect(byTitle('Project').getAttribute('data-type')).toBe('group');
     expect(byTitle('Plan').getAttribute('data-locked')).toBe('false');
     expect(byTitle('Work order').getAttribute('data-locked')).toBe('true');
+  });
+
+  it('maps borderColorField onto task.borderColor (预警描边): semantic names → hex, css colors pass through', async () => {
+    const alertData = [
+      { id: '1', name: 'Overdue', start_date: '2024-01-01', end_date: '2024-01-05', alert: 'red' },
+      { id: '2', name: 'Custom', start_date: '2024-01-06', end_date: '2024-01-10', alert: '#123456' },
+      { id: '3', name: 'Normal', start_date: '2024-01-11', end_date: '2024-01-15', alert: null },
+    ];
+    const schema: any = {
+      type: 'gantt',
+      gantt: {
+        titleField: 'name', startDateField: 'start_date', endDateField: 'end_date',
+        borderColorField: 'alert',
+      },
+      data: { provider: 'object', object: 'tasks' },
+    };
+    const ds: DataSource = { ...mockDataSource, find: vi.fn().mockResolvedValue({ data: alertData }) };
+    render(<ObjectGantt schema={schema} dataSource={ds} />);
+    await waitFor(() => expect(screen.getByTestId('gantt-view')).toBeDefined());
+
+    const byTitle = (title: string) =>
+      screen.getByText(title).closest('[data-testid="gantt-task"]') as HTMLElement;
+    expect(byTitle('Overdue').getAttribute('data-border-color')).toBe('#ef4444'); // semantic 'red'
+    expect(byTitle('Custom').getAttribute('data-border-color')).toBe('#123456'); // raw passthrough
+    expect(byTitle('Normal').getAttribute('data-border-color')).toBe(''); // empty → no stroke
   });
 });
 
