@@ -79,6 +79,40 @@ describe('useObjectChat — ask→build handoff context (cloud#817)', () => {
     expect(ctx2).toMatchObject({ agentName: 'build', packageId: 'app.crm' });
   });
 
+  it('re-carries on a SECOND handoff (falsy→truthy transition re-arms, even same id)', async () => {
+    // #2: a second "Open in Builder →" resumes the singleton build conversation
+    // and re-supplies the SAME ask id. The URL-mirror strips the param between
+    // handoffs (truthy→falsy→truthy), which is the fresh-arrival signal — a
+    // value-equality check would miss it.
+    const fetchMock = vi.fn(async () => dataStreamResponse());
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ parent }: { parent?: string }) =>
+        useObjectChat({
+          api: API,
+          conversationId: 'build_1',
+          parentConversationId: parent,
+          body: { context: { agentName: 'build' } },
+        }),
+      { initialProps: { parent: 'ask_42' as string | undefined } },
+    );
+
+    // First handoff turn carries it, then it's consumed.
+    await act(async () => { result.current.sendMessage('first handoff'); });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(contextOf(fetchMock, 0).parentConversationId).toBe('ask_42');
+
+    // URL-mirror strips the param (truthy→falsy).
+    rerender({ parent: undefined });
+    // Second handoff re-supplies the SAME id (falsy→truthy) → re-armed.
+    rerender({ parent: 'ask_42' });
+
+    await act(async () => { result.current.sendMessage('second handoff'); });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(contextOf(fetchMock, 1).parentConversationId).toBe('ask_42');
+  });
+
   it('sends no parentConversationId when none was handed off', async () => {
     const fetchMock = vi.fn(async () => dataStreamResponse());
     vi.stubGlobal('fetch', fetchMock);

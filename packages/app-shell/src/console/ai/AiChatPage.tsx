@@ -512,8 +512,16 @@ export function useDeferredFirstSend(opts: {
   pendingRef: React.MutableRefObject<PendingFirstMessage | null>;
   /** The real send (resetSuppression + sendMessage + onSent). */
   doSend: (content: string, files?: File[]) => void;
+  /**
+   * Bumped by the PAGE whenever it sets `pendingRef` out of band (the ADR-0057
+   * handoff seed). Refs don't trigger effects, so without this the replay only
+   * re-runs on id / doSend changes — and a seed that lands AFTER the id resolves
+   * (the async agent-catalog race) would never fire (the swallow). Listing it in
+   * the replay deps makes the seed reliably replay.
+   */
+  pendingSignal?: number;
 }): (content: string, files?: File[]) => void {
-  const { chatApi, conversationId, pendingRef, doSend } = opts;
+  const { chatApi, conversationId, pendingRef, doSend, pendingSignal } = opts;
   const apiMode = Boolean(chatApi);
 
   // Replay a deferred first message the instant a conversation id exists — in
@@ -526,7 +534,7 @@ export function useDeferredFirstSend(opts: {
     if (!pending) return;
     pendingRef.current = null;
     doSend(pending.content, pending.files);
-  }, [apiMode, conversationId, pendingRef, doSend]);
+  }, [apiMode, conversationId, pendingRef, doSend, pendingSignal]);
 
   return useCallback(
     (content: string, files?: File[]) => {
@@ -836,20 +844,32 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   // remount that the id-resolution triggers; the freshly-mounted pane replays it
   // via useDeferredFirstSend. See that hook for the full race.
   const pendingFirstMessageRef = useRef<PendingFirstMessage | null>(null);
+  // Bumped whenever the pending ref is set OUT OF BAND (the handoff seed below).
+  // ChatPane's deferred-send replay lists this in its deps, so it re-runs and
+  // fires the seed even when the conversation id was ALREADY minted. Without it a
+  // seed that lands after the id resolves is never replayed — the swallow (the
+  // replay otherwise only re-runs on id / doSend changes).
+  const [pendingFirstMessageSeq, setPendingFirstMessageSeq] = useState(0);
+  const stashPendingFirstMessage = useCallback((m: PendingFirstMessage) => {
+    pendingFirstMessageRef.current = m;
+    setPendingFirstMessageSeq((s) => s + 1);
+  }, []);
 
   // ADR-0057 P4 — seed the handed-off build prompt as this surface's first
-  // message. Only on the BUILD surface (the handoff target), once, before the
-  // conversation id is minted; `useDeferredFirstSend` (in ChatPane) replays it
-  // the moment the id resolves. The URL-mirror then rewrites to
-  // `/ai/build/:id?package=…`, dropping `?handoffPrompt`, so a reload never
-  // re-sends it.
-  const handoffSeededRef = useRef(false);
+  // message; `useDeferredFirstSend` (in ChatPane) replays it once the id lands.
+  // Gate on the ROUTE (`agentSegment`), known synchronously — NOT on the
+  // async-resolved `activeAgent`, which can settle AFTER the id is minted and so
+  // seed too late for the replay to see it (the swallow race, cloud#817 P4
+  // follow-up #1). Re-arm on each new `handoffPrompt` VALUE so a SECOND handoff
+  // re-seeds into the singleton build conversation (#2). The URL-mirror strips
+  // `?handoffPrompt` after the send, so a reload never re-fires.
+  const lastSeededHandoffPromptRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!handoffPrompt || handoffSeededRef.current) return;
-    if (!activeAgent || agentRouteName(activeAgent) !== 'build') return;
-    handoffSeededRef.current = true;
-    pendingFirstMessageRef.current = { content: handoffPrompt };
-  }, [handoffPrompt, activeAgent]);
+    if (!handoffPrompt || agentSegment !== 'build') return;
+    if (lastSeededHandoffPromptRef.current === handoffPrompt) return;
+    lastSeededHandoffPromptRef.current = handoffPrompt;
+    stashPendingFirstMessage({ content: handoffPrompt });
+  }, [handoffPrompt, agentSegment, stashPendingFirstMessage]);
 
   const handleSent = useCallback(
     (firstUserMessage?: string) => {
@@ -1005,6 +1025,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             parentHandoffConversationId={handoffParentConversationId}
             initialMessages={initialMessages}
             pendingFirstMessageRef={pendingFirstMessageRef}
+            pendingFirstMessageSeq={pendingFirstMessageSeq}
             onSent={handleSent}
             onShare={() => setShareOpen(true)}
             onDebug={() => setDebugOpen(true)}
@@ -1088,6 +1109,9 @@ interface ChatPaneProps {
   /** Page-owned stash for a first message sent before the conversation id resolved
    *  (survives this pane's id-keyed remount). See {@link useDeferredFirstSend}. */
   pendingFirstMessageRef: React.MutableRefObject<PendingFirstMessage | null>;
+  /** Bumps when the page seeds `pendingFirstMessageRef` out of band (handoff), so
+   *  the deferred-send replay re-runs. See {@link useDeferredFirstSend}. */
+  pendingFirstMessageSeq?: number;
   onSent: (firstUserMessage?: string) => void;
   onShare: () => void;
   /** Opens the Build Doctor drawer (build agent only). */
@@ -1110,6 +1134,7 @@ export function ChatPane({
   parentHandoffConversationId,
   initialMessages,
   pendingFirstMessageRef,
+  pendingFirstMessageSeq,
   onSent,
   onShare,
   onDebug,
@@ -1380,6 +1405,7 @@ export function ChatPane({
     conversationId,
     pendingRef: pendingFirstMessageRef,
     doSend,
+    pendingSignal: pendingFirstMessageSeq,
   });
 
   const headerSlot = (

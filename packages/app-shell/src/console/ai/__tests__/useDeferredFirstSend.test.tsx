@@ -58,6 +58,40 @@ describe('useDeferredFirstSend', () => {
     expect(doSend).toHaveBeenCalledTimes(1);
   });
 
+  // ADR-0057 P4 follow-up #1 (handoff swallow): the handoff seed sets `pendingRef`
+  // OUT OF BAND, and can land AFTER the conversation id already resolved (the
+  // async agent-catalog race). Refs don't trigger effects, so the replay would
+  // never fire — unless a `pendingSignal` bump re-runs it. This locks that in.
+  it('replays a pending message seeded AFTER the id resolved, driven by pendingSignal', () => {
+    const pendingRef: React.MutableRefObject<PendingFirstMessage | null> = { current: null };
+    const doSend = vi.fn();
+    const { rerender } = renderHook(
+      ({ pendingSignal }) =>
+        useDeferredFirstSend({ chatApi: API, conversationId: 'c1', pendingRef, doSend, pendingSignal }),
+      { initialProps: { pendingSignal: 0 } },
+    );
+    // Id already present but nothing seeded yet → no send.
+    expect(doSend).not.toHaveBeenCalled();
+
+    // Page seeds the handoff prompt out of band (id already resolved) + bumps the
+    // signal → the replay fires exactly once.
+    act(() => {
+      pendingRef.current = { content: 'handoff prompt', files: undefined };
+      rerender({ pendingSignal: 1 });
+    });
+    expect(doSend).toHaveBeenCalledTimes(1);
+    expect(doSend).toHaveBeenCalledWith('handoff prompt', undefined);
+    expect(pendingRef.current).toBeNull();
+
+    // A SECOND handoff (#2) — seed again + bump again → replays again.
+    act(() => {
+      pendingRef.current = { content: 'second handoff', files: undefined };
+      rerender({ pendingSignal: 2 });
+    });
+    expect(doSend).toHaveBeenCalledTimes(2);
+    expect(doSend).toHaveBeenLastCalledWith('second handoff', undefined);
+  });
+
   it('sends straight through when a conversation id is already present', () => {
     const { result, pendingRef, doSend } = setup({ chatApi: API, conversationId: 'c1' });
 

@@ -338,12 +338,24 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
   const modelRef = useRef(model);
   modelRef.current = model;
 
-  // ADR-0057 P4 / cloud#817 — the handed-off `ask` conversation id. Sent as
-  // `context.parentConversationId` on the FIRST turn only: the backend redeems
-  // it once (loading that thread as the build turn's context) and the client
-  // owns history from there, so re-sending it would re-inject the same block. We
-  // hold it in a ref and clear it after the first send (below, in prepare).
+  // ADR-0057 P4 / cloud#817 — the handed-off `ask` conversation id, sent as
+  // `context.parentConversationId` on the handoff turn: armed here, consumed once
+  // in prepare below, then cleared so normal follow-ups don't re-carry it. The
+  // backend redeems it into the build turn's context.
+  //
+  // Re-arm on every falsy→truthy transition of the prop (not on a new VALUE): a
+  // SECOND "Open in Builder →" resumes the same singleton build conversation and
+  // re-supplies the SAME ask id (the ask thread is a singleton too), so the
+  // fresh-arrival signal is the transition, not a changed value. The URL-mirror
+  // strips the param after each handoff send, giving the truthy→falsy edge — so
+  // a later handoff arms again and its latest ask context re-carries (#2).
   const parentConvRef = useRef(parentConversationId);
+  const prevParentConvPropRef = useRef(parentConversationId);
+  useEffect(() => {
+    const prev = prevParentConvPropRef.current;
+    prevParentConvPropRef.current = parentConversationId;
+    if (parentConversationId && !prev) parentConvRef.current = parentConversationId;
+  }, [parentConversationId]);
 
   // Build a transport for API mode that posts to the configured endpoint and
   // forwards conversation/system/model metadata in the request body.
