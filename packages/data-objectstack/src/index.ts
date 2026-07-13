@@ -1726,6 +1726,49 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   }
 
   /**
+   * List every registered object (code- and DB-defined) from the metadata
+   * registry — `GET /api/v1/meta/object`. Returns lightweight `{ name, label }`
+   * headers for object-picker widgets (e.g. the sharing-rule `object-ref`
+   * field). The list endpoint is uncached server-side, so no cache-busting
+   * dance is needed. Returns `[]` on any failure so callers degrade gracefully.
+   */
+  async getObjects(): Promise<Array<{ name: string; label?: string }>> {
+    try {
+      await this.connect();
+      const baseUrl = (this.baseUrl || '').replace(/\/$/, '');
+      // Avoid doubling /api/v1 when baseUrl already carries the version suffix
+      // (mirrors fetchObjectSchemaFresh).
+      const hasApiVersionSuffix = /\/api\/v\d+$/i.test(baseUrl);
+      const metaPath = hasApiVersionSuffix ? '/meta' : '/api/v1/meta';
+      const url = `${baseUrl}${metaPath}/object`;
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+
+      const res = await this.fetchImpl(url, { method: 'GET', headers });
+      if (!res.ok) return [];
+      const body: any = await res.json();
+      // Unwrap the `{ success, data }` envelope, the `{ type, items }` list
+      // shape, or a bare array.
+      const data =
+        body && typeof body === 'object' && 'success' in body && 'data' in body ? body.data : body;
+      const items: any[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.items)
+          ? data.items
+          : [];
+      return items
+        .map((it: any) => ({
+          name: String(it?.name ?? ''),
+          label: it?.label != null ? String(it.label) : undefined,
+        }))
+        .filter((it) => it.name);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Get access to the underlying ObjectStack client for advanced operations.
    */
   getClient(): ObjectStackClient {

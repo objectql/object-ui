@@ -2022,6 +2022,16 @@ const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentTyp
   'geolocation': () => import('./widgets/GeolocationField').then(m => ({ default: m.GeolocationField })),
   'signature': () => import('./widgets/SignatureField').then(m => ({ default: m.SignatureField })),
   'qrcode': () => import('./widgets/QRCodeField').then(m => ({ default: m.QRCodeField })),
+
+  // Widget-hint-only pickers (reached via a field `widget:` override, never a
+  // bare field `type`). They render a *picker* over machine data an admin would
+  // otherwise have to type — used by sys_sharing_rule (ADR-0056 P2 pattern):
+  //   object-ref       → choose a registered object by name
+  //   filter-condition → visual criteria builder scoped to the chosen object
+  //   recipient-picker → record picker whose target follows a sibling type
+  'object-ref': () => import('./widgets/ObjectRefField').then(m => ({ default: m.ObjectRefField })),
+  'filter-condition': () => import('./widgets/FilterConditionField').then(m => ({ default: m.FilterConditionField })),
+  'recipient-picker': () => import('./widgets/RecipientPickerField').then(m => ({ default: m.RecipientPickerField })),
 };
 
 /**
@@ -2071,6 +2081,11 @@ const FIELD_TYPES_SKIP_FALLBACK = new Set([
   // same "bare-name fallback overwritten" warning at every boot regardless.
   'time',
   'address',
+  // Widget-hint-only pickers — resolved solely via `field:<widget>`, so the
+  // bare-key fallback is never wanted.
+  'object-ref',
+  'filter-condition',
+  'recipient-picker',
 ]);
 
 export function registerField(fieldType: string): void {
@@ -2220,6 +2235,9 @@ export * from './widgets/TextAreaField';
 export * from './widgets/RichTextField';
 export * from './widgets/LookupField';
 export * from './widgets/CapabilityMultiSelectField';
+export * from './widgets/ObjectRefField';
+export * from './widgets/FilterConditionField';
+export * from './widgets/RecipientPickerField';
 export * from './widgets/RecordPickerDialog';
 export * from './widgets/FileField';
 export * from './widgets/ImageField';

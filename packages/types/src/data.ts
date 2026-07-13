@@ -311,6 +311,16 @@ export interface DataSource<T = any> {
   getObjectSchema(objectName: string): Promise<any>;
 
   /**
+   * List the platform's registered objects (lightweight `{ name, label }`
+   * headers) for object-picker widgets — e.g. a sharing rule's `object-ref`
+   * field. Backed by the metadata-registry list endpoint, so it includes both
+   * code- and DB-defined objects. Optional: adapters that can't enumerate
+   * objects may omit it, and callers should fall back gracefully (e.g. query
+   * the metadata object) when it is absent.
+   */
+  getObjects?(): Promise<Array<{ name: string; label?: string }>>;
+
+  /**
    * Get a view definition for an object.
    * Used by view components to render server-defined UI configurations.
    * Optional — implementations may return null to fall back to static config.
