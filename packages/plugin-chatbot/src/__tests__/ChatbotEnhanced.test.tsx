@@ -81,6 +81,48 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText(/Track loans separately/)).toBeInTheDocument();
   });
 
+  it('renders the "Open in Builder →" handoff card and fires onOpenBuilder (ADR-0057 P4)', () => {
+    const onOpenBuilder = vi.fn();
+    const messages: ChatMessage[] = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        toolInvocations: [
+          {
+            toolCallId: 't1',
+            toolName: 'suggest_builder',
+            state: 'output-available',
+            builderHandoff: { prompt: 'Add a priority field to tasks', packageId: 'com.acme.crm' },
+          },
+        ],
+      },
+    ];
+    render(<ChatbotEnhanced messages={messages} onOpenBuilder={onOpenBuilder} />);
+    expect(screen.getByTestId('builder-handoff')).toBeInTheDocument();
+    expect(screen.getByText(/Add a priority field to tasks/)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('builder-handoff-open'));
+    expect(onOpenBuilder).toHaveBeenCalledWith({
+      prompt: 'Add a priority field to tasks',
+      packageId: 'com.acme.crm',
+    });
+  });
+
+  it('disables "Open in Builder" when no host wired onOpenBuilder', () => {
+    const messages: ChatMessage[] = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '',
+        toolInvocations: [
+          { toolCallId: 't1', toolName: 'suggest_builder', state: 'output-available', builderHandoff: { prompt: 'x' } },
+        ],
+      },
+    ];
+    render(<ChatbotEnhanced messages={messages} />);
+    expect(screen.getByTestId('builder-handoff-open')).toBeDisabled();
+  });
+
   const planMessage = (questions: string[]): ChatMessage[] => [
     {
       id: 'a1',

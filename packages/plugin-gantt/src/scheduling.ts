@@ -398,3 +398,47 @@ export function computeProjectReschedule(tasks: SchedulableTask[], cal?: Working
   }
   return changes;
 }
+
+// ---------------------------------------------------------------------------
+// Dependency-cycle guard (creation-time)
+// ---------------------------------------------------------------------------
+
+/**
+ * Would adding the dependency edge `sourceId → targetId` (predecessor →
+ * dependent) close a cycle? `edges` is the EXISTING graph as
+ * [predecessorId, dependentId] pairs — build it from the full task set, not
+ * from visible rows, so links hidden inside collapsed subtrees still count.
+ *
+ * The new edge cycles iff `sourceId` is already reachable from `targetId`
+ * (a path target ⇝ source exists). The toposort above only *skips* cyclic
+ * chains during scheduling; this guard is what keeps them from being created
+ * in the first place.
+ */
+export function wouldCreateDependencyCycle(
+  edges: Array<[string, string]>,
+  sourceId: string | number,
+  targetId: string | number,
+): boolean {
+  const src = String(sourceId);
+  const tgt = String(targetId);
+  if (src === tgt) return true;
+  const adj = new Map<string, string[]>();
+  for (const [from, to] of edges) {
+    const list = adj.get(from);
+    if (list) list.push(to);
+    else adj.set(from, [to]);
+  }
+  const seen = new Set<string>([tgt]);
+  const stack = [tgt];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    for (const next of adj.get(cur) ?? []) {
+      if (next === src) return true;
+      if (!seen.has(next)) {
+        seen.add(next);
+        stack.push(next);
+      }
+    }
+  }
+  return false;
+}

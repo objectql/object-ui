@@ -307,6 +307,18 @@ export interface ChatToolInvocation {
     summary?: string;
     changes: Array<{ verb: string; object?: string; field?: string; type?: string; name?: string; details?: string }>;
   };
+  /**
+   * ADR-0057 P4 — the `ask` agent's structured decline-and-redirect. Set when
+   * the ask agent called `suggest_builder` (`{ handoff:'build', prompt,
+   * packageId? }`) because the user asked to author. `mapMessages.ts` lifts the
+   * handoff here so the chat renders an explicit "Open in Builder →" action that
+   * opens the build surface seeded with `prompt` — never a silent re-route into
+   * authoring (ADR-0063).
+   */
+  builderHandoff?: {
+    prompt: string;
+    packageId?: string;
+  };
 }
 
 export interface ChatSource {
@@ -587,6 +599,17 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
    * but unlisted. Hosts switch the canvas to the real app URL.
    */
   onBuildMaterialized?: (appName: string) => void;
+  /**
+   * ADR-0057 P4 — invoked when the user clicks "Open in Builder →" on an `ask`
+   * agent's `suggest_builder` decline. The host opens the build surface seeded
+   * with the handoff prompt/package (never a silent re-route; ADR-0063). Absent
+   * → the button is disabled (nothing to route to).
+   */
+  onOpenBuilder?: (handoff: { prompt: string; packageId?: string }) => void;
+  /** Heading for the ADR-0057 P4 "Open in Builder" handoff card (default "Build this in the Builder"). */
+  builderHandoffTitleLabel?: string;
+  /** Label for the handoff card's primary action button (default "Open in Builder →"). */
+  builderHandoffOpenLabel?: string;
   /** Label for the publish-drafts button (default "Publish"). */
   publishDraftsLabel?: string;
   /** Label for the published-state badge that replaces the button (default "Published"). */
@@ -978,6 +1001,8 @@ function shouldRenderDetailedTool(tool: ChatToolInvocation): boolean {
     // a propose_blueprint result there instead of collapsing it into a chip.
     Boolean(tool.proposedPlan) ||
     Boolean(tool.proposedChanges) ||
+    // ADR-0057 P4 — the "Open in Builder →" handoff lives in the detailed body.
+    Boolean(tool.builderHandoff) ||
     // A completed propose_blueprint that produced NO structured plan still needs
     // the detailed body — that's where the fallback "Build it" confirm gate
     // renders so the user is never left guessing the confirmation phrase.
@@ -1151,6 +1176,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       verifiedLabel = 'Verified',
       nextStepsLabel = "What's next",
       planTitleLabel = 'Proposed plan',
+      builderHandoffTitleLabel = 'Build this in the Builder',
+      builderHandoffOpenLabel = 'Open in Builder →',
+      onOpenBuilder,
       planExtendLabel = 'Adding to existing app',
       planQuestionsLabel = 'Confirm before building',
       planAssumptionsLabel = 'Assumptions',
@@ -1648,6 +1676,8 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             Boolean(tool.draftReview && tool.draftReview.items.length > 0) ||
             Boolean(tool.proposedPlan) ||
             Boolean(tool.proposedChanges) ||
+            // ADR-0057 P4 — open so the "Open in Builder →" action is visible.
+            Boolean(tool.builderHandoff) ||
             // Fallback confirm gate (unstructured proposal) must open so its
             // "Build it" button is visible without an extra click.
             isUnstructuredBuildProposal(tool)
@@ -1880,6 +1910,31 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                 "Completed" step) gives the user the Airtable-style confirm gate:
                 see what will be built, then approve or adjust. Nothing is live
                 yet. */}
+            {/* ADR-0057 P4 — the `ask` agent declined an authoring request and
+                called `suggest_builder`. Render an explicit "Open in Builder →"
+                that hands the request to the build surface seeded with the
+                prompt (ADR-0063 decline-and-redirect — never a silent re-route). */}
+            {tool.builderHandoff ? (
+              <div
+                className="flex flex-col gap-2 border-t bg-muted/20 px-3 py-2.5"
+                data-testid="builder-handoff"
+              >
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground/80">
+                  <Sparkles className="size-3.5" />
+                  {builderHandoffTitleLabel}
+                </span>
+                <p className="text-xs text-muted-foreground">{tool.builderHandoff.prompt}</p>
+                <button
+                  type="button"
+                  onClick={() => onOpenBuilder?.(tool.builderHandoff!)}
+                  disabled={!onOpenBuilder}
+                  data-testid="builder-handoff-open"
+                  className="inline-flex w-fit items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {builderHandoffOpenLabel}
+                </button>
+              </div>
+            ) : null}
             {tool.proposedPlan ? (
               <div
                 className="flex flex-col gap-2 border-t bg-muted/20 px-3 py-2.5"

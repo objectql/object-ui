@@ -38,7 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@object-ui/components';
-import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
+import { extractRecords, buildExpandFields, getRecordDisplayName, resolveDataSource } from '@object-ui/core';
 import {
   getSemanticColorName,
   getSemanticHex,
@@ -107,6 +107,14 @@ type GanttConfigEx = GanttConfig & {
   /** Baseline (planned) start/end fields → planned-vs-actual reference bars. */
   baselineStartField?: string;
   baselineEndField?: string;
+  /**
+   * Record field carrying a per-task alert stroke color (逐任务预警描边):any CSS
+   * color or semantic palette name (red/orange/…). When present the bar keeps
+   * its fill but gets an outline + halo in that color — e.g. 超期红、临期橙,
+   * typically a server-computed alert field. Empty/null → no stroke. Maps to
+   * {@link GanttTask.borderColor}.
+   */
+  borderColorField?: string;
   /**
    * Dynamic Group by (动态 Group by). When set, leaf tasks are bucketed by this
    * field and rendered under one synthesized summary row per distinct value
@@ -280,6 +288,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           progressField: schema.progressField,
           dependenciesField: schema.dependenciesField || schema.dependencyField,
           colorField: schema.colorField,
+          borderColorField: schema.borderColorField,
           parentField: schema.parentField,
           typeField: schema.typeField,
           lockField: schema.lockField,
@@ -339,10 +348,29 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const ganttConfig = getGanttConfig(schema);
   const hasInlineData = dataConfig?.provider === 'value';
 
-  // Load (and re-load) data based on provider. `silent: true` re-reads the
-  // source WITHOUT flipping `loading`, so GanttView stays mounted and keeps
-  // its scroll/collapse state — used by the write-readback below and the
-  // toolbar refresh button (写后回读 / 手动刷新, #2436 第 6/7 项). Concurrent
+  // Resolve the ViewData config into a concrete DataSource adapter:
+  //   provider: 'object' → the context DataSource passed via props (unchanged)
+  //   provider: 'api'    → an ApiDataSource that executes the read/write HttpRequest config
+  //   provider: 'value'  → an in-memory ValueDataSource
+  // Every read AND write-back below goes through this single adapter, so the
+  // 'api' provider now supports reschedule / dependency / delete / inline-edit
+  // write-backs — not just object-backed views.
+  const effectiveDataSource = useMemo(
+    () => resolveDataSource(dataConfig, dataSource ?? null),
+    // dataConfig is already memoized by deep value above.
+    [dataConfig, dataSource],
+  );
+
+  // Unified resource name for find/update/delete. For 'object' it's the bound
+  // object; for 'api' the adapter ignores it (the URL carries the endpoint),
+  // so an empty string is fine there.
+  const resource =
+    dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName ?? '';
+
+  // Load (and re-load) data through the resolved adapter. `silent: true`
+  // re-reads the source WITHOUT flipping `loading`, so GanttView stays mounted
+  // and keeps its scroll/collapse state — used by the write-readback below and
+  // the toolbar refresh button (写后回读 / 手动刷新, #2436 第 6/7 项). Concurrent
   // reloads are sequenced: only the newest request may commit its result,
   // so a slow earlier response can't clobber a fresher one.
   const [refreshing, setRefreshing] = useState(false);
@@ -355,8 +383,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       else setLoading(true);
       // 1. Check for data prop (Unified ListView)
       if ((rest as any).data && Array.isArray((rest as any).data)) {
-          if (isCurrent()) setData((rest as any).data);
-          return;
+        if (isCurrent()) setData((rest as any).data);
+        return;
       }
 
       if (hasInlineData && dataConfig?.provider === 'value') {
@@ -364,25 +392,20 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         return;
       }
 
-      if (!dataSource || typeof dataSource.find !== 'function') {
+      if (!effectiveDataSource || typeof effectiveDataSource.find !== 'function') {
         throw new Error('DataSource required for object/api providers');
       }
 
-      if (dataConfig?.provider === 'object') {
-        const objectName = dataConfig.object;
-        // Auto-inject $expand for lookup/master_detail fields
-        const expand = buildExpandFields(objectSchema?.fields);
-        const result = await dataSource.find(objectName, {
-          $filter: schema.filter,
-          $orderby: convertSortToQueryParams(schema.sort),
-          ...(expand.length > 0 ? { $expand: expand } : {}),
-        });
-        const items: any[] = extractRecords(result);
-        if (isCurrent()) setData(items);
-      } else if (dataConfig?.provider === 'api') {
-        console.warn('API provider not yet implemented for ObjectGantt');
-        if (isCurrent()) setData([]);
-      }
+      // 'object' → context adapter, 'api' → ApiDataSource (both resolved above).
+      // Auto-inject $expand for lookup/master_detail fields when a schema is
+      // available; api adapters return an empty field map, so expand stays off.
+      const expand = buildExpandFields(objectSchema?.fields);
+      const result = await effectiveDataSource.find(resource, {
+        $filter: schema.filter,
+        $orderby: convertSortToQueryParams(schema.sort),
+        ...(expand.length > 0 ? { $expand: expand } : {}),
+      });
+      if (isCurrent()) setData(extractRecords(result));
     } catch (err) {
       if (silent) {
         // Background refresh failure keeps the last good data on screen.
@@ -395,7 +418,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       else setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- (rest as any).data intentionally untracked, matching the original effect
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
+  }, [effectiveDataSource, resource, hasInlineData, dataConfig, schema.filter, schema.sort, objectSchema]);
 
   useEffect(() => {
     reload();
@@ -405,25 +428,20 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   useEffect(() => {
     const fetchObjectSchema = async () => {
       try {
-        if (!dataSource) return;
-        
-        const objectName = dataConfig?.provider === 'object' 
-          ? dataConfig.object 
-          : schema.objectName;
-          
-        if (!objectName) return;
-        
-        const schemaData = await dataSource.getObjectSchema(objectName);
+        if (!effectiveDataSource) return;
+        if (!resource) return;
+
+        const schemaData = await effectiveDataSource.getObjectSchema(resource);
         setObjectSchema(schemaData);
       } catch (err) {
         console.error('Failed to fetch object schema:', err);
       }
     };
 
-    if (!hasInlineData && dataSource) {
+    if (!hasInlineData && effectiveDataSource) {
       fetchObjectSchema();
     }
-  }, [schema.objectName, dataSource, hasInlineData, dataConfig]);
+  }, [resource, effectiveDataSource, hasInlineData, dataConfig]);
 
   // Transform data to gantt tasks
   const tasks = useMemo(() => {
@@ -431,7 +449,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       return [];
     }
 
-    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField } = ganttConfig;
+    const { startDateField, endDateField, titleField, progressField, dependenciesField, colorField, borderColorField, parentField, typeField, lockField, tooltipFields, baselineStartField, baselineEndField } = ganttConfig;
     const fieldDefs: Record<string, any> = objectSchema?.fields ?? {};
 
     // Resolve a value through nested paths like "account.name". Returns the
@@ -576,6 +594,13 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           if (name) color = getSemanticHex(name);
         }
       }
+      // Alert stroke (预警描边): semantic palette names map to their hex;
+      // anything else (hex, css color) passes through untouched.
+      const borderColorRaw = borderColorField ? record[borderColorField] : undefined;
+      const borderColor =
+        borderColorRaw != null && borderColorRaw !== ''
+          ? getSemanticHex(String(borderColorRaw), String(borderColorRaw))
+          : undefined;
 
       return {
         id: record.id || record._id || `task-${index}`,
@@ -588,6 +613,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         type: typeField ? normalizeTaskType(record[typeField]) : undefined,
         locked: lockField ? !!record[lockField] : undefined,
         color,
+        borderColor,
         baselineStart: baselineStart && !isNaN(baselineStart.getTime()) ? baselineStart : undefined,
         baselineEnd: baselineEnd && !isNaN(baselineEnd.getTime()) ? baselineEnd : undefined,
         fields: buildTooltipFields(record),
@@ -824,17 +850,29 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   }, []);
   const clearFilters = useCallback(() => setFilterValues({}), []);
 
-  // Apply the active filters in memory: a task passes when, for every dimension
+  // Apply the active filters in memory: a task matches when, for every dimension
   // with a non-empty selection, its resolved key is among the selected values.
+  // Tree-aware: every ancestor of a match is retained too — group/parent rows
+  // rarely match themselves (they carry no filterable record), and dropping
+  // them would orphan the matches and flatten the tree.
   const displayTasks = useMemo(() => {
     const active = Object.entries(filterValues).filter(([, v]) => v.length > 0);
     if (!active.length) return tasks;
-    return tasks.filter((t) =>
-      active.every(([field, vals]) => {
+    const byId = new Map(tasks.map((t) => [String(t.id), t]));
+    const keep = new Set<string>();
+    for (const t of tasks) {
+      const matches = active.every(([field, vals]) => {
         const key = resolveFilterKey((t as any).data, field);
         return key != null && vals.includes(key);
-      }),
-    );
+      });
+      if (!matches) continue;
+      let cur: GanttTask | undefined = t;
+      while (cur && !keep.has(String(cur.id))) {
+        keep.add(String(cur.id));
+        cur = cur.parent != null ? byId.get(String(cur.parent)) : undefined;
+      }
+    }
+    return tasks.filter((t) => keep.has(String(t.id)));
   }, [tasks, filterValues, resolveFilterKey]);
 
   // Auto-zoom is free: GanttView derives the timeline range from the tasks it
@@ -871,9 +909,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const handleTaskUpdateDefault = useCallback(
     async (task: GanttTask, changes: { start?: Date; end?: Date; title?: string; progress?: number }) => {
       if (!ganttConfig) return;
-      const objectName =
-        dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
-      if (!objectName || !dataSource || typeof dataSource.update !== 'function') return;
+      if (!effectiveDataSource || typeof effectiveDataSource.update !== 'function') return;
 
       const { startDateField, endDateField, titleField, progressField } = ganttConfig;
       const patch: Record<string, unknown> = {};
@@ -895,7 +931,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       );
 
       try {
-        await dataSource.update(objectName, String(recordId), patch);
+        await effectiveDataSource.update(resource, String(recordId), patch);
         // Read back so server-computed fields (parent rollups, alert
         // colors, recalculated durations) refresh — the optimistic patch
         // only knows what the client wrote (#2436 第 6 项).
@@ -905,7 +941,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         setData(prevSnapshot); // revert
       }
     },
-    [ganttConfig, dataConfig, dataSource, schema.objectName, data, reload],
+    [ganttConfig, effectiveDataSource, resource, data, reload],
   );
 
   // Re-serialize a normalized dependency list back onto a record field,
@@ -932,9 +968,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     async (targetId: string | number, raw: unknown, nextDeps: GanttDependency[]) => {
       const depField = ganttConfig?.dependenciesField;
       if (!depField) return;
-      const objectName =
-        dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
-      if (!objectName || !dataSource || typeof dataSource.update !== 'function') return;
+      if (!effectiveDataSource || typeof effectiveDataSource.update !== 'function') return;
       const nextValue = serializeDependencies(raw, nextDeps);
       const prevSnapshot = data;
       setData((prev) =>
@@ -943,14 +977,14 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         ),
       );
       try {
-        await dataSource.update(objectName, String(targetId), { [depField]: nextValue });
+        await effectiveDataSource.update(resource, String(targetId), { [depField]: nextValue });
         void reload({ silent: true }); // 写后回读 — see handleTaskUpdateDefault
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist dependency:', err);
         setData(prevSnapshot); // revert
       }
     },
-    [ganttConfig, dataConfig, dataSource, schema.objectName, data, reload],
+    [ganttConfig, effectiveDataSource, resource, data, reload],
   );
 
   // Persist a created/updated dependency (依赖增 + 类型选择): upsert the source
@@ -1022,9 +1056,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
 
   const confirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
-    const objectName =
-      dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
-    if (!objectName || !dataSource?.delete) {
+    if (!effectiveDataSource?.delete) {
       setPendingDelete(null);
       return;
     }
@@ -1041,7 +1073,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       prev.filter((r) => String(r.id ?? r._id) !== String(recordId)),
     );
     try {
-      await dataSource.delete(objectName, String(recordId));
+      await effectiveDataSource.delete(resource, String(recordId));
       setPendingDelete(null);
       void reload({ silent: true }); // 写后回读 — parent rollups shrink after a child delete
     } catch (err) {
@@ -1051,7 +1083,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     } finally {
       setDeleting(false);
     }
-  }, [pendingDelete, dataConfig, dataSource, schema.objectName, data, reload]);
+  }, [pendingDelete, effectiveDataSource, resource, data, reload]);
 
   if (loading) {
     return (
@@ -1143,9 +1175,11 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           defaultCollapsedDepth={ganttConfig?.defaultCollapsedDepth}
           inlineEdit
           onRefresh={
-            // Only meaningful when there's a live source to re-read; inline
-            // `value` items and the data prop are owned by the host.
-            dataConfig?.provider === 'object' && typeof dataSource?.find === 'function'
+            // Only meaningful when there's a live source to re-read (object or
+            // api provider); inline `value` items and the data prop are owned
+            // by the host.
+            (dataConfig?.provider === 'object' || dataConfig?.provider === 'api') &&
+            typeof effectiveDataSource?.find === 'function'
               ? () => reload({ silent: true })
               : undefined
           }
@@ -1154,7 +1188,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         )}
       </div>
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
-        const objectName = dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+        const objectName = resource;
         const rec = navigation.selectedRecord as Record<string, any>;
         const recordId = rec.id ?? rec._id;
         if (!objectName || recordId == null) return null;
@@ -1170,13 +1204,13 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             record={rec}
             objectName={objectName}
             recordId={recordId}
-            dataSource={dataSource}
+            dataSource={effectiveDataSource ?? undefined}
             objectSchema={objectSchema as any}
             width={navigation.width as any}
             fullPageHref={deriveRecordPageHref(objectName, recordId) ?? undefined}
             onFieldSave={async (field, value) => {
-              if (!dataSource?.update) return;
-              await dataSource.update(objectName, String(recordId), { [field]: value });
+              if (!effectiveDataSource?.update) return;
+              await effectiveDataSource.update(resource, String(recordId), { [field]: value });
               setData((prev) => prev.map((r) =>
                 String(r.id ?? r._id) === String(recordId)
                   ? { ...r, [field]: value }
@@ -1185,8 +1219,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
               void reload({ silent: true }); // 写后回读 — see handleTaskUpdateDefault
             }}
             onDelete={async () => {
-              if (!dataSource?.delete) return;
-              await dataSource.delete(objectName, String(recordId));
+              if (!effectiveDataSource?.delete) return;
+              await effectiveDataSource.delete(resource, String(recordId));
               setData((prev) => prev.filter((r) =>
                 String(r.id ?? r._id) !== String(recordId),
               ));

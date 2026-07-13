@@ -281,6 +281,27 @@ export interface ProposedChanges {
   }>;
 }
 
+/**
+ * ADR-0057 P4 — the `ask` agent's `suggest_builder` structured decline. Result
+ * envelope `{ status:'build_handoff', handoff:'build', prompt, packageId? }`.
+ * Lifted so the chat renders an explicit "Open in Builder →" action that opens
+ * the build surface seeded with `prompt` (never a silent re-route; ADR-0063).
+ */
+export interface BuilderHandoff {
+  prompt: string;
+  packageId?: string;
+}
+
+export function detectBuilderHandoff(result: unknown): BuilderHandoff | undefined {
+  const obj = parseResultEnvelope(result);
+  if (!obj || obj.status !== 'build_handoff') return undefined;
+  const prompt = typeof obj.prompt === 'string' ? obj.prompt.trim() : '';
+  if (!prompt) return undefined;
+  const rawPkg = (obj as { packageId?: unknown }).packageId;
+  const packageId = typeof rawPkg === 'string' && rawPkg.trim().length > 0 ? rawPkg.trim() : undefined;
+  return { prompt, ...(packageId ? { packageId } : {}) };
+}
+
 export function detectProposedChanges(result: unknown): ProposedChanges | undefined {
   const obj = parseResultEnvelope(result);
   if (!obj || obj.status !== 'changes_proposed') return undefined;
@@ -437,6 +458,7 @@ function extractToolInvocations(
       const draftReview = detectDraftResult(result);
       const proposedPlan = detectProposedPlan(result);
       const proposedChanges = detectProposedChanges(result);
+      const builderHandoff = detectBuilderHandoff(result);
       // Promote a dangling `input-*` state to a terminal one so a reloaded
       // conversation never shows "Running" forever (the server doesn't always
       // snapshot the terminal tool state). Two cases:
@@ -470,6 +492,7 @@ function extractToolInvocations(
         draftReview,
         proposedPlan,
         proposedChanges,
+        builderHandoff,
       } satisfies ChatToolInvocation;
     });
 }
