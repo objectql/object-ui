@@ -1693,6 +1693,13 @@ function DataPillar({
   // the header's Menu button.
   const isMobile = useIsMobile();
   const [railOpen, setRailOpen] = React.useState(false);
+  // Object deep-link: capture the `?surface=object:<name>` target once, at
+  // mount. The app→Studio bridge (ADR-0080) opens a running object's records
+  // page straight to THAT object here (see `appStudioObjectPath`); without this
+  // the rail always snapped to the first object. Captured in a ref so later
+  // in-pillar selections don't re-trigger the restore.
+  const [searchParams] = useSearchParams();
+  const initialObjectRef = React.useRef(parseSurfaceParam(searchParams.get(DESIGNER_SURFACE_PARAM)));
   const [objects, setObjects] = React.useState<Surface[]>([]);
   const [objectsLoaded, setObjectsLoaded] = React.useState(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
@@ -1752,7 +1759,11 @@ function DataPillar({
           }
         }
         setObjects(items);
-        setCurrent((c) => c ?? items[0] ?? null);
+        // Honor a `?surface=object:<name>` deep-link when it names an object we
+        // actually have; otherwise open the first object as before.
+        const wanted = initialObjectRef.current;
+        const deepLinked = wanted?.type === 'object' ? items.find((o) => o.name === wanted.name) : undefined;
+        setCurrent((c) => c ?? deepLinked ?? items[0] ?? null);
         // First-run: an empty writable package opens the creator right away —
         // the first thing to do here is make an object, so put the inputs up.
         if (items.length === 0 && !readOnly) setCreating(true);

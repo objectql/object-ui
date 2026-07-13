@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath, appStudioRoutePath } from '../appRoute';
+import { appRouteSegment, matchAppBySegment, appStudioDesignPath, appStudioSurfacePath, appStudioObjectPath, appStudioRoutePath } from '../appRoute';
 
 /**
  * ADR-0048 (option A) — package-id route segment.
@@ -97,9 +97,39 @@ describe('appStudioSurfacePath', () => {
 });
 
 /**
+ * App → Studio object deep-link (Data pillar).
+ */
+describe('appStudioObjectPath', () => {
+  const crm = { name: 'crm', _packageId: 'com.acme.crm' };
+
+  it('deep-links to the object surface in the Data pillar', () => {
+    expect(appStudioObjectPath(crm, true, 'showcase_task')).toBe(
+      '/studio/com.acme.crm/data?surface=object:showcase_task',
+    );
+  });
+  it('URL-encodes the package id and the object name', () => {
+    expect(appStudioObjectPath({ _packageId: 'com.acme/crm' }, true, 'my object')).toBe(
+      '/studio/com.acme%2Fcrm/data?surface=object:my%20object',
+    );
+  });
+  it('returns null for non-admins', () => {
+    expect(appStudioObjectPath(crm, false, 'account')).toBeNull();
+  });
+  it('returns null when the object name is missing', () => {
+    expect(appStudioObjectPath(crm, true, undefined)).toBeNull();
+    expect(appStudioObjectPath(crm, true, '')).toBeNull();
+  });
+  it('returns null for apps with no owning package or the sys_metadata pseudo-package', () => {
+    expect(appStudioObjectPath({ name: 'crm' }, true, 'account')).toBeNull();
+    expect(appStudioObjectPath({ _packageId: 'sys_metadata' }, true, 'account')).toBeNull();
+  });
+});
+
+/**
  * App → Studio route bridge — maps a running-app route to its Studio target:
  * an interface surface (dashboard / page / report) deep-links into the
- * Interfaces pillar; everything else opens the package's Data tab.
+ * Interfaces pillar; an object record page deep-links that object in the Data
+ * pillar; everything else opens the package's Data tab.
  */
 describe('appStudioRoutePath', () => {
   const crm = { name: 'crm', _packageId: 'com.acme.crm' };
@@ -122,11 +152,22 @@ describe('appStudioRoutePath', () => {
     );
   });
 
-  it('falls back to the Data tab for object routes and the plain app root', () => {
-    // An object route (routeType is the object name) is a Data-pillar surface.
-    expect(appStudioRoutePath(crm, true, { type: 'account', name: undefined })).toBe('/studio/com.acme.crm/data');
+  it('deep-links an object route (routeType is the object name) to its Data-pillar surface', () => {
+    // The fix: an object records page now opens THAT object, not the generic Data tab.
+    expect(appStudioRoutePath(crm, true, { type: 'showcase_task', name: undefined })).toBe(
+      '/studio/com.acme.crm/data?surface=object:showcase_task',
+    );
+    // A record-detail route (name='record') still keys off the object route type.
+    expect(appStudioRoutePath(crm, true, { type: 'account', name: 'record' })).toBe(
+      '/studio/com.acme.crm/data?surface=object:account',
+    );
+  });
+
+  it('falls back to the plain Data tab for the app root and the system area', () => {
     // No route type at all (bare /apps/:pkg) → Data tab.
     expect(appStudioRoutePath(crm, true, { type: undefined, name: undefined })).toBe('/studio/com.acme.crm/data');
+    // The system settings area is not an object.
+    expect(appStudioRoutePath(crm, true, { type: 'system', name: 'members' })).toBe('/studio/com.acme.crm/data');
   });
 
   it('falls back to the Data tab for an interface list route (no surface name)', () => {
