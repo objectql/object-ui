@@ -160,6 +160,57 @@ describe('ObjectGantt quick filters', () => {
   });
 });
 
+describe('ObjectGantt quick filters — tree-aware (保留祖先链)', () => {
+  // 项目分组行没有可筛字段值;命中子任务时必须连同祖先一起保留,
+  // 否则命中的行成孤儿、树被打散。
+  const TREE = [
+    { id: 'root', name: '项目', start: '2024-01-01', end: '2024-03-20' },
+    { id: 'mid', name: '产品', start: '2024-01-01', end: '2024-02-10', parentId: 'root' },
+    { id: 't1', name: '计划一', start: '2024-01-01', end: '2024-01-05', status: 'todo', parentId: 'mid' },
+    { id: 't2', name: '计划二', start: '2024-02-01', end: '2024-02-10', status: 'doing', parentId: 'mid' },
+    { id: 'other', name: '另一项目', start: '2024-03-01', end: '2024-03-20', status: 'done' },
+  ];
+
+  const treeSchema = () =>
+    ({
+      type: 'gantt',
+      startDateField: 'start',
+      endDateField: 'end',
+      titleField: 'name',
+      parentField: 'parentId',
+      data: { provider: 'value', items: TREE },
+      quickFilters: [{ field: 'status', label: '状态', options: ['todo', 'doing', 'done'] }],
+    }) as any;
+
+  it('keeps the full ancestor chain of a matched task', async () => {
+    const { container, getByTestId } = render(<ObjectGantt schema={treeSchema()} />);
+    await waitFor(() => expect(gv(container).getAttribute('data-count')).toBe('5'));
+    fireEvent.click(getByTestId('quick-filter-trigger-status'));
+    fireEvent.click(getByTestId('quick-filter-option-status-doing'));
+    // t2 matches → root and mid ride along; t1 (sibling) and other are dropped.
+    await waitFor(() => expect(ids(container)).toBe('root,mid,t2'));
+  });
+
+  it('drops an ancestor once none of its descendants match', async () => {
+    const { container, getByTestId } = render(<ObjectGantt schema={treeSchema()} />);
+    await waitFor(() => expect(gv(container).getAttribute('data-count')).toBe('5'));
+    fireEvent.click(getByTestId('quick-filter-trigger-status'));
+    fireEvent.click(getByTestId('quick-filter-option-status-done'));
+    // Only the standalone root matches — the root/mid subtree disappears entirely.
+    await waitFor(() => expect(ids(container)).toBe('other'));
+  });
+
+  it('matching several branches keeps each ancestor exactly once', async () => {
+    const { container, getByTestId } = render(<ObjectGantt schema={treeSchema()} />);
+    await waitFor(() => expect(gv(container).getAttribute('data-count')).toBe('5'));
+    fireEvent.click(getByTestId('quick-filter-trigger-status'));
+    fireEvent.click(getByTestId('quick-filter-option-status-todo'));
+    fireEvent.click(getByTestId('quick-filter-option-status-doing'));
+    // Both children of mid match; shared ancestors are not duplicated.
+    await waitFor(() => expect(ids(container)).toBe('root,mid,t1,t2'));
+  });
+});
+
 describe('ObjectGantt quick filters — schema-driven options', () => {
   const RECORDS = [
     { id: '1', name: 'A', start: '2024-01-01', end: '2024-01-05', status: 'todo', project: { id: 'p1', name: 'Apollo' } },

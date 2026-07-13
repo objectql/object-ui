@@ -811,17 +811,29 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   }, []);
   const clearFilters = useCallback(() => setFilterValues({}), []);
 
-  // Apply the active filters in memory: a task passes when, for every dimension
+  // Apply the active filters in memory: a task matches when, for every dimension
   // with a non-empty selection, its resolved key is among the selected values.
+  // Tree-aware: every ancestor of a match is retained too — group/parent rows
+  // rarely match themselves (they carry no filterable record), and dropping
+  // them would orphan the matches and flatten the tree.
   const displayTasks = useMemo(() => {
     const active = Object.entries(filterValues).filter(([, v]) => v.length > 0);
     if (!active.length) return tasks;
-    return tasks.filter((t) =>
-      active.every(([field, vals]) => {
+    const byId = new Map(tasks.map((t) => [String(t.id), t]));
+    const keep = new Set<string>();
+    for (const t of tasks) {
+      const matches = active.every(([field, vals]) => {
         const key = resolveFilterKey((t as any).data, field);
         return key != null && vals.includes(key);
-      }),
-    );
+      });
+      if (!matches) continue;
+      let cur: GanttTask | undefined = t;
+      while (cur && !keep.has(String(cur.id))) {
+        keep.add(String(cur.id));
+        cur = cur.parent != null ? byId.get(String(cur.parent)) : undefined;
+      }
+    }
+    return tasks.filter((t) => keep.has(String(t.id)));
   }, [tasks, filterValues, resolveFilterKey]);
 
   // Auto-zoom is free: GanttView derives the timeline range from the tasks it
