@@ -1082,7 +1082,7 @@ export function GanttView({
         const source = tasks.find((t) => String(t.id) === String(cur.sourceId));
         const target = tasks.find((t) => String(t.id) === String(cur.targetId));
         // Derive the link type from which endpoint we dragged FROM and which
-        // endpoint we dropped ONTO (dhtmlx-style): the source endpoint picks
+        // endpoint we dropped ONTO: the source endpoint picks
         // Finish (end) vs Start (start), the target endpoint picks the second
         // letter. end→start = FS, end→end = FF, start→start = SS, start→end = SF.
         const targetEnd = cur.targetEnd ?? 'start';
@@ -2249,7 +2249,7 @@ export function GanttView({
 
   // Shared row geometry: bars/diamonds/brackets and link anchors must agree
   // on these or arrows visibly miss their targets.
-  // Task bar geometry. Target a ~27px-tall bar (dhtmlx-like) so its top edge can
+  // Task bar geometry. Target a ~27px-tall bar so its top edge can
   // host the length (resize) grips and its bottom edge the progress grip without
   // the two hit areas overlapping. `barTop` is kept an integer and `barHeight`
   // derived as `rowHeight - 2*barTop`, so the bar stays *exactly* centered
@@ -3477,7 +3477,7 @@ export function GanttView({
                       // bar-scoped hover would drop the moment the cursor crossed the
                       // bar edge toward a dot — the dot would vanish before it could
                       // be grabbed. The row spans the whole timeline, so moving from
-                      // bar → dot never leaves the hover zone (dhtmlx-style).
+                      // bar → dot never leaves the hover zone.
                       onMouseEnter={() => setHoveredTaskId(task.id)}
                       onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
                     >
@@ -3528,7 +3528,7 @@ export function GanttView({
                           // so a direct hit still wins. But a click aimed at the edge often
                           // lands just inside the bar (headless coordinate quantization), so
                           // resolve the mode from the pointer's offset here too: the end
-                          // bands resize, the middle moves (dhtmlx-style edge zones).
+                          // bands resize, the middle moves (edge-zone drag).
                           if (e.button !== 0) return;
                           const mode = resolveBarDragMode(e.clientX, e.currentTarget.getBoundingClientRect());
                           beginDrag(task, mode, e);
@@ -3571,7 +3571,7 @@ export function GanttView({
                         )}
 
                         {/* Progress drag handle — a triangle hugging the bottom
-                            edge at the progress boundary (dhtmlx-style). It only
+                            edge at the progress boundary. It only
                             shows on hover / while dragging, and its hit area lives
                             in the bottom half so grabbing it never competes with a
                             bar move (top) or a link drag (the centred end dots). */}
@@ -3615,7 +3615,7 @@ export function GanttView({
                         )}
 
                         {/* Connector dots — a circle floating just OUTSIDE each end
-                            of the bar (dhtmlx-style). Sitting fully outside the bar
+                            of the bar. Sitting fully outside the bar
                             body means grabbing one can never start a bar move or an
                             edge resize. They appear on row hover (or while this bar
                             is the link source) and have their own enlarged hit area
@@ -3636,7 +3636,7 @@ export function GanttView({
                             <div
                               key={end}
                               // The visible circle sits OUT from the bar end with a
-                              // comfortable gap (dhtmlx-style) so it reads as its own
+                              // comfortable gap so it reads as its own
                               // affordance, not crammed against the bar. But the
                               // transparent hit area is wider and BRIDGES back to the
                               // bar edge: it overlays z-20 above the dependency line's
