@@ -686,8 +686,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/lint':
-        specifier: ^14.3.0
-        version: 14.3.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^14.6.0
+        version: 14.6.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^14.3.0
         version: 14.3.0(ai@7.0.22(zod@4.4.3))
@@ -3836,6 +3836,11 @@ packages:
     engines: {node: '>=20.19.0'}
     hasBin: true
 
+  '@marcbachmann/cel-js@8.0.0':
+    resolution: {integrity: sha512-oaTrAziGr3zDLFiMt/yLU3nZuRMawyWQB5X1a0I7s9eGy3JYzX9l8ZXXHyMd64nzbeVFZTewuUShwsZQdK6UCA==}
+    engines: {node: '>=20.19.0'}
+    hasBin: true
+
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==}
 
@@ -3974,15 +3979,27 @@ packages:
   '@objectstack/formula@14.3.0':
     resolution: {integrity: sha512-QvvQ+2afKVRoXgtD7BQkoH6JXPzMURJFzI6hQ6T41Z5lL9B11+TSpg/w1s6L1y8L0fDGin8D587UyWKwRLjJCg==}
 
-  '@objectstack/lint@14.3.0':
-    resolution: {integrity: sha512-+vGWMwZjePcxAk4lva+MiV+RguF+IjhpTK66sCq0qcfgBn4cyA329hvjoUU+bosFrk62pEIw2JVIX/RrWSvVBw==}
+  '@objectstack/formula@14.6.0':
+    resolution: {integrity: sha512-gKycQFnytF4tRkXYQhv5WrSXslRerWqX9ckcB+uRoW4n4y1ixt8wjGsDTkkW7fkS9bDmqUQwqG9Obgbvm2WT0Q==}
+
+  '@objectstack/lint@14.6.0':
+    resolution: {integrity: sha512-fJBV3sGxtgwARDsyEz0+/FYVCn0WxCjodnTFK8wRg4PJ9lsbjyQc3DhyofeZwp6obDYmwbD+PIM/nIRC7N9LUw==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/sdui-parser@14.3.0':
-    resolution: {integrity: sha512-cMyIRzmumG7aBiJkPRTlf/Uj+yI+gWtOOG8RDxWVx2uYZptUMT9UCro6qIYhzSrceN0gFOH44YYi/FYO8JiC9w==}
+  '@objectstack/sdui-parser@14.6.0':
+    resolution: {integrity: sha512-TaSZ2zrlKTG7pIDdLcoHBgNRsbFGHYnZ62lOwhaYOyaIS6IQt8aULpNNMN7ykq3dLMZI4ISG70NtpPSKLlUulA==}
 
   '@objectstack/spec@14.3.0':
     resolution: {integrity: sha512-SLKNXSJxGP2Ipw+yr95cLPtbZcQv51RJ7I5GC6yEo6DUnPucrdrNIa5qGesFs1YMXu6dwh19gQicPvAOB106OA==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      ai: ^7.0.0
+    peerDependenciesMeta:
+      ai:
+        optional: true
+
+  '@objectstack/spec@14.6.0':
+    resolution: {integrity: sha512-TW1mKomPtmTcr+dRqmkKmpJcT3MbzooF46Vil1JwSNUbjKBJSTTtG8HCsIHpQxKPUWj4uhuUVI7eX6kFF2H/xA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       ai: ^7.0.0
@@ -12109,6 +12126,8 @@ snapshots:
 
   '@marcbachmann/cel-js@7.6.1': {}
 
+  '@marcbachmann/cel-js@8.0.0': {}
+
   '@mdx-js/mdx@3.1.1':
     dependencies:
       '@types/estree': 1.0.9
@@ -12300,19 +12319,32 @@ snapshots:
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/lint@14.3.0(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/formula@14.6.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
-      '@objectstack/formula': 14.3.0(ai@7.0.22(zod@4.4.3))
-      '@objectstack/sdui-parser': 14.3.0
-      '@objectstack/spec': 14.3.0(ai@7.0.22(zod@4.4.3))
+      '@marcbachmann/cel-js': 8.0.0
+      '@objectstack/spec': 14.6.0(ai@7.0.22(zod@4.4.3))
+    transitivePeerDependencies:
+      - ai
+
+  '@objectstack/lint@14.6.0(ai@7.0.22(zod@4.4.3))':
+    dependencies:
+      '@objectstack/formula': 14.6.0(ai@7.0.22(zod@4.4.3))
+      '@objectstack/sdui-parser': 14.6.0
+      '@objectstack/spec': 14.6.0(ai@7.0.22(zod@4.4.3))
       sucrase: 3.35.1
       typescript: 6.0.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/sdui-parser@14.3.0': {}
+  '@objectstack/sdui-parser@14.6.0': {}
 
   '@objectstack/spec@14.3.0(ai@7.0.22(zod@4.4.3))':
+    dependencies:
+      zod: 4.4.3
+    optionalDependencies:
+      ai: 7.0.22(zod@4.4.3)
+
+  '@objectstack/spec@14.6.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:
