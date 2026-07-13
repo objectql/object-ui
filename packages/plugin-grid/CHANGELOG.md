@@ -1,5 +1,53 @@
 # @object-ui/plugin-grid
 
+## 13.2.0
+
+### Minor Changes
+
+- 53c40c2: feat: identity import — the stock ImportWizard now drives sys_user bulk import (framework#2782)
+
+  The Users list gets an Import entry for platform admins (gated on
+  `features.admin` from `/api/v1/auth/config` plus workspace-admin), wired to
+  the dedicated `POST /api/v1/auth/admin/import-users` pipeline instead of the
+  generic data import (which would bypass better-auth hashing and produce
+  accounts that can never sign in).
+
+  - **plugin-grid**: two generic, backend-agnostic ImportWizard slots —
+    `extraOptionsContent` (host-injected options on the preview step) and
+    `renderResultExtra` (host-rendered content on the result step).
+  - **app-shell**: identity import dataSource adapter — splits files into the
+    endpoint's ≤500-row batches (idempotent upsert makes re-runs safe), injects
+    the selected password policy, renumbers per-batch results onto the whole
+    file, and enriches rows with their sign-in identity. Password policy panel
+    (`none` default / `invite` / `temporary`) and a one-shot temporary-password
+    reveal with CSV download (client memory only — nothing is persisted).
+    Async-job/undo surfaces are hidden for identity import by design.
+  - **auth**: `AuthPublicConfig.features.admin` typing.
+  - **i18n**: en/zh strings for the identity import panels.
+
+### Patch Changes
+
+- 80901aa: Honor action `visible` (and `enabled`) predicates in three more action renderers.
+
+  Following the data-table row-action fix, three sibling renderers still rendered schema-defined actions without evaluating their `visible` CEL predicate:
+
+  - **`action:group` dropdown mode** (`@object-ui/components`) — dropdown items ignored `visible`/`enabled`, while the group's inline mode already honored them.
+  - **Related-list `list_toolbar` header actions** (`@object-ui/plugin-detail`) — e.g. an organization's "Invite User" button ignored `visible`, even though the sibling row actions (fed by the same `deriveActions` bridge) already honored it via the data-table's `DataTableRowActionItem`.
+  - **Grid bulk-action bar** (`@object-ui/plugin-grid`) — `bulkActionDefs.visible` was ignored entirely; the button is now hidden when the predicate is false (the `BulkActionDef.visible` doc comment is corrected from "disables" to "hides" to match).
+
+  Each now evaluates `visible` (and, where applicable, `enabled`) via a hook-safe per-item component that mirrors `RowActionMenuItem` / `DataTableRowActionItem`, resolving `features`/`user` from the ambient `ExpressionProvider` scope. Rendering-layer only — no action definitions changed.
+
+- Updated dependencies [80901aa]
+- Updated dependencies [53c40c2]
+- Updated dependencies [e492b9d]
+  - @object-ui/components@13.2.0
+  - @object-ui/i18n@13.2.0
+  - @object-ui/fields@13.2.0
+  - @object-ui/react@13.2.0
+  - @object-ui/types@13.2.0
+  - @object-ui/core@13.2.0
+  - @object-ui/mobile@13.2.0
+
 ## 13.1.0
 
 ### Patch Changes

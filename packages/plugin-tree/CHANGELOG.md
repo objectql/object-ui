@@ -1,5 +1,16 @@
 # @object-ui/plugin-tree
 
+## 13.2.0
+
+### Patch Changes
+
+- Updated dependencies [80901aa]
+- Updated dependencies [e492b9d]
+  - @object-ui/components@13.2.0
+  - @object-ui/react@13.2.0
+  - @object-ui/types@13.2.0
+  - @object-ui/core@13.2.0
+
 ## 13.1.0
 
 ### Patch Changes
