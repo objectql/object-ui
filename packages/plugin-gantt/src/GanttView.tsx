@@ -36,7 +36,7 @@ import {
   Separator,
   useResizeObserver,
 } from "@object-ui/components"
-import { computeCriticalPath, computeProjectReschedule, type WorkingCalendar, type RescheduleChange } from "./scheduling"
+import { computeCriticalPath, computeProjectReschedule, wouldCreateDependencyCycle, type WorkingCalendar, type RescheduleChange } from "./scheduling"
 import { shiftDayStart, type NormShiftSegments } from "./shifts"
 import { useGanttTranslation } from "./useGanttTranslation"
 
@@ -130,6 +130,14 @@ export interface GanttTask {
   end: Date
   progress: number
   color?: string
+  /**
+   * Per-task alert stroke (逐任务预警描边). When set, the bar/milestone/summary
+   * is outlined in this color (border + 2px halo) without touching its fill —
+   * e.g. red for 超期, amber for 临期, unset for normal. Maps from the view's
+   * `borderColorField` in ObjectGantt. The critical-path overlay, when active,
+   * takes precedence on the rows it marks.
+   */
+  borderColor?: string
   data?: any
   dependencies?: GanttDependency[]
   /** Parent task id — builds the hierarchy. Unknown ids render as roots. */
@@ -258,6 +266,13 @@ export interface GanttViewProps {
    * another bar to create a dependency (target depends on source).
    */
   onDependencyCreate?: (source: GanttTask, target: GanttTask, type: GanttLinkType) => void
+  /**
+   * Veto hook for drag-created dependencies (the onBeforeLinkAdd pattern).
+   * Runs after the built-in guards — locked/group drop targets and
+   * cycle-closing links are always rejected first — so hosts only see
+   * structurally valid candidates. Return false to cancel the link.
+   */
+  onBeforeDependencyCreate?: (source: GanttTask, target: GanttTask, type: GanttLinkType) => boolean
   /**
    * Enables dependency removal: right-clicking a dependency link opens a menu
    * with "移除依赖" and a type switch. Called with the source/target tasks of the
@@ -500,6 +515,7 @@ export function GanttView({
   onTaskDelete: onTaskDeleteProp,
   onViewChange,
   onDependencyCreate: onDependencyCreateProp,
+  onBeforeDependencyCreate,
   onDependencyDelete: onDependencyDeleteProp,
   onTaskReorder: onTaskReorderProp,
   className,
@@ -1055,6 +1071,34 @@ export function GanttView({
   // Dragging the connector dot on a bar draws a dashed rubber band; releasing
   // over another bar fires onDependencyCreate(source, target, 'fs'). The
   // hovered target is tracked by bar-level pointermove (no pointer capture).
+
+  // Dependency edges over the FULL task set — the visible-rows `links` memo
+  // below drops edges inside collapsed subtrees, which must still count for
+  // cycle detection.
+  const dependencyEdges = React.useMemo(() => {
+    const out: Array<[string, string]> = [];
+    for (const t of tasks) {
+      for (const dep of t.dependencies ?? []) {
+        const depId = typeof dep === 'object' && dep !== null ? dep.id : dep;
+        if (depId == null || depId === '') continue;
+        out.push([String(depId), String(t.id)]);
+      }
+    }
+    return out;
+  }, [tasks]);
+
+  // Built-in drop-target policy, applied both when a bar registers itself as
+  // the hover target (no candidate highlight) and again on release (pointer
+  // ordering isn't trusted): locked rows (仅查看) and group headers can't
+  // receive a dependency, and a link that would close a cycle is rejected.
+  const canReceiveLink = React.useCallback(
+    (sourceId: string | number, target: GanttTask) =>
+      String(target.id) !== String(sourceId) &&
+      !target.locked &&
+      target.type !== 'group' &&
+      !wouldCreateDependencyCycle(dependencyEdges, sourceId, target.id),
+    [dependencyEdges],
+  );
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [linkDrag, setLinkDrag] = React.useState<{
     sourceId: string | number;
@@ -1078,7 +1122,7 @@ export function GanttView({
     };
     const onUp = () => {
       const cur = linkDragRef.current;
-      if (cur && cur.targetId != null && String(cur.targetId) !== String(cur.sourceId) && onDependencyCreate) {
+      if (cur && cur.targetId != null && onDependencyCreate) {
         const source = tasks.find((t) => String(t.id) === String(cur.sourceId));
         const target = tasks.find((t) => String(t.id) === String(cur.targetId));
         // Derive the link type from which endpoint we dragged FROM and which
@@ -1087,7 +1131,13 @@ export function GanttView({
         // letter. end→start = FS, end→end = FF, start→start = SS, start→end = SF.
         const targetEnd = cur.targetEnd ?? 'start';
         const type: GanttLinkType = `${cur.sourceEnd === 'end' ? 'f' : 's'}${targetEnd === 'end' ? 'f' : 's'}` as GanttLinkType;
-        if (source && target) onDependencyCreate(source, target, type);
+        if (
+          source && target &&
+          canReceiveLink(cur.sourceId, target) &&
+          (onBeforeDependencyCreate?.(source, target, type) ?? true)
+        ) {
+          onDependencyCreate(source, target, type);
+        }
       }
       suppressNextClickRef.current = true;
       window.setTimeout(() => { suppressNextClickRef.current = false; }, 0);
@@ -1101,7 +1151,7 @@ export function GanttView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [linkDrag, tasks, onDependencyCreate]);
+  }, [linkDrag, tasks, onDependencyCreate, onBeforeDependencyCreate, canReceiveLink]);
 
   // --- Context menu ---------------------------------------------------------
   const [ctxMenu, setCtxMenu] = React.useState<{ x: number; y: number; taskId: string | number } | null>(null);
@@ -3283,7 +3333,7 @@ export function GanttView({
                      const half: 'start' | 'end' =
                        r.width > 0 && e.clientX - r.left > r.width / 2 ? 'end' : 'start';
                      setLinkDrag((prev) =>
-                       prev && String(prev.sourceId) !== String(task.id)
+                       prev && canReceiveLink(prev.sourceId, task)
                          ? { ...prev, targetId: task.id, targetEnd: half }
                          : prev
                      );
@@ -3373,8 +3423,8 @@ export function GanttView({
                             // read-only cursor from style rather than a class.
                             cursor: onTaskUpdate ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                             backgroundColor: summaryColor,
-                            borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
-                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
+                            borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
+                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
                           }}
                           data-critical={isCrit ? 'true' : undefined}
                           data-testid={`gantt-summary-bar-${task.id}`}
@@ -3449,8 +3499,8 @@ export function GanttView({
                             // read-only cursor from style rather than a class.
                             cursor: canDrag ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                             backgroundColor: isCrit ? CRIT_COLOR : task.color || '#3b82f6',
-                            borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
-                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
+                            borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
+                            boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
                           }}
                           data-critical={isCrit ? 'true' : undefined}
                           data-testid={`gantt-milestone-${task.id}`}
@@ -3526,8 +3576,8 @@ export function GanttView({
                           // read-only cursor from style rather than a class.
                           cursor: canDrag ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                           backgroundColor: task.color || '#3b82f6',
-                          borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
-                          boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
+                          borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
+                          boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
                         }}
                         data-critical={isCrit ? 'true' : undefined}
                         data-testid={`gantt-task-bar-${task.id}`}

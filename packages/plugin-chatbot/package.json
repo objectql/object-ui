@@ -42,7 +42,7 @@
     "class-variance-authority": "^0.7.1",
     "lucide-react": "^1.24.0",
     "motion": "^12.42.2",
-    "nanoid": "^5.1.16",
+    "nanoid": "^6.0.0",
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.1",
     "remark-gfm": "^4.0.1",

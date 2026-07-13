@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeCriticalPath,
   computeProjectReschedule,
+  wouldCreateDependencyCycle,
   type SchedulableTask,
   type WorkingCalendar,
 } from './scheduling';
@@ -211,5 +212,33 @@ describe('working calendar', () => {
     ];
     expect([...computeCriticalPath(tasks).criticalIds].sort()).toEqual(['A', 'B', 'D']);
     expect([...computeCriticalPath(tasks, weekdaysOnly).criticalIds].sort()).toEqual(['A', 'C', 'D']);
+  });
+});
+
+describe('wouldCreateDependencyCycle', () => {
+  // Edges are [predecessor, dependent]: a→b means b depends on a.
+  const chain: Array<[string, string]> = [['a', 'b'], ['b', 'c']];
+
+  it('rejects a direct back-edge (b→a when a→b exists)', () => {
+    expect(wouldCreateDependencyCycle([['a', 'b']], 'b', 'a')).toBe(true);
+  });
+
+  it('rejects a transitive back-edge (c→a across a→b→c)', () => {
+    expect(wouldCreateDependencyCycle(chain, 'c', 'a')).toBe(true);
+  });
+
+  it('rejects self-links', () => {
+    expect(wouldCreateDependencyCycle([], 'a', 'a')).toBe(true);
+  });
+
+  it('allows forward and diamond edges', () => {
+    expect(wouldCreateDependencyCycle(chain, 'a', 'c')).toBe(false); // shortcut, no cycle
+    expect(wouldCreateDependencyCycle(chain, 'c', 'd')).toBe(false); // extend chain
+    // Diamond: a→b, a→c; closing b→c is fine.
+    expect(wouldCreateDependencyCycle([['a', 'b'], ['a', 'c']], 'b', 'c')).toBe(false);
+  });
+
+  it('coerces mixed id types via String()', () => {
+    expect(wouldCreateDependencyCycle([['1', '2']], 2, 1)).toBe(true);
   });
 });

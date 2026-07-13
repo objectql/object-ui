@@ -137,3 +137,46 @@ describe('GanttView save layout (保存布局)', () => {
     expect(getByTestId('gantt-view-mode-day').getAttribute('aria-pressed')).toBe('true');
   });
 });
+
+describe('GanttView alert stroke (预警描边 borderColor)', () => {
+  const bar = (c: HTMLElement, id: string) =>
+    c.querySelector(`[data-testid="gantt-task-bar-${id}"]`) as HTMLElement;
+
+  it('outlines a task bar in its borderColor with a halo, leaving the fill alone', () => {
+    const tasks = [
+      makeTask('a', '2024-06-03T00:00:00.000Z', '2024-06-13T00:00:00.000Z', { borderColor: '#ef4444' }),
+      makeTask('b', '2024-06-17T00:00:00.000Z', '2024-06-21T00:00:00.000Z'),
+    ];
+    const { container } = renderView({ tasks });
+    const a = bar(container, 'a');
+    expect(a.style.borderColor).toBe('#ef4444');
+    expect(a.style.boxShadow).toBe('0 0 0 2px #ef4444');
+    expect(a.style.backgroundColor).toBe('#3b82f6'); // fill untouched (default blue)
+    // Unmarked sibling: no alert stroke, no halo. (The default hairline is an
+    // hsl(var(...)) value jsdom's CSS parser drops, so assert the negatives.)
+    const b = bar(container, 'b');
+    expect(b.style.borderColor).not.toBe('#ef4444');
+    expect(b.style.boxShadow).toBe('');
+  });
+
+  it('outlines a milestone diamond too', () => {
+    const tasks = [
+      makeTask('m', '2024-06-10T00:00:00.000Z', '2024-06-10T00:00:00.000Z', { borderColor: '#f97316' }),
+    ];
+    const { container } = renderView({ tasks });
+    const diamond = container.querySelector('[data-testid="gantt-milestone-m"]') as HTMLElement;
+    expect(diamond.style.borderColor).toBe('#f97316');
+    expect(diamond.style.boxShadow).toBe('0 0 0 2px #f97316');
+  });
+
+  it('outlines a summary bar too', () => {
+    const tasks = [
+      makeTask('p', '2024-06-03T00:00:00.000Z', '2024-06-13T00:00:00.000Z', { borderColor: '#ef4444' }),
+      makeTask('c', '2024-06-04T00:00:00.000Z', '2024-06-08T00:00:00.000Z', { parent: 'p' }),
+    ];
+    const { container } = renderView({ tasks });
+    const summary = container.querySelector('[data-testid="gantt-summary-bar-p"]') as HTMLElement;
+    expect(summary.style.borderColor).toBe('#ef4444');
+    expect(summary.style.boxShadow).toBe('0 0 0 2px #ef4444');
+  });
+});

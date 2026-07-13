@@ -567,6 +567,10 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   // so its metadata reads scope to that app and edits bind to it from the first
   // message (the agent seeds it as the conversation's active package).
   const editPackageId = searchParams.get('package')?.trim() || undefined;
+  // ADR-0057 P4 — a build prompt handed off from the `ask` surface's
+  // "Open in Builder →" (suggest_builder). Seeded as the build surface's first
+  // message below; the URL-mirror strips it once the conversation is minted.
+  const handoffPrompt = searchParams.get('handoffPrompt')?.trim() || undefined;
   const navigate = useNavigate();
   const { setContext } = useNavigationContext();
 
@@ -824,6 +828,20 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   // remount that the id-resolution triggers; the freshly-mounted pane replays it
   // via useDeferredFirstSend. See that hook for the full race.
   const pendingFirstMessageRef = useRef<PendingFirstMessage | null>(null);
+
+  // ADR-0057 P4 — seed the handed-off build prompt as this surface's first
+  // message. Only on the BUILD surface (the handoff target), once, before the
+  // conversation id is minted; `useDeferredFirstSend` (in ChatPane) replays it
+  // the moment the id resolves. The URL-mirror then rewrites to
+  // `/ai/build/:id?package=…`, dropping `?handoffPrompt`, so a reload never
+  // re-sends it.
+  const handoffSeededRef = useRef(false);
+  useEffect(() => {
+    if (!handoffPrompt || handoffSeededRef.current) return;
+    if (!activeAgent || agentRouteName(activeAgent) !== 'build') return;
+    handoffSeededRef.current = true;
+    pendingFirstMessageRef.current = { content: handoffPrompt };
+  }, [handoffPrompt, activeAgent]);
 
   const handleSent = useCallback(
     (firstUserMessage?: string) => {
@@ -1090,6 +1108,23 @@ export function ChatPane({
   // navigates to `/ai/:agent`, so it naturally lists custom agents and can stay
   // always-available. Shown only when there's more than one agent to switch to.
   const showAgentLauncher = agents.length > 1;
+
+  // ADR-0057 P4 — the `ask` agent declined an authoring request (suggest_builder).
+  // Open the full-page BUILD surface seeded with the handoff prompt (carried as
+  // `?handoffPrompt=`, auto-sent on arrival; ADR-0063 decline-and-redirect — an
+  // explicit, user-initiated switch, never a silent re-route). Prefer the
+  // handoff's own packageId, else this surface's edit package.
+  const openBuilder = useCallback(
+    (handoff: { prompt: string; packageId?: string }) => {
+      const params = new URLSearchParams();
+      const pkg = handoff.packageId || editPackageId;
+      if (pkg) params.set('package', pkg);
+      if (handoff.prompt) params.set('handoffPrompt', handoff.prompt);
+      const qs = params.toString();
+      navigate(`/ai/build${qs ? `?${qs}` : ''}`);
+    },
+    [navigate, editPackageId],
+  );
 
   // ── ADR-0037 Live Canvas ────────────────────────────────────────────────
   // When a build session drafts an `app`, open the split-view canvas: the
@@ -1461,6 +1496,7 @@ export function ChatPane({
       <ChatbotEnhanced
         className="min-h-0 flex-1 bg-background md:max-w-5xl"
         onUpgrade={() => window.open(cloudPricingDeepLink(), '_blank', 'noopener,noreferrer')}
+        onOpenBuilder={openBuilder}
         surface="plain"
         maxHeight="100%"
         headerSlot={headerSlot}
