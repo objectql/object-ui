@@ -1,5 +1,106 @@
 # @object-ui/app-shell — Changelog
 
+## 13.2.0
+
+### Minor Changes
+
+- 53c40c2: feat: identity import — the stock ImportWizard now drives sys_user bulk import (framework#2782)
+
+  The Users list gets an Import entry for platform admins (gated on
+  `features.admin` from `/api/v1/auth/config` plus workspace-admin), wired to
+  the dedicated `POST /api/v1/auth/admin/import-users` pipeline instead of the
+  generic data import (which would bypass better-auth hashing and produce
+  accounts that can never sign in).
+
+  - **plugin-grid**: two generic, backend-agnostic ImportWizard slots —
+    `extraOptionsContent` (host-injected options on the preview step) and
+    `renderResultExtra` (host-rendered content on the result step).
+  - **app-shell**: identity import dataSource adapter — splits files into the
+    endpoint's ≤500-row batches (idempotent upsert makes re-runs safe), injects
+    the selected password policy, renumbers per-batch results onto the whole
+    file, and enriches rows with their sign-in identity. Password policy panel
+    (`none` default / `invite` / `temporary`) and a one-shot temporary-password
+    reveal with CSV download (client memory only — nothing is persisted).
+    Async-job/undo surfaces are hidden for identity import by design.
+  - **auth**: `AuthPublicConfig.features.admin` typing.
+  - **i18n**: en/zh strings for the identity import panels.
+
+### Patch Changes
+
+- 672f18e: Access pillar: the 已分配用户 section now lists EFFECTIVE holders — direct
+  grants ∪ holders of every position bound to the set — with per-row
+  attribution badges (直授 / 经岗位 X). Position-held rows are not removable
+  here (remove on the position's assignments); an `everyone`-anchor binding
+  renders as a note ("every signed-in member holds this set") instead of
+  enumerating the tenant (objectui#2382 — the direct-grants-only list told
+  admins "0 users" for any normally-administered set). The explain panel's
+  user field gains a chevron so "pick another user" is discoverable
+  (objectui#2381 — the picker existed but read as static text).
+- 603d406: Fix "Create User" (and set_user_password / enable_two_factor /
+  create_oauth_application) result dialogs rendering an empty email + temporary
+  password: the console `apiHandler` now unwraps the `{ success, data }` response
+  envelope so `resultDialog` field paths resolve against the inner `data`,
+  matching `flowHandler` / `serverActionHandler` and the documented "path into
+  `data`" contract. Paired with framework#2842 (objectui#2396).
+- e492b9d: Permission sets — pure separation of **design** (Studio) and **assignment**
+  (Setup), per ADR-0056 / epic #2398. A `sys_permission_set` used to render its six
+  authorization facets in Setup as raw `[Object]` / JSON textareas, and only
+  objects+fields were editable in Studio; this reworks both surfaces.
+
+  **Setup (assign + read-only):**
+  - The six facets (`object_permissions`, `field_permissions`, `system_permissions`,
+    `row_level_security`, `tab_permissions`, `admin_scope`) now render read-only on
+    the `sys_permission_set` record page as a compact summary (counts, or capability
+    chips) plus a **“Design in Studio →”** deep-link into the structured editor
+    (`/apps/:appName/metadata/permission/:setName`, env scope). No `[Object]`, no
+    JSON — in the record view, inline edit, and the create/edit form. Implemented as
+    a `permission-facet-link` field widget stamped onto the six fields via the single
+    `ObjectStackAdapter.getObjectSchema` choke point and honored by DetailSection +
+    the record form.
+  - User assignment (add/remove via `sys_user_permission_set`) is surfaced directly
+    on the Setup record page.
+
+  **Studio (design every facet):** the permission matrix editor gains structured
+  editors for the facets that were JSON-only —
+  - **System Capabilities**: a multi-select over the live `sys_capability` registry
+    (scope-grouped, labelled chips).
+  - **Row-Level Security**: per-policy rows (object · operation · enabled) with CEL
+    USING/CHECK.
+  - **Tab Visibility**: per-tab `visible | hidden | default_on | default_off`.
+  - **Delegated Admin Scope**: business-unit + subtree, manage-assignments /
+    -bindings / author-env-sets toggles, and an assignable-permission-sets allowlist.
+    Assignment was moved out of the editor (it is now a Setup act) — the editor is
+    purely a design surface.
+
+  Storage/types are unchanged; editors read/write the draft’s existing parsed
+  fields and tolerate legacy JSON strings on load. Note: env-scope metadata saves of
+  these facets do not yet project onto the queryable `sys_permission_set` data
+  record the Setup summary reads, so a fresh Studio edit isn’t reflected in Setup’s
+  read-only view until the projection refreshes — tracked as a framework follow-up
+  (enforcement reads the authoritative metadata).
+
+- 787b0e7: Setup-app UX fixes from a system-settings review:
+
+  - `sys_team` now shows an accurate empty state ("No teams yet" — create one with Create Team, or they arrive via org/SSO provisioning) instead of the generic better-auth "these records … are not added by hand here" copy, which flatly contradicted the visible Create Team button.
+  - The form renderer no longer spreads `objectName` / `onDirtyChange` (and other FormSchema-only props) onto its `<form>` DOM element, removing the `React does not recognize the objectName prop` / `Unknown event handler property onDirtyChange` warnings logged on every object list view.
+
+- Updated dependencies [80901aa]
+- Updated dependencies [53c40c2]
+- Updated dependencies [e492b9d]
+  - @object-ui/components@13.2.0
+  - @object-ui/auth@13.2.0
+  - @object-ui/i18n@13.2.0
+  - @object-ui/data-objectstack@13.2.0
+  - @object-ui/fields@13.2.0
+  - @object-ui/layout@13.2.0
+  - @object-ui/plugin-editor@13.2.0
+  - @object-ui/react@13.2.0
+  - @object-ui/types@13.2.0
+  - @object-ui/core@13.2.0
+  - @object-ui/permissions@13.2.0
+  - @object-ui/collaboration@13.2.0
+  - @object-ui/providers@13.2.0
+
 ## 13.1.0
 
 ### Minor Changes

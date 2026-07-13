@@ -1,5 +1,59 @@
 # @object-ui/plugin-detail
 
+## 13.2.0
+
+### Patch Changes
+
+- 80901aa: Honor action `visible` (and `enabled`) predicates in three more action renderers.
+
+  Following the data-table row-action fix, three sibling renderers still rendered schema-defined actions without evaluating their `visible` CEL predicate:
+
+  - **`action:group` dropdown mode** (`@object-ui/components`) — dropdown items ignored `visible`/`enabled`, while the group's inline mode already honored them.
+  - **Related-list `list_toolbar` header actions** (`@object-ui/plugin-detail`) — e.g. an organization's "Invite User" button ignored `visible`, even though the sibling row actions (fed by the same `deriveActions` bridge) already honored it via the data-table's `DataTableRowActionItem`.
+  - **Grid bulk-action bar** (`@object-ui/plugin-grid`) — `bulkActionDefs.visible` was ignored entirely; the button is now hidden when the predicate is false (the `BulkActionDef.visible` doc comment is corrected from "disables" to "hides" to match).
+
+  Each now evaluates `visible` (and, where applicable, `enabled`) via a hook-safe per-item component that mirrors `RowActionMenuItem` / `DataTableRowActionItem`, resolving `features`/`user` from the ambient `ExpressionProvider` scope. Rendering-layer only — no action definitions changed.
+
+- e492b9d: Permission sets — pure separation of **design** (Studio) and **assignment**
+  (Setup), per ADR-0056 / epic #2398. A `sys_permission_set` used to render its six
+  authorization facets in Setup as raw `[Object]` / JSON textareas, and only
+  objects+fields were editable in Studio; this reworks both surfaces.
+
+  **Setup (assign + read-only):**
+  - The six facets (`object_permissions`, `field_permissions`, `system_permissions`,
+    `row_level_security`, `tab_permissions`, `admin_scope`) now render read-only on
+    the `sys_permission_set` record page as a compact summary (counts, or capability
+    chips) plus a **“Design in Studio →”** deep-link into the structured editor
+    (`/apps/:appName/metadata/permission/:setName`, env scope). No `[Object]`, no
+    JSON — in the record view, inline edit, and the create/edit form. Implemented as
+    a `permission-facet-link` field widget stamped onto the six fields via the single
+    `ObjectStackAdapter.getObjectSchema` choke point and honored by DetailSection +
+    the record form.
+  - User assignment (add/remove via `sys_user_permission_set`) is surfaced directly
+    on the Setup record page.
+
+  **Studio (design every facet):** the permission matrix editor gains structured
+  editors for the facets that were JSON-only —
+  - **System Capabilities**: a multi-select over the live `sys_capability` registry
+    (scope-grouped, labelled chips).
+  - **Row-Level Security**: per-policy rows (object · operation · enabled) with CEL
+    USING/CHECK.
+  - **Tab Visibility**: per-tab `visible | hidden | default_on | default_off`.
+  - **Delegated Admin Scope**: business-unit + subtree, manage-assignments /
+    -bindings / author-env-sets toggles, and an assignable-permission-sets allowlist.
+    Assignment was moved out of the editor (it is now a Setup act) — the editor is
+    purely a design surface.
+
+  Storage/types are unchanged; editors read/write the draft’s existing parsed
+  fields and tolerate legacy JSON strings on load. Note: env-scope metadata saves of
+  these facets do not yet project onto the queryable `sys_permission_set` data
+  record the Setup summary reads, so a fresh Studio edit isn’t reflected in Setup’s
+  read-only view until the projection refreshes — tracked as a framework follow-up
+  (enforcement reads the authoritative metadata).
+
+- Updated dependencies [53c40c2]
+  - @object-ui/i18n@13.2.0
+
 ## 13.1.0
 
 ### Patch Changes

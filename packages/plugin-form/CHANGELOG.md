@@ -1,5 +1,69 @@
 # @object-ui/plugin-form
 
+## 13.2.0
+
+### Patch Changes
+
+- e492b9d: Permission sets — pure separation of **design** (Studio) and **assignment**
+  (Setup), per ADR-0056 / epic #2398. A `sys_permission_set` used to render its six
+  authorization facets in Setup as raw `[Object]` / JSON textareas, and only
+  objects+fields were editable in Studio; this reworks both surfaces.
+
+  **Setup (assign + read-only):**
+  - The six facets (`object_permissions`, `field_permissions`, `system_permissions`,
+    `row_level_security`, `tab_permissions`, `admin_scope`) now render read-only on
+    the `sys_permission_set` record page as a compact summary (counts, or capability
+    chips) plus a **“Design in Studio →”** deep-link into the structured editor
+    (`/apps/:appName/metadata/permission/:setName`, env scope). No `[Object]`, no
+    JSON — in the record view, inline edit, and the create/edit form. Implemented as
+    a `permission-facet-link` field widget stamped onto the six fields via the single
+    `ObjectStackAdapter.getObjectSchema` choke point and honored by DetailSection +
+    the record form.
+  - User assignment (add/remove via `sys_user_permission_set`) is surfaced directly
+    on the Setup record page.
+
+  **Studio (design every facet):** the permission matrix editor gains structured
+  editors for the facets that were JSON-only —
+  - **System Capabilities**: a multi-select over the live `sys_capability` registry
+    (scope-grouped, labelled chips).
+  - **Row-Level Security**: per-policy rows (object · operation · enabled) with CEL
+    USING/CHECK.
+  - **Tab Visibility**: per-tab `visible | hidden | default_on | default_off`.
+  - **Delegated Admin Scope**: business-unit + subtree, manage-assignments /
+    -bindings / author-env-sets toggles, and an assignable-permission-sets allowlist.
+    Assignment was moved out of the editor (it is now a Setup act) — the editor is
+    purely a design surface.
+
+  Storage/types are unchanged; editors read/write the draft’s existing parsed
+  fields and tolerate legacy JSON strings on load. Note: env-scope metadata saves of
+  these facets do not yet project onto the queryable `sys_permission_set` data
+  record the Setup summary reads, so a fresh Studio edit isn’t reflected in Setup’s
+  read-only view until the projection refreshes — tracked as a framework follow-up
+  (enforcement reads the authoritative metadata).
+
+- 5da9905: fix(plugin-form): honor `userActions.edit` on managed objects instead of blanket-disabling every field (ADR-0092 D4)
+
+  `ObjectForm` disabled every field on any non-`platform` lifecycle bucket
+  (config / system / append-only / better-auth) — a defensive default from when
+  those objects had no generic edit affordance at all. Now that an object can
+  OPEN per-record editing via `userActions.{edit,create}` (framework ADR-0092 D4
+  — e.g. `sys_user` exposing its `name`/`image` profile fields), the blanket
+  lock lifts for the current mode when its affordance is `true`, and each
+  field's own `readonly` flag decides. Managed buckets still default the
+  affordance off, so an object that doesn't opt in is unchanged. The server-side
+  identity write guard remains the real boundary; this is UX only.
+
+- Updated dependencies [80901aa]
+- Updated dependencies [53c40c2]
+- Updated dependencies [e492b9d]
+  - @object-ui/components@13.2.0
+  - @object-ui/i18n@13.2.0
+  - @object-ui/fields@13.2.0
+  - @object-ui/react@13.2.0
+  - @object-ui/types@13.2.0
+  - @object-ui/core@13.2.0
+  - @object-ui/permissions@13.2.0
+
 ## 13.1.0
 
 ### Patch Changes
