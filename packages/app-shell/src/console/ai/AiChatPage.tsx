@@ -477,9 +477,22 @@ export function matchAiChatShortcut(e: {
 }
 
 /** A composer submission held until the conversation id that will carry it exists. */
+/** Stable empty array for the stale-scope window (#2450) — a fresh `[]` per
+ *  render would churn the pane's `initialMessages` identity for no reason. */
+const EMPTY_INITIAL_MESSAGES: HydratedUIMessage[] = [];
+
 export interface PendingFirstMessage {
   content: string;
   files?: File[];
+  /**
+   * #2450 — the agent surface this stash is FOR (e.g. `'build'` for the
+   * ADR-0057 handoff seed). The replay refuses to consume it in a pane bound to
+   * a different agent, so a stash targeted at the Builder can never be eaten by
+   * (and die in) an ask-surface pane mid route-transition. Absent = untargeted
+   * (a user-typed first send), consumed by whichever pane replays first —
+   * unchanged behavior.
+   */
+  targetAgentRoute?: string;
 }
 
 /**
@@ -520,8 +533,15 @@ export function useDeferredFirstSend(opts: {
    * the replay deps makes the seed reliably replay.
    */
   pendingSignal?: number;
+  /**
+   * #2450 — the agent surface THIS pane is bound to (route name, e.g.
+   * `'build'`). A pending message stamped with a `targetAgentRoute` is only
+   * consumed when it matches; a mismatched pane HOLDS the stash untouched so
+   * the correctly-bound pane can replay it after the route transition settles.
+   */
+  agentRoute?: string;
 }): (content: string, files?: File[]) => void {
-  const { chatApi, conversationId, pendingRef, doSend, pendingSignal } = opts;
+  const { chatApi, conversationId, pendingRef, doSend, pendingSignal, agentRoute } = opts;
   const apiMode = Boolean(chatApi);
 
   // Replay a deferred first message the instant a conversation id exists — in
@@ -532,9 +552,14 @@ export function useDeferredFirstSend(opts: {
     if (!apiMode || !conversationId) return;
     const pending = pendingRef.current;
     if (!pending) return;
+    // #2450 — a targeted stash (the handoff seed) must not be consumed by a
+    // pane bound to another agent: mid ask→build transition a doomed pane can
+    // replay first, and a send issued there dies with its unmount before it
+    // reaches the wire. Hold the stash; the matching pane replays it.
+    if (pending.targetAgentRoute && pending.targetAgentRoute !== agentRoute) return;
     pendingRef.current = null;
     doSend(pending.content, pending.files);
-  }, [apiMode, conversationId, pendingRef, doSend, pendingSignal]);
+  }, [apiMode, conversationId, pendingRef, doSend, pendingSignal, agentRoute]);
 
   return useCallback(
     (content: string, files?: File[]) => {
@@ -681,6 +706,19 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     activeId: urlConversationId ?? legacyConversationId,
     forceNew: forceNewConversation,
   });
+
+  // #2450 — feed <ChatPane> ONLY a scope-matched conversation. Right after a
+  // launcher/handoff switch (ask→build), `conversationId` still holds the OLD
+  // scope's id until the hook re-resolves — the same stale window the
+  // URL-mirror below already guards. A pane mounted on that stale id is DOOMED
+  // (it remounts the moment the id re-resolves), and the deferred first-send
+  // replay could consume the handoff stash into it, where the send dies with
+  // the unmount before reaching the wire (the observed zero-POST). Handing the
+  // pane `undefined` during the window makes it mount as `…:pending`, hold the
+  // stash, and replay exactly once in the correctly-scoped pane.
+  const scopeMatched = conversationScope === chatScope;
+  const paneConversationId = scopeMatched ? conversationId : undefined;
+  const paneInitialMessages = scopeMatched ? initialMessages : EMPTY_INITIAL_MESSAGES;
 
   // ── Route canonicalization ──────────────────────────────────────────────
   // Back-compat redirects (the agent is now in the path): bare `/ai` → the
@@ -868,7 +906,9 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     if (!handoffPrompt || agentSegment !== 'build') return;
     if (lastSeededHandoffPromptRef.current === handoffPrompt) return;
     lastSeededHandoffPromptRef.current = handoffPrompt;
-    stashPendingFirstMessage({ content: handoffPrompt });
+    // Target the stash at the BUILD pane (#2450): mid ask→build transition a
+    // doomed pane (stale conversation id, about to remount) must not consume it.
+    stashPendingFirstMessage({ content: handoffPrompt, targetAgentRoute: 'build' });
   }, [handoffPrompt, agentSegment, stashPendingFirstMessage]);
 
   const handleSent = useCallback(
@@ -1013,17 +1053,17 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
         </div>
         <main className="flex min-w-0 flex-1 flex-col">
           <ChatPane
-            key={`${chatApi ?? 'local'}:${conversationId ?? 'pending'}`}
+            key={`${chatApi ?? 'local'}:${paneConversationId ?? 'pending'}`}
             agents={agents}
             agentsLoading={agentsLoading}
             agentsError={agentsError}
             activeAgent={activeAgent}
             chatApi={chatApi}
             apiBase={apiBase}
-            conversationId={conversationId}
+            conversationId={paneConversationId}
             editPackageId={editPackageId}
             parentHandoffConversationId={handoffParentConversationId}
-            initialMessages={initialMessages}
+            initialMessages={paneInitialMessages}
             pendingFirstMessageRef={pendingFirstMessageRef}
             pendingFirstMessageSeq={pendingFirstMessageSeq}
             onSent={handleSent}
@@ -1406,6 +1446,9 @@ export function ChatPane({
     pendingRef: pendingFirstMessageRef,
     doSend,
     pendingSignal: pendingFirstMessageSeq,
+    // #2450 — this pane's agent surface; a stash targeted at another surface
+    // (the handoff seed → 'build') is held, never consumed here.
+    agentRoute: activeAgent ? agentRouteName(activeAgent) : undefined,
   });
 
   const headerSlot = (

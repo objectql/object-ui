@@ -92,6 +92,64 @@ describe('useDeferredFirstSend', () => {
     expect(doSend).toHaveBeenLastCalledWith('second handoff', undefined);
   });
 
+  // #2450 — mid ask→build transition, a doomed pane (wrong agent binding) must
+  // NOT consume the handoff stash: a send issued there dies with the unmount
+  // before reaching the wire. A stash stamped `targetAgentRoute: 'build'` is
+  // HELD by any non-build pane and replayed only by the build-bound one.
+  it('holds a targeted stash in a mismatched-agent pane, replays it in the matching one', () => {
+    const pendingRef: React.MutableRefObject<PendingFirstMessage | null> = { current: null };
+    const doSend = vi.fn();
+    const { rerender } = renderHook(
+      ({ agentRoute, pendingSignal }) =>
+        useDeferredFirstSend({
+          chatApi: API,
+          conversationId: 'c1',
+          pendingRef,
+          doSend,
+          pendingSignal,
+          agentRoute,
+        }),
+      { initialProps: { agentRoute: 'ask', pendingSignal: 0 } },
+    );
+
+    // Handoff seed lands while the pane is still ask-bound (stale window):
+    // held untouched — not consumed, not sent.
+    act(() => {
+      pendingRef.current = { content: 'handoff prompt', targetAgentRoute: 'build' };
+      rerender({ agentRoute: 'ask', pendingSignal: 1 });
+    });
+    expect(doSend).not.toHaveBeenCalled();
+    expect(pendingRef.current).not.toBeNull();
+
+    // The pane re-binds to build (transition settled) → replayed exactly once.
+    act(() => rerender({ agentRoute: 'build', pendingSignal: 1 }));
+    expect(doSend).toHaveBeenCalledTimes(1);
+    expect(doSend).toHaveBeenCalledWith('handoff prompt', undefined);
+    expect(pendingRef.current).toBeNull();
+  });
+
+  it('an untargeted stash keeps the legacy consume-anywhere behavior', () => {
+    const pendingRef: React.MutableRefObject<PendingFirstMessage | null> = { current: null };
+    const doSend = vi.fn();
+    const { rerender } = renderHook(
+      ({ pendingSignal }) =>
+        useDeferredFirstSend({
+          chatApi: API,
+          conversationId: 'c1',
+          pendingRef,
+          doSend,
+          pendingSignal,
+          agentRoute: 'ask',
+        }),
+      { initialProps: { pendingSignal: 0 } },
+    );
+    act(() => {
+      pendingRef.current = { content: 'typed by user' };
+      rerender({ pendingSignal: 1 });
+    });
+    expect(doSend).toHaveBeenCalledWith('typed by user', undefined);
+  });
+
   it('sends straight through when a conversation id is already present', () => {
     const { result, pendingRef, doSend } = setup({ chatApi: API, conversationId: 'c1' });
 
