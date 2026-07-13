@@ -152,6 +152,21 @@ for each metadata type. Every type has a pure-renderer **preview** that doubles
 as its **designer** when given `editing` + `onPatch` props — no backend round
 trip is required to edit a draft.
 
+### AI chat conversation key (ADR-0057)
+
+The console's AI chat surfaces are **views over one conversation model**, not
+separate chats. A conversation is keyed on `(user, app, product)` — never on the
+surface — by the pure `chatConversationScope({ appId, product })` helper
+(`src/hooks/chatScope.ts`). `product` is the ADR-0063 binding axis (`ask` |
+`build`), derived from the resolved agent via `chatProductOfAgent(name)`, never a
+per-surface choice. A package-scoped surface resolves `app:${packageId}:${product}`,
+so the Studio design copilot editing package `X` and the full-page focus view
+`/ai/build?package=X` (the "Edit with AI" entry) **resume the same thread**
+instead of forking; a generic `/ai/:agent` visit with no package degrades to the
+product alone (`build` / `ask`). Enablement is the single access-filtered
+agent-catalog gate (`useAiSurfaceEnabled`, ADR-0068): a seat-less user's empty
+catalog hides the whole AI surface.
+
 ### App → Studio reverse bridge
 
 Inside a running app, workspace admins get a "Design in Studio" entry in the

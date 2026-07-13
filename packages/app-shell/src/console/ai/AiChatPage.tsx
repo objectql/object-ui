@@ -79,6 +79,7 @@ import {
   type HydratedUIMessagePart,
 } from '../../hooks/useChatConversation';
 import { useReconcileOnError } from '../../hooks/useReconcileOnError';
+import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
 import { ConversationsSidebar } from './ConversationsSidebar';
 import { LiveCanvas } from './LiveCanvas';
 import { BuildDebugDrawer } from './BuildDebugDrawer';
@@ -638,14 +639,24 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`
     : undefined;
 
+  // ADR-0057: key the conversation on `(user, app, product)`, not on surface.
+  // When this full-page surface was deep-linked to edit a package
+  // (`/ai/build?package=X`, the ADR-0070 "Edit with AI" entry), it shares the
+  // Studio copilot's `app:X:build` thread instead of forking a separate one; a
+  // generic `/ai/:agent` visit (no `?package=`) degrades to the product alone,
+  // unchanged from before. `undefined` while the agent is still resolving.
+  const chatScope = activeAgent
+    ? chatConversationScope({ appId: editPackageId, product: chatProductOfAgent(activeAgent) })
+    : undefined;
+
   const { conversationId, conversationScope, initialMessages } = useChatConversation({
     // Gate resolution on the agent being known: resolving while `activeAgent`
     // is still undefined (catalog loading) would bind a SCOPELESS conversation
     // that the per-(user,scope) guard then sticks with — so the agent surface
     // would resume some other agent's last chat. Waiting one tick keys the
-    // conversation to the right agent from the first resolve.
+    // conversation to the right scope from the first resolve.
     userId: activeAgent ? userId : undefined,
-    scope: activeAgent,
+    scope: chatScope,
     apiBase,
     activeId: urlConversationId ?? legacyConversationId,
     forceNew: forceNewConversation,
@@ -774,13 +785,13 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   useEffect(() => {
     if (!segmentIsAgent || urlConversationId || !conversationId || !activeAgentRoute) return;
     if (staleNewTargetRef.current && staleNewTargetRef.current.id === conversationId) return;
-    // Don't mirror a conversation that belongs to the PREVIOUS agent: right
-    // after a launcher switch, `conversationId` still holds the old agent's id
-    // until the hook re-resolves under the new scope. Mirroring it would write
+    // Don't mirror a conversation that belongs to the PREVIOUS scope: right
+    // after a launcher switch, `conversationId` still holds the old scope's id
+    // until the hook re-resolves under the new one. Mirroring it would write
     // it onto the new agent's URL and resume the wrong chat.
-    if (conversationScope !== activeAgent) return;
+    if (conversationScope !== chatScope) return;
     navigate(`/ai/${activeAgentRoute}/${conversationId}`, { replace: true });
-  }, [segmentIsAgent, urlConversationId, conversationId, conversationScope, activeAgent, activeAgentRoute, navigate]);
+  }, [segmentIsAgent, urlConversationId, conversationId, conversationScope, chatScope, activeAgentRoute, navigate]);
 
   const titledRef = useRef<Set<string>>(new Set());
 

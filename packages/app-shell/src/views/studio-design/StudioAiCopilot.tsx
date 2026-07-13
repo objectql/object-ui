@@ -6,6 +6,7 @@ import { Button } from '@object-ui/components';
 import { Sparkles, PanelLeftClose } from 'lucide-react';
 import { useAgents, resolveDefaultAgentName, isBuildAgent } from '@object-ui/plugin-chatbot';
 import { useChatConversation } from '../../hooks/useChatConversation';
+import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
 import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../../console/ai/AiChatPage';
 
 export interface StudioAiCopilotProps {
@@ -49,11 +50,15 @@ export function StudioAiCopilot({ packageId, locale }: StudioAiCopilotProps): Re
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`
     : undefined;
 
-  // One durable conversation per (user, package, agent) — reopening Studio on the
-  // same app resumes the same design chat.
+  // One durable conversation per (user, app, product) — ADR-0057. Keyed on the
+  // PACKAGE and PRODUCT, not on this surface, so reopening the same app's design
+  // chat in the full-page `/ai/build?package=…` focus view resumes THIS thread
+  // (no `studio:` fork). See {@link chatConversationScope}.
   const { conversationId, initialMessages } = useChatConversation({
     userId: activeAgent ? userId : undefined,
-    scope: activeAgent ? `studio:${packageId}:${activeAgent}` : undefined,
+    scope: activeAgent
+      ? chatConversationScope({ appId: packageId, product: chatProductOfAgent(activeAgent) })
+      : undefined,
     apiBase,
     activeId: undefined,
     forceNew: false,
