@@ -3260,6 +3260,12 @@ export function GanttView({
                    // no move/resize/progress/link, but onTaskClick still fires.
                    const isLocked = !!task.locked;
                    const canDrag = !!onTaskUpdate && !row.isSummary && !isLocked;
+                   // A bar that is explicitly non-editable — the whole view is
+                   // read-only, or this row is locked (仅查看) — gets a not-allowed
+                   // cursor so hovering signals "can't drag/resize here". A plain
+                   // display gantt (no edit handlers, not flagged read-only) keeps a
+                   // normal pointer instead.
+                   const barReadOnly = effectiveReadOnly || isLocked;
                    const isLinkTarget =
                      linkDrag != null &&
                      linkDrag.targetId != null &&
@@ -3351,7 +3357,7 @@ export function GanttView({
                         <div
                           className={cn(
                             'gantt-bar-hover absolute rounded-sm border shadow-sm flex items-center px-2 select-none',
-                            onTaskUpdate ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+                            onTaskUpdate && 'cursor-grab active:cursor-grabbing',
                             isDragging && 'ring-2 ring-primary z-10',
                             flashTaskId === task.id && 'gantt-flash z-10'
                           )}
@@ -3362,6 +3368,10 @@ export function GanttView({
                             width: liveStyle.width,
                             top: summaryBarTop,
                             height: summaryBarHeight,
+                            // Inline not-allowed: the cursor-not-allowed utility isn't
+                            // emitted in the prebuilt components CSS, so drive the
+                            // read-only cursor from style rather than a class.
+                            cursor: onTaskUpdate ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                             backgroundColor: summaryColor,
                             borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
                             boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
@@ -3424,7 +3434,7 @@ export function GanttView({
                         <div
                           className={cn(
                             "gantt-bar-hover absolute rotate-45 rounded-[2px] border shadow-sm select-none",
-                            canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+                            canDrag && "cursor-grab active:cursor-grabbing",
                             isDragging && "ring-2 ring-primary z-10",
                             isLinkTarget && "ring-2 ring-primary",
                             flashTaskId === task.id && "gantt-flash z-10"
@@ -3434,6 +3444,10 @@ export function GanttView({
                             top: (rowHeight - size) / 2,
                             width: size,
                             height: size,
+                            // Inline not-allowed: the cursor-not-allowed utility isn't
+                            // emitted in the prebuilt components CSS, so drive the
+                            // read-only cursor from style rather than a class.
+                            cursor: canDrag ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                             backgroundColor: isCrit ? CRIT_COLOR : task.color || '#3b82f6',
                             borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
                             boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
@@ -3497,7 +3511,7 @@ export function GanttView({
                       <div
                         className={cn(
                           "gantt-bar-hover absolute rounded-sm bg-primary border shadow-sm flex items-center px-2 group select-none",
-                          canDrag ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+                          canDrag && "cursor-grab active:cursor-grabbing",
                           isDragging && "ring-2 ring-primary z-10",
                           isLinkTarget && "ring-2 ring-primary",
                           flashTaskId === task.id && "gantt-flash z-10"
@@ -3507,6 +3521,10 @@ export function GanttView({
                           width: liveStyle.width,
                           top: barTop,
                           height: barHeight,
+                          // Inline not-allowed: the cursor-not-allowed utility isn't
+                          // emitted in the prebuilt components CSS, so drive the
+                          // read-only cursor from style rather than a class.
+                          cursor: canDrag ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                           backgroundColor: task.color || '#3b82f6',
                           borderColor: isCrit ? CRIT_COLOR : 'hsl(var(--primary-foreground) / 0.2)',
                           boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : undefined,
