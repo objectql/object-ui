@@ -696,10 +696,13 @@ function ChatbotInner({
         // (suggest_builder). Open the full-page BUILD surface seeded with the
         // handoff prompt (ADR-0063 decline-and-redirect — explicit, never a
         // silent re-route). The FAB has no package of its own; use the handoff's.
+        // cloud#817: carry the FAB's own ask thread id as `?parentConversationId=`
+        // so the Builder's first turn starts with that conversation as context.
         onOpenBuilder={(handoff) => {
           const params = new URLSearchParams();
           if (handoff.packageId) params.set('package', handoff.packageId);
           if (handoff.prompt) params.set('handoffPrompt', handoff.prompt);
+          if (conversationId) params.set('parentConversationId', conversationId);
           const qs = params.toString();
           navigate(`/ai/build${qs ? `?${qs}` : ''}`);
         }}

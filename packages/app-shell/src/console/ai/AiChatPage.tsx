@@ -571,6 +571,14 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
   // "Open in Builder →" (suggest_builder). Seeded as the build surface's first
   // message below; the URL-mirror strips it once the conversation is minted.
   const handoffPrompt = searchParams.get('handoffPrompt')?.trim() || undefined;
+  // ADR-0057 P4 / cloud#817 — the source `ask` conversation id handed off to the
+  // Builder alongside the prompt. Forwarded to ChatPane → useObjectChat, which
+  // sends it as `context.parentConversationId` on the build surface's FIRST turn
+  // so the agent starts with the ask thread as context (never a cold start). The
+  // URL-mirror below drops it once the build conversation id is minted, exactly
+  // like `handoffPrompt`, so a reload never re-carries it.
+  const handoffParentConversationId =
+    searchParams.get('parentConversationId')?.trim() || undefined;
   const navigate = useNavigate();
   const { setContext } = useNavigationContext();
 
@@ -994,6 +1002,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             apiBase={apiBase}
             conversationId={conversationId}
             editPackageId={editPackageId}
+            parentHandoffConversationId={handoffParentConversationId}
             initialMessages={initialMessages}
             pendingFirstMessageRef={pendingFirstMessageRef}
             onSent={handleSent}
@@ -1071,6 +1080,10 @@ interface ChatPaneProps {
   /** ADR-0070 "Edit with AI": the package the user opened to edit (from `?package=`),
    *  forwarded to the build agent as `context.packageId` to scope it to that app. */
   editPackageId?: string;
+  /** ADR-0057 P4 / cloud#817 — source `ask` conversation id (from `?parentConversationId=`),
+   *  forwarded to the build agent's FIRST turn as `context.parentConversationId` so it
+   *  starts with the ask thread as context. Undefined outside a handoff. */
+  parentHandoffConversationId?: string;
   initialMessages: HydratedUIMessage[];
   /** Page-owned stash for a first message sent before the conversation id resolved
    *  (survives this pane's id-keyed remount). See {@link useDeferredFirstSend}. */
@@ -1094,6 +1107,7 @@ export function ChatPane({
   apiBase,
   conversationId,
   editPackageId,
+  parentHandoffConversationId,
   initialMessages,
   pendingFirstMessageRef,
   onSent,
@@ -1113,17 +1127,20 @@ export function ChatPane({
   // Open the full-page BUILD surface seeded with the handoff prompt (carried as
   // `?handoffPrompt=`, auto-sent on arrival; ADR-0063 decline-and-redirect — an
   // explicit, user-initiated switch, never a silent re-route). Prefer the
-  // handoff's own packageId, else this surface's edit package.
+  // handoff's own packageId, else this surface's edit package. cloud#817: also
+  // carry THIS (ask) thread's id as `?parentConversationId=` so the Builder's
+  // first turn starts with the ask conversation as context, not a cold start.
   const openBuilder = useCallback(
     (handoff: { prompt: string; packageId?: string }) => {
       const params = new URLSearchParams();
       const pkg = handoff.packageId || editPackageId;
       if (pkg) params.set('package', pkg);
       if (handoff.prompt) params.set('handoffPrompt', handoff.prompt);
+      if (conversationId) params.set('parentConversationId', conversationId);
       const qs = params.toString();
       navigate(`/ai/build${qs ? `?${qs}` : ''}`);
     },
-    [navigate, editPackageId],
+    [navigate, editPackageId, conversationId],
   );
 
   // ── ADR-0037 Live Canvas ────────────────────────────────────────────────
@@ -1214,6 +1231,9 @@ export function ChatPane({
   } = useObjectChat({
     api: chatApi,
     conversationId,
+    // ADR-0057 P4 / cloud#817 — on a handoff, carry the ask thread as the build
+    // agent's first-turn context (consumed once inside useObjectChat).
+    parentConversationId: parentHandoffConversationId,
     // ADR-0028: the user's picked model (or the env default) rides each request.
     model: effectiveModelId,
     onError: handleChatError,

@@ -105,6 +105,21 @@ export function withTurnId(req: {
   };
 }
 
+/**
+ * ADR-0057 P4 / cloud#817 — merge a handed-off `ask` conversation id into a
+ * request body's `context` (the object the agent chat route reads as
+ * `AgentChatContext`), returning a NEW body so the cached transport body is
+ * never mutated. The build agent redeems `context.parentConversationId` on its
+ * first turn to seed the ask thread as context. Exported for unit testing.
+ */
+export function withHandoffContext(
+  body: Record<string, unknown>,
+  parentConversationId: string,
+): Record<string, unknown> {
+  const ctx = (body.context ?? {}) as Record<string, unknown>;
+  return { ...body, context: { ...ctx, parentConversationId } };
+}
+
 type InitialMessage = OuiChatMessage & {
   parts?: Array<Record<string, unknown>>;
   reasoning?: string;
@@ -128,6 +143,14 @@ export interface UseObjectChatOptions {
    * Conversation ID for multi-turn context.
    */
   conversationId?: string;
+  /**
+   * ADR-0057 P4 / cloud#817 — id of the source `ask` conversation handed off to
+   * the Builder ("Open in Builder →"). Sent as `context.parentConversationId` on
+   * the FIRST turn only (consumed once, then cleared), so the build agent starts
+   * with the ask thread as context; the backend redeems it and never re-reads it
+   * on later turns (client owns history from there).
+   */
+  parentConversationId?: string;
   /**
    * System prompt for the assistant.
    */
@@ -247,6 +270,7 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     api,
     initialMessages,
     conversationId,
+    parentConversationId,
     systemPrompt,
     model,
     streamingEnabled = true,
@@ -314,6 +338,13 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
   const modelRef = useRef(model);
   modelRef.current = model;
 
+  // ADR-0057 P4 / cloud#817 — the handed-off `ask` conversation id. Sent as
+  // `context.parentConversationId` on the FIRST turn only: the backend redeems
+  // it once (loading that thread as the build turn's context) and the client
+  // owns history from there, so re-sending it would re-inject the same block. We
+  // hold it in a ref and clear it after the first send (below, in prepare).
+  const parentConvRef = useRef(parentConversationId);
+
   // Build a transport for API mode that posts to the configured endpoint and
   // forwards conversation/system/model metadata in the request body.
   // Note: conversationId is sent in the body (not a header) to avoid CORS
@@ -341,6 +372,14 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
         // ADR-0028: always send the CURRENTLY selected model (see modelRef above)
         // so a mid-session picker switch routes, despite the cached transport.
         if (modelRef.current) (req.body as Record<string, unknown>).model = modelRef.current;
+        // ADR-0057 P4 / cloud#817 — carry the handed-off ask conversation id on
+        // the FIRST turn only, nested under `context` (where the agent route
+        // reads it). Then clear the ref so later turns don't re-send it (the
+        // client owns history from there; re-sending re-injects the same block).
+        if (parentConvRef.current) {
+          req.body = withHandoffContext(req.body as Record<string, unknown>, parentConvRef.current);
+          parentConvRef.current = undefined;
+        }
         return req;
       },
     });
