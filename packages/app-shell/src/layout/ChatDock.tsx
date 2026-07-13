@@ -116,6 +116,13 @@ export function useChatDockState(options?: ChatDockOptions): ChatDockState {
   // StrictMode re-runs effects) can bail before touching the width.
   const maximizedRef = React.useRef(false);
   const prevWidthRef = React.useRef<number | null>(null);
+  // Latest width, readable from the IDENTITY-STABLE maximize below. If
+  // `maximize` closed over `width` (a [width] dep) its identity would change on
+  // every drag move — and consumers key their canvas-open effect on the handler
+  // identity, so each change would re-fire maximize mid-drag and snap the width
+  // back to max, fighting the user. Render-phase ref sync keeps it current.
+  const widthRef = React.useRef(width);
+  widthRef.current = width;
 
   const setExpanded = React.useCallback(
     (update: (prev: boolean) => boolean) => {
@@ -166,10 +173,10 @@ export function useChatDockState(options?: ChatDockOptions): ChatDockState {
   const maximize = React.useCallback(() => {
     if (maximizedRef.current) return; // already maximized — keep the original return width
     maximizedRef.current = true;
-    prevWidthRef.current = width;
+    prevWidthRef.current = widthRef.current;
     setWidth(maximizedDockWidth(window.innerWidth));
     setMaximized(true);
-  }, [width]);
+  }, []);
 
   const restore = React.useCallback(() => {
     // Not latched → nothing to undo. This guard is what makes ChatPane's
