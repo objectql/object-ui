@@ -102,7 +102,7 @@
     "autoprefixer": "^10.5.2",
     "happy-dom": "^20.10.6",
     "lucide-react": "^1.22.0",
-    "postcss": "^8.5.16",
+    "postcss": "^8.5.17",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-router-dom": "^7.18.1",
