@@ -692,6 +692,17 @@ function ChatbotInner({
     <>
       <FloatingChatbot
         onUpgrade={() => window.open(cloudPricingDeepLink(), '_blank', 'noopener,noreferrer')}
+        // ADR-0057 P4 — the ambient `ask` FAB declined an authoring request
+        // (suggest_builder). Open the full-page BUILD surface seeded with the
+        // handoff prompt (ADR-0063 decline-and-redirect — explicit, never a
+        // silent re-route). The FAB has no package of its own; use the handoff's.
+        onOpenBuilder={(handoff) => {
+          const params = new URLSearchParams();
+          if (handoff.packageId) params.set('package', handoff.packageId);
+          if (handoff.prompt) params.set('handoffPrompt', handoff.prompt);
+          const qs = params.toString();
+          navigate(`/ai/build${qs ? `?${qs}` : ''}`);
+        }}
         floatingConfig={{
           position: 'bottom-right',
           defaultOpen,

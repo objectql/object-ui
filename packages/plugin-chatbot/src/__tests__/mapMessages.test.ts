@@ -12,6 +12,7 @@ import {
   uiMessagesToChatMessages,
   detectDraftResult,
   detectProposedPlan,
+  detectBuilderHandoff,
   buildProgressFromDraftReview,
 } from '../mapMessages';
 
@@ -586,6 +587,54 @@ describe('proposedPlan detection (propose_blueprint)', () => {
       questions: ['Q?'],
     });
     expect(plan?.questionChoices).toBeUndefined();
+  });
+});
+
+describe('builderHandoff detection (ADR-0057 P4 — suggest_builder)', () => {
+  it('lifts the { status:build_handoff, prompt, packageId } envelope', () => {
+    const h = detectBuilderHandoff({
+      status: 'build_handoff',
+      handoff: 'build',
+      prompt: 'Add a priority field to tasks',
+      packageId: 'com.acme.crm',
+    });
+    expect(h).toEqual({ prompt: 'Add a priority field to tasks', packageId: 'com.acme.crm' });
+  });
+
+  it('parses a JSON-string result and the Vercel { type:text, value } wrapper', () => {
+    const json = JSON.stringify({ status: 'build_handoff', prompt: 'Build a CRM' });
+    expect(detectBuilderHandoff(json)).toEqual({ prompt: 'Build a CRM' });
+    expect(detectBuilderHandoff({ type: 'text', value: json })).toEqual({ prompt: 'Build a CRM' });
+  });
+
+  it('omits packageId when absent/blank and trims the prompt', () => {
+    expect(detectBuilderHandoff({ status: 'build_handoff', prompt: '  hi  ' })).toEqual({ prompt: 'hi' });
+    expect(detectBuilderHandoff({ status: 'build_handoff', prompt: 'x', packageId: '  ' })).toEqual({ prompt: 'x' });
+  });
+
+  it('ignores non-handoff results and an empty prompt', () => {
+    expect(detectBuilderHandoff({ status: 'blueprint_proposed' })).toBeUndefined();
+    expect(detectBuilderHandoff({ status: 'build_handoff', prompt: '   ' })).toBeUndefined();
+    expect(detectBuilderHandoff({ foo: 1 })).toBeUndefined();
+    expect(detectBuilderHandoff(undefined)).toBeUndefined();
+  });
+
+  it('attaches builderHandoff to the mapped tool invocation', () => {
+    const [msg] = uiMessagesToChatMessages([
+      {
+        id: 'm1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-suggest_builder',
+            toolCallId: 't1',
+            state: 'output-available',
+            output: { status: 'build_handoff', prompt: 'Add a field', packageId: 'p.kg' },
+          },
+        ],
+      },
+    ] as never);
+    expect(msg.toolInvocations?.[0]?.builderHandoff).toEqual({ prompt: 'Add a field', packageId: 'p.kg' });
   });
 });
 
