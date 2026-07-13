@@ -4,10 +4,13 @@
  *
  * ADR-0057 P3a — ChatDock pure state: the width clamp keeps neither pane from
  * collapsing, and the toggle shortcut is composer-safe (⌘/Ctrl+Shift+I).
+ * P3c adds the canvas-maximize width and the stored-expanded parse.
  */
 import { describe, it, expect } from 'vitest';
 import {
   clampDockWidth,
+  maximizedDockWidth,
+  parseStoredDockExpanded,
   matchChatDockShortcut,
   DOCK_MIN_WIDTH,
   DOCK_CONTENT_MIN_WIDTH,
@@ -28,6 +31,31 @@ describe('clampDockWidth', () => {
 
   it('skips the upper bound when the container is unmeasured', () => {
     expect(clampDockWidth(4000, 0)).toBe(4000);
+  });
+});
+
+describe('maximizedDockWidth', () => {
+  it('is the widest legal rail — main content keeps its minimum', () => {
+    expect(maximizedDockWidth(1600)).toBe(1600 - DOCK_CONTENT_MIN_WIDTH);
+  });
+
+  it('floors at the rail minimum on tiny containers', () => {
+    // container − CONTENT_MIN would be below the rail minimum → the min wins
+    // (clampDockWidth's lower bound takes precedence over its upper bound).
+    expect(maximizedDockWidth(700)).toBe(DOCK_MIN_WIDTH);
+  });
+});
+
+describe('parseStoredDockExpanded', () => {
+  it("only the exact '1' opts into mounting expanded", () => {
+    expect(parseStoredDockExpanded('1')).toBe(true);
+  });
+
+  it('null / other values keep the default-collapsed posture', () => {
+    expect(parseStoredDockExpanded(null)).toBe(false);
+    expect(parseStoredDockExpanded('0')).toBe(false);
+    expect(parseStoredDockExpanded('true')).toBe(false);
+    expect(parseStoredDockExpanded('')).toBe(false);
   });
 });
 

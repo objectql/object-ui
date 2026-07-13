@@ -2,7 +2,9 @@
 
 **Status**: Accepted (2026-07-13) — P1+P2 shipped (#2414), P4 shipped
 (#2439 / #2444 + cloud#818/#819; reliability follow-ups #2449 + cloud#820);
-P3 planned (implementation plan on epic #2409). Console-layer realization of the two-agent,
+P3 shipped behind the default-off `features.chatDock` rollout flag (P3a #2464,
+P3b #2465, P3c #2467 — epic #2409; flag default-on + overlay retirement are the
+remaining cleanup, tracked on the epic). Console-layer realization of the two-agent,
 surface-bound model (cloud ADR-0063). **No agent, boundary, or commercial-model
 change** — this ADR only rearranges how the objectui console *renders and wires*
 chat surfaces.
@@ -242,7 +244,10 @@ inert; AI is reached only via MCP.
   Studio copilot moves to the shared right dock (properties reflow); `/ai` =
   maximized dock, same thread; runtime SDUI unchanged (bubble). *Proof: chat
   location is identical across console pages; expand/collapse preserves the
-  thread.*
+  thread.* **Shipped behind `features.chatDock` (default OFF): P3a #2464 (rail),
+  P3b #2465 (FAB → launcher), P3c #2467 (maximized `/ai` ⇄ rail + Studio reflow
+  + canvas auto-maximize). Flag default-on + floating-overlay retirement are the
+  remaining cleanup (epic #2409).**
 - **P4 — ask→build handoff (explicit).** In `ask`, a build-shaped request
   surfaces an explicit **"Open in Builder →"** that carries the conversation
   context through the generalized `assistantBus` — ADR-0063's *decline-and-
@@ -348,7 +353,9 @@ product-scoped threads; a deleted bound package needs a terminal chip state
 
 1. **Dock side under Studio (P3).** ~~Chat right vs properties right.~~
    **DECIDED (2026-07-13): chat right**; properties fold into a center tab —
-   `[left: nav/tree] [center: canvas + properties] [right: chat]`.
+   `[left: nav/tree] [center: canvas + properties] [right: chat]`. **Shipped in
+   P3c** (Interfaces pillar `[Canvas | Properties]` center tabs; Data/Automations
+   keep their in-center inspectors).
 2. **FAB retirement path (P3).** ~~Hard-retire, or keep the FAB as the collapsed
    affordance?~~ **DECIDED (2026-07-13): the FAB becomes the dock's collapsed
    affordance** — the bottom-right button stays and expands the right rail
@@ -361,9 +368,11 @@ product-scoped threads; a deleted bound package needs a terminal chip state
 4. **`app.defaultAgent` post-ADR-0063.** Now bounded to `ask` / `build` (tenant
    custom agents withdrawn). Confirm the resolver **rejects** anything else rather
    than silently falling through.
-5. **Focus-mode routing.** Does `/ai/build/:conversationId` stay a deep-linkable,
-   shareable URL (ADR-0013) once the dock is canonical? Proposed: **yes** — the
-   URL opens the dock maximized on that thread.
+5. **Focus-mode routing.** ~~Does `/ai/build/:conversationId` stay a deep-linkable,
+   shareable URL (ADR-0013) once the dock is canonical?~~ **DECIDED & SHIPPED
+   (P3c): yes** — the routes are untouched; the full page IS the dock maximized
+   (same P1 thread), with a maximize button on the rail and a collapse-to-dock
+   button on the page bridging the two presentations.
 
 ## Alternatives considered
 

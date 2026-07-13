@@ -18,7 +18,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth, LoginForm } from '@object-ui/auth';
+import { useAuth, LoginForm, AuthErrorBanner } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { Card } from '@object-ui/components';
 import { AuthLayout } from './AuthLayout';
@@ -95,6 +95,20 @@ export function LoginPage() {
     } catch {
       return null;
     }
+  }, []);
+
+  // Surface an OAuth/SSO callback failure. better-auth redirects a failed
+  // callback (expired hand-off, replayed `state`, IdP error, …) to its
+  // error URL with `?error=<code>` — the runtime points that at this login
+  // page (framework AuthManager `onAPIError.errorURL`). Without this banner
+  // the user who just SUCCEEDED at typing their password on the IdP lands
+  // back on a login form with zero explanation (objectui#2458 item 1).
+  const callbackError = useMemo(() => {
+    const code = params.get('error');
+    if (!code) return null;
+    const description = params.get('error_description');
+    return { code, description };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Read public auth config once to know whether sign-up is gated off.
@@ -189,6 +203,16 @@ export function LoginPage() {
   return (
     <AuthLayout formWidth="md">
       <div className="flex flex-col gap-6">
+        {callbackError ? (
+          <AuthErrorBanner
+            message={
+              t('auth.login.errors.oauthCallbackFailed', {
+                defaultValue:
+                  'Single sign-on could not be completed — the sign-in link expired or was already used. Please try again.',
+              }) + (callbackError.description ? ` (${callbackError.description})` : ` (${callbackError.code})`)
+            }
+          />
+        ) : null}
         {ssoTarget ? (
           <div
             role="status"

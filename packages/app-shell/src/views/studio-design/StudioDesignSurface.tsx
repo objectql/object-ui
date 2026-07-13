@@ -17,7 +17,9 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
-import { StudioAiCopilot } from './StudioAiCopilot';
+import { StudioAiCopilot, StudioChatDock } from './StudioAiCopilot';
+import { nextCenterTab, type StudioCenterTab } from './centerTab';
+import { getRuntimeConfig } from '../../runtime-config';
 import {
   GridFieldAuthoringProvider,
   cn,
@@ -585,15 +587,26 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
     };
   }, [shellClient, packageId, publishNonce]);
 
+  // ADR-0057 P3c — the decided Studio grid: `[left: nav/tree] [center: canvas +
+  // properties tabs] [right: chat]`. Gated on the rollout flag ALONE (not
+  // flag + agent catalog): the catalog resolves async, and keying the layout on
+  // it would flip the whole grid after load. On a flag-on-but-agent-less env
+  // the folded center tabs still work; the right dock simply self-gates away.
+  // An injected `aiSlot` (the cloud seam, ADR-0080) keeps the legacy left
+  // panel untouched in every flag state — the cloud edition migrates on its
+  // own schedule.
+  const chatDockMode = !aiSlot && getRuntimeConfig().features.chatDock === true;
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
       {/* Left AI copilot (ADR-0080). An explicit `aiSlot` overrides; otherwise the
         * built-in Studio copilot self-gates on the live agent catalog — it embeds
         * the build-agent chat scoped to THIS package, or renders nothing when no
-        * agent is served (community edition). */}
+        * agent is served (community edition). With the ADR-0057 P3c dock flag on,
+        * the copilot renders as the RIGHT dock below instead of this left panel. */}
       {aiSlot ? (
         <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
-      ) : (
+      ) : chatDockMode ? null : (
         <StudioAiCopilot packageId={packageId} locale={locale} />
       )}
 
@@ -712,10 +725,16 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               onDraftSaved={onDraftSaved}
               onCreateApp={readOnly ? undefined : () => setAppCreating(true)}
               readOnly={readOnly}
+              foldInspector={chatDockMode}
             />
           )}
         </div>
       </div>
+
+      {/* ADR-0057 P3c — the copilot as the shared right dock (same package-
+        * scoped build thread as the left panel it replaces; self-gates on the
+        * agent catalog like the copilot always has). */}
+      {chatDockMode && <StudioChatDock packageId={packageId} locale={locale} />}
 
       <DraftChangesPanel
         open={changesOpen}
@@ -935,6 +954,7 @@ function InterfacesPillar({
   onDraftSaved,
   onCreateApp,
   readOnly = false,
+  foldInspector = false,
 }: {
   packageId: string;
   publishNonce?: number;
@@ -947,6 +967,10 @@ function InterfacesPillar({
   onCreateApp?: () => void;
   /** Courtesy gate: hide/disable nav-authoring affordances. */
   readOnly?: boolean;
+  /** ADR-0057 P3c — the chat dock owns the right side, so the inspector folds
+   * into center `[canvas | properties]` tabs instead of its own right aside.
+   * Default false → the classic three-zone layout, pixel-identical. */
+  foldInspector?: boolean;
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
@@ -1006,6 +1030,19 @@ function InterfacesPillar({
   const [inspectorTab, setInspectorTab] = React.useState<'props' | 'source'>('source');
   const [draft, setDraft] = React.useState<Record<string, unknown>>({});
   const [selection, setSelection] = React.useState<MetadataSelection | null>(null);
+  // ADR-0057 P3c — the folded-layout center tab (canvas | properties). The
+  // auto-switch below reacts to inspector-target EDGES (select a block → jump
+  // to Properties; deselect → back to Canvas) while preserving a manual choice
+  // in steady state — see nextCenterTab. Inert when `foldInspector` is off.
+  const [centerTab, setCenterTab] = React.useState<StudioCenterTab>('canvas');
+  const hasInspectorTarget = Boolean((editNav && navSel) || selection);
+  const prevInspectorTargetRef = React.useRef(hasInspectorTarget);
+  React.useEffect(() => {
+    if (!foldInspector) return;
+    const hadTarget = prevInspectorTargetRef.current;
+    prevInspectorTargetRef.current = hasInspectorTarget;
+    setCenterTab((cur) => nextCenterTab(cur, hadTarget, hasInspectorTarget));
+  }, [foldInspector, hasInspectorTarget]);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [hasDraft, setHasDraft] = React.useState(false);
@@ -1227,6 +1264,189 @@ function InterfacesPillar({
     }
   }, [client, appName, appDraft, onDraftSaved]);
 
+  // ADR-0057 P3c — the canvas and the inspector are rendered by BOTH layouts
+  // below (the classic three-zone row, and the folded center-tabs grid that
+  // cedes the right side to the chat dock), so they are built once here. The
+  // extraction is presentation-neutral: the classic branch composes exactly
+  // the pre-P3c tree.
+  const canvasEl = (
+    <main className="flex min-w-0 flex-1 flex-col overflow-auto bg-muted/30 p-4">
+      <div className="mb-3 flex shrink-0 items-center gap-2">
+        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+          <Eye className="h-3 w-3" /> {t('engine.studio.if.previewIsRuntime', locale)}
+        </span>
+        {current && (
+          <span className="text-[11px] text-muted-foreground">
+            {current.type} · {current.name}
+          </span>
+        )}
+      </div>
+      {error && (
+        <div className="mb-3 shrink-0 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
+          {error}
+        </div>
+      )}
+      <div
+        className={cn(
+          // Source pages: let the live preview fill the canvas height (it
+          // brings its own PreviewShell chrome), so it balances the taller
+          // editor panel instead of floating as a short card.
+          isSourcePage ? 'min-h-0 flex-1 overflow-hidden' : 'rounded-lg border bg-background p-4',
+        )}
+      >
+        {appStatus === 'missing' && !error ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <LayoutDashboard className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">{t('engine.studio.if.noAppTitle', locale)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('engine.studio.if.noAppHint', locale)}</p>
+            </div>
+            {onCreateApp && (
+              <button
+                type="button"
+                onClick={onCreateApp}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" /> {t('engine.studio.app.create', locale)}
+              </button>
+            )}
+          </div>
+        ) : !current ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">{t('engine.studio.if.pickLeft', locale)}</div>
+        ) : loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.studio.loading', locale)}
+          </div>
+        ) : current.type === 'object' ? (
+          // Object nav leaf = the records list as the running app shows it
+          // (preview = runtime). Schema editing lives in the Data pillar, so
+          // here we render the object-view grid, not the field-form preview.
+          <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
+        ) : isSourcePage ? (
+          // Source pages have no block tree — the canvas shows only the live
+          // preview; the code editor lives in the inspector's Source tab.
+          <SourcePageEditor mode="preview" draft={draft} readOnly />
+        ) : Preview ? (
+          <Preview
+            type={current.type}
+            name={current.name}
+            draft={draft}
+            editing
+            selection={selection}
+            onSelectionChange={setSelection}
+            onPatch={onPatch}
+            locale={locale}
+          />
+        ) : (
+          <div className="py-12 text-center text-xs text-muted-foreground">
+            {tFormat('engine.studio.if.readonlyPreview', locale, { type: current.type })}
+          </div>
+        )}
+      </div>
+      {!isEditable && current?.type === 'object' ? (
+        <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Database className="h-3 w-3" /> {t('engine.studio.if.objectHintPre', locale)}<span className="font-medium">Data</span>{t('engine.studio.if.objectHintPost', locale)}
+        </p>
+      ) : null}
+    </main>
+  );
+
+  const inspectorHeaderEl = (
+    <header className="flex shrink-0 items-center gap-2 border-b bg-background/95 px-3 py-2">
+      <SlidersHorizontal className="h-3.5 w-3.5" />
+      <span className="text-[13px] font-medium">{t('engine.studio.inspector.props', locale)}</span>
+      {selection && (
+        <button
+          type="button"
+          onClick={() => setSelection(null)}
+          className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={t('engine.studio.deselect', locale)}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </header>
+  );
+
+  const inspectorBodyEl =
+    editNav && navSel ? (
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        <StudioNavItemInspector
+          navId={navSel.id}
+          appDraft={appDraft}
+          objects={pkgObjects}
+          onNavPatch={onNavPatch}
+          onClear={() => setNavSel(null)}
+        />
+      </div>
+    ) : selection && Inspector && current ? (
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        <Inspector
+          type={current.type}
+          name={current.name}
+          draft={draft}
+          selection={selection}
+          onPatch={onPatch}
+          onClearSelection={() => setSelection(null)}
+          onSelectionChange={setSelection}
+          readOnly={false}
+          locale={locale}
+        />
+      </div>
+    ) : isSourcePage ? (
+      <Tabs
+        value={inspectorTab}
+        onValueChange={(v) => setInspectorTab(v === 'props' ? 'props' : 'source')}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <TabsList className="mx-3 mt-2 shrink-0 self-start">
+          <TabsTrigger value="source" className="gap-1 text-xs">
+            <Code2 className="h-3.5 w-3.5" /> {t('engine.studio.inspector.tabSource', locale)}
+          </TabsTrigger>
+          <TabsTrigger value="props" className="text-xs">
+            {t('engine.studio.inspector.tabProps', locale)}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="source" className="mt-2 min-h-0 flex-1 border-t">
+          <SourcePageEditor mode="editor" draft={draft} onPatch={onPatch} />
+        </TabsContent>
+        <TabsContent value="props" className="mt-0 min-h-0 flex-1 overflow-auto p-3">
+          <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+            <Code2 className="h-5 w-5" />
+            {tFormat('engine.studio.inspector.sourcePageLine1', locale, { kind: sourcePageKind! })}
+            <br />
+            {t('engine.studio.inspector.sourcePageLine2', locale)}
+          </div>
+        </TabsContent>
+      </Tabs>
+    ) : DefaultInspector && current && isEditable ? (
+      // No block selected → the surface's "home" inspector (e.g. a page's
+      // interfaceConfig form). Selecting a sub-element from it swaps in the
+      // scoped block inspector above via onSelectionChange.
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        <DefaultInspector
+          type={current.type}
+          name={current.name}
+          draft={draft}
+          onPatch={onPatch}
+          onSelectionChange={setSelection}
+          readOnly={false}
+          locale={locale}
+        />
+      </div>
+    ) : (
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
+          <MousePointer2 className="h-5 w-5" />
+          {t('engine.studio.inspector.emptyLine1', locale)}
+          <br />
+          {t('engine.studio.inspector.emptyLine2', locale)}
+        </div>
+      </div>
+    );
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2 border-b px-3 py-1.5">
@@ -1377,190 +1597,60 @@ function InterfacesPillar({
           </div>
         </nav>
 
-        {/* canvas */}
-        <main className="flex min-w-0 flex-1 flex-col overflow-auto bg-muted/30 p-4">
-          <div className="mb-3 flex shrink-0 items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-              <Eye className="h-3 w-3" /> {t('engine.studio.if.previewIsRuntime', locale)}
-            </span>
-            {current && (
-              <span className="text-[11px] text-muted-foreground">
-                {current.type} · {current.name}
-              </span>
-            )}
-          </div>
-          {error && (
-            <div className="mb-3 shrink-0 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive whitespace-pre-line">
-              {error}
-            </div>
-          )}
-          <div
-            className={cn(
-              // Source pages: let the live preview fill the canvas height (it
-              // brings its own PreviewShell chrome), so it balances the taller
-              // editor panel instead of floating as a short card.
-              isSourcePage ? 'min-h-0 flex-1 overflow-hidden' : 'rounded-lg border bg-background p-4',
-            )}
-          >
-            {appStatus === 'missing' && !error ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-                  <LayoutDashboard className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">{t('engine.studio.if.noAppTitle', locale)}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{t('engine.studio.if.noAppHint', locale)}</p>
-                </div>
-                {onCreateApp && (
-                  <button
-                    type="button"
-                    onClick={onCreateApp}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> {t('engine.studio.app.create', locale)}
-                  </button>
-                )}
-              </div>
-            ) : !current ? (
-              <div className="py-16 text-center text-sm text-muted-foreground">{t('engine.studio.if.pickLeft', locale)}</div>
-            ) : loading ? (
-              <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.studio.loading', locale)}
-              </div>
-            ) : current.type === 'object' ? (
-              // Object nav leaf = the records list as the running app shows it
-              // (preview = runtime). Schema editing lives in the Data pillar, so
-              // here we render the object-view grid, not the field-form preview.
-              <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
-            ) : isSourcePage ? (
-              // Source pages have no block tree — the canvas shows only the live
-              // preview; the code editor lives in the inspector's Source tab.
-              <SourcePageEditor mode="preview" draft={draft} readOnly />
-            ) : Preview ? (
-              <Preview
-                type={current.type}
-                name={current.name}
-                draft={draft}
-                editing
-                selection={selection}
-                onSelectionChange={setSelection}
-                onPatch={onPatch}
-                locale={locale}
-              />
-            ) : (
-              <div className="py-12 text-center text-xs text-muted-foreground">
-                {tFormat('engine.studio.if.readonlyPreview', locale, { type: current.type })}
-              </div>
-            )}
-          </div>
-          {!isEditable && current?.type === 'object' ? (
-            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Database className="h-3 w-3" /> {t('engine.studio.if.objectHintPre', locale)}<span className="font-medium">Data</span>{t('engine.studio.if.objectHintPost', locale)}
-            </p>
-          ) : null}
-        </main>
+        {!foldInspector ? (
+          <>
+            {/* canvas */}
+            {canvasEl}
 
-        {/* inspector — full-height flex column so the source editor fills it
-            top-to-bottom instead of squeezing into a fixed height with dead
-            space below. Widens for source pages so code has room. */}
-        <aside
-          className={cn(
-            'flex shrink-0 flex-col overflow-hidden border-l',
-            isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
-              ? 'w-[24rem] xl:w-[30rem] 2xl:w-[36rem]'
-              : 'w-72',
-          )}
-        >
-          <header className="flex shrink-0 items-center gap-2 border-b bg-background/95 px-3 py-2">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="text-[13px] font-medium">{t('engine.studio.inspector.props', locale)}</span>
-            {selection && (
-              <button
-                type="button"
-                onClick={() => setSelection(null)}
-                className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label={t('engine.studio.deselect', locale)}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </header>
-          {editNav && navSel ? (
-            <div className="min-h-0 flex-1 overflow-auto p-3">
-              <StudioNavItemInspector
-                navId={navSel.id}
-                appDraft={appDraft}
-                objects={pkgObjects}
-                onNavPatch={onNavPatch}
-                onClear={() => setNavSel(null)}
-              />
-            </div>
-          ) : selection && Inspector && current ? (
-            <div className="min-h-0 flex-1 overflow-auto p-3">
-              <Inspector
-                type={current.type}
-                name={current.name}
-                draft={draft}
-                selection={selection}
-                onPatch={onPatch}
-                onClearSelection={() => setSelection(null)}
-                onSelectionChange={setSelection}
-                readOnly={false}
-                locale={locale}
-              />
-            </div>
-          ) : isSourcePage ? (
-            <Tabs
-              value={inspectorTab}
-              onValueChange={(v) => setInspectorTab(v === 'props' ? 'props' : 'source')}
-              className="flex min-h-0 flex-1 flex-col"
+            {/* inspector — full-height flex column so the source editor fills it
+                top-to-bottom instead of squeezing into a fixed height with dead
+                space below. Widens for source pages so code has room. */}
+            <aside
+              className={cn(
+                'flex shrink-0 flex-col overflow-hidden border-l',
+                isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
+                  ? 'w-[24rem] xl:w-[30rem] 2xl:w-[36rem]'
+                  : 'w-72',
+              )}
             >
-              <TabsList className="mx-3 mt-2 shrink-0 self-start">
-                <TabsTrigger value="source" className="gap-1 text-xs">
-                  <Code2 className="h-3.5 w-3.5" /> {t('engine.studio.inspector.tabSource', locale)}
-                </TabsTrigger>
-                <TabsTrigger value="props" className="text-xs">
-                  {t('engine.studio.inspector.tabProps', locale)}
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="source" className="mt-2 min-h-0 flex-1 border-t">
-                <SourcePageEditor mode="editor" draft={draft} onPatch={onPatch} />
-              </TabsContent>
-              <TabsContent value="props" className="mt-0 min-h-0 flex-1 overflow-auto p-3">
-                <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
-                  <Code2 className="h-5 w-5" />
-                  {tFormat('engine.studio.inspector.sourcePageLine1', locale, { kind: sourcePageKind! })}
-                  <br />
-                  {t('engine.studio.inspector.sourcePageLine2', locale)}
-                </div>
-              </TabsContent>
-            </Tabs>
-          ) : DefaultInspector && current && isEditable ? (
-            // No block selected → the surface's "home" inspector (e.g. a page's
-            // interfaceConfig form). Selecting a sub-element from it swaps in the
-            // scoped block inspector above via onSelectionChange.
-            <div className="min-h-0 flex-1 overflow-auto p-3">
-              <DefaultInspector
-                type={current.type}
-                name={current.name}
-                draft={draft}
-                onPatch={onPatch}
-                onSelectionChange={setSelection}
-                readOnly={false}
-                locale={locale}
-              />
-            </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-auto p-3">
-              <div className="flex flex-col items-center gap-2 px-2 py-10 text-center text-xs text-muted-foreground">
-                <MousePointer2 className="h-5 w-5" />
-                {t('engine.studio.inspector.emptyLine1', locale)}
-                <br />
-                {t('engine.studio.inspector.emptyLine2', locale)}
-              </div>
-            </div>
-          )}
-        </aside>
+              {inspectorHeaderEl}
+              {inspectorBodyEl}
+            </aside>
+          </>
+        ) : (
+          // ADR-0057 P3c — folded layout: the chat dock owns the right side,
+          // so the inspector shares the center with the canvas as tabs
+          // (`[left: nav/tree] [center: canvas + properties] [right: chat]`).
+          <Tabs
+            value={centerTab}
+            onValueChange={(v) => setCenterTab(v === 'properties' ? 'properties' : 'canvas')}
+            className="flex min-w-0 flex-1 flex-col"
+            data-testid="studio-center-tabs"
+          >
+            <TabsList className="mx-3 mt-2 shrink-0 self-start">
+              <TabsTrigger value="canvas" className="gap-1 text-xs">
+                <Eye className="h-3.5 w-3.5" /> {t('engine.studio.if.tabCanvas', locale)}
+              </TabsTrigger>
+              <TabsTrigger value="properties" className="gap-1 text-xs">
+                <SlidersHorizontal className="h-3.5 w-3.5" /> {t('engine.studio.inspector.props', locale)}
+              </TabsTrigger>
+            </TabsList>
+            {/* forceMount + state-hidden: the canvas hosts the RUNTIME preview
+                (records grids, PreviewShell iframes) — unmounting it on every
+                flip to Properties would refetch/reload it each time. */}
+            <TabsContent
+              forceMount
+              value="canvas"
+              className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+            >
+              {canvasEl}
+            </TabsContent>
+            <TabsContent value="properties" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+              {inspectorHeaderEl}
+              {inspectorBodyEl}
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </div>
   );

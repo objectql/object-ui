@@ -585,7 +585,12 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         if (error) {
           throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
         }
-        if (data?.url && typeof window !== 'undefined') {
+        // A missing redirect URL means the flow CANNOT continue — surface it
+        // instead of resolving silently (the user would see a dead button).
+        if (!data?.url) {
+          throw new Error(`Sign-in with "${providerId}" did not return a redirect URL — please try again or contact your administrator.`);
+        }
+        if (typeof window !== 'undefined') {
           window.location.href = data.url;
         }
         return;
@@ -599,7 +604,10 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
       }
       const socialUrl = (data as { url?: string; redirect?: boolean } | null)?.url;
-      if (socialUrl && typeof window !== 'undefined') {
+      if (!socialUrl) {
+        throw new Error(`Sign-in with "${providerId}" did not return a redirect URL — please try again or contact your administrator.`);
+      }
+      if (typeof window !== 'undefined') {
         window.location.href = socialUrl;
       }
     },

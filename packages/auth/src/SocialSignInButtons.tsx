@@ -8,6 +8,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from './useAuth';
+import { AuthSpinner } from './authStyles';
 import type { AuthSocialProvider } from './types';
 
 // Brand name overrides for providers whose `name` from the server may be unset
@@ -118,6 +119,10 @@ export function SocialSignInButtons({
   const [providers, setProviders] = useState<AuthSocialProvider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Provider id of the in-flight `signInWithProvider` call. Sign-in ends in a
+  // full-page navigation, so the spinner deliberately stays on until unload —
+  // it is only cleared when the call FAILS and the user needs the button back.
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -151,15 +156,20 @@ export function SocialSignInButtons({
     typeof window !== 'undefined' ? window.location.href : undefined;
 
   const onClick = async (provider: AuthSocialProvider) => {
+    if (pendingId) return;
     setError(null);
+    setPendingId(provider.id);
     try {
       await signInWithProvider(provider.id, {
         callbackURL: callbackURL ?? defaultCallback,
         errorCallbackURL: errorCallbackURL ?? callbackURL ?? defaultCallback,
         type: provider.type ?? 'social',
       });
+      // Success = the browser is navigating to the provider. Keep the pending
+      // state so the button doesn't "un-busy" during the page teardown.
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setPendingId(null);
     }
   };
 
@@ -175,9 +185,11 @@ export function SocialSignInButtons({
           key={p.id}
           type="button"
           onClick={() => onClick(p)}
+          disabled={pendingId !== null}
+          aria-busy={pendingId === p.id}
           className="inline-flex h-10 w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
         >
-          <ProviderIcon id={p.id} />
+          {pendingId === p.id ? <AuthSpinner /> : <ProviderIcon id={p.id} />}
           {label} {PROVIDER_LABEL[p.id] ?? p.name}
         </button>
       ))}

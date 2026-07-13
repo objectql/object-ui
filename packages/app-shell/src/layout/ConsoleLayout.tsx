@@ -9,6 +9,7 @@
  */
 
 import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AppShell } from '@object-ui/layout';
 
 // Lightweight FAB stub — the heavy chat chunk graph (plugin-chatbot,
@@ -16,7 +17,7 @@ import { AppShell } from '@object-ui/layout';
 // hover/click. See ConsoleChatbotFab.tsx.
 import { ConsoleChatbotFab } from './ConsoleChatbotFab';
 import { useChatDockState, ChatDockPanel } from './ChatDock';
-import { matchChatDockShortcut } from './chatDockState';
+import { matchChatDockShortcut, DOCK_EXPANDED_STORAGE_KEY } from './chatDockState';
 import { DraftPreviewBar } from '../preview/DraftPreviewBar';
 import { UnpublishedAppBar } from '../preview/UnpublishedAppBar';
 import { UnifiedSidebar } from './UnifiedSidebar';
@@ -82,9 +83,13 @@ export function ConsoleLayout({
 
   // ADR-0057 P3a — the right-docked chat rail. DEFAULT OFF: gated on the
   // `chatDock` rollout flag AND the same AI-surface gate as the FAB, so it is
-  // strictly additive and renders nothing on OSS / opt-out runtimes.
-  const dock = useChatDockState();
+  // strictly additive and renders nothing on OSS / opt-out runtimes. P3c: the
+  // expanded state round-trips through sessionStorage so the rail survives
+  // in-tab navigation, and so the `/ai` page's collapse-to-dock affordance can
+  // arm it before navigating back here (the maximize ⇄ tuck loop).
+  const dock = useChatDockState({ persistExpandedKey: DOCK_EXPANDED_STORAGE_KEY });
   const dockEnabled = showChatbot && getRuntimeConfig().features.chatDock === true;
+  const navigate = useNavigate();
 
   // Set navigation context to 'app' when this layout mounts
   useEffect(() => {
@@ -128,7 +133,20 @@ export function ConsoleLayout({
       }
       className="!p-0 overflow-y-auto overflow-x-hidden bg-muted/5"
       rightRail={
-        dockEnabled && dock.expanded ? <ChatDockPanel dock={dock} userId={userId} /> : undefined
+        dockEnabled && dock.expanded ? (
+          <ChatDockPanel
+            dock={dock}
+            userId={userId}
+            // ADR-0057 P3c — "/ai = the dock maximized": the maximize button
+            // opens the full-page surface, which canonicalizes `/ai` to the
+            // default agent and resolves the same app-less `(user, product)`
+            // scope — i.e. THE SAME THREAD this rail shows. (A deployment that
+            // overrides the default agent via VITE_AI_DEFAULT_AGENT could in
+            // principle diverge from the dock's `resolveSurfaceAgent('default')`
+            // pick; both funnel through the same platform default today.)
+            onMaximize={() => navigate('/ai')}
+          />
+        ) : undefined
       }
       branding={
         activeApp?.branding

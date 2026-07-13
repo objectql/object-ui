@@ -184,6 +184,10 @@ export function LoginForm({
   // Break-glass: reveal the password form for the env owner / local admin even
   // under enforced mode (e.g. during an IdP outage).
   const [showPasswordFallback, setShowPasswordFallback] = useState(false);
+  // In-flight `/sign-in/sso` round-trip — the button needs its own pending
+  // state because SSO routing is a raw fetch, not the shared `signIn` (whose
+  // `isLoading` drives the password submit button).
+  const [ssoSubmitting, setSsoSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -306,12 +310,14 @@ export function LoginForm({
    * error when no provider matches the domain.
    */
   const handleSso = async () => {
+    if (ssoSubmitting) return;
     setError(null);
     // SSO routes by email domain — a phone-shaped identifier can't map to an IdP.
     if (looksLikePhoneIdentifier(email)) {
       setError('Enter your email address to sign in with SSO.');
       return;
     }
+    setSsoSubmitting(true);
     try {
       const base = window.location.pathname.replace(/\/login(?:\/.*)?$/, '');
       const res = await fetch('/api/v1/auth/sign-in/sso', {
@@ -322,12 +328,15 @@ export function LoginForm({
       });
       const data = (await res.json().catch(() => ({}))) as { url?: string; message?: string };
       if (res.ok && typeof data.url === 'string') {
+        // Navigating to the IdP — keep the pending state through teardown.
         window.location.href = data.url;
         return;
       }
       setError(data.message || 'No SSO provider is configured for this email domain.');
+      setSsoSubmitting(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setSsoSubmitting(false);
     }
   };
 
@@ -483,9 +492,11 @@ export function LoginForm({
             <button
               type="button"
               onClick={handleSso}
-              disabled={isLoading}
+              disabled={isLoading || ssoSubmitting}
+              aria-busy={ssoSubmitting}
               className="flex w-full items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
             >
+              {ssoSubmitting && <AuthSpinner />}
               {l.ssoButton}
             </button>
           )}

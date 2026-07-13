@@ -1544,6 +1544,7 @@ const en = {
       errors: {
         invalidCredentials: 'Invalid email or password. Please try again.',
         emailNotVerified: 'Please verify your email address before signing in.',
+        oauthCallbackFailed: 'Single sign-on could not be completed — the sign-in link expired or was already used. Please try again.',
       },
     },
     register: {

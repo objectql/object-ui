@@ -10,12 +10,15 @@
  *
  * It reuses the shared {@link ChatPane} engine over the P1 `(user, app, product)`
  * conversation — the same thread the full-page `/ai` surface shows — so the dock
- * is a VIEW, not a new conversation. P3b later retires the FAB into this dock's
- * launcher; P3c makes `/ai` the dock maximized.
+ * is a VIEW, not a new conversation. P3b retired the FAB into this dock's
+ * launcher. P3c makes `/ai` the dock maximized (the header's maximize button ⇄
+ * the page's collapse-to-dock button, same thread both ways), reuses the panel
+ * under Studio (right dock, `children` body override), and auto-maximizes the
+ * rail while the ADR-0037 Live Canvas is open.
  */
 import * as React from 'react';
 import { cn, Button } from '@object-ui/components';
-import { MessagesSquare, PanelRightClose } from 'lucide-react';
+import { Maximize2, MessagesSquare, PanelRightClose } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAgents } from '@object-ui/plugin-chatbot';
 import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../console/ai/AiChatPage';
@@ -25,6 +28,9 @@ import { resolveSurfaceAgent } from '../hooks/surfaceAgent';
 import { getRuntimeConfig } from '../runtime-config';
 import {
   clampDockWidth,
+  maximizedDockWidth,
+  readStoredDockExpanded,
+  writeStoredDockExpanded,
   DOCK_DEFAULT_WIDTH,
   DOCK_WIDTH_STORAGE_KEY,
 } from './chatDockState';
@@ -39,13 +45,39 @@ function readStoredWidth(): number {
   }
 }
 
+export interface ChatDockOptions {
+  /**
+   * Mount expanded when no stored preference exists. The console rail keeps
+   * P3a's default-collapsed posture; the Studio dock passes `true` because the
+   * copilot it replaces has always been visible by default.
+   */
+  defaultExpanded?: boolean;
+  /**
+   * sessionStorage key the expanded/collapsed state round-trips through (see
+   * {@link DOCK_EXPANDED_STORAGE_KEY}). Omitted → in-memory only, so each mount
+   * starts from `defaultExpanded` (the Studio dock's parity with today's
+   * non-persisted copilot collapse).
+   */
+  persistExpandedKey?: string;
+}
+
 export interface ChatDockState {
   expanded: boolean;
   width: number;
   dragging: boolean;
+  /** ADR-0037/P3c — true while the rail is canvas-maximized (see `maximize`). */
+  maximized: boolean;
   toggle: () => void;
   expand: () => void;
   collapse: () => void;
+  /**
+   * Grow the rail to its widest legal width (Live Canvas needs room for the
+   * chat + preview split). Transient: the pre-maximize width is remembered and
+   * NEVER persisted over the user's chosen width.
+   */
+  maximize: () => void;
+  /** Undo `maximize` — a no-op unless currently maximized (see doc below). */
+  restore: () => void;
   /** Pointer-down on the rail's left-edge resize handle. */
   onResizePointerDown: (e: React.PointerEvent) => void;
 }
@@ -55,15 +87,63 @@ export interface ChatDockState {
  * layout cost until invoked (preserving the FAB's virtue of not reflowing dense
  * data grids). Width persists to localStorage; the drag anchors the rail's LEFT
  * edge (dragging left widens it). All DOM reads happen in handlers, never render.
+ *
+ * P3c adds two orthogonal behaviors, both opt-in and both preserving the bare
+ * `useChatDockState()` call unchanged:
+ *  - `persistExpandedKey` round-trips expanded/collapsed through sessionStorage
+ *    so the console rail survives in-tab navigation and the `/ai` page can arm
+ *    it before navigating back ({@link armChatDockExpanded}).
+ *  - `maximize`/`restore` implement the Live-Canvas "auto-maximize on canvas
+ *    open, tuck on close" (ADR-0037 beside-the-chat preview needs width the
+ *    rail doesn't have). `restore` is a NO-OP unless a maximize is actually
+ *    latched: ChatPane reports `onCanvasOpenChange(false)` on mount (twice
+ *    under StrictMode), and an unguarded restore would clobber the width on
+ *    every dock open. A manual resize drag clears the latch — the user taking
+ *    the handle wins over the automation, so the later canvas-close restore
+ *    does nothing.
  */
-export function useChatDockState(): ChatDockState {
-  const [expanded, setExpanded] = React.useState(false);
+export function useChatDockState(options?: ChatDockOptions): ChatDockState {
+  const { defaultExpanded = false, persistExpandedKey } = options ?? {};
+  const [expanded, setExpandedState] = React.useState<boolean>(() =>
+    persistExpandedKey ? readStoredDockExpanded(persistExpandedKey, defaultExpanded) : defaultExpanded,
+  );
   const [width, setWidth] = React.useState<number>(() => readStoredWidth());
   const [dragging, setDragging] = React.useState(false);
+  const [maximized, setMaximized] = React.useState(false);
+  // The latch and the width to return to when the canvas closes. Refs, not
+  // state: they are only read inside handlers (never rendered), and the latch
+  // must be checkable synchronously so a double-fired maximize/restore (React
+  // StrictMode re-runs effects) can bail before touching the width.
+  const maximizedRef = React.useRef(false);
+  const prevWidthRef = React.useRef<number | null>(null);
+  // Latest width, readable from the IDENTITY-STABLE maximize below. If
+  // `maximize` closed over `width` (a [width] dep) its identity would change on
+  // every drag move — and consumers key their canvas-open effect on the handler
+  // identity, so each change would re-fire maximize mid-drag and snap the width
+  // back to max, fighting the user. Render-phase ref sync keeps it current.
+  const widthRef = React.useRef(width);
+  widthRef.current = width;
+
+  const setExpanded = React.useCallback(
+    (update: (prev: boolean) => boolean) => {
+      setExpandedState((prev) => {
+        const next = update(prev);
+        if (persistExpandedKey) writeStoredDockExpanded(persistExpandedKey, next);
+        return next;
+      });
+    },
+    [persistExpandedKey],
+  );
 
   const onResizePointerDown = React.useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
+      // Grabbing the handle is the user taking control of the width — drop the
+      // canvas-maximize latch so the eventual canvas-close restore won't fight
+      // them (their drag result stays, and gets persisted below as usual).
+      maximizedRef.current = false;
+      prevWidthRef.current = null;
+      setMaximized(false);
       const startX = e.clientX;
       const startWidth = width;
       setDragging(true);
@@ -90,16 +170,48 @@ export function useChatDockState(): ChatDockState {
     [width],
   );
 
-  const toggle = React.useCallback(() => setExpanded((v) => !v), []);
-  const expand = React.useCallback(() => setExpanded(true), []);
-  const collapse = React.useCallback(() => setExpanded(false), []);
+  const maximize = React.useCallback(() => {
+    if (maximizedRef.current) return; // already maximized — keep the original return width
+    maximizedRef.current = true;
+    prevWidthRef.current = widthRef.current;
+    setWidth(maximizedDockWidth(window.innerWidth));
+    setMaximized(true);
+  }, []);
 
-  return { expanded, width, dragging, toggle, expand, collapse, onResizePointerDown };
+  const restore = React.useCallback(() => {
+    // Not latched → nothing to undo. This guard is what makes ChatPane's
+    // mount-time onCanvasOpenChange(false) (and StrictMode's double fire, and
+    // a restore after a manual drag took the width over) harmless.
+    if (!maximizedRef.current) return;
+    maximizedRef.current = false;
+    setWidth(prevWidthRef.current ?? readStoredWidth());
+    prevWidthRef.current = null;
+    setMaximized(false);
+  }, []);
+
+  const toggle = React.useCallback(() => setExpanded((v) => !v), [setExpanded]);
+  const expand = React.useCallback(() => setExpanded(() => true), [setExpanded]);
+  const collapse = React.useCallback(() => setExpanded(() => false), [setExpanded]);
+
+  return {
+    expanded,
+    width,
+    dragging,
+    maximized,
+    toggle,
+    expand,
+    collapse,
+    maximize,
+    restore,
+    onResizePointerDown,
+  };
 }
 
 interface ChatDockConversationProps {
   userId: string | undefined;
   apiBase: string;
+  /** ADR-0037/P3c — the Live Canvas open/close seam, forwarded to ChatPane. */
+  onCanvasOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -109,7 +221,7 @@ interface ChatDockConversationProps {
  * the console's ambient assistant thread. Renders nothing when the AI catalog is
  * empty (OSS / no seat).
  */
-function ChatDockConversation({ userId, apiBase }: ChatDockConversationProps) {
+function ChatDockConversation({ userId, apiBase, onCanvasOpenChange }: ChatDockConversationProps) {
   const { agents, isLoading, error } = useAgents({ apiBase });
   const activeAgent = React.useMemo(
     () =>
@@ -152,14 +264,32 @@ function ChatDockConversation({ userId, apiBase }: ChatDockConversationProps) {
       onSent={() => {}}
       onShare={() => {}}
       showDebug={false}
+      onCanvasOpenChange={onCanvasOpenChange}
     />
   );
 }
 
 export interface ChatDockPanelProps {
   dock: ChatDockState;
-  userId: string | undefined;
+  /** Signed-in user id for the default (console ask) body. Unused with `children`. */
+  userId?: string;
   apiBase?: string;
+  /** Header title override (the Studio dock says "AI copilot"); default "Assistant". */
+  title?: string;
+  /**
+   * ADR-0057 P3c — render a maximize header button that opens the full-page
+   * focus surface (`/ai…`) on the SAME thread. The caller supplies the
+   * navigation because the right target is per-surface (console → `/ai`,
+   * Studio → `/ai/build?package=…`).
+   */
+  onMaximize?: () => void;
+  /**
+   * Body override. Default mounts {@link ChatDockConversation} (the console's
+   * ambient ask thread). The Studio dock passes its own package-scoped build
+   * conversation instead — note the empty-catalog gate then lives in the
+   * caller, because the default body's self-gate is bypassed.
+   */
+  children?: React.ReactNode;
 }
 
 /**
@@ -167,9 +297,23 @@ export interface ChatDockPanelProps {
  * main content. Only render this when `dock.expanded` (the caller decides), so a
  * collapsed dock contributes no flex child.
  */
-export function ChatDockPanel({ dock, userId, apiBase: apiBaseProp }: ChatDockPanelProps) {
+export function ChatDockPanel({
+  dock,
+  userId,
+  apiBase: apiBaseProp,
+  title,
+  onMaximize,
+  children,
+}: ChatDockPanelProps) {
   const { t } = useObjectTranslation();
   const apiBase = React.useMemo(() => resolveApiBase(apiBaseProp), [apiBaseProp]);
+  // ADR-0037/P3c — the default body auto-maximizes the rail while the Live
+  // Canvas is open and tucks back when it closes (restore self-guards against
+  // the mount-time false, StrictMode, and user-drag takeover).
+  const handleCanvasOpenChange = React.useCallback(
+    (open: boolean) => (open ? dock.maximize() : dock.restore()),
+    [dock.maximize, dock.restore],
+  );
   return (
     <aside
       data-testid="chat-dock-panel"
@@ -190,21 +334,42 @@ export function ChatDockPanel({ dock, userId, apiBase: apiBaseProp }: ChatDockPa
       <div className="flex h-11 shrink-0 items-center justify-between border-b px-3">
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground/80">
           <MessagesSquare className="size-3.5" />
-          {t('console.ai.dock.title', { defaultValue: 'Assistant' })}
+          {title ?? t('console.ai.dock.title', { defaultValue: 'Assistant' })}
         </span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-          onClick={dock.collapse}
-          aria-label={t('console.ai.dock.collapse', { defaultValue: 'Collapse chat' })}
-          data-testid="chat-dock-collapse"
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </Button>
+        <span className="flex items-center gap-0.5">
+          {onMaximize ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+              onClick={onMaximize}
+              aria-label={t('console.ai.dock.maximize', { defaultValue: 'Open full page' })}
+              title={t('console.ai.dock.maximize', { defaultValue: 'Open full page' })}
+              data-testid="chat-dock-maximize"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            onClick={dock.collapse}
+            aria-label={t('console.ai.dock.collapse', { defaultValue: 'Collapse chat' })}
+            data-testid="chat-dock-collapse"
+          >
+            <PanelRightClose className="h-4 w-4" />
+          </Button>
+        </span>
       </div>
       <div className="min-h-0 flex-1">
-        <ChatDockConversation userId={userId} apiBase={apiBase} />
+        {children ?? (
+          <ChatDockConversation
+            userId={userId}
+            apiBase={apiBase}
+            onCanvasOpenChange={handleCanvasOpenChange}
+          />
+        )}
       </div>
     </aside>
   );
@@ -216,8 +381,9 @@ export interface ChatDockLauncherProps {
 
 /**
  * The collapsed affordance — a fixed edge button that expands the dock. Rendered
- * only while collapsed, so it never overlaps the expanded rail. (P3b will fold
- * the FAB into this launcher; for P3a they coexist behind the flag.)
+ * only while collapsed, so it never overlaps the expanded rail. The console
+ * retired it in P3b (the FAB is that surface's launcher); the Studio dock (P3c)
+ * uses it as its collapsed state, since Studio has no FAB.
  */
 export function ChatDockLauncher({ onExpand }: ChatDockLauncherProps) {
   const { t } = useObjectTranslation();

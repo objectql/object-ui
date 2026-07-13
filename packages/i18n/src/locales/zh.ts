@@ -1617,6 +1617,7 @@ const zh = {
       errors: {
         invalidCredentials: '邮箱或密码错误，请重试。',
         emailNotVerified: '请先验证您的邮箱后再登录。',
+        oauthCallbackFailed: '单点登录未能完成——登录链接已过期或已被使用，请重新发起登录。',
       },
     },
     register: {
