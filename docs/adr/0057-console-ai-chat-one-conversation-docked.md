@@ -3,7 +3,7 @@
 **Status**: Accepted (2026-07-13) — P1+P2 shipped (#2414), P4 shipped
 (#2439 / #2444 + cloud#818/#819; reliability follow-ups #2449 + cloud#820);
 P3 shipped behind the default-off `features.chatDock` rollout flag (P3a #2464,
-P3b #2465, P3c — epic #2409; flag default-on + overlay retirement are the
+P3b #2465, P3c #2467 — epic #2409; flag default-on + overlay retirement are the
 remaining cleanup, tracked on the epic). Console-layer realization of the two-agent,
 surface-bound model (cloud ADR-0063). **No agent, boundary, or commercial-model
 change** — this ADR only rearranges how the objectui console *renders and wires*
@@ -245,8 +245,8 @@ inert; AI is reached only via MCP.
   maximized dock, same thread; runtime SDUI unchanged (bubble). *Proof: chat
   location is identical across console pages; expand/collapse preserves the
   thread.* **Shipped behind `features.chatDock` (default OFF): P3a #2464 (rail),
-  P3b #2465 (FAB → launcher), P3c (maximized `/ai` ⇄ rail + Studio reflow +
-  canvas auto-maximize). Flag default-on + floating-overlay retirement are the
+  P3b #2465 (FAB → launcher), P3c #2467 (maximized `/ai` ⇄ rail + Studio reflow
+  + canvas auto-maximize). Flag default-on + floating-overlay retirement are the
   remaining cleanup (epic #2409).**
 - **P4 — ask→build handoff (explicit).** In `ask`, a build-shaped request
   surfaces an explicit **"Open in Builder →"** that carries the conversation
