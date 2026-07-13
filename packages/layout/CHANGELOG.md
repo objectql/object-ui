@@ -1,5 +1,16 @@
 # @object-ui/layout
 
+## 13.3.0
+
+### Patch Changes
+
+- Updated dependencies [443360a]
+- Updated dependencies [6a74160]
+  - @object-ui/core@13.3.0
+  - @object-ui/components@13.3.0
+  - @object-ui/types@13.3.0
+  - @object-ui/react@13.3.0
+
 ## 13.2.0
 
 ### Patch Changes

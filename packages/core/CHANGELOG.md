@@ -1,5 +1,20 @@
 # @object-ui/core
 
+## 13.3.0
+
+### Patch Changes
+
+- 443360a: Action params support a `visible` CEL predicate — the param dialog omits a param
+  when it evaluates false, against the same scope as action `visible` (features /
+  user / app / data). Fixes the create-user form offering a **Phone Number** field
+  the default backend rejects ("Phone numbers require the phoneNumber auth plugin"):
+  paired with the framework gating that param on `features.phoneNumber`, the form
+  now follows the plugin — no phone field unless the opt-in phoneNumber auth plugin
+  is loaded. `filterVisibleParams` is exported + unit-tested (feature-off hides,
+  feature-on shows, malformed predicate fails open).
+- Updated dependencies [6a74160]
+  - @object-ui/types@13.3.0
+
 ## 13.2.0
 
 ### Patch Changes

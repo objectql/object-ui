@@ -1,5 +1,174 @@
 # @object-ui/app-shell — Changelog
 
+## 13.3.0
+
+### Minor Changes
+
+- 7b4fc36: feat(console-ai): ask→build handoff carries conversation context (ADR-0057 P4 / cloud#817)
+
+  The P4 "Open in Builder →" handoff previously carried only the build prompt + an
+  optional package, so the Builder started cold and the user re-explained
+  themselves. It now also carries the **source `ask` conversation** as context —
+  ADR-0057 P4 / cloud#817 — so the build agent's first turn starts with the thread
+  the user already had.
+
+  - `@object-ui/app-shell`: both handoff sites (the full-page `AiChatPage` and the
+    console FAB) now append `?parentConversationId=<ask thread id>` to the
+    `/ai/build` URL. The build surface reads it and forwards it to `useObjectChat`;
+    the existing URL-mirror drops it once the build conversation id is minted, so a
+    reload never re-carries it.
+  - `@object-ui/plugin-chatbot`: `useObjectChat` accepts `parentConversationId` and
+    sends it as `context.parentConversationId` on the **first turn only** (held in a
+    ref, consumed once) — the backend redeems it into the turn's context and the
+    client owns history from there. New pure helper `withHandoffContext` (unit
+    tested) does the non-mutating `context` merge.
+
+  Requires the cloud handoff-context contract (service-ai, cloud#817): the build
+  agent redeems `context.parentConversationId` into a single system block on its
+  first turn — ownership-checked, and carrying only the user/assistant text the
+  user already saw (ADR-0063 governance boundary). Without it the console degrades
+  cleanly: the id is sent but ignored, and the handoff is a (working) cold start.
+
+- 7dea792: feat(console-ai): explicit "Open in Builder →" ask→build handoff (ADR-0057 P4)
+
+  When the `ask` agent declines an app-authoring request it now calls the cloud
+  `suggest_builder` tool (structured decline). The console renders that as an
+  explicit **"Open in Builder →"** action that opens the full-page build surface
+  seeded with the handoff prompt — ADR-0063 decline-and-redirect: an explicit,
+  user-initiated switch, never a silent re-route into authoring.
+
+  - `@object-ui/plugin-chatbot`: `detectBuilderHandoff` lifts the
+    `{ status:'build_handoff', prompt, packageId? }` result onto the tool
+    invocation; `ChatbotEnhanced` renders the "Open in Builder →" card and calls a
+    new `onOpenBuilder` prop (disabled when no host wires it).
+  - `@object-ui/app-shell`: the full-page `AiChatPage` (`ask`) and the console FAB
+    wire `onOpenBuilder` to navigate to `/ai/build?package=…&handoffPrompt=…`; the
+    build surface seeds that prompt as its first message (auto-sent once the
+    conversation is minted), and the URL-mirror strips `?handoffPrompt` so a reload
+    never re-sends it. Full ask-conversation context transfer is a later upgrade
+    (cloud#817); v1 carries the build prompt + optional package.
+
+  Requires the cloud `suggest_builder` signal (service-ai-studio) to light up; the
+  console degrades cleanly (no card) without it.
+
+### Patch Changes
+
+- 443360a: Action params support a `visible` CEL predicate — the param dialog omits a param
+  when it evaluates false, against the same scope as action `visible` (features /
+  user / app / data). Fixes the create-user form offering a **Phone Number** field
+  the default backend rejects ("Phone numbers require the phoneNumber auth plugin"):
+  paired with the framework gating that param on `features.phoneNumber`, the form
+  now follows the plugin — no phone field unless the opt-in phoneNumber auth plugin
+  is loaded. `filterVisibleParams` is exported + unit-tested (feature-off hides,
+  feature-on shows, malformed predicate fails open).
+- 9442310: feat(console-ai): key AI chat conversations on `(user, app, product)`, not on surface (ADR-0057 P1)
+
+  The console rendered AI chat through parallel shells that **forked the
+  conversation**: the Studio design copilot scoped its thread as
+  `studio:${packageId}:${agent}` while the full-page `/ai/build` focus view scoped
+  on the agent alone — so opening the _same app_ in both showed an empty "Build
+  with AI" copilot beside an active full-page build thread (indistinguishable from
+  data loss).
+
+  Per ADR-0057 (**surface = view · conversation = model · product = binding
+  axis**), conversations are now keyed on `(user, app, product)`:
+
+  - New pure, unit-tested `chatConversationScope({ appId, product })` +
+    `chatProductOfAgent(name)` helper (`hooks/chatScope.ts`) is the single place
+    the scope key is formed. `product` is the ADR-0063 axis (`ask` | `build`),
+    derived from the resolved agent — never a per-surface choice.
+  - `StudioAiCopilot` and the full-page `AiChatPage` both resolve
+    `app:${packageId}:${product}` for a package-scoped surface (the Studio copilot
+    editing package X and the `/ai/build?package=X` "Edit with AI" focus view now
+    resume ONE shared thread). The legacy `studio:` surface prefix is dropped.
+  - A generic `/ai/:agent` visit with no `?package=` degrades to the product alone
+    (`build` / `ask`) — unchanged behaviour for that surface.
+
+  Enablement stays on the single access-filtered agent-catalog gate
+  (`useAiSurfaceEnabled`, ADR-0068) — a seat-less user's empty catalog hides the
+  whole AI surface. No layout change.
+
+- 9442310: feat(console-ai): one declarative surface→agent resolver (ADR-0057 P2)
+
+  The console re-implemented the ADR-0063 surface→agent chain in ~5 places, each
+  spelled slightly differently — and `ConsoleLayout` carried an AI-Studio-off
+  downgrade special case that existed nowhere else. This collapses them into one
+  pure, unit-tested resolver so ADR-0063 (exactly two products `ask`/`build`,
+  bound by surface — no roster, no per-turn classifier) becomes a **structural**
+  guarantee.
+
+  - New `hooks/surfaceAgent.ts`: `resolveSurfaceAgent(surface, { agents,
+appDefaultAgent, aiStudioEnabled })` + `SURFACE_DEFAULT`. `app.defaultAgent` is
+    **bounded** to ask/build (alias-aware) — a withdrawn tenant custom agent is
+    rejected, not passed through, so no roster is representable (ADR-0057 open
+    question #4). The AI-Studio-off `build → ask` downgrade is folded in ONCE.
+  - `StudioAiCopilot` (studio-build → build) and the console FAB (`default` → ask)
+    resolve through it. The FAB keeps #771's "prefer build when the catalog unlocks
+    it and nothing pinned a product" by passing that as its default PRODUCT input —
+    so the resolver still owns bounding + the downgrade, which now also applies to
+    the #771 preference (closing the leak where an authoring-disabled deployment
+    could still open build).
+  - `ConsoleLayout`'s bespoke `!aiStudioEnabled && isBuildAgent(...)` downgrade is
+    deleted; it passes the raw `app.defaultAgent` and the resolver downgrades.
+
+  Ships a unit table proving the ADR-0063 rows: Studio→build, other→ask,
+  AI-Studio-off downgrade, `app.defaultAgent` bounded (valid override wins, roster
+  rejected), alias-aware catalog resolution, empty catalog → inert (ADR-0025).
+
+- 9138e68: fix(metadata-admin): authenticate console MetadataClient requests (Bearer token)
+
+  Studio / metadata-admin surfaces issued `/api/v1/meta/*` requests (list types,
+  `?package=…` reads, `_drafts`, the `/meta` root) that came back `401
+unauthenticated` in the token-based console, while the runtime data adapter's
+  reads (`/meta/object|view|app`) succeeded — so the same page showed some
+  metadata requests failing and others working.
+
+  Root cause: `useMetadataClient` and `MetadataProvider`'s draft-preview client
+  constructed `MetadataClient` without a `fetch`, so it fell back to the bare
+  `globalThis.fetch` and sent no `Authorization` header. The console
+  authenticates by a Bearer token in localStorage (`auth-session-token`) — there
+  is no session cookie — so those requests were unauthenticated. A same-origin
+  cookie deployment masks the bug, which is why it went unnoticed and regressed
+  twice.
+
+  Both sites (and every future console surface) now construct through a single
+  `createConsoleMetadataClient` factory that bakes in `createAuthenticatedFetch`
+  (Bearer token + `X-Tenant-ID` + `Accept-Language`), matching the runtime data
+  adapter. This is additive for cookie deployments — `credentials` is untouched,
+  so a same-origin session cookie still flows. A
+  `metadata-client-auth.ratchet.test.ts` guard forbids a bare
+  `new MetadataClient(` elsewhere in app-shell so authentication can't silently
+  regress again.
+
+- 2fb38ed: fix(app-shell): propagate action-param `visible` predicate through resolveActionParams
+
+  The create-user phone fix (#2406) gated the `phoneNumber` param with
+  `visible: 'features.phoneNumber == true'`, but `resolveActionParam` dropped
+  `visible` when flattening raw spec params into `ActionParamDef` — so
+  `ActionParamDialog`'s `filterVisibleParams` never saw the predicate and the
+  phone field kept rendering even with the phoneNumber auth plugin off.
+
+  Propagate `visible` in all three resolve branches (inline / field-backed /
+  missing-field), unwrapping the spec's `{ dialect, source }` ExpressionInput
+  envelope to a plain CEL string. Completes the create-user phone fix end to end.
+
+- Updated dependencies [443360a]
+- Updated dependencies [94d00d4]
+- Updated dependencies [6a74160]
+  - @object-ui/core@13.3.0
+  - @object-ui/auth@13.3.0
+  - @object-ui/fields@13.3.0
+  - @object-ui/components@13.3.0
+  - @object-ui/data-objectstack@13.3.0
+  - @object-ui/types@13.3.0
+  - @object-ui/layout@13.3.0
+  - @object-ui/plugin-editor@13.3.0
+  - @object-ui/react@13.3.0
+  - @object-ui/collaboration@13.3.0
+  - @object-ui/permissions@13.3.0
+  - @object-ui/providers@13.3.0
+  - @object-ui/i18n@13.3.0
+
 ## 13.2.0
 
 ### Minor Changes
