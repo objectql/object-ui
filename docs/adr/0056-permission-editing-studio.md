@@ -1,6 +1,6 @@
 # ADR-0056: Permission editing belongs in Studio — Setup keeps user management and assignment
 
-**Status**: Proposed (2026-07-12)
+**Status**: Accepted — implemented in objectstack-ai/objectui#2403 (2026-07-13). Revised from the original **Option B** (which kept `system_permissions` editable in Setup as an exception) to the **pure model** below: Studio designs *every* facet, Setup only assigns + shows read-only summaries.
 **Author**: ObjectUI app-shell / Studio team
 **Consumers**: `@object-ui/app-shell` (Setup object surfaces for `sys_permission_set`; Studio Access pillar `AccessPillar` / `PermissionMatrixEditPage`; `views/metadata-admin/*`; `builtinComponents.tsx`), `@object-ui/plugin-form` (the generic object form that renders the `sys_permission_set` textareas today)
 **Relates to (framework)**: **ADR-0090** (Permission Model v2 — concept convergence; names ObjectUI *Studio + Setup* as consumers, D6 explain, D7 lint, D12 delegated admin/`adminScope`), **ADR-0092** (identity-table write guard — the same "UI hint ≠ server boundary" discipline), **ADR-0086** (authz metadata↔config boundary — package vs environment provenance on permission sets), **ADR-0066** (unified authorization model — the `sys_capability` registry that backs P2), **ADR-0049** (no unenforced security properties), **ADR-0057** (RLS depth / business-unit tree, referenced by the RLS + admin-scope editors), **ADR-0084** (application-builder IA — Access as Studio's fourth pillar)
@@ -40,24 +40,31 @@ Raw JSON authorization metadata is exactly the failure surface **ADR-0090**
 is unvalidated at author time, invisible to the explain engine and the D7
 publish linter, and a silent-incident footgun.
 
-**Decision (Option B): permission *editing* is a Studio concern; Setup keeps
-user management and permission-set *assignment*.** Every structured editor lives
-behind `studio.access`; Setup's raw JSON textareas are retired. The **one
-deliberate exception** is `system_permissions` (the capability list, which
-includes `studio.access` itself): granting who-may-enter-Studio is a Setup act,
-so it stays in Setup — but as a structured `sys_capability` multi-select, never
-a JSON textarea.
+**Decision (pure model): permission *design* is a Studio concern; Setup only
+*assigns* users and shows every facet read-only.** All **six** facets — including
+`system_permissions` — are authored in the structured permission matrix editor
+(`PermissionMatrixEditPage`); Setup renders each facet read-only as a summary +
+a "Design in Studio →" deep-link, and hosts user assignment. No facet is ever
+raw JSON in Setup.
+
+The original Option B kept `system_permissions` *editable in Setup* as an
+exception (the "who-may-enter-Studio is a Setup act" bootstrap argument). That
+exception is **dropped**: the structured editor is reached from Setup's own
+env-scope metadata route (`/apps/com.objectstack.setup/metadata/permission/:name`,
+under `setup.access`) as well as from the Studio Access pillar (package scope,
+`studio.access`), so *designing* capabilities never requires separately entering
+Studio — the bootstrap knot A2 worried about doesn't arise (see A2, revised).
 
 Target end-state, field by field:
 
-| `sys_permission_set` column | Concept | Edited today | Target editor | Home |
+| `sys_permission_set` column | Concept | Edited today | Structured editor | Setup shows |
 | --- | --- | --- | --- | --- |
-| `object_permissions` | Object CRUD/VAMA/lifecycle | Setup JSON **and** Studio matrix | `PermissionMatrixEditor` (exists) | **Studio** |
-| `field_permissions` | Field-level R/W (FLS) | Setup JSON **and** Studio matrix | `PermissionMatrixEditor` (exists) | **Studio** |
-| `system_permissions` | Capability strings (incl. `studio.access`) | Setup JSON textarea | **`sys_capability` multi-select picker** | **Setup** (exception) |
-| `admin_scope` | Delegated-admin scope (ADR-0090 D12) | Setup JSON textarea | New structured editor / matrix entry | **Studio** |
-| `row_level_security` | RLS policies (USING/CHECK) | Setup JSON textarea | New structured RLS editor | **Studio** |
-| `tab_permissions` | App/tab visibility | Setup JSON textarea | New structured tab-visibility editor | **Studio** |
+| `object_permissions` | Object CRUD/VAMA/lifecycle | Setup JSON **and** Studio matrix | `PermissionMatrixEditor` (exists) | read-only summary + deep-link |
+| `field_permissions` | Field-level R/W (FLS) | Setup JSON **and** Studio matrix | `PermissionMatrixEditor` (exists) | read-only summary + deep-link |
+| `system_permissions` | Capability strings (incl. `studio.access`) | Setup JSON textarea | `sys_capability` multi-select (new) | read-only chips + deep-link |
+| `admin_scope` | Delegated-admin scope (ADR-0090 D12) | Setup JSON textarea | new structured editor | read-only summary + deep-link |
+| `row_level_security` | RLS policies (USING/CHECK) | Setup JSON textarea | new structured RLS editor | read-only summary + deep-link |
+| `tab_permissions` | App/tab visibility | Setup JSON textarea | new structured tab-visibility editor | read-only summary + deep-link |
 
 ---
 
@@ -143,26 +150,31 @@ one total-but-raw (Setup, six JSON blobs). That overlap is the problem.
 
 ## Decision
 
-**Option B — permission editing is a Studio concern; Setup keeps user
-management and assignment.**
+**Pure model — permission *design* is a structured-editor concern; Setup only
+*assigns* and *summarizes*.**
 
-1. **All structured permission editors live behind `studio.access`**, in the
-   Studio Access pillar (and the shared `metadata-admin` permission route the
-   pillar embeds). Object/field permissions already are; RLS, tab-visibility,
-   and delegated-admin scope join them.
+1. **All six facets are authored in the structured permission matrix editor**
+   (`PermissionMatrixEditPage`): object/field via the existing grid, plus the
+   new **System Capabilities** (`sys_capability` multi-select), **Row-Level
+   Security**, **Tab Visibility**, and **Delegated Admin Scope** editors. The
+   editor is reached from the Studio Access pillar (package scope, `studio.access`)
+   **and** from Setup's env-scope metadata route (`setup.access`) via the
+   per-facet deep-link — the same component, two entry points.
 2. **Setup keeps, and only keeps:** user CRUD / invite / import (unchanged;
    ADR-0092), position management, and **permission-set *assignment*** (binding
-   sets to positions/users via `sys_position_permission_set` /
-   `sys_user_permission_set`, and the assigned-users surface) — plus the P2
-   exception below. Setup stops being a permission-*authoring* surface.
-3. **Exception — `system_permissions` stays in Setup**, because it includes
-   `studio.access`: deciding *who may enter Studio* cannot itself require
-   entering Studio, and capability-granting is operator work. It moves from a
-   JSON textarea to a **structured `sys_capability` multi-select** (active,
-   scope-labelled, description tooltips), so even the retained-in-Setup field is
-   never raw JSON.
-4. **Setup's raw JSON textareas are retired** once every concern has a
-   structured home (P5). No permission concern is left author-only-as-JSON.
+   sets to users/positions via `sys_user_permission_set` /
+   `sys_position_permission_set`, surfaced directly on the `sys_permission_set`
+   record page). Setup **stops being a permission-authoring surface entirely** —
+   every facet renders read-only there (summary + "Design in Studio →").
+3. **No exception for `system_permissions`.** Capabilities are designed in the
+   structured editor like every other facet; Setup shows the granted capabilities
+   read-only. The bootstrap concern (granting `studio.access` shouldn't require
+   Studio) is resolved by the editor's env-scope entry point living **inside
+   Setup** (`/apps/com.objectstack.setup/metadata/permission/:name`, `setup.access`),
+   not by keeping a JSON/authoring field on the record.
+4. **No permission concern is editable as free-text JSON anywhere in Setup** —
+   record view, inline edit, and the create/edit form all render the facets
+   read-only.
 
 This is the objectui-side realization of ADR-0090's stated ObjectUI
 consequences (Access pillar owns the matrix; provenance/default badges; explain
@@ -171,45 +183,40 @@ permission-set surface.
 
 ### Phased rollout
 
-Each phase is an independently shippable, browser-verified PR (ADR-0054 proofs).
-All phases are **objectui**; framework spec touchpoints are called out as
-companion follow-ups (this ADR does not itself change framework source).
+All phases shipped in **objectstack-ai/objectui#2403** (browser-verified against
+the app-showcase backend, ADR-0054 proofs). All are **objectui**; framework spec
+touchpoints are called out as companion follow-ups (this ADR does not itself
+change framework source).
 
-- **P1 — Retire Setup's object/field JSON, deep-link to the Studio matrix.**
-  In Setup, replace the `object_permissions` / `field_permissions` textareas on
-  the `sys_permission_set` form with a **read-only summary + a deep-link**
-  ("Edit object & field permissions in Studio →") into the environment-scope
-  `PermissionMatrixEditPage` for that set. No new editor — reuse the existing
-  matrix. Removes the duplicate authoring path.
+- **P1 — Setup: all six facets → read-only summary + Studio deep-link.** ✅
+  A new `permission-facet-link` widget renders each facet read-only (counts, or
+  capability chips) plus a "Design in Studio →" deep-link into the env-scope
+  `PermissionMatrixEditPage` (`/apps/:appName/metadata/permission/:setName`). The
+  widget is stamped onto all six fields via the single
+  `ObjectStackAdapter.getObjectSchema` choke point and honored by DetailSection
+  (read + inline edit) and the record form. Kills the `[Object]`/JSON display.
 
-- **P2 — `system_permissions` → structured `sys_capability` picker (stays in
-  Setup).** Replace the `system_permissions` textarea with a multi-select over
-  `sys_capability` (filter `active = true`; group/label by `scope`; show
-  `description`). Writes the same `string[]` of capability names. Granting
-  `studio.access` remains a Setup act; no JSON.
+- **P1b — Setup: user assignment on the record page.** ✅ The add/remove-users
+  panel (`AssignedUsersSection`, via `sys_user_permission_set`) renders directly
+  on the `sys_permission_set` record page (`RecordPermissionAssignmentsRenderer`).
 
-- **P3 — Studio matrix gains a delegated-admin (`admin_scope`) entry.** Add an
-  `adminScope` editor to `PermissionMatrixEditPage` (or an adjacent Access-pillar
-  panel): BU-subtree picker (`businessUnit` + `includeSubtree`), the
-  manage-assignments / manage-bindings / author-env-sets toggles, and the
-  `assignablePermissionSets[]` allowlist (ADR-0090 D12). Studio-only.
+- **P2 — Studio: System Capabilities editor.** ✅ A `sys_capability` multi-select
+  (active, scope-grouped, labelled) added to `PermissionMatrixEditPage`, wired to
+  `PermissionSetDraft.systemPermissions`. Capabilities are now *designed* here,
+  not authored in Setup.
 
-- **P4 — Build the three new structured Studio editors** for
-  `row_level_security`, `tab_permissions`, and `admin_scope` (the P3 entry is
-  the admin-scope piece; P4 completes RLS + tabs and hardens all three):
-  - **RLS**: per-policy rows (object · operation · USING · CHECK) with an
-    expression field validated against the RLS predicate surface.
-  - **Tab visibility**: per-app/tab selector → `visible | hidden | default_on |
-    default_off`, enumerating installed apps/tabs.
-  - **Admin scope**: finalize the P3 editor.
+- **P3 — Studio: RLS / tab-visibility / admin-scope editors.** ✅ Structured
+  editors (`PermissionAdvancedFacets`), collapsed by default below the object
+  matrix: RLS per-policy rows (object · operation · enabled) with CEL USING/CHECK;
+  tab visibility `visible | hidden | default_on | default_off`; delegated admin
+  scope (business-unit + subtree, manage-assignments / -bindings / author-env-sets
+  toggles, `assignablePermissionSets[]` allowlist). Each reads the draft's parsed
+  field, tolerating a JSON string on load so legacy rows survive.
 
-- **P5 — Retire ALL Setup permission JSON textareas.** With every concern homed
-  in a structured editor, remove the remaining raw-JSON rendering of
-  `object_permissions`, `field_permissions`, `row_level_security`,
-  `tab_permissions`, `admin_scope` from the Setup `sys_permission_set` form
-  (`system_permissions` already handled in P2). Setup's permission-set surface is
-  now: identity fields + capability picker + assignment + read-only summaries
-  with Studio deep-links.
+- **P4 — Assignment moved out of the design editor.** ✅ With assignment on the
+  Setup record page (P1b), `AssignedUsersSection` is removed from
+  `PermissionMatrixEditPage` — the editor is now purely a design surface, and no
+  facet is editable as free-text JSON anywhere in Setup.
 
 ## Consequences
 
@@ -221,15 +228,18 @@ companion follow-ups (this ADR does not itself change framework source).
   operators assign and grant-entry; makers design permissions.
 - **AI-authoring safety improves** exactly where ADR-0090 wants it: no security
   concern is reachable as an unvalidated free-text blob.
-- **Framework spec touchpoints (companion work, not in this ADR's PRs):**
-  - P2/P5 change how the `sys_permission_set` form renders — via an
-    objectui-side form override, or by narrowing the object's field widgets in
-    `plugin-security` (framework). The **columns stay** (they are the storage);
-    only the *editor* changes. If done framework-side it wants its own changeset
-    citing this ADR.
+- **Framework spec touchpoints:**
+  - How the `sys_permission_set` form/detail renders was changed **objectui-side**
+    (the `permission-facet-link` widget stamped in `getObjectSchema`) — no
+    framework change was needed; the storage columns are untouched.
   - The RLS/tab/admin-scope editors read `RowLevelSecurityPolicySchema`,
     `tabPermissions` enum, and `AdminScopeSchema` from `@objectstack/spec` — no
     schema change, but the editors couple to those shapes.
+  - **Open framework follow-up (Q7):** env-scope metadata saves of these facets
+    don't project onto the queryable `sys_permission_set` data record the Setup
+    summary reads — so Studio edits aren't reflected in Setup until the projection
+    refreshes. Display-freshness only (enforcement reads the authoritative
+    metadata), but it needs a framework-side fix to close the loop.
 - **Studio becomes load-bearing for permission ops.** An admin who can assign
   sets but lacks `studio.access` can no longer *design* them. That is the
   intended boundary, but it makes "who holds `studio.access`" operationally
@@ -273,10 +283,21 @@ companion follow-ups (this ADR does not itself change framework source).
    parse-failure contract, whether P5 keeps a hidden raw-JSON escape for
    irrecoverable values, and whether a one-time normalization/lint pass
    (ADR-0090 D7 family) should stamp legacy rows.
-6. **`system_permissions` — Setup-only, or also visible in the Studio matrix?**
-   The agreed exception keeps *authoring* in Setup. Should Studio *display*
-   capabilities read-only for context (it already shows OWD/provenance), or omit
-   them entirely to keep the boundary crisp?
+6. **~~`system_permissions` — Setup-only, or also in Studio?~~ — RESOLVED.**
+   The Setup-only exception was dropped: capabilities are *designed* in the
+   structured editor (Studio + Setup's env-scope route) and shown read-only on
+   the Setup record page. No JSON/authoring field remains on the record.
+
+7. **Metadata↔data-record projection freshness (NEW, from #2403 verification).**
+   `sys_permission_set` has two representations: the **metadata** the structured
+   editor writes (authoritative; enforcement + ADR-0090 explain read it), and the
+   queryable **data record** (`/api/v1/data/sys_permission_set`, snake_case
+   JSON-string columns) the Setup read-only summary reads. Env-scope metadata
+   saves are live, but do **not** currently project onto the data record — so a
+   fresh Studio edit isn't reflected in Setup's summary until the projection
+   refreshes. This is display-freshness only (enforcement is correct), but it
+   breaks the closed loop. **Framework follow-up:** make the projection track
+   metadata saves, or have the Setup summary read the metadata directly.
 
 ## Alternatives considered
 
@@ -284,10 +305,13 @@ companion follow-ups (this ADR does not itself change framework source).
   validated JSON is still the anti-structure ADR-0090 removes; two authoring
   paths for objects/fields remain, and the RLS/tab/admin-scope concerns still
   have no usable editor. Lipstick on the footgun.
-- **A2 — Move *everything* (including capabilities) into Studio; Setup only
-  assigns.** Rejected for `system_permissions`: `studio.access` is granted
-  *there*, so deciding who enters Studio would require Studio — a bootstrap
-  knot. Capability-granting is also squarely operator work.
+- **A2 — Move *everything* (including capabilities) into the structured editor;
+  Setup only assigns. → ADOPTED (the pure model).** Originally rejected over a
+  bootstrap knot (granting `studio.access` shouldn't require Studio). Resolved by
+  reaching the structured editor from Setup's **own** env-scope metadata route
+  (`setup.access`), not only the Studio pillar — so capability *design* is
+  available to an operator without a separate Studio entry, and no
+  authoring/JSON field stays on the record. This is what #2403 shipped.
 - **A3 — Move all editing into Setup; delete the Studio matrix.** Rejected:
   inverts ADR-0084's maker/operator split, and Setup's generic object form is
   the raw-JSON surface we are trying to eliminate. The structured matrix is the
