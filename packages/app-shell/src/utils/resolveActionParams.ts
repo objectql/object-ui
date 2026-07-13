@@ -38,6 +38,15 @@ export interface RawActionParam {
   defaultValue?: unknown;
   /** When true, seed defaultValue from the row record using the field name. */
   defaultFromRow?: boolean;
+  /**
+   * Visibility predicate (CEL) — mirrors the spec `ActionParamSchema.visible`.
+   * The server serialises it through `ExpressionInputSchema` as an
+   * `{ dialect, source }` envelope, so accept both the raw string and the
+   * envelope. Propagated to `ActionParamDef.visible` so `ActionParamDialog`
+   * can gate the param (e.g. hide `phoneNumber` unless `features.phoneNumber`).
+   * Absent = always visible.
+   */
+  visible?: string | { dialect?: string; source?: string };
 }
 
 /** Field metadata as exposed by `useMetadata().objects[].fields`. */
@@ -110,6 +119,20 @@ function normaliseOptions(
 }
 
 /**
+ * Flatten a param `visible` predicate to a plain CEL string. The spec's
+ * `ExpressionInputSchema` normalises the authored string into an
+ * `{ dialect, source }` envelope, so unwrap `.source`; a raw string passes
+ * through untouched. Empty / absent → `undefined` (always visible).
+ */
+function normaliseVisible(visible: RawActionParam['visible']): string | undefined {
+  if (typeof visible === 'string') return visible || undefined;
+  if (visible && typeof visible === 'object' && typeof visible.source === 'string') {
+    return visible.source || undefined;
+  }
+  return undefined;
+}
+
+/**
  * Resolve a single raw param against object metadata. Inline params pass
  * through (with safe defaults); field-backed params inherit from the
  * referenced field and accept inline overrides on top.
@@ -137,6 +160,7 @@ export function resolveActionParam(
       placeholder: param.placeholder,
       helpText: param.helpText,
       defaultValue: rowDefault ?? param.defaultValue,
+      visible: normaliseVisible(param.visible),
     };
   }
 
@@ -157,6 +181,7 @@ export function resolveActionParam(
       placeholder: param.placeholder,
       helpText: param.helpText,
       defaultValue: rowDefault ?? param.defaultValue,
+      visible: normaliseVisible(param.visible),
     };
   }
 
@@ -194,6 +219,7 @@ export function resolveActionParam(
     placeholder: param.placeholder ?? field.placeholder,
     helpText: param.helpText ?? field.help ?? field.description,
     defaultValue: rowDefault ?? param.defaultValue ?? field.defaultValue,
+    visible: normaliseVisible(param.visible),
     ...lookupExtras,
   };
 }
