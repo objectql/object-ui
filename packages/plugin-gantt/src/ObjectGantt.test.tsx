@@ -275,6 +275,63 @@ describe('ObjectGantt', () => {
     expect(del.mock.calls[0][1]).toBe('1');
   });
 
+  // --- API provider: read + write-back over HTTP (no object backend) --------
+  it('api provider: reads via fetch and persists a drag update via write config', async () => {
+    // A Response-like stub carrying JSON.
+    const jsonResponse = (payload: unknown) => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: { get: (k: string) => (k.toLowerCase() === 'content-type' ? 'application/json' : null) },
+      json: async () => payload,
+      text: async () => JSON.stringify(payload),
+    });
+    const fetchMock = vi.fn(async (_url: any, init?: any) => {
+      // GET → read config returns the task list; anything else → write ack.
+      if ((init?.method ?? 'GET') === 'GET') return jsonResponse({ data: mockData }) as any;
+      return jsonResponse({}) as any;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const schema: any = {
+        type: 'gantt',
+        gantt: { titleField: 'name', startDateField: 'start_date', endDateField: 'end_date' },
+        // Pure API view — no objectName, no context dataSource prop.
+        data: {
+          provider: 'api',
+          read: { url: 'https://api.test/tasks' },
+          write: { url: 'https://api.test/tasks', method: 'PATCH' },
+        },
+      };
+      // NOTE: no `dataSource` prop — proves the api provider stands alone.
+      render(<ObjectGantt schema={schema} />);
+
+      // Read: rows come from the GET on the read url.
+      await waitFor(() => expect(screen.getAllByTestId('gantt-task')).toHaveLength(2));
+      expect(fetchMock).toHaveBeenCalled();
+      expect(String(fetchMock.mock.calls[0][0])).toContain('https://api.test/tasks');
+
+      // Write-back: dragging task 1 issues a PATCH to the write url with the
+      // rescheduled dates in the body.
+      fetchMock.mockClear();
+      fireEvent.click(screen.getByTestId('gv-update-1'));
+
+      await waitFor(() => {
+        const patch = fetchMock.mock.calls.find((c) => (c[1] as any)?.method === 'PATCH');
+        expect(patch).toBeTruthy();
+      });
+      const patchCall = fetchMock.mock.calls.find((c) => (c[1] as any)?.method === 'PATCH')!;
+      expect(String(patchCall[0])).toContain('https://api.test/tasks/1');
+      expect(JSON.parse((patchCall[1] as any).body)).toMatchObject({
+        start_date: '2024-02-01T00:00:00.000Z',
+        end_date: '2024-02-05T00:00:00.000Z',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   // --- Dependency edit writeback (依赖增删 + 类型选择) -----------------------
   const depData = [
     { id: '1', name: 'Task 1', start_date: '2024-01-01', end_date: '2024-01-05', deps: '' },

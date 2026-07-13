@@ -38,7 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@object-ui/components';
-import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
+import { extractRecords, buildExpandFields, getRecordDisplayName, resolveDataSource } from '@object-ui/core';
 import {
   getSemanticColorName,
   getSemanticHex,
@@ -339,6 +339,25 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const ganttConfig = getGanttConfig(schema);
   const hasInlineData = dataConfig?.provider === 'value';
 
+  // Resolve the ViewData config into a concrete DataSource adapter:
+  //   provider: 'object' → the context DataSource passed via props (unchanged)
+  //   provider: 'api'    → an ApiDataSource that executes the read/write HttpRequest config
+  //   provider: 'value'  → an in-memory ValueDataSource
+  // Every read AND write-back below goes through this single adapter, so the
+  // 'api' provider now supports reschedule / dependency / delete / inline-edit
+  // write-backs — not just object-backed views.
+  const effectiveDataSource = useMemo(
+    () => resolveDataSource(dataConfig, dataSource ?? null),
+    // dataConfig is already memoized by deep value above.
+    [dataConfig, dataSource],
+  );
+
+  // Unified resource name for find/update/delete. For 'object' it's the bound
+  // object; for 'api' the adapter ignores it (the URL carries the endpoint),
+  // so an empty string is fine there.
+  const resource =
+    dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName ?? '';
+
   // Fetch data based on provider
   useEffect(() => {
     const fetchData = async () => {
@@ -358,26 +377,21 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           return;
         }
 
-        if (!dataSource || typeof dataSource.find !== 'function') {
+        if (!effectiveDataSource || typeof effectiveDataSource.find !== 'function') {
           throw new Error('DataSource required for object/api providers');
         }
 
-        if (dataConfig?.provider === 'object') {
-          const objectName = dataConfig.object;
-          // Auto-inject $expand for lookup/master_detail fields
-          const expand = buildExpandFields(objectSchema?.fields);
-          const result = await dataSource.find(objectName, {
-            $filter: schema.filter,
-            $orderby: convertSortToQueryParams(schema.sort),
-            ...(expand.length > 0 ? { $expand: expand } : {}),
-          });
-          let items: any[] = extractRecords(result);
-          setData(items);
-        } else if (dataConfig?.provider === 'api') {
-          console.warn('API provider not yet implemented for ObjectGantt');
-          setData([]);
-        }
-        
+        // 'object' → context adapter, 'api' → ApiDataSource (both resolved above).
+        // Auto-inject $expand for lookup/master_detail fields when a schema is
+        // available; api adapters return an empty field map, so expand stays off.
+        const expand = buildExpandFields(objectSchema?.fields);
+        const result = await effectiveDataSource.find(resource, {
+          $filter: schema.filter,
+          $orderby: convertSortToQueryParams(schema.sort),
+          ...(expand.length > 0 ? { $expand: expand } : {}),
+        });
+        setData(extractRecords(result));
+
         setLoading(false);
       } catch (err) {
         setError(err as Error);
@@ -386,31 +400,26 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     };
 
     fetchData();
-  }, [dataConfig, dataSource, hasInlineData, schema.filter, schema.sort, objectSchema]);
+  }, [effectiveDataSource, resource, hasInlineData, dataConfig, schema.filter, schema.sort, objectSchema]);
 
   // Fetch object schema for field metadata
   useEffect(() => {
     const fetchObjectSchema = async () => {
       try {
-        if (!dataSource) return;
-        
-        const objectName = dataConfig?.provider === 'object' 
-          ? dataConfig.object 
-          : schema.objectName;
-          
-        if (!objectName) return;
-        
-        const schemaData = await dataSource.getObjectSchema(objectName);
+        if (!effectiveDataSource) return;
+        if (!resource) return;
+
+        const schemaData = await effectiveDataSource.getObjectSchema(resource);
         setObjectSchema(schemaData);
       } catch (err) {
         console.error('Failed to fetch object schema:', err);
       }
     };
 
-    if (!hasInlineData && dataSource) {
+    if (!hasInlineData && effectiveDataSource) {
       fetchObjectSchema();
     }
-  }, [schema.objectName, dataSource, hasInlineData, dataConfig]);
+  }, [resource, effectiveDataSource, hasInlineData, dataConfig]);
 
   // Transform data to gantt tasks
   const tasks = useMemo(() => {
@@ -858,9 +867,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const handleTaskUpdateDefault = useCallback(
     async (task: GanttTask, changes: { start?: Date; end?: Date; title?: string; progress?: number }) => {
       if (!ganttConfig) return;
-      const objectName =
-        dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
-      if (!objectName || !dataSource || typeof dataSource.update !== 'function') return;
+      if (!effectiveDataSource || typeof effectiveDataSource.update !== 'function') return;
 
       const { startDateField, endDateField, titleField, progressField } = ganttConfig;
       const patch: Record<string, unknown> = {};
@@ -882,13 +889,13 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       );
 
       try {
-        await dataSource.update(objectName, String(recordId), patch);
+        await effectiveDataSource.update(resource, String(recordId), patch);
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist task update:', err);
         setData(prevSnapshot); // revert
       }
     },
-    [ganttConfig, dataConfig, dataSource, schema.objectName, data],
+    [ganttConfig, effectiveDataSource, resource, data],
   );
 
   // Re-serialize a normalized dependency list back onto a record field,
@@ -915,9 +922,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     async (targetId: string | number, raw: unknown, nextDeps: GanttDependency[]) => {
       const depField = ganttConfig?.dependenciesField;
       if (!depField) return;
-      const objectName =
-        dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
-      if (!objectName || !dataSource || typeof dataSource.update !== 'function') return;
+      if (!effectiveDataSource || typeof effectiveDataSource.update !== 'function') return;
       const nextValue = serializeDependencies(raw, nextDeps);
       const prevSnapshot = data;
       setData((prev) =>
@@ -926,13 +931,13 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         ),
       );
       try {
-        await dataSource.update(objectName, String(targetId), { [depField]: nextValue });
+        await effectiveDataSource.update(resource, String(targetId), { [depField]: nextValue });
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist dependency:', err);
         setData(prevSnapshot); // revert
       }
     },
-    [ganttConfig, dataConfig, dataSource, schema.objectName, data],
+    [ganttConfig, effectiveDataSource, resource, data],
   );
 
   // Persist a created/updated dependency (依赖增 + 类型选择): upsert the source
@@ -1004,9 +1009,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
 
   const confirmDelete = useCallback(async () => {
     if (!pendingDelete) return;
-    const objectName =
-      dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
-    if (!objectName || !dataSource?.delete) {
+    if (!effectiveDataSource?.delete) {
       setPendingDelete(null);
       return;
     }
@@ -1023,7 +1026,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       prev.filter((r) => String(r.id ?? r._id) !== String(recordId)),
     );
     try {
-      await dataSource.delete(objectName, String(recordId));
+      await effectiveDataSource.delete(resource, String(recordId));
       setPendingDelete(null);
     } catch (err) {
       console.error('[ObjectGantt] Failed to delete:', err);
@@ -1032,7 +1035,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     } finally {
       setDeleting(false);
     }
-  }, [pendingDelete, dataConfig, dataSource, schema.objectName, data]);
+  }, [pendingDelete, effectiveDataSource, resource, data]);
 
   if (loading) {
     return (
@@ -1127,7 +1130,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         )}
       </div>
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
-        const objectName = dataConfig?.provider === 'object' ? dataConfig.object : schema.objectName;
+        const objectName = resource;
         const rec = navigation.selectedRecord as Record<string, any>;
         const recordId = rec.id ?? rec._id;
         if (!objectName || recordId == null) return null;
@@ -1143,13 +1146,13 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             record={rec}
             objectName={objectName}
             recordId={recordId}
-            dataSource={dataSource}
+            dataSource={effectiveDataSource ?? undefined}
             objectSchema={objectSchema as any}
             width={navigation.width as any}
             fullPageHref={deriveRecordPageHref(objectName, recordId) ?? undefined}
             onFieldSave={async (field, value) => {
-              if (!dataSource?.update) return;
-              await dataSource.update(objectName, String(recordId), { [field]: value });
+              if (!effectiveDataSource?.update) return;
+              await effectiveDataSource.update(resource, String(recordId), { [field]: value });
               setData((prev) => prev.map((r) =>
                 String(r.id ?? r._id) === String(recordId)
                   ? { ...r, [field]: value }
@@ -1157,8 +1160,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
               ));
             }}
             onDelete={async () => {
-              if (!dataSource?.delete) return;
-              await dataSource.delete(objectName, String(recordId));
+              if (!effectiveDataSource?.delete) return;
+              await effectiveDataSource.delete(resource, String(recordId));
               setData((prev) => prev.filter((r) =>
                 String(r.id ?? r._id) !== String(recordId),
               ));
