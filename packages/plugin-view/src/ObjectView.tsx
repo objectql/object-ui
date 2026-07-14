@@ -981,6 +981,9 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           type: 'list-view',
           objectName: schema.objectName,
           viewType: currentViewType as any,
+          // Active view's display label — ListView appends it to export
+          // download filenames.
+          label: (currentNamedViewConfig as any)?.label ?? activeView?.label,
           fields: currentNamedViewConfig?.columns || activeView?.columns || schema.table?.fields,
           filters: mergedFilters,
           sort: mergedSort,

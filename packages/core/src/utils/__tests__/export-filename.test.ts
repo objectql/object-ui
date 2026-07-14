@@ -36,6 +36,35 @@ describe('buildExportFileName', () => {
     expect(buildExportFileName('csv', { prefix: '///', label: '合同' }, NOW))
       .toBe('合同-20260714-153045.csv');
   });
+
+  it('appends the active view label after the object base', () => {
+    expect(buildExportFileName('csv', { label: '任务', viewLabel: 'In Progress' }, NOW))
+      .toBe('任务-In Progress-20260714-153045.csv');
+    expect(buildExportFileName('xlsx', { label: '合同', viewLabel: '进行中' }, NOW))
+      .toBe('合同-进行中-20260714-153045.xlsx');
+  });
+
+  it('skips the view label when it duplicates the base (case-insensitive)', () => {
+    expect(buildExportFileName('csv', { label: '任务', viewLabel: '任务' }, NOW))
+      .toBe('任务-20260714-153045.csv');
+    expect(buildExportFileName('csv', { objectName: 'Tasks', viewLabel: 'tasks' }, NOW))
+      .toBe('Tasks-20260714-153045.csv');
+  });
+
+  it('does not append the view label to an explicit configured prefix', () => {
+    expect(buildExportFileName('csv', { prefix: 'my-report', label: '任务', viewLabel: 'In Progress' }, NOW))
+      .toBe('my-report-20260714-153045.csv');
+  });
+
+  it('ignores a view label that sanitizes to nothing', () => {
+    expect(buildExportFileName('csv', { label: '任务', viewLabel: '***' }, NOW))
+      .toBe('任务-20260714-153045.csv');
+  });
+
+  it('caps the combined base at 80 chars', () => {
+    const name = buildExportFileName('csv', { label: 'x'.repeat(70), viewLabel: 'y'.repeat(70) }, NOW);
+    expect(name).toBe(`${'x'.repeat(70)}-${'y'.repeat(9)}-20260714-153045.csv`);
+  });
 });
 
 describe('sanitizeFileNameBase', () => {

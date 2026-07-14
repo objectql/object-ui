@@ -38,23 +38,35 @@ export interface ExportFileNameParts {
   label?: string;
   /** Object API name — fallback when no label is available. */
   objectName?: string;
+  /**
+   * Active list-view label (e.g. `In Progress`), appended after the object
+   * base so exports from different saved views don't read identically.
+   * Skipped when it duplicates the base, and not appended to an explicit
+   * `prefix` (configured prefixes are authoritative as-is).
+   */
+  viewLabel?: string;
 }
 
 /**
  * Build `<base>-<YYYYMMDD>-<HHMMSS>.<ext>` in the user's local time, e.g.
- * `合同-20260714-153045.xlsx`. The timestamp keeps repeated exports of the
- * same object distinct and sortable.
+ * `合同-进行中-20260714-153045.xlsx`. The timestamp keeps repeated exports of
+ * the same object distinct and sortable.
  */
 export function buildExportFileName(
   ext: string,
   parts: ExportFileNameParts = {},
   now: Date = new Date(),
 ): string {
-  const base =
-    sanitizeFileNameBase(parts.prefix) ||
+  const prefix = sanitizeFileNameBase(parts.prefix);
+  let base =
+    prefix ||
     sanitizeFileNameBase(parts.label) ||
     sanitizeFileNameBase(parts.objectName) ||
     'export';
+  const view = sanitizeFileNameBase(parts.viewLabel);
+  if (!prefix && view && view.toLowerCase() !== base.toLowerCase()) {
+    base = `${base}-${view}`.slice(0, MAX_BASE_LENGTH);
+  }
   const pad = (n: number) => String(n).padStart(2, '0');
   const stamp =
     `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +

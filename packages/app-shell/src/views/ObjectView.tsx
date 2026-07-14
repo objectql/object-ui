@@ -1249,6 +1249,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
         const fullSchema: ListViewSchema = {
             ...listSchema,
+            // The active view's display label (same string the ViewTabBar
+            // shows) — ListView appends it to export download filenames.
+            label: viewDef.label ?? listSchema.label,
             // Propagate appearance/view-config properties for live preview
             rowHeight: viewDef.rowHeight ?? listSchema.rowHeight,
             densityMode: viewDef.densityMode ?? listSchema.densityMode,

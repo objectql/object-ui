@@ -1608,10 +1608,11 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const exportConfig = resolvedExportOptions;
     const maxRecords = exportConfig?.maxRecords || 0;
     const includeHeaders = exportConfig?.includeHeaders !== false;
-    // Download filename: `<配置前缀|对象中文标签|API名>-<日期时间>.<ext>`, e.g.
-    // `合同-20260714-153045.xlsx`. The translated object label (client i18n
-    // override → server-translated objectDef.label) beats the raw API name;
-    // a configured exportOptions.fileNamePrefix beats both.
+    // Download filename: `<配置前缀|对象中文标签|API名>-<视图名>-<日期时间>.<ext>`,
+    // e.g. `合同-进行中-20260714-153045.xlsx`. The translated object label
+    // (client i18n override → server-translated objectDef.label) beats the raw
+    // API name; a configured exportOptions.fileNamePrefix beats both (and
+    // suppresses the view label).
     const translatedLabel = objectDef?.label && objectDef?.name && typeof resolveObjectLabel === 'function'
       ? resolveObjectLabel(objectDef)
       : objectDef?.label;
@@ -1619,6 +1620,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       prefix: exportConfig?.fileNamePrefix,
       label: translatedLabel,
       objectName: schema.objectName,
+      viewLabel: schema.label || (schema as any).title,
     });
 
     // Server-streamed path: csv / xlsx / json via dataSource.exportDownload.
