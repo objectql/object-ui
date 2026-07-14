@@ -81,6 +81,18 @@ export const DevRowActions: React.FC = () => (
         <EnvGrid maxInlineRowActions={2} />
       </div>
     </div>
+    <div>
+      <h1 className="text-lg font-semibold">Dev · Row-action sticky-right (narrow / horizontal scroll)</h1>
+      <p className="mb-3 text-sm text-muted-foreground">
+        A deliberately narrow container so the table scrolls horizontally. The
+        <strong> 操作</strong> column stays pinned to the right edge (always reachable), while the
+        first <strong>名称</strong> column stays frozen on the left. Scroll the grid sideways to check
+        both edges hold.
+      </p>
+      <div className="max-w-md overflow-hidden rounded-lg border" data-testid="grid-scroll">
+        <EnvGrid />
+      </div>
+    </div>
   </div>
 );
 

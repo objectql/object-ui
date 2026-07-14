@@ -1492,6 +1492,11 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       // overflow the fixed-width cell and the leftmost button gets cut off.
       fitContent: true,
       align: 'right',
+      // Stick to the right edge so the actions stay reachable when a wide table
+      // scrolls horizontally (otherwise the last column sits past the scroll
+      // extent and is hidden). Excluded from the frozen-column decision below so
+      // this auto-pin doesn't cancel the default left-freeze of the first column.
+      pinned: 'right',
       cell: (_value: any, row: any) => (
         <RowActionMenu
           row={row}
@@ -1538,6 +1543,13 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const unpinnedCols = columnsWithActions.filter((c: any) => !c.pinned);
   const hasPinnedColumns = pinnedLeftCols.length > 0 || pinnedRightCols.length > 0;
   const rightPinnedClasses = 'sticky right-0 z-10 bg-background border-l border-border';
+  // The `_actions` column is auto-pinned right (above), so it must be excluded
+  // from the frozen-column decision — otherwise every list with row actions
+  // would trip `hasPinnedColumns` and lose the implicit left-freeze of its
+  // first column. Only USER-declared pins should drive freezing.
+  const userLeftPinnedCount = pinnedLeftCols.filter((c: any) => c.accessorKey !== '_actions').length;
+  const hasUserPinnedColumns =
+    userLeftPinnedCount > 0 || pinnedRightCols.some((c: any) => c.accessorKey !== '_actions');
 
   // Density-driven cell padding/font (applied to every column so it actually reaches <td>).
   // `h-*` enforces a minimum row height so the action-button column doesn't dictate it.
@@ -1573,9 +1585,11 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
       ]
     : columnsWithActions.map(applyDensity);
 
-  // Calculate frozenColumns: if pinned columns exist, use left-pinned count; otherwise use schema default
-  const effectiveFrozenColumns = hasPinnedColumns
-    ? pinnedLeftCols.length
+  // Calculate frozenColumns: if the USER pinned columns, use their left-pinned
+  // count; otherwise fall back to the schema default (freeze the first column).
+  // The auto-pinned actions column is intentionally not counted here.
+  const effectiveFrozenColumns = hasUserPinnedColumns
+    ? userLeftPinnedCount
     : (schema.frozenColumns ?? 1);
 
   // Determine selection mode (support both new and legacy formats)
