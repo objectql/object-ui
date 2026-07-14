@@ -13,6 +13,15 @@ export {
   type UseNavigationSyncReturn,
 } from './useNavigationSync';
 export { useObjectActions } from './useObjectActions';
+export {
+  useAiUsage,
+  type UseAiUsageOptions,
+  type UseAiUsageReturn,
+  type AiUsageResponse,
+  type AiMeterUsage,
+  type AiUsageResetKind,
+  type AiUsagePlanType,
+} from './useAiUsage';
 export { useRecentItems, type RecentItem } from './useRecentItems';
 export { useRecordApprovals, type ApprovalRequestLite } from './useRecordApprovals';
 export { useResponsiveSidebar } from './useResponsiveSidebar';

@@ -30,6 +30,7 @@ import { Maximize2, MessagesSquare, PanelRightClose } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAgents } from '@object-ui/plugin-chatbot';
 import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../console/ai/AiChatPage';
+import { AiUsageIndicator } from './AiUsageIndicator';
 import { useChatConversation } from '../hooks';
 import { chatConversationScope, chatProductOfAgent } from '../hooks/chatScope';
 import { resolveSurfaceAgent } from '../hooks/surfaceAgent';
@@ -378,6 +379,9 @@ export function ChatDockPanel({
           {title ?? t('console.ai.dock.title', { defaultValue: 'Assistant' })}
         </span>
         <span className="flex items-center gap-0.5">
+          {/* ADR-0057 #8 — proactive AI usage indicator (hides itself when the
+              usage endpoint is absent / returns nothing to show). */}
+          <AiUsageIndicator apiBase={apiBase} />
           {onMaximize ? (
             <Button
               variant="ghost"
@@ -493,6 +497,8 @@ export function ChatDockMobileSheet({
               <MessagesSquare className="size-4" />
               {title ?? t('console.ai.dock.title', { defaultValue: 'Assistant' })}
             </SheetTitle>
+            {/* ADR-0057 #8 — usage indicator, mirrored on the mobile sheet header. */}
+            <AiUsageIndicator apiBase={apiBase} />
             {onMaximize ? (
               <Button
                 variant="ghost"

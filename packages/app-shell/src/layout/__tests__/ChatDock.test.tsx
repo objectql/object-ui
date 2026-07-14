@@ -30,6 +30,9 @@ vi.mock('@object-ui/plugin-chatbot', () => ({
 vi.mock('../../hooks', () => ({
   useChatConversation: () => ({ conversationId: undefined, initialMessages: [] }),
 }));
+// The header usage indicator has its own tests; stub it so these chrome tests
+// stay focused and don't hit the usage endpoint.
+vi.mock('../AiUsageIndicator', () => ({ AiUsageIndicator: () => null }));
 
 function dockState(overrides: Partial<ChatDockState> = {}): ChatDockState {
   return {

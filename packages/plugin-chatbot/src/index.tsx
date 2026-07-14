@@ -247,6 +247,8 @@ export { Chatbot, TypingIndicator }
 // Export the composable chat hook for custom integrations
 export { useObjectChat } from './useObjectChat';
 export type { UseObjectChatOptions, UseObjectChatReturn } from './useObjectChat';
+// ADR-0057 #8 — the AI-usage-indicator refresh seam (emitted on turn-finish / 429).
+export { AI_USAGE_REFRESH_EVENT, emitAiUsageRefresh } from './useObjectChat';
 
 // Export the agent catalog hook (talks to @objectstack/service-ai)
 export { useAgents, resolveDefaultAgentName, PLATFORM_DEFAULT_AGENT, agentHasCapability } from './useAgents';

@@ -13,6 +13,25 @@ import { DefaultChatTransport } from 'ai';
 import { generateUniqueId } from './utils';
 import { uiMessagesToChatMessages } from './mapMessages';
 
+/**
+ * Window event the AI usage indicator (ADR-0057 #8) listens for to refetch its
+ * quota headroom. A completed turn consumes tokens and a rejected send (429) means
+ * the wall was hit — both change what the usage ring should show. Emitting a window
+ * event keeps the indicator (in `@object-ui/app-shell`) decoupled from this chat
+ * engine: no callback has to be threaded through `ChatPane`.
+ */
+export const AI_USAGE_REFRESH_EVENT = 'objectui:ai-usage-refresh';
+
+/** Fire-and-forget nudge for the usage indicator. SSR-safe; never throws. */
+export function emitAiUsageRefresh(): void {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  try {
+    window.dispatchEvent(new CustomEvent(AI_USAGE_REFRESH_EVENT));
+  } catch {
+    /* CustomEvent unavailable (very old env) — the indicator just polls on its own cadence */
+  }
+}
+
 /** An error from {@link sendAwareFetch}: a chat POST rejected before streaming. */
 export interface SendFailure extends Error {
   /** HTTP status when a response was received (e.g. 429); absent on network errors. */
@@ -421,12 +440,31 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
             ) {
               chat.setMessages(cur.slice(0, -1));
             }
+            // A rejected send (esp. a 429 quota block) means the usage picture
+            // changed — refresh the indicator so it reflects the wall the user
+            // just hit (ADR-0057 #8).
+            emitAiUsageRefresh();
           }
           onError?.(err);
         }
       : undefined,
   } as any);
   chatRef.current = chatResult;
+
+  // ADR-0057 #8 — refresh the AI usage indicator when a turn finishes. On the
+  // loading→ready edge (submitted/streaming → ready) the server has recorded the
+  // turn's tokens, so the quota headroom just moved. Declared at top level (before
+  // the API-mode early return) to satisfy the Rules of Hooks; inert in local mode
+  // (status stays 'ready'). The 429/rejected-send case is handled in onError above.
+  const prevChatStatusRef = useRef<string | undefined>(undefined);
+  const chatStatus = (chatResult as { status?: string } | undefined)?.status;
+  useEffect(() => {
+    const prev = prevChatStatusRef.current;
+    prevChatStatusRef.current = chatStatus;
+    if ((prev === 'streaming' || prev === 'submitted') && chatStatus === 'ready') {
+      emitAiUsageRefresh();
+    }
+  }, [chatStatus]);
 
   // --- Local/legacy mode state ---
   const [localMessages, setLocalMessages] = useState<OuiChatMessage[]>(
