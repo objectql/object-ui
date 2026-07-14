@@ -18,6 +18,7 @@ import {
 import {
   rememberDockReturnLocation,
   DOCK_STUDIO_EXPANDED_STORAGE_KEY,
+  DOCK_STUDIO_WIDTH_STORAGE_KEY,
 } from '../../layout/chatDockState';
 
 interface StudioCopilotConversationProps {
@@ -137,6 +138,8 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
   const dock = useChatDockState({
     defaultExpanded: true,
     persistExpandedKey: DOCK_STUDIO_EXPANDED_STORAGE_KEY,
+    // Own width too — a wide console chat must not squeeze the design canvas.
+    persistWidthKey: DOCK_STUDIO_WIDTH_STORAGE_KEY,
   });
   // Under `md` the copilot presents as a bottom sheet (there is no horizontal
   // room for a rail). Its open state is LOCAL — a phone must not inherit the

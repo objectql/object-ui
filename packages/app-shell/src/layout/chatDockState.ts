@@ -31,6 +31,13 @@ export const DOCK_EXPANDED_STORAGE_KEY = 'ai-chat-dock-expanded';
  * (sessionStorage): a fresh tab re-defaults to the copilot-visible posture.
  */
 export const DOCK_STUDIO_EXPANDED_STORAGE_KEY = 'ai-chat-studio-dock-expanded';
+/**
+ * localStorage key for the STUDIO dock's width, distinct from the console
+ * dock's. The two surfaces size their canvas very differently — a wide console
+ * chat should NOT squeeze the Studio design canvas (issue #2477 item 6) — so
+ * each remembers its own width.
+ */
+export const DOCK_STUDIO_WIDTH_STORAGE_KEY = 'ai-chat-studio-dock-width';
 /** Default rail width (px). */
 export const DOCK_DEFAULT_WIDTH = 420;
 /** The rail never narrower than this. */

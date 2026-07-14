@@ -43,9 +43,9 @@ import {
   DOCK_WIDTH_STORAGE_KEY,
 } from './chatDockState';
 
-function readStoredWidth(): number {
+function readStoredWidth(key: string): number {
   try {
-    const raw = window.localStorage.getItem(DOCK_WIDTH_STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     const n = raw ? Number.parseInt(raw, 10) : NaN;
     return Number.isFinite(n) && n > 0 ? n : DOCK_DEFAULT_WIDTH;
   } catch {
@@ -67,6 +67,13 @@ export interface ChatDockOptions {
    * non-persisted copilot collapse).
    */
   persistExpandedKey?: string;
+  /**
+   * localStorage key the rail WIDTH round-trips through. Defaults to the shared
+   * console key; the Studio dock passes its own ({@link
+   * DOCK_STUDIO_WIDTH_STORAGE_KEY}) so a wide console chat doesn't squeeze the
+   * design canvas, and vice-versa (issue #2477 item 6).
+   */
+  persistWidthKey?: string;
 }
 
 export interface ChatDockState {
@@ -111,11 +118,15 @@ export interface ChatDockState {
  *    does nothing.
  */
 export function useChatDockState(options?: ChatDockOptions): ChatDockState {
-  const { defaultExpanded = false, persistExpandedKey } = options ?? {};
+  const {
+    defaultExpanded = false,
+    persistExpandedKey,
+    persistWidthKey = DOCK_WIDTH_STORAGE_KEY,
+  } = options ?? {};
   const [expanded, setExpandedState] = React.useState<boolean>(() =>
     persistExpandedKey ? readStoredDockExpanded(persistExpandedKey, defaultExpanded) : defaultExpanded,
   );
-  const [width, setWidth] = React.useState<number>(() => readStoredWidth());
+  const [width, setWidth] = React.useState<number>(() => readStoredWidth(persistWidthKey));
   const [dragging, setDragging] = React.useState(false);
   const [maximized, setMaximized] = React.useState(false);
   // The latch and the width to return to when the canvas closes. Refs, not
@@ -164,7 +175,7 @@ export function useChatDockState(options?: ChatDockOptions): ChatDockState {
       const onUp = (ev: PointerEvent) => {
         const final = clampDockWidth(startWidth + (startX - ev.clientX), window.innerWidth);
         try {
-          window.localStorage.setItem(DOCK_WIDTH_STORAGE_KEY, String(Math.round(final)));
+          window.localStorage.setItem(persistWidthKey, String(Math.round(final)));
         } catch {
           /* private mode — width just won't persist */
         }
@@ -192,10 +203,10 @@ export function useChatDockState(options?: ChatDockOptions): ChatDockState {
     // a restore after a manual drag took the width over) harmless.
     if (!maximizedRef.current) return;
     maximizedRef.current = false;
-    setWidth(prevWidthRef.current ?? readStoredWidth());
+    setWidth(prevWidthRef.current ?? readStoredWidth(persistWidthKey));
     prevWidthRef.current = null;
     setMaximized(false);
-  }, []);
+  }, [persistWidthKey]);
 
   const toggle = React.useCallback(() => setExpanded((v) => !v), [setExpanded]);
   const expand = React.useCallback(() => setExpanded(() => true), [setExpanded]);
@@ -341,7 +352,14 @@ export function ChatDockPanel({
     <aside
       data-testid="chat-dock-panel"
       style={{ width: dock.width }}
-      className="relative hidden h-full shrink-0 flex-col border-l bg-background md:flex"
+      className={cn(
+        'relative hidden h-full shrink-0 flex-col border-l bg-background md:flex',
+        // ADR-0037/P3c — animate the canvas auto-maximize / tuck so the rail
+        // eases to its new width instead of snapping (issue #2477 item 4).
+        // NOT while dragging: the width must track the pointer 1:1, so the
+        // transition is suppressed for the duration of a resize drag.
+        !dock.dragging && 'transition-[width] duration-200 ease-out',
+      )}
     >
       {/* Left-edge resize handle. */}
       <div
