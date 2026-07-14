@@ -8,16 +8,21 @@
  * @module
  */
 
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AppShell } from '@object-ui/layout';
+import { useIsMobile } from '@object-ui/components';
 
 // Lightweight FAB stub — the heavy chat chunk graph (plugin-chatbot,
 // shiki, streamdown, mermaid, @ai-sdk, ~20MB) only downloads on first
 // hover/click. See ConsoleChatbotFab.tsx.
 import { ConsoleChatbotFab } from './ConsoleChatbotFab';
-import { useChatDockState, ChatDockPanel } from './ChatDock';
-import { matchChatDockShortcut, DOCK_EXPANDED_STORAGE_KEY } from './chatDockState';
+import { useChatDockState, ChatDockPanel, ChatDockMobileSheet } from './ChatDock';
+import {
+  matchChatDockShortcut,
+  rememberDockReturnLocation,
+  DOCK_EXPANDED_STORAGE_KEY,
+} from './chatDockState';
 import { DraftPreviewBar } from '../preview/DraftPreviewBar';
 import { UnpublishedAppBar } from '../preview/UnpublishedAppBar';
 import { UnifiedSidebar } from './UnifiedSidebar';
@@ -90,6 +95,19 @@ export function ConsoleLayout({
   const dock = useChatDockState({ persistExpandedKey: DOCK_EXPANDED_STORAGE_KEY });
   const dockEnabled = showChatbot && getRuntimeConfig().features.chatDock === true;
   const navigate = useNavigate();
+  const location = useLocation();
+  // Under `md` there is no horizontal room for the rail — the dock presents as
+  // a bottom sheet instead (same conversation, chrome only). The hook (not the
+  // rail's `hidden md:` classes alone) decides which one MOUNTS, so the phone
+  // never pays for an invisible rail's chat graph.
+  const isMobile = useIsMobile();
+  // "/ai = the dock maximized": record where we maximized FROM at click time,
+  // so the page's collapse-to-dock returns exactly here (history-back could
+  // land on a prior /ai URL after in-page conversation switches).
+  const openDockFullPage = useCallback(() => {
+    rememberDockReturnLocation(`${location.pathname}${location.search}`);
+    navigate('/ai');
+  }, [location.pathname, location.search, navigate]);
 
   // Set navigation context to 'app' when this layout mounts
   useEffect(() => {
@@ -133,18 +151,18 @@ export function ConsoleLayout({
       }
       className="!p-0 overflow-y-auto overflow-x-hidden bg-muted/5"
       rightRail={
-        dockEnabled && dock.expanded ? (
+        dockEnabled && dock.expanded && !isMobile ? (
           <ChatDockPanel
             dock={dock}
             userId={userId}
+            // The dock honors the app's own default agent exactly like the FAB
+            // did — through the ONE resolver (bounded to ask/build there).
+            defaultAgent={activeApp?.defaultAgent}
             // ADR-0057 P3c — "/ai = the dock maximized": the maximize button
             // opens the full-page surface, which canonicalizes `/ai` to the
-            // default agent and resolves the same app-less `(user, product)`
-            // scope — i.e. THE SAME THREAD this rail shows. (A deployment that
-            // overrides the default agent via VITE_AI_DEFAULT_AGENT could in
-            // principle diverge from the dock's `resolveSurfaceAgent('default')`
-            // pick; both funnel through the same platform default today.)
-            onMaximize={() => navigate('/ai')}
+            // default agent and resolves the same `(user, product)` scope —
+            // i.e. THE SAME THREAD this rail shows.
+            onMaximize={openDockFullPage}
           />
         ) : undefined
       }
@@ -188,6 +206,18 @@ export function ConsoleLayout({
           // supersedes P3a's edge launcher: the dock is gated on `showChatbot`,
           // so the FAB is always present to launch it.
           onOpenDock={dockEnabled ? dock.expand : undefined}
+        />
+      )}
+
+      {/* Under `md` the FAB opens the dock as a bottom sheet (no room for a
+          rail on a phone) — same conversation, chrome only. */}
+      {dockEnabled && isMobile && (
+        <ChatDockMobileSheet
+          open={dock.expanded}
+          onOpenChange={(open) => (open ? dock.expand() : dock.collapse())}
+          userId={userId}
+          defaultAgent={activeApp?.defaultAgent}
+          onMaximize={openDockFullPage}
         />
       )}
     </AppShell>

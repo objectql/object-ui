@@ -93,6 +93,38 @@ export function armChatDockExpanded(): void {
   writeStoredDockExpanded(DOCK_EXPANDED_STORAGE_KEY, true);
 }
 
+/**
+ * sessionStorage key holding the in-app path (`pathname?search`) the user
+ * maximized the dock FROM — a console page, or the Studio design surface. The
+ * `/ai` page's collapse-to-dock prefers it over blind history-back, so the
+ * round trip lands exactly where the user left (history-back could land on a
+ * prior `/ai` URL after in-page conversation switches). Written by the
+ * maximize handlers at click time (the only moment the origin is known);
+ * per-tab by design.
+ */
+export const DOCK_RETURN_TO_STORAGE_KEY = 'ai-chat-dock-return-to';
+
+/** Record where a dock→`/ai` maximize departed from (see the key's doc). */
+export function rememberDockReturnLocation(path: string): void {
+  try {
+    window.sessionStorage.setItem(DOCK_RETURN_TO_STORAGE_KEY, path);
+  } catch {
+    /* private mode — collapse just falls back to history-back */
+  }
+}
+
+/** The remembered maximize origin — only an in-app absolute path is trusted. */
+export function readDockReturnLocation(): string | undefined {
+  try {
+    const raw = window.sessionStorage.getItem(DOCK_RETURN_TO_STORAGE_KEY);
+    // Reject anything that isn't a same-app absolute path ('//host' included),
+    // so a corrupted/injected value can never turn this into an open redirect.
+    return raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export type ChatDockShortcut = 'toggle';
 
 /**

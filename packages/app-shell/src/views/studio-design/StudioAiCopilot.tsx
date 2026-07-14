@@ -1,16 +1,22 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
-import { Button } from '@object-ui/components';
+import { Button, useIsMobile } from '@object-ui/components';
 import { Sparkles, PanelLeftClose } from 'lucide-react';
 import { useAgents } from '@object-ui/plugin-chatbot';
 import { useChatConversation } from '../../hooks/useChatConversation';
 import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
 import { resolveSurfaceAgent } from '../../hooks/surfaceAgent';
 import { ChatPane, resolveApiBase, type PendingFirstMessage } from '../../console/ai/AiChatPage';
-import { ChatDockPanel, ChatDockLauncher, useChatDockState } from '../../layout/ChatDock';
+import {
+  ChatDockPanel,
+  ChatDockLauncher,
+  ChatDockMobileSheet,
+  useChatDockState,
+} from '../../layout/ChatDock';
+import { rememberDockReturnLocation } from '../../layout/chatDockState';
 
 export interface StudioAiCopilotProps {
   /** The package the Studio surface is editing — scopes the build agent to it. */
@@ -192,8 +198,15 @@ export interface StudioChatDockProps {
 export function StudioChatDock({ packageId, locale }: StudioChatDockProps): React.ReactElement | null {
   const zh = (locale ?? '').toLowerCase().startsWith('zh');
   const navigate = useNavigate();
+  const location = useLocation();
   const apiBase = React.useMemo(() => resolveApiBase(), []);
   const dock = useChatDockState({ defaultExpanded: true });
+  // Under `md` the copilot presents as a bottom sheet (there is no horizontal
+  // room for a rail). Its open state is LOCAL — a phone must not inherit the
+  // desktop "expanded by default" posture, or the sheet would cover the Studio
+  // on every load.
+  const isMobile = useIsMobile();
+  const [mobileOpen, setMobileOpen] = React.useState(false);
 
   // The catalog gate lives HERE (not in ChatDockPanel): the `children` body
   // override below bypasses the panel's default self-gating conversation.
@@ -204,7 +217,33 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
     [dock.maximize, dock.restore],
   );
 
+  // Record where we maximized FROM so the `/ai` page's collapse-to-dock
+  // returns to THIS Studio surface, not to some console page.
+  const openFullPage = React.useCallback(() => {
+    rememberDockReturnLocation(`${location.pathname}${location.search}`);
+    navigate(`/ai/build?package=${encodeURIComponent(packageId)}`);
+  }, [location.pathname, location.search, navigate, packageId]);
+
   if (!agentsLoading && agents.length === 0) return null;
+
+  if (isMobile) {
+    return (
+      <>
+        <ChatDockLauncher
+          onExpand={() => setMobileOpen(true)}
+          className="inline-flex md:hidden"
+        />
+        <ChatDockMobileSheet
+          open={mobileOpen}
+          onOpenChange={setMobileOpen}
+          title={zh ? 'AI 副驾' : 'AI copilot'}
+          onMaximize={openFullPage}
+        >
+          <StudioCopilotConversation packageId={packageId} />
+        </ChatDockMobileSheet>
+      </>
+    );
+  }
 
   if (!dock.expanded) {
     return <ChatDockLauncher onExpand={dock.expand} />;
@@ -214,7 +253,7 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
     <ChatDockPanel
       dock={dock}
       title={zh ? 'AI 副驾' : 'AI copilot'}
-      onMaximize={() => navigate(`/ai/build?package=${encodeURIComponent(packageId)}`)}
+      onMaximize={openFullPage}
     >
       <StudioCopilotConversation
         packageId={packageId}

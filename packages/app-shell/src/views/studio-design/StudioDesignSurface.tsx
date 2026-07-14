@@ -112,6 +112,26 @@ import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
 import { toast } from 'sonner';
 
+/**
+ * ADR-0057 P3c follow-up — is the viewport wide enough (Tailwind `2xl`) to show
+ * the folded layout's canvas AND properties side by side beside the chat dock,
+ * instead of as tabs? Mirrors `useIsMobile`'s matchMedia idiom. 2xl (not xl) on
+ * purpose: with the ~420px dock plus the nav rail, an xl viewport leaves the
+ * canvas under ~400px — tabs read better there.
+ */
+const WIDE_VIEWPORT_BREAKPOINT = 1536;
+function useIsWideViewport(): boolean {
+  const [isWide, setIsWide] = React.useState<boolean | undefined>(undefined);
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(min-width: ${WIDE_VIEWPORT_BREAKPOINT}px)`);
+    const onChange = () => setIsWide(window.innerWidth >= WIDE_VIEWPORT_BREAKPOINT);
+    mql.addEventListener('change', onChange);
+    setIsWide(window.innerWidth >= WIDE_VIEWPORT_BREAKPOINT);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return !!isWide;
+}
+
 const PILLARS: ReadonlyArray<{ key: string; label: string; Icon: LucideIcon }> = [
   { key: 'data', label: 'Data', Icon: Database },
   { key: 'automations', label: 'Automations', Icon: Workflow },
@@ -1035,14 +1055,18 @@ function InterfacesPillar({
   // to Properties; deselect → back to Canvas) while preserving a manual choice
   // in steady state — see nextCenterTab. Inert when `foldInspector` is off.
   const [centerTab, setCenterTab] = React.useState<StudioCenterTab>('canvas');
+  // Folded layout, wide viewport (2xl+): enough room to show canvas AND
+  // properties side by side beside the chat dock — no tabs, no auto-switch.
+  const isWide = useIsWideViewport();
+  const showFoldedTabs = foldInspector && !isWide;
   const hasInspectorTarget = Boolean((editNav && navSel) || selection);
   const prevInspectorTargetRef = React.useRef(hasInspectorTarget);
   React.useEffect(() => {
-    if (!foldInspector) return;
+    if (!showFoldedTabs) return;
     const hadTarget = prevInspectorTargetRef.current;
     prevInspectorTargetRef.current = hasInspectorTarget;
     setCenterTab((cur) => nextCenterTab(cur, hadTarget, hasInspectorTarget));
-  }, [foldInspector, hasInspectorTarget]);
+  }, [showFoldedTabs, hasInspectorTarget]);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [hasDraft, setHasDraft] = React.useState(false);
@@ -1396,6 +1420,15 @@ function InterfacesPillar({
         />
       </div>
     ) : isSourcePage ? (
+      showFoldedTabs ? (
+        // Folded tabs mode: the center Canvas tab already shows the live
+        // preview, so the nested Source/Props tab strip adds nothing — the
+        // Properties tab body IS the code editor (its Props pane was only an
+        // empty state pointing back at Source).
+        <div className="mt-2 min-h-0 flex-1 border-t">
+          <SourcePageEditor mode="editor" draft={draft} onPatch={onPatch} />
+        </div>
+      ) : (
       <Tabs
         value={inspectorTab}
         onValueChange={(v) => setInspectorTab(v === 'props' ? 'props' : 'source')}
@@ -1421,6 +1454,7 @@ function InterfacesPillar({
           </div>
         </TabsContent>
       </Tabs>
+      )
     ) : DefaultInspector && current && isEditable ? (
       // No block selected → the surface's "home" inspector (e.g. a page's
       // interfaceConfig form). Selecting a sub-element from it swaps in the
@@ -1611,6 +1645,25 @@ function InterfacesPillar({
                 isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
                   ? 'w-[24rem] xl:w-[30rem] 2xl:w-[36rem]'
                   : 'w-72',
+              )}
+            >
+              {inspectorHeaderEl}
+              {inspectorBodyEl}
+            </aside>
+          </>
+        ) : isWide ? (
+          // Folded layout on a WIDE (2xl+) viewport: enough room to keep the
+          // canvas and the properties side by side beside the chat dock — the
+          // tabs (and their auto-switch) only exist where width forces them.
+          <>
+            {canvasEl}
+            <aside
+              data-testid="studio-folded-inspector"
+              className={cn(
+                'flex shrink-0 flex-col overflow-hidden border-l',
+                isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
+                  ? 'w-[24rem] 2xl:w-[28rem]'
+                  : 'w-80',
               )}
             >
               {inspectorHeaderEl}

@@ -17,7 +17,15 @@
  * rail while the ADR-0037 Live Canvas is open.
  */
 import * as React from 'react';
-import { cn, Button } from '@object-ui/components';
+import {
+  cn,
+  Button,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@object-ui/components';
 import { Maximize2, MessagesSquare, PanelRightClose } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { useAgents } from '@object-ui/plugin-chatbot';
@@ -210,6 +218,12 @@ export function useChatDockState(options?: ChatDockOptions): ChatDockState {
 interface ChatDockConversationProps {
   userId: string | undefined;
   apiBase: string;
+  /**
+   * `app.defaultAgent` of the active app — forwarded to the ONE resolver
+   * (bounded to ask/build there), so the dock honors the same per-app default
+   * the FAB always did. Absent → the surface default (`ask`).
+   */
+  defaultAgent?: string;
   /** ADR-0037/P3c — the Live Canvas open/close seam, forwarded to ChatPane. */
   onCanvasOpenChange?: (open: boolean) => void;
 }
@@ -221,15 +235,21 @@ interface ChatDockConversationProps {
  * the console's ambient assistant thread. Renders nothing when the AI catalog is
  * empty (OSS / no seat).
  */
-function ChatDockConversation({ userId, apiBase, onCanvasOpenChange }: ChatDockConversationProps) {
+function ChatDockConversation({
+  userId,
+  apiBase,
+  defaultAgent,
+  onCanvasOpenChange,
+}: ChatDockConversationProps) {
   const { agents, isLoading, error } = useAgents({ apiBase });
   const activeAgent = React.useMemo(
     () =>
       resolveSurfaceAgent('default', {
         agents,
+        appDefaultAgent: defaultAgent,
         aiStudioEnabled: getRuntimeConfig().features.aiStudio !== false,
       }),
-    [agents],
+    [agents, defaultAgent],
   );
   const chatApi = activeAgent
     ? `${apiBase}/agents/${encodeURIComponent(activeAgent)}/chat`
@@ -274,6 +294,8 @@ export interface ChatDockPanelProps {
   /** Signed-in user id for the default (console ask) body. Unused with `children`. */
   userId?: string;
   apiBase?: string;
+  /** `app.defaultAgent` for the default body's resolver. Unused with `children`. */
+  defaultAgent?: string;
   /** Header title override (the Studio dock says "AI copilot"); default "Assistant". */
   title?: string;
   /**
@@ -301,6 +323,7 @@ export function ChatDockPanel({
   dock,
   userId,
   apiBase: apiBaseProp,
+  defaultAgent,
   title,
   onMaximize,
   children,
@@ -367,6 +390,7 @@ export function ChatDockPanel({
           <ChatDockConversation
             userId={userId}
             apiBase={apiBase}
+            defaultAgent={defaultAgent}
             onCanvasOpenChange={handleCanvasOpenChange}
           />
         )}
@@ -375,8 +399,87 @@ export function ChatDockPanel({
   );
 }
 
+export interface ChatDockMobileSheetProps {
+  /** Sheet visibility — decoupled from {@link ChatDockState} so callers can
+   *  drive it from the dock (console) or a local state (Studio). */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  userId?: string;
+  apiBase?: string;
+  /** `app.defaultAgent` for the default body's resolver. Unused with `children`. */
+  defaultAgent?: string;
+  /** Header title override; default "Assistant". */
+  title?: string;
+  /** Renders a Maximize2 header button → the full-page `/ai` surface. */
+  onMaximize?: () => void;
+  /** Body override — same contract as {@link ChatDockPanel}. */
+  children?: React.ReactNode;
+}
+
+/**
+ * The dock's UNDER-`md` presentation: a bottom sheet over the page instead of a
+ * side rail (there is no horizontal room to reflow into on a phone). Same
+ * conversation, same body contract as {@link ChatDockPanel} — chrome only.
+ * Rendered `md:hidden`, so across a live viewport resize exactly one of
+ * sheet/rail is visible.
+ */
+export function ChatDockMobileSheet({
+  open,
+  onOpenChange,
+  userId,
+  apiBase: apiBaseProp,
+  defaultAgent,
+  title,
+  onMaximize,
+  children,
+}: ChatDockMobileSheetProps) {
+  const { t } = useObjectTranslation();
+  const apiBase = React.useMemo(() => resolveApiBase(apiBaseProp), [apiBaseProp]);
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="bottom"
+        className="flex h-[85svh] flex-col gap-0 p-0 md:hidden"
+        data-testid="chat-dock-mobile-sheet"
+      >
+        <SheetHeader className="shrink-0 border-b px-4 py-2.5">
+          <div className="flex items-center justify-between gap-2 pr-8">
+            <SheetTitle className="inline-flex items-center gap-1.5 text-sm font-semibold">
+              <MessagesSquare className="size-4" />
+              {title ?? t('console.ai.dock.title', { defaultValue: 'Assistant' })}
+            </SheetTitle>
+            {onMaximize ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={onMaximize}
+                aria-label={t('console.ai.dock.maximize', { defaultValue: 'Open full page' })}
+                data-testid="chat-dock-mobile-maximize"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
+          </div>
+          <SheetDescription className="sr-only">
+            {t('console.ai.dock.description', { defaultValue: 'AI assistant chat' })}
+          </SheetDescription>
+        </SheetHeader>
+        <div className="min-h-0 flex-1">
+          {children ?? (
+            <ChatDockConversation userId={userId} apiBase={apiBase} defaultAgent={defaultAgent} />
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export interface ChatDockLauncherProps {
   onExpand: () => void;
+  /** Merged onto the default classes — e.g. the Studio mobile launcher swaps
+   *  the `hidden md:inline-flex` gate for an always-visible variant. */
+  className?: string;
 }
 
 /**
@@ -385,7 +488,7 @@ export interface ChatDockLauncherProps {
  * retired it in P3b (the FAB is that surface's launcher); the Studio dock (P3c)
  * uses it as its collapsed state, since Studio has no FAB.
  */
-export function ChatDockLauncher({ onExpand }: ChatDockLauncherProps) {
+export function ChatDockLauncher({ onExpand, className }: ChatDockLauncherProps) {
   const { t } = useObjectTranslation();
   return (
     <Button
@@ -395,7 +498,10 @@ export function ChatDockLauncher({ onExpand }: ChatDockLauncherProps) {
       data-testid="chat-dock-launcher"
       aria-label={t('console.ai.dock.open', { defaultValue: 'Open assistant' })}
       title={t('console.ai.dock.open', { defaultValue: 'Open assistant (⌘⇧I)' })}
-      className="fixed right-0 top-1/2 z-40 hidden h-16 w-7 -translate-y-1/2 rounded-l-md rounded-r-none border-r-0 bg-background shadow-md md:inline-flex"
+      className={cn(
+        'fixed right-0 top-1/2 z-40 hidden h-16 w-7 -translate-y-1/2 rounded-l-md rounded-r-none border-r-0 bg-background shadow-md md:inline-flex',
+        className,
+      )}
     >
       <MessagesSquare className="size-4" />
     </Button>

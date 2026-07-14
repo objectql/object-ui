@@ -9,7 +9,7 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ChatDockPanel, type ChatDockState } from '../ChatDock';
+import { ChatDockPanel, ChatDockMobileSheet, type ChatDockState } from '../ChatDock';
 
 vi.mock('@object-ui/i18n', () => ({
   useObjectTranslation: () => ({
@@ -85,5 +85,33 @@ describe('ChatDockPanel', () => {
     expect(screen.getByText('AI copilot')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('chat-dock-collapse'));
     expect(dock.collapse).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ChatDockMobileSheet', () => {
+  it('renders the children body + maximize when open, and closes via onOpenChange', () => {
+    const onOpenChange = vi.fn();
+    const onMaximize = vi.fn();
+    render(
+      <ChatDockMobileSheet open onOpenChange={onOpenChange} onMaximize={onMaximize}>
+        <div data-testid="mobile-dock-body" />
+      </ChatDockMobileSheet>,
+    );
+    expect(screen.getByTestId('chat-dock-mobile-sheet')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-dock-body')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('chat-dock-mobile-maximize'));
+    expect(onMaximize).toHaveBeenCalledTimes(1);
+    // Radix Sheet's built-in close button drives onOpenChange(false).
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('renders nothing while closed', () => {
+    render(
+      <ChatDockMobileSheet open={false} onOpenChange={() => {}}>
+        <div data-testid="mobile-dock-body" />
+      </ChatDockMobileSheet>,
+    );
+    expect(screen.queryByTestId('mobile-dock-body')).not.toBeInTheDocument();
   });
 });

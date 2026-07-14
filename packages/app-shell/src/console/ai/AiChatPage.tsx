@@ -75,7 +75,7 @@ import {
 } from '@object-ui/plugin-chatbot';
 
 import { AppHeader } from '../../layout/AppHeader';
-import { armChatDockExpanded } from '../../layout/chatDockState';
+import { armChatDockExpanded, readDockReturnLocation } from '../../layout/chatDockState';
 import { fetchPendingDraftCount } from '../../preview/draftStatus';
 import { emitMetadataRefresh } from '../../assistant/assistantBus';
 import { getRuntimeConfig } from '../../runtime-config';
@@ -517,15 +517,28 @@ export function matchAiChatShortcut(e: {
 }
 
 /**
- * ADR-0057 P3c — where the "collapse to dock" affordance navigates: back
- * through history when react-router has an in-app entry to return to
- * (`window.history.state.idx > 0` — the router stamps a monotonically
- * increasing `idx` on entries it creates), else `/home` (the page was the
- * entry point: a deep link, a fresh tab). The dock itself is armed to open
- * expanded separately ({@link armChatDockExpanded}); this only picks the
- * landing. Pure + exported for tests.
+ * ADR-0057 P3c — where the "collapse to dock" affordance navigates, in
+ * preference order:
+ *
+ *  1. The REMEMBERED maximize origin (`storedPath`, written by the dock's own
+ *     maximize handlers at click time) — the exact page the user left, immune
+ *     to in-page history churn (conversation switches push `/ai/...` entries,
+ *     so blind history-back can land on a prior `/ai` URL instead of the
+ *     console).
+ *  2. History back, when react-router has an in-app entry to return to
+ *     (`window.history.state.idx > 0` — the router stamps a monotonically
+ *     increasing `idx` on entries it creates).
+ *  3. `/home` — the page was the entry point (deep link, fresh tab).
+ *
+ * The dock itself is armed to open expanded separately
+ * ({@link armChatDockExpanded}); this only picks the landing. Pure + exported
+ * for tests.
  */
-export function resolveCollapseToDockTarget(historyIdx: unknown): -1 | '/home' {
+export function resolveCollapseToDockTarget(
+  historyIdx: unknown,
+  storedPath?: string,
+): string | -1 {
+  if (storedPath) return storedPath;
   return typeof historyIdx === 'number' && historyIdx > 0 ? -1 : '/home';
 }
 
@@ -1078,18 +1091,19 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
           <AppHeader variant="home" />
         </div>
         {/* ADR-0057 P3c — "/ai = the ChatDock maximized": tuck this full-page
-            surface back into the console's right rail. Arms the dock to mount
-            expanded, then returns to the page the user came from (or /home on
-            a cold deep link) — the rail resolves the same (user, product)
-            conversation scope, so it shows THE SAME THREAD. Desktop-only
-            (the dock itself is `hidden md:flex`) and flag-gated: with
-            `features.chatDock` off this button does not exist and the page is
-            pixel-identical to pre-P3c. */}
+            surface back into the dock. Arms the dock to mount expanded, then
+            returns to the exact page the user maximized from (remembered by
+            the dock's own maximize handlers; falls back to history-back, then
+            /home on a cold deep link) — the dock resolves the same
+            (user, product) conversation scope, so it shows THE SAME THREAD.
+            Visible on mobile too: under `md` the dock presents as a bottom
+            sheet. Flag-gated: with `features.chatDock` off this button does
+            not exist and the page is pixel-identical to pre-P3c. */}
         {!noAgents && getRuntimeConfig().features.chatDock === true && (
           <Button
             variant="ghost"
             size="icon"
-            className="hidden h-8 w-8 shrink-0 md:inline-flex"
+            className="h-8 w-8 shrink-0"
             data-testid="ai-chat-collapse-to-dock"
             aria-label={t('console.ai.collapseToDock', { defaultValue: 'Collapse to side panel' })}
             title={t('console.ai.collapseToDock', { defaultValue: 'Collapse to side panel' })}
@@ -1097,6 +1111,7 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
               armChatDockExpanded();
               const target = resolveCollapseToDockTarget(
                 (window.history.state as { idx?: unknown } | null)?.idx,
+                readDockReturnLocation(),
               );
               if (target === -1) navigate(-1);
               else navigate(target);
