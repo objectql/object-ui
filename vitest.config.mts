@@ -5,55 +5,105 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Shared exclude list for the root-level projects below. (Project-level
+// `exclude` replaces — does not merge with — the inherited one, so each
+// project spells out the full list.)
+const sharedExclude = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/cypress/**',
+  '**/e2e/**',
+  '**/.{idea,git,cache,output,temp}/**',
+  '**/.claude/**',
+  // In-repo git worktrees (`.wt-*`, per AGENTS.md / the worktree workflow)
+  // are full checkouts of other branches. Without this their *.test.tsx
+  // copies get globbed in and run against this tree's source — producing
+  // phantom failures from another branch's code.
+  '**/.wt-*/**',
+  // Apps have their own '@/' alias pointing at their own src/, so they
+  // can't share the root '@' alias (→ packages/components). They are
+  // brought back in via the `projects` array below with their own
+  // vitest.config.ts.
+  'apps/**',
+];
+
+// `.test.ts` files that need a DOM environment despite the .ts suffix —
+// they render hooks via @testing-library or touch window/document directly.
+// Everything else in *.test.ts is pure logic and runs in the cheap `unit`
+// project. If you add a test that uses renderHook/render/window, either name
+// it *.test.tsx or add it here.
+const domTsTests = [
+  'packages/app-shell/src/hooks/__tests__/useAiSurface.test.ts',
+  'packages/app-shell/src/hooks/__tests__/useReconcileOnError.test.ts',
+  'packages/app-shell/src/observability/settleSignal.test.ts',
+  'packages/core/src/actions/__tests__/ActionRunner.resultDialog.test.ts',
+  'packages/core/src/theme/__tests__/ThemeEngine.test.ts',
+  'packages/plugin-grid/src/importParsers.test.ts',
+  'packages/fields/src/widgets/useRecordQuery.test.ts',
+  'packages/mobile/src/__tests__/useBreakpoint.test.ts',
+  'packages/plugin-designer/src/__tests__/useDesignerHistory.test.ts',
+  'packages/plugin-grid/src/__tests__/useBulkExecutor.test.ts',
+  'packages/react/src/data-invalidation.test.ts',
+  'packages/react/src/hooks/__tests__/useActionEngine.test.ts',
+  'packages/react/src/hooks/__tests__/useActionRunner.test.ts',
+  'packages/react/src/hooks/__tests__/useDataRefresh.test.ts',
+  'packages/react/src/hooks/__tests__/useExpression.test.ts',
+  'packages/react/src/hooks/__tests__/useRecordSearch.test.ts',
+];
+
 export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
     testTimeout: 15000, // Increase default timeout for integration tests with MSW
-    setupFiles: [path.resolve(__dirname, 'vitest.setup.tsx')],
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/cypress/**',
-      '**/e2e/**',
-      '**/.{idea,git,cache,output,temp}/**',
-      '**/.claude/**',
-      // In-repo git worktrees (`.wt-*`, per AGENTS.md / the worktree workflow)
-      // are full checkouts of other branches. Without this their *.test.tsx
-      // copies get globbed in and run against this tree's source — producing
-      // phantom failures from another branch's code.
-      '**/.wt-*/**',
-      // Apps have their own '@/' alias pointing at their own src/, so they
-      // can't share the root '@' alias (→ packages/components). They are
-      // brought back in via the `projects` array below with their own
-      // vitest.config.ts.
-      'apps/**',
-    ],
-    // Each app config handles its own resolve.alias so '@/' resolves to the
-    // app's own src/, not packages/components/src.
+    exclude: sharedExclude,
+    // Two root-level projects split by environment cost. The heavy DOM setup
+    // (vitest.setup.dom.tsx imports @object-ui/components / fields /
+    // plugin-dashboard / plugin-grid from source and re-registers widgets)
+    // used to run for EVERY file: with `isolate: true` that module graph
+    // re-executes per file, and a CI run spent ~20 min cumulative in setup
+    // for ~2 min of actual tests. Pure-logic *.test.ts files now run in the
+    // `unit` project: node env + vitest.setup.base.ts only.
+    //
+    // (The former `environmentMatchGlobs` split silently stopped working on
+    // Vitest 4 — the option was removed — so every file was paying happy-dom
+    // + full DOM setup regardless of suffix.)
+    //
+    // Absolute paths for file entries so the project list resolves the same
+    // regardless of the cwd vitest is launched from (`turbo run test` runs
+    // each package's `vitest run` from that package's directory).
     projects: [
-      // The root config itself is the default project (packages/* + examples/*).
-      // Absolute paths so the project list resolves the same regardless of the
-      // cwd vitest is launched from. `turbo run test` runs each package's
-      // `vitest run` from that package's directory; with relative entries the
-      // list resolves against e.g. packages/i18n/ and fails to find the (root)
-      // config — a startup error that surfaces only on cold turbo caches.
-      path.resolve(__dirname, './vitest.config.mts'),
+      {
+        extends: true,
+        test: {
+          name: 'unit',
+          environment: 'node',
+          setupFiles: [path.resolve(__dirname, 'vitest.setup.base.ts')],
+          include: ['packages/**/*.test.ts', 'examples/**/*.test.ts'],
+          exclude: [...sharedExclude, ...domTsTests],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'dom',
+          environment: 'happy-dom',
+          setupFiles: [path.resolve(__dirname, 'vitest.setup.dom.tsx')],
+          include: [
+            'packages/**/*.test.tsx',
+            'examples/**/*.test.tsx',
+            ...domTsTests,
+          ],
+        },
+      },
       path.resolve(__dirname, './apps/console/vitest.config.ts'),
     ],
     passWithNoTests: true,
     // Performance: use threads (lighter than forks). Isolation is enabled to
     // prevent module-graph and DOM state leakage across files (which previously
-    // caused thousands of order-dependent failures). The setup-file cost is
-    // amortized by the threads pool keeping workers warm.
+    // caused thousands of order-dependent failures).
     pool: 'threads',
     isolate: true,
-    // Per-file-type environment so pure logic tests (.test.ts) run in node
-    // rather than paying happy-dom startup cost.
-    environmentMatchGlobs: [
-      ['**/*.test.tsx', 'happy-dom'],
-      ['**/*.test.ts', 'node'],
-    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
