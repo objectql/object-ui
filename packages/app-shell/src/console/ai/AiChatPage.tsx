@@ -269,11 +269,31 @@ function localizeAgentLabel(
  * surface as data Q&A ("ask about your records"). Keyed by friendly name; falls
  * back to the generic empty state for custom agents.
  */
-function agentEmptyState(
+export function agentEmptyState(
   t: (key: string, options?: Record<string, unknown>) => string,
   agentName: string | undefined,
+  // ADR-0057 A1.b — when the build surface is opened to EDIT an existing app
+  // (`?package=`), the empty-state guidance switches from "describe an app to
+  // build" (magic flow) to "what do you want to change in <app>". `appLabel` is
+  // the resolved app name, or undefined until metadata loads (never a raw
+  // package id — see the caller).
+  editContext?: { appLabel?: string },
 ): { title: string; description: string } {
   if (isBuildAgent(agentName)) {
+    if (editContext) {
+      return {
+        title: editContext.appLabel
+          ? t('console.ai.empty.editApp.title', {
+              defaultValue: 'Editing “{{app}}”',
+              app: editContext.appLabel,
+            })
+          : t('console.ai.empty.editApp.titleGeneric', { defaultValue: 'Edit this app' }),
+        description: t('console.ai.empty.editApp.description', {
+          defaultValue:
+            'What would you like to change? I’ll modify this app in place — add a field, object, view or automation, or adjust what’s already there.',
+        }),
+      };
+    }
     return {
       title: t('console.ai.empty.build.title', { defaultValue: 'Build with AI' }),
       description: t('console.ai.empty.build.description', {
@@ -1456,13 +1476,8 @@ export function ChatPane({
     return hydratedMessagesToChatMessages(initialMessages);
   }, [initialMessages]);
 
-  const suggestions = useMemo<string[] | undefined>(() => {
-    if (hydrated.length > 0) return undefined;
-    return buildAgentSuggestions(activeAgent, activeAgentLabel, t);
-  }, [hydrated.length, activeAgent, activeAgentLabel, t]);
-
-  // Per-surface empty-state branding (Build = authoring, Ask = data Q&A).
-  const emptyState = useMemo(() => agentEmptyState(t, activeAgent), [t, activeAgent]);
+  // `suggestions` + `emptyState` are computed AFTER the bound-package label
+  // below (ADR-0057 A1.b edit mode needs the app name), near boundPackageLabel.
 
   // ADR-0013 D2: reconcile a stream-transport failure instead of blindly
   // retrying. Shared across chat surfaces — see useReconcileOnError.
@@ -1662,6 +1677,32 @@ export function ChatPane({
     );
     return app ? appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }) : boundPackageId;
   }, [boundPackageId, metadataApps, appLabel, t]);
+
+  // ADR-0057 A1.b edit mode — the resolved name of the app being EDITED
+  // (`?package=`). Returns undefined until the app is found in metadata, so the
+  // empty-state title falls back to a generic label rather than flashing a raw
+  // package id (`app.xadv`) while metadata loads.
+  const editAppLabel = useMemo(() => {
+    if (!editPackageId) return undefined;
+    const app = (metadataApps ?? []).find(
+      (a) => (a as { _packageId?: string })._packageId === editPackageId,
+    );
+    return app ? appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }) : undefined;
+  }, [editPackageId, metadataApps, appLabel, t]);
+
+  // Per-surface empty-state branding (Build = authoring, Ask = data Q&A). On the
+  // build surface, `?package=` flips it to edit mode: "what do you want to
+  // change in <app>" + change-oriented starters, instead of the from-scratch
+  // magic-flow guidance. Computed here (not earlier) so it can read the app name.
+  const editing = isBuildSurface && Boolean(editPackageId);
+  const suggestions = useMemo<string[] | undefined>(() => {
+    if (hydrated.length > 0) return undefined;
+    return buildAgentSuggestions(activeAgent, activeAgentLabel, t, editing);
+  }, [hydrated.length, activeAgent, activeAgentLabel, t, editing]);
+  const emptyState = useMemo(
+    () => agentEmptyState(t, activeAgent, editing ? { appLabel: editAppLabel } : undefined),
+    [t, activeAgent, editing, editAppLabel],
+  );
 
   // A1.b bind-on-create: report the binding to the page (which re-keys the
   // conversation and puts `?package=` on the URL). Deferred behind `canBind`
@@ -2157,15 +2198,31 @@ function genericSuggestions(t: TranslationFn): string[] {
   ];
 }
 
-function buildAgentSuggestions(
+// ADR-0057 A1.b — edit-mode starters: when the build surface is bound to an
+// existing app (`?package=`), nudge toward INCREMENTAL changes to that app
+// rather than describing a new system from scratch.
+function editAppSuggestions(t: TranslationFn): string[] {
+  return [
+    t('console.ai.suggestions.editApp.addField', { defaultValue: 'Add a field to one of the objects.' }),
+    t('console.ai.suggestions.editApp.addObject', { defaultValue: 'Add a new object and relate it to an existing one.' }),
+    t('console.ai.suggestions.editApp.addDashboard', { defaultValue: 'Add a dashboard for the key metrics.' }),
+    t('console.ai.suggestions.editApp.addAutomation', { defaultValue: 'Add an automation — an approval, a status flow, or a notification.' }),
+  ];
+}
+
+export function buildAgentSuggestions(
   agentName: string | undefined,
   agentLabel: string,
   t: TranslationFn,
+  // ADR-0057 A1.b — the build surface is editing an existing app, so offer
+  // change-oriented starters instead of the from-scratch authoring ones.
+  editing = false,
 ): string[] {
   // Alias-aware: `ask`/`data_chat` → data starters, `build`/`metadata_assistant`
-  // → authoring starters. Custom agents fall back to a name/label heuristic.
+  // → authoring starters (edit-mode variant when bound to an app). Custom agents
+  // fall back to a name/label heuristic.
   if (isAskAgent(agentName)) return dataChatSuggestions(t);
-  if (isBuildAgent(agentName)) return metadataAssistantSuggestions(t);
+  if (isBuildAgent(agentName)) return editing ? editAppSuggestions(t) : metadataAssistantSuggestions(t);
   const lower = (agentName ?? agentLabel).toLowerCase();
   if (lower.includes('data')) return dataChatSuggestions(t);
   if (lower.includes('metadata')) return metadataAssistantSuggestions(t);
