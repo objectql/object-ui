@@ -8,7 +8,7 @@
  * not-yet-bound "New app" draft (the magic flow's start state).
  */
 import { describe, it, expect } from 'vitest';
-import { deriveBoundPackageId } from '../AiChatPage';
+import { deriveBoundPackageId, isPlatformBuiltinApp } from '../AiChatPage';
 import type { ChatMessage } from '@object-ui/plugin-chatbot';
 
 const msg = (toolInvocations: unknown[]): ChatMessage =>
@@ -40,5 +40,31 @@ describe('deriveBoundPackageId', () => {
       msg([{ draftReview: { packageId: 'app.second' } }]),
     ];
     expect(deriveBoundPackageId(messages, undefined)).toBe('app.second');
+  });
+});
+
+// #2466 / ADR-0057 A1.b — the switcher lists authorable packages only. Platform
+// built-ins reserve the `com.objectstack.*` package namespace; user- and
+// AI-built packages use other ids. `_packageId` is the reliable signal on the
+// LIST response (managedBy/source aren't grafted onto list items).
+describe('isPlatformBuiltinApp', () => {
+  it('is true for a platform built-in (com.objectstack.setup / account)', () => {
+    expect(isPlatformBuiltinApp({ _packageId: 'com.objectstack.setup' })).toBe(true);
+    expect(isPlatformBuiltinApp({ _packageId: 'com.objectstack.account' })).toBe(true);
+  });
+
+  it('is false for an AI-built / user package (e.g. app.xadv)', () => {
+    expect(isPlatformBuiltinApp({ _packageId: 'app.xadv' })).toBe(false);
+    expect(isPlatformBuiltinApp({ _packageId: 'my.company.crm' })).toBe(false);
+  });
+
+  it('is false when there is no package id, or it is not a string', () => {
+    expect(isPlatformBuiltinApp({})).toBe(false);
+    expect(isPlatformBuiltinApp({ _packageId: undefined })).toBe(false);
+    expect(isPlatformBuiltinApp({ _packageId: 123 as unknown as string })).toBe(false);
+  });
+
+  it('does not match a package that merely contains the prefix mid-string', () => {
+    expect(isPlatformBuiltinApp({ _packageId: 'acme.com.objectstack.fake' })).toBe(false);
   });
 });

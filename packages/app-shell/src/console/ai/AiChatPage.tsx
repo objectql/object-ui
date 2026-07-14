@@ -214,6 +214,28 @@ export function deriveBoundPackageId(
   return latest;
 }
 
+/**
+ * #2466 / ADR-0057 Amendment A1.b — is this app a CODE-LOADED platform built-in
+ * (`com.objectstack.setup` / `account`, …) rather than a user- or AI-authored
+ * package? The A1.b switcher lists only authorable packages, so a built-in —
+ * which the build agent can't edit — never appears as a switch target
+ * (selecting it would deep-link `/ai/build?package=<builtin>` to a package that
+ * can't be authored).
+ *
+ * Discriminator: the platform reserves the `com.objectstack.*` package
+ * namespace for its code-delivered apps; DB-created packages (including every
+ * AI-built one — e.g. `app.xadv`) use other ids. This is the only field that
+ * reliably distinguishes them on the `/meta/app` LIST response: `_packageId` is
+ * grafted onto every list item, whereas `managedBy` / `source` are sys_metadata
+ * ROW columns the LIST handler does NOT copy onto the item body, and the
+ * resolved `lock` / `editable` envelope exists only on single-GET. Exported for
+ * unit testing.
+ */
+const PLATFORM_PACKAGE_PREFIX = 'com.objectstack.';
+export function isPlatformBuiltinApp(app: { _packageId?: unknown }): boolean {
+  return typeof app._packageId === 'string' && app._packageId.startsWith(PLATFORM_PACKAGE_PREFIX);
+}
+
 function firstUserMessageText(messages: HydratedUIMessage[]): string | undefined {
   const message = messages.find((item) => item.role === 'user');
   const text = message?.parts
@@ -1668,7 +1690,12 @@ export function ChatPane({
     const byPackage = new Map<string, string>();
     for (const app of metadataApps ?? []) {
       const pkg = (app as { _packageId?: string })._packageId;
-      if (!pkg || byPackage.has(pkg)) continue;
+      // Skip platform built-ins (setup / account …): they're code-delivered
+      // packages the build agent can't author, so they must not appear as
+      // switch targets — A1.b lists authorable packages only.
+      if (!pkg || byPackage.has(pkg) || isPlatformBuiltinApp(app as { _packageId?: unknown })) {
+        continue;
+      }
       byPackage.set(pkg, appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }));
     }
     return Array.from(byPackage, ([id, label]) => ({ id, label }));
