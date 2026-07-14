@@ -2,9 +2,10 @@
 
 **Status**: Accepted (2026-07-13) — P1+P2 shipped (#2414), P4 shipped
 (#2439 / #2444 + cloud#818/#819; reliability follow-ups #2449 + cloud#820);
-P3 shipped behind the default-off `features.chatDock` rollout flag (P3a #2464,
-P3b #2465, P3c #2467 — epic #2409; flag default-on + overlay retirement are the
-remaining cleanup, tracked on the epic). Console-layer realization of the two-agent,
+P3 shipped (P3a #2464, P3b #2465, P3c #2467 — epic #2409); `features.chatDock`
+is now DEFAULT ON (kept only as a server-side kill-switch); overlay retirement +
+flag removal are the remaining cleanup, tracked on the epic. Console-layer
+realization of the two-agent,
 surface-bound model (cloud ADR-0063). **No agent, boundary, or commercial-model
 change** — this ADR only rearranges how the objectui console *renders and wires*
 chat surfaces.

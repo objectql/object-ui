@@ -55,11 +55,13 @@ export interface RuntimeFeatures {
    */
   sso?: boolean;
   /**
-   * ADR-0057 P3a — render the console AI chat as a right-docked, collapsible
-   * rail (the VS Code / Cursor idiom) in addition to the floating FAB. Rollout
-   * flag, DEFAULT OFF: the dock is additive and changes nothing until an
-   * operator opts in (`OS_AI_CHAT_DOCK=1` / RuntimeConfigPlugin). The FAB stays
-   * the canonical entry until P3b retires it into the dock's launcher.
+   * ADR-0057 P3 — render the console AI chat as a right-docked, collapsible
+   * rail (the VS Code / Cursor idiom); the FAB is its launcher, `/ai` is the
+   * same panel maximized, and Studio hosts it as its right dock. Shipped
+   * (P3a #2464, P3b #2465, P3c #2467) and DEFAULT ON. The flag remains only
+   * as a server-side kill-switch: an operator sending `false` restores the
+   * floating-overlay console until the final cleanup removes that path
+   * (epic #2409).
    */
   chatDock?: boolean;
 }
@@ -112,7 +114,7 @@ const defaults: RuntimeConfig = {
   singleEnvironment: false,
   defaultOrgId: null,
   defaultEnvironmentId: null,
-  features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true, customDomain: false, sso: false },
+  features: { installLocal: false, marketplace: true, aiStudio: true, autoPublishAiBuilds: true, customDomain: false, sso: false, chatDock: true },
   // `stage: 'preview'` while the whole platform is pre-GA, so the badge shows
   // out of the box on any runtime that hasn't sent an explicit stage yet.
   branding: { productName: 'ObjectOS', productShortName: 'ObjectOS', stage: 'preview', brandColor: '#4F46E5', pwaThemeColor: '#4f46e5' },
@@ -179,8 +181,11 @@ export async function initRuntimeConfig(baseUrl: string = ''): Promise<void> {
           // them — never show a paid surface on an unknown/older runtime.
           customDomain: body.features.customDomain === true,
           sso: body.features.sso === true,
-          // ADR-0057 P3a rollout flag — default OFF (additive dock).
-          chatDock: body.features.chatDock === true,
+          // ADR-0057 — the docked chat shipped (P3a–P3c) and is now DEFAULT ON;
+          // the flag survives only as a server-side kill-switch (send `false`
+          // to fall back to the floating-overlay console until the overlay
+          // path is removed by the final cleanup, epic #2409).
+          chatDock: body.features.chatDock !== false,
         }
         : current.features,
       branding: body.branding
