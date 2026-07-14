@@ -99,7 +99,7 @@ type GanttConfigEx = GanttConfig & {
   lockField?: string;
   /**
    * Record field carrying the row's OBJECT API NAME (行级对象名). Mixed-object
-   * trees (an `api` provider composing e.g. 排班计划 rows with 派工单 children)
+   * trees (an `api` provider composing parent-object rows with child-object rows)
    * need the detail drawer and its full-page link to follow each row's REAL
    * object — otherwise a child row's 「→」 builds a URL under the view's bound
    * object and 404s. Empty/missing value → falls back to the bound object.
@@ -941,8 +941,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   const clearFilters = useCallback(() => setFilterValues({}), []);
 
   // Detail-page href for a row, honouring objectField (mixed-object trees):
-  // the link must follow the ROW's object, not the view's bound one — a 派工单
-  // row opened under the 排班计划 route otherwise builds a 404 URL.
+  // the link must follow the ROW's object, not the view's bound one — a child-object
+  // row opened under the bound object's route otherwise builds a 404 URL.
   // deriveRecordPageHref needs the routed object's segment in the current path
   // (a foreign row object never appears there), so derive from the routed
   // object and swap the segment. Shared by the drawer's 整页 link and the
