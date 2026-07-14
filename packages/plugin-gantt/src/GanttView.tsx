@@ -28,7 +28,6 @@ import {
   FileDown,
   Save,
   Lock,
-  Crosshair,
   RefreshCw,
   ArrowRight,
   QrCode,
@@ -2690,9 +2689,11 @@ export function GanttView({
       <style>{`
         .gantt-resize-handle:hover { background-color: rgba(255, 255, 255, 0.4); }
         .gantt-bar-hover:hover { filter: brightness(1.1); }
-        .gantt-locate-btn { opacity: 0; transition: opacity 0.15s ease; }
-        .group\\/task-row:hover .gantt-locate-btn { opacity: 0.6; }
-        .gantt-locate-btn:hover, .gantt-locate-btn:focus-visible { opacity: 1; }
+        .gantt-row-open-btn { opacity: 0; transition: opacity 0.15s ease; }
+        /* :where keeps the row-hover reveal at zero specificity so the
+           button's own :hover/:focus-visible full-opacity rule can win. */
+        :where(.group\\/task-row:hover) .gantt-row-open-btn { opacity: 0.6; }
+        .gantt-row-open-btn:hover, .gantt-row-open-btn:focus-visible { opacity: 1; }
         /* 定位闪烁: blink the located bar 3× with a thick ring + colored glow so
            it's hard to miss. The ring is an outline (not box-shadow) and the glow
            is a drop-shadow *filter* — both stay clear of the critical-path bar's
@@ -3276,45 +3277,30 @@ export function GanttView({
                     row.end.toLocaleDateString(dateLocale, { month: 'numeric', day: 'numeric' })
                   )}
                 </div>
-                {/* 定位到甘特图: scroll the timeline to this row's bar. Pinned to
-                    the row's right edge (flush with the chart divider) so it sits
-                    in a stable slot and never shifts the date column on hover. The
-                    `right` offset is inline because Tailwind's fractional `right-*`
-                    utilities aren't in the prebuilt CSS shipped to consumers. */}
-                {!isEditing && (
-                  <button
-                    type="button"
-                    title={t('gantt.row.locate')}
-                    aria-label={t('gantt.row.locate')}
-                    data-testid={`gantt-row-locate-${task.id}`}
-                    className="gantt-locate-btn hidden sm:block absolute top-1/2 -translate-y-1/2"
-                    style={{ right: onTaskClick ? 20 : 1 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      scrollToTask(row.start, row.end, row.task.id);
-                    }}
-                  >
-                    <Crosshair className="w-3 h-3" />
-                  </button>
-                )}
                 {/* 跳转详情「→」: opens the detail drawer / page — the row click
                     itself is reserved for Focus-locate, so detail needs its own
-                    always-reachable affordance besides double-click. */}
-                {!isEditing && onTaskClick && (
-                  <button
-                    type="button"
-                    title={t('gantt.row.open')}
-                    aria-label={t('gantt.row.open')}
-                    data-testid={`gantt-row-open-${task.id}`}
-                    className="gantt-locate-btn hidden sm:block absolute top-1/2 -translate-y-1/2"
-                    style={{ right: 1 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onTaskClick(task);
-                    }}
-                  >
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
+                    always-reachable affordance besides double-click. A dedicated
+                    flex slot (not an absolute overlay) so it never covers the
+                    end-date column; the slot persists during inline edit to
+                    avoid layout shift. */}
+                {onTaskClick && (
+                  <div className="w-6 shrink-0 hidden sm:block" style={{ marginLeft: 4 }}>
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        title={t('gantt.row.open')}
+                        aria-label={t('gantt.row.open')}
+                        data-testid={`gantt-row-open-${task.id}`}
+                        className="gantt-row-open-btn h-6 w-6 rounded-md flex items-center justify-center hover:bg-accent text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onTaskClick(task);
+                        }}
+                      >
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 )}
                 {/* Row View/Edit/Delete stay reachable from the detail drawer
                     (double-click / 「→」 / context menu / Enter); inline edit is

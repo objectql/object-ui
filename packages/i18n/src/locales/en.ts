@@ -415,7 +415,6 @@ const en = {
     row: {
       expand: 'Expand',
       collapse: 'Collapse',
-      locate: 'Locate on timeline',
       open: 'Open details',
     },
     aria: {

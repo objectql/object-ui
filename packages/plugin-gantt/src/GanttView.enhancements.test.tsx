@@ -86,10 +86,16 @@ describe('GanttView row click model (单击=Focus, 双击/「→」=详情)', ()
 
   it('the row 「→」 button opens detail and only renders with onTaskClick', () => {
     const onTaskClick = vi.fn();
-    const { getByTestId } = renderView([A()], { onTaskClick });
-    act(() => { fireEvent.click(getByTestId('gantt-row-open-a')); });
+    const { getByTestId, queryByTestId: q1 } = renderView([A()], { onTaskClick });
+    const openBtn = getByTestId('gantt-row-open-a');
+    act(() => { fireEvent.click(openBtn); });
     expect(onTaskClick).toHaveBeenCalledTimes(1);
     expect(onTaskClick.mock.calls[0][0].id).toBe('a');
+    // In-flow slot, not an absolute overlay — it must never cover the
+    // end-date column (#2482).
+    expect(openBtn.className).not.toContain('absolute');
+    // The hover locate icon is gone: a plain row click already locates.
+    expect(q1('gantt-row-locate-a')).toBeNull();
 
     const { queryByTestId } = renderView([makeTask('z', '2024-06-10T00:00:00.000Z', '2024-06-15T00:00:00.000Z')]);
     expect(queryByTestId('gantt-row-open-z')).toBeNull();
