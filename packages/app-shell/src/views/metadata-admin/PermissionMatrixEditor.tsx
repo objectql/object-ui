@@ -527,10 +527,15 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
               WHO OWNS the set (provenance, ADR-0086 D3) and whether it is the
               package's suggested default (ADR-0090 D5). */}
           <div className="flex items-center gap-1.5 pb-1">
+            {/* [A4 framework#2920] Provenance tri-state — platform / package /
+                admin(custom) — mirrors the unified sys_* `managed_by` vocab so
+                the Studio matrix and the Setup record page read the same. */}
             <Badge variant="outline" className="text-[10px]">
-              {draft.managedBy === 'package' || packageId
-                ? t('perm.badge.package')
-                : t('perm.badge.custom')}
+              {draft.managedBy === 'platform'
+                ? t('perm.badge.platform')
+                : draft.managedBy === 'package' || packageId
+                  ? t('perm.badge.package')
+                  : t('perm.badge.custom')}
             </Badge>
             {!!draft.isDefault && (
               <Badge variant="secondary" className="text-[10px]">{t('perm.badge.default')}</Badge>
