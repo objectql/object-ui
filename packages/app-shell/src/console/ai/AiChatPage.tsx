@@ -236,6 +236,18 @@ export function isPlatformBuiltinApp(app: { _packageId?: unknown }): boolean {
   return typeof app._packageId === 'string' && app._packageId.startsWith(PLATFORM_PACKAGE_PREFIX);
 }
 
+/**
+ * The app-metadata fields this surface reads. `useMetadata().apps` is loosely
+ * typed and the provider grafts `_packageId` onto each app; narrowing to this
+ * shape ONCE at the hook boundary lets the call sites read `.name` /
+ * `.label` / `._packageId` without per-access `as` casts.
+ */
+interface MetadataAppItem {
+  name: string;
+  label?: Parameters<typeof resolveI18nLabel>[0];
+  _packageId?: string;
+}
+
 function firstUserMessageText(messages: HydratedUIMessage[]): string | undefined {
   const message = messages.find((item) => item.role === 'user');
   const text = message?.parts
@@ -1664,7 +1676,10 @@ export function ChatPane({
   // visible (the Claude-Code-shows-the-repo idiom). The magic flow starts
   // unbound ("New app") and binds the moment its build mints a package.
   const isBuildSurface = activeAgent ? agentRouteName(activeAgent) === 'build' : false;
-  const { apps: metadataApps } = useMetadata();
+  const { apps } = useMetadata();
+  // Narrow the loosely-typed provider apps once (see MetadataAppItem) so the
+  // derivations below read fields without per-access casts.
+  const metadataApps = apps as MetadataAppItem[] | undefined;
   const { appLabel } = useObjectLabel();
   const boundPackageId = useMemo(
     () => deriveBoundPackageId(messages as unknown as readonly PackageBearingMessage[], editPackageId),
@@ -1673,7 +1688,7 @@ export function ChatPane({
   const boundPackageLabel = useMemo(() => {
     if (!boundPackageId) return undefined;
     const app = (metadataApps ?? []).find(
-      (a) => (a as { _packageId?: string })._packageId === boundPackageId,
+      (a) => a._packageId === boundPackageId,
     );
     return app ? appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }) : boundPackageId;
   }, [boundPackageId, metadataApps, appLabel, t]);
@@ -1685,7 +1700,7 @@ export function ChatPane({
   const editAppLabel = useMemo(() => {
     if (!editPackageId) return undefined;
     const app = (metadataApps ?? []).find(
-      (a) => (a as { _packageId?: string })._packageId === editPackageId,
+      (a) => a._packageId === editPackageId,
     );
     return app ? appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }) : undefined;
   }, [editPackageId, metadataApps, appLabel, t]);
@@ -1729,11 +1744,11 @@ export function ChatPane({
   const switchablePackages = useMemo(() => {
     const byPackage = new Map<string, string>();
     for (const app of metadataApps ?? []) {
-      const pkg = (app as { _packageId?: string })._packageId;
+      const pkg = app._packageId;
       // Skip platform built-ins (setup / account …): they're code-delivered
       // packages the build agent can't author, so they must not appear as
       // switch targets — A1.b lists authorable packages only.
-      if (!pkg || byPackage.has(pkg) || isPlatformBuiltinApp(app as { _packageId?: unknown })) {
+      if (!pkg || byPackage.has(pkg) || isPlatformBuiltinApp(app)) {
         continue;
       }
       byPackage.set(pkg, appLabel({ name: app.name, label: resolveI18nLabel(app.label, t) }));
