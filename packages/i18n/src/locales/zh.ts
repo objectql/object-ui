@@ -256,6 +256,7 @@ const zh = {
       // 下载模板
       downloadTemplate: '下载模板',
       downloadTemplateHint: '获取带正确列的 CSV（必填字段标 *）。',
+      templateFileName: '{{object}}-导入模板',
       // 校验（服务端 dryRun 预检）
       validate: '校验数据',
       validateHint: '导入前在服务端逐行校验。',

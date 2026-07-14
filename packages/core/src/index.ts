@@ -45,3 +45,4 @@ export * from './utils/compare-to.js';
 export * from './utils/chart-series.js';
 export * from './utils/dataset-format.js';
 export * from './utils/record-title.js';
+export * from './utils/export-filename.js';

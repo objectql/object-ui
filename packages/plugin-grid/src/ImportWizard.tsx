@@ -12,6 +12,7 @@ import {
 } from '@object-ui/components';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, Save, Trash2, ClipboardPaste, Download, Undo2 } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/react';
+import { sanitizeFileNameBase } from '@object-ui/core';
 import type {
   DataSource,
   ImportRequestOptions,
@@ -48,6 +49,7 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.browseFiles': 'Browse Files',
   'grid.import.downloadTemplate': 'Download template',
   'grid.import.downloadTemplateHint': 'Get a CSV with the right columns (required fields marked *).',
+  'grid.import.templateFileName': '{{object}}-import-template',
   'grid.import.parsing': 'Parsing…',
   'grid.import.pasteHint': 'or paste (Ctrl/⌘+V) rows copied from Excel or Google Sheets',
   'grid.import.legacyXls': "Legacy .xls files aren't supported — please re-save as .xlsx.",
@@ -604,15 +606,18 @@ function buildFailedRowsCsv(
 }
 
 /** Pick a representative allowed value from a select field's options, for the
- *  template example row. Prefers the stored value over the display label. */
+ *  template example row. Prefers the display label over the stored value: the
+ *  server's import coercion accepts either (it matches value OR label,
+ *  case-insensitively), and the label is what a localized user recognizes —
+ *  an ASCII slug like `prepare` reads as English leakage in a zh template. */
 function firstOptionValue(
   options: ImportWizardProps['fields'][number]['options'],
 ): string | undefined {
   const first = options?.[0];
   if (first === undefined || first === null) return undefined;
   if (typeof first === 'string') return first;
-  if (first.value !== undefined && first.value !== null) return String(first.value);
   if (first.label) return first.label;
+  if (first.value !== undefined && first.value !== null) return String(first.value);
   return undefined;
 }
 
@@ -683,7 +688,10 @@ const StepUpload: React.FC<{
   onFileLoaded: (headers: string[], rows: string[][]) => void;
   fields: ImportWizardProps['fields'];
   objectName: string;
-}> = ({ onFileLoaded, fields, objectName }) => {
+  /** Localized display label — used for the template filename so a zh user
+   *  downloads `合同-导入模板.csv` rather than `contracts-template.csv`. */
+  objectLabel?: string;
+}> = ({ onFileLoaded, fields, objectName, objectLabel }) => {
   const { t } = useImportTranslation();
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -755,7 +763,12 @@ const StepUpload: React.FC<{
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => downloadTextFile(`${objectName || 'import'}-template.csv`, buildImportTemplateCsv(fields))}
+            onClick={() => {
+              const base = sanitizeFileNameBase(
+                t('grid.import.templateFileName', { object: objectLabel || objectName || 'import' }),
+              );
+              downloadTextFile(`${base || 'import-template'}.csv`, buildImportTemplateCsv(fields));
+            }}
             data-testid="import-download-template"
           >
             <Download className="mr-1 h-4 w-4" /> {t('grid.import.downloadTemplate')}
@@ -2059,7 +2072,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
           <ImportHistoryPanel objectName={objectName} dataSource={dataSource} t={t} />
         ) : !result ? (
           <>
-            {step === 'upload' && <StepUpload onFileLoaded={handleFileLoaded} fields={fields} objectName={objectName} />}
+            {step === 'upload' && <StepUpload onFileLoaded={handleFileLoaded} fields={fields} objectName={objectName} objectLabel={label} />}
             {step === 'mapping' && (
               <StepMapping
                 headers={headers}

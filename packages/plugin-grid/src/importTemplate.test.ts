@@ -17,14 +17,17 @@ describe('buildImportTemplateCsv', () => {
     expect(example).toBe(',name@example.com,0,2024-01-31,true');
   });
 
-  it('seeds select example from the first option value, preferring value over label', () => {
+  it('seeds select example from the first option, preferring the display label over the value', () => {
+    // Import coercion accepts value OR label, and the label is what a
+    // localized user recognizes (e.g. `准备中` instead of the slug `prepare`).
     const csv = buildImportTemplateCsv([
-      { name: 'stage', label: 'Stage', type: 'select', options: [{ label: 'New Lead', value: 'new' }, { label: 'Won', value: 'won' }] },
+      { name: 'stage', label: 'Stage', type: 'select', options: [{ label: '准备中', value: 'prepare' }, { label: 'Won', value: 'won' }] },
       { name: 'tier', label: 'Tier', type: 'select', options: ['gold', 'silver'] },
+      { name: 'valueOnly', label: 'ValueOnly', type: 'select', options: [{ value: 'v1' }] },
       { name: 'empty', label: 'Empty', type: 'select' },
     ]);
     const example = csv.split('\n')[1];
-    expect(example).toBe('new,gold,');
+    expect(example).toBe('准备中,gold,v1,');
   });
 
   it('escapes labels containing commas per RFC 4180', () => {

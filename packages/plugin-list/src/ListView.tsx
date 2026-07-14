@@ -18,7 +18,7 @@ import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { evaluatePlainCondition, buildExpandFields } from '@object-ui/core';
+import { evaluatePlainCondition, buildExpandFields, buildExportFileName } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -312,10 +312,10 @@ function useListViewTranslation() {
  */
 function useListFieldLabel() {
   try {
-    const { fieldLabel, actionLabel } = useObjectLabel();
-    return { fieldLabel, actionLabel };
+    const { fieldLabel, actionLabel, objectLabel } = useObjectLabel();
+    return { fieldLabel, actionLabel, objectLabel };
   } catch {
-    return { fieldLabel: FALLBACK_FIELD_LABEL, actionLabel: undefined as any };
+    return { fieldLabel: FALLBACK_FIELD_LABEL, actionLabel: undefined as any, objectLabel: undefined as any };
   }
 }
 
@@ -360,7 +360,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const showViewSwitcher = showViewSwitcherProp ?? (propSchema as any)?.showViewSwitcher ?? false;
   // i18n support for record count and other labels
   const { t } = useListViewTranslation();
-  const { fieldLabel: resolveFieldLabel, actionLabel: resolveActionLabel } = useListFieldLabel();
+  const { fieldLabel: resolveFieldLabel, actionLabel: resolveActionLabel, objectLabel: resolveObjectLabel } = useListFieldLabel();
   const { translateOptions } = useSafeFieldLabel();
 
   // Kernel level default: Ensure viewType is always a RENDERABLE kind.
@@ -1608,7 +1608,18 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const exportConfig = resolvedExportOptions;
     const maxRecords = exportConfig?.maxRecords || 0;
     const includeHeaders = exportConfig?.includeHeaders !== false;
-    const prefix = exportConfig?.fileNamePrefix || schema.objectName || 'export';
+    // Download filename: `<配置前缀|对象中文标签|API名>-<日期时间>.<ext>`, e.g.
+    // `合同-20260714-153045.xlsx`. The translated object label (client i18n
+    // override → server-translated objectDef.label) beats the raw API name;
+    // a configured exportOptions.fileNamePrefix beats both.
+    const translatedLabel = objectDef?.label && objectDef?.name && typeof resolveObjectLabel === 'function'
+      ? resolveObjectLabel(objectDef)
+      : objectDef?.label;
+    const fileNameFor = (ext: string) => buildExportFileName(ext, {
+      prefix: exportConfig?.fileNamePrefix,
+      label: translatedLabel,
+      objectName: schema.objectName,
+    });
 
     // Server-streamed path: csv / xlsx / json via dataSource.exportDownload.
     // XLSX is server-only; type-aware value formatting, field resolution and
@@ -1657,7 +1668,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `${prefix}.${format}`;
+          a.download = fileNameFor(format);
           a.rel = 'noopener';
           document.body.appendChild(a);
           a.click();
@@ -1711,7 +1722,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${prefix}.csv`;
+      a.download = fileNameFor('csv');
       a.click();
       URL.revokeObjectURL(url);
     } else if (format === 'json') {
@@ -1719,12 +1730,12 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${prefix}.json`;
+      a.download = fileNameFor('json');
       a.click();
       URL.revokeObjectURL(url);
     }
     setShowExport(false);
-  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filters, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort]);
+  }, [data, effectiveFields, resolvedExportOptions, schema.objectName, schema.filters, exportPermitted, dataSource, currentFilters, userFilterConditions, currentSort, objectDef, resolveObjectLabel]);
 
   // All available fields for hide/show (with i18n)
   const allFields = React.useMemo(() => {
