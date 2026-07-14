@@ -1468,7 +1468,9 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
   const [writeMode, setWriteMode] = useState<ImportWriteMode>('insert');
   const [matchFields, setMatchFields] = useState<string[]>([]);
   const [createMissingOptions, setCreateMissingOptions] = useState(false);
-  const [runAutomations, setRunAutomations] = useState(false);
+  // Default ON: automations always ran on import before framework#2922 wired
+  // the flag up server-side, so preserving behavior means opt-out, not opt-in.
+  const [runAutomations, setRunAutomations] = useState(true);
   const [skipBlankMatchKey, setSkipBlankMatchKey] = useState(false);
   // Opt-in: route this import through a background job even when the row count
   // is under the async threshold. This is the only way to obtain an undoable
@@ -1970,7 +1972,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     setStep('upload'); setHeaders([]); setRows([]); setMapping({}); setProgress(0); setResult(null);
     setCorrections({}); setSelectedTemplateId(null); setMappingName(null);
     setWriteMode('insert'); setMatchFields([]);
-    setCreateMissingOptions(false); setRunAutomations(false); setSkipBlankMatchKey(false);
+    setCreateMissingOptions(false); setRunAutomations(true); setSkipBlankMatchKey(false);
     setJobId(null); setAsyncCounts(null);
     setValidating(false); setDryRunResult(null);
     setShowHistory(false);
