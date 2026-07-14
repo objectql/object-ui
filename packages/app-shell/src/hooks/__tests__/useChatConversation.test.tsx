@@ -14,6 +14,7 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import { uiMessageToChatMessage } from '@object-ui/plugin-chatbot';
 
 import {
+  purgeChatCaches,
   sanitizeChatMessagesForCache,
   toUIMessages,
   useChatConversation,
@@ -22,6 +23,7 @@ import {
 
 const API_BASE = 'http://ai.test/api/v1/ai';
 const CACHE_PREFIX = 'objectstack:ai-chat-conversation-id';
+const MESSAGE_PREFIX = 'objectstack:ai-chat-messages';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -859,5 +861,79 @@ describe('useChatConversation — same-conversation empty re-read preserves hydr
     rerender({ activeId: 'conv-b' });
     await waitFor(() => expect(result.current.conversationId).toBe('conv-b'));
     expect(result.current.initialMessages).toHaveLength(0);
+  });
+});
+
+// Security — plaintext AI-chat cache (conversation-id pointers + message
+// bodies) must be wiped on logout / user switch so a shared machine doesn't
+// leak the prior user's threads.
+describe('useChatConversation — clears chat cache on logout / user switch', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    localStorage.clear();
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function seedChatCache(): void {
+    localStorage.setItem(`${CACHE_PREFIX}:u1`, 'conv-1');
+    localStorage.setItem(`${CACHE_PREFIX}:u1:app:crm:build`, 'conv-1');
+    localStorage.setItem(`${MESSAGE_PREFIX}:conv-1`, JSON.stringify([{ id: 'm', role: 'user', parts: [] }]));
+    localStorage.setItem('unrelated:key', 'keep-me');
+  }
+
+  it('purgeChatCaches removes only the ai-chat keys', () => {
+    seedChatCache();
+    purgeChatCaches();
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1`)).toBeNull();
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1:app:crm:build`)).toBeNull();
+    expect(localStorage.getItem(`${MESSAGE_PREFIX}:conv-1`)).toBeNull();
+    expect(localStorage.getItem('unrelated:key')).toBe('keep-me');
+  });
+
+  it('does NOT purge on initial mount (no prior user)', async () => {
+    seedChatCache();
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'conv-x', messages: [] }));
+    const { result } = renderHook(() => useChatConversation({ userId: 'u1', apiBase: API_BASE }));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    // The seeded cache survives a plain mount — only a user CHANGE purges.
+    expect(localStorage.getItem(`${MESSAGE_PREFIX}:conv-1`)).not.toBeNull();
+    expect(localStorage.getItem('unrelated:key')).toBe('keep-me');
+  });
+
+  it('purges when the user logs out (userId → undefined)', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'conv-x', messages: [] }));
+    const { rerender } = renderHook(
+      ({ userId }: { userId: string | undefined }) => useChatConversation({ userId, apiBase: API_BASE }),
+      { initialProps: { userId: 'u1' as string | undefined } },
+    );
+    await waitFor(() => expect(localStorage.getItem(`${CACHE_PREFIX}:u1`)).toBe('conv-x'));
+    localStorage.setItem(`${MESSAGE_PREFIX}:conv-x`, '[]');
+    localStorage.setItem('unrelated:key', 'keep-me');
+
+    act(() => rerender({ userId: undefined }));
+
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1`)).toBeNull();
+    expect(localStorage.getItem(`${MESSAGE_PREFIX}:conv-x`)).toBeNull();
+    expect(localStorage.getItem('unrelated:key')).toBe('keep-me');
+  });
+
+  it('purges when a different user signs in (u1 → u2)', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 'conv-x', messages: [] }));
+    const { rerender } = renderHook(
+      ({ userId }: { userId: string }) => useChatConversation({ userId, apiBase: API_BASE }),
+      { initialProps: { userId: 'u1' } },
+    );
+    await waitFor(() => expect(localStorage.getItem(`${CACHE_PREFIX}:u1`)).toBe('conv-x'));
+
+    act(() => rerender({ userId: 'u2' }));
+
+    // u1's cached pointer is gone; the effect fired the purge on the switch.
+    expect(localStorage.getItem(`${CACHE_PREFIX}:u1`)).toBeNull();
   });
 });

@@ -256,6 +256,30 @@ function messageCacheKey(conversationId: string): string {
   return `${MESSAGE_CACHE_PREFIX}:${conversationId}`;
 }
 
+/**
+ * Security — clear ALL cached AI-chat state from localStorage (per-user
+ * conversation-id pointers AND per-conversation message bodies). Conversation
+ * content + tool payloads are cached in plaintext (keyed by `objectstack:
+ * ai-chat-*`); without this, on a shared machine the next profile user could
+ * read the previous user's AI threads (which may contain data surfaced by the
+ * `ask` agent). Called on a user change / logout (see the hook effect below);
+ * also exported so an explicit logout path can invoke it directly.
+ */
+export function purgeChatCaches(): void {
+  try {
+    const doomed: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith(CACHE_PREFIX) || key.startsWith(MESSAGE_CACHE_PREFIX))) {
+        doomed.push(key);
+      }
+    }
+    doomed.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    /* ignore — private mode, quota, disabled storage */
+  }
+}
+
 function readMessageCache(conversationId: string): HydratedUIMessage[] {
   try {
     const raw = localStorage.getItem(messageCacheKey(conversationId));
@@ -598,6 +622,8 @@ export function useChatConversation(
   // while a no-op re-render under the same scope still short-circuits.
   const resolvedForUserRef = useRef<string | undefined>(undefined);
   const resolvedScopeRef = useRef<string | undefined>(undefined);
+  // Last non-transient user we saw, to detect a logout / user switch.
+  const prevUserIdRef = useRef<string | undefined>(userId);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -605,6 +631,20 @@ export function useChatConversation(
       mountedRef.current = false;
     };
   }, []);
+
+  // Security — on a logout or user switch (a previously-known user is now gone
+  // or different), wipe the plaintext AI-chat cache so the next person on a
+  // shared machine can't read the prior user's threads. A mid-session auth
+  // flicker (userId momentarily undefined during a token refresh) would also
+  // purge, but that only forces a harmless server re-fetch — the server is the
+  // source of truth. The initial mount (prev === userId) never purges.
+  useEffect(() => {
+    const prev = prevUserIdRef.current;
+    prevUserIdRef.current = userId;
+    if (prev && prev !== userId) {
+      purgeChatCaches();
+    }
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
