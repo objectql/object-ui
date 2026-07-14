@@ -2267,13 +2267,24 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "hidden sm:inline-flex h-7 w-7 p-0 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
-                    searchTerm && "text-foreground font-medium"
+                    "hidden sm:inline-flex h-7 text-muted-foreground hover:text-primary text-xs transition-colors duration-150",
+                    searchTerm ? "px-2 text-foreground font-medium" : "w-7 p-0"
                   )}
                   data-testid="search-icon-button"
-                  title={t('list.search')}
+                  title={searchTerm ? `${t('list.search')}: ${searchTerm}` : t('list.search')}
                 >
                   <Search className="h-3.5 w-3.5" />
+                  {/* Persisted keyword restored from storage keeps filtering after
+                      navigation while the popover starts closed — surface it on the
+                      trigger so the active search is visible without opening it. */}
+                  {searchTerm && (
+                    <span
+                      className="ml-1.5 max-w-[8rem] truncate text-[11px]"
+                      data-testid="search-active-keyword"
+                    >
+                      {searchTerm}
+                    </span>
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-[calc(100vw-2rem)] sm:w-64 p-2" data-testid="search-popover">

@@ -933,6 +933,35 @@ describe('ListView', () => {
       expect(searchBtn.className).toContain('text-foreground');
       expect(searchBtn.className).toContain('font-medium');
     });
+
+    it('should show the active keyword on the search button while typing', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      renderWithProvider(<ListView schema={schema} />);
+      fireEvent.click(screen.getByTestId('search-icon-button'));
+      fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: 'alice' } });
+      expect(screen.getByTestId('search-active-keyword')).toHaveTextContent('alice');
+    });
+
+    it('should show the restored keyword on the search button without opening the popover', () => {
+      const schema: ListViewSchema = {
+        type: 'list-view',
+        objectName: 'contacts',
+        viewType: 'grid',
+        fields: ['name', 'email'],
+      };
+
+      // Simulates returning to a list whose search term was persisted: the
+      // filter is applied via initialSearchTerm but the popover starts closed.
+      renderWithProvider(<ListView schema={schema} initialSearchTerm="11" />);
+      expect(screen.queryByTestId('search-popover')).not.toBeInTheDocument();
+      expect(screen.getByTestId('search-active-keyword')).toHaveTextContent('11');
+    });
   });
 
   // ============================
