@@ -35,8 +35,12 @@ interface ObjectActions {
   execute: (action: ActionDef) => Promise<ActionResult>;
   /** Create new record — opens the create dialog */
   create: () => void;
-  /** Delete a record by id */
-  deleteRecord: (recordId: string) => Promise<ActionResult>;
+  /**
+   * Delete a record by id. Pass the row (`record`) when available so a
+   * package-owned permission set can be recognised as a RESET rather than a
+   * delete (ADR-0094) without an extra fetch.
+   */
+  deleteRecord: (recordId: string, record?: Record<string, unknown>) => Promise<ActionResult>;
   /** Navigate to a view */
   navigateToView: (viewId: string) => void;
   /** Navigate to a record detail */
