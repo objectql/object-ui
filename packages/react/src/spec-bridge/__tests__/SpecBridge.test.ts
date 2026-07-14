@@ -398,10 +398,20 @@ describe('SpecBridge', () => {
       expect(comp.type).toBe('ui.button');
       expect(comp.label).toBe('Save');
       expect(comp.events).toEqual({ onClick: 'save' });
-      expect(comp.visibility).toBe('${canEdit}');
+      // ADR-0089: the deprecated `visibility` alias is folded into canonical `visibleWhen`.
+      expect(comp.visibleWhen).toBe('${canEdit}');
       expect(comp.dataSource).toEqual({ provider: 'api', read: '/api/data' });
       expect(comp.responsive).toEqual({ sm: 'hidden' });
       expect(comp.aria).toEqual({ label: 'Save record' });
+    });
+
+    it('maps a canonical `visibleWhen` page-component predicate onto the node (ADR-0089)', () => {
+      const node = bridgePage(
+        { regions: [{ components: [{ type: 'ui.button', id: 'b', visibleWhen: '${canEdit}' }] }] },
+        {},
+      );
+      const comp = (node.body as any[])[0].body[0];
+      expect(comp.visibleWhen).toBe('${canEdit}');
     });
 
     it('maps style and responsiveStyles onto the component node', () => {

@@ -83,6 +83,37 @@ describe('SchemaRenderer Expression Integration', () => {
     });
   });
 
+  // ADR-0089 — `visibleWhen` is the canonical conditional-visibility predicate;
+  // `visibleOn` / `visibility` remain as deprecated aliases the renderer still reads.
+  describe('visibleWhen (ADR-0089 canonical)', () => {
+    it('shows when the visibleWhen predicate is truthy', () => {
+      render(
+        <SchemaRendererContext.Provider value={{ dataSource: { role: 'admin' } }}>
+          <SchemaRenderer schema={{ type: 'test-component', visibleWhen: '${data.role === "admin"}' }} />
+        </SchemaRendererContext.Provider>
+      );
+      expect(screen.getByTestId('test-component')).toBeInTheDocument();
+    });
+
+    it('hides when the visibleWhen predicate is falsy', () => {
+      const { container } = render(
+        <SchemaRendererContext.Provider value={{ dataSource: { role: 'viewer' } }}>
+          <SchemaRenderer schema={{ type: 'test-component', visibleWhen: '${data.role === "admin"}' }} />
+        </SchemaRendererContext.Provider>
+      );
+      expect(container.innerHTML).toBe('');
+    });
+
+    it('still honors the deprecated `visibility` alias', () => {
+      const { container } = render(
+        <SchemaRendererContext.Provider value={{ dataSource: { role: 'viewer' } }}>
+          <SchemaRenderer schema={{ type: 'test-component', visibility: '${data.role === "admin"}' }} />
+        </SchemaRendererContext.Provider>
+      );
+      expect(container.innerHTML).toBe('');
+    });
+  });
+
   describe('disabled expressions', () => {
     it('passes disabled=true when disabled expression is true', () => {
       render(<SchemaRenderer schema={{ type: 'test-component', disabled: true }} />);

@@ -272,18 +272,25 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
       newSchema.props = newProps;
     }
 
-    // Evaluate visibility: visible / visibleOn / visibility / hidden / hiddenOn
+    // Evaluate visibility: visible / visibleWhen / visibleOn / visibility / hidden / hiddenOn
     const shouldHide = (() => {
       if (newSchema.visible !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visible);
       }
+      // `visibleWhen` is the single canonical conditional-visibility predicate
+      // across every layer since ADR-0089 (show-when-truthy). The spec folds the
+      // deprecated `visibleOn` (view) / `visibility` (page) aliases into it at
+      // parse, so it is checked FIRST; the aliases below remain as a defensive
+      // read for any raw / un-normalized metadata reaching the renderer.
+      if (newSchema.visibleWhen !== undefined) {
+        return !evaluator.evaluateCondition(newSchema.visibleWhen);
+      }
+      // @deprecated ADR-0089 → `visibleWhen`.
       if (newSchema.visibleOn !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visibleOn);
       }
-      // `visibility` is the spec-canonical predicate (PageComponentSchema.visibility,
-      // an ExpressionInput) — show-when-truthy, same semantics as `visibleOn`. The
-      // spec→node bridge preserves it verbatim on the node, so this is where it
-      // finally gates rendering (previously it was inert and leaked as a DOM prop).
+      // @deprecated ADR-0089 → `visibleWhen` (was PageComponentSchema.visibility,
+      // an ExpressionInput) — show-when-truthy, same semantics as `visibleOn`.
       if (newSchema.visibility !== undefined) {
         return !evaluator.evaluateCondition(newSchema.visibility);
       }
@@ -382,6 +389,7 @@ export const SchemaRenderer = forwardRef<any, { schema: SchemaNode } & Record<st
     body: _body,
     schema: _schema,
     visible: _visible,
+    visibleWhen: _visibleWhen,
     visibleOn: _visibleOn,
     visibility: _visibility,
     hidden: _hidden,

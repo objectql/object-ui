@@ -107,8 +107,17 @@ export interface BaseSchema {
   visible?: boolean;
 
   /**
+   * Canonical conditional-visibility predicate (ADR-0089) — the element is shown
+   * when this evaluates truthy. The spec folds the deprecated `visibleOn` /
+   * `visibility` aliases into this key at parse.
+   * @example "${data.role === 'admin'}"
+   */
+  visibleWhen?: string;
+
+  /**
    * Expression for conditional visibility.
    * Evaluated against the current data context.
+   * @deprecated ADR-0089 — use `visibleWhen`.
    * @example "${data.role === 'admin'}"
    */
   visibleOn?: string;

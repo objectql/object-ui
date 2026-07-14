@@ -18,6 +18,9 @@ interface PageComponent {
   style?: Record<string, any>;
   responsiveStyles?: Record<string, any>;
   className?: string;
+  /** Canonical conditional-visibility predicate (ADR-0089). */
+  visibleWhen?: string;
+  /** @deprecated ADR-0089 → `visibleWhen`. */
   visibility?: string;
   dataSource?: any;
   responsive?: any;
@@ -83,7 +86,12 @@ function mapComponent(component: PageComponent): SchemaNode {
     (node as any).properties = component.properties;
   }
   if (component.events) node.events = component.events;
-  if (component.visibility) node.visibility = component.visibility;
+  // ADR-0089: `visibleWhen` is the canonical conditional-visibility predicate;
+  // the spec folds the deprecated `visibility` alias into it at parse, so prefer
+  // it and fall back to `visibility` for raw / un-normalized metadata. SchemaRenderer
+  // reads `visibleWhen` first (show-when-truthy).
+  const visiblePredicate = component.visibleWhen ?? component.visibility;
+  if (visiblePredicate) node.visibleWhen = visiblePredicate;
   if (component.dataSource) node.dataSource = component.dataSource;
   if (component.responsive) node.responsive = component.responsive;
   if (component.aria) node.aria = component.aria;

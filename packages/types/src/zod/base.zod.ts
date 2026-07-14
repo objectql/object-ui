@@ -100,9 +100,16 @@ const BaseSchemaCore = z.object({
   visible: z.boolean().optional().describe('Visibility control'),
 
   /**
-   * Conditional visibility expression
+   * Canonical conditional-visibility predicate (ADR-0089) — shown when truthy.
+   * The spec folds the deprecated `visibleOn` / `visibility` aliases into this.
    */
-  visibleOn: z.string().optional().describe('Expression for conditional visibility'),
+  visibleWhen: z.string().optional().describe('Canonical conditional-visibility predicate (ADR-0089)'),
+
+  /**
+   * Conditional visibility expression
+   * @deprecated ADR-0089 — use `visibleWhen`.
+   */
+  visibleOn: z.string().optional().describe('[DEPRECATED → visibleWhen] Expression for conditional visibility'),
 
   /**
    * Hidden control

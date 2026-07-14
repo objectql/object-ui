@@ -20,6 +20,9 @@ interface FormField {
   colSpan?: number;
   widget?: string;
   dependsOn?: string[];
+  /** Canonical conditional-visibility predicate (ADR-0089). */
+  visibleWhen?: string;
+  /** @deprecated ADR-0089 → `visibleWhen`. */
   visibleOn?: string;
 }
 
@@ -57,7 +60,12 @@ function mapField(field: FormField): Record<string, any> {
   if (field.colSpan != null) mapped.colSpan = field.colSpan;
   if (field.widget) mapped.widget = field.widget;
   if (field.dependsOn) mapped.dependsOn = field.dependsOn;
-  if (field.visibleOn) mapped.visibleOn = field.visibleOn;
+  // ADR-0089: `visibleWhen` is the canonical view-form-field visibility predicate
+  // (the spec folds the deprecated `visibleOn` into it at parse). Prefer it and
+  // fall back to `visibleOn` for raw / un-normalized metadata. The ObjectForm
+  // renderer reads this view-level predicate from the node's `visibleOn` slot.
+  const visiblePredicate = field.visibleWhen ?? field.visibleOn;
+  if (visiblePredicate) mapped.visibleOn = visiblePredicate;
 
   return mapped;
 }

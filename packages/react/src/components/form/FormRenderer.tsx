@@ -152,11 +152,14 @@ function evaluateFieldVisibility(
     return false;
   }
 
-  // Evaluate visibleOn expression
-  if (fieldConfig.visibleOn) {
+  // Evaluate the conditional-visibility predicate. `visibleWhen` is canonical
+  // (ADR-0089); `visibleOn` is the deprecated alias, kept as a fallback for raw
+  // / un-normalized metadata.
+  const visiblePredicate = fieldConfig.visibleWhen ?? fieldConfig.visibleOn;
+  if (visiblePredicate) {
     try {
       const evaluator = new ExpressionEvaluator({ data: formValues, form: formValues });
-      return evaluator.evaluateCondition(fieldConfig.visibleOn);
+      return evaluator.evaluateCondition(visiblePredicate);
     } catch {
       // On error, default to visible
       return true;
@@ -189,7 +192,7 @@ const FormSectionRenderer: React.FC<FormSectionRendererProps> = ({
   const hasConditionalFields = React.useMemo(() => {
     return section.fields.some((field) => {
       if (typeof field === 'string') return false;
-      return !!field.dependsOn || !!field.visibleOn;
+      return !!field.dependsOn || !!field.visibleWhen || !!field.visibleOn;
     });
   }, [section.fields]);
 
