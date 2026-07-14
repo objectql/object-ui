@@ -14,6 +14,7 @@
 import React from 'react';
 import { useRecordContext, useSafeFieldLabel, useRelatedRecordActions } from '@object-ui/react';
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { humanizeLabel } from '@object-ui/fields';
 import type { RecordRelatedListComponentProps } from '@object-ui/types';
 import { RelatedList } from '../RelatedList';
@@ -47,11 +48,13 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
   const ctx = useRecordContext();
   const { designer } = splitDesigner(props);
   const i18n = useSafeFieldLabel();
+  const { language } = useObjectTranslation();
 
   const objectName = schema.objectName;
 
   // Resolve a human-friendly title:
-  //   1. authored `schema.title` wins
+  //   1. authored `schema.title` wins — via pickLocalized so inline-i18n
+  //      shapes (`{ en, 'zh-CN' }`) resolve instead of rendering "[object Object]"
   //   2. translated object label via i18n (key `objects.{name}.label`)
   //   3. humanized objectName (e.g. `opportunity_quote` → "Opportunity Quote")
   //   4. literal `'Related'` as final fallback
@@ -60,7 +63,7 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
     : objectName
       ? humanizeLabel(objectName)
       : '';
-  const title = schema.title || resolvedObjectLabel || 'Related';
+  const title = pickLocalized(schema.title, language) || resolvedObjectLabel || 'Related';
 
   if (!objectName) {
     return (
@@ -150,7 +153,15 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
         columns={filteredColumns as any}
         pageSize={schema.limit}
         dataSource={ctx?.dataSource as any}
-        add={(schema as any).add}
+        add={
+          (schema as any).add
+            ? {
+                ...(schema as any).add,
+                // The Add-button label may carry inline translations too.
+                label: pickLocalized((schema as any).add.label, language) || undefined,
+              }
+            : undefined
+        }
         rowActions={handlers?.rowActions}
         onRowAction={handlers?.onRowAction}
         toolbarActions={handlers?.toolbarActions}

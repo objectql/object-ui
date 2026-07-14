@@ -462,6 +462,7 @@ const SAFE_FIELD_LABEL_FALLBACK = {
   ) => options,
   fieldOptionLabel: (_objectName: string, _fieldName: string, _optionValue: string, fallback: string) => fallback,
   sectionLabel: (_objectName: string, _sectionName: string, fallback: string) => fallback,
+  actionLabel: (_objectName: string | undefined, _actionName: string, fallback: string) => fallback,
 };
 
 /**

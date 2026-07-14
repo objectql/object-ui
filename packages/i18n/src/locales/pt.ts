@@ -280,6 +280,31 @@ const pt = {
     addGroup: "Adicionar campo de grupo",
     collapsedByDefault: "Recolhido por padrão",
     removeGroup: "Remover",
+    inlineEditShort: "Edição em linha",
+    inlineEditLabel: "Editar registros em linha (clique em uma célula para editar)",
+    recordEditingTitle: "Edição de registros",
+  },
+  managedByBadge: {
+    config: {
+      short: "Config. de admin",
+      title: "Configuração do administrador",
+      body: "Estas linhas definem o comportamento da plataforma em tempo de execução. Crie-as aqui; os dados de tempo de execução produzidos ficam em uma tabela separada.",
+    },
+    system: {
+      short: "Gerenciado pelo sistema",
+      title: "Gerenciado pela plataforma",
+      body: "As linhas são criadas automaticamente quando ações são executadas no registro de origem. A lista é uma superfície de monitoramento somente leitura — as ações por linha (Aprovar, Retirar, Reenviar, …) ficam em cada linha.",
+    },
+    appendOnly: {
+      short: "Somente leitura · Log de auditoria",
+      title: "Registro histórico somente leitura",
+      body: "Log de auditoria imutável. As linhas não podem ser criadas, editadas ou excluídas pela interface: a plataforma as grava quando os eventos ocorrem. Use Exportar para baixar para revisão de conformidade.",
+    },
+    betterAuth: {
+      short: "Identidade",
+      title: "Gerenciado pelo provedor de identidade",
+      body: "O esquema deste objeto pertence a {{provider}}. Edições diretas ignoram o hash de senhas, a validação de sessões, as verificações de dois fatores e os hooks de auditoria. Gerencie esses registros pelos fluxos de login, convite e segurança do seu provedor de autenticação.",
+    },
   },
   kanban: {
     addCard: "Adicionar cartão",
@@ -1220,6 +1245,44 @@ const pt = {
     },
     shell: {
       tenantHostHint: "Você está fazendo login neste espaço de trabalho",
+    },
+  },
+  profile: {
+    title: "Perfil",
+    subtitle: "Gerencie as configurações da sua conta",
+    saving: "Salvando…",
+    avatar: {
+      upload: "Enviar",
+      replace: "Substituir",
+      remove: "Remover",
+    },
+    info: {
+      title: "Informações pessoais",
+      description: "Atualize seu nome e veja os detalhes da conta",
+      saved: "Perfil atualizado com sucesso.",
+      name: "Nome",
+      email: "E-mail",
+      emailImmutable: "O e-mail não pode ser alterado.",
+      role: "Função",
+      save: "Salvar alterações",
+    },
+    password: {
+      changeTitle: "Alterar senha",
+      setTitle: "Definir senha local",
+      changeDescription: "Atualize a senha que você usa para entrar neste ambiente.",
+      setDescription:
+        "Você entrou via logon único (SSO). Defina uma senha local para também poder entrar com e-mail e senha neste ambiente.",
+      current: "Senha atual",
+      new: "Nova senha",
+      password: "Senha",
+      confirm: "Confirmar senha",
+      tooShort: "A senha deve ter pelo menos 8 caracteres",
+      mismatch: "As senhas não coincidem",
+      enterCurrent: "Digite sua senha atual",
+      changed: "Senha alterada.",
+      localSet: "Senha local definida. Agora você pode entrar com e-mail e senha neste ambiente.",
+      changeAction: "Alterar senha",
+      setAction: "Definir senha",
     },
   },
   errors: {

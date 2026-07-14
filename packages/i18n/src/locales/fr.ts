@@ -280,6 +280,31 @@ const fr = {
     addGroup: "Ajouter un champ de groupe",
     collapsedByDefault: "Réduit par défaut",
     removeGroup: "Supprimer",
+    inlineEditShort: "Édition en ligne",
+    inlineEditLabel: "Modifier les enregistrements en ligne (cliquez sur une cellule pour modifier)",
+    recordEditingTitle: "Modification des enregistrements",
+  },
+  managedByBadge: {
+    config: {
+      short: "Config admin",
+      title: "Configuration administrateur",
+      body: "Ces lignes définissent le comportement de la plateforme à l'exécution. Créez-les ici ; les données d'exécution produites résident dans une table séparée.",
+    },
+    system: {
+      short: "Géré par le système",
+      title: "Géré par la plateforme",
+      body: "Les lignes sont créées automatiquement lorsque des actions s'exécutent sur l'enregistrement source. La liste est une surface de supervision en lecture seule — les actions par ligne (Approuver, Rappeler, Renvoyer, …) se trouvent sur chaque ligne.",
+    },
+    appendOnly: {
+      short: "Lecture seule · Journal d'audit",
+      title: "Historique en lecture seule",
+      body: "Journal d'audit immuable. Les lignes ne peuvent pas être créées, modifiées ni supprimées depuis l'interface : la plateforme les écrit lors des événements. Utilisez Exporter pour les télécharger à des fins de conformité.",
+    },
+    betterAuth: {
+      short: "Identité",
+      title: "Géré par le fournisseur d'identité",
+      body: "Le schéma de cet objet appartient à {{provider}}. Les modifications directes contournent le hachage des mots de passe, la validation des sessions, les contrôles à deux facteurs et les hooks d'audit. Gérez ces enregistrements via les flux de connexion, d'invitation et de sécurité de votre fournisseur d'authentification.",
+    },
   },
   kanban: {
     addCard: "Ajouter une carte",
@@ -1220,6 +1245,44 @@ const fr = {
     },
     shell: {
       tenantHostHint: "Vous vous connectez à cet espace de travail",
+    },
+  },
+  profile: {
+    title: "Profil",
+    subtitle: "Gérez les paramètres de votre compte",
+    saving: "Enregistrement…",
+    avatar: {
+      upload: "Téléverser",
+      replace: "Remplacer",
+      remove: "Supprimer",
+    },
+    info: {
+      title: "Informations personnelles",
+      description: "Mettez à jour votre nom et consultez les détails de votre compte",
+      saved: "Profil mis à jour avec succès.",
+      name: "Nom",
+      email: "E-mail",
+      emailImmutable: "L'adresse e-mail ne peut pas être modifiée.",
+      role: "Rôle",
+      save: "Enregistrer les modifications",
+    },
+    password: {
+      changeTitle: "Changer le mot de passe",
+      setTitle: "Définir un mot de passe local",
+      changeDescription: "Mettez à jour le mot de passe que vous utilisez pour vous connecter à cet environnement.",
+      setDescription:
+        "Vous vous êtes connecté via l'authentification unique. Définissez un mot de passe local pour pouvoir également vous connecter avec votre e-mail et un mot de passe sur cet environnement.",
+      current: "Mot de passe actuel",
+      new: "Nouveau mot de passe",
+      password: "Mot de passe",
+      confirm: "Confirmer le mot de passe",
+      tooShort: "Le mot de passe doit contenir au moins 8 caractères",
+      mismatch: "Les mots de passe ne correspondent pas",
+      enterCurrent: "Saisissez votre mot de passe actuel",
+      changed: "Mot de passe modifié.",
+      localSet: "Mot de passe local défini. Vous pouvez désormais vous connecter avec votre e-mail et votre mot de passe sur cet environnement.",
+      changeAction: "Changer le mot de passe",
+      setAction: "Définir le mot de passe",
     },
   },
   errors: {

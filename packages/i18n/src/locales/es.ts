@@ -280,6 +280,31 @@ const es = {
     addGroup: "Agregar campo de grupo",
     collapsedByDefault: "Contraído por defecto",
     removeGroup: "Eliminar",
+    inlineEditShort: "Edición en línea",
+    inlineEditLabel: "Editar registros en línea (haga clic en una celda para editar)",
+    recordEditingTitle: "Edición de registros",
+  },
+  managedByBadge: {
+    config: {
+      short: "Configuración",
+      title: "Configuración del administrador",
+      body: "Estas filas definen el comportamiento de la plataforma en tiempo de ejecución. Créelas aquí; los datos de tiempo de ejecución que producen viven en una tabla separada.",
+    },
+    system: {
+      short: "Gestionado por el sistema",
+      title: "Gestionado por la plataforma",
+      body: "Las filas se crean automáticamente cuando se ejecutan acciones en el registro de origen. La lista es una superficie de supervisión de solo lectura; las acciones por fila (Aprobar, Retirar, Reenviar, …) están en cada fila.",
+    },
+    appendOnly: {
+      short: "Solo lectura · Registro de auditoría",
+      title: "Registro histórico de solo lectura",
+      body: "Registro de auditoría inmutable. Las filas no se pueden crear, editar ni eliminar desde la interfaz: las escribe la plataforma cuando ocurren eventos. Use Exportar para descargarlas para revisión de cumplimiento.",
+    },
+    betterAuth: {
+      short: "Identidad",
+      title: "Gestionado por el proveedor de identidad",
+      body: "El esquema de este objeto es propiedad de {{provider}}. Las ediciones directas omiten el hash de contraseñas, la validación de sesiones, las comprobaciones de dos factores y los hooks de auditoría. Gestione estos registros mediante los flujos de inicio de sesión, invitación y seguridad de su proveedor de autenticación.",
+    },
   },
   kanban: {
     addCard: "Añadir tarjeta",
@@ -1220,6 +1245,44 @@ const es = {
     },
     shell: {
       tenantHostHint: "Está iniciando sesión en este espacio de trabajo",
+    },
+  },
+  profile: {
+    title: "Perfil",
+    subtitle: "Gestione la configuración de su cuenta",
+    saving: "Guardando…",
+    avatar: {
+      upload: "Subir",
+      replace: "Reemplazar",
+      remove: "Quitar",
+    },
+    info: {
+      title: "Información personal",
+      description: "Actualice su nombre y consulte los detalles de la cuenta",
+      saved: "Perfil actualizado correctamente.",
+      name: "Nombre",
+      email: "Correo electrónico",
+      emailImmutable: "El correo electrónico no se puede cambiar.",
+      role: "Rol",
+      save: "Guardar cambios",
+    },
+    password: {
+      changeTitle: "Cambiar contraseña",
+      setTitle: "Establecer contraseña local",
+      changeDescription: "Actualice la contraseña que usa para iniciar sesión en este entorno.",
+      setDescription:
+        "Inició sesión mediante inicio de sesión único. Establezca una contraseña local para poder iniciar sesión también con correo y contraseña en este entorno.",
+      current: "Contraseña actual",
+      new: "Nueva contraseña",
+      password: "Contraseña",
+      confirm: "Confirmar contraseña",
+      tooShort: "La contraseña debe tener al menos 8 caracteres",
+      mismatch: "Las contraseñas no coinciden",
+      enterCurrent: "Introduzca su contraseña actual",
+      changed: "Contraseña cambiada.",
+      localSet: "Contraseña local establecida. Ahora puede iniciar sesión con correo y contraseña en este entorno.",
+      changeAction: "Cambiar contraseña",
+      setAction: "Establecer contraseña",
     },
   },
   errors: {

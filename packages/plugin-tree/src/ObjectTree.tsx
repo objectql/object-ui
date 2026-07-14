@@ -21,7 +21,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import type { DataSource, ViewData } from '@object-ui/types';
-import { useNavigationOverlay } from '@object-ui/react';
+import { useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
 import { NavigationOverlay, cn } from '@object-ui/components';
 import { extractRecords, buildExpandFields } from '@object-ui/core';
 import { ChevronRight, ChevronDown } from 'lucide-react';
@@ -338,10 +338,16 @@ export const ObjectTree: React.FC<ObjectTreeProps> = ({
     [roots, expanded],
   );
 
-  // Column labels from object schema (fall back to humanized field key).
+  // Column labels: i18n convention key (`objects.{obj}.fields.{field}.label`)
+  // first, then the object schema's authored label, then a humanized field key.
+  const i18n = useSafeFieldLabel();
+  const headerObjectName: string | undefined =
+    (dataConfig?.provider === 'object' ? (dataConfig as any).object : undefined) ?? schema.objectName;
   const fieldLabel = (field: string): string => {
     const def = objectSchema?.fields?.[field];
-    return def?.label || field.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+    const fallback =
+      def?.label || field.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+    return headerObjectName ? i18n.fieldLabel(headerObjectName, field, fallback) : fallback;
   };
 
   const navigation = useNavigationOverlay({

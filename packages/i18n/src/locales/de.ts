@@ -280,6 +280,31 @@ const de = {
     addGroup: "Gruppenfeld hinzufügen",
     collapsedByDefault: "Standardmäßig eingeklappt",
     removeGroup: "Entfernen",
+    inlineEditShort: "Inline bearbeiten",
+    inlineEditLabel: "Datensätze inline bearbeiten (Zelle anklicken zum Bearbeiten)",
+    recordEditingTitle: "Datensatzbearbeitung",
+  },
+  managedByBadge: {
+    config: {
+      short: "Admin-Konfiguration",
+      title: "Administrator-Konfiguration",
+      body: "Diese Zeilen definieren das Laufzeitverhalten der Plattform. Erstellen Sie sie hier; die erzeugten Laufzeitdaten liegen in einer separaten Tabelle.",
+    },
+    system: {
+      short: "Systemverwaltet",
+      title: "Von der Plattform verwaltet",
+      body: "Zeilen werden automatisch erstellt, wenn Aktionen auf dem Quelldatensatz ausgeführt werden. Die Liste ist eine schreibgeschützte Überwachungsansicht – Aktionen auf Zeilenebene (Genehmigen, Zurückrufen, Erneut senden, …) befinden sich an jeder Zeile.",
+    },
+    appendOnly: {
+      short: "Schreibgeschützt · Audit-Log",
+      title: "Schreibgeschützter Verlauf",
+      body: "Unveränderliches Audit-Log. Zeilen können in der UI nicht erstellt, bearbeitet oder gelöscht werden – die Plattform schreibt sie bei Ereignissen. Nutzen Sie Export für Compliance-Prüfungen.",
+    },
+    betterAuth: {
+      short: "Identität",
+      title: "Vom Identitätsanbieter verwaltet",
+      body: "Das Schema dieses Objekts gehört {{provider}}. Direkte Änderungen umgehen Passwort-Hashing, Sitzungsvalidierung, Zwei-Faktor-Prüfungen und Audit-Hooks. Verwalten Sie diese Datensätze über die Anmelde-, Einladungs- und Sicherheitsabläufe Ihres Authentifizierungsanbieters.",
+    },
   },
   kanban: {
     addCard: "Karte hinzufügen",
@@ -1220,6 +1245,44 @@ const de = {
     },
     shell: {
       tenantHostHint: "Sie melden sich bei diesem Arbeitsbereich an",
+    },
+  },
+  profile: {
+    title: "Profil",
+    subtitle: "Verwalten Sie Ihre Kontoeinstellungen",
+    saving: "Speichern…",
+    avatar: {
+      upload: "Hochladen",
+      replace: "Ersetzen",
+      remove: "Entfernen",
+    },
+    info: {
+      title: "Persönliche Informationen",
+      description: "Aktualisieren Sie Ihren Namen und sehen Sie Ihre Kontodetails ein",
+      saved: "Profil erfolgreich aktualisiert.",
+      name: "Name",
+      email: "E-Mail",
+      emailImmutable: "Die E-Mail-Adresse kann nicht geändert werden.",
+      role: "Rolle",
+      save: "Änderungen speichern",
+    },
+    password: {
+      changeTitle: "Passwort ändern",
+      setTitle: "Lokales Passwort festlegen",
+      changeDescription: "Aktualisieren Sie das Passwort, mit dem Sie sich in dieser Umgebung anmelden.",
+      setDescription:
+        "Sie haben sich per Single Sign-On angemeldet. Legen Sie ein lokales Passwort fest, um sich in dieser Umgebung auch mit E-Mail und Passwort anmelden zu können.",
+      current: "Aktuelles Passwort",
+      new: "Neues Passwort",
+      password: "Passwort",
+      confirm: "Passwort bestätigen",
+      tooShort: "Das Passwort muss mindestens 8 Zeichen lang sein",
+      mismatch: "Die Passwörter stimmen nicht überein",
+      enterCurrent: "Geben Sie Ihr aktuelles Passwort ein",
+      changed: "Passwort geändert.",
+      localSet: "Lokales Passwort festgelegt. Sie können sich in dieser Umgebung jetzt auch mit E-Mail und Passwort anmelden.",
+      changeAction: "Passwort ändern",
+      setAction: "Passwort festlegen",
     },
   },
   errors: {

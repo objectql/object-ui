@@ -280,6 +280,31 @@ const ko = {
     addGroup: "그룹 필드 추가",
     collapsedByDefault: "기본적으로 접힘",
     removeGroup: "제거",
+    inlineEditShort: "인라인 편집",
+    inlineEditLabel: "레코드를 인라인으로 편집(셀을 클릭하여 편집)",
+    recordEditingTitle: "레코드 편집",
+  },
+  managedByBadge: {
+    config: {
+      short: "관리 구성",
+      title: "관리자 구성",
+      body: "이 행들은 플랫폼의 런타임 동작을 정의합니다. 여기에서 작성하세요. 생성되는 런타임 데이터는 별도의 테이블에 저장됩니다.",
+    },
+    system: {
+      short: "시스템 관리",
+      title: "플랫폼에서 관리",
+      body: "원본 레코드에서 작업이 실행되면 행이 자동으로 생성됩니다. 아래 목록은 읽기 전용 모니터링 화면이며, 행 수준 작업(승인, 회수, 재전송 등)은 각 행에 있습니다.",
+    },
+    appendOnly: {
+      short: "읽기 전용 · 감사 로그",
+      title: "읽기 전용 기록",
+      body: "변경할 수 없는 감사 로그입니다. 행은 이벤트 발생 시 플랫폼이 기록하며 UI에서 생성·편집·삭제할 수 없습니다. 규정 준수 검토를 위해 내보내기를 사용하세요.",
+    },
+    betterAuth: {
+      short: "아이덴티티",
+      title: "ID 공급자가 관리",
+      body: "이 개체의 스키마는 {{provider}}가 소유합니다. 직접 편집하면 비밀번호 해싱, 세션 검증, 2단계 인증 확인 및 감사 후크를 우회하게 됩니다. 인증 공급자의 로그인, 초대, 보안 흐름을 통해 이 레코드를 관리하세요.",
+    },
   },
   kanban: {
     addCard: "카드 추가",
@@ -1220,6 +1245,44 @@ const ko = {
     },
     shell: {
       tenantHostHint: "이 작업 공간에 로그인하는 중입니다",
+    },
+  },
+  profile: {
+    title: "프로필",
+    subtitle: "계정 설정을 관리하세요",
+    saving: "저장 중…",
+    avatar: {
+      upload: "업로드",
+      replace: "변경",
+      remove: "제거",
+    },
+    info: {
+      title: "개인 정보",
+      description: "이름을 업데이트하고 계정 정보를 확인하세요",
+      saved: "프로필이 성공적으로 업데이트되었습니다.",
+      name: "이름",
+      email: "이메일",
+      emailImmutable: "이메일은 변경할 수 없습니다.",
+      role: "역할",
+      save: "변경 사항 저장",
+    },
+    password: {
+      changeTitle: "비밀번호 변경",
+      setTitle: "로컬 비밀번호 설정",
+      changeDescription: "이 환경에 로그인할 때 사용하는 비밀번호를 업데이트하세요.",
+      setDescription:
+        "통합 인증(SSO)으로 로그인하셨습니다. 로컬 비밀번호를 설정하면 이 환경에서 이메일과 비밀번호로도 로그인할 수 있습니다.",
+      current: "현재 비밀번호",
+      new: "새 비밀번호",
+      password: "비밀번호",
+      confirm: "비밀번호 확인",
+      tooShort: "비밀번호는 8자 이상이어야 합니다",
+      mismatch: "비밀번호가 일치하지 않습니다",
+      enterCurrent: "현재 비밀번호를 입력하세요",
+      changed: "비밀번호가 변경되었습니다.",
+      localSet: "로컬 비밀번호가 설정되었습니다. 이제 이 환경에서 이메일과 비밀번호로 로그인할 수 있습니다.",
+      changeAction: "비밀번호 변경",
+      setAction: "비밀번호 설정",
     },
   },
   errors: {

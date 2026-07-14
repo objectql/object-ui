@@ -13,6 +13,7 @@
 import React from 'react';
 import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel } from '@object-ui/react';
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { RecordDetailsComponentProps } from '@object-ui/types';
 import { DetailView } from '../DetailView';
 import {
@@ -61,6 +62,7 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   const perms = usePermissions();
   const { readableFields } = useFieldPermissions(objectName);
   const { sectionLabel } = useSafeFieldLabel();
+  const { language } = useObjectTranslation();
 
   // Phase N.4b: field names registered live by a mounted `record:highlights`
   // instance via HighlightFieldsContext (used to dedupe them out of the grid).
@@ -331,7 +333,10 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   const filteredFields = dropHidden(normaliseList(filterList(schema.fields as any[])));
   const filteredSections = Array.isArray(schema.sections)
     ? (schema.sections as any[]).map((s) => {
-        const rawTitle = s.title ?? s.label;
+        // Authored titles may carry inline translations (`{ en, 'zh-CN' }`) —
+        // resolve via pickLocalized before any convention-based lookup.
+        const rawTitleSrc = s.title ?? s.label;
+        const rawTitle = rawTitleSrc != null ? pickLocalized(rawTitleSrc, language) : undefined;
         // Translate the section label when authors provided a stable `name`.
         // Convention: `{ns}.objects.{objectName}._sections.{name}.label`.
         // Falls back to the raw English label when no translation exists.

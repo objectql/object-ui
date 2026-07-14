@@ -356,6 +356,28 @@ const en = {
     inlineEditLabel: 'Edit records inline (click a cell to edit)',
     recordEditingTitle: 'Record editing',
   },
+  managedByBadge: {
+    config: {
+      short: 'Admin config',
+      title: 'Administrator configuration',
+      body: 'These rows define how the platform behaves at runtime. Author them here; the runtime data they produce lives in a separate table.',
+    },
+    system: {
+      short: 'System-managed',
+      title: 'Managed by the platform',
+      body: 'Rows here are created automatically when actions run on the source record. The list below is a read-only monitoring surface — row-level actions (Approve, Recall, Resend, …) live on each row.',
+    },
+    appendOnly: {
+      short: 'Read-only · Audit log',
+      title: 'Read-only historical record',
+      body: "Immutable audit log. Rows cannot be created, edited, or deleted from the UI — they're written by the platform when events occur. Use Export to download for compliance review.",
+    },
+    betterAuth: {
+      short: 'Identity',
+      title: 'Managed by the identity provider',
+      body: "This object's schema is owned by {{provider}}. Direct edits bypass password hashing, session validation, two-factor checks, and audit hooks. Manage these records through your authentication provider's sign-in, invitation, and security flows instead.",
+    },
+  },
   kanban: {
     addCard: 'Add card',
     addColumn: 'Add column',
@@ -1678,6 +1700,44 @@ const en = {
     },
     shell: {
       tenantHostHint: 'You are signing in to this workspace',
+    },
+  },
+  profile: {
+    title: 'Profile',
+    subtitle: 'Manage your account settings',
+    saving: 'Saving…',
+    avatar: {
+      upload: 'Upload',
+      replace: 'Replace',
+      remove: 'Remove',
+    },
+    info: {
+      title: 'Personal Information',
+      description: 'Update your name and view account details',
+      saved: 'Profile updated successfully.',
+      name: 'Name',
+      email: 'Email',
+      emailImmutable: 'Email cannot be changed.',
+      role: 'Role',
+      save: 'Save Changes',
+    },
+    password: {
+      changeTitle: 'Change Password',
+      setTitle: 'Set Local Password',
+      changeDescription: 'Update the password you use to sign in to this environment.',
+      setDescription:
+        'You signed in via single sign-on. Set a local password to also sign in with email and password on this environment.',
+      current: 'Current password',
+      new: 'New password',
+      password: 'Password',
+      confirm: 'Confirm password',
+      tooShort: 'Password must be at least 8 characters',
+      mismatch: 'Passwords do not match',
+      enterCurrent: 'Enter your current password',
+      changed: 'Password changed.',
+      localSet: 'Local password set. You can now sign in with email and password on this environment.',
+      changeAction: 'Change password',
+      setAction: 'Set password',
     },
   },
   errors: {

@@ -16,7 +16,8 @@
  */
 
 import React from 'react';
-import { useRecordContext, useActionEngine, useMetadataItem, useCondition, toPredicateInput } from '@object-ui/react';
+import { useRecordContext, useActionEngine, useMetadataItem, useCondition, toPredicateInput, useSafeFieldLabel } from '@object-ui/react';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 import { Button, cn } from '@object-ui/components';
 import { Loader2 } from 'lucide-react';
@@ -51,6 +52,8 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
   const ctx = useRecordContext();
   const { designer } = splitDesigner(props);
   const perms = usePermissions();
+  const { language } = useObjectTranslation();
+  const i18n = useSafeFieldLabel();
 
   // Spec bridge inlines `properties.*` onto the node but also preserves the
   // raw bag. Read from both for compatibility.
@@ -160,7 +163,10 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
           record={ctx?.data}
           variant={(action as any).variant || schema.variant || 'default'}
           size={(action as any).size || schema.size || 'sm'}
-          label={action.label || action.name || `Action ${idx + 1}`}
+          label={(() => {
+            const raw = pickLocalized(action.label, language) || action.name || `Action ${idx + 1}`;
+            return action.name ? (i18n as any).actionLabel(objectName || undefined, action.name, raw) : raw;
+          })()}
           onRun={async () => {
             if (typeof action.onClick === 'function') await action.onClick();
             else if (action.name) await executeAction(action.name);

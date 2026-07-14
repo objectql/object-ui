@@ -54,6 +54,7 @@ import {
   useActionEngine,
 } from '@object-ui/react';
 import { Alert, AlertTitle, AlertDescription, Button, cn, LazyIcon } from '@object-ui/components';
+import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { ActionDef } from '@object-ui/core';
 
 type Severity = 'info' | 'warning' | 'error' | 'success';
@@ -118,6 +119,13 @@ export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, c
   const record = recordCtx?.data;
   const objectName = recordCtx?.objectName || '';
   const recordId = (recordCtx?.recordId as any) ?? record?.id;
+  const { language } = useObjectTranslation();
+
+  // Authored copy may carry inline translations (`{ en, 'zh-CN', … }`) —
+  // resolve to the current language before rendering / keying.
+  const title = pickLocalized(props.title, language);
+  const body = pickLocalized(props.body, language);
+  const ctaLabel = pickLocalized(props.action?.label, language);
 
   const severity: Severity = (['info', 'warning', 'error', 'success'] as const).includes(props.severity)
     ? (props.severity as Severity)
@@ -137,7 +145,9 @@ export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, c
   // dismissing on one record does not silence the same alert on another.
   const storageKey = React.useMemo(() => {
     if (!props.dismissible) return null;
-    const k = props.dismissKey || props.title || severity;
+    // Key by the language-independent resolution ('en'/default) so dismissing
+    // the alert in one locale keeps it dismissed after a language switch.
+    const k = props.dismissKey || pickLocalized(props.title, 'en') || severity;
     return `os.record-alert:${objectName}:${recordId ?? '_'}:${k}`;
   }, [props.dismissible, props.dismissKey, props.title, severity, objectName, recordId]);
 
@@ -205,17 +215,17 @@ export const RecordAlertRenderer: React.FC<RecordAlertProps> = ({ schema = {}, c
       aria-live={severity === 'error' ? 'assertive' : 'polite'}
     >
       <LazyIcon name={iconName} className="h-4 w-4" aria-hidden="true" />
-      {props.title ? <AlertTitle>{props.title}</AlertTitle> : null}
-      {props.body || ctaAction ? (
+      {title ? <AlertTitle>{title}</AlertTitle> : null}
+      {body || ctaAction ? (
         <AlertDescription>
-          {props.body ? <p className="mb-2 last:mb-0">{props.body}</p> : null}
+          {body ? <p className="mb-2 last:mb-0">{body}</p> : null}
           {ctaAction ? (
             <Button
               size="sm"
               variant={(props.action?.variant as any) || (severity === 'error' ? 'destructive' : 'default')}
               onClick={handleCta}
             >
-              {props.action?.label || ctaAction.label || ctaAction.name}
+              {ctaLabel || ctaAction.label || ctaAction.name}
             </Button>
           ) : null}
         </AlertDescription>

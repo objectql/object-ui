@@ -28,13 +28,19 @@
 
 import { lazy, Suspense } from 'react';
 import { registerAppComponent } from '@object-ui/app-shell';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 const ProfilePage = lazy(() =>
   import('./pages/system/ProfilePage').then((m) => ({ default: m.ProfilePage })),
 );
 
-function AccountFallback({ label }: { label: string }) {
-  return <div className="p-6 text-sm text-muted-foreground">Loading {label}…</div>;
+function AccountFallback() {
+  const { t } = useObjectTranslation();
+  return (
+    <div className="p-6 text-sm text-muted-foreground">
+      {t('common.loading', { defaultValue: 'Loading...' })}
+    </div>
+  );
 }
 
 registerAppComponent({
@@ -42,7 +48,7 @@ registerAppComponent({
   label: 'My Profile',
   source: '@objectstack/console',
   component: (props: any) => (
-    <Suspense fallback={<AccountFallback label="profile" />}>
+    <Suspense fallback={<AccountFallback />}>
       <ProfilePage {...props} />
     </Suspense>
   ),

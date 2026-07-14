@@ -7,6 +7,7 @@ import {
   TooltipProvider,
   cn,
 } from '@object-ui/components';
+import { useObjectTranslation } from '@object-ui/i18n';
 
 /**
  * ManagedByBadge — replaces the verbose, full-width `ManagedByBanner` with
@@ -52,11 +53,11 @@ export interface ManagedByBadgeProps {
 
 interface Variant {
   icon: typeof ShieldAlert;
-  /** Short label shown inside the badge itself. */
+  /** Key under the `managedByBadge.*` locale namespace. */
+  i18nKey: string;
+  /** English fallbacks when the locale bundle misses a key. */
   short: string;
-  /** Longer one-line title rendered in the tooltip heading. */
   title: string;
-  /** Tooltip body. Receives the human-readable identity label (used only by better-auth). */
   body: (display: string) => string;
   /** Tailwind classes for the badge surface. */
   tone: string;
@@ -65,6 +66,7 @@ interface Variant {
 const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
   config: {
     icon: Settings2,
+    i18nKey: 'config',
     short: 'Admin config',
     title: 'Administrator configuration',
     body: () =>
@@ -73,6 +75,7 @@ const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
   },
   system: {
     icon: Lock,
+    i18nKey: 'system',
     short: 'System-managed',
     title: 'Managed by the platform',
     body: () =>
@@ -81,6 +84,7 @@ const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
   },
   'append-only': {
     icon: Archive,
+    i18nKey: 'appendOnly',
     short: 'Read-only · Audit log',
     title: 'Read-only historical record',
     body: () =>
@@ -89,6 +93,7 @@ const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
   },
   'better-auth': {
     icon: ShieldAlert,
+    i18nKey: 'betterAuth',
     short: 'Identity',
     title: 'Managed by the identity provider',
     body: (display) =>
@@ -98,11 +103,18 @@ const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
 };
 
 export function ManagedByBadge({ managedBy, label, className }: ManagedByBadgeProps) {
+  const { t } = useObjectTranslation();
   if (!managedBy || managedBy === 'platform') return null;
   const variant = VARIANTS[managedBy as Exclude<Bucket, 'platform'>];
   if (!variant) return null;
   const Icon = variant.icon;
   const display = label ?? 'better-auth';
+  const short = t(`managedByBadge.${variant.i18nKey}.short`, { defaultValue: variant.short });
+  const title = t(`managedByBadge.${variant.i18nKey}.title`, { defaultValue: variant.title });
+  const body = t(`managedByBadge.${variant.i18nKey}.body`, {
+    defaultValue: variant.body(display),
+    provider: display,
+  });
   return (
     <TooltipProvider delayDuration={200}>
       <Tooltip>
@@ -118,12 +130,12 @@ export function ManagedByBadge({ managedBy, label, className }: ManagedByBadgePr
             )}
           >
             <Icon className="h-3 w-3" aria-hidden="true" />
-            <span>{variant.short}</span>
+            <span>{short}</span>
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="bottom" align="start" className="max-w-xs text-xs leading-relaxed">
-          <p className="font-semibold mb-1">{variant.title}</p>
-          <p className="text-muted-foreground">{variant.body(display)}</p>
+          <p className="font-semibold mb-1">{title}</p>
+          <p className="text-muted-foreground">{body}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

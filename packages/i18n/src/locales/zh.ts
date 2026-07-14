@@ -432,6 +432,28 @@ const zh = {
     inlineEditLabel: '行内编辑记录(点击单元格进行编辑)',
     recordEditingTitle: '记录编辑',
   },
+  managedByBadge: {
+    config: {
+      short: '管理配置',
+      title: '管理员配置',
+      body: '这些记录定义平台的运行时行为。请在此处编写配置;其产生的运行时数据存放在单独的表中。',
+    },
+    system: {
+      short: '系统管理',
+      title: '由平台管理',
+      body: '当源记录上的操作运行时,这里的行会自动创建。下方列表是只读监控界面——行级操作(批准、撤回、重发等)在每一行上。',
+    },
+    appendOnly: {
+      short: '只读 · 审计日志',
+      title: '只读历史记录',
+      body: '不可变审计日志。行由平台在事件发生时写入,不能在界面上创建、编辑或删除。可使用导出功能下载以供合规审查。',
+    },
+    betterAuth: {
+      short: '身份',
+      title: '由身份提供方管理',
+      body: '此对象的架构由 {{provider}} 管理。直接编辑会绕过密码哈希、会话校验、两步验证检查和审计钩子。请通过身份认证提供方的登录、邀请和安全流程管理这些记录。',
+    },
+  },
   kanban: {
     addCard: '添加卡片',
     addColumn: '添加列',
@@ -1764,6 +1786,43 @@ const zh = {
     },
     shell: {
       tenantHostHint: '您正在登录此工作区',
+    },
+  },
+  profile: {
+    title: '个人资料',
+    subtitle: '管理您的账户设置',
+    saving: '保存中…',
+    avatar: {
+      upload: '上传',
+      replace: '更换',
+      remove: '移除',
+    },
+    info: {
+      title: '个人信息',
+      description: '更新您的姓名并查看账户详情',
+      saved: '个人资料已更新。',
+      name: '姓名',
+      email: '邮箱',
+      emailImmutable: '邮箱不可修改。',
+      role: '角色',
+      save: '保存更改',
+    },
+    password: {
+      changeTitle: '修改密码',
+      setTitle: '设置本地密码',
+      changeDescription: '更新您在此环境登录所用的密码。',
+      setDescription: '您通过单点登录进入。设置本地密码后，也可以在此环境使用邮箱和密码登录。',
+      current: '当前密码',
+      new: '新密码',
+      password: '密码',
+      confirm: '确认密码',
+      tooShort: '密码长度至少为 8 个字符',
+      mismatch: '两次输入的密码不一致',
+      enterCurrent: '请输入当前密码',
+      changed: '密码已修改。',
+      localSet: '本地密码已设置。现在您可以在此环境使用邮箱和密码登录。',
+      changeAction: '修改密码',
+      setAction: '设置密码',
     },
   },
   errors: {
