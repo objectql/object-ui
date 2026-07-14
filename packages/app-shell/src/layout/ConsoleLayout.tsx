@@ -33,7 +33,7 @@ import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { useNavigationContext } from '../context/NavigationContext';
 import { CommandPaletteProvider } from '../context/CommandPaletteProvider';
 import { resolveI18nLabel } from '../utils';
-import { getProductName, getRuntimeConfig } from '../runtime-config';
+import { getProductName } from '../runtime-config';
 import type { ConnectionState } from '@object-ui/data-objectstack';
 
 /** Minimal object shape used by the chatbot context */
@@ -62,9 +62,6 @@ function ConsoleLayoutInner({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Floating chatbot wired with useObjectChat for demo auto-response */
-// (moved to ./ConsoleFloatingChatbot.tsx for code-splitting)
-
 export function ConsoleLayout({
   children,
   activeAppName,
@@ -81,19 +78,20 @@ export function ConsoleLayout({
   const { enabled: showChatbot } = useAiSurfaceEnabled();
   // ADR-0057 P2: the AI-Studio-off downgrade (a `build` default falls back to
   // `ask` when authoring is deployment-disabled) is no longer spelled here — it
-  // is folded into the ONE `resolveSurfaceAgent` resolver, which the FAB applies
-  // to the raw `app.defaultAgent` below. This was the special case that existed
-  // nowhere else; it now lives in exactly one place.
+  // is folded into the ONE `resolveSurfaceAgent` resolver, applied to the raw
+  // `app.defaultAgent` below. This was the special case that existed nowhere
+  // else; it now lives in exactly one place.
   const { setContext, setCurrentAppName } = useNavigationContext();
 
-  // ADR-0057 P3a — the right-docked chat rail. DEFAULT OFF: gated on the
-  // `chatDock` rollout flag AND the same AI-surface gate as the FAB, so it is
-  // strictly additive and renders nothing on OSS / opt-out runtimes. P3c: the
-  // expanded state round-trips through sessionStorage so the rail survives
-  // in-tab navigation, and so the `/ai` page's collapse-to-dock affordance can
-  // arm it before navigating back here (the maximize ⇄ tuck loop).
+  // ADR-0057 P3 — the right-docked chat rail, the console's canonical chat
+  // presentation (rollout complete; the FAB below is its launcher). Gated on
+  // the same AI-surface signal as every entry point, so it renders nothing on
+  // OSS / agent-less runtimes. The expanded state round-trips through
+  // sessionStorage so the rail survives in-tab navigation, and so the `/ai`
+  // page's collapse-to-dock affordance can arm it before navigating back here
+  // (the maximize ⇄ tuck loop).
   const dock = useChatDockState({ persistExpandedKey: DOCK_EXPANDED_STORAGE_KEY });
-  const dockEnabled = showChatbot && getRuntimeConfig().features.chatDock === true;
+  const dockEnabled = showChatbot;
   const navigate = useNavigate();
   const location = useLocation();
   // Under `md` there is no horizontal room for the rail — the dock presents as
@@ -190,24 +188,10 @@ export function ConsoleLayout({
         {children}
       </ConsoleLayoutInner>
 
-      {/* Global floating chatbot — rendered when AI service is available
-          OR when `VITE_AI_BASE_URL` has been explicitly configured. The
-          stub FAB is dependency-free; the heavy chat bundle only loads
-          on first interaction. */}
-      {showChatbot && (
-        <ConsoleChatbotFab
-          appLabel={appLabel}
-          appName={activeAppName}
-          defaultAgent={activeApp?.defaultAgent}
-          objects={objects}
-          userId={userId}
-          // ADR-0057 P3b — when the dock is enabled, the FAB becomes its
-          // launcher (opens the rail) instead of the floating overlay. This
-          // supersedes P3a's edge launcher: the dock is gated on `showChatbot`,
-          // so the FAB is always present to launch it.
-          onOpenDock={dockEnabled ? dock.expand : undefined}
-        />
-      )}
+      {/* The dock's launcher — rendered when AI service is available OR when
+          `VITE_AI_BASE_URL` has been explicitly configured. Dependency-free;
+          the chat graph loads with the dock, on demand. */}
+      {showChatbot && <ConsoleChatbotFab appLabel={appLabel} onOpenDock={dock.expand} />}
 
       {/* Under `md` the FAB opens the dock as a bottom sheet (no room for a
           rail on a phone) — same conversation, chrome only. */}
@@ -217,7 +201,6 @@ export function ConsoleLayout({
           onOpenChange={(open) => (open ? dock.expand() : dock.collapse())}
           userId={userId}
           defaultAgent={activeApp?.defaultAgent}
-          onMaximize={openDockFullPage}
         />
       )}
     </AppShell>

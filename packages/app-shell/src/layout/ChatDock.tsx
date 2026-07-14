@@ -410,8 +410,6 @@ export interface ChatDockMobileSheetProps {
   defaultAgent?: string;
   /** Header title override; default "Assistant". */
   title?: string;
-  /** Renders a Maximize2 header button → the full-page `/ai` surface. */
-  onMaximize?: () => void;
   /** Body override — same contract as {@link ChatDockPanel}. */
   children?: React.ReactNode;
 }
@@ -422,6 +420,17 @@ export interface ChatDockMobileSheetProps {
  * conversation, same body contract as {@link ChatDockPanel} — chrome only.
  * Rendered `md:hidden`, so across a live viewport resize exactly one of
  * sheet/rail is visible.
+ *
+ * NO maximize affordance here, unlike the desktop rail: at 85svh this sheet is
+ * ALREADY the maximal mobile chat, so "maximize" only ever meant "navigate to
+ * the full-page `/ai`". But navigating away from an OPEN Radix sheet tears it
+ * down mid-close — the route change unmounts the whole console synchronously,
+ * so the scroll-lock / overlay never release and the destination page lands
+ * blank-and-frozen ("tap maximize → the chat's just gone"). Moving the button
+ * and closing-before-navigating both failed to make that clean, and the button
+ * bought nothing the sheet didn't already show — so it's simply removed. The
+ * full-page `/ai` stays reachable through normal navigation, and its
+ * collapse-to-dock returns here.
  */
 export function ChatDockMobileSheet({
   open,
@@ -430,7 +439,6 @@ export function ChatDockMobileSheet({
   apiBase: apiBaseProp,
   defaultAgent,
   title,
-  onMaximize,
   children,
 }: ChatDockMobileSheetProps) {
   const { t } = useObjectTranslation();
@@ -442,25 +450,12 @@ export function ChatDockMobileSheet({
         className="flex h-[85svh] flex-col gap-0 p-0 md:hidden"
         data-testid="chat-dock-mobile-sheet"
       >
-        <SheetHeader className="shrink-0 border-b px-4 py-2.5">
-          <div className="flex items-center justify-between gap-2 pr-8">
-            <SheetTitle className="inline-flex items-center gap-1.5 text-sm font-semibold">
-              <MessagesSquare className="size-4" />
-              {title ?? t('console.ai.dock.title', { defaultValue: 'Assistant' })}
-            </SheetTitle>
-            {onMaximize ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={onMaximize}
-                aria-label={t('console.ai.dock.maximize', { defaultValue: 'Open full page' })}
-                data-testid="chat-dock-mobile-maximize"
-              >
-                <Maximize2 className="h-3.5 w-3.5" />
-              </Button>
-            ) : null}
-          </div>
+        <SheetHeader className="shrink-0 border-b px-4 py-2">
+          {/* Leave room (pr-8) for SheetContent's built-in close ✕ at right-4. */}
+          <SheetTitle className="inline-flex items-center gap-1.5 pr-8 text-sm font-semibold">
+            <MessagesSquare className="size-4" />
+            {title ?? t('console.ai.dock.title', { defaultValue: 'Assistant' })}
+          </SheetTitle>
           <SheetDescription className="sr-only">
             {t('console.ai.dock.description', { defaultValue: 'AI assistant chat' })}
           </SheetDescription>

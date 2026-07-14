@@ -1097,9 +1097,8 @@ export function AiChatPage({ apiBase: apiBaseProp, defaultAgent: defaultAgentPro
             /home on a cold deep link) — the dock resolves the same
             (user, product) conversation scope, so it shows THE SAME THREAD.
             Visible on mobile too: under `md` the dock presents as a bottom
-            sheet. Flag-gated: with `features.chatDock` off this button does
-            not exist and the page is pixel-identical to pre-P3c. */}
-        {!noAgents && getRuntimeConfig().features.chatDock === true && (
+            sheet. */}
+        {!noAgents && (
           <Button
             variant="ghost"
             size="icon"

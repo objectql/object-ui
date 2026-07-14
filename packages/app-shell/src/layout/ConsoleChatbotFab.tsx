@@ -1,77 +1,49 @@
 /**
  * ConsoleChatbotFab
  *
- * Lightweight FAB proxy for the console's floating AI assistant.
+ * The console AI assistant's launcher — a small, zero-dependency floating
+ * button that opens the ChatDock (ADR-0057: the dock is the canonical chat
+ * presentation; this button is its collapsed affordance, the familiar
+ * bottom-right entry point that survived the P3 reflow).
  *
- * Before any interaction this component renders a small, zero-dependency
- * button (~1KB). On first hover/focus it speculatively warms the heavy
- * chat chunk graph (plugin-chatbot → streamdown → shiki → mermaid →
- * @ai-sdk, ~20MB); on first click it lazy-mounts `<ConsoleFloatingChatbot
- * defaultOpen />` which takes over (its own FAB replaces this stub).
- *
- * Net effect: every console page-load no longer pays the chat-bundle
- * cost just for the FAB to be visible — those bytes only download when
- * the user actually opens (or hovers) the assistant.
+ * History: this used to be a lazy proxy that armed a ~20MB floating-overlay
+ * chat (`ConsoleFloatingChatbot`) on click. P3b re-pointed it at the dock
+ * behind the `chatDock` flag; the final ADR-0057 cleanup removed the overlay
+ * path (and the flag) entirely — the dock loads the chat graph on demand, so
+ * the FAB stays dependency-free.
  *
  * @module
  */
-import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useAssistant } from '../assistant/assistantBus';
 import { useObjectTranslation } from '@object-ui/i18n';
 
-const ConsoleFloatingChatbot = lazy(() => import('./ConsoleFloatingChatbot'));
-const prefetchChatbot = () => {
-  void import('./ConsoleFloatingChatbot');
-};
+export interface ConsoleChatbotFabProps {
+  /** Product/app label for the accessible name. */
+  appLabel: string;
+  /** Open the ChatDock (rail on desktop, bottom sheet under `md`). */
+  onOpenDock: () => void;
+}
 
-import type { ConsoleFloatingChatbotProps } from './ConsoleFloatingChatbot';
-
-export type ConsoleChatbotFabProps = ConsoleFloatingChatbotProps & {
-  /**
-   * ADR-0057 P3b — when the ChatDock is enabled, the FAB becomes the dock's
-   * LAUNCHER: a click (and a designer "Ask AI" open signal) opens the docked
-   * rail instead of arming the floating overlay, and the heavy floating chatbot
-   * is never mounted (the dock owns the chat). Absent → unchanged floating-FAB
-   * behavior.
-   */
-  onOpenDock?: () => void;
-};
-
-export function ConsoleChatbotFab({ onOpenDock, ...props }: ConsoleChatbotFabProps) {
-  const [armed, setArmed] = useState(false);
+export function ConsoleChatbotFab({ appLabel, onOpenDock }: ConsoleChatbotFabProps) {
   const { t } = useObjectTranslation();
 
   // A designer surface can ask the assistant to open (e.g. an "Ask AI"
-  // button) via the assistant bus — arming the lazy chatbot just like a
-  // click does. Once armed, the chatbot's own trigger owns open/close.
-  // When the dock is the target (P3b), the open signal opens the dock instead.
+  // button) via the assistant bus — same effect as clicking the FAB.
   const { openSeq } = useAssistant();
   const seenOpenSeq = useRef(openSeq);
   useEffect(() => {
     if (openSeq !== seenOpenSeq.current) {
       seenOpenSeq.current = openSeq;
-      if (onOpenDock) onOpenDock();
-      else setArmed(true);
+      onOpenDock();
     }
   }, [openSeq, onOpenDock]);
-
-  // Dock mode (P3b): stay the lightweight launcher — never mount the floating
-  // overlay; the click opens the rail, which loads the chat on demand.
-  if (armed && !onOpenDock) {
-    return (
-      <Suspense fallback={null}>
-        <ConsoleFloatingChatbot {...props} defaultOpen />
-      </Suspense>
-    );
-  }
 
   return (
     <button
       type="button"
-      aria-label={t('topbar.openAssistant', { defaultValue: 'Open {{name}} assistant', name: props.appLabel })}
-      onClick={() => (onOpenDock ? onOpenDock() : setArmed(true))}
-      onMouseEnter={onOpenDock ? undefined : prefetchChatbot}
-      onFocus={onOpenDock ? undefined : prefetchChatbot}
+      aria-label={t('topbar.openAssistant', { defaultValue: 'Open {{name}} assistant', name: appLabel })}
+      onClick={onOpenDock}
       className="fixed bottom-20 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-1 ring-primary/20 transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:bottom-6"
       data-testid="console-chatbot-fab"
     >

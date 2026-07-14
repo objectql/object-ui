@@ -89,19 +89,19 @@ describe('ChatDockPanel', () => {
 });
 
 describe('ChatDockMobileSheet', () => {
-  it('renders the children body + maximize when open, and closes via onOpenChange', () => {
+  it('renders the children body when open and closes via onOpenChange', () => {
     const onOpenChange = vi.fn();
-    const onMaximize = vi.fn();
     render(
-      <ChatDockMobileSheet open onOpenChange={onOpenChange} onMaximize={onMaximize}>
+      <ChatDockMobileSheet open onOpenChange={onOpenChange}>
         <div data-testid="mobile-dock-body" />
       </ChatDockMobileSheet>,
     );
     expect(screen.getByTestId('chat-dock-mobile-sheet')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-dock-body')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('chat-dock-mobile-maximize'));
-    expect(onMaximize).toHaveBeenCalledTimes(1);
-    // Radix Sheet's built-in close button drives onOpenChange(false).
+    // No maximize on mobile — the sheet IS the maximal presentation, and
+    // navigating away from an open Radix sheet left the page blank/frozen.
+    expect(screen.queryByTestId('chat-dock-mobile-maximize')).not.toBeInTheDocument();
+    // The built-in close ✕ / Escape drives onOpenChange(false).
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

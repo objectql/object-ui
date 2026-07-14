@@ -14,7 +14,7 @@ vi.mock('@object-ui/i18n', () => ({
 
 describe('ConsoleChatbotFab', () => {
   it('keeps the lightweight FAB above the mobile bottom navigation', () => {
-    render(<ConsoleChatbotFab appLabel="Workspace" objects={[]} />);
+    render(<ConsoleChatbotFab appLabel="Workspace" onOpenDock={() => {}} />);
 
     const fab = screen.getByTestId('console-chatbot-fab');
     expect(fab).toHaveAccessibleName('Open Workspace assistant');
@@ -22,15 +22,14 @@ describe('ConsoleChatbotFab', () => {
     expect(fab).toHaveClass('sm:bottom-6');
   });
 
-  it('ADR-0057 P3b — when onOpenDock is wired, the FAB launches the dock instead of the overlay', () => {
+  it('ADR-0057 — the FAB is the ChatDock launcher (no overlay ever mounts)', () => {
     const onOpenDock = vi.fn();
-    render(<ConsoleChatbotFab appLabel="Workspace" objects={[]} onOpenDock={onOpenDock} />);
+    render(<ConsoleChatbotFab appLabel="Workspace" onOpenDock={onOpenDock} />);
 
-    // Still the lightweight launcher button (no heavy floating chatbot mounted).
     const fab = screen.getByTestId('console-chatbot-fab');
     fireEvent.click(fab);
     expect(onOpenDock).toHaveBeenCalledTimes(1);
-    // The floating overlay is never armed in dock mode — the button stays.
+    // The FAB stays the lightweight launcher button after the click.
     expect(screen.getByTestId('console-chatbot-fab')).toBeInTheDocument();
   });
 });

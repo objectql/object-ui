@@ -3,8 +3,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@object-ui/auth';
-import { Button, useIsMobile } from '@object-ui/components';
-import { Sparkles, PanelLeftClose } from 'lucide-react';
+import { useIsMobile } from '@object-ui/components';
 import { useAgents } from '@object-ui/plugin-chatbot';
 import { useChatConversation } from '../../hooks/useChatConversation';
 import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
@@ -18,13 +17,6 @@ import {
 } from '../../layout/ChatDock';
 import { rememberDockReturnLocation } from '../../layout/chatDockState';
 
-export interface StudioAiCopilotProps {
-  /** The package the Studio surface is editing — scopes the build agent to it. */
-  packageId: string;
-  /** UI locale (from the Studio surface) for the panel chrome. */
-  locale?: string;
-}
-
 interface StudioCopilotConversationProps {
   /** The package the Studio surface is editing — scopes the build agent to it. */
   packageId: string;
@@ -34,11 +26,10 @@ interface StudioCopilotConversationProps {
 
 /**
  * The Studio copilot's chat body — the build agent scoped to the package being
- * designed, over the ADR-0057 P1 `(user, app, product)` conversation. Extracted
- * from {@link StudioAiCopilot} so the P3c right dock ({@link StudioChatDock})
- * can host the SAME conversation in the shared dock chrome. Renders nothing
- * when the AI catalog is empty (community edition / no seat) — callers that
- * add chrome around it must apply the same gate so no empty shell renders.
+ * designed, over the ADR-0057 P1 `(user, app, product)` conversation, hosted by
+ * {@link StudioChatDock} in the shared dock chrome. Renders nothing when the AI
+ * catalog is empty (community edition / no seat) — callers that add chrome
+ * around it must apply the same gate so no empty shell renders.
  */
 export function StudioCopilotConversation({
   packageId,
@@ -102,74 +93,10 @@ export function StudioCopilotConversation({
   );
 }
 
-/**
- * The Studio design surface's left AI copilot (ADR-0080 `aiSlot`). It embeds the
- * SAME build-agent chat as the full-page `/ai/build` surface (ChatPane), but
- * scoped to the package the user is designing (`editPackageId`), so "add a field
- * / add a view / add an automation" acts on THIS app without leaving the design
- * surface — the iterate copilot ADR-0080 calls for.
- *
- * Open-core: the chat UI ships in OSS app-shell but is INERT without a served
- * agent. We gate on the live agent catalog (`useAgents`) — an env that serves a
- * `build` agent (the cloud AI Studio) lights the copilot up; a community env
- * with no agent renders nothing, leaving the plain three-zone surface. Same
- * "cloud fills it" contract as the floating chat FAB, with no injected prop
- * threaded through the console.
- *
- * ADR-0057 P3c: this LEFT panel is the flag-off rendering only — with
- * `features.chatDock` on, StudioDesignSurface renders {@link StudioChatDock}
- * (the shared right dock) instead.
- */
-export function StudioAiCopilot({ packageId, locale }: StudioAiCopilotProps): React.ReactElement | null {
-  const zh = (locale ?? '').toLowerCase().startsWith('zh');
-  const apiBase = React.useMemo(() => resolveApiBase(), []);
-  const [collapsed, setCollapsed] = React.useState(false);
-
-  // Same catalog gate as the conversation body (useAgents caches, so this is
-  // one fetch): the CHROME must hide too, or an agent-less env would show an
-  // empty framed panel.
-  const { agents, isLoading: agentsLoading } = useAgents({ apiBase });
-  if (!agentsLoading && agents.length === 0) return null;
-
-  if (collapsed) {
-    return (
-      <aside className="flex w-10 shrink-0 flex-col items-center gap-2 border-r bg-muted/40 py-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(false)}
-          title={zh ? '展开 AI 副驾' : 'Expand AI copilot'}
-          aria-label={zh ? '展开 AI 副驾' : 'Expand AI copilot'}
-        >
-          <Sparkles className="h-4 w-4" />
-        </Button>
-      </aside>
-    );
-  }
-
-  return (
-    <aside className="flex w-96 shrink-0 flex-col overflow-hidden border-r bg-muted/30">
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Sparkles className="h-4 w-4 text-primary" />
-          {zh ? 'AI 副驾' : 'AI copilot'}
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(true)}
-          title={zh ? '收起' : 'Collapse'}
-          aria-label={zh ? '收起 AI 副驾' : 'Collapse AI copilot'}
-        >
-          <PanelLeftClose className="h-4 w-4" />
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1">
-        <StudioCopilotConversation packageId={packageId} />
-      </div>
-    </aside>
-  );
-}
+// (The legacy LEFT copilot panel that used to live here was removed by the
+// final ADR-0057 cleanup — the right dock below is the copilot's one home.
+// The cloud `aiSlot` seam in StudioDesignSurface still accepts an injected
+// left panel.)
 
 export interface StudioChatDockProps {
   /** The package the Studio surface is editing — scopes the build agent to it. */
@@ -237,7 +164,6 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
           open={mobileOpen}
           onOpenChange={setMobileOpen}
           title={zh ? 'AI 副驾' : 'AI copilot'}
-          onMaximize={openFullPage}
         >
           <StudioCopilotConversation packageId={packageId} />
         </ChatDockMobileSheet>

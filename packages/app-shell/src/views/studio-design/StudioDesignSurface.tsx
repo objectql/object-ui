@@ -17,9 +17,8 @@
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
-import { StudioAiCopilot, StudioChatDock } from './StudioAiCopilot';
+import { StudioChatDock } from './StudioAiCopilot';
 import { nextCenterTab, type StudioCenterTab } from './centerTab';
-import { getRuntimeConfig } from '../../runtime-config';
 import {
   GridFieldAuthoringProvider,
   cn,
@@ -607,28 +606,21 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
     };
   }, [shellClient, packageId, publishNonce]);
 
-  // ADR-0057 P3c — the decided Studio grid: `[left: nav/tree] [center: canvas +
-  // properties tabs] [right: chat]`. Gated on the rollout flag ALONE (not
-  // flag + agent catalog): the catalog resolves async, and keying the layout on
-  // it would flip the whole grid after load. On a flag-on-but-agent-less env
-  // the folded center tabs still work; the right dock simply self-gates away.
-  // An injected `aiSlot` (the cloud seam, ADR-0080) keeps the legacy left
-  // panel untouched in every flag state — the cloud edition migrates on its
-  // own schedule.
-  const chatDockMode = !aiSlot && getRuntimeConfig().features.chatDock === true;
+  // ADR-0057 P3 — the decided Studio grid: `[left: nav/tree] [center: canvas +
+  // properties] [right: chat]`. NOT keyed on the async agent catalog (that
+  // would flip the whole grid after load): on an agent-less env the folded
+  // center layout still works; the right dock simply self-gates away. An
+  // injected `aiSlot` (the cloud seam, ADR-0080) keeps the legacy left panel
+  // — the cloud edition migrates on its own schedule.
+  const chatDockMode = !aiSlot;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
-      {/* Left AI copilot (ADR-0080). An explicit `aiSlot` overrides; otherwise the
-        * built-in Studio copilot self-gates on the live agent catalog — it embeds
-        * the build-agent chat scoped to THIS package, or renders nothing when no
-        * agent is served (community edition). With the ADR-0057 P3c dock flag on,
-        * the copilot renders as the RIGHT dock below instead of this left panel. */}
+      {/* The ADR-0080 `aiSlot` seam — a cloud edition may still inject its own
+        * left copilot panel; the built-in copilot is the RIGHT dock below. */}
       {aiSlot ? (
         <aside className="w-64 shrink-0 overflow-auto border-r bg-muted/40">{aiSlot}</aside>
-      ) : chatDockMode ? null : (
-        <StudioAiCopilot packageId={packageId} locale={locale} />
-      )}
+      ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* `overflow-x-auto` — none of Package/pillars/Publish shrink (all

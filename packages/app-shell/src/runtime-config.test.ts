@@ -53,18 +53,6 @@ describe('runtime-config commercial features', () => {
         expect(getRuntimeConfig().features.aiStudio).toBe(true);
     });
 
-    it('ADR-0057 chatDock defaults ON; explicit false is the kill-switch', async () => {
-        // Shipped default: the dock is on before/without any server signal.
-        expect(getRuntimeConfig().features.chatDock).toBe(true);
-        mockConfig({ aiStudio: true }); // older runtime, no chatDock key → still on
-        await initRuntimeConfig();
-        expect(getRuntimeConfig().features.chatDock).toBe(true);
-        resetRuntimeConfigForTesting();
-        // Kill-switch: only an explicit false restores the floating-overlay console.
-        mockConfig({ chatDock: false });
-        await initRuntimeConfig();
-        expect(getRuntimeConfig().features.chatDock).toBe(false);
-    });
 });
 
 /**

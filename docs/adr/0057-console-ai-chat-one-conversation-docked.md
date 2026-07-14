@@ -1,10 +1,13 @@
 # ADR-0057: Console AI chat is one system — surfaces are views over one conversation, docked as the canonical shell
 
-**Status**: Accepted (2026-07-13) — P1+P2 shipped (#2414), P4 shipped
-(#2439 / #2444 + cloud#818/#819; reliability follow-ups #2449 + cloud#820);
-P3 shipped (P3a #2464, P3b #2465, P3c #2467 — epic #2409); `features.chatDock`
-is now DEFAULT ON (kept only as a server-side kill-switch); overlay retirement +
-flag removal are the remaining cleanup, tracked on the epic. Console-layer
+**Status**: Accepted (2026-07-13) — **IMPLEMENTED IN FULL**. P1+P2 shipped
+(#2414), P4 shipped (#2439 / #2444 + cloud#818/#819; reliability follow-ups
+#2449 + cloud#820), P3 shipped (P3a #2464, P3b #2465, P3c #2467, go-live #2469,
+follow-ups #2470 — epic #2409); the final cleanup removed the `chatDock`
+rollout flag, the console floating-overlay path (`ConsoleFloatingChatbot`),
+and the legacy left Studio copilot panel — the dock (rail / bottom sheet /
+maximized `/ai` / Studio right dock) is the console's ONE chat presentation;
+the runtime SDUI bubble is unchanged per §4. Console-layer
 realization of the two-agent,
 surface-bound model (cloud ADR-0063). **No agent, boundary, or commercial-model
 change** — this ADR only rearranges how the objectui console *renders and wires*
