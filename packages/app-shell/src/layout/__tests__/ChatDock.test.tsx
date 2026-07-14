@@ -98,12 +98,49 @@ describe('ChatDockMobileSheet', () => {
     );
     expect(screen.getByTestId('chat-dock-mobile-sheet')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-dock-body')).toBeInTheDocument();
-    // No maximize on mobile — the sheet IS the maximal presentation, and
-    // navigating away from an open Radix sheet left the page blank/frozen.
+    // No maximize button unless a target is wired.
     expect(screen.queryByTestId('chat-dock-mobile-maximize')).not.toBeInTheDocument();
     // The built-in close ✕ / Escape drives onOpenChange(false).
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('maximize CLOSES first and only navigates once the sheet has shut (deferred bridge)', () => {
+    const onOpenChange = vi.fn();
+    const onMaximize = vi.fn();
+    const { rerender } = render(
+      <ChatDockMobileSheet open onOpenChange={onOpenChange} onMaximize={onMaximize}>
+        <div />
+      </ChatDockMobileSheet>,
+    );
+    // Clicking maximize must NOT navigate yet — navigating from an open Radix
+    // sheet leaks its scroll-lock/overlay onto the destination. It only closes.
+    fireEvent.click(screen.getByTestId('chat-dock-mobile-maximize'));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onMaximize).not.toHaveBeenCalled();
+    // The controlled parent honors the close → `open` flips false → NOW the
+    // deferred effect fires the navigation, with the sheet already unmounted.
+    rerender(
+      <ChatDockMobileSheet open={false} onOpenChange={onOpenChange} onMaximize={onMaximize}>
+        <div />
+      </ChatDockMobileSheet>,
+    );
+    expect(onMaximize).toHaveBeenCalledTimes(1);
+  });
+
+  it('a normal close (no maximize) never navigates', () => {
+    const onMaximize = vi.fn();
+    const { rerender } = render(
+      <ChatDockMobileSheet open onOpenChange={() => {}} onMaximize={onMaximize}>
+        <div />
+      </ChatDockMobileSheet>,
+    );
+    rerender(
+      <ChatDockMobileSheet open={false} onOpenChange={() => {}} onMaximize={onMaximize}>
+        <div />
+      </ChatDockMobileSheet>,
+    );
+    expect(onMaximize).not.toHaveBeenCalled();
   });
 
   it('renders nothing while closed', () => {

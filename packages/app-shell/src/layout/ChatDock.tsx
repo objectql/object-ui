@@ -428,6 +428,12 @@ export interface ChatDockMobileSheetProps {
   defaultAgent?: string;
   /** Header title override; default "Assistant". */
   title?: string;
+  /**
+   * Open the full-page `/ai` surface (which on mobile already carries the
+   * conversation-history sidebar + share). Runs DEFERRED — see the doc below
+   * for why the sheet must close before this navigates.
+   */
+  onMaximize?: () => void;
   /** Body override — same contract as {@link ChatDockPanel}. */
   children?: React.ReactNode;
 }
@@ -439,16 +445,17 @@ export interface ChatDockMobileSheetProps {
  * Rendered `md:hidden`, so across a live viewport resize exactly one of
  * sheet/rail is visible.
  *
- * NO maximize affordance here, unlike the desktop rail: at 85svh this sheet is
- * ALREADY the maximal mobile chat, so "maximize" only ever meant "navigate to
- * the full-page `/ai`". But navigating away from an OPEN Radix sheet tears it
- * down mid-close — the route change unmounts the whole console synchronously,
- * so the scroll-lock / overlay never release and the destination page lands
- * blank-and-frozen ("tap maximize → the chat's just gone"). Moving the button
- * and closing-before-navigating both failed to make that clean, and the button
- * bought nothing the sheet didn't already show — so it's simply removed. The
- * full-page `/ai` stays reachable through normal navigation, and its
- * collapse-to-dock returns here.
+ * The maximize button bridges to the full-page `/ai` — the mobile-native place
+ * for conversation history + share (both already live there, so the sheet
+ * needn't grow a second copy). This bridge is DEFERRED, not immediate: an
+ * earlier cut navigated straight from the click and tore the still-OPEN Radix
+ * sheet down mid-close — the route change unmounts the console synchronously,
+ * so the scroll-lock / overlay never released and `/ai` landed blank-and-frozen
+ * ("tap maximize → the chat's just gone", the bug that first removed this
+ * button). The fix: the click only CLOSES the sheet (`onOpenChange(false)`);
+ * once `open` has flipped false — after Radix's own child effects have released
+ * the body on that same commit, and before this parent-level effect runs — we
+ * navigate. So the sheet is already cleanly unmounted when the route changes.
  */
 export function ChatDockMobileSheet({
   open,
@@ -457,10 +464,19 @@ export function ChatDockMobileSheet({
   apiBase: apiBaseProp,
   defaultAgent,
   title,
+  onMaximize,
   children,
 }: ChatDockMobileSheetProps) {
   const { t } = useObjectTranslation();
   const apiBase = React.useMemo(() => resolveApiBase(apiBaseProp), [apiBaseProp]);
+  // Armed by the maximize click; fired once the sheet has actually closed.
+  const pendingMaximizeRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!open && pendingMaximizeRef.current) {
+      pendingMaximizeRef.current = false;
+      onMaximize?.();
+    }
+  }, [open, onMaximize]);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -469,11 +485,32 @@ export function ChatDockMobileSheet({
         data-testid="chat-dock-mobile-sheet"
       >
         <SheetHeader className="shrink-0 border-b px-4 py-2">
-          {/* Leave room (pr-8) for SheetContent's built-in close ✕ at right-4. */}
-          <SheetTitle className="inline-flex items-center gap-1.5 pr-8 text-sm font-semibold">
-            <MessagesSquare className="size-4" />
-            {title ?? t('console.ai.dock.title', { defaultValue: 'Assistant' })}
-          </SheetTitle>
+          {/* Maximize sits NEXT TO THE TITLE (left), finger-sized, well clear of
+              SheetContent's built-in close ✕ (absolute right-4) so a thumb can't
+              confuse the two. `pr-8` still reserves room for that ✕. */}
+          <div className="flex items-center gap-1 pr-8">
+            <SheetTitle className="inline-flex items-center gap-1.5 text-sm font-semibold">
+              <MessagesSquare className="size-4" />
+              {title ?? t('console.ai.dock.title', { defaultValue: 'Assistant' })}
+            </SheetTitle>
+            {onMaximize ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                // Only CLOSE here — the deferred effect above navigates once the
+                // sheet is cleanly shut (see the component doc).
+                onClick={() => {
+                  pendingMaximizeRef.current = true;
+                  onOpenChange(false);
+                }}
+                aria-label={t('console.ai.dock.maximize', { defaultValue: 'Open full page' })}
+                data-testid="chat-dock-mobile-maximize"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+            ) : null}
+          </div>
           <SheetDescription className="sr-only">
             {t('console.ai.dock.description', { defaultValue: 'AI assistant chat' })}
           </SheetDescription>

@@ -177,6 +177,9 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
           open={mobileOpen}
           onOpenChange={setMobileOpen}
           title={zh ? 'AI 副驾' : 'AI copilot'}
+          // Bridge to the package's full-page build thread; deferred so the
+          // sheet closes cleanly before the route changes.
+          onMaximize={openFullPage}
         >
           <StudioCopilotConversation packageId={packageId} />
         </ChatDockMobileSheet>

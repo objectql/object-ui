@@ -201,6 +201,9 @@ export function ConsoleLayout({
           onOpenChange={(open) => (open ? dock.expand() : dock.collapse())}
           userId={userId}
           defaultAgent={activeApp?.defaultAgent}
+          // Bridge to full-page /ai (history + share live there on mobile). The
+          // sheet defers the navigation until it has cleanly closed.
+          onMaximize={openDockFullPage}
         />
       )}
     </AppShell>
