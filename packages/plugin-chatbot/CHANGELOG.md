@@ -1,5 +1,144 @@
 # @object-ui/plugin-chatbot
 
+## 14.0.0
+
+### Minor Changes
+
+- 7b4fc36: feat(console-ai): ask→build handoff carries conversation context (ADR-0057 P4 / cloud#817)
+
+  The P4 "Open in Builder →" handoff previously carried only the build prompt + an
+  optional package, so the Builder started cold and the user re-explained
+  themselves. It now also carries the **source `ask` conversation** as context —
+  ADR-0057 P4 / cloud#817 — so the build agent's first turn starts with the thread
+  the user already had.
+
+  - `@object-ui/app-shell`: both handoff sites (the full-page `AiChatPage` and the
+    console FAB) now append `?parentConversationId=<ask thread id>` to the
+    `/ai/build` URL. The build surface reads it and forwards it to `useObjectChat`;
+    the existing URL-mirror drops it once the build conversation id is minted, so a
+    reload never re-carries it.
+  - `@object-ui/plugin-chatbot`: `useObjectChat` accepts `parentConversationId` and
+    sends it as `context.parentConversationId` on the **first turn only** (held in a
+    ref, consumed once) — the backend redeems it into the turn's context and the
+    client owns history from there. New pure helper `withHandoffContext` (unit
+    tested) does the non-mutating `context` merge.
+
+  Requires the cloud handoff-context contract (service-ai, cloud#817): the build
+  agent redeems `context.parentConversationId` into a single system block on its
+  first turn — ownership-checked, and carrying only the user/assistant text the
+  user already saw (ADR-0063 governance boundary). Without it the console degrades
+  cleanly: the id is sent but ignored, and the handoff is a (working) cold start.
+
+- 7dea792: feat(console-ai): explicit "Open in Builder →" ask→build handoff (ADR-0057 P4)
+
+  When the `ask` agent declines an app-authoring request it now calls the cloud
+  `suggest_builder` tool (structured decline). The console renders that as an
+  explicit **"Open in Builder →"** action that opens the full-page build surface
+  seeded with the handoff prompt — ADR-0063 decline-and-redirect: an explicit,
+  user-initiated switch, never a silent re-route into authoring.
+
+  - `@object-ui/plugin-chatbot`: `detectBuilderHandoff` lifts the
+    `{ status:'build_handoff', prompt, packageId? }` result onto the tool
+    invocation; `ChatbotEnhanced` renders the "Open in Builder →" card and calls a
+    new `onOpenBuilder` prop (disabled when no host wires it).
+  - `@object-ui/app-shell`: the full-page `AiChatPage` (`ask`) and the console FAB
+    wire `onOpenBuilder` to navigate to `/ai/build?package=…&handoffPrompt=…`; the
+    build surface seeds that prompt as its first message (auto-sent once the
+    conversation is minted), and the URL-mirror strips `?handoffPrompt` so a reload
+    never re-sends it. Full ask-conversation context transfer is a later upgrade
+    (cloud#817); v1 carries the build prompt + optional package.
+
+  Requires the cloud `suggest_builder` signal (service-ai-studio) to light up; the
+  console degrades cleanly (no card) without it.
+
+- 9d0fdb1: feat(console-ai): render agent behavior by declared capability (cloud#816 / ADR-0057 "B+")
+
+  `GET /api/v1/ai/agents` now serves per-agent `capabilities`; the console
+  consumes them instead of hard-coding `isBuildAgent(name)`:
+
+  - `@object-ui/plugin-chatbot`: `AgentDescriptor.capabilities` (normalized from
+    the catalog) + new `agentHasCapability(agents, name, cap)` — declaration wins
+    when present; falls back to the legacy `isBuildAgent(name)` check when absent
+    (older server), so shipping order doesn't matter.
+  - `@object-ui/app-shell`: the build-doctor drawer + `showDebug` key off
+    `'debug'`, the FAB's resume-vs-fresh keys off `'resume'`, HomePage's
+    "Build with AI" availability keys off `'authoring'`. The ADR-0063 product-axis
+    sites (surface→agent resolver, conversation scope keying, picker availability)
+    intentionally stay name-based — capability describes RENDERED behavior, not
+    which product an agent is.
+
+  A future skill-driven build variant now needs no console change.
+
+- cd778d4: feat(console-ai): package binding chip + inert handoff cards + honest send hint (#2458 / ADR-0057 A1.a)
+
+  Three UX improvements from live magic-flow testing:
+
+  - **A1.a — package binding chip** (`app-shell`): the build surface header shows
+    the package the conversation is bound to (`📦 <app>`), or **"New app"** when
+    unbound — so the edit blast-radius is always visible (Claude-Code-shows-the-repo
+    idiom). The magic flow starts unbound and binds the moment its build mints a
+    package (`deriveBoundPackageId` reads `?package=` else the latest draft/handoff
+    result; unit-tested).
+  - **UX#5 — only the latest handoff card is actionable** (`plugin-chatbot`): when
+    a thread accumulates several "Open in Builder →" cards, only the newest stays
+    clickable; older (superseded) cards' buttons are disabled — derived from
+    message order, so it survives the navigation the button triggers and the pane
+    remount that follows. A stale prompt in an older card can't be re-fired.
+  - **UX#7 — honest send hint** (`plugin-chatbot`): the composer already sends on
+    plain Enter (Shift+Enter = newline); dropped the misleading `⌘` glyph from the
+    hint so it no longer implies Cmd+Enter.
+
+### Patch Changes
+
+- 1273f1e: fix(console-ai): reliable ask→build handoff auto-send + second-handoff context re-carry (ADR-0057 P4)
+
+  Two follow-ups to the P4 "Open in Builder →" handoff:
+
+  - **Auto-send swallow.** The handoff's auto-sent first message could be dropped on
+    a brand-new build conversation: the seed gated on the async-resolved
+    `activeAgent`, which can settle _after_ the conversation id is minted, so the
+    deferred-send replay ran with an empty pending and never re-fired. The seed now
+    gates on the **route** (`agentSegment`, synchronous) and bumps a `pendingSignal`
+    that `useDeferredFirstSend` lists in its replay deps, so the seed always fires —
+    no more empty build conversation on handoff.
+
+  - **Second-handoff re-carry.** A second "Open in Builder →" into the (singleton)
+    build conversation now re-carries the latest ask context. The transport re-arms
+    `parentConversationId` on each falsy→truthy transition of the prop (the ask
+    thread is a singleton, so the same id repeats — the fresh-arrival signal is the
+    transition the URL-mirror produces, not a changed value), and the seed re-arms
+    on each new `handoffPrompt`.
+
+  Unit-tested: deferred-send replays a post-id seed via the signal; the transport
+  re-carries across a strip→re-supply cycle.
+
+- bfea27f: Make the ask-decline wait feel responsive: live thinking indicator + handoff card the moment `suggest_builder` lands (#2458 item 3).
+
+  When the `ask` agent declines a build-shaped request, the ~20s before the "Open in Builder →" card is dominated by the LLM's time-to-tool-call. During that wait the chat could show dead air — a blank bubble, or the static "执行过程" activity note (a hydrated-history affordance) when the backend streamed a `(called …)` tool-call placeholder.
+
+  `ChatbotEnhanced` now shows the existing live thinking indicator (`ThinkingDots`) whenever a streaming assistant turn has nothing visible yet — including whitespace-only content, a mid-stream `(called …)` placeholder, and hidden reasoning in `summary` mode. The static "执行过程" note is reserved for FINISHED (re-hydrated) tool-call-only turns (#772 preserved). The `builderHandoff` card already renders at `output-available` with no gate on the trailing prose, so it surfaces the instant the tool result arrives; the typing cursor now only paints beside real streaming prose (no lone cursor during the tool phase).
+
+- 408f4ba: fix(plugin-chatbot): build-result summary truncates on mobile instead of overflowing (#2493)
+
+  The draft-review card's summary line (`built N artifact(s) — …`) is a nowrap
+  `truncate` span, but its flex row lacked the `min-w-0` that lets `truncate`
+  actually bite — so on a phone the long summary expanded the chat column past
+  the viewport and the whole chat scrolled sideways. The span now gets
+  `min-w-0 flex-1` (truncating within the row) and the action row is `flex-wrap`
+  so its buttons drop to a new line on a narrow screen rather than forcing
+  horizontal scroll. Desktop is unchanged (there's room, so nothing wraps or
+  truncates).
+
+- Updated dependencies [443360a]
+- Updated dependencies [86c69c3]
+- Updated dependencies [05e56ca]
+- Updated dependencies [a44e7b6]
+- Updated dependencies [6a74160]
+  - @object-ui/core@14.0.0
+  - @object-ui/react@14.0.0
+  - @object-ui/types@14.0.0
+  - @object-ui/components@14.0.0
+
 ## 13.2.0
 
 ### Patch Changes

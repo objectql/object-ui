@@ -1,5 +1,44 @@
 # @object-ui/plugin-tree
 
+## 14.0.0
+
+### Patch Changes
+
+- 5971cc4: i18n: translate the Profile page, honor inline i18n label objects under bare
+  base-language codes, and localize managed-by badges / record quick actions.
+
+  - `pickLocalized` now upgrades a bare base language (`zh`) to any
+    region-qualified key sharing the base (`zh-CN`) — runtime language is
+    normalized to the base code while metadata authors write full BCP-47 tags,
+    so inline `{ en, 'zh-CN', ... }` label objects previously fell back to
+    English.
+  - ProfilePage (`account:profile_card` / `/system/profile`): every hardcoded
+    string — page title/subtitle, avatar Upload/Replace/Remove, Personal
+    Information card, Change/Set Password card — now goes through
+    `useObjectTranslation()` with `profile.*` keys (new namespace in all ten
+    locale bundles); the lazy-load fallback reuses `common.loading`.
+  - `ManagedByBadge` chips/tooltips (Config/System/Append-only/Identity) now
+    resolve through new `managedByBadge.*` keys with `{{provider}}`
+    interpolation.
+  - `record:quick_actions` resolves action labels via the
+    `objects.{object}._actions.{action}.label` convention plus `pickLocalized`,
+    so object action buttons (Change Password, Enable 2FA, …) localize.
+  - `record:details` / `record:related_list` / `record:alert` / `ObjectTree`
+    pass inline label objects through `pickLocalized`.
+  - Locale bundles: added `managedByBadge` namespace to all ten locales and
+    backfilled `list.inlineEditShort` / `inlineEditLabel` /
+    `recordEditingTitle` for ja/es/ko/de/fr/pt/ru/ar.
+
+- Updated dependencies [443360a]
+- Updated dependencies [86c69c3]
+- Updated dependencies [05e56ca]
+- Updated dependencies [a44e7b6]
+- Updated dependencies [6a74160]
+  - @object-ui/core@14.0.0
+  - @object-ui/react@14.0.0
+  - @object-ui/types@14.0.0
+  - @object-ui/components@14.0.0
+
 ## 13.2.0
 
 ### Patch Changes

@@ -1,5 +1,19 @@
 # @object-ui/plugin-map
 
+## 14.0.0
+
+### Patch Changes
+
+- Updated dependencies [443360a]
+- Updated dependencies [86c69c3]
+- Updated dependencies [05e56ca]
+- Updated dependencies [a44e7b6]
+- Updated dependencies [6a74160]
+  - @object-ui/core@14.0.0
+  - @object-ui/react@14.0.0
+  - @object-ui/types@14.0.0
+  - @object-ui/components@14.0.0
+
 ## 13.2.0
 
 ### Patch Changes

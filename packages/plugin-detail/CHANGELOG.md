@@ -1,5 +1,54 @@
 # @object-ui/plugin-detail
 
+## 14.0.0
+
+### Patch Changes
+
+- eef832b: 修复记录抽屉绕过甘特图行级锁定的问题(#2436 第 5 项)。
+
+  - `RecordDetailDrawer` 的编辑/删除能力现在由调用方是否传入 `onFieldSave` / `onDelete` 决定:两者都省略时抽屉严格只读(无内联编辑、无删除入口)。此前抽屉硬编码 `inlineEdit` 与 `showDelete: true`,并无条件向内层 DetailView 传包装函数,导致锁定记录仍可"编辑"(且改动静默丢失)。
+  - `ObjectGantt` 对 `lockField` 锁定的行、以及全局 `readOnly` 的甘特图,不再向抽屉传入 `onFieldSave` / `onDelete`,与时间轴上禁止拖拽/调整的行为保持一致。
+
+- 5971cc4: i18n: translate the Profile page, honor inline i18n label objects under bare
+  base-language codes, and localize managed-by badges / record quick actions.
+
+  - `pickLocalized` now upgrades a bare base language (`zh`) to any
+    region-qualified key sharing the base (`zh-CN`) — runtime language is
+    normalized to the base code while metadata authors write full BCP-47 tags,
+    so inline `{ en, 'zh-CN', ... }` label objects previously fell back to
+    English.
+  - ProfilePage (`account:profile_card` / `/system/profile`): every hardcoded
+    string — page title/subtitle, avatar Upload/Replace/Remove, Personal
+    Information card, Change/Set Password card — now goes through
+    `useObjectTranslation()` with `profile.*` keys (new namespace in all ten
+    locale bundles); the lazy-load fallback reuses `common.loading`.
+  - `ManagedByBadge` chips/tooltips (Config/System/Append-only/Identity) now
+    resolve through new `managedByBadge.*` keys with `{{provider}}`
+    interpolation.
+  - `record:quick_actions` resolves action labels via the
+    `objects.{object}._actions.{action}.label` convention plus `pickLocalized`,
+    so object action buttons (Change Password, Enable 2FA, …) localize.
+  - `record:details` / `record:related_list` / `record:alert` / `ObjectTree`
+    pass inline label objects through `pickLocalized`.
+  - Locale bundles: added `managedByBadge` namespace to all ten locales and
+    backfilled `list.inlineEditShort` / `inlineEditLabel` /
+    `recordEditingTitle` for ja/es/ko/de/fr/pt/ru/ar.
+
+- Updated dependencies [443360a]
+- Updated dependencies [c70bca7]
+- Updated dependencies [86c69c3]
+- Updated dependencies [05e56ca]
+- Updated dependencies [a44e7b6]
+- Updated dependencies [5971cc4]
+- Updated dependencies [6a74160]
+  - @object-ui/core@14.0.0
+  - @object-ui/i18n@14.0.0
+  - @object-ui/react@14.0.0
+  - @object-ui/types@14.0.0
+  - @object-ui/components@14.0.0
+  - @object-ui/fields@14.0.0
+  - @object-ui/permissions@14.0.0
+
 ## 13.2.0
 
 ### Patch Changes

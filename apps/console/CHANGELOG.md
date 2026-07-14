@@ -1,5 +1,62 @@
 # @object-ui/console
 
+## 14.0.0
+
+### Major Changes
+
+- 2f3ab55: align with objectstack
+
+### Patch Changes
+
+- 94d00d4: feat(auth): phone number + password sign-in on the login page
+
+  The login page's password mode now accepts an **email OR a phone number** as the
+  identifier and routes by shape — email → `/sign-in/email`, phone →
+  `/sign-in/phone-number` (better-auth phoneNumber plugin, framework#2780). It
+  coexists with the existing phone-OTP mode.
+
+  - Gated on `features.phoneNumber` (phoneNumber plugin enabled). Unlike phone-OTP
+    it needs no SMS service, so it uses that coarser capability flag, not
+    `features.phoneNumberOtp`. When the flag is off the field stays email-only.
+  - New `AuthClient.signInWithPhonePassword(phoneNumber, password)` wired through
+    `AuthContext` / `AuthProvider` / `useAuth`.
+  - New `normalizePhoneIdentifier` / `looksLikePhoneIdentifier` helpers that mirror
+    the backend's `normalizePhoneNumber` exactly (strip `[\s\-().]`, validate
+    `^\+?[0-9]{6,15}$`, **no** forced E.164 / country code — the backend stores the
+    light-stripped form, so anything heavier would break the lookup).
+  - SSO stays email-only (a phone-shaped identifier no longer attempts domain
+    routing).
+
+  Only works for accounts that have both a phone number and a password set;
+  phone-only accounts set a password on first OTP sign-in.
+
+- 5971cc4: i18n: translate the Profile page, honor inline i18n label objects under bare
+  base-language codes, and localize managed-by badges / record quick actions.
+
+  - `pickLocalized` now upgrades a bare base language (`zh`) to any
+    region-qualified key sharing the base (`zh-CN`) — runtime language is
+    normalized to the base code while metadata authors write full BCP-47 tags,
+    so inline `{ en, 'zh-CN', ... }` label objects previously fell back to
+    English.
+  - ProfilePage (`account:profile_card` / `/system/profile`): every hardcoded
+    string — page title/subtitle, avatar Upload/Replace/Remove, Personal
+    Information card, Change/Set Password card — now goes through
+    `useObjectTranslation()` with `profile.*` keys (new namespace in all ten
+    locale bundles); the lazy-load fallback reuses `common.loading`.
+  - `ManagedByBadge` chips/tooltips (Config/System/Append-only/Identity) now
+    resolve through new `managedByBadge.*` keys with `{{provider}}`
+    interpolation.
+  - `record:quick_actions` resolves action labels via the
+    `objects.{object}._actions.{action}.label` convention plus `pickLocalized`,
+    so object action buttons (Change Password, Enable 2FA, …) localize.
+  - `record:details` / `record:related_list` / `record:alert` / `ObjectTree`
+    pass inline label objects through `pickLocalized`.
+  - Locale bundles: added `managedByBadge` namespace to all ten locales and
+    backfilled `list.inlineEditShort` / `inlineEditLabel` /
+    `recordEditingTitle` for ja/es/ko/de/fr/pt/ru/ar.
+  - @object-ui/react-runtime@14.0.0
+  - @object-ui/sdui-parser@14.0.0
+
 ## 13.2.0
 
 ### Patch Changes

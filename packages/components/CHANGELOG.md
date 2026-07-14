@@ -1,5 +1,59 @@
 # @object-ui/components
 
+## 14.0.0
+
+### Minor Changes
+
+- 6a74160: Sharing-rule form: pick, don't type. Three new widget-hint field components make
+  the generic object form render pickers where an admin previously had to type
+  machine data (driven by the framework `widget` hints on `sys_sharing_rule`;
+  generalizes the `capability-multiselect` pattern). All degrade to the underlying
+  `type` renderer when a widget is unregistered.
+
+  - **`object-ref`** — choose a registered object by name (searchable `Combobox`),
+    backed by the new `DataSource.getObjects()` (`ObjectStackAdapter` lists code-
+    and DB-defined objects via `/api/v1/meta/object`), falling back to a
+    `sys_metadata` query. Stores the object's `name`.
+  - **`filter-condition`** — a visual criteria builder (`FilterBuilder`) scoped to
+    the fields of the object chosen in a sibling field (via `getObjectSchema`),
+    round-tripping the stored **MongoDB-style** FilterCondition JSON. Criteria the
+    builder can't represent (or invalid JSON) fall back to a raw-JSON editor, with
+    an always-available "Edit as JSON" toggle — nothing is hidden or lost.
+  - **`recipient-picker`** — a record picker whose target object follows a sibling
+    `recipient_type` (`user`→sys_user, `team`→sys_team, `business_unit`/
+    `unit_and_subordinates`→sys_business_unit, `position`→sys_position), storing the
+    value the evaluator matches on (a record id, or the position **name**). Resets
+    the stored id when the type changes.
+
+  Wiring: the three keys join `DATA_SOURCE_FIELD_TYPES` (form.tsx) so the form
+  threads `dataSource` + `dependentValues` to them, and `INLINE_EXCLUDED_FIELD_TYPES`
+  (they're authored in the record form, not a grid cell). `DataSource.getObjects()`
+  is optional on the interface; the ObjectStack adapter implements it.
+
+### Patch Changes
+
+- a44e7b6: Form fields honor their object-schema `widget` render hint on the field-group /
+  section layout path. `ObjectForm` renders objects that declare field groups
+  (e.g. `sys_sharing_rule`) via an auto-derived section layout that passed each
+  field's metadata through without hoisting its `widget` override to the top-level
+  form-field config, so a field with `widget: 'object-ref'` (or `filter-condition`
+  / `recipient-picker`) degraded to its bare `type` input — an admin was asked to
+  hand-type an object name instead of picking it. The form renderer now falls back
+  to the field metadata's own `widget` when no top-level override is present, so
+  the pickers render on sectioned forms just as they do on flat ones.
+- Updated dependencies [443360a]
+- Updated dependencies [c70bca7]
+- Updated dependencies [86c69c3]
+- Updated dependencies [05e56ca]
+- Updated dependencies [5971cc4]
+- Updated dependencies [6a74160]
+  - @object-ui/core@14.0.0
+  - @object-ui/i18n@14.0.0
+  - @object-ui/react@14.0.0
+  - @object-ui/types@14.0.0
+  - @object-ui/react-runtime@14.0.0
+  - @object-ui/sdui-parser@14.0.0
+
 ## 13.2.0
 
 ### Patch Changes

@@ -1,5 +1,46 @@
 # @object-ui/types
 
+## 14.0.0
+
+### Minor Changes
+
+- 86c69c3: ADR-0089: read the canonical `visibleWhen` conditional-visibility predicate in the form + page renderers.
+
+  `@objectstack/spec` now unifies conditional visibility under a single canonical key, `visibleWhen`, and folds the deprecated `visibleOn` (view form) / `visibility` (page component) aliases into it at parse. This updates ObjectUI to read the canonical key:
+
+  - **Page renderer** (`SchemaRenderer`) — evaluates `visibleWhen` first (show-when-truthy), then the deprecated `visibleOn` / `visibility` as a defensive read for raw / un-normalized metadata. `visibleWhen` is stripped from DOM props.
+  - **Spec→node bridges** — the page bridge maps a component's `visibleWhen ?? visibility` onto the node's canonical `visibleWhen`; the form-view bridge maps a field's `visibleWhen ?? visibleOn` onto the ObjectForm view-level predicate slot.
+  - **Form renderers** — the `@object-ui/react` `FormRenderer` prefers `visibleWhen` over the `visibleOn` alias. (`ObjectForm`/`form.tsx` already evaluated `visibleWhen`.)
+  - **Types** — the component base schema (`BaseSchema` / `base.zod`) gains the canonical `visibleWhen`; `visibleOn` is marked `@deprecated`.
+
+  Fully back-compat: existing `visibleOn` / `visibility` metadata keeps working through the alias reads.
+
+- 6a74160: Sharing-rule form: pick, don't type. Three new widget-hint field components make
+  the generic object form render pickers where an admin previously had to type
+  machine data (driven by the framework `widget` hints on `sys_sharing_rule`;
+  generalizes the `capability-multiselect` pattern). All degrade to the underlying
+  `type` renderer when a widget is unregistered.
+
+  - **`object-ref`** — choose a registered object by name (searchable `Combobox`),
+    backed by the new `DataSource.getObjects()` (`ObjectStackAdapter` lists code-
+    and DB-defined objects via `/api/v1/meta/object`), falling back to a
+    `sys_metadata` query. Stores the object's `name`.
+  - **`filter-condition`** — a visual criteria builder (`FilterBuilder`) scoped to
+    the fields of the object chosen in a sibling field (via `getObjectSchema`),
+    round-tripping the stored **MongoDB-style** FilterCondition JSON. Criteria the
+    builder can't represent (or invalid JSON) fall back to a raw-JSON editor, with
+    an always-available "Edit as JSON" toggle — nothing is hidden or lost.
+  - **`recipient-picker`** — a record picker whose target object follows a sibling
+    `recipient_type` (`user`→sys_user, `team`→sys_team, `business_unit`/
+    `unit_and_subordinates`→sys_business_unit, `position`→sys_position), storing the
+    value the evaluator matches on (a record id, or the position **name**). Resets
+    the stored id when the type changes.
+
+  Wiring: the three keys join `DATA_SOURCE_FIELD_TYPES` (form.tsx) so the form
+  threads `dataSource` + `dependentValues` to them, and `INLINE_EXCLUDED_FIELD_TYPES`
+  (they're authored in the record form, not a grid cell). `DataSource.getObjects()`
+  is optional on the interface; the ObjectStack adapter implements it.
+
 ## 13.2.0
 
 ## 13.1.0

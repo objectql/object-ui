@@ -1,5 +1,56 @@
 # @object-ui/i18n
 
+## 14.0.0
+
+### Patch Changes
+
+- c70bca7: fix(console-ai): Live Canvas is a full-screen, opt-in preview on mobile — not a broken split (#2481)
+
+  On a phone the beside-chat Live Canvas split overflowed the viewport (the chat
+  column's fixed min-width plus the preview exceeded the screen, and the resize
+  handle is desktop-only, so it was stuck clipped). Under `md` the canvas is now:
+
+  - **Full-width chat, no split** — the build streams in the chat as before.
+  - **Opt-in + full-screen** — when the preview is available a floating "Preview
+    app" pill appears; tapping it (or a Preview button on a draft card) takes the
+    canvas full-screen over the chat. Closing returns to the chat with the
+    preview one tap away. The auto-drafted canvas never covers the streaming
+    chat unprompted.
+
+  Desktop is unchanged (the resizable beside-chat split). Adds the
+  `console.ai.previewApp` string (en/zh).
+
+- 05e56ca: 导出/导入模板的下载文件名与内容本地化。
+
+  **导出文件名**:CSV/Excel/JSON 导出下载不再是 `<对象名>.<扩展名>`(如 `contracts.csv`),改为「对象显示名-视图名-时间戳.扩展名」(如 `任务-In Progress-20260714-153045.xlsx`);`exportOptions.fileNamePrefix` 配置仍优先(且作为完整前缀,不再追加视图名)。视图名与对象名重复时自动省略;`@object-ui/core` 新增 `buildExportFileName(ext, { prefix, label, objectName, viewLabel }, now?)` 与 `sanitizeFileNameBase(raw)`,ObjectGrid 与 ListView 的所有导出路径(服务端流式与前端兜底)统一走它。app-shell/plugin-view 的 ObjectView 现将当前视图的显示标签写进传给 ListView 的 schema(`label`),使导出文件名能区分同一对象的不同保存视图。
+
+  **导入模板**:「下载模板」修复两处英文漏出——示例行的 select/多选取值改为优先取选项**显示标签**(如 `准备中`)而非 ASCII slug(`prepare`,服务端导入两者都接受);模板文件名本地化为 `{{object}}-导入模板.csv`(新增 i18n key `grid.import.templateFileName`,英文回退 `{{object}}-import-template.csv`)。
+
+- 5971cc4: i18n: translate the Profile page, honor inline i18n label objects under bare
+  base-language codes, and localize managed-by badges / record quick actions.
+
+  - `pickLocalized` now upgrades a bare base language (`zh`) to any
+    region-qualified key sharing the base (`zh-CN`) — runtime language is
+    normalized to the base code while metadata authors write full BCP-47 tags,
+    so inline `{ en, 'zh-CN', ... }` label objects previously fell back to
+    English.
+  - ProfilePage (`account:profile_card` / `/system/profile`): every hardcoded
+    string — page title/subtitle, avatar Upload/Replace/Remove, Personal
+    Information card, Change/Set Password card — now goes through
+    `useObjectTranslation()` with `profile.*` keys (new namespace in all ten
+    locale bundles); the lazy-load fallback reuses `common.loading`.
+  - `ManagedByBadge` chips/tooltips (Config/System/Append-only/Identity) now
+    resolve through new `managedByBadge.*` keys with `{{provider}}`
+    interpolation.
+  - `record:quick_actions` resolves action labels via the
+    `objects.{object}._actions.{action}.label` convention plus `pickLocalized`,
+    so object action buttons (Change Password, Enable 2FA, …) localize.
+  - `record:details` / `record:related_list` / `record:alert` / `ObjectTree`
+    pass inline label objects through `pickLocalized`.
+  - Locale bundles: added `managedByBadge` namespace to all ten locales and
+    backfilled `list.inlineEditShort` / `inlineEditLabel` /
+    `recordEditingTitle` for ja/es/ko/de/fr/pt/ru/ar.
+
 ## 13.2.0
 
 ### Patch Changes

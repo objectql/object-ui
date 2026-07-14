@@ -1,5 +1,65 @@
 # @object-ui/plugin-gantt
 
+## 14.0.0
+
+### Patch Changes
+
+- a506e6d: ObjectGantt now supports the `api` data source for **both read and write-back**.
+  Previously `provider: 'api'` logged "API provider not yet implemented" and rendered
+  nothing, and every write-back (reschedule, dependency edit, delete, drawer
+  inline-edit) was hard-wired to the context ObjectQL `dataSource` + `objectName`,
+  so the api provider's `write` config was never used.
+
+  All reads and writes now flow through a single adapter resolved by
+  `resolveDataSource(schema.data, dataSource)`: `object` → context DataSource
+  (unchanged), `api` → `ApiDataSource` (executes the `read`/`write` HttpRequest
+  config), `value` → in-memory `ValueDataSource`. A pure-api view needs no
+  `objectName` and no context `dataSource` prop. Object-backed views are behavior-
+  preserving. Lookup/master_detail quick-filter option domains still resolve from
+  the context object backend (they degrade to distinct in-row values when absent).
+
+- 42b36c4: 新增逐任务预警描边(#2436 第 3 项):视图配置 `borderColorField` 指向
+  记录上的预警颜色字段(常为服务端计算的超期/临期字段),该行条形在保留
+  原有填充色的同时,以该颜色描边并加 2px 光晕——任务条、里程碑菱形、
+  汇总条均生效。语义色名(red/orange/…)映射为调色板 hex,其余 CSS 颜色
+  原样透传;空值不描边。开启关键路径高亮时,关键路径样式在其标记行上优先。
+- 8a7d5af: 拖拽连线增加内建校验与宿主否决钩子(#2436 第 1、2 项)。落点为锁定行
+  (`locked`)或分组行(`type: 'group'`)时,悬停不再高亮、松手不再创建;
+  成环依赖(直接回边、跨层级传递回边)基于**全量任务集**检测并拒绝——不受
+  折叠子树导致可见连线缺边的影响。新增 `onBeforeDependencyCreate(source,
+target, type)` 钩子,在内建校验通过后调用,返回 `false` 可否决本次连线
+  (即 DHTMLX `onBeforeLinkAdd` / Syncfusion `actionBegin` 惯例)。
+  `wouldCreateDependencyCycle` 从 `scheduling` 导出并单测覆盖。
+- eef832b: 修复记录抽屉绕过甘特图行级锁定的问题(#2436 第 5 项)。
+
+  - `RecordDetailDrawer` 的编辑/删除能力现在由调用方是否传入 `onFieldSave` / `onDelete` 决定:两者都省略时抽屉严格只读(无内联编辑、无删除入口)。此前抽屉硬编码 `inlineEdit` 与 `showDelete: true`,并无条件向内层 DetailView 传包装函数,导致锁定记录仍可"编辑"(且改动静默丢失)。
+  - `ObjectGantt` 对 `lockField` 锁定的行、以及全局 `readOnly` 的甘特图,不再向抽屉传入 `onFieldSave` / `onDelete`,与时间轴上禁止拖拽/调整的行为保持一致。
+
+- 0b03b34: 快速筛选改为树感知(#2436 第 4 项):命中任务的**全部祖先链**一并保留。
+  此前 `displayTasks` 是平铺过滤,项目/产品等分组行本身没有可筛字段值,
+  一筛就被丢掉,命中的子任务成孤儿、树结构被打散。现在祖先随命中下级
+  自动保留、无命中下级时照常剔除,多分支命中共享祖先不重复。
+- 07b2cda: 甘特图写后回读 + 工具栏手动刷新按钮(#2436 第 6/7 项)。
+
+  - 拖拽改期、依赖增删、抽屉内联编辑、删除记录成功后,静默重新读取数据源,让服务端重算的字段(父级汇总、预警颜色、工期重算)刷新到图上;此前乐观补丁只保留客户端写入的字段,派生字段一直陈旧直到整页刷新。静默刷新不闪 loading、不卸载 GanttView(保留滚动/折叠状态),并发请求按序号防乱序覆盖;失败时保留屏上最后一份好数据。
+  - GanttView 工具栏新增手动刷新按钮(`onRefresh` / `refreshing` props),object 数据源自动接线;内联 value 数据无可回读来源,不显示按钮。
+
+- Updated dependencies [443360a]
+- Updated dependencies [c70bca7]
+- Updated dependencies [86c69c3]
+- Updated dependencies [05e56ca]
+- Updated dependencies [a44e7b6]
+- Updated dependencies [eef832b]
+- Updated dependencies [5971cc4]
+- Updated dependencies [6a74160]
+  - @object-ui/core@14.0.0
+  - @object-ui/i18n@14.0.0
+  - @object-ui/react@14.0.0
+  - @object-ui/types@14.0.0
+  - @object-ui/components@14.0.0
+  - @object-ui/plugin-detail@14.0.0
+  - @object-ui/fields@14.0.0
+
 ## 13.2.0
 
 ### Patch Changes

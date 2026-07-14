@@ -1,5 +1,480 @@
 # @object-ui/app-shell — Changelog
 
+## 14.0.0
+
+### Minor Changes
+
+- 06e92ac: feat(console-ai): ChatDock — right-docked AI rail behind a default-off flag (ADR-0057 P3a)
+
+  Stands up the ADR-0057 P3 docked rail as an ADDITIVE, DEFAULT-OFF shell: until an
+  operator sets `features.chatDock`, nothing changes and the FAB stays the
+  canonical entry.
+
+  - `@object-ui/layout`: `AppShell` gains an optional `rightRail` prop, rendered as
+    a flex sibling of the main content so the rail REFLOWS the content beside it
+    (VS Code / Cursor idiom), not overlaying it. Absent → unchanged single-pane.
+  - `@object-ui/app-shell`: new `ChatDock` — a collapsible, resizable right rail
+    that reuses the shared `ChatPane` engine over the P1 `(user, app, product=ask)`
+    conversation (the same ambient thread the FAB/`/ai` shows; it's a VIEW, not a
+    new conversation). Default COLLAPSED (a fixed edge launcher → zero layout cost
+    until invoked); ⌘/Ctrl+Shift+I toggles it. Gated on `useAiSurfaceEnabled` AND
+    the flag, so OSS / no-seat runtimes render nothing.
+  - `runtime-config`: `chatDock?` rollout flag, parsed default-OFF (opt-in only).
+
+  Live-verified with the flag forced on: the launcher expands to a rail rendering
+  the ask chat, the dashboard content reflows narrower beside it, and collapse
+  restores the launcher. Unit-tested: width clamp, the composer-safe shortcut
+  matcher (⌘⇧I, no collision with the ⌘⇧O/S page shortcuts), and the flag's
+  default-off/opt-in parse. FAB retirement (P3b) and `/ai`-as-maximized-dock +
+  Studio reflow (P3c) follow.
+
+- 7b4fc36: feat(console-ai): ask→build handoff carries conversation context (ADR-0057 P4 / cloud#817)
+
+  The P4 "Open in Builder →" handoff previously carried only the build prompt + an
+  optional package, so the Builder started cold and the user re-explained
+  themselves. It now also carries the **source `ask` conversation** as context —
+  ADR-0057 P4 / cloud#817 — so the build agent's first turn starts with the thread
+  the user already had.
+
+  - `@object-ui/app-shell`: both handoff sites (the full-page `AiChatPage` and the
+    console FAB) now append `?parentConversationId=<ask thread id>` to the
+    `/ai/build` URL. The build surface reads it and forwards it to `useObjectChat`;
+    the existing URL-mirror drops it once the build conversation id is minted, so a
+    reload never re-carries it.
+  - `@object-ui/plugin-chatbot`: `useObjectChat` accepts `parentConversationId` and
+    sends it as `context.parentConversationId` on the **first turn only** (held in a
+    ref, consumed once) — the backend redeems it into the turn's context and the
+    client owns history from there. New pure helper `withHandoffContext` (unit
+    tested) does the non-mutating `context` merge.
+
+  Requires the cloud handoff-context contract (service-ai, cloud#817): the build
+  agent redeems `context.parentConversationId` into a single system block on its
+  first turn — ownership-checked, and carrying only the user/assistant text the
+  user already saw (ADR-0063 governance boundary). Without it the console degrades
+  cleanly: the id is sent but ignored, and the handoff is a (working) cold start.
+
+- 7dea792: feat(console-ai): explicit "Open in Builder →" ask→build handoff (ADR-0057 P4)
+
+  When the `ask` agent declines an app-authoring request it now calls the cloud
+  `suggest_builder` tool (structured decline). The console renders that as an
+  explicit **"Open in Builder →"** action that opens the full-page build surface
+  seeded with the handoff prompt — ADR-0063 decline-and-redirect: an explicit,
+  user-initiated switch, never a silent re-route into authoring.
+
+  - `@object-ui/plugin-chatbot`: `detectBuilderHandoff` lifts the
+    `{ status:'build_handoff', prompt, packageId? }` result onto the tool
+    invocation; `ChatbotEnhanced` renders the "Open in Builder →" card and calls a
+    new `onOpenBuilder` prop (disabled when no host wires it).
+  - `@object-ui/app-shell`: the full-page `AiChatPage` (`ask`) and the console FAB
+    wire `onOpenBuilder` to navigate to `/ai/build?package=…&handoffPrompt=…`; the
+    build surface seeds that prompt as its first message (auto-sent once the
+    conversation is minted), and the URL-mirror strips `?handoffPrompt` so a reload
+    never re-sends it. Full ask-conversation context transfer is a later upgrade
+    (cloud#817); v1 carries the build prompt + optional package.
+
+  Requires the cloud `suggest_builder` signal (service-ai-studio) to light up; the
+  console degrades cleanly (no card) without it.
+
+- cd778d4: feat(console-ai): package binding chip + inert handoff cards + honest send hint (#2458 / ADR-0057 A1.a)
+
+  Three UX improvements from live magic-flow testing:
+
+  - **A1.a — package binding chip** (`app-shell`): the build surface header shows
+    the package the conversation is bound to (`📦 <app>`), or **"New app"** when
+    unbound — so the edit blast-radius is always visible (Claude-Code-shows-the-repo
+    idiom). The magic flow starts unbound and binds the moment its build mints a
+    package (`deriveBoundPackageId` reads `?package=` else the latest draft/handoff
+    result; unit-tested).
+  - **UX#5 — only the latest handoff card is actionable** (`plugin-chatbot`): when
+    a thread accumulates several "Open in Builder →" cards, only the newest stays
+    clickable; older (superseded) cards' buttons are disabled — derived from
+    message order, so it survives the navigation the button triggers and the pane
+    remount that follows. A stale prompt in an older card can't be re-fired.
+  - **UX#7 — honest send hint** (`plugin-chatbot`): the composer already sends on
+    plain Enter (Shift+Enter = newline); dropped the misleading `⌘` glyph from the
+    hint so it no longer implies Cmd+Enter.
+
+### Patch Changes
+
+- 443360a: Action params support a `visible` CEL predicate — the param dialog omits a param
+  when it evaluates false, against the same scope as action `visible` (features /
+  user / app / data). Fixes the create-user form offering a **Phone Number** field
+  the default backend rejects ("Phone numbers require the phoneNumber auth plugin"):
+  paired with the framework gating that param on `features.phoneNumber`, the form
+  now follows the plugin — no phone field unless the opt-in phoneNumber auth plugin
+  is loaded. `filterVisibleParams` is exported + unit-tested (feature-off hides,
+  feature-on shows, malformed predicate fails open).
+- c70bca7: fix(console-ai): Live Canvas is a full-screen, opt-in preview on mobile — not a broken split (#2481)
+
+  On a phone the beside-chat Live Canvas split overflowed the viewport (the chat
+  column's fixed min-width plus the preview exceeded the screen, and the resize
+  handle is desktop-only, so it was stuck clipped). Under `md` the canvas is now:
+
+  - **Full-width chat, no split** — the build streams in the chat as before.
+  - **Opt-in + full-screen** — when the preview is available a floating "Preview
+    app" pill appears; tapping it (or a Preview button on a draft card) takes the
+    canvas full-screen over the chat. Closing returns to the chat with the
+    preview one tap away. The auto-drafted canvas never covers the streaming
+    chat unprompted.
+
+  Desktop is unchanged (the resizable beside-chat split). Adds the
+  `console.ai.previewApp` string (en/zh).
+
+- d06de4a: feat(console-ai): the ChatDock is now DEFAULT ON (ADR-0057 P3 go-live)
+
+  `features.chatDock` flips from opt-in to opt-out: the right-docked chat rail
+  (FAB as launcher, `/ai` as the panel maximized, Studio right dock with center
+  `[Canvas | Properties]` tabs) is the console's default chat presentation. The
+  flag survives only as a server-side kill-switch — an operator sending
+  `chatDock: false` restores the floating-overlay console until the final
+  cleanup removes that path (epic #2409).
+
+- 1a12d69: polish(console-ai): ease the dock's canvas auto-maximize, and give Studio its own chat width (ADR-0057 UX follow-ups, #2477)
+
+  - **#4** The rail now eases to its new width (200ms) when the Live Canvas opens
+    (auto-maximize) or closes (tuck), instead of snapping. The transition is
+    suppressed during a manual resize drag so the width still tracks the pointer
+    1:1.
+  - **#6** The Studio dock persists its width under its own key, separate from the
+    console dock. A wide console chat no longer squeezes the Studio design canvas
+    (and vice-versa) — each surface remembers the width that suits it.
+
+- b800960: refactor(console-ai)!: ADR-0057 final cleanup — remove the chatDock flag, the floating-overlay console chat, and the legacy left Studio copilot
+
+  The docked chat is now the console's ONE chat presentation, unconditionally:
+
+  - `features.chatDock` is removed from the runtime config (it had already
+    flipped to default-on; the kill-switch is retired with the code path it
+    guarded).
+  - `ConsoleFloatingChatbot` (the FAB-armed floating overlay) and its
+    `agentPicker` helper are deleted; `ConsoleChatbotFab` is now a small
+    dependency-free launcher (`{ appLabel, onOpenDock }`) that opens the dock —
+    including on `/home`, where it opens the full-page `/ai` surface (the dock
+    maximized) since Home has no shell to host a rail.
+  - The legacy left `StudioAiCopilot` panel is deleted; the Studio copilot's one
+    home is the right `StudioChatDock`. The ADR-0080 `aiSlot` injection seam is
+    untouched.
+  - The runtime SDUI `type: 'chatbot'` bubble (end-user apps) is unchanged
+    (ADR-0057 §4).
+  - Fix: the mobile chat sheet no longer shows a "maximize" button. At 85svh the
+    sheet is already the maximal mobile chat, and navigating to full-page `/ai`
+    from an OPEN Radix sheet tore it down mid-close (the route change unmounts
+    the console synchronously, so the scroll-lock/overlay never released and the
+    destination landed blank-and-frozen — "tap maximize → the chat's just gone").
+    Full-page `/ai` stays reachable via normal navigation.
+
+- 47b497f: feat(console-ai): mobile chat sheet bridges to full-page /ai (conversation history + share) — cleanly (ADR-0057 UX #2477 item 1)
+
+  The mobile chat bottom sheet gets a maximize button back — it opens the
+  full-page `/ai`, which on mobile already carries the conversation-history
+  sidebar and share, so the sheet doesn't need a second copy of either. This is
+  the missing mobile path to switch/resume threads.
+
+  The button navigates **deferred**: an earlier cut jumped straight from the
+  click and tore the still-open Radix sheet down mid-close (the route change
+  unmounts the console synchronously, leaking the sheet's scroll-lock/overlay
+  onto the destination — "tap maximize → the chat's just gone"). Now the click
+  only closes the sheet; a `useEffect` fires the navigation once `open` has
+  flipped false — after Radix released the body on that commit and before the
+  sheet unmounts — so `/ai` lands clean. Applies to both the console sheet
+  (→ `/ai`) and the Studio copilot sheet (→ `/ai/build?package=…`, same thread).
+
+  Live Canvas on mobile `/ai` (the beside-chat split has no room on a phone) is
+  tracked separately (#2481).
+
+- 804a101: feat(console-ai): ChatDock follow-ups — mobile sheet, wide side-by-side properties, exact collapse landing (ADR-0057 P3)
+
+  - Under `md` the dock presents as a bottom sheet (`ChatDockMobileSheet`) —
+    console FAB opens it; Studio gets a mobile-visible edge launcher.
+  - The folded Studio layout keeps canvas AND properties side by side on 2xl+
+    viewports; tabs (and their auto-switch) only exist where width forces them.
+  - Folded tabs mode flattens the source page's nested Source/Props tabs — the
+    Properties tab body is the code editor directly.
+  - Maximize remembers its origin, so `/ai`'s collapse-to-dock returns to the
+    exact page (console or Studio) the user left, immune to history churn.
+  - The dock's conversation honors `app.defaultAgent` via the one resolver,
+    matching the FAB's behavior.
+
+- 3001e20: feat(console-ai): the FAB becomes the ChatDock launcher when the dock is on (ADR-0057 P3b)
+
+  When `features.chatDock` is enabled, the console FAB opens the docked rail instead
+  of the floating overlay — one entry point, the ADR's "FAB → launcher" step. In
+  dock mode the FAB stays the lightweight button (it never mounts the heavy floating
+  chatbot; the rail loads the chat on demand), and a designer "Ask AI" open signal
+  (assistantBus) opens the dock too. With the flag OFF the FAB is unchanged (floating
+  overlay). Supersedes P3a's edge launcher (the dock is gated on the same
+  `showChatbot`, so the FAB is always present to launch it).
+
+- 159d7db: feat(console-ai): /ai = the ChatDock maximized + Studio right-dock reflow (ADR-0057 P3c)
+
+  The final P3 slice, all behind the default-off `features.chatDock` flag:
+
+  - **/ai ⇄ rail continuity**: the dock header gains a maximize button that opens
+    the full-page `/ai` surface, and the `/ai` page gains a collapse-to-dock button
+    that returns to the console with the rail expanded — same thread both ways
+    (the P1 `(user, app, product)` conversation key). Deep links
+    (`/ai/:agent/:conversationId`, ADR-0013) are untouched and keep working.
+  - **Studio reflow** (the ADR's decided grid `[left: nav/tree] [center: canvas +
+properties] [right: chat]`): the AI copilot leaves the left `w-96` panel and
+    renders as the shared right dock (`ChatDockPanel` + `ChatDockLauncher`), same
+    package-scoped build thread; the Interfaces pillar's right inspector folds
+    into center `[Canvas | Properties]` tabs with select-a-block auto-switch. An
+    injected `aiSlot` (cloud seam, ADR-0080) keeps the legacy left panel.
+  - **Live Canvas** (ADR-0037): in the rail, the dock auto-maximizes while the
+    canvas is open and tucks back on close (manual resize wins); maximized (`/ai`)
+    keeps the existing beside-the-chat split.
+
+  With the flag OFF, `/ai` and Studio are pixel-identical to before.
+
+- 1273f1e: fix(console-ai): reliable ask→build handoff auto-send + second-handoff context re-carry (ADR-0057 P4)
+
+  Two follow-ups to the P4 "Open in Builder →" handoff:
+
+  - **Auto-send swallow.** The handoff's auto-sent first message could be dropped on
+    a brand-new build conversation: the seed gated on the async-resolved
+    `activeAgent`, which can settle _after_ the conversation id is minted, so the
+    deferred-send replay ran with an empty pending and never re-fired. The seed now
+    gates on the **route** (`agentSegment`, synchronous) and bumps a `pendingSignal`
+    that `useDeferredFirstSend` lists in its replay deps, so the seed always fires —
+    no more empty build conversation on handoff.
+
+  - **Second-handoff re-carry.** A second "Open in Builder →" into the (singleton)
+    build conversation now re-carries the latest ask context. The transport re-arms
+    `parentConversationId` on each falsy→truthy transition of the prop (the ask
+    thread is a singleton, so the same id repeats — the fresh-arrival signal is the
+    transition the URL-mirror produces, not a changed value), and the seed re-arms
+    on each new `handoffPrompt`.
+
+  Unit-tested: deferred-send replays a post-id seed via the signal; the transport
+  re-carries across a strip→re-supply cycle.
+
+- 48d06da: fix(console-ai): Studio dock remembers a collapse; folded canvas+properties go side-by-side at `xl` (ADR-0057 UX follow-ups, #2477)
+
+  - **Studio dock collapse is now remembered** (per-tab). The right copilot still
+    mounts expanded by default, but collapsing it to get the classic three-zone
+    canvas no longer re-opens on every pillar / package switch or Studio
+    re-entry. Backed by an explicit `'0'`/`'1'` stored flag (a default-expanded
+    surface couldn't remember a collapse when "collapsed" meant "key removed"),
+    under a Studio-specific key so it never shares state with the console dock.
+  - **Folded layout shows canvas + properties side by side from `xl`** (1280),
+    lowered from `2xl`. On the common laptop the folded center used to fall into
+    tabs, which auto-hide the canvas the moment you select a block — breaking the
+    WYSIWYG "edit and watch it apply" loop. The side-by-side inspector is slimmer
+    at `xl` (and grows at `2xl`) so the canvas keeps usable width beside the dock.
+
+- 9d0fdb1: feat(console-ai): render agent behavior by declared capability (cloud#816 / ADR-0057 "B+")
+
+  `GET /api/v1/ai/agents` now serves per-agent `capabilities`; the console
+  consumes them instead of hard-coding `isBuildAgent(name)`:
+
+  - `@object-ui/plugin-chatbot`: `AgentDescriptor.capabilities` (normalized from
+    the catalog) + new `agentHasCapability(agents, name, cap)` — declaration wins
+    when present; falls back to the legacy `isBuildAgent(name)` check when absent
+    (older server), so shipping order doesn't matter.
+  - `@object-ui/app-shell`: the build-doctor drawer + `showDebug` key off
+    `'debug'`, the FAB's resume-vs-fresh keys off `'resume'`, HomePage's
+    "Build with AI" availability keys off `'authoring'`. The ADR-0063 product-axis
+    sites (surface→agent resolver, conversation scope keying, picker availability)
+    intentionally stay name-based — capability describes RENDERED behavior, not
+    which product an agent is.
+
+  A future skill-driven build variant now needs no console change.
+
+- 9442310: feat(console-ai): key AI chat conversations on `(user, app, product)`, not on surface (ADR-0057 P1)
+
+  The console rendered AI chat through parallel shells that **forked the
+  conversation**: the Studio design copilot scoped its thread as
+  `studio:${packageId}:${agent}` while the full-page `/ai/build` focus view scoped
+  on the agent alone — so opening the _same app_ in both showed an empty "Build
+  with AI" copilot beside an active full-page build thread (indistinguishable from
+  data loss).
+
+  Per ADR-0057 (**surface = view · conversation = model · product = binding
+  axis**), conversations are now keyed on `(user, app, product)`:
+
+  - New pure, unit-tested `chatConversationScope({ appId, product })` +
+    `chatProductOfAgent(name)` helper (`hooks/chatScope.ts`) is the single place
+    the scope key is formed. `product` is the ADR-0063 axis (`ask` | `build`),
+    derived from the resolved agent — never a per-surface choice.
+  - `StudioAiCopilot` and the full-page `AiChatPage` both resolve
+    `app:${packageId}:${product}` for a package-scoped surface (the Studio copilot
+    editing package X and the `/ai/build?package=X` "Edit with AI" focus view now
+    resume ONE shared thread). The legacy `studio:` surface prefix is dropped.
+  - A generic `/ai/:agent` visit with no `?package=` degrades to the product alone
+    (`build` / `ask`) — unchanged behaviour for that surface.
+
+  Enablement stays on the single access-filtered agent-catalog gate
+  (`useAiSurfaceEnabled`, ADR-0068) — a seat-less user's empty catalog hides the
+  whole AI surface. No layout change.
+
+- 9442310: feat(console-ai): one declarative surface→agent resolver (ADR-0057 P2)
+
+  The console re-implemented the ADR-0063 surface→agent chain in ~5 places, each
+  spelled slightly differently — and `ConsoleLayout` carried an AI-Studio-off
+  downgrade special case that existed nowhere else. This collapses them into one
+  pure, unit-tested resolver so ADR-0063 (exactly two products `ask`/`build`,
+  bound by surface — no roster, no per-turn classifier) becomes a **structural**
+  guarantee.
+
+  - New `hooks/surfaceAgent.ts`: `resolveSurfaceAgent(surface, { agents,
+appDefaultAgent, aiStudioEnabled })` + `SURFACE_DEFAULT`. `app.defaultAgent` is
+    **bounded** to ask/build (alias-aware) — a withdrawn tenant custom agent is
+    rejected, not passed through, so no roster is representable (ADR-0057 open
+    question #4). The AI-Studio-off `build → ask` downgrade is folded in ONCE.
+  - `StudioAiCopilot` (studio-build → build) and the console FAB (`default` → ask)
+    resolve through it. The FAB keeps #771's "prefer build when the catalog unlocks
+    it and nothing pinned a product" by passing that as its default PRODUCT input —
+    so the resolver still owns bounding + the downgrade, which now also applies to
+    the #771 preference (closing the leak where an authoring-disabled deployment
+    could still open build).
+  - `ConsoleLayout`'s bespoke `!aiStudioEnabled && isBuildAgent(...)` downgrade is
+    deleted; it passes the raw `app.defaultAgent` and the resolver downgrades.
+
+  Ships a unit table proving the ADR-0063 rows: Studio→build, other→ask,
+  AI-Studio-off downgrade, `app.defaultAgent` bounded (valid override wins, roster
+  rejected), alias-aware catalog resolution, empty catalog → inert (ADR-0025).
+
+- 05e56ca: 导出/导入模板的下载文件名与内容本地化。
+
+  **导出文件名**:CSV/Excel/JSON 导出下载不再是 `<对象名>.<扩展名>`(如 `contracts.csv`),改为「对象显示名-视图名-时间戳.扩展名」(如 `任务-In Progress-20260714-153045.xlsx`);`exportOptions.fileNamePrefix` 配置仍优先(且作为完整前缀,不再追加视图名)。视图名与对象名重复时自动省略;`@object-ui/core` 新增 `buildExportFileName(ext, { prefix, label, objectName, viewLabel }, now?)` 与 `sanitizeFileNameBase(raw)`,ObjectGrid 与 ListView 的所有导出路径(服务端流式与前端兜底)统一走它。app-shell/plugin-view 的 ObjectView 现将当前视图的显示标签写进传给 ListView 的 schema(`label`),使导出文件名能区分同一对象的不同保存视图。
+
+  **导入模板**:「下载模板」修复两处英文漏出——示例行的 select/多选取值改为优先取选项**显示标签**(如 `准备中`)而非 ASCII slug(`prepare`,服务端导入两者都接受);模板文件名本地化为 `{{object}}-导入模板.csv`(新增 i18n key `grid.import.templateFileName`,英文回退 `{{object}}-import-template.csv`)。
+
+- 9d0fdb1: fix(console-ai): second handoff's auto-send no longer dies in the stale-scope pane (#2450)
+
+  Mid ask→build transition, `useChatConversation` briefly still holds the OLD
+  scope's conversation id (the same stale window the URL-mirror already guards).
+  `<ChatPane>` was fed that raw id, so a DOOMED pane (build chatApi + stale ask id,
+  about to remount) could mount — and the deferred first-send replay consumed the
+  handoff stash into it, where the send died with the unmount before reaching the
+  wire (observed live as "conversation resumes, zero `…/chat` POST").
+
+  Two-layer fix:
+
+  - **Scope-gated pane feed (structural):** the page now hands `<ChatPane>` a
+    conversation id/messages ONLY when `conversationScope === chatScope`. During
+    the stale window the pane mounts as `…:pending`, holds the stash, and replays
+    exactly once in the correctly-scoped pane — extending the existing URL-mirror
+    guard to the pane itself.
+  - **Targeted stash (defense-in-depth):** the handoff seed is stamped
+    `targetAgentRoute: 'build'`; `useDeferredFirstSend` refuses to consume a
+    targeted stash in a pane bound to another agent (untargeted user-typed sends
+    keep the legacy consume-anywhere behavior).
+
+  Per product decision, a second handoff landing on a conversation with a
+  blueprint still Awaiting Approval just auto-sends — the build agent sees the
+  pending plan in context and decides merge/supersede itself.
+
+- 9138e68: fix(metadata-admin): authenticate console MetadataClient requests (Bearer token)
+
+  Studio / metadata-admin surfaces issued `/api/v1/meta/*` requests (list types,
+  `?package=…` reads, `_drafts`, the `/meta` root) that came back `401
+unauthenticated` in the token-based console, while the runtime data adapter's
+  reads (`/meta/object|view|app`) succeeded — so the same page showed some
+  metadata requests failing and others working.
+
+  Root cause: `useMetadataClient` and `MetadataProvider`'s draft-preview client
+  constructed `MetadataClient` without a `fetch`, so it fell back to the bare
+  `globalThis.fetch` and sent no `Authorization` header. The console
+  authenticates by a Bearer token in localStorage (`auth-session-token`) — there
+  is no session cookie — so those requests were unauthenticated. A same-origin
+  cookie deployment masks the bug, which is why it went unnoticed and regressed
+  twice.
+
+  Both sites (and every future console surface) now construct through a single
+  `createConsoleMetadataClient` factory that bakes in `createAuthenticatedFetch`
+  (Bearer token + `X-Tenant-ID` + `Accept-Language`), matching the runtime data
+  adapter. This is additive for cookie deployments — `credentials` is untouched,
+  so a same-origin session cookie still flows. A
+  `metadata-client-auth.ratchet.test.ts` guard forbids a bare
+  `new MetadataClient(` elsewhere in app-shell so authentication can't silently
+  regress again.
+
+- 780b60a: Say "reset to shipped baseline" instead of "delete" when removing a package-owned permission set (ADR-0094).
+
+  Deleting a `sys_permission_set` row whose `managed_by === 'package'` doesn't remove it — the backend drops the environment customization overlay and resets the set to its shipped baseline, so the row stays in the list. The confirmation dialog and success toast now say so (with `resetPackageSetConfirm` / `resetPackageSetSuccess` i18n, en + zh), instead of promising an irreversible delete the user can see doesn't happen. Environment-authored sets keep the plain delete copy. The grid row-delete passes the record through so the check needs no extra fetch; the SDUI header delete falls back to a `findOne` lookup.
+
+- 5971cc4: i18n: translate the Profile page, honor inline i18n label objects under bare
+  base-language codes, and localize managed-by badges / record quick actions.
+
+  - `pickLocalized` now upgrades a bare base language (`zh`) to any
+    region-qualified key sharing the base (`zh-CN`) — runtime language is
+    normalized to the base code while metadata authors write full BCP-47 tags,
+    so inline `{ en, 'zh-CN', ... }` label objects previously fell back to
+    English.
+  - ProfilePage (`account:profile_card` / `/system/profile`): every hardcoded
+    string — page title/subtitle, avatar Upload/Replace/Remove, Personal
+    Information card, Change/Set Password card — now goes through
+    `useObjectTranslation()` with `profile.*` keys (new namespace in all ten
+    locale bundles); the lazy-load fallback reuses `common.loading`.
+  - `ManagedByBadge` chips/tooltips (Config/System/Append-only/Identity) now
+    resolve through new `managedByBadge.*` keys with `{{provider}}`
+    interpolation.
+  - `record:quick_actions` resolves action labels via the
+    `objects.{object}._actions.{action}.label` convention plus `pickLocalized`,
+    so object action buttons (Change Password, Enable 2FA, …) localize.
+  - `record:details` / `record:related_list` / `record:alert` / `ObjectTree`
+    pass inline label objects through `pickLocalized`.
+  - Locale bundles: added `managedByBadge` namespace to all ten locales and
+    backfilled `list.inlineEditShort` / `inlineEditLabel` /
+    `recordEditingTitle` for ja/es/ko/de/fr/pt/ru/ar.
+
+- 2fb38ed: fix(app-shell): propagate action-param `visible` predicate through resolveActionParams
+
+  The create-user phone fix (#2406) gated the `phoneNumber` param with
+  `visible: 'features.phoneNumber == true'`, but `resolveActionParam` dropped
+  `visible` when flattening raw spec params into `ActionParamDef` — so
+  `ActionParamDialog`'s `filterVisibleParams` never saw the predicate and the
+  phone field kept rendering even with the phoneNumber auth plugin off.
+
+  Propagate `visible` in all three resolve branches (inline / field-backed /
+  missing-field), unwrapping the spec's `{ dialect, source }` ExpressionInput
+  envelope to a plain CEL string. Completes the create-user phone fix end to end.
+
+- Updated dependencies [443360a]
+- Updated dependencies [c70bca7]
+- Updated dependencies [06e92ac]
+- Updated dependencies [7b4fc36]
+- Updated dependencies [1273f1e]
+- Updated dependencies [7dea792]
+- Updated dependencies [86c69c3]
+- Updated dependencies [bfea27f]
+- Updated dependencies [9d0fdb1]
+- Updated dependencies [cd778d4]
+- Updated dependencies [05e56ca]
+- Updated dependencies [408f4ba]
+- Updated dependencies [a44e7b6]
+- Updated dependencies [eef832b]
+- Updated dependencies [b66d8ee]
+- Updated dependencies [94d00d4]
+- Updated dependencies [5971cc4]
+- Updated dependencies [6a74160]
+  - @object-ui/core@14.0.0
+  - @object-ui/i18n@14.0.0
+  - @object-ui/layout@14.0.0
+  - @object-ui/plugin-chatbot@14.0.0
+  - @object-ui/react@14.0.0
+  - @object-ui/types@14.0.0
+  - @object-ui/plugin-grid@14.0.0
+  - @object-ui/plugin-list@14.0.0
+  - @object-ui/plugin-view@14.0.0
+  - @object-ui/components@14.0.0
+  - @object-ui/plugin-detail@14.0.0
+  - @object-ui/auth@14.0.0
+  - @object-ui/fields@14.0.0
+  - @object-ui/data-objectstack@14.0.0
+  - @object-ui/plugin-calendar@14.0.0
+  - @object-ui/plugin-charts@14.0.0
+  - @object-ui/plugin-dashboard@14.0.0
+  - @object-ui/plugin-designer@14.0.0
+  - @object-ui/plugin-editor@14.0.0
+  - @object-ui/plugin-form@14.0.0
+  - @object-ui/plugin-kanban@14.0.0
+  - @object-ui/plugin-report@14.0.0
+  - @object-ui/collaboration@14.0.0
+  - @object-ui/permissions@14.0.0
+  - @object-ui/providers@14.0.0
+
 ## 13.2.0
 
 ### Minor Changes
