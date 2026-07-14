@@ -2380,14 +2380,6 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                   !isUser && !tools.some((t) => Boolean(t.proposedPlan))
                     ? message.blueprintProgress
                     : undefined;
-                const isEmptyAssistantStreaming =
-                  !isUser &&
-                  Boolean(message.streaming) &&
-                  !message.content &&
-                  tools.length === 0 &&
-                  !reasoning &&
-                  !buildProgress &&
-                  !blueprintProgress; // a streaming design/build shows its panel, not the dots
                 const summaryTools =
                   !isUser && processVisibility === 'summary'
                     ? tools.filter(
@@ -2408,6 +2400,30 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     : !isUser && processVisibility !== 'debug'
                       ? tools.filter(shouldRenderDetailedTool)
                       : [];
+                // Real, showable prose for this turn. Whitespace-only text and the
+                // persisted "(called …)" tool-call placeholder are NOT visible
+                // prose: the placeholder is a hydrated-history affordance (renders
+                // as the quiet 执行过程 note only once the turn has ENDED), and a
+                // lone whitespace part must never paint a blank bubble mid-stream.
+                const hasVisibleProse =
+                  !isUser &&
+                  message.content.trim().length > 0 &&
+                  !isToolCallPlaceholder(message.content);
+                // Nothing is visible for this streaming turn yet → show the live
+                // thinking indicator instead of dead air. Covers the ask-decline
+                // wait (tool-call latency before `suggest_builder` lands): no
+                // prose, no rendered tool row (summary chip / detailed card), no
+                // shown reasoning (only surfaced in debug), no build/design panel.
+                const reasoningVisible = processVisibility === 'debug' && Boolean(reasoning);
+                const isEmptyAssistantStreaming =
+                  !isUser &&
+                  Boolean(message.streaming) &&
+                  !hasVisibleProse &&
+                  summaryTools.length === 0 &&
+                  detailedTools.length === 0 &&
+                  !reasoningVisible &&
+                  !buildProgress &&
+                  !blueprintProgress; // a streaming design/build shows its panel, not the dots
                 return (
                   <Message key={message.id} from={formatMessageProps(message.role)}>
                     <div
@@ -2482,23 +2498,23 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         ) : null
                       ) : isEmptyAssistantStreaming ? (
                         <ThinkingDots />
-                      ) : message.content ? (
-                        isToolCallPlaceholder(message.content) ? (
-                          // #772: a re-hydrated tool-call-only turn is persisted
-                          // with an internal placeholder ("(called todo_write,
-                          // propose_blueprint)"); render a quiet localized
-                          // activity note instead of leaking it as prose.
-                          <span
-                            className="text-xs italic text-muted-foreground/70"
-                            title={message.content}
-                          >
-                            {L.agentActivity}
-                          </span>
-                        ) : (
-                          <MessageResponse>{message.content}</MessageResponse>
-                        )
+                      ) : hasVisibleProse ? (
+                        <MessageResponse>{message.content}</MessageResponse>
+                      ) : !message.streaming && isToolCallPlaceholder(message.content) ? (
+                        // #772: a re-hydrated tool-call-only turn is persisted with
+                        // an internal placeholder ("(called todo_write,
+                        // propose_blueprint)"); render a quiet localized activity
+                        // note instead of leaking it as prose. Only once the turn
+                        // has ENDED — mid-stream the live tool row / ThinkingDots
+                        // carry the status, so the static note never flashes.
+                        <span
+                          className="text-xs italic text-muted-foreground/70"
+                          title={message.content}
+                        >
+                          {L.agentActivity}
+                        </span>
                       ) : null}
-                      {message.streaming && !isEmptyAssistantStreaming ? (
+                      {message.streaming && hasVisibleProse ? (
                         <span
                           aria-hidden
                           className="ml-0.5 inline-block w-[2px] h-4 align-middle bg-current animate-pulse"

@@ -155,6 +155,83 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByTestId('builder-handoff-open')).toBeDisabled();
   });
 
+  // #2458 item 3 — the ask-decline handoff card is the actionable payload; it
+  // must surface the moment `suggest_builder` reaches `output-available`, while
+  // the turn is STILL streaming and the trailing one-line prose hasn't arrived
+  // (content still empty). We must not withhold it until the text part finishes.
+  it('renders the handoff card at output-available while still streaming, before prose arrives (#2458)', () => {
+    const onOpenBuilder = vi.fn();
+    const messages: ChatMessage[] = [
+      { id: 'u1', role: 'user', content: '帮我搭一个客户管理应用' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '', // no prose yet — the sentence streams in AFTER the card
+        streaming: true,
+        toolInvocations: [
+          {
+            toolCallId: 't1',
+            toolName: 'suggest_builder',
+            state: 'output-available',
+            builderHandoff: { prompt: '客户管理应用', packageId: 'com.acme.crm' },
+          },
+        ],
+      },
+    ];
+    render(<ChatbotEnhanced messages={messages} isLoading onOpenBuilder={onOpenBuilder} />);
+    // The actionable card is present and live despite the unfinished stream.
+    expect(screen.getByTestId('builder-handoff')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('builder-handoff-open'));
+    expect(onOpenBuilder).toHaveBeenCalledWith({
+      prompt: '客户管理应用',
+      packageId: 'com.acme.crm',
+    });
+  });
+
+  // #2458 item 3 — while the ask agent is still deciding (no prose, no rendered
+  // tool row yet), a mid-stream turn whose only text is the persisted
+  // "(called …)" tool-call placeholder must show the LIVE thinking indicator,
+  // not the static 执行过程 note (a hydrated-history affordance) or a blank bubble.
+  it('shows live thinking dots — not the static activity note — for a mid-stream tool-call placeholder', () => {
+    render(
+      <ChatbotEnhanced
+        isLoading
+        labels={{ agentActivity: 'AGENT_ACTIVITY_NOTE' }}
+        messages={[
+          { id: 'u1', role: 'user', content: '帮我搭一个客户管理应用' },
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: '(called suggest_builder)',
+            streaming: true,
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/Assistant is responding/i)).toBeInTheDocument();
+    expect(screen.queryByText('AGENT_ACTIVITY_NOTE')).not.toBeInTheDocument();
+  });
+
+  // The static 执行过程 note is still the right thing once the turn has ENDED
+  // (re-hydrated history): a tool-call-only turn shows the quiet activity note,
+  // never leaks the internal placeholder as prose (#772 preserved).
+  it('keeps the quiet activity note for a FINISHED tool-call placeholder turn (#772)', () => {
+    render(
+      <ChatbotEnhanced
+        labels={{ agentActivity: 'AGENT_ACTIVITY_NOTE' }}
+        messages={[
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: '(called suggest_builder)',
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText('AGENT_ACTIVITY_NOTE')).toBeInTheDocument();
+    expect(screen.queryByText('(called suggest_builder)')).not.toBeInTheDocument();
+  });
+
   const planMessage = (questions: string[]): ChatMessage[] => [
     {
       id: 'a1',
