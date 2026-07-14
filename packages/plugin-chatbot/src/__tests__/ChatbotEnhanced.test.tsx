@@ -515,6 +515,38 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(screen.getByText('Parameters')).toBeInTheDocument();
   });
 
+  it('#2493 — the draft-review summary can truncate (min-w-0) and its action row wraps, so it does not overflow on mobile', () => {
+    const longSummary =
+      'built 5 artifact(s) — live in your new app, grouped under app.pi8e — objects, views and a task board, all wired and ready to publish';
+    const draftTool: ChatMessage = {
+      id: 'ov1',
+      role: 'assistant',
+      content: 'Built your app.',
+      toolInvocations: [
+        {
+          toolCallId: 'tc-ov',
+          toolName: 'apply_blueprint',
+          state: 'output-available',
+          result: { status: 'drafted', drafted: [{ type: 'app', name: 'todo_app' }] },
+          draftReview: {
+            items: [{ type: 'app', name: 'todo_app' }],
+            packageId: 'app.pi8e',
+            summary: longSummary,
+          },
+        },
+      ],
+    };
+    render(<ChatbotEnhanced messages={[draftTool]} onReviewDraft={vi.fn()} />);
+    const summary = screen.getByText(longSummary);
+    // The summary is a flex child that must be shrinkable + clipped, or its
+    // nowrap text expands the chat column past a phone viewport (the bug).
+    expect(summary).toHaveClass('truncate');
+    expect(summary).toHaveClass('min-w-0');
+    // And the action row wraps so its buttons never force horizontal scroll.
+    const row = summary.closest('div');
+    expect(row?.className).toContain('flex-wrap');
+  });
+
   it('expands the verification chip into the actual lint findings (ADR-0038 L1)', () => {
     const issueTool: ChatMessage = {
       id: 'a2',
