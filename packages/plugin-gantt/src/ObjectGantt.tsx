@@ -23,6 +23,7 @@
  */
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
 import { useNavigationOverlay } from '@object-ui/react';
@@ -294,6 +295,28 @@ function convertSortToQueryParams(sort: string | any[] | undefined): Record<stri
 }
 
 /**
+ * Pull a human-readable message out of a failed write. ApiDataSource embeds
+ * the raw response body at the end of its Error message
+ * (`ApiDataSource: HTTP 403 Forbidden — {"error":…,"message":…}`), so a JSON
+ * tail with `message`/`error` wins; otherwise null (caller falls back to the
+ * generic i18n text).
+ */
+function extractServerMessage(err: unknown): string | null {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  const idx = msg.indexOf('{');
+  if (idx >= 0) {
+    try {
+      const body = JSON.parse(msg.slice(idx));
+      const m = body?.message ?? body?.error;
+      if (typeof m === 'string' && m.trim()) return m;
+    } catch {
+      /* body wasn't JSON — fall through */
+    }
+  }
+  return null;
+}
+
+/**
  * Helper to get gantt configuration from schema
  */
 function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
@@ -361,6 +384,16 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // Tenant default currency (ADR-0053) for currency tooltips lacking a code.
   const { currency: tenantCurrency } = useLocalization();
   const { t } = useGanttTranslation();
+
+  // Surface write-back failures (拖拽/连线/删除/行内编辑) as an error toast —
+  // silent revert alone leaves the user wondering why nothing stuck (#2473).
+  // The server's own message (e.g. 403「仅管理责任人可修改该排班计划」) leads;
+  // the generic i18n text is the fallback.
+  const notifyWriteError = useCallback((err: unknown) => {
+    toast.error(t('gantt.writeFailed'), {
+      description: extractServerMessage(err) ?? undefined,
+    });
+  }, [t]);
 
   const rawDataConfig = getDataConfig(schema);
   // Memoize dataConfig using deep comparison to prevent infinite loops
@@ -947,6 +980,15 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // (a foreign row object never appears there), so derive from the routed
   // object and swap the segment. Shared by the drawer's 整页 link and the
   // context menu's 移动端二维码.
+  // With objectField configured, a row without a value is a synthetic group
+  // header composed by the endpoint (its id isn't a real record id) — no
+  // detail page, drawer or QR link exists for it.
+  const isSyntheticRow = useCallback(
+    (rec: Record<string, any> | undefined): boolean =>
+      !!ganttConfig?.objectField && !String(rec?.[ganttConfig.objectField] ?? '').trim(),
+    [ganttConfig?.objectField],
+  );
+
   const recordDetailHref = useCallback(
     (rec: Record<string, any>): { objectName: string; recordId: string | number; href: string | null } | null => {
       const rowObject = ganttConfig?.objectField
@@ -1018,6 +1060,50 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     onRowClick: navIsOverlay ? undefined : onRowClick,
   });
 
+  // #2473: an `api`-provider row is a composed render payload (bar_color,
+  // node_type, sort_key…), not the business record — and a foreign-object row
+  // has no schema at all, so the drawer degraded to humanized English labels.
+  // When the drawer opens, fetch the REAL record (and its schema for foreign
+  // objects) through the context DataSource; fall back to the raw row when
+  // there's no context DS or the fetch fails (inline `value` demos keep
+  // working unchanged).
+  const [drawerFetch, setDrawerFetch] = useState<{ key: string; record: any; schema: any } | null>(null);
+  const drawerRec = navigation.isOverlay && navigation.isOpen
+    ? (navigation.selectedRecord as Record<string, any> | null)
+    : null;
+  useEffect(() => {
+    if (!drawerRec) { setDrawerFetch(null); return; }
+    const detail = recordDetailHref(drawerRec);
+    if (!detail) { setDrawerFetch(null); return; }
+    const { objectName, recordId } = detail;
+    const needsRealRecord = dataConfig?.provider === 'api' || objectName !== resource;
+    if (!needsRealRecord || !dataSource || typeof dataSource.findOne !== 'function') {
+      setDrawerFetch(null);
+      return;
+    }
+    const key = `${objectName}:${recordId}`;
+    let cancelled = false;
+    (async () => {
+      try {
+        // Schema comes from the SAME context DataSource as the record — the
+        // component-level `objectSchema` state is unusable here: under the
+        // 'api' provider it's the adapter's `{fields: {}}` stub, which blanks
+        // every field label in the drawer.
+        const [record, schema] = await Promise.all([
+          dataSource.findOne(objectName, String(recordId)),
+          typeof dataSource.getObjectSchema === 'function'
+            ? dataSource.getObjectSchema(objectName).catch(() => null)
+            : Promise.resolve(null),
+        ]);
+        if (!cancelled) setDrawerFetch(record ? { key, record, schema } : null);
+      } catch (err) {
+        console.error('[ObjectGantt] Failed to fetch drawer record, falling back to row payload:', err);
+        if (!cancelled) setDrawerFetch(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [drawerRec, recordDetailHref, dataConfig?.provider, resource, dataSource]);
+
   // Persist a drag-driven reschedule back to the data source. Mirrors
   // ObjectCalendar.handleEventDropDefault: optimistic local patch, then
   // dataSource.update; on failure we revert and log.
@@ -1054,9 +1140,10 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist task update:', err);
         setData(prevSnapshot); // revert
+        notifyWriteError(err);
       }
     },
-    [ganttConfig, effectiveDataSource, resource, data, reload],
+    [ganttConfig, effectiveDataSource, resource, data, reload, notifyWriteError],
   );
 
   // Re-serialize a normalized dependency list back onto a record field,
@@ -1097,9 +1184,10 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       } catch (err) {
         console.error('[ObjectGantt] Failed to persist dependency:', err);
         setData(prevSnapshot); // revert
+        notifyWriteError(err);
       }
     },
-    [ganttConfig, effectiveDataSource, resource, data, reload],
+    [ganttConfig, effectiveDataSource, resource, data, reload, notifyWriteError],
   );
 
   // Persist a created/updated dependency (依赖增 + 类型选择): upsert the source
@@ -1188,17 +1276,21 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       prev.filter((r) => String(r.id ?? r._id) !== String(recordId)),
     );
     try {
-      await effectiveDataSource.delete(resource, String(recordId));
+      // ApiDataSource.delete reports failure as `false` instead of throwing —
+      // without this check a rejected delete keeps the optimistic removal.
+      const ok = await effectiveDataSource.delete(resource, String(recordId));
+      if (ok === false) throw new Error(t('gantt.writeFailed'));
       setPendingDelete(null);
       void reload({ silent: true }); // 写后回读 — parent rollups shrink after a child delete
     } catch (err) {
       console.error('[ObjectGantt] Failed to delete:', err);
       setData(prevSnapshot); // revert
       setPendingDelete(null);
+      notifyWriteError(err);
     } finally {
       setDeleting(false);
     }
-  }, [pendingDelete, effectiveDataSource, resource, data, reload]);
+  }, [pendingDelete, effectiveDataSource, resource, data, reload, notifyWriteError, t]);
 
   if (loading) {
     return (
@@ -1265,17 +1357,16 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           startDate={lockedRange?.start}
           endDate={lockedRange?.end}
           onTaskClick={(task) => {
-            navigation.handleClick(task.data);
+            // Synthetic group rows have no backing record — opening the
+            // drawer would only show the raw composed payload (#2473).
+            if (!isSyntheticRow(task.data as Record<string, any> | undefined)) {
+              navigation.handleClick(task.data);
+            }
             onTaskClick?.(task.data);
           }}
           taskUrl={(task) => {
             const rec = task.data as Record<string, any> | undefined;
-            if (!rec) return null;
-            // With objectField configured, rows lacking a value are synthetic
-            // group rows (项目/产品) — no detail page exists, so no QR item.
-            if (ganttConfig?.objectField && !String(rec[ganttConfig.objectField] ?? '').trim()) {
-              return null;
-            }
+            if (!rec || isSyntheticRow(rec)) return null;
             const href = recordDetailHref(rec)?.href;
             if (!href) return null;
             // Absolute URL: the QR is scanned on another device, so a
@@ -1317,7 +1408,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
       {navigation.isOverlay && navigation.isOpen && navigation.selectedRecord && (() => {
         const rec = navigation.selectedRecord as Record<string, any>;
         const detail = recordDetailHref(rec);
-        if (!detail) return null;
+        if (!detail || isSyntheticRow(rec)) return null;
         const { objectName, recordId } = detail;
         const fullPageHref = detail.href ?? undefined;
         const titleText = ganttConfig?.titleField
@@ -1328,22 +1419,47 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         const recLocked =
           !!(schema as any).readOnly ||
           (ganttConfig?.lockField ? !!rec[ganttConfig.lockField] : false);
+        // #2473: prefer the fetched business record + schema over the raw row
+        // payload (see the drawerFetch effect above for why they can differ).
+        const fetched = drawerFetch?.key === `${objectName}:${recordId}` ? drawerFetch : null;
+        const drawerRecord = fetched?.record ?? rec;
+        const drawerSchema = fetched?.schema
+          ?? (objectName === resource ? (objectSchema as any) : undefined);
+        // Field saves on a fetched record write the BUSINESS object through the
+        // context DataSource (the gantt endpoint only understands composed
+        // rows); everything else keeps the gantt-endpoint write path.
+        const saveDS = fetched && dataSource ? dataSource : effectiveDataSource;
 
         return (
           <RecordDetailDrawer
             open
             onClose={navigation.close}
             title={titleText}
-            record={rec}
+            record={drawerRecord}
             objectName={objectName}
             recordId={recordId}
-            dataSource={effectiveDataSource ?? undefined}
-            objectSchema={objectName === resource ? (objectSchema as any) : undefined}
+            dataSource={saveDS ?? undefined}
+            objectSchema={drawerSchema}
             width={navigation.width as any}
             fullPageHref={fullPageHref}
             onFieldSave={recLocked ? undefined : async (field, value) => {
-              if (!effectiveDataSource?.update) return;
-              await effectiveDataSource.update(objectName, String(recordId), { [field]: value });
+              if (!saveDS?.update) return;
+              try {
+                await saveDS.update(objectName, String(recordId), { [field]: value });
+              } catch (err) {
+                // DetailView rolls back and shows the (cleaned) message inline
+                // next to the field — surface the server's reason, not the raw
+                // "ApiDataSource: HTTP 403 …" transport string.
+                const serverMsg = extractServerMessage(err);
+                throw serverMsg ? new Error(serverMsg) : err;
+              }
+              if (fetched) {
+                setDrawerFetch((prev) =>
+                  prev && prev.key === fetched.key
+                    ? { ...prev, record: { ...prev.record, [field]: value } }
+                    : prev,
+                );
+              }
               setData((prev) => prev.map((r) =>
                 String(r.id ?? r._id) === String(recordId)
                   ? { ...r, [field]: value }
@@ -1353,7 +1469,14 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
             }}
             onDelete={recLocked ? undefined : async () => {
               if (!effectiveDataSource?.delete) return;
-              await effectiveDataSource.delete(objectName, String(recordId));
+              try {
+                // ApiDataSource.delete reports failure as `false`, not a throw.
+                const ok = await effectiveDataSource.delete(objectName, String(recordId));
+                if (ok === false) throw new Error(t('gantt.writeFailed'));
+              } catch (err) {
+                notifyWriteError(err);
+                throw err;
+              }
               setData((prev) => prev.filter((r) =>
                 String(r.id ?? r._id) !== String(recordId),
               ));

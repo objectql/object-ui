@@ -94,6 +94,16 @@ describe('RecordDetailDrawer capability = handler presence', () => {
     expect(onFieldSave).toHaveBeenCalledWith('name', 'World');
   });
 
+  it('rethrows a rejected field save so DetailView can roll back and show it', async () => {
+    // Swallowing here made a rejected save look successful: DetailView kept
+    // the optimistic value and never displayed the failure (#2473 第 2 项).
+    const onFieldSave = vi.fn().mockRejectedValue(new Error('仅管理责任人可修改'));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderDrawer({ onFieldSave });
+    await expect(lastProps().onFieldSave('name', 'World')).rejects.toThrow('仅管理责任人可修改');
+    errSpy.mockRestore();
+  });
+
   it('closes the drawer after a successful delete, but not on failure', async () => {
     const onClose = vi.fn();
     const onDelete = vi.fn().mockResolvedValue(undefined);

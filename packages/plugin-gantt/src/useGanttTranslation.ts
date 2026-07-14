@@ -87,6 +87,7 @@ export const GANTT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'gantt.readOnly': 'Read-only',
   'gantt.readOnlyHint': 'Editing is disabled for this view.',
   'gantt.lockedHint': 'No edit permission',
+  'gantt.writeFailed': 'Save failed — the change was rolled back',
 };
 
 function fallback(key: string, options?: Record<string, unknown>): string {

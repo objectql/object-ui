@@ -549,6 +549,7 @@ const zh = {
     readOnly: '只读',
     readOnlyHint: '此视图已禁用编辑。',
     lockedHint: '无编辑权限',
+    writeFailed: '保存失败,已恢复修改前状态',
   },
   view: {
     editViewConfig: '编辑视图配置',

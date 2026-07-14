@@ -473,6 +473,7 @@ const en = {
     readOnly: 'Read-only',
     readOnlyHint: 'Editing is disabled for this view.',
     lockedHint: 'No edit permission',
+    writeFailed: 'Save failed — the change was rolled back',
   },
   view: {
     editViewConfig: 'Edit view config',

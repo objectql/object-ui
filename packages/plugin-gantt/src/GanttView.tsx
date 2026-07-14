@@ -4266,6 +4266,10 @@ export function GanttView({
         if (!source || !target) return null;
         const itemCls = "w-full text-left px-3 py-1.5 hover:bg-accent focus:bg-accent outline-none";
         const LINK_TYPES: GanttLinkType[] = ['fs', 'ss', 'ff', 'sf'];
+        // The dependency list lives on the TARGET (successor) record — a locked
+        // target means every menu action writes a record the user can't edit,
+        // so the whole menu goes read-only with the lock hint shown inline.
+        const linkLocked = !!target.locked;
         return (
           <div
             ref={linkCtxMenuRef}
@@ -4277,15 +4281,22 @@ export function GanttView({
             <div className="px-3 py-1 text-xs text-muted-foreground truncate">
               {source.title} → {target.title}
             </div>
+            {linkLocked && (
+              <div className="px-3 py-1 text-xs text-muted-foreground" data-testid="gantt-link-menu-locked">
+                🚫 {t('gantt.lockedHint')}
+              </div>
+            )}
             {onDependencyCreate && LINK_TYPES.map((lt) => (
               <button
                 key={lt}
                 type="button"
                 role="menuitemradio"
                 aria-checked={linkCtxMenu.type === lt}
-                className={cn(itemCls, linkCtxMenu.type === lt && "font-semibold")}
+                disabled={linkLocked}
+                className={cn(itemCls, linkCtxMenu.type === lt && "font-semibold", linkLocked && "opacity-50 cursor-not-allowed hover:bg-transparent")}
                 data-testid={`gantt-link-menu-type-${lt}`}
                 onClick={() => {
+                  if (linkLocked) return;
                   setLinkCtxMenu(null);
                   if (lt !== linkCtxMenu.type) onDependencyCreate(source, target, lt);
                 }}
@@ -4300,9 +4311,14 @@ export function GanttView({
                 <button
                   type="button"
                   role="menuitem"
-                  className={cn(itemCls, "text-destructive")}
+                  disabled={linkLocked}
+                  className={cn(itemCls, "text-destructive", linkLocked && "opacity-50 cursor-not-allowed hover:bg-transparent")}
                   data-testid="gantt-link-menu-remove"
-                  onClick={() => { setLinkCtxMenu(null); onDependencyDelete(source, target); }}
+                  onClick={() => {
+                    if (linkLocked) return;
+                    setLinkCtxMenu(null);
+                    onDependencyDelete(source, target);
+                  }}
                 >
                   {t('gantt.menu.removeDependency')}
                 </button>

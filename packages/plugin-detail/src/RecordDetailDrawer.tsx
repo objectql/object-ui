@@ -327,6 +327,10 @@ export function RecordDetailDrawer({
                 await onFieldSave(field, value);
               } catch (err) {
                 console.error('[RecordDetailDrawer] inline field save failed:', err);
+                // Rethrow so DetailView rolls back the optimistic value and
+                // shows the failure inline — swallowing here made a rejected
+                // save look successful (stale value kept, no message).
+                throw err;
               }
             } : undefined}
             onDelete={onDelete ? async () => {
