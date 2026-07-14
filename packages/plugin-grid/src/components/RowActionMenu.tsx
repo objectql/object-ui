@@ -73,6 +73,13 @@ export interface RowActionMenuProps {
   onAction?: (action: string, row: any) => void;
   /** Callback when a schema-driven row action is clicked. */
   onActionDef?: (def: RowActionDef, row: any) => void;
+  /**
+   * How many `variant:'primary'` row actions may render as inline buttons
+   * before the rest fold into the "⋮" overflow menu. Bounds the row's inline
+   * width so multiple primary actions (e.g. Open + Upgrade Plan) can't crowd
+   * and clip each other in the narrow actions column. Defaults to 1.
+   */
+  maxInlineActions?: number;
 }
 
 /**
@@ -161,12 +168,21 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
   onDelete,
   onAction,
   onActionDef,
+  maxInlineActions = 1,
 }) => {
   const t = useRowActionTranslation();
   // Surface `variant: 'primary'` row actions inline (as the row's main CTA);
-  // everything else stays in the "⋮" overflow menu.
-  const inlineDefs = (rowActionDefs ?? []).filter(d => d.variant === 'primary');
-  const menuDefs = (rowActionDefs ?? []).filter(d => d.variant !== 'primary');
+  // everything else stays in the "⋮" overflow menu. Only the first
+  // `maxInlineActions` primaries render inline — any extra primaries fold into
+  // the menu (kept above secondary actions) so a row never renders more inline
+  // buttons than the actions column can show, which previously clipped the
+  // leftmost button (e.g. "Open" hidden behind "Upgrade Plan").
+  const primaryDefs = (rowActionDefs ?? []).filter(d => d.variant === 'primary');
+  const inlineDefs = primaryDefs.slice(0, Math.max(0, maxInlineActions));
+  const menuDefs = [
+    ...primaryDefs.slice(Math.max(0, maxInlineActions)),
+    ...(rowActionDefs ?? []).filter(d => d.variant !== 'primary'),
+  ];
   const hasMenu = Boolean(
     (canEdit && onEdit) ||
     (canDelete && onDelete) ||
@@ -174,7 +190,7 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
     (rowActions?.length ?? 0) > 0,
   );
   return (
-    <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+    <div className="flex items-center justify-end gap-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
       {inlineDefs.map(def => (
         <RowActionInlineButton
           key={def.name}

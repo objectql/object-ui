@@ -1487,11 +1487,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     {
       header: t('grid.actions'),
       accessorKey: '_actions',
+      // Size to the buttons it holds (never the 80px char-estimate floor) and
+      // don't clip — otherwise multiple inline actions (e.g. Open + Upgrade)
+      // overflow the fixed-width cell and the leftmost button gets cut off.
+      fitContent: true,
+      align: 'right',
       cell: (_value: any, row: any) => (
         <RowActionMenu
           row={row}
           rowActions={customRowActions}
           rowActionDefs={rowActionDefsList}
+          maxInlineActions={(schema as any).maxInlineRowActions ?? 1}
           canEdit={canEdit}
           canDelete={canDelete}
           onEdit={onEdit}
@@ -1894,6 +1900,10 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     const saved = columnState.widths?.[key];
     if (saved) { groupedColumnWidths[key] = saved; continue; }
     if (col.width) { groupedColumnWidths[key] = col.width; continue; }
+    // `fitContent` columns (row actions) hug their content — leave them out so
+    // they aren't pinned to the 80px char-estimate floor and clipped in
+    // grouped mode the same way they were in the flat list.
+    if ((col as any).fitContent) continue;
     let maxLen = String(col.header ?? '').length;
     for (const row of data.slice(0, 50)) {
       const v = row?.[key];

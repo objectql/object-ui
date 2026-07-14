@@ -400,9 +400,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       header: col.header || col.label,
       accessorKey: col.accessorKey || col.name,
       width: col.width,
+      fitContent: col.fitContent,
     }));
     for (const col of cols) {
       if (col.width) continue; // Skip columns with explicit widths
+      // `fitContent` columns (e.g. the row-actions column) size to their own
+      // content via a `width:1%` + nowrap cell, not a char-count estimate —
+      // estimating them from an absent string value pins them to the 80px
+      // floor and clips inline buttons. Leave them out of the width map.
+      if (col.fitContent) continue;
       const headerLen = (col.header || '').length;
       let maxLen = headerLen;
       // Sample up to 50 rows for content width estimation
@@ -1125,7 +1131,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 </TableHead>
               )}
               {columns.map((col, index) => {
-                const columnWidth = columnWidths[col.accessorKey] || col.width || autoSizedWidths[col.accessorKey];
+                // `fitContent` columns hug their content (no fixed width /
+                // char-estimate) so inline row-action buttons never get clipped.
+                const isFit = (col as any).fitContent === true
+                  && !columnWidths[col.accessorKey] && !col.width;
+                const columnWidth = isFit
+                  ? '1%'
+                  : (columnWidths[col.accessorKey] || col.width || autoSizedWidths[col.accessorKey]);
                 const isDragging = draggedColumn === index;
                 const isDragOver = dragOverColumn === index;
                 const isFrozen = frozenColumns > 0 && index < frozenColumns;
@@ -1149,6 +1161,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       isDragOver && 'border-l-2 border-primary',
                       col.align === 'right' && 'text-right',
                       col.align === 'center' && 'text-center',
+                      isFit && 'whitespace-nowrap',
                       'relative group bg-background',
                       isFrozen && 'sticky z-20',
                       isFrozen && index === frozenColumns - 1 && 'border-r-2 border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]',
@@ -1351,7 +1364,11 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         </TableCell>
                       )}
                       {columns.map((col, colIndex) => {
-                        const columnWidth = columnWidths[col.accessorKey] || col.width || autoSizedWidths[col.accessorKey];
+                        const isFit = (col as any).fitContent === true
+                          && !columnWidths[col.accessorKey] && !col.width;
+                        const columnWidth = isFit
+                          ? '1%'
+                          : (columnWidths[col.accessorKey] || col.width || autoSizedWidths[col.accessorKey]);
                         const originalValue = row[col.accessorKey];
                         const hasPendingChange = rowChanges[col.accessorKey] !== undefined;
                         const cellValue = hasPendingChange ? rowChanges[col.accessorKey] : originalValue;
@@ -1375,7 +1392,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                               col.cellClassName,
                               col.align === 'right' && 'text-right',
                               col.align === 'center' && 'text-center',
-                              'overflow-hidden',
+                              // `fitContent` cells must not clip their inline
+                              // content (row-action buttons); every other column
+                              // keeps overflow-hidden for truncation.
+                              isFit ? 'whitespace-nowrap' : 'overflow-hidden',
                               isEditable && !isEditing && "cursor-text hover:bg-muted/50",
                               hasPendingChange && "font-semibold text-amber-700 dark:text-amber-400",
                               isFrozen && 'sticky z-10 bg-background',
@@ -1383,8 +1403,11 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                             )}
                             style={{
                               width: columnWidth,
-                              minWidth: columnWidth,
-                              maxWidth: columnWidth,
+                              // fit columns hug content: a `1%` width with no
+                              // max clamp lets the cell grow to its buttons and
+                              // other auto columns absorb the remaining space.
+                              minWidth: isFit ? undefined : columnWidth,
+                              maxWidth: isFit ? undefined : columnWidth,
                               ...(isFrozen && { left: frozenOffset }),
                             }}
                             onDoubleClick={(e) => {
@@ -1532,7 +1555,10 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                 );
                               })()
                             ) : (
-                              <div className="truncate w-full" title={cellValue != null && typeof cellValue !== 'object' ? String(cellValue) : undefined}>
+                              <div
+                                className={isFit ? 'w-full whitespace-nowrap' : 'truncate w-full'}
+                                title={!isFit && cellValue != null && typeof cellValue !== 'object' ? String(cellValue) : undefined}
+                              >
                                 {typeof col.cell === 'function'
                                   ? col.cell(cellValue, row)
                                   : (cellValue != null && typeof cellValue === 'object' ? String(cellValue) : formatCellValue(cellValue) as any)}

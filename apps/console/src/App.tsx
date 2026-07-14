@@ -19,6 +19,7 @@ import { DevMasterDetail } from './dev/DevMasterDetail';
 import { DevLists } from './dev/DevLists';
 import { DevModal } from './dev/DevModal';
 import { DevLookup } from './dev/DevLookup';
+import { DevRowActions } from './dev/DevRowActions';
 import {
   ConsoleShell,
   ConnectedShell,
@@ -281,6 +282,12 @@ export function App() {
             <Route path="/dev/lookup" element={
               <ProtectedRoute>
                 <DevLookup />
+              </ProtectedRoute>
+            } />
+            {/* Dev-only: row-action inline-overflow (multiple primary actions). */}
+            <Route path="/dev/row-actions" element={
+              <ProtectedRoute>
+                <DevRowActions />
               </ProtectedRoute>
             } />
             <Route path="/organizations" element={
