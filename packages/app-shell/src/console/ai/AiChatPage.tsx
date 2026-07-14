@@ -48,9 +48,10 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  useIsMobile,
   cn,
 } from '@object-ui/components';
-import { Bug, Check, ChevronDown, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Share2 } from 'lucide-react';
+import { Bug, Check, ChevronDown, Eye, PanelLeft, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Share2 } from 'lucide-react';
 import {
   ChatbotEnhanced,
   useAgents,
@@ -1440,6 +1441,18 @@ export function ChatPane({
   // whole-app build doesn't trigger an invalidation storm.
   const [canvasApp, setCanvasApp] = useState<{ name: string; segment?: string; materialized: boolean } | null>(null);
   const [canvasRefreshKey, setCanvasRefreshKey] = useState(0);
+  // #2481 — a phone can't do the beside-chat split (chat's fixed min-width +
+  // the preview together overflow the viewport, and the resize handle is
+  // desktop-only). So under `md` the canvas is OPT-IN and FULL-SCREEN: the
+  // build streams in the (full-width) chat as usual; when the user taps Preview
+  // the canvas takes over the screen, and closing returns to the chat. This
+  // flag is that overlay's open state — distinct from `canvasApp` (which only
+  // means a preview is AVAILABLE), so an auto-drafted app never covers the chat.
+  const isMobile = useIsMobile();
+  const [mobileCanvasOpen, setMobileCanvasOpen] = useState(false);
+  useEffect(() => {
+    if (!canvasApp) setMobileCanvasOpen(false);
+  }, [canvasApp]);
   // cloud#797 Excel→App: the attached spreadsheet the user can load real rows
   // from (into a built object) via ExcelImportBar. Set when a sheet is sent,
   // cleared on import/dismiss. `dataSource` drives the wizard's schema + import.
@@ -1923,6 +1936,10 @@ export function ChatPane({
     </div>
   );
 
+  // The beside-chat split is DESKTOP-only: on a phone the chat keeps full width
+  // and the canvas becomes a full-screen overlay instead (see #2481 below).
+  const desktopSplit = canvasApp !== null && !isMobile;
+
   return (
     <div ref={split.containerRef} className="relative flex min-h-0 flex-1 px-0">
       {/* Excel→App (cloud#797): float the real-data import affordance above the
@@ -1943,11 +1960,11 @@ export function ChatPane({
       <div
         data-chat-column
         className={
-          canvasApp
+          desktopSplit
             ? 'flex min-h-0 shrink-0 justify-center'
             : 'flex min-h-0 flex-1 justify-center'
         }
-        style={canvasApp ? { width: split.width } : undefined}
+        style={desktopSplit ? { width: split.width } : undefined}
       >
       <ChatbotEnhanced
         className="min-h-0 flex-1 bg-background md:max-w-5xl"
@@ -2128,8 +2145,12 @@ export function ChatPane({
         // ADR-0037 Live Canvas: open/refresh the draft-preview pane as the
         // agent's artifacts land; Preview buttons deep-link the same route.
         onDraftArtifacts={handleDraftArtifacts}
-        onPreviewDraftApp={(appName, opts) =>
-          setCanvasApp({ name: appName, segment: opts?.appSegment, materialized: opts?.materialized === true })}
+        onPreviewDraftApp={(appName, opts) => {
+          setCanvasApp({ name: appName, segment: opts?.appSegment, materialized: opts?.materialized === true });
+          // #2481 — a Preview tap is an explicit request to SEE it, so on a
+          // phone open the full-screen overlay (desktop shows the split pane).
+          if (isMobile) setMobileCanvasOpen(true);
+        }}
         // ADR-0045: build materialized → canvas leaves the draft overlay for
         // the real (unlisted) app; the reload shows live seed rows.
         onBuildMaterialized={handleBuildMaterialized}
@@ -2137,7 +2158,7 @@ export function ChatPane({
         data-testid="ai-chat-panel"
       />
       </div>
-      {canvasApp ? (
+      {desktopSplit ? (
         <>
           {/* Draggable divider — resize the chat ↔ preview split. */}
           <div
@@ -2166,9 +2187,9 @@ export function ChatPane({
             />
           </div>
           <LiveCanvas
-            appName={canvasApp.name}
-            appSegment={canvasApp.segment}
-            materialized={canvasApp.materialized}
+            appName={canvasApp!.name}
+            appSegment={canvasApp!.segment}
+            materialized={canvasApp!.materialized}
             refreshKey={canvasRefreshKey}
             onClose={() => setCanvasApp(null)}
           />
@@ -2176,6 +2197,42 @@ export function ChatPane({
               events flowing to the window listeners (an iframe would otherwise
               swallow them) and shows the resize cursor everywhere. */}
           {split.dragging ? <div className="fixed inset-0 z-50 cursor-col-resize" data-testid="ai-chat-split-overlay" /> : null}
+        </>
+      ) : null}
+      {/* #2481 — MOBILE preview. The beside-chat split has no room on a phone,
+          so the canvas is opt-in and full-screen: a floating pill offers it
+          (build streams uninterrupted in the chat below), and tapping it — or a
+          Preview button on a draft card — takes over the screen. Closing the
+          overlay returns to the chat with the preview still one tap away. */}
+      {canvasApp && isMobile ? (
+        <>
+          {!mobileCanvasOpen ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-24 z-20 flex justify-center px-4">
+              <Button
+                size="sm"
+                onClick={() => setMobileCanvasOpen(true)}
+                data-testid="ai-chat-mobile-preview-open"
+                className="pointer-events-auto gap-1.5 rounded-full shadow-lg"
+              >
+                <Eye className="h-4 w-4" />
+                {t('console.ai.previewApp', { defaultValue: 'Preview app' })}
+              </Button>
+            </div>
+          ) : (
+            <div
+              className="absolute inset-0 z-30 flex flex-col bg-background"
+              data-testid="ai-chat-mobile-canvas"
+            >
+              <LiveCanvas
+                appName={canvasApp.name}
+                appSegment={canvasApp.segment}
+                materialized={canvasApp.materialized}
+                refreshKey={canvasRefreshKey}
+                // Close returns to the chat; the pill re-offers the preview.
+                onClose={() => setMobileCanvasOpen(false)}
+              />
+            </div>
+          )}
         </>
       ) : null}
     </div>

@@ -1266,6 +1266,7 @@ const en = {
       seedWarn: 'Published, but some sample data failed to load.',
       openBuiltApp: 'Open app',
       previewDraft: 'Preview',
+      previewApp: 'Preview app',
       resizeSplit: 'Resize chat and preview',
       hideChats: 'Hide chats',
       showChats: 'Show chats',

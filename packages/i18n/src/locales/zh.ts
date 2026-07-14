@@ -1337,6 +1337,7 @@ const zh = {
       seedWarn: '已发布，但部分示例数据未能载入。',
       openBuiltApp: '打开应用',
       previewDraft: '预览',
+      previewApp: '预览应用',
       resizeSplit: '调整对话与预览的宽度',
       hideChats: '隐藏对话列表',
       showChats: '显示对话列表',
