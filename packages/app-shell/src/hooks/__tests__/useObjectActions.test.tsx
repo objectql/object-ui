@@ -139,3 +139,71 @@ describe('useObjectActions — delete handler toast de-duplication', () => {
     expect(res).toEqual({ success: false });
   });
 });
+
+// [ADR-0094] Deleting a PACKAGE-OWNED sys_permission_set row doesn't remove
+// it — the backend drops the env overlay and resets the set to its shipped
+// baseline. The copy must say so (confirm question AND success toast).
+describe('useObjectActions — package-owned permission set delete = reset copy', () => {
+  function setupPermSet(dataSource: any, onConfirmSpy: any) {
+    return renderHook(() =>
+      useObjectActions({
+        objectName: 'sys_permission_set',
+        objectLabel: 'Permission Set',
+        dataSource,
+        onConfirm: onConfirmSpy,
+        onToast,
+      }),
+    );
+  }
+
+  it('uses the reset confirm + reset success toast when the row is package-owned', async () => {
+    const dataSource = { delete: vi.fn().mockResolvedValue(undefined) };
+    const confirmSpy = vi.fn().mockResolvedValue(true);
+    const { result } = setupPermSet(dataSource, confirmSpy);
+
+    await act(async () => {
+      await result.current.deleteRecord('ps_pkg', { id: 'ps_pkg', managed_by: 'package' });
+    });
+
+    // Confirm question is the honest reset copy (i18n stub echoes defaultValue).
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(String(confirmSpy.mock.calls[0][0])).toContain('resets it to the shipped baseline');
+    // Success toast says "reset", not "deleted".
+    expect((toast as any).success).toHaveBeenCalledTimes(1);
+    expect((toast as any).success).toHaveBeenCalledWith(
+      expect.stringContaining('reset to its shipped baseline'),
+    );
+  });
+
+  it('keeps the plain delete copy for an environment-owned set', async () => {
+    const dataSource = { delete: vi.fn().mockResolvedValue(undefined) };
+    const confirmSpy = vi.fn().mockResolvedValue(true);
+    const { result } = setupPermSet(dataSource, confirmSpy);
+
+    await act(async () => {
+      await result.current.deleteRecord('ps_env', { id: 'ps_env', managed_by: 'user' });
+    });
+
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(String(confirmSpy.mock.calls[0][0])).toBe('objectActions.deleteConfirm');
+    expect((toast as any).success).toHaveBeenCalledWith('objectActions.deleteSuccess');
+  });
+
+  it('falls back to a findOne lookup when the caller passes only the id (SDUI header delete)', async () => {
+    const dataSource = {
+      delete: vi.fn().mockResolvedValue(undefined),
+      findOne: vi.fn().mockResolvedValue({ id: 'ps_pkg', managed_by: 'package' }),
+    };
+    const confirmSpy = vi.fn().mockResolvedValue(true);
+    const { result } = setupPermSet(dataSource, confirmSpy);
+
+    await act(async () => {
+      await result.current.execute({ type: 'delete', params: { recordId: 'ps_pkg' } } as any);
+    });
+
+    expect(dataSource.findOne).toHaveBeenCalledWith('sys_permission_set', 'ps_pkg');
+    expect((toast as any).success).toHaveBeenCalledWith(
+      expect.stringContaining('reset to its shipped baseline'),
+    );
+  });
+});

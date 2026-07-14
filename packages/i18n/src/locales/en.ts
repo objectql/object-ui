@@ -2011,6 +2011,10 @@ const en = {
     deleteFailed: 'Failed to delete {{label}}',
     noRecordId: 'No record ID provided',
     deleteConfirm: 'Are you sure you want to delete this record?',
+    resetPackageSetConfirm:
+      'This permission set ships with an installed package and cannot be removed. ' +
+      'Deleting resets it to the shipped baseline and discards your environment customization. Continue?',
+    resetPackageSetSuccess: 'Permission set reset to its shipped baseline',
     bulkDeleteSuccess: 'Deleted {{count}} {{label}} records',
     bulkDeletePartial: '{{succeeded}} deleted, {{failed}} failed',
   },

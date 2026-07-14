@@ -1482,7 +1482,9 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                         // useObjectActions.deleteRecord wraps execute() which
                         // already shows a confirmation dialog + success toast
                         // and triggers onRefresh on success.
-                        actions.deleteRecord(String(record.id));
+                        // Pass the row so sys_permission_set package rows
+                        // get the honest reset copy (ADR-0094).
+                        actions.deleteRecord(String(record.id), record);
                     }
                 }}
                 onBulkDelete={(records: any[]) => {
