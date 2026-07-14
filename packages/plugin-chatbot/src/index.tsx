@@ -318,9 +318,11 @@ export {
   uiMessagesToChatMessages,
   detectDraftResult,
   detectProposedPlan,
+  detectBuilderHandoff,
+  detectProposedChanges,
   buildProgressFromDraftReview,
 } from './mapMessages';
-export type { DraftReview, ProposedPlan } from './mapMessages';
+export type { DraftReview, ProposedPlan, BuilderHandoff, ProposedChanges } from './mapMessages';
 
 // Display helpers used internally by ChatbotEnhanced. Exported so app
 // authors composing their own chat surface get the same pretty tool-call

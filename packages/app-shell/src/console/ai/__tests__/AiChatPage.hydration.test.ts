@@ -81,6 +81,33 @@ describe('AiChatPage hydration — tool invocation states', () => {
       assumptions: ['One shelf for now'],
     });
   });
+
+  it('lifts the ask-decline builder handoff so the "Open in Builder →" card survives a reload', () => {
+    // The `ask` agent's structured decline (suggest_builder → build_handoff)
+    // rides the merged tool output. Without lifting it on THIS converter the
+    // handoff card only shows in the live floating chat and is LOST when the
+    // conversation is reloaded or restored from the sessionStorage cache.
+    const envelope = JSON.stringify({
+      status: 'build_handoff',
+      handoff: 'build',
+      prompt: 'Build a CRM to track leads',
+      packageId: 'app.crm',
+    });
+    const [msg] = hydratedMessagesToChatMessages(
+      assistantWith([
+        {
+          type: 'tool-call',
+          toolCallId: 't1',
+          toolName: 'suggest_builder',
+          output: { type: 'text', value: envelope },
+        },
+      ]),
+    );
+    expect(msg.toolInvocations?.[0]?.builderHandoff).toEqual({
+      prompt: 'Build a CRM to track leads',
+      packageId: 'app.crm',
+    });
+  });
 });
 
 describe('shared-conversation render — flat ai_messages rows → proposed-plan card', () => {

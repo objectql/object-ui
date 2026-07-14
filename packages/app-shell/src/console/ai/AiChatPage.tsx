@@ -69,6 +69,8 @@ import {
   publishHealthFromResponse,
   detectDraftResult,
   detectProposedPlan,
+  detectBuilderHandoff,
+  detectProposedChanges,
   buildProgressFromDraftReview,
   type AgentDescriptor,
   type ChatbotEnhancedToolInvocation,
@@ -160,6 +162,14 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
         // same merged tool result; lift it so the "Proposed plan" review card
         // survives a reload on this surface, not just in the floating chat.
         const proposedPlan = detectProposedPlan(result);
+        // The ask-agent's structured decline (suggest_builder → build_handoff)
+        // and the confirm-before-change preview (changes_proposed) ride the same
+        // merged tool result. Lift both so the "Open in Builder →" handoff card
+        // and the "确认修改" changes card survive a reload / cache restore — the
+        // live floating-chat mapper (extractToolInvocations) already lifts all
+        // four; this is its hydration counterpart.
+        const builderHandoff = detectBuilderHandoff(result);
+        const proposedChanges = detectProposedChanges(result);
         toolInvocations.push({
           toolCallId,
           toolName,
@@ -167,6 +177,8 @@ export function hydratedMessagesToChatMessages(messages: HydratedUIMessage[]): C
           ...(result !== undefined ? { result } : {}),
           ...(draftReview ? { draftReview } : {}),
           ...(proposedPlan ? { proposedPlan } : {}),
+          ...(builderHandoff ? { builderHandoff } : {}),
+          ...(proposedChanges ? { proposedChanges } : {}),
           ...(part.errorText ? { errorText: String(part.errorText) } : {}),
         });
         if (!buildProgress) {
