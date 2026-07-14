@@ -34,6 +34,7 @@ const sharedExclude = [
 // it *.test.tsx or add it here.
 const domTsTests = [
   'packages/app-shell/src/hooks/__tests__/useAiSurface.test.ts',
+  'packages/app-shell/src/hooks/__tests__/useAiUsage.test.ts',
   'packages/app-shell/src/hooks/__tests__/useReconcileOnError.test.ts',
   'packages/app-shell/src/observability/settleSignal.test.ts',
   'packages/core/src/actions/__tests__/ActionRunner.resultDialog.test.ts',
