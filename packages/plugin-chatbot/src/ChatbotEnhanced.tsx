@@ -1769,7 +1769,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
             (onReviewDraft ||
               (onPublishDrafts && tool.draftReview.packageId)) ? (
               <>
-                <div className="flex items-center gap-2 p-3 border-t bg-muted/30">
+                {/* flex-wrap so the action buttons drop to a new line on a
+                    narrow (mobile) row instead of forcing horizontal scroll. */}
+                <div className="flex flex-wrap items-center gap-2 p-3 border-t bg-muted/30">
                   {onPublishDrafts && tool.draftReview.packageId ? (
                     draftIsPublished ? (
                       // Published (auto or manual): a stable status badge, not a
@@ -1855,7 +1857,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     )
                   ) : null}
                   {tool.draftReview.summary ? (
-                    <span className="truncate text-xs text-muted-foreground">
+                    // min-w-0 + flex-1 so this nowrap summary TRUNCATES within the
+                    // row instead of expanding it past the viewport on mobile
+                    // (#2493 — a flex child needs min-w-0 for `truncate` to bite).
+                    <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
                       {tool.draftReview.summary}
                     </span>
                   ) : null}
