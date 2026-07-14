@@ -15,7 +15,10 @@ import {
   ChatDockMobileSheet,
   useChatDockState,
 } from '../../layout/ChatDock';
-import { rememberDockReturnLocation } from '../../layout/chatDockState';
+import {
+  rememberDockReturnLocation,
+  DOCK_STUDIO_EXPANDED_STORAGE_KEY,
+} from '../../layout/chatDockState';
 
 interface StudioCopilotConversationProps {
   /** The package the Studio surface is editing — scopes the build agent to it. */
@@ -127,7 +130,14 @@ export function StudioChatDock({ packageId, locale }: StudioChatDockProps): Reac
   const navigate = useNavigate();
   const location = useLocation();
   const apiBase = React.useMemo(() => resolveApiBase(), []);
-  const dock = useChatDockState({ defaultExpanded: true });
+  // Expanded by default (the copilot has always been visible), but a collapse
+  // is remembered per-tab so it doesn't re-open on every pillar / package
+  // switch or Studio re-entry (issue #2477 item 2). The console dock uses its
+  // OWN key, so the two never share a collapse.
+  const dock = useChatDockState({
+    defaultExpanded: true,
+    persistExpandedKey: DOCK_STUDIO_EXPANDED_STORAGE_KEY,
+  });
   // Under `md` the copilot presents as a bottom sheet (there is no horizontal
   // room for a rail). Its open state is LOCAL — a phone must not inherit the
   // desktop "expanded by default" posture, or the sheet would cover the Studio

@@ -112,13 +112,19 @@ import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
 import { toast } from 'sonner';
 
 /**
- * ADR-0057 P3c follow-up — is the viewport wide enough (Tailwind `2xl`) to show
+ * ADR-0057 P3c follow-up — is the viewport wide enough (Tailwind `xl`) to show
  * the folded layout's canvas AND properties side by side beside the chat dock,
- * instead of as tabs? Mirrors `useIsMobile`'s matchMedia idiom. 2xl (not xl) on
- * purpose: with the ~420px dock plus the nav rail, an xl viewport leaves the
- * canvas under ~400px — tabs read better there.
+ * instead of as tabs? Mirrors `useIsMobile`'s matchMedia idiom.
+ *
+ * `xl` (1280), lowered from `2xl` per issue #2477 item 3: the common laptop
+ * (1280–1512) was falling into tabs, which auto-hide the canvas the moment you
+ * select a block — breaking the WYSIWYG "edit and watch it apply" loop. At
+ * 1280 the canvas is narrow (~360px after the nav rail, a slimmed side-by-side
+ * inspector, and the ~420px dock) but LIVE, which beats hidden; at 1440+ it is
+ * comfortable. Below `xl` the tabs remain (there simply isn't room for three
+ * columns plus chat).
  */
-const WIDE_VIEWPORT_BREAKPOINT = 1536;
+const WIDE_VIEWPORT_BREAKPOINT = 1280;
 function useIsWideViewport(): boolean {
   const [isWide, setIsWide] = React.useState<boolean | undefined>(undefined);
   React.useEffect(() => {
@@ -1644,9 +1650,11 @@ function InterfacesPillar({
             </aside>
           </>
         ) : isWide ? (
-          // Folded layout on a WIDE (2xl+) viewport: enough room to keep the
+          // Folded layout on a WIDE (xl+) viewport: enough room to keep the
           // canvas and the properties side by side beside the chat dock — the
           // tabs (and their auto-switch) only exist where width forces them.
+          // The inspector is slimmer at xl (and grows at 2xl) so the canvas
+          // keeps usable width once the ~420px dock is also on screen.
           <>
             {canvasEl}
             <aside
@@ -1654,8 +1662,8 @@ function InterfacesPillar({
               className={cn(
                 'flex shrink-0 flex-col overflow-hidden border-l',
                 isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
-                  ? 'w-[24rem] 2xl:w-[28rem]'
-                  : 'w-80',
+                  ? 'w-[22rem] 2xl:w-[28rem]'
+                  : 'w-72 2xl:w-80',
               )}
             >
               {inspectorHeaderEl}

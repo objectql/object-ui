@@ -47,15 +47,15 @@ describe('maximizedDockWidth', () => {
 });
 
 describe('parseStoredDockExpanded', () => {
-  it("only the exact '1' opts into mounting expanded", () => {
+  it("'1' → expanded, '0' → collapsed (explicit, so a default-expanded surface can remember a collapse)", () => {
     expect(parseStoredDockExpanded('1')).toBe(true);
+    expect(parseStoredDockExpanded('0')).toBe(false);
   });
 
-  it('null / other values keep the default-collapsed posture', () => {
-    expect(parseStoredDockExpanded(null)).toBe(false);
-    expect(parseStoredDockExpanded('0')).toBe(false);
-    expect(parseStoredDockExpanded('true')).toBe(false);
-    expect(parseStoredDockExpanded('')).toBe(false);
+  it('unset / garbage → null so the caller falls back to its own default', () => {
+    expect(parseStoredDockExpanded(null)).toBeNull();
+    expect(parseStoredDockExpanded('true')).toBeNull();
+    expect(parseStoredDockExpanded('')).toBeNull();
   });
 });
 

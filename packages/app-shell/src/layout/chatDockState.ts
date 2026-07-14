@@ -21,6 +21,16 @@ export const DOCK_WIDTH_STORAGE_KEY = 'ai-chat-dock-width';
  * shared URL (ADR-0013 deep links stay clean).
  */
 export const DOCK_EXPANDED_STORAGE_KEY = 'ai-chat-dock-expanded';
+/**
+ * sessionStorage key for the STUDIO right dock's expanded/collapsed state.
+ * Distinct from the console key so the two surfaces never fight over one flag.
+ * The Studio copilot mounts expanded by default (it always has), but a user who
+ * collapses it to get the classic three-zone canvas keeps it collapsed across
+ * pillar / package switches and re-entering Studio in the same tab — the
+ * annoyance was it re-expanding every time (issue #2477 item 2). Per-tab
+ * (sessionStorage): a fresh tab re-defaults to the copilot-visible posture.
+ */
+export const DOCK_STUDIO_EXPANDED_STORAGE_KEY = 'ai-chat-studio-dock-expanded';
 /** Default rail width (px). */
 export const DOCK_DEFAULT_WIDTH = 420;
 /** The rail never narrower than this. */
@@ -53,29 +63,37 @@ export function maximizedDockWidth(containerWidth: number): number {
 }
 
 /**
- * Parse the stored {@link DOCK_EXPANDED_STORAGE_KEY} value — only the exact
- * `'1'` opts into mounting expanded; null/garbage keeps the default-collapsed
- * posture. Pure + exported for tests.
+ * Parse the stored expanded value — `'1'` → expanded, `'0'` → collapsed;
+ * anything else (incl. null) is "unset", returned as `null` so the caller can
+ * fall back to its own default. Distinguishing "explicitly collapsed" (`'0'`)
+ * from "never set" (null) is what lets a default-EXPANDED surface (Studio)
+ * remember a collapse — a bare remove-on-collapse would read back as unset and
+ * re-expand. Pure + exported for tests.
  */
-export function parseStoredDockExpanded(raw: string | null): boolean {
-  return raw === '1';
+export function parseStoredDockExpanded(raw: string | null): boolean | null {
+  if (raw === '1') return true;
+  if (raw === '0') return false;
+  return null;
 }
 
-/** Read a stored expanded flag; storage failures (private mode) → `fallback`. */
+/** Read a stored expanded flag; unset OR storage failure (private mode) → `fallback`. */
 export function readStoredDockExpanded(key: string, fallback: boolean): boolean {
   try {
-    const raw = window.sessionStorage.getItem(key);
-    return raw === null ? fallback : parseStoredDockExpanded(raw);
+    const parsed = parseStoredDockExpanded(window.sessionStorage.getItem(key));
+    return parsed === null ? fallback : parsed;
   } catch {
     return fallback;
   }
 }
 
-/** Persist an expanded flag (`'1'` / removed); storage failures are swallowed. */
+/**
+ * Persist an expanded flag as `'1'` / `'0'` (never a remove) — see
+ * {@link parseStoredDockExpanded} for why collapse must be stored explicitly.
+ * Storage failures are swallowed.
+ */
 export function writeStoredDockExpanded(key: string, expanded: boolean): void {
   try {
-    if (expanded) window.sessionStorage.setItem(key, '1');
-    else window.sessionStorage.removeItem(key);
+    window.sessionStorage.setItem(key, expanded ? '1' : '0');
   } catch {
     /* private mode — the rail just won't survive navigation */
   }
