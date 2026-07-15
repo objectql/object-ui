@@ -49,6 +49,8 @@ export type {
 } from './ConcurrentUpdateDialog';
 export { SectionGroup } from './SectionGroup';
 export { HeaderHighlight } from './HeaderHighlight';
+export { InlineFieldInput, extractLookupId, TEXTUAL_REF_FALLBACK_TYPES } from './InlineFieldInput';
+export type { InlineFieldInputProps } from './InlineFieldInput';
 export { inferDetailColumns, isWideFieldType, applyAutoSpan, applyDetailAutoLayout } from './autoLayout';
 export { useDetailTranslation, DETAIL_DEFAULT_TRANSLATIONS, createSafeTranslationHook } from './useDetailTranslation';
 export { RecordComments } from './RecordComments';
