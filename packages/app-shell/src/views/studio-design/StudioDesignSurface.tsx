@@ -110,7 +110,7 @@ import { ObjectApiPanel } from './ObjectApiPanel';
 import { ObjectHooksPanel } from './ObjectHooksPanel';
 import { ObjectActionsPanel } from './ObjectActionsPanel';
 import { getIcon } from '../../utils/getIcon';
-import { fetchPackages, type PkgEntry } from './packages-io';
+import { fetchPackages, prefixObjectName, type PkgEntry } from './packages-io';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
 import { toast } from 'sonner';
@@ -1895,6 +1895,24 @@ function DataPillar({
   // A draft-only object has NO physical table yet (DDL lands at publish), so the
   // Records grid must not fire data SQL against it.
   const [hasBaseline, setHasBaseline] = React.useState(true);
+  // The package's object-name namespace (framework#2694). New objects are
+  // auto-prefixed with `<namespace>_` so an author can never draft a prefix-less
+  // object that publish would later reject (code NAMESPACE_PREFIX).
+  const [namespace, setNamespace] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchPackages()
+      .then((list) => {
+        if (!cancelled) setNamespace(list.find((p) => p.id === packageId)?.namespace ?? null);
+      })
+      .catch(() => {
+        /* namespace is best-effort; publish still enforces the prefix server-side */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [packageId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -2003,8 +2021,11 @@ function DataPillar({
   // until the package publish, so we land on 表单·布局 — the metadata-level
   // surface that never fires data SQL.
   const doCreateObject = React.useCallback(
-    async (label: string, name: string) => {
+    async (label: string, rawName: string) => {
       if (readOnly) return;
+      // Auto-prefix with the package namespace (framework#2694) so a prefix-less
+      // object can't be authored; the rule lives in packages-io/spec.
+      const name = prefixObjectName(rawName, namespace);
       if (objects.some((o) => o.name === name)) {
         setError(tFormat('engine.studio.data.idExists', locale, { name }));
         return;
@@ -2027,7 +2048,7 @@ function DataPillar({
         setCreateBusy(false);
       }
     },
-    [objects, client, packageId, onDraftSaved, readOnly, locale],
+    [objects, client, packageId, onDraftSaved, readOnly, locale, namespace],
   );
 
   const doSave = React.useCallback(async () => {

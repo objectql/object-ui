@@ -20,7 +20,15 @@ import { Boxes, Hammer, Lock, Plus, Loader2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { toFieldNameLoose } from '../metadata-admin/previews/object-fields-io';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
-import { fetchPackages, createBasePackage, duplicatePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
+import { deriveNamespaceFromPackageId } from '@objectstack/spec/kernel';
+import {
+  fetchPackages,
+  createBasePackage,
+  duplicatePackage,
+  PACKAGE_ID_RE,
+  NAMESPACE_RE,
+  type PkgEntry,
+} from './packages-io';
 import { PackageIdInput, PackageIdSuggestionHint } from './PackageIdInput';
 
 export function BuilderLanding(): React.ReactElement {
@@ -32,7 +40,14 @@ export function BuilderLanding(): React.ReactElement {
   const [newName, setNewName] = React.useState('');
   const [newId, setNewId] = React.useState('');
   const [idTouched, setIdTouched] = React.useState(false);
+  // Object-name namespace (framework#2694): defaults to the id-derived value and
+  // tracks the package-id input until the user edits it. Derived during render
+  // (no effect) — the id changes both ways (name auto-slug and direct edit), so
+  // the displayed value simply follows the resolved id until `nsTouched`.
+  const [newNs, setNewNs] = React.useState('');
+  const [nsTouched, setNsTouched] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const effectiveNs = nsTouched ? newNs : (deriveNamespaceFromPackageId(newId) ?? '');
 
   React.useEffect(() => {
     let cancelled = false;
@@ -50,14 +65,16 @@ export function BuilderLanding(): React.ReactElement {
 
   const open = (id: string) => navigate(`/studio/${encodeURIComponent(id)}/data`);
 
+  const nsValid = NAMESPACE_RE.test(effectiveNs.trim());
   const doCreate = async () => {
     const name = newName.trim();
     const id = newId.trim();
-    if (!name || !PACKAGE_ID_RE.test(id)) return;
+    const namespace = effectiveNs.trim();
+    if (!name || !PACKAGE_ID_RE.test(id) || !NAMESPACE_RE.test(namespace)) return;
     setBusy(true);
     setError(null);
     try {
-      await createBasePackage(id, name);
+      await createBasePackage(id, name, namespace);
       open(id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -239,11 +256,33 @@ export function BuilderLanding(): React.ReactElement {
               locale={locale}
               testId="pkg-landing-id-input"
             />
+            <input
+              value={effectiveNs}
+              onChange={(e) => {
+                setNsTouched(true);
+                setNewNs(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void doCreate();
+                if (e.key === 'Escape') setCreating(false);
+              }}
+              placeholder={t('engine.studio.pkg.namespacePlaceholder', locale)}
+              data-testid="pkg-landing-namespace-input"
+              aria-invalid={!!effectiveNs.trim() && !nsValid}
+              className="h-7 w-full rounded-md border bg-background px-2 font-mono text-[11px] outline-none focus:ring-1 focus:ring-primary aria-[invalid=true]:border-destructive"
+            />
+            {effectiveNs.trim() && !nsValid ? (
+              <p className="text-[10px] text-destructive">{t('engine.studio.pkg.namespaceInvalid', locale)}</p>
+            ) : (
+              <p className="text-[10px] text-muted-foreground">
+                {tFormat('engine.studio.pkg.namespaceHint', locale, { ns: effectiveNs.trim() || 'leave' })}
+              </p>
+            )}
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => void doCreate()}
-                disabled={busy || !newName.trim() || !PACKAGE_ID_RE.test(newId.trim())}
+                disabled={busy || !newName.trim() || !PACKAGE_ID_RE.test(newId.trim()) || !nsValid}
                 className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
               >
                 {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}

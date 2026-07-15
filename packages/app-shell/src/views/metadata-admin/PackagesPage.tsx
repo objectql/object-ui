@@ -66,6 +66,8 @@ import {
   DialogFooter,
 } from '@object-ui/components';
 import { detectLocale, t, tFormat } from './i18n';
+import { deriveNamespaceFromPackageId } from '@objectstack/spec/kernel';
+import { NAMESPACE_RE } from '../studio-design/packages-io';
 
 /* -------------------------------------------------------------------------- */
 /* Types + API                                                                 */
@@ -171,6 +173,11 @@ export function CreatePackageDialog({
   const [id, setId] = React.useState('');
   const [name, setName] = React.useState('');
   const [version, setVersion] = React.useState('0.1.0');
+  // Object-name namespace (framework#2694): defaults to the id-derived value and
+  // tracks the package-id input until the user edits it. Derived during render
+  // (no effect) — `namespace` state holds only the user's own edits.
+  const [namespace, setNamespace] = React.useState('');
+  const [nsTouched, setNsTouched] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -179,6 +186,8 @@ export function CreatePackageDialog({
       setId('');
       setName('');
       setVersion('0.1.0');
+      setNamespace('');
+      setNsTouched(false);
       setError(null);
       setBusy(false);
     }
@@ -186,7 +195,9 @@ export function CreatePackageDialog({
 
   const idValid = ID_RE.test(id);
   const versionValid = VERSION_RE.test(version);
-  const canSubmit = idValid && versionValid && !!name.trim() && !busy;
+  const effectiveNs = nsTouched ? namespace : (deriveNamespaceFromPackageId(id) ?? '');
+  const nsValid = NAMESPACE_RE.test(effectiveNs.trim());
+  const canSubmit = idValid && versionValid && nsValid && !!name.trim() && !busy;
 
   async function submit() {
     if (!canSubmit) return;
@@ -202,6 +213,10 @@ export function CreatePackageDialog({
             name: name.trim(),
             version: version.trim(),
             type: 'app',
+            // Object-name namespace (framework#2694). The framework back-derives
+            // it from the id when omitted, but the user may have edited it, so
+            // send the authored value explicitly.
+            namespace: effectiveNs.trim(),
             // No `scope`: runtime-created base packages are writable authoring
             // targets. `scope: 'project'` marks read-only CODE packages — the
             // old hardcode here made Setup-created bases read as 只读 in the
@@ -249,6 +264,28 @@ export function CreatePackageDialog({
             {!!id && !idValid && (
               <p className="text-xs text-destructive">
                 {t('engine.packages.create.idInvalid', locale)}
+              </p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pkg-namespace">{t('engine.packages.create.namespace', locale)}</Label>
+            <Input
+              id="pkg-namespace"
+              data-testid="package-namespace-input"
+              className="font-mono"
+              placeholder="crm"
+              value={effectiveNs}
+              onChange={(e) => {
+                setNsTouched(true);
+                setNamespace(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+              }}
+              aria-invalid={!!effectiveNs && !nsValid}
+            />
+            {!!effectiveNs && !nsValid ? (
+              <p className="text-xs text-destructive">{t('engine.packages.create.namespaceInvalid', locale)}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {tFormat('engine.packages.create.namespaceHint', locale, { ns: effectiveNs.trim() || 'crm' })}
               </p>
             )}
           </div>
