@@ -55,6 +55,7 @@ const KIND_TO_META_TYPE: Partial<Record<ReferenceKind, string>> = {
   object: 'object',
   flow: 'flow',
   role: 'role',
+  position: 'position',
   user: 'user',
   team: 'team',
   queue: 'queue',

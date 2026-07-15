@@ -18,14 +18,14 @@ const APPROVAL_CONFIG_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          type: { type: 'string', enum: ['user', 'role', 'team', 'department', 'manager', 'field', 'queue'] },
+          type: { type: 'string', enum: ['user', 'role', 'position', 'team', 'department', 'manager', 'field', 'queue'] },
           value: {
-            description: 'User id / role / team / department / field / queue — per `type`',
+            description: 'User id / membership tier / position / team / department / field / queue — per `type`',
             type: 'string',
             xRef: {
               kindFrom: 'type',
               objectSource: '$trigger',
-              map: { user: 'user', role: 'role', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
+              map: { user: 'user', role: 'role', position: 'position', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
             },
           },
         },
@@ -52,7 +52,7 @@ const APPROVAL_CONFIG_SCHEMA = {
         enabled: { default: false, description: 'Enable SLA-based escalation for this node', type: 'boolean' },
         timeoutHours: { type: 'number', minimum: 1, description: 'Hours before escalation triggers' },
         action: { default: 'notify', description: 'Action on escalation timeout', type: 'string', enum: ['reassign', 'auto_approve', 'auto_reject', 'notify'] },
-        escalateTo: { description: 'User id, role, or manager level to escalate to', type: 'string', xRef: { kind: 'role' } },
+        escalateTo: { description: 'User id or position machine name to escalate to', type: 'string', xRef: { kind: 'position' } },
         notifySubmitter: { default: true, description: 'Notify the original submitter on escalation', type: 'boolean' },
       },
       required: ['timeoutHours'],
@@ -103,16 +103,16 @@ describe('jsonSchemaToFlowFields', () => {
     expect(colKeys).toEqual(['type', 'value']);
     const typeCol = approvers.columns!.find((c) => c.key === 'type')!;
     expect(typeCol.kind).toBe('select');
-    expect(typeCol.options!.map((o) => o.value)).toEqual(['user', 'role', 'team', 'department', 'manager', 'field', 'queue']);
+    expect(typeCol.options!.map((o) => o.value)).toEqual(['user', 'role', 'position', 'team', 'department', 'manager', 'field', 'queue']);
     const valueCol = approvers.columns!.find((c) => c.key === 'value')!;
     // Polymorphic reference: the picker follows the row's `type`.
     expect(valueCol.kind).toBe('reference');
     expect(valueCol.ref).toEqual({
       kindFrom: 'type',
       objectSource: '$trigger',
-      map: { user: 'user', role: 'role', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
+      map: { user: 'user', role: 'role', position: 'position', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
     });
-    expect(valueCol.placeholder).toBe('User id / role / team / department / field / queue — per `type`');
+    expect(valueCol.placeholder).toBe('User id / membership tier / position / team / department / field / queue — per `type`');
   });
 
   it('maps a static-kind xRef column into a reference column', () => {
@@ -199,6 +199,29 @@ describe('jsonSchemaToFlowFields', () => {
     expect(weird.ref).toBeUndefined();
   });
 
+  it('recognizes the position kind (ADR-0090 D3) — static and polymorphic', () => {
+    const fields = jsonSchemaToFlowFields({
+      type: 'object',
+      properties: {
+        approver: { type: 'string', xRef: { kind: 'position' } },
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { value: { type: 'string', xRef: { kindFrom: 'type', map: { position: 'position' } } } },
+          },
+        },
+      },
+    })!;
+    const approver = fields.find((f) => f.id === 'approver')!;
+    expect(approver.kind).toBe('reference');
+    expect(approver.ref).toEqual({ kind: 'position' });
+    const rows = fields.find((f) => f.id === 'rows')!;
+    const valueCol = rows.columns!.find((c) => c.key === 'value')!;
+    expect(valueCol.kind).toBe('reference');
+    expect(valueCol.ref).toEqual({ kindFrom: 'type', map: { position: 'position' } });
+  });
+
   it('flattens a nested object and gates siblings behind its enabled toggle', () => {
     const fields = jsonSchemaToFlowFields(APPROVAL_CONFIG_SCHEMA)!;
     const enabled = fields.find((f) => f.id === 'escalation.enabled')!;
@@ -221,7 +244,7 @@ describe('jsonSchemaToFlowFields', () => {
     // A nested xRef string flattens into a reference field, still gated.
     const escalateTo = fields.find((f) => f.id === 'escalation.escalateTo')!;
     expect(escalateTo.kind).toBe('reference');
-    expect(escalateTo.ref).toEqual({ kind: 'role' });
+    expect(escalateTo.ref).toEqual({ kind: 'position' });
     expect(escalateTo.showWhen).toEqual({ field: 'escalation.enabled', equals: ['true'] });
   });
 });

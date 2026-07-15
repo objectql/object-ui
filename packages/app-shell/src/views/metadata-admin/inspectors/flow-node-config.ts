@@ -46,7 +46,9 @@ export type FlowConfigFieldKind =
  *   • `object-field`  → a field of some object; the object is resolved via
  *                       {@link FlowReferenceSpec.objectSource}
  *   • `flow`          → a flow, by name (`client.list('flow')`)
- *   • `role`          → a security role (`client.list('role')`)
+ *   • `role`          → a better-auth org-membership tier (`client.list('role')`)
+ *   • `position`      → a position / 岗位 by machine name (`client.list('position')`);
+ *                       holders resolve via `sys_user_position` (ADR-0090 D3)
  *   • `node`          → another node in *this* flow, by id (read from the draft)
  *   • `user` / `team` / `queue` / `department` → the matching metadata list
  *                       (`client.list(kind)`); empty in dev, populated per tenant
@@ -61,6 +63,7 @@ export type ReferenceKind =
   | 'object-field'
   | 'flow'
   | 'role'
+  | 'position'
   | 'node'
   | 'user'
   | 'team'
@@ -413,6 +416,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
           options: [
             { value: 'user', label: 'User' },
             { value: 'role', label: 'Role' },
+            { value: 'position', label: 'Position' },
             { value: 'team', label: 'Team' },
             { value: 'department', label: 'Department' },
             { value: 'manager', label: 'Manager' },
@@ -427,13 +431,14 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
           key: 'value',
           label: 'Value',
           kind: 'reference',
-          placeholder: 'user id / role / field — per type',
+          placeholder: 'user id / role / position / field — per type',
           ref: {
             kindFrom: 'type',
             objectSource: '$trigger',
             map: {
               user: 'user',
               role: 'role',
+              position: 'position',
               team: 'team',
               department: 'department',
               field: 'object-field',
@@ -473,7 +478,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       ],
       showWhen: { field: 'escalation.enabled', equals: ['true'] },
     },
-    { id: 'escalation.escalateTo', path: ['config', 'escalation', 'escalateTo'], label: 'Escalate to', kind: 'reference', ref: { kind: 'role' }, placeholder: 'user id / role / manager level', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
+    { id: 'escalation.escalateTo', path: ['config', 'escalation', 'escalateTo'], label: 'Escalate to', kind: 'reference', ref: { kind: 'position' }, placeholder: 'position machine name / user id', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
     { id: 'escalation.notifySubmitter', path: ['config', 'escalation', 'notifySubmitter'], label: 'Notify submitter', kind: 'boolean', showWhen: { field: 'escalation.enabled', equals: ['true'] } },
     // ADR-0044 send-back-for-revision guard. Surfaces from the engine's
     // published configSchema when online; this hardcoded copy keeps it visible

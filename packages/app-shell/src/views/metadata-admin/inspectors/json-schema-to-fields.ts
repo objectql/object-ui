@@ -60,6 +60,7 @@ const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>([
   'object-field',
   'flow',
   'role',
+  'position',
   'node',
   'user',
   'team',
