@@ -139,3 +139,70 @@ describe('UserFilters — selection persistence (ADR-0047)', () => {
     expect(onSelectionsChange).toHaveBeenCalledWith({ _tab: ['urgent'] });
   });
 });
+
+describe('UserFilters — dropdown chip label fallback', () => {
+  it('falls back to the objectDef field label when the view omits f.label', () => {
+    // Compile can strip `label` off userFilters.fields; the chip must not
+    // degrade to the raw snake_case key when the object still knows the label.
+    render(
+      <UserFilters
+        config={{ element: 'dropdown', fields: [{ field: 'status' }] }}
+        objectDef={objectDef}
+        data={[]}
+        onFilterChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('filter-badge-status').textContent).toContain('Status');
+    expect(screen.getByTestId('filter-badge-status').textContent).not.toContain('status');
+  });
+
+  it('prefers an author-supplied f.label over the objectDef label', () => {
+    render(
+      <UserFilters
+        config={{ element: 'dropdown', fields: [{ field: 'status', label: 'Stage' }] }}
+        objectDef={objectDef}
+        data={[]}
+        onFilterChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('filter-badge-status').textContent).toContain('Stage');
+  });
+
+  it('renders the author-supplied label verbatim (issue repro: explicit label must not degrade to key)', () => {
+    // Mirrors the reported config: fields carry an explicit Chinese label.
+    // The chip must show the label, never the snake_case field key.
+    render(
+      <UserFilters
+        config={{
+          element: 'dropdown',
+          fields: [
+            { field: 'project_type', label: '项目类型' },
+            { field: 'manager', label: '管理责任人' },
+          ],
+        }}
+        objectDef={{ name: 'projects', fields: { project_type: { type: 'select' }, manager: { type: 'lookup' } } }}
+        data={[]}
+        onFilterChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('filter-badge-project_type').textContent).toContain('项目类型');
+    expect(screen.getByTestId('filter-badge-project_type').textContent).not.toContain('project_type');
+    expect(screen.getByTestId('filter-badge-manager').textContent).toContain('管理责任人');
+  });
+
+  it('falls back to the raw field key when neither a label nor an objectDef entry exists', () => {
+    render(
+      <UserFilters
+        config={{ element: 'dropdown', fields: [{ field: 'orphan_field', options: [{ label: 'X', value: 'x' }] }] }}
+        objectDef={objectDef}
+        data={[]}
+        onFilterChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('filter-badge-orphan_field').textContent).toContain('orphan_field');
+  });
+});

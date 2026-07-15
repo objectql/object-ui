@@ -179,6 +179,10 @@ function resolveFields(
     let referenceTo: string | undefined;
     let displayField: string | undefined;
     let idField: string | undefined;
+    // Object-level field label from objectDef, used as a fallback when the
+    // view author didn't supply `f.label` (or it was stripped during compile).
+    // Without this the chip degrades to the raw snake_case field key.
+    let objectLabel: string | undefined;
 
     if (objectDef?.fields) {
       const fieldDef =
@@ -188,6 +192,7 @@ function resolveFields(
       if (fieldDef) {
         // Adopt field type from objectDef when caller didn't specify
         if (!resolvedType) resolvedType = fieldDef.type;
+        objectLabel = fieldDef.label;
         // Capture lookup metadata regardless of caller-specified type
         referenceTo = fieldDef.reference_to ?? fieldDef.reference;
         displayField = fieldDef.display_field ?? fieldDef.reference_field;
@@ -226,11 +231,15 @@ function resolveFields(
       }));
     }
 
-    // i18n: translate option labels and field label via the resolver
-    let resolvedLabel = f.label;
+    // i18n: translate option labels and field label via the resolver.
+    // Fallback chain for the displayed label: author-supplied `f.label` →
+    // objectDef's `label` → raw field key. The i18n resolver takes the same
+    // chain as its untranslated fallback so a stripped/omitted `f.label` still
+    // renders a human label instead of the snake_case key.
+    let resolvedLabel = f.label ?? objectLabel;
     if (i18n?.objectName) {
       options = i18n.translateOptions(i18n.objectName, f.field, options as any) as ResolvedOption[];
-      resolvedLabel = i18n.fieldLabel(i18n.objectName, f.field, f.label || f.field);
+      resolvedLabel = i18n.fieldLabel(i18n.objectName, f.field, f.label || objectLabel || f.field);
     }
 
     return {
