@@ -273,6 +273,18 @@ export {
   StudioDesignSurface,
   type StudioDesignSurfaceProps,
 } from './views/studio-design/StudioDesignSurface';
+// Per-type canvas renderers for the Studio design surface. Register an override
+// (e.g. a custom `object` records surface) without forking StudioDesignSurface.
+export {
+  registerStudioCanvasPreview,
+  getStudioCanvasPreview,
+  listStudioCanvasPreviewTypes,
+  StudioObjectRecordsCanvas,
+} from './views/studio-design/studio-canvas-preview';
+export type {
+  StudioCanvasPreview,
+  StudioCanvasPreviewProps,
+} from './views/studio-design/studio-canvas-preview';
 // The builder's front door: pick/create a writable package → pillar builder.
 // Standalone at `/studio` and embedded via the `studio:builder` component ref.
 export { BuilderLanding } from './views/studio-design/BuilderLanding';

@@ -16,7 +16,7 @@
 
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
+import { useAdapter, SchemaRendererProvider } from '@object-ui/react';
 import { StudioChatDock } from './StudioAiCopilot';
 import { nextCenterTab, type StudioCenterTab } from './centerTab';
 import {
@@ -70,6 +70,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
+import { getStudioCanvasPreview } from './studio-canvas-preview';
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
 import { AccessExplainPanel } from '../metadata-admin/AccessExplainPanel';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
@@ -1194,15 +1195,21 @@ function InterfacesPillar({
   }, [client, packageId, publishNonce, draftNonce]);
 
   const Preview = getMetadataPreview(current?.type ?? '');
+  // Studio-canvas surface override: the SAME type can render as a different
+  // surface here than in the Data pillar. Only `object` opts in today (→ the
+  // runtime records grid, not the field-form designer that is `object`'s
+  // MetadataPreview). Overridable/extendable via `registerStudioCanvasPreview`.
+  const StudioCanvas = getStudioCanvasPreview(current?.type ?? '');
   const Inspector = getMetadataInspector(current?.type ?? '');
   // The "home" (no-selection) inspector for the surface type — e.g. a page's
   // interfaceConfig form. Interface/list pages (kanban/calendar boards) have no
   // block tree, so `selection` never populates; without this the panel would
   // sit permanently on the "click a block" empty state.
   const DefaultInspector = getMetadataDefaultInspector(current?.type ?? '');
-  // Object leaves render as a runtime records grid (preview = runtime); schema
-  // editing is the Data pillar's job, so they are not draft-editable in this canvas.
-  const isEditable = !!Preview && current?.type !== 'object';
+  // A studio-canvas surface (e.g. object → runtime records grid) renders the
+  // running app, not an editable draft — schema editing is the Data pillar's
+  // job — so those leaves are not draft-editable in this canvas.
+  const isEditable = !!Preview && !StudioCanvas;
   // `kind: 'html'`/`'react'` pages are a `source` string (ADR-0080/0081),
   // rendered by SourcePageEditor as a code-editor + live-preview split — there
   // is no block tree, so `selection` never populates and the generic "click a
@@ -1351,11 +1358,14 @@ function InterfacesPillar({
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.studio.loading', locale)}
           </div>
-        ) : current.type === 'object' ? (
-          // Object nav leaf = the records list as the running app shows it
-          // (preview = runtime). Schema editing lives in the Data pillar, so
-          // here we render the object-view grid, not the field-form preview.
-          <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
+        ) : StudioCanvas ? (
+          // Studio-canvas surface override. The object nav leaf resolves here to
+          // the records list as the running app shows it (preview = runtime) —
+          // schema editing lives in the Data pillar, so this is the object-view
+          // grid, not the field-form preview. Default lives in
+          // `studio-canvas-preview`; downstream can override via
+          // `registerStudioCanvasPreview()` instead of forking this component.
+          <StudioCanvas type={current.type} name={current.name} draft={draft} locale={locale} />
         ) : isSourcePage ? (
           // Source pages have no block tree — the canvas shows only the live
           // preview; the code editor lives in the inspector's Source tab.
