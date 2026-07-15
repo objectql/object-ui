@@ -407,7 +407,13 @@ export function ChatDockPanel({
           </Button>
         </span>
       </div>
-      <div className="min-h-0 flex-1">
+      {/* flex-col so an injected ChatPane child (its root is `flex min-h-0
+          flex-1`, sized against `maxHeight:100%`) gets a bounded flex-column
+          parent — mirrors the full-page `<main className="flex … flex-col">`.
+          Without it the child height falls back to `auto`, the messages region
+          grows to fit all content, and the composer is pushed off the bottom
+          (the Studio build thread is always tall enough to trigger it). */}
+      <div className="flex min-h-0 flex-1 flex-col">
         {children ?? (
           <ChatDockConversation
             userId={userId}
@@ -521,7 +527,8 @@ export function ChatDockMobileSheet({
             {t('console.ai.dock.description', { defaultValue: 'AI assistant chat' })}
           </SheetDescription>
         </SheetHeader>
-        <div className="min-h-0 flex-1">
+        {/* flex-col — same bounded-height reason as the desktop dock body above. */}
+        <div className="flex min-h-0 flex-1 flex-col">
           {children ?? (
             <ChatDockConversation userId={userId} apiBase={apiBase} defaultAgent={defaultAgent} />
           )}
