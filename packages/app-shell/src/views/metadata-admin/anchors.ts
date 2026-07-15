@@ -217,6 +217,7 @@ export function registerBuiltinAnchors(): void {
         object: {
           type: 'string',
           title: 'Object',
+          widget: 'ref:object',
           description: 'The object this view displays.',
         },
         kind: {
