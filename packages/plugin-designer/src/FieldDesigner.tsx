@@ -305,8 +305,8 @@ export function FieldDesigner({
         name: 'typeSpecific',
         label: t('appDesigner.fieldDesigner.typeSpecificSection'),
         fields: [
-          { name: 'referenceTo', label: t('appDesigner.fieldDesigner.referenceTo'), type: 'text', placeholder: 'Referenced object', disabled: readOnly, condition: { field: 'type', equals: 'lookup' } },
-          { name: 'formula', label: t('appDesigner.fieldDesigner.formula'), type: 'textarea', placeholder: 'e.g. price * quantity', disabled: readOnly, condition: { field: 'type', equals: 'formula' } },
+          { name: 'referenceTo', label: t('appDesigner.fieldDesigner.referenceTo'), type: 'text', placeholder: 'Referenced object', disabled: readOnly, visibleWhen: "record.type == 'lookup'" },
+          { name: 'formula', label: t('appDesigner.fieldDesigner.formula'), type: 'textarea', placeholder: 'e.g. price * quantity', disabled: readOnly, visibleWhen: "record.type == 'formula'" },
           { name: 'defaultValue', label: t('appDesigner.fieldDesigner.defaultValue'), type: 'text', placeholder: 'Default value', disabled: readOnly },
           { name: 'placeholder', label: t('appDesigner.fieldDesigner.placeholder'), type: 'text', placeholder: 'Placeholder text', disabled: readOnly },
           { name: 'group', label: t('appDesigner.fieldDesigner.fieldGroup'), type: 'text', placeholder: 'Field Group', disabled: readOnly },

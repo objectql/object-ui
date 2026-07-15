@@ -64,3 +64,33 @@ describe('RowActionMenu inline overflow', () => {
     expect(screen.getByTestId('row-action-trigger')).toBeInTheDocument();
   });
 });
+
+describe('RowActionMenu CEL visible predicate (issue #1584)', () => {
+  // A `variant:'primary'` action renders as an always-mounted inline button, so
+  // the `visible` gate is directly observable (menu items live in a collapsed
+  // dropdown that only mounts when opened).
+  const RESUME = {
+    name: 'resume',
+    label: 'Resume',
+    variant: 'primary' as const,
+    visible: "record.status in ['paused', 'stopped']",
+  };
+
+  it('honors the CEL `in` operator against the row (the legacy engine could not)', () => {
+    render(
+      <PredicateScopeProvider scope={{}}>
+        <RowActionMenu row={{ id: 'e1', status: 'paused' }} rowActionDefs={[RESUME]} onActionDef={() => {}} />
+      </PredicateScopeProvider>,
+    );
+    expect(screen.getByTestId('row-action-inline-resume')).toBeInTheDocument();
+  });
+
+  it('hides the action when the CEL predicate is false', () => {
+    render(
+      <PredicateScopeProvider scope={{}}>
+        <RowActionMenu row={{ id: 'e1', status: 'running' }} rowActionDefs={[RESUME]} onActionDef={() => {}} />
+      </PredicateScopeProvider>,
+    );
+    expect(screen.queryByTestId('row-action-inline-resume')).not.toBeInTheDocument();
+  });
+});

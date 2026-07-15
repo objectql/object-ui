@@ -7,7 +7,7 @@
  */
 
 import { createContext, createElement, useContext, useMemo, type ReactNode } from 'react';
-import { ExpressionEvaluator } from '@object-ui/core';
+import { ExpressionEvaluator, evalRowPredicate } from '@object-ui/core';
 
 /**
  * Global predicate scope — populated by host shells (e.g. app-shell's
@@ -137,5 +137,48 @@ export function useCondition(
       return evaluator.evaluateCondition(condition);
     },
     [condition, context, scope, options?.throwOnError]
+  );
+}
+
+/**
+ * Evaluate a **row-scoped predicate** (a row-action `visible` / `disabled`, or a
+ * conditional-formatting `condition`) against a record on the canonical CEL
+ * engine — the same engine the server uses (issue #1584 / ADR-0058).
+ *
+ * Unlike {@link useCondition} (schema/widget tier, legacy `${}` dialect), this
+ * routes to `@object-ui/core`'s `evalRowPredicate`: a bare string is CEL (the
+ * spec contract for `ActionSchema.visible`), a `{ dialect: 'cel', source }`
+ * envelope is always CEL, and only a legacy-dialect string falls back to the
+ * old engine (with a deprecation warning). The row is bound as `record.*` and
+ * bare fields; the ambient predicate scope (`features` / `user` / …) is merged
+ * alongside so deployment-level gates keep resolving.
+ *
+ * @param pred     The raw predicate: `boolean` (returned as-is), a CEL string,
+ *                 an `{ dialect, source }` envelope, or `null`/`undefined`/`''`.
+ * @param row      The row record to evaluate against.
+ * @param options  `fallback` — value when the predicate is absent or faults
+ *                 (default `true`); `warnOnError` — log when a present predicate
+ *                 faults (fail-soft-but-logged, ADR-0058); `label` — for the log.
+ */
+export function useRowPredicate(
+  pred: unknown,
+  row: Record<string, any> | null | undefined,
+  options?: { fallback?: boolean; warnOnError?: boolean; label?: string },
+): boolean {
+  const scope = usePredicateScope();
+  const fallback = options?.fallback ?? true;
+  return useMemo(
+    () => {
+      // A boolean predicate short-circuits (no expression to evaluate).
+      if (typeof pred === 'boolean') return pred;
+      if (pred == null || pred === '') return fallback;
+      return evalRowPredicate(pred as string | { dialect?: string; source: string }, row ?? {}, {
+        fallback,
+        scope,
+        warnOnError: options?.warnOnError,
+        label: options?.label,
+      });
+    },
+    [pred, row, scope, fallback, options?.warnOnError, options?.label],
   );
 }

@@ -15,7 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@object-ui/components';
 import { Edit, Trash2, MoreVertical } from 'lucide-react';
-import { useObjectTranslation, useCondition, toPredicateInput } from '@object-ui/react';
+import { useObjectTranslation, useRowPredicate } from '@object-ui/react';
 
 const ROW_ACTION_FALLBACKS: Record<string, string> = {
   'grid.openMenu': 'Open menu',
@@ -97,16 +97,13 @@ const RowActionMenuItem: React.FC<{
   row: any;
   onActionDef?: (def: RowActionDef, row: any) => void;
 }> = ({ def, row, onActionDef }) => {
-  // Evaluate predicates against the row with BOTH a bare-field scope (`status`)
-  // and a `record.` scope (`record.status`) so authors can use either
-  // convention consistently with the record-header / spec evaluators.
-  const predicateCtx = { ...(row && typeof row === 'object' ? row : {}), record: row };
-  const isVisible = useCondition(toPredicateInput(def.visible), predicateCtx);
-  // `disabled` may be a boolean or a CEL predicate evaluated against the row
-  // (e.g. grey out "Reassign" once a lead is converted) — previously ignored.
-  const disabledPred = toPredicateInput((def as any).disabled);
-  const evalDisabled = useCondition(typeof disabledPred === 'string' ? disabledPred : undefined, predicateCtx);
-  const isDisabled = typeof disabledPred === 'string' ? evalDisabled : disabledPred === true;
+  // Evaluate predicates against the row on the canonical CEL engine (issue
+  // #1584): the row is bound both bare (`status`) and as `record.status`, and
+  // the ambient `features`/`user` scope is merged. `visible` fails CLOSED
+  // (hidden + warn) so a broken predicate can't silently expose an action —
+  // matching ActionEngine's posture; `disabled` fails soft (not disabled).
+  const isVisible = useRowPredicate(def.visible, row, { fallback: false, warnOnError: true, label: def.name });
+  const isDisabled = useRowPredicate((def as any).disabled, row, { fallback: false, warnOnError: true, label: `${def.name}:disabled` });
   if (def.visible && !isVisible) return null;
   return (
     <DropdownMenuItem
@@ -143,7 +140,7 @@ const RowActionInlineButton: React.FC<{
   row: any;
   onActionDef?: (def: RowActionDef, row: any) => void;
 }> = ({ def, row, onActionDef }) => {
-  const isVisible = useCondition(toPredicateInput(def.visible), { ...(row && typeof row === 'object' ? row : {}), record: row });
+  const isVisible = useRowPredicate(def.visible, row, { fallback: false, warnOnError: true, label: def.name });
   if (def.visible && !isVisible) return null;
   return (
     <Button

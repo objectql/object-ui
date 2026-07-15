@@ -24,7 +24,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
-import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel } from '@object-ui/react';
+import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import { stateMachineNextValues, isFieldInlineEditable } from './inline-edit-options';
@@ -34,7 +34,7 @@ import {
   RefreshIndicator,
 } from '@object-ui/components';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { evaluatePlainCondition, buildExpandFields, buildExportFileName } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName } from '@object-ui/core';
 import { ChevronRight, ChevronDown, ChevronLeft, ChevronsLeft, ChevronsRight, Download, Rows2, Rows3, Rows4, AlignJustify, Type, Hash, Calendar, CheckSquare, User, Tag, Clock, Loader2 } from 'lucide-react';
 import { useRowColor } from './useRowColor';
 import { useGroupedData } from './useGroupedData';
@@ -627,40 +627,17 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   const getRowClassName = useRowColor(schema.rowColor);
 
   // --- Conditional formatting support ---
+  // Delegates to the shared CEL evaluator (issue #1584 / ADR-0058) so the grid
+  // and ListView reach the identical verdict and the whole platform speaks one
+  // expression dialect. The host predicate scope is bound so `features.*`
+  // predicates resolve, mirroring row-action visibility.
+  const predicateScope = usePredicateScope();
   const getRowStyle = useCallback((row: Record<string, unknown>): React.CSSProperties | undefined => {
     const rules = schema.conditionalFormatting;
     if (!rules || rules.length === 0) return undefined;
-    for (const rule of rules) {
-      let match = false;
-      const expression =
-        ('condition' in rule ? (rule as any).condition : undefined)
-        || ('expression' in rule ? (rule as any).expression : undefined)
-        || undefined;
-      if (expression) {
-        match = evaluatePlainCondition(expression, row as Record<string, any>);
-      } else if ('field' in rule && 'operator' in rule && (rule as any).field && (rule as any).operator) {
-        const r = rule as any;
-        const fieldValue = row[r.field];
-        switch (r.operator) {
-          case 'equals': match = fieldValue === r.value; break;
-          case 'not_equals': match = fieldValue !== r.value; break;
-          case 'contains': match = typeof fieldValue === 'string' && typeof r.value === 'string' && fieldValue.includes(r.value); break;
-          case 'greater_than': match = typeof fieldValue === 'number' && typeof r.value === 'number' && fieldValue > r.value; break;
-          case 'less_than': match = typeof fieldValue === 'number' && typeof r.value === 'number' && fieldValue < r.value; break;
-          case 'in': match = Array.isArray(r.value) && r.value.includes(fieldValue); break;
-        }
-      }
-      if (match) {
-        const style: React.CSSProperties = {};
-        if ('style' in rule && (rule as any).style) Object.assign(style, (rule as any).style);
-        if ('backgroundColor' in rule && (rule as any).backgroundColor) style.backgroundColor = (rule as any).backgroundColor;
-        if ('textColor' in rule && (rule as any).textColor) style.color = (rule as any).textColor;
-        if ('borderColor' in rule && (rule as any).borderColor) style.borderColor = (rule as any).borderColor;
-        return style;
-      }
-    }
-    return undefined;
-  }, [schema.conditionalFormatting]);
+    const style = resolveConditionalFormatting(row, rules as any, predicateScope);
+    return Object.keys(style).length > 0 ? (style as React.CSSProperties) : undefined;
+  }, [schema.conditionalFormatting, predicateScope]);
 
   // --- Grouping support ---
   // Build a per-field value formatter so group headers display the human
