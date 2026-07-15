@@ -99,6 +99,36 @@ export function registerBuiltinAnchors(): void {
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
+    // Without a createSchema the flat create form has no property types, so
+    // every field (incl. `object`) falls back to a plain text input. Declare
+    // one — mirroring `page`/`view` — so `object` gets the `ref:object` picker.
+    // `object` is spec-required on HookSchema (alongside `name`, `events`);
+    // `events` is supplied by createDefaults below, so the form asks only for
+    // identity + the bound object.
+    createSchema: {
+      type: 'object',
+      required: ['label', 'name', 'object'],
+      properties: {
+        label: { type: 'string', title: 'Label', description: 'Human-readable hook name.' },
+        name: {
+          type: 'string',
+          title: 'Name',
+          description: 'Hook key (snake_case).',
+          pattern: '^[a-z_][a-z0-9_]*$',
+        },
+        object: {
+          type: 'string',
+          title: 'Object',
+          widget: 'ref:object',
+          description: 'The object whose row lifecycle (beforeInsert / afterUpdate / …) this hook runs on.',
+        },
+        description: {
+          type: 'string',
+          title: 'Description',
+          description: 'What this hook does.',
+        },
+      },
+    },
     createDefaults: { events: [] },
   });
 
