@@ -27,11 +27,14 @@ registerBuiltinAnchors();
  *  don't override them with a bogus string; unknown ones stay unset (schema
  *  default applies). */
 // Enum createFields the create form forces the user to pick (rendered as a
-// required <select>) but that carry no createDefault. The guard supplies a valid
+// required <select>) that carry NO createDefault — the guard supplies a valid
 // option to simulate the choice, exactly as the form requires one before save.
-const REQUIRED_PICKS: Record<string, Record<string, unknown>> = {
-  flow: { type: 'autolaunched' },
-};
+// Currently empty: `flow.type` now ships a createDefault ('autolaunched',
+// objectui#2326), so its default create output is spec-valid WITHOUT a
+// simulated pick — the fall-through below reads it from `createDefaults`, which
+// is what actually keeps the guard honest about a create→save that never
+// touches the type picker.
+const REQUIRED_PICKS: Record<string, Record<string, unknown>> = {};
 
 function placeholderFor(field: string, cfg: MetadataResourceConfig): unknown {
   const pick = REQUIRED_PICKS[cfg.type]?.[field];

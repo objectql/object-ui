@@ -263,7 +263,12 @@ export function registerBuiltinAnchors(): void {
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
-    createDefaults: { nodes: [], edges: [] },
+    // `type` is a required FlowSchema enum (autolaunched | record_change |
+    // schedule | screen | api). Seed the canonical default so a create→save
+    // that never touches the type picker can't 422 — mirrors the server's
+    // BUILTIN_METADATA_CREATE_SEEDS and the Studio inline skeleton
+    // (buildFlowSkeleton). See objectui#2326.
+    createDefaults: { type: 'autolaunched', nodes: [], edges: [] },
   });
   // ADR-0020: `workflow` retired as a metadata type — record state machines
   // are a `state_machine` validation rule on the object (no separate anchor).
