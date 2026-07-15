@@ -101,7 +101,7 @@ export function isLikelyOpaqueId(v: unknown): boolean {
  * the context isn't installed. Returns the resolved display name or
  * `undefined` while pending or unresolvable.
  */
-function useLookupName(referenceTo: string | undefined, value: unknown): string | undefined {
+function useLookupName(referenceTo: string | undefined, value: unknown, preferredField?: string): string | undefined {
   const ctx = React.useContext(_SchemaRendererContext);
   const dataSource = ctx?.dataSource;
   const [, force] = React.useState(0);
@@ -112,7 +112,10 @@ function useLookupName(referenceTo: string | undefined, value: unknown): string 
     typeof dataSource.find === 'function' &&
     (typeof value === 'string' || typeof value === 'number') &&
     value !== '';
-  const cacheKey = isResolvable ? `${referenceTo}:${String(value)}` : '';
+  // The preferred display field is part of the cache identity: two columns
+  // targeting the same record with different `display_field`s must not
+  // serve each other's cached name (#2926 ⑧).
+  const cacheKey = isResolvable ? `${referenceTo}:${String(value)}:${preferredField ?? ''}` : '';
 
   React.useEffect(() => {
     if (!isResolvable) return;
@@ -135,7 +138,7 @@ function useLookupName(referenceTo: string | undefined, value: unknown): string 
             : (result?.value || result?.data || []);
           record = records[0];
         }
-        const name = pickRecordDisplayName(record);
+        const name = pickRecordDisplayName(record, preferredField);
         lookupNameCache.set(cacheKey, { state: 'ok', name });
       } catch {
         lookupNameCache.set(cacheKey, { state: 'err' });
@@ -1178,6 +1181,13 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
     (field as { reference_to?: string }).reference_to ||
     (field as { reference?: string }).reference;
 
+  // [#2926 ⑧] Honor the target object's configured display field. ObjectGrid
+  // forwards `display_field` on the column meta (RELATIONAL_META_KEYS) the
+  // same way it forwards `reference`; without threading it into
+  // pickRecordDisplayName the cell always fell back to the hardcoded
+  // heuristics (`name` first) and ignored displayNameField configuration.
+  const displayField = (field as { display_field?: string }).display_field;
+
   // Pick the FIRST primitive id we see (for arrays, only the first one is auto-resolved
   // to keep the cell cheap; multi-value lookups should generally be expanded server-side).
   const primaryPrimitiveId = (() => {
@@ -1199,7 +1209,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   })();
 
   // Always call the hook (rules of hooks). It safely no-ops when inputs are missing.
-  const resolvedName = useLookupName(referenceTo, primaryPrimitiveId);
+  const resolvedName = useLookupName(referenceTo, primaryPrimitiveId, displayField);
 
   if (value == null || value === '') return <EmptyValue />;
 
@@ -1213,7 +1223,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
         const parsed = JSON.parse(s) as Record<string, unknown>;
         if (parsed && typeof parsed === 'object') {
           const display =
-            pickRecordDisplayName(parsed) ||
+            pickRecordDisplayName(parsed, displayField) ||
             String(parsed.externalId ?? parsed.id ?? parsed._id ?? '');
           if (display) return <span className="truncate">{display}</span>;
         }
@@ -1225,7 +1235,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   // (e.g. { id, name }). Render its display name directly — no fetch needed.
   if (!Array.isArray(value) && typeof value === 'object') {
     const obj = value as Record<string, unknown>;
-    const display = pickRecordDisplayName(obj) || String(obj.id || obj._id || '');
+    const display = pickRecordDisplayName(obj, displayField) || String(obj.id || obj._id || '');
     if (display) {
       return <span className="truncate">{display}</span>;
     }
@@ -1259,7 +1269,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
           let label: string;
           let muted = false;
           if (item != null && typeof item === 'object') {
-            label = pickRecordDisplayName(item as Record<string, unknown>) || String((item as any).id || (item as any)._id || '[Object]');
+            label = pickRecordDisplayName(item as Record<string, unknown>, displayField) || String((item as any).id || (item as any)._id || '[Object]');
           } else {
             const r = resolveLabel(item);
             label = r.text;
@@ -1285,7 +1295,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
 
   if (typeof value === 'object' && value !== null) {
     const label =
-      pickRecordDisplayName(value as Record<string, unknown>) ||
+      pickRecordDisplayName(value as Record<string, unknown>, displayField) ||
       String((value as any).id || (value as any)._id || '[Object]');
     return <span className="truncate">{label}</span>;
   }
