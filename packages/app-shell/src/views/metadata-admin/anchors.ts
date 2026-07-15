@@ -199,13 +199,13 @@ export function registerBuiltinAnchors(): void {
       groupLabel: 'Views',
       order: 30,
     }],
-    createFields: ['label', 'name', 'object', 'kind'],
+    createFields: ['label', 'name', 'object', 'viewKind', 'kind', 'formType'],
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
     createSchema: {
       type: 'object',
-      required: ['label', 'name', 'object', 'kind'],
+      required: ['label', 'name', 'object', 'viewKind'],
       properties: {
         label: { type: 'string', title: 'Label', description: 'Human-readable view name.' },
         name: {
@@ -219,33 +219,67 @@ export function registerBuiltinAnchors(): void {
           title: 'Object',
           description: 'The object this view displays.',
         },
+        // The family discriminator (ViewItemSchema is a discriminated union on
+        // `viewKind`). Picks which config shape — and therefore which layout
+        // picker below — applies.
+        viewKind: {
+          type: 'string',
+          title: 'View family',
+          enum: ['list', 'form'],
+          default: 'list',
+          description:
+            'List views show many records as a collection (grid, kanban, …). Form views show one record as a field layout (simple, tabbed, …).',
+        },
+        // List-family layout. Shown only when `viewKind` is 'list'; its value
+        // becomes the list `config.type`.
         kind: {
           type: 'string',
-          title: 'View kind',
+          title: 'List layout',
           enum: ['grid', 'kanban', 'gallery', 'calendar', 'timeline', 'gantt', 'chart'],
           default: 'grid',
           description: 'Pick a starter layout. Switch later in the designer.',
+          visibleOn: "data.viewKind == 'list'",
+        },
+        // Form-family layout (FormViewSchema.type). Shown only when `viewKind`
+        // is 'form'; its value becomes the form `config.type`.
+        formType: {
+          type: 'string',
+          title: 'Form layout',
+          enum: ['simple', 'tabbed', 'wizard', 'split', 'drawer', 'modal'],
+          default: 'simple',
+          description: 'Pick a starter form layout. Switch later in the designer.',
+          visibleOn: "data.viewKind == 'form'",
         },
       },
     },
     // Emit a canonical ViewItem. `name` is the globally-unique qualified id
-    // `<object>.<key>`; the layout `kind` (grid/kanban/…) is all list-family,
-    // so `viewKind` is 'list' and the chosen layout lives at `config.type`.
+    // `<object>.<key>`; `viewKind` discriminates the config shape. A list view
+    // carries the chosen list layout (grid/kanban/…) at `config.type`; a form
+    // view carries the chosen form layout (simple/tabbed/…) at `config.type`
+    // with a `sections` body instead of `columns`.
     createBuildBody: (draft) => {
       const object = String(draft.object ?? '');
       const key = String(draft.name ?? '');
       const qualifiedName =
         key.includes('.') || !object ? key : `${object}.${key}`;
+      const isForm = draft.viewKind === 'form';
+      const config = isForm
+        ? {
+            type: (draft.formType as string) || 'simple',
+            data: { provider: 'object', object },
+            sections: [],
+          }
+        : {
+            type: (draft.kind as string) || 'grid',
+            columns: [],
+            data: { provider: 'object', object },
+          };
       return {
         name: qualifiedName,
         object,
-        viewKind: 'list',
+        viewKind: isForm ? 'form' : 'list',
         label: draft.label,
-        config: {
-          type: (draft.kind as string) || 'grid',
-          columns: [],
-          data: { provider: 'object', object },
-        },
+        config,
       };
     },
   });
