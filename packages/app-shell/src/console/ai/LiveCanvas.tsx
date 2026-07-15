@@ -20,7 +20,8 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { X, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Eye, Hammer } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
 
@@ -63,6 +64,7 @@ function canvasSrc(appName: string, materialized: boolean): string {
 
 export function LiveCanvas({ appName, appSegment, materialized = false, refreshKey, onClose }: LiveCanvasProps) {
   const { t } = useObjectTranslation();
+  const navigate = useNavigate();
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   // Route on the package-id segment (unique), display by name (friendly).
   const routeSeg = appSegment && appSegment.length ? appSegment : appName;
@@ -105,6 +107,25 @@ export function LiveCanvas({ appName, appSegment, materialized = false, refreshK
                 defaultValue: 'Live preview — {{app}} (draft)',
               })}
         </span>
+        {/* Bridge to the design surface — this pane is the RUNNING app, so the
+            builder needs an explicit way to jump into the Studio designer to
+            fine-tune structure/layout (previously the only action here was
+            close, stranding users who wanted to keep editing). ADR-0080 reverse
+            bridge, mirroring the running app's own "Design in Studio" header. */}
+        {appSegment && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => navigate(`/studio/${appSegment}/interfaces`)}
+            data-testid="live-canvas-open-designer"
+            className="gap-1.5"
+            title={t('topbar.designInStudio', { defaultValue: 'Design in Studio' })}
+            aria-label={t('topbar.designInStudio', { defaultValue: 'Design in Studio' })}
+          >
+            <Hammer className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{t('topbar.designInStudio', { defaultValue: 'Design in Studio' })}</span>
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={onClose} data-testid="live-canvas-close">
           <X className="h-3.5 w-3.5" />
         </Button>
