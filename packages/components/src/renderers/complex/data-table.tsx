@@ -468,6 +468,19 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   // input also blurs. This flag tells the blur handler not to save again so we
   // don't double-commit (Enter) or resurrect a cancelled value (Escape).
   const skipBlurSaveRef = useRef(false);
+  // DOM node of a host-injected widget editor (rendered via `renderCellEditor`),
+  // captured while it's mounted. The built-in `<input>` editors commit via their
+  // own onBlur, but the injected widgets (text, number, date, lookup, …) have no
+  // such handler — a document-level pointerdown listener (see below) uses this
+  // node to detect click-outside and commit them. Null ⇒ no injected editor is
+  // active (a built-in editor, or nothing, is showing).
+  const injectedEditorElRef = useRef<HTMLDivElement | null>(null);
+  // Snapshot of the active cell's pending value when editing began, so Escape /
+  // cancel can revert this session's changes. Injected widgets stage on every
+  // change (unlike built-ins, which only commit on blur/Enter), so without this
+  // an Escape would leave the half-typed value staged. `had` distinguishes "no
+  // pending change existed" from "the pending value was undefined".
+  const editRevertRef = useRef<{ had: boolean; value: any } | null>(null);
 
   // Update columns when schema changes
   useEffect(() => {
@@ -777,6 +790,11 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
     const currentValue = paginatedData[rowIndex][columnKey];
     const valueToEdit = rowChanges?.[columnKey] ?? currentValue ?? '';
     setEditValue(valueToEdit);
+    // Snapshot the cell's pending state so Escape/cancel can revert an injected
+    // widget edit (which stages on every change) back to exactly what it was.
+    editRevertRef.current = rowChanges && columnKey in rowChanges
+      ? { had: true, value: rowChanges[columnKey] }
+      : { had: false, value: undefined };
   };
 
   const saveEdit = (force: boolean = false, explicitValue?: any) => {
@@ -807,16 +825,56 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       schema.onCellChange(globalIndex, columnKey, valueToStage, row);
     }
 
+    editRevertRef.current = null;
+    editingCellRef.current = null;
+    setEditingCell(null);
+    setEditValue('');
+  };
+
+  // Latest-ref to `saveEdit` so the document-level click-outside listener (whose
+  // closure is captured once per edit session) always commits with the CURRENT
+  // editValue rather than a stale one. Updated in an effect (after every render)
+  // so it's current well before any user pointer event fires.
+  const saveEditRef = useRef(saveEdit);
+  useEffect(() => {
+    saveEditRef.current = saveEdit;
+  });
+
+  // Exit edit mode. When `revert` is true, roll the active cell's pending value
+  // back to the snapshot taken when editing began (see `editRevertRef`) — this
+  // is what makes Escape/cancel discard an injected widget's staged changes. For
+  // built-in editors (which don't stage until commit) the snapshot equals the
+  // live pending value, so the revert is a no-op.
+  const exitEdit = (revert: boolean) => {
+    const active = editingCellRef.current;
+    const snap = editRevertRef.current;
+    editRevertRef.current = null;
+    if (revert && active && snap) {
+      const { rowIndex, columnKey } = active;
+      setPendingChanges((prev) => {
+        const cur = prev.get(rowIndex);
+        const staged = !!cur && columnKey in cur;
+        if (!staged && !snap.had) return prev; // nothing changed for this cell
+        const next = new Map(prev);
+        const rc = { ...(cur || {}) };
+        if (snap.had) rc[columnKey] = snap.value;
+        else delete rc[columnKey];
+        if (Object.keys(rc).length > 0) next.set(rowIndex, rc);
+        else next.delete(rowIndex);
+        return next;
+      });
+    }
     editingCellRef.current = null;
     setEditingCell(null);
     setEditValue('');
   };
 
   const cancelEdit = () => {
+    // A built-in <input>'s ensuing blur must not re-save the value we're
+    // discarding; injected editors have no such blur, so they call `exitEdit`
+    // directly (setting this flag there would leak to the next built-in blur).
     skipBlurSaveRef.current = true;
-    editingCellRef.current = null;
-    setEditingCell(null);
-    setEditValue('');
+    exitEdit(true);
   };
 
   // Stage an in-flight edit into pendingChanges WITHOUT closing the editor —
@@ -992,6 +1050,45 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
       editInputRef.current.focus();
       editInputRef.current.select();
     }
+  }, [editingCell]);
+
+  // Commit a host-injected widget editor on click-outside (objectui#2321).
+  //
+  // Built-in `<input>` editors commit via their own onBlur (handleEditBlur), but
+  // the widgets injected through `renderCellEditor` (text, number, date, lookup,
+  // …) have no such handler, so without this they stay stuck in edit mode when
+  // the user clicks away. A capture-phase document listener (capture so a cell's
+  // own `stopPropagation` can't hide it) commits the staged value and exits edit
+  // mode when the pointer goes down truly outside the editor — but NOT inside a
+  // Radix overlay the widget itself opened (a lookup popover / record-picker
+  // dialog renders in a portal at <body> yet is logically part of the editor).
+  // Only armed while an INJECTED editor is mounted (`injectedEditorElRef` set);
+  // built-in editors keep their existing blur path untouched.
+  useEffect(() => {
+    if (!editingCell) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const el = injectedEditorElRef.current;
+      if (!el) return; // built-in editor → its own onBlur handles the commit
+      const target = e.target as Node | null;
+      if (!target || el.contains(target)) return; // inside the editor itself
+      if (target instanceof Element) {
+        // A transient popper (Popover/Select/Menu) the widget opened. Guard on
+        // `!contains(el)` so a popper that merely HOSTS the grid never suppresses
+        // the commit — only one stacked ABOVE the editor does.
+        const popper = target.closest('[data-radix-popper-content-wrapper]');
+        if (popper && !popper.contains(el)) return;
+        // A dialog/sheet the widget opened (e.g. the lookup record-picker) —
+        // again only when it's a nested overlay above the editor, not the modal
+        // that happens to contain the whole grid.
+        const dialog = target.closest('[role="dialog"],[role="alertdialog"]');
+        if (dialog && !dialog.contains(el)) return;
+      }
+      // Truly outside → commit the staged value and exit edit mode, matching the
+      // built-in inputs' commit-on-blur.
+      saveEditRef.current(true);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, [editingCell]);
 
   // Cleanup on unmount
@@ -1467,7 +1564,42 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                     commit: (v?: any) => saveEdit(true, v),
                                     cancel: cancelEdit,
                                   });
-                                  if (node != null) return node;
+                                  if (node != null) {
+                                    // Wrap the injected widget so it gains the
+                                    // exit-edit-mode affordances the built-in
+                                    // editors have: Enter commits, Escape cancels,
+                                    // and — via `injectedEditorElRef` + the
+                                    // document pointerdown listener above — a
+                                    // click-outside commits (objectui#2321).
+                                    // Keydowns bubbling up through a React portal
+                                    // from the widget's own popover (e.g. a lookup
+                                    // search box) carry a target OUTSIDE this
+                                    // wrapper, so the `contains` guard ignores them
+                                    // — Enter/Escape there drive the popover, not
+                                    // the cell. Enter commits only from a single-
+                                    // line `<input>` (text/number/date/…); on a
+                                    // picker's `<button>` trigger or a multi-line
+                                    // textarea it's left alone so Enter opens the
+                                    // dropdown / inserts a newline as usual.
+                                    return (
+                                      <div
+                                        ref={(n) => { injectedEditorElRef.current = n; }}
+                                        className="w-full"
+                                        onKeyDown={(e) => {
+                                          if (!e.currentTarget.contains(e.target as Node)) return;
+                                          if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+                                            e.preventDefault();
+                                            saveEdit(true);
+                                          } else if (e.key === 'Escape') {
+                                            e.preventDefault();
+                                            exitEdit(true);
+                                          }
+                                        }}
+                                      >
+                                        {node}
+                                      </div>
+                                    );
+                                  }
                                 }
 
                                 if (editType === 'date') {
