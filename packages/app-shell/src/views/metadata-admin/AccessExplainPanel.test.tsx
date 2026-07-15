@@ -114,6 +114,64 @@ describe('AccessExplainPanel (ADR-0090 D6)', () => {
     expect(screen.getByTestId('explain-layer-object_crud').textContent).toMatch(/denies/i);
   });
 
+  it('sends recordId and renders the record-grained row story (C2 / ADR-0095)', async () => {
+    const RECORD_DECISION: ExplainDecision = {
+      allowed: true,
+      object: 'crm_lead',
+      operation: 'read',
+      principal: { userId: 'u_1', positions: ['sales_rep', 'everyone'], permissionSets: ['sales_user'], posture: 'MEMBER' },
+      layers: [
+        {
+          layer: 'tenant_isolation',
+          kernelTier: 'layer_0_tenant',
+          verdict: 'narrows',
+          detail: 'Layer 0 tenant isolation.',
+          record: {
+            outcome: 'admitted',
+            rowFilter: { organization_id: 'org1' },
+            matchesRecord: true,
+            rules: [{ kind: 'tenant_filter', name: 'organization_isolation', effect: 'admits', via: 'organization org1' }],
+            detail: "Record is inside the caller's active organization (org1).",
+          },
+        },
+        {
+          layer: 'sharing',
+          kernelTier: 'layer_1_business',
+          verdict: 'widens',
+          detail: 'Sharing widens.',
+          record: {
+            outcome: 'admitted',
+            rules: [{ kind: 'record_share', name: 'shr_1', grants: 'read', effect: 'admits', via: 'user:u_1' }],
+            detail: '1 share attached; access is granted for this record.',
+          },
+        },
+      ],
+      readFilter: { organization_id: 'org1' },
+      record: { recordId: 'rec_9', visible: true, decidedBy: 'sharing' },
+    };
+    fetchSpy.mockResolvedValue(jsonResponse(200, RECORD_DECISION));
+    renderPanel();
+    fireEvent.change(screen.getByLabelText('Object'), { target: { value: 'crm_lead' } });
+    fireEvent.change(screen.getByLabelText(/Record/i), { target: { value: 'rec_9' } });
+    fireEvent.click(screen.getByRole('button', { name: /explain$/i }));
+
+    await waitFor(() => expect(screen.getByTestId('explain-record-verdict')).toBeInTheDocument());
+
+    // request carried recordId
+    expect(JSON.parse(fetchSpy.mock.calls[0][1].body)).toEqual({ object: 'crm_lead', operation: 'read', recordId: 'rec_9' });
+
+    // top-level record verdict + decidedBy
+    expect(screen.getByTestId('explain-record-verdict').textContent).toMatch(/VISIBLE/i);
+    expect(screen.getByTestId('explain-record-verdict').textContent).toMatch(/rec_9/);
+
+    // posture chip + tenant_isolation Layer 0 + per-layer record attribution
+    expect(screen.getByTestId('explain-posture').textContent).toMatch(/Member/i);
+    expect(screen.getByTestId('explain-layer-tenant_isolation')).toBeInTheDocument();
+    expect(screen.getByTestId('explain-record-tenant_isolation').textContent).toMatch(/admitted/i);
+    expect(screen.getByTestId('explain-record-sharing').textContent).toMatch(/Record share/i);
+    expect(screen.getAllByText(/"organization_id": "org1"/).length).toBeGreaterThan(0);
+  });
+
   it('renders the friendly D12 message on 403 instead of a raw error', async () => {
     fetchSpy.mockResolvedValue(jsonResponse(403, { code: 'PERMISSION_DENIED', message: '[Security] Access denied: …' }));
     renderPanel();
