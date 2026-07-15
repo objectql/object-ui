@@ -50,6 +50,7 @@ import {
   deriveObjectTargetMode,
   clearedTargetPatch,
   ensureNavId,
+  isStaticPageOption,
 } from './nav-target';
 
 interface NavItem {
@@ -145,8 +146,13 @@ function writeSiblings(draft: Record<string, unknown>, hops: Hop[], nextSiblings
   return { [rootKey]: root };
 }
 
+type MetadataOptionRow = { name?: string; label?: string; type?: string; pageType?: string };
+
 /** Fetch a metadata type's items as combobox options (name → label (name)). */
-function useMetadataOptions(type: string | undefined): { options: Array<{ value: string; label: string }>; loading: boolean } {
+function useMetadataOptions(
+  type: string | undefined,
+  rowFilter?: (row: MetadataOptionRow) => boolean,
+): { options: Array<{ value: string; label: string }>; loading: boolean } {
   const client = useMetadataClient();
   const [state, setState] = React.useState<{ options: Array<{ value: string; label: string }>; loading: boolean }>({
     options: [],
@@ -160,11 +166,12 @@ function useMetadataOptions(type: string | undefined): { options: Array<{ value:
     let cancelled = false;
     setState((s) => ({ ...s, loading: true }));
     client
-      .list<{ name?: string; label?: string }>(type)
+      .list<MetadataOptionRow>(type)
       .then((rows) => {
         if (cancelled) return;
         const options = (Array.isArray(rows) ? rows : [])
           .filter((r) => r && typeof r.name === 'string' && r.name)
+          .filter((r) => (rowFilter ? rowFilter(r) : true))
           .map((r) => ({
             value: String(r.name),
             label: typeof r.label === 'string' && r.label && r.label !== r.name ? `${r.label} (${r.name})` : String(r.name),
@@ -177,7 +184,7 @@ function useMetadataOptions(type: string | undefined): { options: Array<{ value:
     return () => {
       cancelled = true;
     };
-  }, [client, type]);
+  }, [client, type, rowFilter]);
   return state;
 }
 
@@ -284,7 +291,7 @@ export function AppNavInspector({ selection, draft, name, onPatch, onClearSelect
   // the Rules of Hooks satisfied; `undefined` type disables the fetch.
   const objectOptions = useMetadataOptions(navType === 'object' ? 'object' : undefined);
   const targetMeta = navType && navType !== 'object' ? NAV_TYPE_TARGETS[navType].metaType : undefined;
-  const targetOptions = useMetadataOptions(targetMeta);
+  const targetOptions = useMetadataOptions(targetMeta, targetMeta === 'page' ? isStaticPageOption : undefined);
   const viewOptionsRaw = useMetadataOptions(navType === 'object' && objectMode === 'view' ? 'view' : undefined);
   // Views are named `<object>.<key>` (MetadataProvider) — scope the picker
   // to the bound object instead of offering the whole workspace's views.
