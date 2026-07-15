@@ -1310,6 +1310,8 @@ const zh = {
       sendFailedGeneric: '消息发送失败，请重试。你的消息已保留在输入框中。',
       askAgent: '向 {{agent}} 提问...',
       assistant: '助手',
+      liveCanvas: '草稿预览 · {{app}}',
+      liveCanvasUnlisted: '运行预览 · {{app}}(未发布 · 仅自己可见)',
       loadingAgents: '正在加载助手...',
       askAnything: '输入你的问题...',
       emptyTitle: '开始对话',
@@ -1324,6 +1326,11 @@ const zh = {
         ask: {
           title: '向你的数据提问',
           description: '针对你的记录提问 —— 在你有权访问的数据范围内进行计数、列举和汇总。',
+        },
+        editApp: {
+          title: '正在编辑「{{app}}」',
+          titleGeneric: '编辑此应用',
+          description: '想改点什么？我会就地修改这个应用 —— 加字段、对象、视图或自动化，或调整已有内容。',
         },
       },
       clearConversation: '清空',
@@ -1395,6 +1402,12 @@ const zh = {
           help: '你可以帮我做什么？',
           availableObjects: '列出可用的数据对象。',
           recentActivity: '总结我的最近动态。',
+        },
+        editApp: {
+          addField: '给某个对象加一个字段。',
+          addObject: '新增一个对象，并关联到已有对象。',
+          addDashboard: '加一个展示关键指标的仪表盘。',
+          addAutomation: '加一个自动化 —— 审批、状态流转或通知。',
         },
       },
     },

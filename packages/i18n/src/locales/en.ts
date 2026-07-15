@@ -1236,6 +1236,8 @@ const en = {
         "Couldn't send your message. It's kept below — please try again.",
       askAgent: 'Ask {{agent}}...',
       assistant: 'Assistant',
+      liveCanvas: 'Live preview — {{app}} (draft)',
+      liveCanvasUnlisted: 'Live app — {{app}} (unlisted until published)',
       loadingAgents: 'Loading agents...',
       askAnything: 'Ask anything...',
       emptyTitle: 'Start a conversation',
@@ -1252,6 +1254,12 @@ const en = {
           title: 'Ask your data',
           description:
             'Ask questions about your records — counts, lists, and summaries across the data you can access.',
+        },
+        editApp: {
+          title: 'Editing “{{app}}”',
+          titleGeneric: 'Edit this app',
+          description:
+            'What would you like to change? I’ll modify this app in place — add a field, object, view or automation, or adjust what’s already there.',
         },
       },
       clearConversation: 'Clear',
@@ -1321,6 +1329,12 @@ const en = {
           help: 'What can you help me with?',
           availableObjects: 'List the available data objects.',
           recentActivity: 'Summarize my recent activity.',
+        },
+        editApp: {
+          addField: 'Add a field to one of the objects.',
+          addObject: 'Add a new object and relate it to an existing one.',
+          addDashboard: 'Add a dashboard for the key metrics.',
+          addAutomation: 'Add an automation — an approval, a status flow, or a notification.',
         },
       },
     },
