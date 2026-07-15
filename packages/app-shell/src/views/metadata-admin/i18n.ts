@@ -503,6 +503,10 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.add.step': 'Add step',
   'engine.inspector.add.action': 'Add action',
   'engine.inspector.add.nav': 'Add nav item',
+  // Flow designer add-node palette (search box + recents, #1943)
+  'engine.flowPalette.search': 'Search nodes…',
+  'engine.flowPalette.empty': 'No matching nodes.',
+  'engine.flowPalette.recent': 'Recently used',
   // Reorder buttons (used in InspectorShell header)
   'engine.inspector.reorder.up': 'Move up',
   'engine.inspector.reorder.down': 'Move down',
@@ -1812,6 +1816,10 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.add.step': '添加步骤',
   'engine.inspector.add.action': '添加动作',
   'engine.inspector.add.nav': '添加导航项',
+  // Flow designer add-node palette (search box + recents, #1943)
+  'engine.flowPalette.search': '搜索节点…',
+  'engine.flowPalette.empty': '没有匹配的节点。',
+  'engine.flowPalette.recent': '最近使用',
   // Reorder buttons
   'engine.inspector.reorder.up': '上移',
   'engine.inspector.reorder.down': '下移',

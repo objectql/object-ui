@@ -35,8 +35,21 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react';
-import { cn, Popover, PopoverTrigger, PopoverContent } from '@object-ui/components';
+import {
+  cn,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@object-ui/components';
+import { t as tr } from '../i18n';
 import { NODE_W, NODE_H, type Point } from './flow-canvas-layout';
+import { readPaletteRecents, recordPaletteRecent } from './flowPaletteRecents';
 
 export function nodeIcon(type: string): LucideIcon {
   switch (type) {
@@ -561,14 +574,62 @@ export interface NodePaletteProps {
   children: React.ReactNode;
 }
 
-/** Compact popover listing the node types an author can add, grouped by category. */
-export function NodePalette({ items = NODE_PALETTE, onPick, open, onOpenChange, children }: NodePaletteProps) {
+/** Section heading style shared by the category groups and the recents group. */
+const PALETTE_GROUP_CLASS =
+  'p-0 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-1 ' +
+  '[&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold ' +
+  '[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] ' +
+  '[&_[cmdk-group-heading]]:text-muted-foreground ' +
+  '[&:not(:first-child)]:mt-1 [&:not(:first-child)]:border-t [&:not(:first-child)]:border-border/60 [&:not(:first-child)]:pt-1';
+
+/**
+ * Searchable popover listing the node types an author can add (#1943).
+ * Grouped by category when the query is empty; typing filters across all
+ * categories (label + hint + type, case-insensitive). Built on cmdk's
+ * `Command` for ↑/↓ + Enter keyboard navigation — with `shouldFilter`
+ * disabled so our exact substring filter keeps the canonical category order
+ * instead of cmdk's fuzzy re-ranking. A "Recently used" group (localStorage
+ * MRU) tops the empty-query view.
+ */
+export function NodePalette({ locale, items = NODE_PALETTE, onPick, open, onOpenChange, children }: NodePaletteProps) {
+  const [q, setQ] = React.useState('');
+  // Lazy init covers mounting in the already-open state (tests, controlled use).
+  const [recents, setRecents] = React.useState<string[]>(() => (open ? readPaletteRecents() : []));
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Watching `open` (not onOpenChange) covers both close paths: outside-click/
+  // Escape fires onOpenChange, but a pick closes via the parent's setState
+  // only. Render-phase adjustment (not an effect) per react.dev's "adjusting
+  // state when a prop changes"; re-reading recents per open keeps them fresh.
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setRecents(readPaletteRecents());
+    else setQ('');
+  }
+
+  const query = q.trim().toLowerCase();
+
+  // Filter before grouping, so a query naturally matches across every
+  // category — including server-merged plugin items (they are just entries in
+  // `items`). `type` is matched too so plugin nodes are findable by their
+  // registered type even when a descriptor's display name differs.
+  const filtered = React.useMemo(() => {
+    if (!query) return items;
+    return items.filter(
+      (i) =>
+        i.label.toLowerCase().includes(query) ||
+        (i.hint ?? '').toLowerCase().includes(query) ||
+        i.type.toLowerCase().includes(query),
+    );
+  }, [items, query]);
+
   // Bucket items by category (falling back to the type's inferred category, so
   // engine-only / plugin nodes still land in a sensible section), then render
   // sections in the canonical order. Empty sections are skipped.
   const grouped = React.useMemo(() => {
     const buckets = new Map<NodeCategory, PaletteItem[]>();
-    for (const item of items) {
+    for (const item of filtered) {
       const cat = item.category ?? nodeCategory(item.type);
       const list = buckets.get(cat) ?? [];
       list.push(item);
@@ -577,16 +638,30 @@ export function NodePalette({ items = NODE_PALETTE, onPick, open, onOpenChange, 
     return NODE_CATEGORY_ORDER.map((cat) => [cat, buckets.get(cat) ?? []] as const).filter(
       ([, list]) => list.length > 0,
     );
-  }, [items]);
+  }, [filtered]);
 
-  const renderItem = (item: PaletteItem) => {
+  // "Recently used" — empty-query state only, intersected against the live
+  // items so types from since-uninstalled plugins silently drop out.
+  const recentItems = React.useMemo(() => {
+    if (query) return [];
+    const byType = new Map(items.map((i) => [i.type, i] as const));
+    return recents.map((t) => byType.get(t)).filter((i): i is PaletteItem => !!i);
+  }, [items, recents, query]);
+
+  const handlePick = (type: string) => {
+    recordPaletteRecent(type);
+    onPick(type);
+  };
+
+  const renderItem = (item: PaletteItem, recent?: boolean) => {
     const tone = nodeTone(item.type);
     return (
-      <button
-        key={item.type}
-        type="button"
-        onClick={() => onPick(item.type)}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-accent"
+      <CommandItem
+        key={recent ? `recent:${item.type}` : item.type}
+        // cmdk requires unique values; recents duplicate grouped entries.
+        value={recent ? `recent:${item.type}` : item.type}
+        onSelect={() => handlePick(item.type)}
+        className="gap-2.5 rounded-lg px-2 py-1.5 [&_svg]:size-[15px]"
       >
         <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', tone.chip)}>
           <NodeTypeIcon type={item.type} className={cn('h-[15px] w-[15px]', tone.icon)} />
@@ -595,7 +670,7 @@ export function NodePalette({ items = NODE_PALETTE, onPick, open, onOpenChange, 
           <div className="truncate text-[13px] font-medium">{item.label}</div>
           {item.hint && <div className="truncate text-[11px] text-muted-foreground">{item.hint}</div>}
         </div>
-      </button>
+      </CommandItem>
     );
   };
 
@@ -608,16 +683,36 @@ export function NodePalette({ items = NODE_PALETTE, onPick, open, onOpenChange, 
       <PopoverContent
         align="end"
         sideOffset={6}
-        className="max-h-[66vh] w-60 overflow-y-auto rounded-xl border bg-popover/95 p-1.5 shadow-xl shadow-foreground/[0.08] ring-1 ring-black/[0.03] backdrop-blur-md"
+        className="w-60 overflow-hidden rounded-xl border bg-popover/95 p-0 shadow-xl shadow-foreground/[0.08] ring-1 ring-black/[0.03] backdrop-blur-md"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          inputRef.current?.focus();
+        }}
       >
-        {grouped.map(([category, list], gi) => (
-          <div key={category} className={cn(gi > 0 && 'mt-1 border-t border-border/60 pt-1')}>
-            <div className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              {category}
-            </div>
-            {list.map(renderItem)}
-          </div>
-        ))}
+        <Command shouldFilter={false} loop className="bg-transparent">
+          <CommandInput
+            ref={inputRef}
+            value={q}
+            onValueChange={setQ}
+            placeholder={tr('engine.flowPalette.search', locale)}
+            className="h-9 text-[13px]"
+          />
+          <CommandList className="max-h-[56vh] p-1">
+            <CommandEmpty className="py-6 text-center text-xs text-muted-foreground">
+              {tr('engine.flowPalette.empty', locale)}
+            </CommandEmpty>
+            {recentItems.length > 0 && (
+              <CommandGroup heading={tr('engine.flowPalette.recent', locale)} className={PALETTE_GROUP_CLASS}>
+                {recentItems.map((item) => renderItem(item, true))}
+              </CommandGroup>
+            )}
+            {grouped.map(([category, list]) => (
+              <CommandGroup key={category} heading={category} className={PALETTE_GROUP_CLASS}>
+                {list.map((item) => renderItem(item))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );
