@@ -363,6 +363,38 @@ export function registerBuiltinAnchors(): void {
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
+    // Without a `createSchema` the create form falls back to the server's edit
+    // schema (or its FormView layout), where `objectName` carries no widget hint
+    // and renders as a plain text input (objectui#2325). Declaring it here — the
+    // same pattern `view`/`page` use — makes the object-binding field a proper
+    // `ref:object` dropdown and the icon field a searchable picker. `objectName`
+    // is the spec's action→object binding key (ActionSchema has no `object`); it
+    // stays optional because record-scoped / global actions bind no object.
+    createSchema: {
+      type: 'object',
+      required: ['label', 'name'],
+      properties: {
+        label: { type: 'string', title: 'Label', description: 'Human-readable action name.' },
+        name: {
+          type: 'string',
+          title: 'Name',
+          description: 'Action key (snake_case). Used in URLs.',
+          pattern: '^[a-z_][a-z0-9_]*$',
+        },
+        objectName: {
+          type: 'string',
+          title: 'Object',
+          widget: 'ref:object',
+          description: 'The object this action is bound to. Leave empty for a global / record-scoped action.',
+        },
+        icon: {
+          type: 'string',
+          title: 'Icon',
+          widget: 'icon',
+          description: 'Optional icon shown on the action button.',
+        },
+      },
+    },
     // A new action defaults to `type: 'script'` (ActionType.default), which the
     // spec requires to carry an executable `body` or `target` — otherwise the
     // draft fails validation on save (422) and AppPlugin registers no engine
