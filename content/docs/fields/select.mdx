@@ -63,10 +63,14 @@ cascade-clear propagate down the chain.
 
 ### Role-gated option
 
+<SchemaExample id="fields-select/role-gated-options" />
+
 ```json
-{ "name": "tier", "type": "select", "options": [
-  { "label": "Standard", "value": "standard" },
-  { "label": "Admin only", "value": "admin_only", "visibleWhen": "'admin' in current_user.roles" }
+{ "name": "visibility", "type": "select", "options": [
+  { "label": "Private (only me)", "value": "private" },
+  { "label": "My team", "value": "team" },
+  { "label": "Whole organization", "value": "org" },
+  { "label": "Public — external", "value": "public", "visibleWhen": "'admin' in current_user.roles" }
 ]}
 ```
 

@@ -10,6 +10,7 @@ export * from './ExpressionContext.js';
 export * from './ExpressionEvaluator.js';
 export * from './fieldRules.js';
 export * from './optionRules.js';
+export * from './optionLint.js';
 export * from './ExpressionCache.js';
 export * from './FormulaFunctions.js';
 export * from './SafeExpressionParser.js';
