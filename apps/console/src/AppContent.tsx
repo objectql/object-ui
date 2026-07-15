@@ -12,6 +12,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import { Route, useParams, useLocation, Navigate } from 'react-router-dom';
 import { DefaultAppContent, LoadingScreen } from '@object-ui/app-shell';
 import { MePermissionsProvider } from '@object-ui/permissions';
+import { createAuthenticatedFetch } from '@object-ui/auth';
 import { LocalizationFetchProvider } from './LocalizationFetchProvider';
 import {
   UploadProvider,
@@ -125,8 +126,13 @@ export function AppContent() {
     () => createObjectStackUploadAdapter({ baseUrl: serverUrl }),
     [serverUrl],
   );
+  // [#2926 ④] /me/permissions must carry the Bearer token like every other
+  // data call (same wrapper AdapterProvider uses) — with the cookie-only
+  // default fetch, a token-only session resolved as anonymous and FLS
+  // rendering fell open (restricted fields rendered editable).
+  const authFetch = useMemo(() => createAuthenticatedFetch(), []);
   return (
-    <MePermissionsProvider endpoint={endpoint} loadingFallback={<LoadingScreen />}>
+    <MePermissionsProvider endpoint={endpoint} fetcher={authFetch} loadingFallback={<LoadingScreen />}>
       <LocalizationFetchProvider endpoint={localizationEndpoint}>
         <UploadProvider adapter={uploadAdapter}>
           <DefaultAppContent extraRoutes={systemRoutes} extraRoutesNoApp={systemRoutes} />
