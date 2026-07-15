@@ -230,6 +230,47 @@ describe('ActionBar (action:bar)', () => {
       expect(inlineText.indexOf('Alpha')).toBeLessThan(inlineText.indexOf('Bravo'));
       expect(inlineText.indexOf('Bravo')).toBeLessThan(inlineText.indexOf('Charlie'));
     });
+
+    it('tie-break: a `primary` action wins the primary slot when nobody sets `order`', () => {
+      const { container } = renderComponent({
+        type: 'action:bar',
+        location: 'record_header',
+        maxVisible: 1,
+        actions: [
+          // Registered first, but plain variant — the tie-break must let the
+          // `primary` sibling registered after it claim the primary slot.
+          { name: 'export', label: 'Export', type: 'script', locations: ['record_header'] },
+          { name: 'submit', label: 'Submit', type: 'script', variant: 'primary', locations: ['record_header'] },
+        ],
+      });
+      const toolbar = container.querySelector('[role="toolbar"]');
+      // 1 inline primary button + 1 overflow menu trigger
+      expect(toolbar!.children.length).toBe(2);
+      const inlineText = Array.from(toolbar!.querySelectorAll(inlineButtonsSelector))
+        .map(b => b.textContent)
+        .join(' ');
+      expect(inlineText).toContain('Submit');
+      expect(inlineText).not.toContain('Export');
+    });
+
+    it('`order` outranks the `primary` tie-break', () => {
+      const { container } = renderComponent({
+        type: 'action:bar',
+        location: 'record_header',
+        maxVisible: 5,
+        actions: [
+          // `primary` variant but no `order` (= 0); the explicit low-`order`
+          // sibling must still sort ahead of it — `order` is the primary key.
+          { name: 'submit', label: 'Submit', type: 'script', variant: 'primary', locations: ['record_header'] },
+          { name: 'approve', label: 'Approve', type: 'script', order: -100, locations: ['record_header'] },
+        ],
+      });
+      const toolbar = container.querySelector('[role="toolbar"]');
+      const inlineText = Array.from(toolbar!.querySelectorAll(inlineButtonsSelector))
+        .map(b => b.textContent)
+        .join('|');
+      expect(inlineText.indexOf('Approve')).toBeLessThan(inlineText.indexOf('Submit'));
+    });
   });
 
   describe('systemActions', () => {
