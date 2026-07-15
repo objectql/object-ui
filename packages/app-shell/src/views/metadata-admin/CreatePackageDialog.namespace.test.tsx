@@ -2,9 +2,13 @@
 
 /**
  * Wiring guard for the package-namespace field (framework#2694) in the
- * package-switcher "+ new" dialog: it defaults to the id-derived namespace,
- * tracks the id input until the user edits it, and gates submit on a valid
- * `^[a-z][a-z0-9_]{1,19}$` value.
+ * spec-driven create dialog (`CreatePackageDialog` → `PackageFormDialog`): it
+ * defaults to the id-derived namespace, tracks the id input until the user
+ * edits it, sanitizes keystrokes to the allowed alphabet, and gates submit on a
+ * valid `^[a-z][a-z0-9_]{1,19}$` value.
+ *
+ * The form is now rendered from the manifest spec via SchemaForm, so fields are
+ * targeted by their label rather than the old hand-rolled test ids.
  */
 import '@testing-library/jest-dom/vitest';
 import * as React from 'react';
@@ -17,13 +21,14 @@ afterEach(cleanup);
 function open() {
   render(<CreatePackageDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
   return {
-    id: screen.getByTestId('package-id-input') as HTMLInputElement,
-    ns: screen.getByTestId('package-namespace-input') as HTMLInputElement,
-    name: screen.getByTestId('package-name-input') as HTMLInputElement,
+    id: screen.getByLabelText(/package id/i) as HTMLInputElement,
+    ns: screen.getByLabelText(/object namespace/i) as HTMLInputElement,
+    name: screen.getByLabelText(/display name/i) as HTMLInputElement,
+    submit: screen.getByTestId('package-form-submit') as HTMLButtonElement,
   };
 }
 
-describe('CreatePackageDialog — namespace field', () => {
+describe('CreatePackageDialog — namespace field (spec form)', () => {
   it('derives the namespace from the package id and tracks it', () => {
     const { id, ns } = open();
     fireEvent.change(id, { target: { value: 'com.example.leave' } });
@@ -50,10 +55,9 @@ describe('CreatePackageDialog — namespace field', () => {
   });
 
   it('disables submit while the namespace is invalid, enables it when valid', () => {
-    const { id, ns, name } = open();
+    const { id, ns, name, submit } = open();
     fireEvent.change(id, { target: { value: 'com.example.leave' } });
     fireEvent.change(name, { target: { value: 'Leave' } });
-    const submit = screen.getByRole('button', { name: /create package|创建软件包/i });
     expect(submit).toBeEnabled();
     // Single char is below the 2-char minimum → invalid.
     fireEvent.change(ns, { target: { value: 'a' } });

@@ -132,7 +132,14 @@ export function PackageFormDialog({
       }
       setDraft((prev) => {
         let namespace = next.namespace;
-        if (namespace !== prev.namespace) nsTouched.current = true; // direct edit
+        if (namespace !== prev.namespace) {
+          // Direct edit — stop tracking the id and sanitize to the allowed
+          // namespace alphabet (lowercase letters, digits, underscore).
+          nsTouched.current = true;
+          namespace = String(namespace ?? '')
+            .toLowerCase()
+            .replace(/[^a-z0-9_]/g, '');
+        }
         if (!nsTouched.current && next.id !== prev.id) {
           namespace = deriveNamespaceFromPackageId(String(next.id ?? '')) ?? '';
         }
