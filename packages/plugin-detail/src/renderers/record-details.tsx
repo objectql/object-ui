@@ -11,16 +11,12 @@
  */
 
 import React from 'react';
-import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel } from '@object-ui/react';
+import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel, InlineEditProvider } from '@object-ui/react';
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { RecordDetailsComponentProps } from '@object-ui/types';
 import { DetailView } from '../DetailView';
-import {
-  ConcurrentUpdateDialog,
-  isConcurrentUpdateError,
-  type ConcurrentUpdateConflict,
-} from '../ConcurrentUpdateDialog';
+import { InlineEditSaveBar } from '../InlineEditSaveBar';
 
 /** Normalize a field entry (string | {field} | {name}) to its machine name. */
 const fieldName = (entry: any): string | null => {
@@ -68,14 +64,6 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // instance via HighlightFieldsContext (used to dedupe them out of the grid).
   const liveHighlightNames = useHighlightFieldNames();
 
-  /**
-   * Optimistic Concurrency Control state for inline edits: a `409
-   * CONCURRENT_UPDATE` opens a resolution dialog instead of silently retrying
-   * or overwriting.
-   */
-  const [conflict, setConflict] = React.useState<ConcurrentUpdateConflict | null>(null);
-  const [conflictBusy, setConflictBusy] = React.useState(false);
-
   const fieldLabelFor = React.useCallback(
     (name: string): string | undefined => {
       const all: any[] = [
@@ -95,122 +83,12 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
     [schema.fields, schema.sections]
   );
 
-  /**
-   * Persist a single inline-edited field through the bound DataSource and
-   * trigger a context refresh so the new value re-hydrates from the server
-   * after save. Without this wiring the DetailView only updated its own
-   * local `data` state — the change would visibly stick until the user
-   * reloaded the page, then silently revert because nothing was sent to
-   * the backend.
-   *
-   * Passes the record's `updated_at` as `ifMatch` so the server can reject the
-   * write with `409 CONCURRENT_UPDATE` when a concurrent writer has bumped the
-   * row; on conflict we open a resolution dialog.
-   */
-  const handleInlineFieldSave = React.useCallback(
-    async (field: string, value: any) => {
-      const ds: any = ctx?.dataSource;
-      const recordId = ctx?.recordId;
-      const objName = ctx?.objectName;
-      if (!ds || !recordId || !objName) return;
-      const ifMatch =
-        typeof (ctx?.data as any)?.updated_at === 'string'
-          ? ((ctx?.data as any).updated_at as string)
-          : undefined;
-      const opts = ifMatch ? { ifMatch } : undefined;
-      try {
-        if (typeof ds.update === 'function') {
-          await ds.update(objName, recordId, { [field]: value }, opts);
-        } else if (typeof ds.updateOne === 'function') {
-          await ds.updateOne(objName, recordId, { [field]: value }, opts);
-        } else if (typeof ds.patch === 'function') {
-          await ds.patch(objName, recordId, { [field]: value }, opts);
-        } else {
-          console.warn('[record:details] DataSource exposes no update/updateOne/patch method; cannot persist inline edit');
-          return;
-        }
-        if (typeof ctx?.refresh === 'function') {
-          await ctx.refresh();
-        }
-      } catch (err) {
-        if (isConcurrentUpdateError(err)) {
-          const current = err.currentRecord ?? null;
-          setConflict({
-            field,
-            label: fieldLabelFor(field),
-            pendingValue: value,
-            currentValue: current ? (current as Record<string, unknown>)[field] : undefined,
-            currentVersion: err.currentVersion,
-            currentRecord: current,
-          });
-          // Re-throw so DetailView rolls back its optimistic local state.
-          // The dialog drives the eventual resolution (reload / overwrite).
-          throw err;
-        }
-        console.error('[record:details] Inline-edit save failed', err);
-        // Re-throw so DetailView can roll back the optimistic local state and
-        // surface the failure to the user. Without this the value would
-        // appear to stick until the next reload, masking backend rejections
-        // (e.g. RECORD_LOCKED while an approval is in progress).
-        throw err;
-      }
-    },
-    [ctx?.dataSource, ctx?.recordId, ctx?.objectName, ctx?.data, ctx?.refresh, fieldLabelFor]
-  );
-
-  const closeConflict = React.useCallback(() => {
-    setConflict(null);
-    setConflictBusy(false);
-  }, []);
-
-  const handleConflictReload = React.useCallback(async () => {
-    setConflictBusy(true);
-    try {
-      if (typeof ctx?.refresh === 'function') {
-        await ctx.refresh();
-      }
-    } finally {
-      closeConflict();
-    }
-  }, [ctx?.refresh, closeConflict]);
-
-  const handleConflictOverwrite = React.useCallback(async () => {
-    if (!conflict) {
-      closeConflict();
-      return;
-    }
-    const ds: any = ctx?.dataSource;
-    const recordId = ctx?.recordId;
-    const objName = ctx?.objectName;
-    if (!ds || !recordId || !objName) {
-      closeConflict();
-      return;
-    }
-    setConflictBusy(true);
-    try {
-      // Re-key the write against the latest known server version. The
-      // server's `currentVersion` from the 409 is now the freshest
-      // token we hold, so passing it through still uses OCC — it just
-      // means "I've seen this newer version, apply my change on top".
-      const opts = conflict.currentVersion
-        ? { ifMatch: conflict.currentVersion }
-        : undefined;
-      if (typeof ds.update === 'function') {
-        await ds.update(objName, recordId, { [conflict.field]: conflict.pendingValue }, opts);
-      } else if (typeof ds.updateOne === 'function') {
-        await ds.updateOne(objName, recordId, { [conflict.field]: conflict.pendingValue }, opts);
-      } else if (typeof ds.patch === 'function') {
-        await ds.patch(objName, recordId, { [conflict.field]: conflict.pendingValue }, opts);
-      }
-      if (typeof ctx?.refresh === 'function') {
-        await ctx.refresh();
-      }
-    } catch (err) {
-      console.error('[record:details] Overwrite-on-conflict failed', err);
-    } finally {
-      closeConflict();
-    }
-  }, [conflict, ctx?.dataSource, ctx?.recordId, ctx?.objectName, ctx?.refresh, closeConflict]);
+  // Inline-edit save + OCC now live in the record-level <InlineEditSaveBar>
+  // (objectui#2407 P1): it commits the whole draft in ONE atomic
+  // `dataSource.update(..., { ifMatch: data.updated_at })` and reuses
+  // <ConcurrentUpdateDialog> on a 409. This renderer just supplies the draft
+  // scope (<InlineEditProvider>) + the save bar with the bound record's
+  // DataSource / id / version / refresh.
 
   // ── Conditional returns (safe now — all hooks above have run) ────────────
 
@@ -394,22 +272,33 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
     inlineEdit: inlineEditDefault,
   };
 
+  // Approval-locked records (pending / in_approval) can't be written — the
+  // backend rejects with RECORD_LOCKED — so disable Save on the bar. DetailView
+  // renders the lock REASON badge; the save bar just prevents the write.
+  const approvalStatus = (ctx.data as any)?.approval_status;
+  const locked = approvalStatus === 'pending' || approvalStatus === 'in_approval';
+
   return (
     <div className={className} {...designer}>
-      <DetailView
-        schema={synthesized}
-        dataSource={ctx.dataSource as any}
-        inlineEdit={inlineEditDefault}
-        onFieldSave={handleInlineFieldSave}
-      />
-      <ConcurrentUpdateDialog
-        open={!!conflict}
-        conflict={conflict}
-        busy={conflictBusy}
-        onCancel={closeConflict}
-        onReload={handleConflictReload}
-        onOverwrite={handleConflictOverwrite}
-      />
+      {/* One shared inline-edit session for this record. In P2 this provider
+          lifts to the page host so the highlights strip shares the same draft;
+          for now it scopes the details body + its atomic Save bar. */}
+      <InlineEditProvider canEdit={inlineEditDefault}>
+        <DetailView
+          schema={synthesized}
+          dataSource={ctx.dataSource as any}
+          inlineEdit={inlineEditDefault}
+        />
+        <InlineEditSaveBar
+          dataSource={ctx.dataSource as any}
+          objectName={ctx.objectName}
+          recordId={ctx.recordId ?? undefined}
+          data={ctx.data}
+          refresh={ctx.refresh}
+          fieldLabelFor={fieldLabelFor}
+          locked={locked}
+        />
+      </InlineEditProvider>
     </div>
   );
 };

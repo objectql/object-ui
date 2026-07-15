@@ -29,6 +29,7 @@ import { RecordDetailDrawer } from '../RecordDetailDrawer';
  */
 
 const captured = vi.hoisted(() => ({ props: [] as any[] }));
+const capturedBar = vi.hoisted(() => ({ props: [] as any[] }));
 
 vi.mock('../DetailView', () => ({
   DetailView: (props: any) => {
@@ -37,9 +38,24 @@ vi.mock('../DetailView', () => ({
   },
 }));
 
+// Inline-edit persistence moved out of DetailView into <InlineEditSaveBar>
+// (objectui#2407 P1). Capture the save bar's props to assert the drawer wires
+// the host's per-field onFieldSave into it (callback-persistence mode).
+vi.mock('../InlineEditSaveBar', () => ({
+  InlineEditSaveBar: (props: any) => {
+    capturedBar.props.push(props);
+    return null;
+  },
+}));
+
 function lastProps() {
   expect(captured.props.length).toBeGreaterThan(0);
   return captured.props[captured.props.length - 1];
+}
+
+function lastBarProps() {
+  expect(capturedBar.props.length).toBeGreaterThan(0);
+  return capturedBar.props[capturedBar.props.length - 1];
 }
 
 function renderDrawer(extra: Partial<React.ComponentProps<typeof RecordDetailDrawer>> = {}) {
@@ -58,6 +74,7 @@ function renderDrawer(extra: Partial<React.ComponentProps<typeof RecordDetailDra
 
 beforeEach(() => {
   captured.props.length = 0;
+  capturedBar.props.length = 0;
 });
 
 describe('RecordDetailDrawer capability = handler presence', () => {
@@ -66,8 +83,10 @@ describe('RecordDetailDrawer capability = handler presence', () => {
     const props = lastProps();
     expect(props.inlineEdit).toBe(true);
     expect(props.schema.showDelete).toBe(true);
-    expect(typeof props.onFieldSave).toBe('function');
+    // onFieldSave no longer rides on DetailView — it wires into the save bar.
+    expect(props.onFieldSave).toBeUndefined();
     expect(typeof props.onDelete).toBe('function');
+    expect(typeof lastBarProps().onFieldSave).toBe('function');
   });
 
   it('renders strictly read-only when both handlers are omitted', () => {
@@ -77,6 +96,8 @@ describe('RecordDetailDrawer capability = handler presence', () => {
     expect(props.schema.showDelete).toBe(false);
     expect(props.onFieldSave).toBeUndefined();
     expect(props.onDelete).toBeUndefined();
+    // The save bar also receives no persistence handler (read-only).
+    expect(lastBarProps().onFieldSave).toBeUndefined();
   });
 
   it('gates each capability independently (save without delete)', () => {
@@ -90,17 +111,17 @@ describe('RecordDetailDrawer capability = handler presence', () => {
   it('forwards field saves to the host handler', async () => {
     const onFieldSave = vi.fn().mockResolvedValue(undefined);
     renderDrawer({ onFieldSave });
-    await lastProps().onFieldSave('name', 'World');
+    await lastBarProps().onFieldSave('name', 'World');
     expect(onFieldSave).toHaveBeenCalledWith('name', 'World');
   });
 
-  it('rethrows a rejected field save so DetailView can roll back and show it', async () => {
-    // Swallowing here made a rejected save look successful: DetailView kept
-    // the optimistic value and never displayed the failure (#2473 第 2 项).
+  it('rethrows a rejected field save so the save bar can keep the draft and show it', async () => {
+    // Swallowing here made a rejected save look successful: the value looked
+    // persisted and the failure was never displayed (#2473 第 2 项).
     const onFieldSave = vi.fn().mockRejectedValue(new Error('仅管理责任人可修改'));
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     renderDrawer({ onFieldSave });
-    await expect(lastProps().onFieldSave('name', 'World')).rejects.toThrow('仅管理责任人可修改');
+    await expect(lastBarProps().onFieldSave('name', 'World')).rejects.toThrow('仅管理责任人可修改');
     errSpy.mockRestore();
   });
 

@@ -28,7 +28,9 @@ import {
   SheetTitle,
 } from '@object-ui/components';
 import type { DataSource } from '@object-ui/types';
+import { InlineEditProvider } from '@object-ui/react';
 import { DetailView } from './DetailView';
+import { InlineEditSaveBar } from './InlineEditSaveBar';
 import { useDetailTranslation } from './useDetailTranslation';
 
 /**
@@ -283,6 +285,10 @@ export function RecordDetailDrawer({
           <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
         <div className="px-6 pt-6 pb-6">
+          {/* One inline-edit session scoped to this drawer. `canEdit` gates on
+              handler presence so an omitted onFieldSave yields a strictly
+              read-only drawer (objectui#2407 P1). */}
+          <InlineEditProvider canEdit={!!onFieldSave}>
           <DetailView
             dataSource={dataSource}
             // Capability = handler presence: a caller that omits onFieldSave /
@@ -322,17 +328,6 @@ export function RecordDetailDrawer({
                   ]
                 : undefined,
             } as any}
-            onFieldSave={onFieldSave ? async (field, value) => {
-              try {
-                await onFieldSave(field, value);
-              } catch (err) {
-                console.error('[RecordDetailDrawer] inline field save failed:', err);
-                // Rethrow so DetailView rolls back the optimistic value and
-                // shows the failure inline — swallowing here made a rejected
-                // save look successful (stale value kept, no message).
-                throw err;
-              }
-            } : undefined}
             onDelete={onDelete ? async () => {
               try {
                 await onDelete();
@@ -342,6 +337,22 @@ export function RecordDetailDrawer({
               }
             } : undefined}
           />
+          {/* Record-level Save/Cancel bar. Callback mode: loops the caller's
+              per-field onFieldSave over the draft, preserving the drawer's
+              existing persistence contract (plugin-gantt/calendar/kanban). */}
+          <InlineEditSaveBar
+            onFieldSave={onFieldSave ? async (field, value) => {
+              try {
+                await onFieldSave(field, value);
+              } catch (err) {
+                console.error('[RecordDetailDrawer] inline field save failed:', err);
+                // Rethrow so the save bar surfaces the failure inline and keeps
+                // the draft — swallowing made a rejected save look successful.
+                throw err;
+              }
+            } : undefined}
+          />
+          </InlineEditProvider>
         </div>
       </SheetContent>
     </Sheet>

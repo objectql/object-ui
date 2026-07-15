@@ -42,7 +42,7 @@ import { RecordComments } from './RecordComments';
 import { ActivityTimeline } from './ActivityTimeline';
 import { HistoryTimeline } from './HistoryTimeline';
 import { RecordMetaFooter } from './RecordMetaFooter';
-import { SchemaRenderer, useSafeFieldLabel, useDataInvalidation } from '@object-ui/react';
+import { SchemaRenderer, useSafeFieldLabel, useDataInvalidation, useInlineEdit } from '@object-ui/react';
 import { buildExpandFields, getRecordDisplayName, formatTitleTemplate } from '@object-ui/core';
 import { usePermissions } from '@object-ui/permissions';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
@@ -51,6 +51,10 @@ import { useDetailTranslation } from './useDetailTranslation';
 
 /** Default page size for related lists in the detail view */
 const DEFAULT_RELATED_PAGE_SIZE = 5;
+
+/** Stable empty draft so the section `data`-merge identity is preserved when
+ *  no <InlineEditProvider> is mounted (bare / read-only DetailView). */
+const EMPTY_DRAFT: Record<string, any> = {};
 
 /**
  * Resolve the human-readable title for the detail header.
@@ -119,10 +123,13 @@ export interface DetailViewProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onBack?: () => void;
-  /** Enable inline editing toggle for detail fields */
+  /**
+   * Opt into inline editing. When true AND an `<InlineEditProvider>` is present
+   * (with `canEdit`), fields surface the double-click / hover-pencil affordance
+   * and edits stage into the shared draft (objectui#2407 P1). The Save/Cancel
+   * bar + atomic persistence live in `<InlineEditSaveBar>`, rendered by the host.
+   */
   inlineEdit?: boolean;
-  /** Callback when a field value is saved inline */
-  onFieldSave?: (field: string, value: any, record: any) => void | Promise<void>;
   /**
    * Optional discussion content rendered as a dedicated "Discussion" tab when
    * autoTabs is enabled. Lets the host page mount a rich chatter panel without
@@ -167,7 +174,6 @@ export const DetailView: React.FC<DetailViewProps> = ({
   onDelete,
   onBack,
   inlineEdit = false,
-  onFieldSave,
   discussionSlot,
   rightRail: _rightRail,
   objectLabel,
@@ -179,12 +185,18 @@ export const DetailView: React.FC<DetailViewProps> = ({
   const [loading, setLoading] = React.useState(!rawSchema.data && !!((rawSchema.api && rawSchema.resourceId) || (dataSource && rawSchema.objectName && rawSchema.resourceId)));
   const [internalFavorite, setInternalFavorite] = React.useState(false);
   const isFavorite = isFavoriteProp ?? internalFavorite;
-  const [isInlineEditing, setIsInlineEditing] = React.useState(false);
-  const [editedValues, setEditedValues] = React.useState<Record<string, any>>({});
-  const [isSaving, setIsSaving] = React.useState(false);
+  // Inline-edit session is lifted to a shared record-level context
+  // (objectui#2407 P1): DetailView no longer owns the edit draft/flags — it
+  // reads them from <InlineEditProvider>. `inline` is null when a host renders
+  // DetailView without a provider (bare / legacy usage) → read-only. The
+  // Save/Cancel bar + atomic persistence live in <InlineEditSaveBar>.
+  const inline = useInlineEdit();
+  const isInlineEditing = inline?.editing ?? false;
+  const editedValues = inline?.draft ?? EMPTY_DRAFT;
+  const autoFocusField = inline?.autoFocusField ?? null;
+  // Retained local error state for the approval-cancel flow ONLY — the
+  // inline-edit draft now surfaces its own errors through the save bar.
   const [saveError, setSaveError] = React.useState<string | null>(null);
-  // Field to auto-focus when inline edit is entered by double-clicking a field.
-  const [autoFocusField, setAutoFocusField] = React.useState<string | null>(null);
   const [objectSchema, setObjectSchema] = React.useState<any>(null);
   const [idCopied, setIdCopied] = React.useState(false);
   const [reloadTick, setReloadTick] = React.useState(0);
@@ -532,73 +544,14 @@ export const DetailView: React.FC<DetailViewProps> = ({
     if (isFavoriteProp === undefined) setInternalFavorite(next);
   }, [isFavorite, isFavoriteProp, onToggleFavorite]);
 
-  const handleInlineEditToggle = React.useCallback(async () => {
-    if (isInlineEditing) {
-      // Save changes
-      const changes = Object.entries(editedValues);
-      if (changes.length > 0) {
-        const previousData = data;
-        const updatedData = { ...data, ...editedValues };
-        // Optimistic update so the UI reflects the change immediately.
-        setData(updatedData);
-        setSaveError(null);
-        setIsSaving(true);
-        try {
-          if (onFieldSave) {
-            // Persist sequentially so a single backend error short-circuits
-            // and we can roll back without partially-applied state.
-            for (const [field, value] of changes) {
-              await onFieldSave(field, value, updatedData);
-            }
-          }
-          setEditedValues({});
-          setIsInlineEditing(false);
-          setAutoFocusField(null);
-        } catch (err: any) {
-          // Roll back optimistic update and stay in edit mode so the user
-          // can correct the input or cancel.
-          setData(previousData);
-          const raw = err?.message || err?.error || String(err ?? 'Save failed');
-          // Strip noisy prefixes for friendlier display:
-          //   "[ObjectStack] RECORD_LOCKED: record is locked..."
-          //     → "record is locked..."
-          //   "RECORD_LOCKED: record is locked..."
-          //     → "record is locked..."
-          const cleaned = raw
-            .replace(/^\[[^\]]+\]\s*/, '')
-            .replace(/^[A-Z][A-Z0-9_]+:\s*/, '');
-          setSaveError(cleaned);
-        } finally {
-          setIsSaving(false);
-        }
-        return;
-      }
-      setEditedValues({});
-    }
-    setIsInlineEditing(!isInlineEditing);
-    setSaveError(null);
-  }, [isInlineEditing, editedValues, data, onFieldSave]);
-
-  const handleInlineEditCancel = React.useCallback(() => {
-    setEditedValues({});
-    setIsInlineEditing(false);
-    setSaveError(null);
-    setAutoFocusField(null);
-  }, []);
-
-  const handleInlineFieldChange = React.useCallback((field: string, value: any) => {
-    setEditedValues(prev => ({ ...prev, [field]: value }));
-  }, []);
-
-  // Enter whole-record inline edit focused on a single field. Wired to the
-  // per-field double-click / hover-pencil affordances in DetailSection.
-  // Mirrors Salesforce: editing any field flips the record into inline edit
-  // with a single Save/Cancel bar, rather than a standalone "Edit fields" toggle.
-  const handleEnterInlineEditField = React.useCallback((fieldName: string) => {
-    setAutoFocusField(fieldName);
-    setIsInlineEditing(true);
-    setSaveError(null);
-  }, []);
+  // Thin bindings from the shared inline-edit context down into each
+  // DetailSection, so the section render sites below stay unchanged. Staging a
+  // field edit routes to the shared draft; entering edit is gated by `canEdit`
+  // (object-lifecycle + permission) at the context source. Save/Cancel and
+  // persistence are owned by <InlineEditSaveBar>, not DetailView.
+  const handleInlineFieldChange = inline?.setField;
+  const handleEnterInlineEditField =
+    inline && inline.canEdit ? inline.enter : undefined;
 
   // Keyboard shortcuts for prev/next record navigation (← / →)
   React.useEffect(() => {
@@ -619,25 +572,6 @@ export const DetailView: React.FC<DetailViewProps> = ({
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [schema.recordNavigation]);
-
-  // Cross-component bridge — lets the page-header overflow menu toggle
-  // inline-edit mode without prop drilling. Dispatched by the
-  // `sys_inline_edit` system action injected from RecordDetailView.
-  // The window event is namespaced with the record id so multiple
-  // detail views (drawer + main pane) don't toggle each other.
-  React.useEffect(() => {
-    if (!inlineEdit || schema.showHeader !== false) return;
-    const eventName = 'objectui:record:inline-edit-toggle';
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { recordId?: string; objectName?: string } | undefined;
-      if (detail?.recordId && schema.recordId && detail.recordId !== schema.recordId) return;
-      if (detail?.objectName && schema.objectName && detail.objectName !== schema.objectName) return;
-      handleInlineEditToggle();
-    };
-    window.addEventListener(eventName, handler);
-    return () => window.removeEventListener(eventName, handler);
-  }, [inlineEdit, schema.showHeader, schema.recordId, schema.objectName, handleInlineEditToggle]);
-
 
   // Auto-discovery of related panels via INVERSE references (other objects
   // whose FK points to the current record) is the responsibility of the
@@ -1015,53 +949,10 @@ export const DetailView: React.FC<DetailViewProps> = ({
               </div>
             )}
 
-            {/* Inline-edit Save / Cancel bar — rendered only WHILE editing.
-                There is no idle "Edit fields" toggle: inline edit is entered by
-                double-clicking a field (or its hover pencil). The primary Edit
-                CTA below opens the full record form. */}
-            {inlineEdit && isInlineEditing && (
-              <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleInlineEditCancel}
-                      className="gap-2 hidden sm:inline-flex"
-                    >
-                      <X className="h-4 w-4" />
-                      <span className="hidden sm:inline">{t('detail.cancel')}</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{t('detail.cancelEdit')}</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={isInlineEditing ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={handleInlineEditToggle}
-                      className="gap-2 hidden sm:inline-flex"
-                    >
-                      {isInlineEditing ? (
-                        <>
-                          <Check className="h-4 w-4" />
-                          <span className="hidden sm:inline">{t('detail.save')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Edit className="h-4 w-4" />
-                          <span className="hidden sm:inline">{t('detail.editInline')}</span>
-                        </>
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {isInlineEditing ? t('detail.saveChanges') : t('detail.editFieldsInline')}
-                  </TooltipContent>
-                </Tooltip>
-              </>
-            )}
+            {/* The inline-edit Save / Cancel bar now lives in the record-level
+                <InlineEditSaveBar> (rendered by the host), not the header —
+                so the highlights strip and the details body share one bar and
+                one atomic Save (objectui#2407 P1). */}
 
             {/* Share moved into the unified overflow menu (sys_share) so the
                 header focuses on the primary Edit CTA. */}
@@ -1103,88 +994,51 @@ export const DetailView: React.FC<DetailViewProps> = ({
         <HeaderHighlight fields={schema.highlightFields} data={data} objectName={schema.objectName} objectSchema={objectSchema} />
       )}
 
-      {/* Inline-edit affordances — when the DetailView's own header
-          is suppressed (e.g. composed under a Lightning-style page:header),
-          we only render this band while the user is ACTIVELY editing or
-          when there's something the user needs to see (approval lock,
-          save error). The default "Edit fields" entry-point lives in the
-          page:header overflow menu via the `sys_inline_edit` system
-          action so we don't introduce an orphan toolbar row that visually
-          floats between the tab strip and the first section card.
-          Mirrors how Salesforce / HubSpot / Dynamics route field-edit
-          intents through a single top-right menu rather than a separate
-          page-level toolbar. */}
+      {/* Approval-lock band — when the DetailView's own header is suppressed
+          (composed under a Lightning-style page:header), surface the approval
+          lock reason + recall affordance inline. The inline-edit Save / Cancel
+          bar itself now lives in the record-level <InlineEditSaveBar>
+          (objectui#2407 P1); this band is lock-only. */}
       {inlineEdit && schema.showHeader === false && (() => {
         // Detect approval lock on the live record. When `approval_status`
         // is `pending`/`in_approval`, the backend will reject any update
         // with RECORD_LOCKED — show the lock badge inline so users see
-        // a clear reason instead of clicking and failing.
+        // a clear reason instead of editing and failing on save.
         const approvalStatus = data?.approval_status;
         const isLocked = approvalStatus === 'pending' || approvalStatus === 'in_approval';
-        // Idle (not editing, not saving, no error, not locked): no band.
-        if (!isInlineEditing && !isSaving && !saveError && !isLocked) return null;
+        // Nothing to surface (not locked, no approval-cancel error): no band.
+        if (!isLocked && !saveError) return null;
         return (
         <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center justify-end gap-2">
-            {isLocked && !isInlineEditing && (
-              <>
-                <span
-                  role="status"
-                  className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
-                  title={t('detail.lockedTooltip')}
-                >
-                  <Lock className="h-3 w-3" />
-                  <span>{t('detail.lockedByApproval')}</span>
-                </span>
-                {dataSource?.cancelPendingApproval && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCancelApproval}
-                    disabled={isCancellingApproval}
-                    className="gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
-                    title={t('detail.cancelApprovalTooltip')}
-                  >
-                    <X className="h-4 w-4" />
-                    <span>
-                      {isCancellingApproval
-                        ? t('detail.cancelApprovalInFlight')
-                        : t('detail.cancelApproval')}
-                    </span>
-                  </Button>
-                )}
-              </>
-            )}
-            {isInlineEditing && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleInlineEditCancel}
-                className="gap-2"
-                disabled={isSaving}
+          {isLocked && (
+            <div className="flex items-center justify-end gap-2">
+              <span
+                role="status"
+                className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
+                title={t('detail.lockedTooltip')}
               >
-                <X className="h-4 w-4" />
-                <span>{t('detail.cancel')}</span>
-              </Button>
-            )}
-            <Button
-              variant={isInlineEditing ? 'default' : 'outline'}
-              size="sm"
-              onClick={handleInlineEditToggle}
-              className="gap-2"
-              disabled={isSaving || (isLocked && !isInlineEditing)}
-              title={isLocked && !isInlineEditing ? t('detail.lockedTooltip') : undefined}
-            >
-              {isInlineEditing ? <Check className="h-4 w-4" /> : <Edit className="h-4 w-4" />}
-              <span>
-                {isSaving
-                  ? t('detail.saving')
-                  : isInlineEditing
-                    ? t('detail.save')
-                    : t('detail.editFieldsInline')}
+                <Lock className="h-3 w-3" />
+                <span>{t('detail.lockedByApproval')}</span>
               </span>
-            </Button>
-          </div>
+              {dataSource?.cancelPendingApproval && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancelApproval}
+                  disabled={isCancellingApproval}
+                  className="gap-2 border-amber-300 text-amber-800 hover:bg-amber-50"
+                  title={t('detail.cancelApprovalTooltip')}
+                >
+                  <X className="h-4 w-4" />
+                  <span>
+                    {isCancellingApproval
+                      ? t('detail.cancelApprovalInFlight')
+                      : t('detail.cancelApproval')}
+                  </span>
+                </Button>
+              )}
+            </div>
+          )}
           {saveError && (
             <div
               role="alert"
