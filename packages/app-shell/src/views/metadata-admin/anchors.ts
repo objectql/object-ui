@@ -268,20 +268,9 @@ export function registerBuiltinAnchors(): void {
   // ADR-0020: `workflow` retired as a metadata type — record state machines
   // are a `state_machine` validation rule on the object (no separate anchor).
 
-  // trigger.object → object (low-level DB-style triggers)
-  registerMetadataResource({
-    type: 'trigger',
-    anchors: [{
-      anchorType: 'object',
-      match: anchorByField(['object', 'on.object']),
-      groupLabel: 'Triggers',
-      order: 52,
-    }],
-    createFields: ['label', 'name', 'object'],
-    createDerive: [
-      { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
-    ],
-  });
+  // ADR-0088: `trigger` retired as a metadata type — sync data-layer logic is
+  // a `hook` (lifecycle events); async automation is a `record_change` flow.
+  // Neither anchors here, so there is no standalone "Triggers" group.
 
   // validation: usually embedded in the object, but standalone variants
   // do exist. Match anything whose `object` points back at us.
