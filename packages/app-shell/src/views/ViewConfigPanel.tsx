@@ -192,14 +192,30 @@ export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, obje
         setIsDirty(false);
     }, [draft, onSave, onCreate, mode]);
 
+    // Discard = revert any unsaved edits AND close the panel, in both modes
+    // (objectui#2320). Create mode has no committed view to preview against, so
+    // there's nothing to revert on the host — just close (matching prior
+    // behavior). Edit mode also restores the host's live list preview: edits
+    // reach the list only through `onViewUpdate` (see `handlePatch`), so we
+    // replay the panel's opening values — and clear any keys the edits
+    // introduced — through the same seam, then reset the local draft.
     const handleDiscard = useCallback(() => {
-        if (mode === 'create') {
-            onClose();
-            return;
+        if (mode === 'edit') {
+            if (onViewUpdate) {
+                const original = inspectorDraftToRuntimeView(initialDraft);
+                const edited = inspectorDraftToRuntimeView(draftRef.current);
+                const fields = new Set([...Object.keys(edited), ...Object.keys(original)]);
+                for (const field of fields) {
+                    if (field === 'id') continue;
+                    onViewUpdate(field, original[field]);
+                }
+            }
+            draftRef.current = initialDraft;
+            setDraft(initialDraft);
+            setIsDirty(false);
         }
-        setDraft(initialDraft);
-        setIsDirty(false);
-    }, [initialDraft, mode, onClose]);
+        onClose();
+    }, [initialDraft, mode, onClose, onViewUpdate]);
 
     // ADR-0034 (#1515): resume a pending draft into the inspector when the
     // panel reopens (flag-ON only; the bar never fires this when the flag is
