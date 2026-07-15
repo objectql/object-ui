@@ -15,6 +15,49 @@ import { getBadgeColorClasses, getCellRenderer, resolveCellRendererType } from '
 import { KanbanRenderer } from './index';
 import { KanbanSchema } from './types';
 
+/**
+ * Minimal shape of the object definition this module reads. `objectDef` is
+ * fetched via `dataSource.getObjectSchema` and is otherwise untyped here.
+ */
+interface CardFieldObjectDef {
+  /** ADR-0085 semantic role: the object's curated "most important" fields. */
+  highlightFields?: unknown;
+  /** Declared fields, keyed by field name. */
+  fields?: Record<string, unknown>;
+}
+
+/**
+ * Resolve which record fields render on each kanban card, in priority order:
+ *
+ *   1. **View-level `cardFields`** — the fields the author configured for the
+ *      view (`kanban.columns`, or the view's own columns), forwarded here as
+ *      `schema.cardFields`. An explicit choice always wins.
+ *   2. **The object's `highlightFields`** — the ADR-0085 semantic role: the
+ *      curated "most important fields" list that Grid, List and Detail already
+ *      default to. Used when the view declares no card fields, so a board over
+ *      an object with no per-view config still surfaces meaningful fields
+ *      instead of the legacy semantic-field guesswork. Filtered to fields the
+ *      object actually declares so a stale highlight entry can't reference a
+ *      dropped field.
+ *   3. **`[]`** — neither is available; the caller falls back to its legacy
+ *      semantic-field heuristic.
+ *
+ * Exported for unit testing; kept pure (no React) for that reason.
+ */
+export function resolveKanbanCardFields(
+  cardFields: unknown,
+  objectDef: CardFieldObjectDef | null | undefined,
+): string[] {
+  if (Array.isArray(cardFields) && cardFields.length > 0) {
+    return cardFields as string[];
+  }
+  const highlight = objectDef?.highlightFields;
+  if (Array.isArray(highlight)) {
+    return (highlight as string[]).filter((n) => Boolean(objectDef?.fields?.[n]));
+  }
+  return [];
+}
+
 export interface ObjectKanbanProps {
   schema: KanbanSchema;
   dataSource?: DataSource;
@@ -222,12 +265,14 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
       };
 
       const descParts: string[] = [];
-      // If the view config specifies kanban.columns (passed in as schema.cardFields),
-      // render those fields explicitly — they represent what the user wants to see
-      // on each card. Otherwise fall back to the legacy semantic-field heuristic.
-      const explicitCardFields: string[] = Array.isArray((schema as any).cardFields)
-        ? (schema as any).cardFields
-        : [];
+      // Which fields to render on each card: view-level `cardFields` when the
+      // author configured them, otherwise the object's `highlightFields`
+      // semantic role (ADR-0085); `[]` drops to the legacy heuristic below.
+      // (See `resolveKanbanCardFields` for the full priority contract.)
+      const explicitCardFields: string[] = resolveKanbanCardFields(
+        (schema as any).cardFields,
+        objectDef,
+      );
       // The field used as the card title is implicit (resolved above). Don't
       // repeat its raw value in the description if the user already sees it.
       const titleFieldsToSkip = new Set<string>([

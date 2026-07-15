@@ -116,6 +116,26 @@ interface KanbanCard {
 | `description` | string | Card description |
 | `badges` | Badge[] | Status/priority badges |
 
+### Card fields (object-driven boards)
+
+When a board is bound to an object (an `object-kanban`, or a kanban view inside
+`ListView` / `ObjectView`) instead of being given static `columns`, the fields
+rendered on each card resolve in priority order:
+
+1. **View-level `cardFields`** — the fields the view configures (a kanban view's
+   `columns`, forwarded as `cardFields`). An explicit choice always wins.
+2. **The object's `highlightFields`** — the object's ADR-0085 semantic role (its
+   curated "most important fields"), the same list the Grid, List and Detail
+   surfaces already default to. Used when the view configures no card fields, so
+   a board over an object with no per-view config still surfaces meaningful
+   fields. Entries that reference a field the object no longer declares are
+   ignored.
+3. **A legacy semantic-field heuristic** — a best-effort guess (amount, owner,
+   priority, …) used only when neither of the above is available.
+
+Defaulting to `highlightFields` keeps a card's contents consistent with the
+object's other views without every kanban view having to re-declare its fields.
+
 ## Examples
 
 ### Project Task Board
