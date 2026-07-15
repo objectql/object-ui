@@ -153,13 +153,21 @@ export interface PermissionMatrixEditPageProps {
    */
   onDraftSaved?: () => void;
   publishNonce?: number;
+  /**
+   * objectui#2505 — when provided, the per-object OWD badge becomes a link that
+   * opens the package-level Record Sharing Baseline (OWD) overview, scrolled to
+   * that object. Set only by the Studio Access pillar (which hosts the sibling
+   * overview surface); omitted at environment scope / metadata-admin, where the
+   * badge stays a plain read-only chip.
+   */
+  onOpenOwd?: (objectName: string) => void;
 }
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Component                                                          */
 /* ────────────────────────────────────────────────────────────────── */
 
-export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce }: PermissionMatrixEditPageProps) {
+export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce, onOpenOwd }: PermissionMatrixEditPageProps) {
   const navigate = useNavigate();
   const client = useMetadataClient();
   // Data adapter (records) — the capability picker reads the live sys_capability
@@ -617,6 +625,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             onObjectPerm={updateObjectPerm}
             onFieldPerm={updateFieldPerm}
             onBulkSet={bulkSetObject}
+            onOpenOwd={onOpenOwd}
           />
           {/* Advanced facets (ADR-0056 P3) — RLS / tab visibility / delegated
               admin scope, structured editors instead of raw JSON. Collapsed by
@@ -687,6 +696,8 @@ interface PermissionTableProps {
   onObjectPerm: (objectName: string, action: keyof ObjectPerm, value: boolean) => void;
   onFieldPerm: (objectName: string, fieldName: string, action: keyof FieldPerm, value: boolean) => void;
   onBulkSet: (objectName: string, action: 'all' | 'none' | 'crud' | 'read') => void;
+  /** objectui#2505 — when set, the OWD badge links to the package OWD overview. */
+  onOpenOwd?: (objectName: string) => void;
 }
 
 function PermissionTable({
@@ -701,6 +712,7 @@ function PermissionTable({
   onObjectPerm,
   onFieldPerm,
   onBulkSet,
+  onOpenOwd,
 }: PermissionTableProps) {
   return (
     <table className="w-full text-sm">
@@ -760,8 +772,27 @@ function PermissionTable({
                   )}
                   <Badge
                     variant="outline"
-                    className="ml-2 text-[10px] px-1.5 py-0 align-middle text-muted-foreground"
-                    title={t('perm.owd.tip')}
+                    className={
+                      'ml-2 text-[10px] px-1.5 py-0 align-middle text-muted-foreground' +
+                      (onOpenOwd
+                        ? ' cursor-pointer hover:text-foreground hover:border-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary'
+                        : '')
+                    }
+                    title={onOpenOwd ? t('perm.owd.editLink') : t('perm.owd.tip')}
+                    {...(onOpenOwd
+                      ? {
+                          role: 'button',
+                          tabIndex: 0,
+                          'data-testid': `owd-badge-${o.name}`,
+                          onClick: () => onOpenOwd(o.name),
+                          onKeyDown: (ev: React.KeyboardEvent) => {
+                            if (ev.key === 'Enter' || ev.key === ' ') {
+                              ev.preventDefault();
+                              onOpenOwd(o.name);
+                            }
+                          },
+                        }
+                      : {})}
                   >
                     {`OWD ${o.owd ? owdLabel(t, o.owd) : t('perm.owd.defaultPrivate')}`}
                   </Badge>

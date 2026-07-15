@@ -62,6 +62,7 @@ import {
   ExternalLink,
   Home as HomeIcon,
   Shield,
+  ShieldCheck,
   ShieldQuestion,
   Menu,
   PanelRightClose,
@@ -104,6 +105,7 @@ import { ObjectFormDesigner } from './ObjectFormDesigner';
 import { ObjectGroupInspector } from './ObjectGroupInspector';
 import { ObjectValidationsPanel } from './ObjectValidationsPanel';
 import { ObjectSettingsPanel } from './ObjectSettingsPanel';
+import { PackageOwdOverviewPanel } from './PackageOwdOverviewPanel';
 import { ObjectApiPanel } from './ObjectApiPanel';
 import { ObjectHooksPanel } from './ObjectHooksPanel';
 import { ObjectActionsPanel } from './ObjectActionsPanel';
@@ -3051,12 +3053,24 @@ function AccessPillar({
   const [loaded, setLoaded] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [current, setCurrent] = React.useState<string | null>(null);
-  // `?surface=permission:<name>` capture + mirror — shared plumbing (see
-  // useSurfaceDeepLink). This rail keys `current` by name, so wrap it in the
-  // surface identity the param carries.
+  // The Record Sharing Baseline (OWD) overview is a sibling surface to the
+  // permission-set matrix (objectui#2505) — same package-author ownership
+  // boundary, no principal dimension. `owdOpen` swaps the main panel to it;
+  // `owdHighlight` carries the object a permission-matrix badge deep-linked to.
+  const [owdOpen, setOwdOpen] = React.useState(false);
+  const [owdHighlight, setOwdHighlight] = React.useState<string | null>(null);
+  const appliedOwdDeepLink = React.useRef(false);
+  // `?surface=permission:<name>` / `?surface=owd:overview` capture + mirror —
+  // shared plumbing (see useSurfaceDeepLink). This rail keys `current` by name,
+  // so wrap the open surface in the identity the param carries.
   const currentSurface = React.useMemo(
-    () => (current ? { type: 'permission', name: current } : null),
-    [current],
+    () =>
+      owdOpen
+        ? { type: 'owd', name: 'overview' }
+        : current
+          ? { type: 'permission', name: current }
+          : null,
+    [owdOpen, current],
   );
   const initialSurface = useSurfaceDeepLink(currentSurface);
   const [query, setQuery] = React.useState('');
@@ -3102,6 +3116,14 @@ function AccessPillar({
       }
       const scoped = [...byName.values()];
       setPerms(scoped);
+      // A `?surface=owd:overview` deep-link opens the OWD overview instead of a
+      // permission set; `current` still defaults to the first set so switching
+      // back to the matrix has a target. Applied once — a later publish re-runs
+      // `load`, and we must not yank the user back to OWD then.
+      if (!appliedOwdDeepLink.current && initialSurface?.type === 'owd') {
+        appliedOwdDeepLink.current = true;
+        setOwdOpen(true);
+      }
       const deepLinked = resolveSurfaceDeepLink(scoped, initialSurface, 'permission');
       setCurrent((c) => c ?? deepLinked?.name ?? scoped[0]?.name ?? null);
     } catch (e) {
@@ -3224,6 +3246,26 @@ function AccessPillar({
             isMobile && !railOpen && '-translate-x-full',
           )}
         >
+          {/* Pinned sibling surface: the package-wide Record Sharing Baseline
+              (OWD) overview (objectui#2505). Same package-author ownership as
+              the sets below, but a distinct surface — not a permission set. */}
+          <div className="border-b p-2 pb-2">
+            <button
+              type="button"
+              onClick={() => {
+                setOwdOpen(true);
+                setOwdHighlight(null);
+                if (isMobile) setRailOpen(false);
+              }}
+              className={
+                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
+                (owdOpen ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+              }
+            >
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="flex-1 truncate">{t('engine.studio.owd.railLabel', locale)}</span>
+            </button>
+          </div>
           <div className="p-2 pb-0">
             <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-muted-foreground">{t('engine.studio.access.heading', locale)}</p>
             <input
@@ -3243,12 +3285,13 @@ function AccessPillar({
               <button
                 key={p.name}
                 onClick={() => {
+                  setOwdOpen(false);
                   setCurrent(p.name);
                   if (isMobile) setRailOpen(false);
                 }}
                 className={
                   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ' +
-                  (current === p.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
+                  (!owdOpen && current === p.name ? 'bg-muted font-medium' : 'text-foreground/90 hover:bg-muted/60')
                 }
               >
                 <Shield className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -3285,10 +3328,24 @@ function AccessPillar({
         </nav>
 
         <main className="min-w-0 flex-1 overflow-auto">
-          {current ? (
+          {owdOpen ? (
+            /* Sibling surface: the package-wide OWD baseline overview
+             * (objectui#2505) — object × sharingModel × externalSharingModel,
+             * batch-edited as per-object drafts. */
+            <PackageOwdOverviewPanel
+              client={client}
+              packageId={packageId}
+              publishNonce={publishNonce}
+              onDraftSaved={onDraftSaved}
+              readOnly={readOnly}
+              locale={locale}
+              highlightObject={owdHighlight}
+            />
+          ) : current ? (
             /* The existing Salesforce-style matrix page, embedded unchanged —
              * objects × CRUD/VAMA/lifecycle up top, per-object field-level R/W
-             * below, its own Save + destructive-change guard included. */
+             * below, its own Save + destructive-change guard included. The
+             * read-only OWD badge deep-links to the overview above. */
             <PermissionMatrixEditPage
               key={current}
               type="permission"
@@ -3296,6 +3353,10 @@ function AccessPillar({
               packageId={packageId}
               publishNonce={publishNonce}
               onDraftSaved={onDraftSaved}
+              onOpenOwd={(objectName) => {
+                setOwdHighlight(objectName || null);
+                setOwdOpen(true);
+              }}
             />
           ) : (
             <div className="py-16 text-center text-sm text-muted-foreground">
