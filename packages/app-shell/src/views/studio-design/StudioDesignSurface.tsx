@@ -64,6 +64,8 @@ import {
   Shield,
   ShieldQuestion,
   Menu,
+  PanelRightClose,
+  PanelRightOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
@@ -1057,6 +1059,12 @@ function InterfacesPillar({
   // properties side by side beside the chat dock — no tabs, no auto-switch.
   const isWide = useIsWideViewport();
   const showFoldedTabs = foldInspector && !isWide;
+  // The right-hand properties aside can be collapsed to a thin rail to give the
+  // canvas (and the chat dock beside it) more room — in-memory, per-mount. Only
+  // meaningful in the aside layouts (`!showFoldedTabs`); the narrow center-tabs
+  // layout already toggles properties as a tab, so it ignores this.
+  const [inspectorCollapsed, setInspectorCollapsed] = React.useState(false);
+  const canCollapseInspector = !showFoldedTabs;
   const hasInspectorTarget = Boolean((editNav && navSel) || selection);
   const prevInspectorTargetRef = React.useRef(hasInspectorTarget);
   React.useEffect(() => {
@@ -1379,17 +1387,47 @@ function InterfacesPillar({
     <header className="flex shrink-0 items-center gap-2 border-b bg-background/95 px-3 py-2">
       <SlidersHorizontal className="h-3.5 w-3.5" />
       <span className="text-[13px] font-medium">{t('engine.studio.inspector.props', locale)}</span>
-      {selection && (
-        <button
-          type="button"
-          onClick={() => setSelection(null)}
-          className="ml-auto rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={t('engine.studio.deselect', locale)}
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
+      <div className="ml-auto flex items-center gap-0.5">
+        {selection && (
+          <button
+            type="button"
+            onClick={() => setSelection(null)}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={t('engine.studio.deselect', locale)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {canCollapseInspector && (
+          <button
+            type="button"
+            onClick={() => setInspectorCollapsed(true)}
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label={t('engine.studio.inspector.collapse', locale)}
+            title={t('engine.studio.inspector.collapse', locale)}
+          >
+            <PanelRightClose className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
     </header>
+  );
+
+  // Collapsed state — a thin rail on the right with an expand affordance, so the
+  // canvas reclaims the ~288px the properties aside otherwise holds.
+  const inspectorCollapsedRailEl = (
+    <aside className="flex w-9 shrink-0 flex-col items-center gap-1.5 border-l bg-background py-2">
+      <button
+        type="button"
+        onClick={() => setInspectorCollapsed(false)}
+        className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        aria-label={t('engine.studio.inspector.expand', locale)}
+        title={t('engine.studio.inspector.props', locale)}
+      >
+        <PanelRightOpen className="h-4 w-4" />
+      </button>
+      <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+    </aside>
   );
 
   const inspectorBodyEl =
@@ -1636,18 +1674,21 @@ function InterfacesPillar({
 
             {/* inspector — full-height flex column so the source editor fills it
                 top-to-bottom instead of squeezing into a fixed height with dead
-                space below. Widens for source pages so code has room. */}
-            <aside
-              className={cn(
-                'flex shrink-0 flex-col overflow-hidden border-l',
-                isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
-                  ? 'w-[24rem] xl:w-[30rem] 2xl:w-[36rem]'
-                  : 'w-72',
-              )}
-            >
-              {inspectorHeaderEl}
-              {inspectorBodyEl}
-            </aside>
+                space below. Widens for source pages so code has room. Collapses
+                to a thin rail to hand the width back to the canvas. */}
+            {inspectorCollapsed ? inspectorCollapsedRailEl : (
+              <aside
+                className={cn(
+                  'flex shrink-0 flex-col overflow-hidden border-l',
+                  isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
+                    ? 'w-[24rem] xl:w-[30rem] 2xl:w-[36rem]'
+                    : 'w-72',
+                )}
+              >
+                {inspectorHeaderEl}
+                {inspectorBodyEl}
+              </aside>
+            )}
           </>
         ) : isWide ? (
           // Folded layout on a WIDE (xl+) viewport: enough room to keep the
@@ -1657,18 +1698,20 @@ function InterfacesPillar({
           // keeps usable width once the ~420px dock is also on screen.
           <>
             {canvasEl}
-            <aside
-              data-testid="studio-folded-inspector"
-              className={cn(
-                'flex shrink-0 flex-col overflow-hidden border-l',
-                isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
-                  ? 'w-[22rem] 2xl:w-[28rem]'
-                  : 'w-72 2xl:w-80',
-              )}
-            >
-              {inspectorHeaderEl}
-              {inspectorBodyEl}
-            </aside>
+            {inspectorCollapsed ? inspectorCollapsedRailEl : (
+              <aside
+                data-testid="studio-folded-inspector"
+                className={cn(
+                  'flex shrink-0 flex-col overflow-hidden border-l',
+                  isSourcePage && !(selection && Inspector && current) && !(editNav && navSel)
+                    ? 'w-[22rem] 2xl:w-[28rem]'
+                    : 'w-72 2xl:w-80',
+                )}
+              >
+                {inspectorHeaderEl}
+                {inspectorBodyEl}
+              </aside>
+            )}
           </>
         ) : (
           // ADR-0057 P3c — folded layout: the chat dock owns the right side,
