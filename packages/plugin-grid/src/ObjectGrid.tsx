@@ -1606,9 +1606,9 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // a bulk-delete affordance is implicitly available (canDelete + onBulkDelete
   // wired by the consumer). This gives every list a multi-select + delete UX
   // out of the box without forcing each view JSON to declare bulkActions.
-  const explicitBulkActions = schema.batchActions ?? (schema as any).bulkActions;
-  const bulkActionDefs: BulkActionDef[] = Array.isArray((schema as any).bulkActionDefs)
-    ? (schema as any).bulkActionDefs
+  const explicitBulkActions = schema.batchActions ?? schema.bulkActions;
+  const bulkActionDefs: BulkActionDef[] = Array.isArray(schema.bulkActionDefs)
+    ? schema.bulkActionDefs
     : [];
   const effectiveBulkActions: string[] =
     explicitBulkActions && explicitBulkActions.length > 0
