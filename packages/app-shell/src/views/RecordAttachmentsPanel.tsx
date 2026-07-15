@@ -10,6 +10,7 @@ import * as React from 'react';
 import { cn, Button } from '@object-ui/components';
 import { Paperclip, Upload, Trash2, Download, Loader2 } from 'lucide-react';
 import { createObjectStackUploadAdapter } from '@object-ui/providers';
+import { createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/react';
 
 /**
@@ -74,8 +75,38 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
   // points elsewhere.
   const baseUrl = (import.meta as any).env?.VITE_SERVER_URL || '';
   const adapter = React.useMemo(
-    () => createObjectStackUploadAdapter({ baseUrl, scope: 'attachments' }),
+    // `fetchImpl`: the storage upload routes require an authenticated
+    // session when the server has an auth service (#2755), and the console
+    // authenticates with a Bearer token (localStorage) — there is no session
+    // cookie for `credentials: 'include'` to carry.
+    () => createObjectStackUploadAdapter({ baseUrl, scope: 'attachments', fetchImpl: createAuthenticatedFetch() }),
     [baseUrl],
+  );
+
+  /** Map the server's fail-closed 403 codes (#2755) to friendly copy. */
+  const friendlyError = React.useCallback(
+    (err: unknown): string => {
+      const anyErr = err as { code?: string; message?: unknown } | null;
+      const raw = String(anyErr?.message ?? err ?? '');
+      const has = (code: string) => anyErr?.code === code || raw.includes(code);
+      if (has('ATTACHMENT_DELETE_DENIED')) {
+        return t('detail.attachmentDeleteDenied', {
+          defaultValue: 'Only the uploader or someone who can edit this record may delete this attachment.',
+        });
+      }
+      if (has('ATTACHMENT_PARENT_ACCESS')) {
+        return t('detail.attachmentParentAccessDenied', {
+          defaultValue: "You don't have access to attach files to this record.",
+        });
+      }
+      if (has('PERMISSION_DENIED')) {
+        return t('detail.attachmentPermissionDenied', {
+          defaultValue: "You don't have permission to do that.",
+        });
+      }
+      return raw;
+    },
+    [t],
   );
 
   const refresh = React.useCallback(async () => {
@@ -121,12 +152,14 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
             file_name: uploaded.name ?? file.name,
             mime_type: uploaded.mimeType ?? file.type,
             size: uploaded.size ?? file.size,
+            // Back-compat with pre-#2755 servers; a current server stamps
+            // `uploaded_by` from the session and ignores this value.
             ...(currentUserId ? { uploaded_by: currentUserId } : {}),
           });
         }
         await refresh();
       } catch (err: any) {
-        setError(String(err?.message ?? err));
+        setError(friendlyError(err));
       } finally {
         setUploading(false);
         if (inputRef.current) inputRef.current.value = '';
@@ -143,10 +176,14 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
         await dataSource.delete('sys_attachment', row.id);
         setRows((prev) => prev.filter((r) => r.id !== row.id));
       } catch (err: any) {
-        setError(String(err?.message ?? err));
+        // The delete button deliberately renders for every row: the server
+        // is the gate (uploader-or-parent-editor, #2755) and the client
+        // lacks the parent-edit data to pre-compute it — a denial surfaces
+        // here as friendly copy instead.
+        setError(friendlyError(err));
       }
     },
-    [dataSource],
+    [dataSource, friendlyError],
   );
 
   return (

@@ -19,7 +19,8 @@
 
 import * as React from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { ManifestSchema } from '@objectstack/spec/kernel';
+import { ManifestSchema, deriveNamespaceFromPackageId } from '@objectstack/spec/kernel';
+import { NAMESPACE_RE } from '../studio-design/packages-io';
 import {
   Button,
   Dialog,
@@ -98,9 +99,13 @@ export function PackageFormDialog({
   const [draft, setDraft] = React.useState<ManifestRecord>({});
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  // Object-name namespace (framework#2694) tracks the id-derived default until
+  // the user edits it directly.
+  const nsTouched = React.useRef(false);
 
   React.useEffect(() => {
     if (!open) return;
+    nsTouched.current = false;
     if (createMode) {
       // Defaults for a new WRITABLE base package. Deliberately no `scope`:
       // a runtime-created base is writable, whereas `scope: 'project'` marks a
@@ -115,6 +120,28 @@ export function PackageFormDialog({
     setBusy(false);
   }, [open, createMode, manifest]);
 
+  // On create, keep `namespace` in sync with the id (deriveNamespaceFromPackageId)
+  // until the user edits the namespace field themselves — mirroring the old
+  // create form's behaviour (framework#2694). SchemaForm hands us the full next
+  // value, so we diff id/namespace to decide.
+  const handleChange = React.useCallback(
+    (next: ManifestRecord) => {
+      if (!createMode) {
+        setDraft(next);
+        return;
+      }
+      setDraft((prev) => {
+        let namespace = next.namespace;
+        if (namespace !== prev.namespace) nsTouched.current = true; // direct edit
+        if (!nsTouched.current && next.id !== prev.id) {
+          namespace = deriveNamespaceFromPackageId(String(next.id ?? '')) ?? '';
+        }
+        return { ...next, namespace };
+      });
+    },
+    [createMode],
+  );
+
   // Spec validation → inline issues (only where fields are editable).
   const issues: SchemaFormIssue[] = React.useMemo(() => {
     if (readOnly) return [];
@@ -127,7 +154,10 @@ export function PackageFormDialog({
   const versionStr = String(draft.version ?? '').trim();
   const versionOk = createMode ? VERSION_RE.test(versionStr) : !versionStr || VERSION_RE.test(versionStr);
   const idOk = !createMode || !!String(draft.id ?? '').trim();
-  const canSubmit = !readOnly && nameOk && versionOk && idOk && !busy;
+  // Namespace is required on create (framework#2694): every object name is
+  // prefixed with it. On edit it's immutable and not resubmitted.
+  const nsOk = !createMode || NAMESPACE_RE.test(String(draft.namespace ?? '').trim());
+  const canSubmit = !readOnly && nameOk && versionOk && idOk && nsOk && !busy;
 
   async function submit() {
     if (!canSubmit) return;
@@ -210,7 +240,7 @@ export function PackageFormDialog({
             schema={schema}
             form={form}
             value={draft}
-            onChange={setDraft}
+            onChange={handleChange}
             issues={issues}
             readOnly={readOnly}
             createMode={createMode}

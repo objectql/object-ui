@@ -99,6 +99,36 @@ export function registerBuiltinAnchors(): void {
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
+    // Without a createSchema the flat create form has no property types, so
+    // every field (incl. `object`) falls back to a plain text input. Declare
+    // one — mirroring `page`/`view` — so `object` gets the `ref:object` picker.
+    // `object` is spec-required on HookSchema (alongside `name`, `events`);
+    // `events` is supplied by createDefaults below, so the form asks only for
+    // identity + the bound object.
+    createSchema: {
+      type: 'object',
+      required: ['label', 'name', 'object'],
+      properties: {
+        label: { type: 'string', title: 'Label', description: 'Human-readable hook name.' },
+        name: {
+          type: 'string',
+          title: 'Name',
+          description: 'Hook key (snake_case).',
+          pattern: '^[a-z_][a-z0-9_]*$',
+        },
+        object: {
+          type: 'string',
+          title: 'Object',
+          widget: 'ref:object',
+          description: 'The object whose row lifecycle (beforeInsert / afterUpdate / …) this hook runs on.',
+        },
+        description: {
+          type: 'string',
+          title: 'Description',
+          description: 'What this hook does.',
+        },
+      },
+    },
     createDefaults: { events: [] },
   });
 
@@ -199,13 +229,13 @@ export function registerBuiltinAnchors(): void {
       groupLabel: 'Views',
       order: 30,
     }],
-    createFields: ['label', 'name', 'object', 'kind'],
+    createFields: ['label', 'name', 'object', 'viewKind', 'kind', 'formType'],
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
     createSchema: {
       type: 'object',
-      required: ['label', 'name', 'object', 'kind'],
+      required: ['label', 'name', 'object', 'viewKind'],
       properties: {
         label: { type: 'string', title: 'Label', description: 'Human-readable view name.' },
         name: {
@@ -217,35 +247,70 @@ export function registerBuiltinAnchors(): void {
         object: {
           type: 'string',
           title: 'Object',
+          widget: 'ref:object',
           description: 'The object this view displays.',
         },
+        // The family discriminator (ViewItemSchema is a discriminated union on
+        // `viewKind`). Picks which config shape — and therefore which layout
+        // picker below — applies.
+        viewKind: {
+          type: 'string',
+          title: 'View family',
+          enum: ['list', 'form'],
+          default: 'list',
+          description:
+            'List views show many records as a collection (grid, kanban, …). Form views show one record as a field layout (simple, tabbed, …).',
+        },
+        // List-family layout. Shown only when `viewKind` is 'list'; its value
+        // becomes the list `config.type`.
         kind: {
           type: 'string',
-          title: 'View kind',
+          title: 'List layout',
           enum: ['grid', 'kanban', 'gallery', 'calendar', 'timeline', 'gantt', 'chart'],
           default: 'grid',
           description: 'Pick a starter layout. Switch later in the designer.',
+          visibleOn: "data.viewKind == 'list'",
+        },
+        // Form-family layout (FormViewSchema.type). Shown only when `viewKind`
+        // is 'form'; its value becomes the form `config.type`.
+        formType: {
+          type: 'string',
+          title: 'Form layout',
+          enum: ['simple', 'tabbed', 'wizard', 'split', 'drawer', 'modal'],
+          default: 'simple',
+          description: 'Pick a starter form layout. Switch later in the designer.',
+          visibleOn: "data.viewKind == 'form'",
         },
       },
     },
     // Emit a canonical ViewItem. `name` is the globally-unique qualified id
-    // `<object>.<key>`; the layout `kind` (grid/kanban/…) is all list-family,
-    // so `viewKind` is 'list' and the chosen layout lives at `config.type`.
+    // `<object>.<key>`; `viewKind` discriminates the config shape. A list view
+    // carries the chosen list layout (grid/kanban/…) at `config.type`; a form
+    // view carries the chosen form layout (simple/tabbed/…) at `config.type`
+    // with a `sections` body instead of `columns`.
     createBuildBody: (draft) => {
       const object = String(draft.object ?? '');
       const key = String(draft.name ?? '');
       const qualifiedName =
         key.includes('.') || !object ? key : `${object}.${key}`;
+      const isForm = draft.viewKind === 'form';
+      const config = isForm
+        ? {
+            type: (draft.formType as string) || 'simple',
+            data: { provider: 'object', object },
+            sections: [],
+          }
+        : {
+            type: (draft.kind as string) || 'grid',
+            columns: [],
+            data: { provider: 'object', object },
+          };
       return {
         name: qualifiedName,
         object,
-        viewKind: 'list',
+        viewKind: isForm ? 'form' : 'list',
         label: draft.label,
-        config: {
-          type: (draft.kind as string) || 'grid',
-          columns: [],
-          data: { provider: 'object', object },
-        },
+        config,
       };
     },
   });
@@ -263,25 +328,19 @@ export function registerBuiltinAnchors(): void {
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
-    createDefaults: { nodes: [], edges: [] },
+    // `type` is a required FlowSchema enum (autolaunched | record_change |
+    // schedule | screen | api). Seed the canonical default so a create→save
+    // that never touches the type picker can't 422 — mirrors the server's
+    // BUILTIN_METADATA_CREATE_SEEDS and the Studio inline skeleton
+    // (buildFlowSkeleton). See objectui#2326.
+    createDefaults: { type: 'autolaunched', nodes: [], edges: [] },
   });
   // ADR-0020: `workflow` retired as a metadata type — record state machines
   // are a `state_machine` validation rule on the object (no separate anchor).
 
-  // trigger.object → object (low-level DB-style triggers)
-  registerMetadataResource({
-    type: 'trigger',
-    anchors: [{
-      anchorType: 'object',
-      match: anchorByField(['object', 'on.object']),
-      groupLabel: 'Triggers',
-      order: 52,
-    }],
-    createFields: ['label', 'name', 'object'],
-    createDerive: [
-      { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
-    ],
-  });
+  // ADR-0088: `trigger` retired as a metadata type — sync data-layer logic is
+  // a `hook` (lifecycle events); async automation is a `record_change` flow.
+  // Neither anchors here, so there is no standalone "Triggers" group.
 
   // validation: usually embedded in the object, but standalone variants
   // do exist. Match anything whose `object` points back at us.
@@ -363,6 +422,38 @@ export function registerBuiltinAnchors(): void {
     createDerive: [
       { from: 'label', to: 'name', transform: 'slugify', untilUserEdits: true },
     ],
+    // Without a `createSchema` the create form falls back to the server's edit
+    // schema (or its FormView layout), where `objectName` carries no widget hint
+    // and renders as a plain text input (objectui#2325). Declaring it here — the
+    // same pattern `view`/`page` use — makes the object-binding field a proper
+    // `ref:object` dropdown and the icon field a searchable picker. `objectName`
+    // is the spec's action→object binding key (ActionSchema has no `object`); it
+    // stays optional because record-scoped / global actions bind no object.
+    createSchema: {
+      type: 'object',
+      required: ['label', 'name'],
+      properties: {
+        label: { type: 'string', title: 'Label', description: 'Human-readable action name.' },
+        name: {
+          type: 'string',
+          title: 'Name',
+          description: 'Action key (snake_case). Used in URLs.',
+          pattern: '^[a-z_][a-z0-9_]*$',
+        },
+        objectName: {
+          type: 'string',
+          title: 'Object',
+          widget: 'ref:object',
+          description: 'The object this action is bound to. Leave empty for a global / record-scoped action.',
+        },
+        icon: {
+          type: 'string',
+          title: 'Icon',
+          widget: 'icon',
+          description: 'Optional icon shown on the action button.',
+        },
+      },
+    },
     // A new action defaults to `type: 'script'` (ActionType.default), which the
     // spec requires to carry an executable `body` or `target` — otherwise the
     // draft fails validation on save (422) and AppPlugin registers no engine

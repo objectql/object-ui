@@ -10,6 +10,7 @@ import {
   OBJECT_MODE_FIELDS,
   ensureNavId,
   NAV_TYPE_TARGETS,
+  isStaticPageOption,
 } from '../nav-target';
 
 describe('inferNavItemType', () => {
@@ -79,5 +80,27 @@ describe('NAV_TYPE_TARGETS', () => {
     expect(NAV_TYPE_TARGETS.page).toEqual({ targetKey: 'pageName', metaType: 'page' });
     expect(NAV_TYPE_TARGETS.url).toEqual({ targetKey: 'url' });
     expect(NAV_TYPE_TARGETS.group).toEqual({});
+  });
+});
+
+describe('isStaticPageOption — page picker excludes record-detail pages (#2333)', () => {
+  it('excludes record pages (bare type and pageType)', () => {
+    expect(isStaticPageOption({ type: 'record' })).toBe(false);
+    expect(isStaticPageOption({ pageType: 'record' })).toBe(false);
+  });
+  it('keeps static page kinds', () => {
+    for (const type of ['list', 'home', 'app', 'utility']) {
+      expect(isStaticPageOption({ type })).toBe(true);
+    }
+  });
+  it('pageType wins over bare type (mirrors usePageAssignment)', () => {
+    // A record page carrying a stale bare `type` is still excluded…
+    expect(isStaticPageOption({ pageType: 'record', type: 'list' })).toBe(false);
+    // …and a static page is kept even if a bare `type: record` lingers.
+    expect(isStaticPageOption({ pageType: 'list', type: 'record' })).toBe(true);
+  });
+  it('keeps rows missing both discriminators (only confirmed record pages excluded)', () => {
+    expect(isStaticPageOption({})).toBe(true);
+    expect(isStaticPageOption({ name: 'x' })).toBe(true);
   });
 });

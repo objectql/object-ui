@@ -91,6 +91,15 @@ export function getPackageForm(locale: string): FormViewSpec {
             placeholder: 'com.acme.crm',
             immutable: true,
           },
+          // Object-name namespace (framework#2694): every object in the package
+          // is named `<namespace>_*`. PackageFormDialog auto-derives it from the
+          // id on create until the user edits it. Locked once the package exists.
+          {
+            field: 'namespace',
+            label: t('engine.packages.create.namespace', locale),
+            placeholder: 'crm',
+            immutable: true,
+          },
           { field: 'version', label: t('engine.packages.create.version', locale), placeholder: '0.1.0' },
           { field: 'type', label: t('engine.packages.detail.type', locale), immutable: true },
           { field: 'description', label: t('engine.packages.detail.description', locale) },
@@ -102,7 +111,6 @@ export function getPackageForm(locale: string): FormViewSpec {
         collapsed: true,
         columns: 1,
         fields: [
-          { field: 'namespace', label: t('engine.packages.form.namespace', locale), immutable: true },
           {
             field: 'defaultDatasource',
             label: t('engine.packages.form.defaultDatasource', locale),

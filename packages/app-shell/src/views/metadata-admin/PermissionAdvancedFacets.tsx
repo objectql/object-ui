@@ -12,14 +12,16 @@ import {
   Label,
   Switch,
   Button,
-  Textarea,
   Badge,
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
   cn,
 } from '@object-ui/components';
-import { ChevronRight, Plus, Trash2, Shield, Lock, PanelTop } from 'lucide-react';
+import { ChevronRight, Plus, Trash2, Shield, Lock, PanelTop, FlaskConical } from 'lucide-react';
+import { CelPredicateField } from './CelPredicateField';
+import { CelTestRunDialog } from './CelTestRunDialog';
+import type { CelLintIssue } from './celAuthoring';
 
 /**
  * Structured editors for the three "advanced" permission facets — Row-Level
@@ -133,6 +135,17 @@ export interface PermissionAdvancedFacetsProps {
   writable: boolean;
   /** All permission-set api-names — for the admin-scope assignable allowlist. */
   allSetNames: string[];
+  /**
+   * Resolve a policy object's field names — powers CEL field lint + autocomplete
+   * (objectui#2413). Absent => no field hints (autocomplete still offers scope
+   * vars + functions; lint still catches parse errors).
+   */
+  loadObjectFields?: (object: string) => Promise<string[]>;
+  /**
+   * Reports the count of blocking CEL parse errors across all policies so the
+   * host editor can gate Save. Fires whenever the aggregate changes.
+   */
+  onCelErrorsChange?: (count: number) => void;
   t: (k: string) => string;
 }
 
@@ -141,11 +154,78 @@ export function PermissionAdvancedFacets({
   setDraft,
   writable,
   allSetNames,
+  loadObjectFields,
+  onCelErrorsChange,
   t,
 }: PermissionAdvancedFacetsProps) {
   const policies = React.useMemo<RlsPolicy[]>(() => asArray(draft.rowLevelSecurity), [draft.rowLevelSecurity]);
   const scope = React.useMemo<AdminScope>(() => asObject(draft.adminScope), [draft.adminScope]);
   const tabs = React.useMemo<TabPerms>(() => asObject(draft.tabPermissions), [draft.tabPermissions]);
+
+  /* ── CEL authoring safety (objectui#2413) ───────────────────────────── */
+
+  // Lazily-resolved field names per policy object, for lint + autocomplete.
+  const [fieldsByObject, setFieldsByObject] = React.useState<Record<string, string[]>>({});
+  const requestedRef = React.useRef<Set<string>>(new Set());
+  const ensureFields = React.useCallback(
+    (object?: string) => {
+      const key = (object ?? '').trim();
+      // `*` (all objects) and blank have no single field set to offer.
+      if (!key || key === '*' || !loadObjectFields) return;
+      if (requestedRef.current.has(key)) return;
+      requestedRef.current.add(key);
+      loadObjectFields(key)
+        .then((names) => setFieldsByObject((prev) => ({ ...prev, [key]: names })))
+        .catch(() => setFieldsByObject((prev) => ({ ...prev, [key]: [] })));
+    },
+    [loadObjectFields],
+  );
+  const fieldsFor = (object?: string): string[] => fieldsByObject[(object ?? '').trim()] ?? [];
+
+  // Per-clause blocking-error counts, keyed `"<index>:<clause>"`, summed up to
+  // the host so Save can be gated on malformed CEL.
+  const [errorMap, setErrorMap] = React.useState<Record<string, number>>({});
+  const reportClause = React.useCallback((key: string, issues: CelLintIssue[]) => {
+    const errs = issues.filter((x) => x.severity === 'error').length;
+    setErrorMap((prev) => (prev[key] === errs ? prev : { ...prev, [key]: errs }));
+  }, []);
+
+  // Which policy's test-run dialog is open (`null` = closed).
+  const [testIndex, setTestIndex] = React.useState<number | null>(null);
+
+  // Load fields for every policy object; prune stale error entries when the
+  // policy list shrinks so a deleted policy's error can't wedge Save closed.
+  React.useEffect(() => {
+    policies.forEach((p) => ensureFields(p.object));
+    setErrorMap((prev) => {
+      const valid = new Set<string>();
+      policies.forEach((_, i) => {
+        valid.add(`${i}:using`);
+        valid.add(`${i}:check`);
+      });
+      let changed = false;
+      const next: Record<string, number> = {};
+      for (const k of Object.keys(prev)) {
+        if (valid.has(k)) next[k] = prev[k];
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [policies, ensureFields]);
+
+  const totalCelErrors = React.useMemo(
+    () => Object.values(errorMap).reduce((a, b) => a + b, 0),
+    [errorMap],
+  );
+  const onCelErrorsChangeRef = React.useRef(onCelErrorsChange);
+  React.useEffect(() => {
+    onCelErrorsChangeRef.current = onCelErrorsChange;
+  });
+  React.useEffect(() => {
+    onCelErrorsChangeRef.current?.(totalCelErrors);
+  }, [totalCelErrors]);
+
+  const testPolicy = testIndex != null ? policies[testIndex] : undefined;
 
   const setPolicies = (next: RlsPolicy[]) =>
     setDraft((p) => ({ ...p, rowLevelSecurity: next }));
@@ -218,11 +298,21 @@ export function PermissionAdvancedFacets({
                   />
                   {t('perm.rls.enabled')}
                 </label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 ml-auto text-xs text-muted-foreground"
+                  onClick={() => setTestIndex(i)}
+                  title={t('perm.cel.test.title')}
+                >
+                  <FlaskConical className="h-3.5 w-3.5 mr-1" />
+                  {t('perm.cel.test.run')}
+                </Button>
                 {writable && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 ml-auto text-muted-foreground hover:text-destructive"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
                     onClick={() => setPolicies(policies.filter((_, j) => j !== i))}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -230,40 +320,38 @@ export function PermissionAdvancedFacets({
                 )}
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">
-                    {t('perm.rls.using')}
-                  </Label>
-                  <Textarea
-                    value={pol.using ?? ''}
-                    disabled={!writable}
-                    rows={2}
-                    placeholder="organization_id == current_user.organization_id"
-                    onChange={(e) => {
-                      const next = [...policies];
-                      next[i] = { ...pol, using: e.target.value };
-                      setPolicies(next);
-                    }}
-                    className="font-mono text-xs"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">
-                    {t('perm.rls.check')}
-                  </Label>
-                  <Textarea
-                    value={pol.check ?? ''}
-                    disabled={!writable}
-                    rows={2}
-                    placeholder={t('perm.rls.checkPlaceholder')}
-                    onChange={(e) => {
-                      const next = [...policies];
-                      next[i] = { ...pol, check: e.target.value };
-                      setPolicies(next);
-                    }}
-                    className="font-mono text-xs"
-                  />
-                </div>
+                <CelPredicateField
+                  label={t('perm.rls.using')}
+                  value={pol.using ?? ''}
+                  disabled={!writable}
+                  placeholder="organization_id == current_user.organization_id"
+                  objectName={pol.object}
+                  fieldNames={fieldsFor(pol.object)}
+                  clause="using"
+                  onLintChange={(issues) => reportClause(`${i}:using`, issues)}
+                  onChange={(v) => {
+                    const next = [...policies];
+                    next[i] = { ...pol, using: v };
+                    setPolicies(next);
+                  }}
+                  t={t}
+                />
+                <CelPredicateField
+                  label={t('perm.rls.check')}
+                  value={pol.check ?? ''}
+                  disabled={!writable}
+                  placeholder={t('perm.rls.checkPlaceholder')}
+                  objectName={pol.object}
+                  fieldNames={fieldsFor(pol.object)}
+                  clause="check"
+                  onLintChange={(issues) => reportClause(`${i}:check`, issues)}
+                  onChange={(v) => {
+                    const next = [...policies];
+                    next[i] = { ...pol, check: v };
+                    setPolicies(next);
+                  }}
+                  t={t}
+                />
               </div>
             </div>
           ))}
@@ -286,6 +374,18 @@ export function PermissionAdvancedFacets({
           )}
         </div>
       </FacetSection>
+
+      {/* Dry-run a policy's USING/CHECK predicate against a sample record. */}
+      <CelTestRunDialog
+        open={testIndex != null}
+        onOpenChange={(o) => setTestIndex(o ? testIndex : null)}
+        policyName={testPolicy?.name || undefined}
+        objectName={testPolicy?.object}
+        fieldNames={fieldsFor(testPolicy?.object)}
+        using={testPolicy?.using}
+        check={testPolicy?.check}
+        t={t}
+      />
 
       {/* Tab Visibility */}
       <FacetSection

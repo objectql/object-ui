@@ -85,6 +85,14 @@ export interface WidgetContext {
    * fields depending on a sibling selection (driver → connection settings).
    */
   dynamicSchemas?: Record<string, { properties?: Record<string, any>; required?: string[] }>;
+  /**
+   * Component ids placed on the page being edited — extracted from the draft's
+   * `regions[].components[]` tree (see {@link collectPageComponentIds}). Drives
+   * the `ref:component` picker so a page variable's `source` (the component that
+   * writes it) is chosen from the real components on the canvas instead of a
+   * free-text id the author can typo.
+   */
+  componentIds?: Array<{ id: string; type?: string; label?: string }>;
 }
 
 export interface WidgetProps {
@@ -176,6 +184,125 @@ function RefObjectWidget({
         {names.map((n) => (
           <SelectItem key={n} value={n}>
             {n}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* ref:component — pick a component id from the page's canvas tree             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Walk a page draft's `regions[].components[]` tree and collect every component
+ * that carries an `id`, returning `{ id, type, label }` in document order (and
+ * de-duplicated on id, first-wins). Traverses nested containers via any array-
+ * valued `components` / `children` under a node or its `properties`, so ids
+ * inside `page:tabs` / `page:section` style containers are surfaced too.
+ *
+ * Used to fuel the `ref:component` picker (a page variable's `source` names the
+ * component that writes it). Exported for unit testing.
+ */
+export function collectPageComponentIds(
+  draft: unknown,
+): Array<{ id: string; type?: string; label?: string }> {
+  const out: Array<{ id: string; type?: string; label?: string }> = [];
+  const seen = new Set<string>();
+  const visitNode = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const rec = node as Record<string, unknown>;
+    const id = rec.id;
+    if (typeof id === 'string' && id && !seen.has(id)) {
+      seen.add(id);
+      out.push({
+        id,
+        type: typeof rec.type === 'string' ? rec.type : undefined,
+        label: typeof rec.label === 'string' ? rec.label : undefined,
+      });
+    }
+    // Recurse into nested component collections — directly on the node and
+    // under `properties` (some container components nest children there).
+    visitList(rec.components);
+    visitList(rec.children);
+    const props = rec.properties;
+    if (props && typeof props === 'object') {
+      visitList((props as Record<string, unknown>).components);
+      visitList((props as Record<string, unknown>).children);
+    }
+  };
+  const visitList = (list: unknown): void => {
+    if (Array.isArray(list)) for (const n of list) visitNode(n);
+  };
+  if (draft && typeof draft === 'object') {
+    const regions = (draft as Record<string, unknown>).regions;
+    if (Array.isArray(regions)) {
+      for (const region of regions) {
+        if (region && typeof region === 'object') {
+          visitList((region as Record<string, unknown>).components);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Single component-id picker for a page variable's `source` — the component
+ * whose selection writes the variable (e.g. an `element:record_picker` with
+ * `id="project_picker"`). Component ids come from `context.componentIds`
+ * (extracted from the page draft's region/component tree). A stored value not
+ * present in the tree is still shown so a stale/renamed id survives; when the
+ * page has no components yet, degrades to a free-text input so the field stays
+ * editable. Mirrors {@link RefObjectWidget} / {@link ViewRefWidget}.
+ */
+function RefComponentWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
+  const locale = detectLocale();
+  const components = context?.componentIds ?? [];
+  const current = value == null ? '' : String(value);
+  // No components placed yet → free-text fallback so the field is still usable.
+  if (components.length === 0) {
+    return (
+      <Input
+        id={id}
+        value={current}
+        disabled={readOnly}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        placeholder={t('engine.form.noComponents', locale)}
+      />
+    );
+  }
+  const inTree = !current || components.some((c) => c.id === current);
+  return (
+    <Select
+      value={current || NO_FIELD}
+      onValueChange={(v) => onChange(v === NO_FIELD ? undefined : v)}
+      disabled={readOnly}
+    >
+      <SelectTrigger id={id}>
+        <SelectValue placeholder={t('engine.form.selectComponent', locale)} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_FIELD}>
+          <span className="text-muted-foreground">{t('engine.form.none', locale)}</span>
+        </SelectItem>
+        {!inTree && current && (
+          <SelectItem value={current}>
+            <span className="flex items-center gap-2">
+              <span className="font-mono">{current}</span>
+              <span className="text-xs text-muted-foreground">{t('engine.form.notInObject', locale)}</span>
+            </span>
+          </SelectItem>
+        )}
+        {components.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            <span className="flex items-center gap-2">
+              <span className="font-mono">{c.id}</span>
+              {(c.label || c.type) && (
+                <span className="text-xs text-muted-foreground">{c.label || c.type}</span>
+              )}
+            </span>
           </SelectItem>
         ))}
       </SelectContent>
@@ -556,6 +683,18 @@ function RowCell({
   if (schema?.widget === 'ref:object') {
     return (
       <RefObjectWidget
+        schema={schema}
+        value={value}
+        onChange={onChange}
+        readOnly={readOnly}
+        context={context}
+      />
+    );
+  }
+  // ref:component hint inside a row cell (page variable `source` picker)
+  if (schema?.widget === 'ref:component') {
+    return (
+      <RefComponentWidget
         schema={schema}
         value={value}
         onChange={onChange}
@@ -1806,6 +1945,7 @@ function DynamicConfigWidget({ value, onChange, readOnly, fieldSpec, formData, c
 
 export const WIDGETS: Record<string, WidgetRenderer> = {
   'ref:object': RefObjectWidget,
+  'ref:component': RefComponentWidget,
   'filter-mode': FilterModeWidget,
   'object-selector': ObjectSelectorWidget,
   'field-selector': FieldSelectorWidget,

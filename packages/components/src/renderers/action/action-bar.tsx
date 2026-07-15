@@ -134,15 +134,31 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
         seen.add(a.name);
         return true;
       });
-      // Order by explicit `order` (lower = earlier / more prominent) before the
-      // inline/overflow split. Stable: actions that leave `order` unset (treated
-      // as 0) keep their incoming order, so this only moves actions that opt in.
-      // This is what lets an injected Approve/Reject with a negative `order`
-      // float into the primary-button slot instead of the "More" overflow menu
-      // (#2670 / objectui#2339), and lets authors order their own record_header
-      // actions declaratively via `Action.order`.
-      if (deduped.some(a => a.order !== undefined)) {
-        return [...deduped].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      // Order the actions before the inline/overflow split so the first one
+      // lands in the primary-button slot. The rule (objectui#2339) is:
+      //   1. `order` ascending (unset = 0; lower = more prominent)
+      //   2. `variant === 'primary'` preferred as a tie-break within equal order
+      //   3. original registration order (stable) for the remaining ties
+      // The sort is stable and every key defaults to a no-op, so a toolbar where
+      // nobody sets `order` and nobody is `primary` keeps its exact registration
+      // order. This is what lets an injected Approve/Reject with a negative
+      // `order` float into the primary slot instead of the "More" overflow menu
+      // (#2670), lets authors declaratively promote an action via `Action.order`,
+      // and — when several unordered actions tie at the default `order` 0 — lets
+      // the `primary`-variant action claim the primary button without the author
+      // having to also assign an `order`.
+      const needsOrdering = deduped.some(
+        a => a.order !== undefined || a.variant === 'primary',
+      );
+      if (needsOrdering) {
+        return [...deduped].sort((a, b) => {
+          const byOrder = (a.order ?? 0) - (b.order ?? 0);
+          if (byOrder !== 0) return byOrder;
+          // Tie-break: a `primary` action outranks a non-primary sibling.
+          const ap = a.variant === 'primary' ? 0 : 1;
+          const bp = b.variant === 'primary' ? 0 : 1;
+          return ap - bp; // equal → stable sort preserves registration order
+        });
       }
       return deduped;
     }, [schema.actions, schema.location]);
