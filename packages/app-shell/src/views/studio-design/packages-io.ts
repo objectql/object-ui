@@ -55,28 +55,6 @@ export async function fetchPackages(): Promise<PkgEntry[]> {
 }
 
 /**
- * Create a writable base package (POST /packages {id, name, namespace?}).
- *
- * `namespace` is the object-name prefix (framework#2694). The framework
- * back-derives it from the id when omitted, but sending it explicitly keeps the
- * authored value (which the user may have edited) authoritative.
- */
-export async function createBasePackage(id: string, name: string, namespace?: string): Promise<void> {
-  const res = await fetch('/api/v1/packages', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ id, name, ...(namespace ? { namespace } : {}) }),
-  });
-  const payload = (await res.json().catch(() => null)) as
-    | { success?: boolean; error?: { message?: string } }
-    | null;
-  if (!res.ok || payload?.success === false) {
-    throw new Error(payload?.error?.message || `HTTP ${res.status}`);
-  }
-}
-
-/**
  * Duplicate a package into a NEW writable base (ADR-0070 D4 — the Airtable
  * "duplicate base" gesture; POST /packages/:id/duplicate). This is how a
  * read-only code package becomes a customizable starting point: objects are
