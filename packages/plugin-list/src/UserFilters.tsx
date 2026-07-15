@@ -239,7 +239,16 @@ function resolveFields(
     let resolvedLabel = f.label ?? objectLabel;
     if (i18n?.objectName) {
       options = i18n.translateOptions(i18n.objectName, f.field, options as any) as ResolvedOption[];
-      resolvedLabel = i18n.fieldLabel(i18n.objectName, f.field, f.label || objectLabel || f.field);
+      const authored = f.label || objectLabel;
+      const resolved = i18n.fieldLabel(i18n.objectName, f.field, authored || f.field);
+      // Guard against auto-extracted skeleton entries: `os i18n extract` emits
+      // `fields.<obj>.<field> = "<field>"` for fields with no authored label, and
+      // the resolver happily returns that key-valued "translation" — clobbering
+      // an explicitly authored `f.label` (e.g. '项目类型' → 'project_type'). A
+      // translation equal to the raw field key carries no information, so keep the
+      // authored label when the resolver only found the skeleton. A *real*
+      // translation (differs from the key) still wins, preserving localization.
+      resolvedLabel = resolved === f.field && authored ? authored : resolved;
     }
 
     return {
