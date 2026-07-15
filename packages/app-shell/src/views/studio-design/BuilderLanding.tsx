@@ -18,21 +18,17 @@ import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Boxes, Hammer, Lock, Plus, Loader2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { toFieldNameLoose } from '../metadata-admin/previews/object-fields-io';
 import { t, tFormat, useMetadataLocale } from '../metadata-admin/i18n';
-import { fetchPackages, createBasePackage, duplicatePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
-import { PackageIdInput, PackageIdSuggestionHint } from './PackageIdInput';
+import { PackageFormDialog } from '../metadata-admin/PackageFormDialog';
+import { fetchPackages, duplicatePackage, PACKAGE_ID_RE, type PkgEntry } from './packages-io';
+import { PackageIdInput } from './PackageIdInput';
 
 export function BuilderLanding(): React.ReactElement {
   const navigate = useNavigate();
   const locale = useMetadataLocale();
   const [pkgs, setPkgs] = React.useState<PkgEntry[] | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [creating, setCreating] = React.useState(false);
-  const [newName, setNewName] = React.useState('');
-  const [newId, setNewId] = React.useState('');
-  const [idTouched, setIdTouched] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
+  const [createOpen, setCreateOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -49,22 +45,6 @@ export function BuilderLanding(): React.ReactElement {
   }, []);
 
   const open = (id: string) => navigate(`/studio/${encodeURIComponent(id)}/data`);
-
-  const doCreate = async () => {
-    const name = newName.trim();
-    const id = newId.trim();
-    if (!name || !PACKAGE_ID_RE.test(id)) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await createBasePackage(id, name);
-      open(id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const writable = pkgs?.filter((p) => p.writable) ?? [];
   const readonly = pkgs?.filter((p) => !p.writable) ?? [];
@@ -206,68 +186,22 @@ export function BuilderLanding(): React.ReactElement {
           </div>
         ))}
 
-        {/* new-package card */}
-        {creating ? (
-          <div className="flex flex-col gap-1.5 rounded-lg border border-dashed bg-muted/20 px-3 py-2.5">
-            <input
-              autoFocus
-              value={newName}
-              onChange={(e) => {
-                setNewName(e.target.value);
-                if (!idTouched) {
-                  const slug = toFieldNameLoose(e.target.value).replace(/_/g, '-');
-                  setNewId(slug ? `com.example.${slug}` : '');
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void doCreate();
-                if (e.key === 'Escape') setCreating(false);
-              }}
-              placeholder={t('engine.studio.pkg.namePlaceholder', locale)}
-              className="h-7 w-full rounded-md border bg-background px-2 text-[11px] outline-none focus:ring-1 focus:ring-primary"
-            />
-            <PackageIdSuggestionHint show={!idTouched && !!newName.trim() && !newId} locale={locale} />
-            <PackageIdInput
-              value={newId}
-              onChange={(v) => {
-                setIdTouched(true);
-                setNewId(v);
-              }}
-              onEnter={() => void doCreate()}
-              onEscape={() => setCreating(false)}
-              placeholder={t('engine.studio.pkg.idPlaceholder', locale)}
-              locale={locale}
-              testId="pkg-landing-id-input"
-            />
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => void doCreate()}
-                disabled={busy || !newName.trim() || !PACKAGE_ID_RE.test(newId.trim())}
-                className="inline-flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-50"
-              >
-                {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                {t('engine.studio.landing.createGo', locale)}
-              </button>
-              <button
-                type="button"
-                onClick={() => setCreating(false)}
-                className="rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-muted"
-              >
-                {t('engine.studio.cancel', locale)}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
-          >
-            <Plus className="h-4 w-4" /> {t('engine.studio.pkg.new', locale)}
-          </button>
-        )}
+        {/* new-package card — opens the spec-driven create dialog (PackageFormDialog) */}
+        <button
+          type="button"
+          onClick={() => setCreateOpen(true)}
+          className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed px-3 py-2.5 text-xs text-muted-foreground hover:border-primary/50 hover:text-foreground"
+        >
+          <Plus className="h-4 w-4" /> {t('engine.studio.pkg.new', locale)}
+        </button>
       </div>
+
+      <PackageFormDialog
+        mode="create"
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onSaved={(r) => open(r.id)}
+      />
 
       {readonly.length > 0 && (
         <>

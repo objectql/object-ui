@@ -35,6 +35,7 @@ import {
   Copy,
   Inbox,
   Pencil,
+  Eye,
 } from 'lucide-react';
 import {
   Button,
@@ -58,14 +59,9 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
 } from '@object-ui/components';
 import { detectLocale, t, tFormat } from './i18n';
+import { PackageFormDialog } from './PackageFormDialog';
 
 /* -------------------------------------------------------------------------- */
 /* Types + API                                                                 */
@@ -78,6 +74,10 @@ export interface PackageManifest {
   type?: string;
   scope?: 'cloud' | 'system' | 'project';
   description?: string;
+  // The manifest carries many more spec fields (namespace, dependencies, …);
+  // the index signature lets it flow into the spec-driven PackageFormDialog
+  // (which types the manifest as a loose record) without a cast.
+  [key: string]: unknown;
 }
 
 export interface InstalledPackage {
@@ -155,9 +155,12 @@ function StatusBadge({ pkg }: { pkg: InstalledPackage }) {
 /* Create-package dialog                                                       */
 /* -------------------------------------------------------------------------- */
 
-const ID_RE = /^[a-z0-9][a-z0-9._-]{1,254}$/i;
-const VERSION_RE = /^\d+\.\d+\.\d+$/;
-
+/**
+ * CreatePackageDialog — thin wrapper over the spec-driven {@link PackageFormDialog}.
+ * Kept as a named export so existing call sites (ResourceListPage, the Studio
+ * package switcher) don't change. The form fields + validation now come from
+ * the manifest spec (`package-schema`), not a hand-written field list.
+ */
 export function CreatePackageDialog({
   open,
   onOpenChange,
@@ -167,131 +170,13 @@ export function CreatePackageDialog({
   onOpenChange: (v: boolean) => void;
   onCreated: (id: string) => void;
 }) {
-  const locale = React.useMemo(() => detectLocale(), []);
-  const [id, setId] = React.useState('');
-  const [name, setName] = React.useState('');
-  const [version, setVersion] = React.useState('0.1.0');
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (open) {
-      setId('');
-      setName('');
-      setVersion('0.1.0');
-      setError(null);
-      setBusy(false);
-    }
-  }, [open]);
-
-  const idValid = ID_RE.test(id);
-  const versionValid = VERSION_RE.test(version);
-  const canSubmit = idValid && versionValid && !!name.trim() && !busy;
-
-  async function submit() {
-    if (!canSubmit) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await apiJson(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          manifest: {
-            id: id.trim(),
-            name: name.trim(),
-            version: version.trim(),
-            type: 'app',
-            // No `scope`: runtime-created base packages are writable authoring
-            // targets. `scope: 'project'` marks read-only CODE packages — the
-            // old hardcode here made Setup-created bases read as 只读 in the
-            // builder's switcher/landing while the builder's own creator made
-            // writable ones. One creation semantic everywhere now.
-          },
-        }),
-      });
-      onCreated(id.trim());
-      // Let context selectors (e.g. the sidebar package switcher) pick up the
-      // new package without a full page reload.
-      try {
-        window.dispatchEvent(new CustomEvent('objectui:packages-changed'));
-      } catch {
-        /* non-DOM env */
-      }
-      onOpenChange(false);
-    } catch (e: any) {
-      setError(e?.message ?? t('engine.packages.create.failed', locale));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('engine.packages.create.title', locale)}</DialogTitle>
-          <DialogDescription>
-            {tFormat('engine.packages.create.description', locale, { example: 'com.acme.crm' })}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="pkg-id">{t('engine.packages.create.id', locale)}</Label>
-            <Input
-              id="pkg-id"
-              data-testid="package-id-input"
-              placeholder="com.acme.crm"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-              aria-invalid={!!id && !idValid}
-            />
-            {!!id && !idValid && (
-              <p className="text-xs text-destructive">
-                {t('engine.packages.create.idInvalid', locale)}
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="pkg-name">{t('engine.packages.create.name', locale)}</Label>
-            <Input
-              id="pkg-name"
-              data-testid="package-name-input"
-              placeholder="Acme CRM"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="pkg-version">{t('engine.packages.create.version', locale)}</Label>
-            <Input
-              id="pkg-version"
-              placeholder="0.1.0"
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              aria-invalid={!!version && !versionValid}
-            />
-            {!!version && !versionValid && (
-              <p className="text-xs text-destructive">{t('engine.packages.create.versionInvalid', locale)}</p>
-            )}
-          </div>
-          {error && (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            {t('engine.cancel', locale)}
-          </Button>
-          <Button onClick={submit} disabled={!canSubmit}>
-            {busy ? t('engine.packages.create.creating', locale) : t('engine.packages.create.submit', locale)}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <PackageFormDialog
+      mode="create"
+      open={open}
+      onOpenChange={onOpenChange}
+      onSaved={(r) => onCreated(r.id)}
+    />
   );
 }
 
@@ -309,9 +194,11 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
 }
 
 /**
- * Edit an existing package's manifest (name / description / version) via
- * `PATCH /api/v1/packages/:id`. Mirrors CreatePackageDialog's standard-form
- * shape; `id` / `scope` / `type` are immutable and not shown as inputs.
+ * EditPackageDialog — thin wrapper over the spec-driven {@link PackageFormDialog}
+ * in `edit` mode. The manifest form locks `id` / `type` / `namespace` / scope
+ * as immutable and submits only name / description / version — all the REST
+ * `PATCH /api/v1/packages/:id` persists. Kept as a named export so existing
+ * call sites don't change.
  */
 export function EditPackageDialog({
   pkg,
@@ -324,109 +211,14 @@ export function EditPackageDialog({
   onOpenChange: (v: boolean) => void;
   onSaved: (updated: InstalledPackage) => void;
 }) {
-  const locale = React.useMemo(() => detectLocale(), []);
-  const [name, setName] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [version, setVersion] = React.useState('');
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (open && pkg) {
-      setName(pkg.manifest.name ?? '');
-      setDescription(pkg.manifest.description ?? '');
-      setVersion(pkg.manifest.version ?? '');
-      setError(null);
-      setBusy(false);
-    }
-  }, [open, pkg]);
-
-  const versionValid = !version.trim() || VERSION_RE.test(version.trim());
-  const canSubmit = !!name.trim() && versionValid && !busy;
-
-  async function submit() {
-    if (!canSubmit || !pkg) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const updated = await apiJson<InstalledPackage>(`${API}/${encodeURIComponent(pkg.manifest.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim(),
-          version: version.trim(),
-        }),
-      });
-      try {
-        window.dispatchEvent(new CustomEvent('objectui:packages-changed'));
-      } catch {
-        /* non-DOM env */
-      }
-      onSaved(updated);
-      onOpenChange(false);
-    } catch (e: any) {
-      setError(e?.message ?? t('engine.packages.edit.failed', locale));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('engine.packages.edit.title', locale)}</DialogTitle>
-          <DialogDescription className="font-mono text-xs">{pkg?.manifest.id}</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="pkg-edit-name">{t('engine.packages.create.name', locale)}</Label>
-            <Input
-              id="pkg-edit-name"
-              data-testid="package-edit-name-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="pkg-edit-desc">{t('engine.packages.detail.description', locale)}</Label>
-            <Input
-              id="pkg-edit-desc"
-              data-testid="package-edit-desc-input"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="pkg-edit-version">{t('engine.packages.create.version', locale)}</Label>
-            <Input
-              id="pkg-edit-version"
-              value={version}
-              onChange={(e) => setVersion(e.target.value)}
-              aria-invalid={!!version.trim() && !versionValid}
-            />
-            {!!version.trim() && !versionValid && (
-              <p className="text-xs text-destructive">{t('engine.packages.create.versionInvalid', locale)}</p>
-            )}
-          </div>
-          {error && (
-            <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2 text-sm text-destructive">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            {t('engine.cancel', locale)}
-          </Button>
-          <Button onClick={submit} disabled={!canSubmit} data-testid="package-edit-save">
-            {busy ? t('engine.packages.edit.saving', locale) : t('engine.packages.edit.save', locale)}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <PackageFormDialog
+      mode="edit"
+      open={open}
+      onOpenChange={onOpenChange}
+      manifest={pkg?.manifest ?? null}
+      onSaved={(r) => onSaved((r.package as unknown as InstalledPackage) ?? (pkg as InstalledPackage))}
+    />
   );
 }
 
@@ -455,6 +247,7 @@ export function PackageDetailSheet({
   // the existing per-item review/diff (?review=1) so the user can publish them.
   const [drafts, setDrafts] = React.useState<Array<{ type: string; name: string }> | null>(null);
   const [editOpen, setEditOpen] = React.useState(false);
+  const [viewOpen, setViewOpen] = React.useState(false);
 
   React.useEffect(() => {
     setMsg(null);
@@ -792,6 +585,10 @@ export function PackageDetailSheet({
               {t('engine.packages.detail.actions', locale)}
             </p>
             <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={() => setViewOpen(true)} disabled={!!busy}>
+                <Eye className="mr-1.5 h-3.5 w-3.5" />
+                {t('engine.packages.detail.viewInfo', locale)}
+              </Button>
               <Button size="sm" variant="outline" onClick={() => setEditOpen(true)} disabled={!!busy}>
                 <Pencil className="mr-1.5 h-3.5 w-3.5" />
                 {t('engine.packages.detail.edit', locale)}
@@ -858,6 +655,12 @@ export function PackageDetailSheet({
             setMsg({ kind: 'ok', text: t('engine.packages.edit.saved', locale) });
             onChanged();
           }}
+        />
+        <PackageFormDialog
+          mode="view"
+          open={viewOpen}
+          onOpenChange={setViewOpen}
+          manifest={pkg?.manifest ?? null}
         />
       </SheetContent>
     </Sheet>
