@@ -216,6 +216,33 @@ behavior (full object list, whole-record save). The scope/merge helpers
 (`scopePermissionSet`, `mergePermissionSlice`) live in
 `metadata-admin/permission-slice.ts`.
 
+#### Row-Level Security — CEL authoring safety (objectui#2413)
+
+Below the object matrix, `PermissionAdvancedFacets` edits the three advanced
+facets (Row-Level Security, Tab Visibility, Delegated Admin Scope). RLS is the
+highest-risk surface: `USING` (read filter) / `CHECK` (write filter) predicates
+are hand-typed CEL, and a typo silently mis-scopes rows — some paths **fail
+open**, *widening* access with no error. The `USING`/`CHECK` editors therefore
+run three author-time safeties, all delegated to the framework's canonical CEL
+engine (`@objectstack/formula`) so the GUI reaches the **same verdict as the
+server** instead of maintaining a second grammar:
+
+- **Inline lint** (`CelPredicateField`) — `validateExpression` flags parse
+  faults inline (blocking Save) and unknown-field near-misses as non-blocking
+  "did-you-mean" warnings; a non-pushdown-able `USING` filter is flagged as a
+  fail-open blast-radius advisory (`isPushdownableCel`).
+- **Field autocomplete** — `introspectScope` supplies the target object's
+  fields plus scope vars (`current_user`, `record`, …) and stdlib functions as
+  you type, so an identifier that would silently never match is caught early.
+- **Test-run** (`CelTestRunDialog`) — dry-runs a predicate against a sample
+  record + `current_user` through `ExpressionEngine.evaluate` and shows
+  allow / deny / non-boolean / error before you ship.
+
+The engine is loaded lazily (dynamic `import`, feature-detected and
+error-swallowing like `preview/capabilityLint.ts`), so the CEL parser stays out
+of the main bundle and a missing/older engine degrades to "no assistance"
+rather than breaking the editor. The bridge is `metadata-admin/celAuthoring.ts`.
+
 ### Visual flow canvas
 
 The `flow` designer (`FlowPreview` → `FlowCanvas`) renders an automation as an
