@@ -12,9 +12,24 @@ import { cn } from "../lib/utils"
 
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  React.HTMLAttributes<HTMLTableElement> & {
+    /**
+     * Overrides for the scroll-wrapper `<div>` around the `<table>`.
+     *
+     * By default the wrapper is its own horizontal scroll container
+     * (`overflow-auto`). When the table already lives inside a *bounded*
+     * scroll container (e.g. the flex `flex-1 min-h-0 overflow-auto` region
+     * DataTable renders it in), that default creates a SECOND, height-unbounded
+     * scroll container: the wrapper stretches to the full table height, so its
+     * horizontal scrollbar sits at the bottom of *all* rows — reachable only
+     * after scrolling to the last row. Pass `containerClassName="overflow-visible"`
+     * to let the outer bounded container own both axes and keep the horizontal
+     * scrollbar pinned to the viewport bottom.
+     */
+    containerClassName?: string
+  }
+>(({ className, containerClassName, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto", containerClassName)}>
     <table
       ref={ref}
       className={cn("w-full caption-bottom text-sm", className)}

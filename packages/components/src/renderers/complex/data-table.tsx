@@ -1113,7 +1113,13 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
           : "flex-1 min-h-0 overflow-auto [-webkit-overflow-scrolling:touch]",
         !borderless && "rounded-md border shadow-[inset_-8px_0_8px_-8px_rgba(0,0,0,0.08)]",
       )}>
-        <Table>
+        {/* This div is already the (bounded) scroll container for BOTH axes —
+            or, in grouped mode, the table overflows into a shared ancestor
+            scroller. Either way the shadcn <Table>'s default `overflow-auto`
+            wrapper must NOT create a second, height-unbounded scroll context;
+            otherwise the horizontal scrollbar drops to the bottom of all rows
+            and is only reachable after scrolling to the last row. */}
+        <Table containerClassName="overflow-visible">
           {caption && <TableCaption>{caption}</TableCaption>}
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
