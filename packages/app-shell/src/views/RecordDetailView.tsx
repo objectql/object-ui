@@ -2,13 +2,15 @@
  * RecordDetailView Component
  *
  * Renders a detail view for a single record, resolved by URL params.
- * Uses the DetailView plugin component with auto-generated sections from
- * the object field definitions.
+ * Renders via the SchemaRenderer Page pipeline: an authored
+ * PageSchema(pageType='record') when one is assigned, else a canonical
+ * default page synthesized from the object definition
+ * (`buildDefaultPageSchema`).
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { DetailView, RecordChatterPanel, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
+import { RecordChatterPanel, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
@@ -28,10 +30,10 @@ import { ActionResultDialog, type ResultDialogState } from './ActionResultDialog
 import { FlowRunner, type ScreenFlowState } from './FlowRunner';
 import { RelatedRecordActionsBridge } from './RelatedRecordActionsBridge';
 import { withPageTabsUrlSync } from '../utils/pageTabsUrlSync';
-import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, appendRecordTrail, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
+import { RECORD_DETAIL_TAB_PARAM, RECORD_TRAIL_PARAM, decodeRecordTrail, buildRecordTrailHref } from '../urlParams';
 import { resolveActionParams } from '../utils/resolveActionParams';
 import { useRecordBreadcrumbTitle } from '../context/NavigationContext';
-import type { DetailViewSchema, FeedItem, HighlightField } from '@object-ui/types';
+import type { FeedItem } from '@object-ui/types';
 import type { ActionDef, ActionParamDef } from '@object-ui/core';
 import { useRecordApprovals } from '../hooks/useRecordApprovals';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
@@ -164,7 +166,6 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   >([]);
   // Screen-flow runtime: a paused `screen`-node flow launched from a record action.
   const [screenFlow, setScreenFlow] = useState<ScreenFlowState | null>(null);
-  const [childRelatedData, setChildRelatedData] = useState<Record<string, any[]>>({});
   const [historyEntries, setHistoryEntries] = useState<any[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [recordTitle, setRecordTitle] = useState<string | undefined>();
@@ -215,40 +216,23 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // ─── Page Assignment (Salesforce Lightning-style record Pages) ──────
   // If a PageSchema(pageType='record') is authored for this object, render
   // it via SchemaRenderer (which dispatches to the registered 'record'
-  // PageRenderer in @object-ui/components). Otherwise we fall through to
-  // the legacy auto-generated DetailView path below.
-  //
-  // Track 3 Phase G slice 6 — `renderViaSchema` is now default-on. The
-  // no-assignedPage branch synthesizes a canonical Page via
-  // `buildDefaultPageSchema(objectDef)` so the default detail page rides
-  // the same SchemaRenderer pipeline as custom pages. Kill-switches:
-  //   1) URL query param `?renderViaSchema=0` (per-request fallback to
-  //      the legacy DetailView monolith — useful for debugging regressions)
-  //   2) `objectDef.detail?.renderViaSchema === false` (per-object opt-out)
+  // PageRenderer in @object-ui/components). Otherwise the no-assignedPage
+  // branch synthesizes a canonical Page via `buildDefaultPageSchema(objectDef)`
+  // so the default detail page rides the same SchemaRenderer pipeline as
+  // custom pages. (ADR-0085 PR4 removed the legacy DetailView monolith and
+  // its `renderViaSchema` kill-switch — schema-driven is the only path.)
   const { page: assignedPage, slots: assignedSlots } = usePageAssignment(objectName);
-  const renderViaSchemaFlag = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const qp = new URLSearchParams(window.location.search).get('renderViaSchema');
-        if (qp === '0' || qp === 'false') return false;
-        if (qp === '1' || qp === 'true') return true;
-      } catch {}
-    }
-    if ((objectDef as any)?.detail?.renderViaSchema === false) return false;
-    return true;
-  }, [objectDef]);
   const synthesizedPage = useMemo(() => {
     // Synthesizer drives two cases:
     //   1) no assignedPage at all → pure default detail page
     //   2) assignedSlots (slotted page) → synth with slot overrides
     // In either case the page-record load effect below only needs
     // "is there a page?"; the fully-detailed schema is rebuilt at
-    // render time once `detailSchema.sections` are known.
+    // render time once the synth parts (sections, related, …) are known.
     if (assignedPage) return null;
     if (!objectDef) return null;
-    if (!renderViaSchemaFlag && !assignedSlots) return null;
     return buildDefaultPageSchema(objectDef as any, assignedSlots ? { slots: assignedSlots } : undefined);
-  }, [renderViaSchemaFlag, assignedPage, assignedSlots, objectDef]);
+  }, [assignedPage, assignedSlots, objectDef]);
   const effectivePage = assignedPage || synthesizedPage;
   const [pageRecord, setPageRecord] = useState<any>(null);
   // 'idle' | 'loading' | 'loaded' | 'missing' — distinguishes "haven't
@@ -313,10 +297,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // record (or its object) is invalidated on the bus.
   }, [effectivePage, objectName, pureRecordId, dataSource, objectDef, recordInvalidationNonce]);
 
-  // Schema-driven path: derive a human-readable record title from the
-  // loaded `pageRecord` so favourites (record:*) and the breadcrumb show
-  // e.g. "Acme Corporation" instead of the raw record id. The legacy
-  // `DetailView` path keeps using its own `onDataLoaded` callback below.
+  // Derive a human-readable record title from the loaded `pageRecord` so
+  // favourites (record:*) and the breadcrumb show e.g. "Acme Corporation"
+  // instead of the raw record id.
   useEffect(() => {
     if (!pageRecord || typeof pageRecord !== 'object' || !objectDef) return;
     const resolved = getRecordDisplayName(objectDef, pageRecord);
@@ -855,49 +838,9 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     [objectDef, objects],
   );
 
-  // Fetch related child records for each reverse reference.
-  //
-  // PERF: only the legacy `DetailView` path consumes `childRelatedData`
-  // (it's threaded into `detailSchema.related[].data`). The default
-  // schema path renders each related list via `record:related_list`,
-  // whose `RelatedList` self-fetches lazily when its tab is shown — so
-  // preloading here would just fire ~N redundant concurrent queries on
-  // every record open (measured: a record with 8 related lists fired ~50
-  // concurrent requests, all TTFB ~9s) for data the schema path never
-  // reads. Skip the fan-out entirely whenever the schema page renders;
-  // load eagerly only for the legacy fallback that needs it.
-  useEffect(() => {
-    if (effectivePage) return;
-    if (!dataSource || !pureRecordId || childRelations.length === 0) return;
-    let cancelled = false;
-    Promise.all(
-      childRelations.map(({ childObject, referenceField }) =>
-        dataSource.find(childObject, {
-          $filter: { [referenceField]: pureRecordId },
-        })
-          .then((res: any) => {
-            const items = Array.isArray(res) ? res : res?.data || [];
-            return { childObject, items };
-          })
-          .catch((err: any) => {
-            console.warn(`[RecordDetailView] Failed to fetch related ${childObject}:`, err);
-            return { childObject, items: [] as any[] };
-          })
-      )
-    ).then((results) => {
-      if (cancelled) return;
-      const data: Record<string, any[]> = {};
-      for (const { childObject, items } of results) {
-        data[childObject] = items;
-      }
-      setChildRelatedData(data);
-    });
-    return () => { cancelled = true; };
-  }, [dataSource, pureRecordId, childRelations, objectDef, effectivePage]);
-
   // ── Audit history fetch ────────────────────────────────────────────
-  // Loads recent sys_audit_log entries for this record so the DetailView can
-  // render a read-only "History" tab. Gated on three preconditions to keep
+  // Loads recent sys_audit_log entries for this record so the record page can
+  // render a read-only "History" tab (`record:history`). Gated on three preconditions to keep
   // the network and the UI quiet for objects that opt out of history:
   //   1) trackHistory must be explicitly true on the object capabilities
   //      (the framework default is false, so we never speculatively fetch).
@@ -1369,28 +1312,25 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   );
 
   useEffect(() => {
-    // Reset loading on navigation; the actual DetailView handles data fetching
+    // Reset loading on navigation; the page-record effect above owns data fetching
     setIsLoading(true);
     queueMicrotask(() => setIsLoading(false));
   }, [objectName, recordId]);
 
-  // Build detail schema — must be before early returns to keep hook count
-  // consistent across renders and avoid React error #310.
-  const detailSchema: DetailViewSchema = useMemo(() => {
+  // Build the synthesized-page inputs — the object-derived parts that
+  // `buildDefaultPageSchema` folds into the default record page when no
+  // authored Page is assigned. Must be before early returns to keep hook
+  // count consistent across renders and avoid React error #310.
+  const synthParts = useMemo(() => {
     if (!objectDef) {
-      return { type: 'detail-view' } as DetailViewSchema;
+      return {} as {
+        sections?: Array<Record<string, any>>;
+        highlightFields?: string[];
+        headerActions?: ActionDef[];
+        related?: Array<{ title?: string; objectName: string; relationshipField: string; columns?: any[]; icon?: string; isPrimary?: boolean }>;
+        history?: { entries: any[]; loading: boolean };
+      };
     }
-
-    // Auto-detect primary field: prefer objectDef metadata — `primaryField`
-    // (objectui-local override), then the spec-canonical `nameField` and its
-    // deprecated `displayNameField` alias (ADR-0079) — then the 'name'/'title'
-    // heuristic.
-    const primaryField = objectDef.primaryField
-      || (objectDef as any).nameField
-      || (objectDef as any).displayNameField
-      || Object.keys(objectDef.fields || {}).find(
-        (key) => key === 'name' || key === 'title'
-      );
 
     // Build sections (ADR-0085: grouping is the `fieldGroups` semantic
     // role — there is no per-surface sections override; per-page
@@ -1556,182 +1496,64 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       return base;
     })();
 
-    // Build highlightFields from the object's semantic role (ADR-0085).
-    // Bare field names resolve label/type from the field def.
+    // Highlight-strip field names from the object's semantic role
+    // (ADR-0085). Bare names pass through; `{ name }` descriptors reduce
+    // to their name. Empty → undefined below, so the synthesizer
+    // auto-derives instead.
     const rawHighlightFields = (objectDef as any).highlightFields ?? [];
-    const highlightFields: HighlightField[] = (Array.isArray(rawHighlightFields) ? rawHighlightFields : [])
-      .map((f: any): HighlightField | null => {
-        const name = typeof f === 'string' ? f : f?.name;
-        if (!name) return null;
-        const fieldDef = objectDef.fields?.[name];
-        return {
-          name,
-          label: fieldDef?.label || name,
-          ...(fieldDef?.type ? { type: fieldDef.type } : {}),
-        };
-      })
-      .filter((f): f is HighlightField => !!f);
+    const highlightFields: string[] = (Array.isArray(rawHighlightFields) ? rawHighlightFields : [])
+      .map((f: any) => (typeof f === 'string' ? f : f?.name))
+      .filter((n: any): n is string => typeof n === 'string' && n.length > 0);
 
-    // Build related entries from reverse-reference child objects.
-    // `referenceField` is the FK field on the child pointing back to this
-    // record — passed so the related-list renderer can hide the redundant
-    // parent-ID column. Each entry carries action handlers that the renderer
-    // surfaces as header `+ New` / `View All` buttons and per-row Edit /
-    // Delete controls.
-    const baseAppUrl = appName ? `/apps/${appName}` : '';
-    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride }) => {
+    // Related child lists from reverse-reference relationships, in
+    // `buildDefaultPageSchema`'s `related` shape. `relationshipField` is
+    // the FK field on the child pointing back to this record — passed so
+    // the related-list renderer can hide the redundant parent-ID column.
+    // Each list's `record:related_list` renderer self-fetches lazily when
+    // its tab is shown (nothing is preloaded here), and header/row
+    // affordances (+ New / View All / row navigation) are wired
+    // downstream by `RelatedRecordActionsBridge`.
+    const related = childRelations.map(({ childObject, childLabel, referenceField, title: titleOverride, columns: columnsOverride, isPrimary }) => {
       const childObjectDef = objects.find((o: any) => o.name === childObject);
-      const parentId = pureRecordId || '';
       // A `relatedListTitle` on the relationship wins; else fall back to the
       // localized child-object label.
       const localizedTitle = titleOverride
         || (childObjectDef
           ? objectLabel({ name: childObjectDef.name, label: childObjectDef.label || childLabel })
           : childLabel);
-
-      const buildNewUrl = () => {
-        const qs = new URLSearchParams({ [referenceField]: parentId }).toString();
-        return `${baseAppUrl}/${childObject}/new${qs ? `?${qs}` : ''}`;
-      };
-      const buildListUrl = () => {
-        const qs = new URLSearchParams({
-          [`filter[${referenceField}]`]: parentId,
-        }).toString();
-        return `${baseAppUrl}/${childObject}${qs ? `?${qs}` : ''}`;
-      };
-      const buildEditUrl = (row: any) => {
-        const rid = row?.id || row?._id;
-        if (!rid) return null;
-        return `${baseAppUrl}/${childObject}/record/${encodeURIComponent(String(rid))}/edit`;
-      };
-      const buildRecordUrl = (row: any) => {
-        const rid = row?.id || row?._id;
-        if (!rid) return null;
-        const url = `${baseAppUrl}/${childObject}/record/${encodeURIComponent(String(rid))}`;
-        // Thread this (the parent) record into the child's `?from=` trail so
-        // the breadcrumb + back link can path back up. Mirrors the synth-path
-        // bridge; both must stay in sync.
-        if (objectName && pureRecordId) {
-          const rawFrom = new URLSearchParams(window.location.search).get(RECORD_TRAIL_PARAM);
-          const trail = appendRecordTrail(rawFrom, {
-            o: objectName,
-            i: pureRecordId,
-            ...(recordTitle ? { t: recordTitle } : {}),
-          });
-          const sp = new URLSearchParams();
-          sp.set(RECORD_TRAIL_PARAM, trail);
-          return `${url}?${sp.toString()}`;
-        }
-        return url;
-      };
-
-      const onNew = baseAppUrl
-        ? () => navigate(buildNewUrl())
-        : undefined;
-      const onViewAll = baseAppUrl
-        ? () => navigate(buildListUrl())
-        : undefined;
-      const onRowClick = baseAppUrl
-        ? (row: any) => {
-            const url = buildRecordUrl(row);
-            if (url) navigate(url);
-          }
-        : undefined;
-      const onRowEdit = baseAppUrl
-        ? (row: any) => {
-            const url = buildEditUrl(row);
-            if (url) navigate(url);
-          }
-        : undefined;
-      const onRowDelete = dataSource && parentId
-        ? async (row: any) => {
-            const rid = row?.id || row?._id;
-            if (!rid) return;
-            try {
-              await dataSource.delete(childObject, rid);
-              toast.success(t('detail.deleteSuccess', { defaultValue: 'Deleted' }));
-              setChildRelatedData((prev) => ({
-                ...prev,
-                [childObject]: (prev[childObject] || []).filter(
-                  (r: any) => (r.id || r._id) !== rid,
-                ),
-              }));
-            } catch (err: any) {
-              toast.error(err?.message || t('detail.deleteError', { defaultValue: 'Delete failed' }));
-            }
-          }
-        : undefined;
-
       return {
         title: localizedTitle,
-        type: 'table' as const,
-        api: childObject,
-        data: childRelatedData[childObject] || [],
-        referenceField,
+        objectName: childObject,
+        relationshipField: referenceField,
         // Explicit columns from `relatedListColumns` on the relationship; when
         // absent the related-list renderer auto-derives them from the child
         // object's fields.
         ...(Array.isArray(columnsOverride) && columnsOverride.length > 0
           ? { columns: columnsOverride }
           : {}),
-        icon: childObjectDef?.icon,
-        // Surface the child object's canonical display field so the
-        // right-rail can show meaningful labels (`user_agent`, `email`,
-        // …) instead of opaque IDs like `kCc8mhJr0bRs0r9Ykd09…`.
-        displayField:
-          childObjectDef?.nameField ||
-          childObjectDef?.displayNameField ||
-          (Array.isArray(childObjectDef?.highlightFields)
-            ? childObjectDef.highlightFields[0]
-            : undefined),
-        onNew,
-        onViewAll,
-        onRowClick,
-        onRowEdit,
-        onRowDelete,
+        ...(childObjectDef?.icon ? { icon: childObjectDef.icon } : {}),
+        // `relatedList: 'primary'` prominence flag (ADR-0085) — the list is
+        // promoted to its own tab by `buildDefaultTabs`.
+        ...(isPrimary ? { isPrimary: true } : {}),
       };
     });
 
-    const affordances = resolveCrudAffordances(objectDef as any);
     return {
-      type: 'detail-view' as const,
-      objectName: objectDef.name,
-      resourceId: pureRecordId,
-      showBack: !embedded,
-      onBack: 'history',
-      // Hide the Edit button for objects whose lifecycle isn't user-managed
-      // (approval requests, audit logs, better-auth tables, …).  The
-      // underlying form is also disabled when `managedBy !== 'platform'`
-      // (see plugin-form/ObjectForm), so even if a stray Edit URL is
-      // visited the inputs render read-only.
-      showEdit: affordances.edit,
-      title: objectDef.label,
-      primaryField,
       sections,
-      autoTabs: true,
-      // objectui#2257 — URL-driven active tab (same `?tab=` contract as the
-      // schema path's page:tabs node).
-      defaultTab: activeTabParam,
-      onTabChange: handleTabChange,
-      autoDiscoverRelated: true,
+      // Empty → undefined so the synthesizer falls back to its own
+      // derivation (highlights) / skips the node (actions, related, history).
+      highlightFields: highlightFields.length > 0 ? highlightFields : undefined,
+      headerActions: recordHeaderActions.length > 0 ? (recordHeaderActions as ActionDef[]) : undefined,
+      related: related.length > 0 ? related : undefined,
       ...(historyEnabled && {
         history: {
           entries: historyEntries ?? [],
           loading: historyLoading && historyEntries === null,
         },
       }),
-      ...(related.length > 0 && { related }),
-      ...(highlightFields.length > 0 && { highlightFields }),
-      ...(recordHeaderActions.length > 0 && {
-        actions: [{
-          type: 'action:bar',
-          location: 'record_header',
-          actions: recordHeaderActions,
-        } as any],
-      }),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectDef?.name, pureRecordId, childRelatedData, appName, navigate, dataSource, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide, approvals.pendingRequest, approvals.latestRequest, embedded, activeTabParam, handleTabChange]);
+  }, [objectDef?.name, childRelations, t, objectLabel, objects, historyEnabled, historyEntries, historyLoading, approvals.available, approvals.canDecide]);
 
   if (isLoading) {
     return <SkeletonDetail />;
@@ -1756,9 +1578,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // Record-not-found short-circuit. Previously we rendered the page chrome
   // (rail, discussion, breadcrumb with the truncated raw id) even when the
   // record didn't exist, which made invalid links look like a partially-
-  // broken page instead of a clean 404. Only triggers on the synth/page
-  // path; the legacy DetailView path handles missing records itself.
-  if (effectivePage && pageRecordStatus === 'missing') {
+  // broken page instead of a clean 404.
+  if (pageRecordStatus === 'missing') {
     return (
       <div className="flex h-full items-center justify-center p-4">
         <Empty>
@@ -1777,426 +1598,243 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     );
   }
 
-  if (effectivePage) {
-    const disableDiscussion = (effectivePage as any)?.disableDiscussion === true;
-    // When the page schema embeds an explicit `record:discussion` /
-    // `record:chatter` slot, skip the bottom auto-append so the
-    // author placement (or synth default) wins. The walker recurses
-    // into `regions[]` so `buildDefaultPageSchema` output and
-    // full-Lightning authored pages are both detected.
-    const hasDiscussion = hasExplicitDiscussion(effectivePage as any);
-    // `enable.feeds: false` (#2707) suppresses the discussion panel outright —
-    // same opt-out contract the server enforces on sys_comment creation.
-    const showAutoDiscussion = !disableDiscussion && !hasDiscussion && feedsEnabled;
-    // Slice 2 — when we're synthesizing (no author assignedPage), rebuild
-    // the schema with the actual detailSchema.sections + highlight fields
-    // so record:details renders the same field layout the legacy
-    // DetailView would have produced.
-    // Slice 4 — also forward header actions, related lists, activities,
-    // and history so the synthesized page reaches parity with the
-    // monolithic DetailView (tabs strip + record_header quick actions).
-    // Business / custom actions authored on objectDef and routed to the
-    // record_header location (e.g. Lead.convert, Contact.set_primary).
-    const synthBusinessActions: ActionDef[] = (() => {
-      const acts = (detailSchema as any).actions;
-      if (!Array.isArray(acts)) return [];
-      // detailSchema wraps actions in a `{type:'action:bar', actions:[]}`
-      // shape; unwrap to the flat ActionDef[] the renderer expects.
-      const bar = acts.find((a: any) => Array.isArray(a?.actions));
-      const flat = bar?.actions ?? acts;
-      return Array.isArray(flat) ? flat : [];
-    })();
+  // A page always exists past the guards above — authored (assignedPage)
+  // or synthesized (buildDefaultPageSchema).
+  const disableDiscussion = (effectivePage as any)?.disableDiscussion === true;
+  // When the page schema embeds an explicit `record:discussion` /
+  // `record:chatter` slot, skip the bottom auto-append so the
+  // author placement (or synth default) wins. The walker recurses
+  // into `regions[]` so `buildDefaultPageSchema` output and
+  // full-Lightning authored pages are both detected.
+  const hasDiscussion = hasExplicitDiscussion(effectivePage as any);
+  // `enable.feeds: false` (#2707) suppresses the discussion panel outright —
+  // same opt-out contract the server enforces on sys_comment creation.
+  const showAutoDiscussion = !disableDiscussion && !hasDiscussion && feedsEnabled;
 
-    // System actions (Edit / Share / Delete) — the legacy DetailView
-    // monolith always synthesized these. The synth-path replacement
-    // (Phase G slice 6) initially dropped them, leaving objects without
-    // authored record_header actions with a bare header. Re-inject here
-    // so every record page surfaces the basic affordances.
-    const synthSystemActions: ActionDef[] = (() => {
-      const affordances = resolveCrudAffordances(objectDef as any);
-      const items: ActionDef[] = [];
-      if (affordances.edit) {
-        // Single primary Edit CTA → opens the full record form. Inline editing
-        // is no longer a standalone header button; it is entered by
-        // double-clicking a field (or its hover pencil) in the record body,
-        // with the object-editability gate applied at the field-render source
-        // (record-details.tsx). See #2401.
-        items.push({
-          name: 'sys_edit',
-          label: t('detail.edit', { defaultValue: 'Edit' }),
-          type: 'script',
-          locations: ['record_header'],
-          variant: 'default',
-          onClick: () => onEdit({ id: pureRecordId }),
-        } as any);
-      }
+  // System actions (Edit / Share / Delete) — synthesized for every record
+  // page so objects without authored record_header actions still surface
+  // the basic affordances.
+  const synthSystemActions: ActionDef[] = (() => {
+    const affordances = resolveCrudAffordances(objectDef as any);
+    const items: ActionDef[] = [];
+    if (affordances.edit) {
+      // Single primary Edit CTA → opens the full record form. Inline editing
+      // is no longer a standalone header button; it is entered by
+      // double-clicking a field (or its hover pencil) in the record body,
+      // with the object-editability gate applied at the field-render source
+      // (record-details.tsx). See #2401.
       items.push({
-        name: 'sys_share',
-        label: t('detail.share', { defaultValue: 'Share' }),
+        name: 'sys_edit',
+        label: t('detail.edit', { defaultValue: 'Edit' }),
         type: 'script',
         locations: ['record_header'],
-        variant: 'outline',
-        onClick: async () => {
-          try {
-            if ((navigator as any).share) {
-              await (navigator as any).share({
-                title: document.title,
-                url: window.location.href,
-              });
-              return;
-            }
-          } catch {
-            // user dismissed the native share sheet — no-op
+        variant: 'default',
+        onClick: () => onEdit({ id: pureRecordId }),
+      } as any);
+    }
+    items.push({
+      name: 'sys_share',
+      label: t('detail.share', { defaultValue: 'Share' }),
+      type: 'script',
+      locations: ['record_header'],
+      variant: 'outline',
+      onClick: async () => {
+        try {
+          if ((navigator as any).share) {
+            await (navigator as any).share({
+              title: document.title,
+              url: window.location.href,
+            });
             return;
           }
-          // Fallback path: clipboard. Surface failure to the user so we
-          // never silently no-op (e.g. when clipboard access is denied
-          // because the page is not focused or running over http://).
+        } catch {
+          // user dismissed the native share sheet — no-op
+          return;
+        }
+        // Fallback path: clipboard. Surface failure to the user so we
+        // never silently no-op (e.g. when clipboard access is denied
+        // because the page is not focused or running over http://).
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          toast.success(t('detail.linkCopied', { defaultValue: 'Link copied' }));
+        } catch (err: any) {
+          toast.error(
+            t('detail.linkCopyFailed', { defaultValue: 'Failed to copy link' }) +
+              (err?.message ? `: ${err.message}` : ''),
+          );
+        }
+      },
+    } as any);
+    if (affordances.delete) {
+      items.push({
+        name: 'sys_delete',
+        label: t('detail.delete', { defaultValue: 'Delete' }),
+        type: 'script',
+        locations: ['record_header'],
+        variant: 'destructive',
+        onClick: async () => {
+          const msg = t('detail.deleteConfirmation', {
+            defaultValue: 'Are you sure you want to delete this record?',
+          });
+          if (!window.confirm(msg)) return;
           try {
-            await navigator.clipboard.writeText(window.location.href);
-            toast.success(t('detail.linkCopied', { defaultValue: 'Link copied' }));
+            await dataSource.delete(objectName!, pureRecordId!);
+            toast.success(t('detail.deleted', { defaultValue: 'Record deleted' }));
+            const baseAppUrl = appName ? `/apps/${appName}` : '';
+            navigate(`${baseAppUrl}/${objectName}`, { replace: true });
           } catch (err: any) {
-            toast.error(
-              t('detail.linkCopyFailed', { defaultValue: 'Failed to copy link' }) +
-                (err?.message ? `: ${err.message}` : ''),
-            );
+            toast.error(err?.message || 'Delete failed');
           }
         },
       } as any);
-      if (affordances.delete) {
-        items.push({
-          name: 'sys_delete',
-          label: t('detail.delete', { defaultValue: 'Delete' }),
-          type: 'script',
-          locations: ['record_header'],
-          variant: 'destructive',
-          onClick: async () => {
-            const msg = t('detail.deleteConfirmation', {
-              defaultValue: 'Are you sure you want to delete this record?',
-            });
-            if (!window.confirm(msg)) return;
-            try {
-              await dataSource.delete(objectName!, pureRecordId!);
-              toast.success(t('detail.deleted', { defaultValue: 'Record deleted' }));
-              const baseAppUrl = appName ? `/apps/${appName}` : '';
-              navigate(`${baseAppUrl}/${objectName}`, { replace: true });
-            } catch (err: any) {
-              toast.error(err?.message || 'Delete failed');
-            }
-          },
-        } as any);
-      }
-      return items;
-    })();
+    }
+    return items;
+  })();
 
-    // The synth path now hands ONLY business actions to the page schema.
-    // System actions (Edit / Share / Delete) ride through
-    // `RecordContext.headerSystemActions` instead, so they reach both
-    // synth/slotted pages AND authored full-Lightning pages without
-    // mutating the assignedPage tree. `PageHeaderRenderer` dedupes by
-    // name so authored business actions still win on collision.
-    const synthHeaderActions = synthBusinessActions.length > 0 ? synthBusinessActions : undefined;
-    const synthRelated = Array.isArray((detailSchema as any).related)
-      ? ((detailSchema as any).related as any[])
-          .filter((r) => r?.api && r?.referenceField)
-          .map((r) => {
-            // Carry the `relatedList: 'primary'` prominence flag from the derived
-            // relationship graph. Matched by (childObject, referenceField) — the
-            // unique key of a related list — so it is robust to ordering/filtering.
-            const derived = childRelations.find(
-              (c) => c.childObject === r.api && c.referenceField === r.referenceField,
-            );
-            return {
-              title: r.title,
-              objectName: r.api,
-              relationshipField: r.referenceField,
-              ...(Array.isArray(r.columns) ? { columns: r.columns } : {}),
-              ...(typeof r.pageSize === 'number' ? { limit: r.pageSize } : {}),
-              ...(r.icon ? { icon: r.icon } : {}),
-              ...(derived?.isPrimary ? { isPrimary: true } : {}),
-            };
-          })
-      : undefined;
-    const synthHistory = (detailSchema as any).history
-      ? {
-          entries: ((detailSchema as any).history.entries as any[]) ?? [],
-          loading: !!(detailSchema as any).history.loading,
-          emptyText: (detailSchema as any).history.emptyText,
-        }
-      : undefined;
-    const renderedPage = assignedPage
-      ? effectivePage
-      : buildDefaultPageSchema(objectDef as any, {
-          sections: (detailSchema as any).sections,
-          highlightFields: Array.isArray((detailSchema as any).highlightFields)
-            ? ((detailSchema as any).highlightFields as any[])
-                .map((f) => (typeof f === 'string' ? f : f?.name))
-                .filter((n): n is string => !!n)
-            : undefined,
-          headerActions: synthHeaderActions,
-          related: synthRelated,
-          history: synthHistory,
-          // ADR-0085 removed the per-object `detail.*` presentation
-          // toggles (show/hideReferenceRail, hideRelatedTab, relatedLayout)
-          // — the synth defaults apply; per-page layout goes through an
-          // assigned Page schema (`record:reference_rail` stays available
-          // there as a renderer capability).
-          ...(assignedSlots ? { slots: assignedSlots } : {}),
-        });
-    return (
-      <div className="h-full bg-background overflow-hidden flex flex-col relative">
-        {/* Shared cross-cutting chrome: lifecycle badge + presence avatars.
-            Mirrors the default branch so custom Page-assigned record pages
-            don't lose these affordances. */}
-        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-50 flex items-center gap-2">
-          {recordPresence.length > 0 && (
-            <PresenceAvatars users={recordPresence} size="sm" maxVisible={3} showStatus />
-          )}
-          <ManagedByBadge managedBy={(objectDef as any)?.managedBy} />
-        </div>
-
-        <RecordContextProvider
-          objectName={objectName!}
-          recordId={pureRecordId}
-          data={pageRecord}
-          objectSchema={objectDef}
-          dataSource={dataSource}
-          embedded={embedded}
-          headerSystemActions={synthSystemActions}
-          isFavorite={isRecordFavorite}
-          onToggleFavorite={favoriteRecord ? handleToggleRecordFavorite : undefined}
-        >
-          <HighlightFieldsProvider>
-          <DiscussionContextProvider
-            items={feedItems as any}
-            onAddComment={handleAddComment as any}
-            onAddReply={handleAddReply as any}
-            onToggleReaction={handleToggleReaction as any}
-            mentionSuggestions={mentionSuggestions}
-          >
-          <ActionProvider
-            context={{ record: pageRecord || {}, objectName, user: currentUser }}
-            onConfirm={confirmHandler}
-            onToast={toastHandler}
-            onNavigate={navigateHandler}
-            onParamCollection={paramCollectionHandler}
-            onResultDialog={resultDialogHandler}
-            onModal={modalHandler}
-            handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, approval: approvalHandler }}
-          >
-            <div className="flex-1 overflow-hidden flex flex-row">
-              <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 scroll-pb-48">
-                {originFrom?.pathname && originFrom?.label && (
-                  <Link
-                    to={originFrom.pathname}
-                    className="inline-flex items-center gap-1 mb-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    <span>{originFrom.label}</span>
-                  </Link>
-                )}
-                <RelatedRecordActionsBridge
-                  appName={appName}
-                  objects={objects}
-                  dataSource={dataSource}
-                  actionLabel={actionLabel}
-                  parentObjectName={objectName}
-                  parentRecordId={pureRecordId ?? undefined}
-                  parentTitle={recordTitle}
-                >
-                  <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
-                </RelatedRecordActionsBridge>
-                {/* ADR-0056 P1b — user assignment lives in Setup (the pure
-                    model): the permission set's facets render read-only as
-                    summary + Studio deep-link, and admins add/remove users
-                    here. Rendered directly (mirrors RecordAttachmentsPanel)
-                    inside RecordContextProvider so it reads the set's name. */}
-                {objectName === 'sys_permission_set' && pureRecordId && (
-                  <div className="mt-6">
-                    <RecordPermissionAssignmentsRenderer />
-                  </div>
-                )}
-                {/* Generic Attachments panel (#2727) — opt-in via
-                    `enable.files: true`; the server rejects attachments
-                    targeting any other object (403 FILES_DISABLED). */}
-                {filesEnabled && pureRecordId && (
-                  <div className="mt-6">
-                    <RecordAttachmentsPanel
-                      objectName={objectName!}
-                      recordId={pureRecordId}
-                      dataSource={dataSource}
-                      currentUserId={currentUser?.id}
-                    />
-                  </div>
-                )}
-                {/* Auto-append RecordChatterPanel only when the page
-                    schema doesn't already place a `record:discussion` /
-                    `record:chatter` component. Hard opt-out via
-                    `assignedPage.disableDiscussion = true`. */}
-                {showAutoDiscussion && (
-                  <div className="mt-6">
-                    <RecordChatterPanel
-                      config={{
-                        position: 'bottom',
-                        collapsible: false,
-                        feed: {
-                          enableReactions: true,
-                          enableThreading: true,
-                          showCommentInput: true,
-                        },
-                      }}
-                      items={feedItems}
-                      onAddComment={handleAddComment}
-                      onAddReply={handleAddReply}
-                      onToggleReaction={handleToggleReaction}
-                      mentionSuggestions={mentionSuggestions}
-                    />
-                  </div>
-                )}
-              </div>
-              <MetadataPanel
-                open={showDebug}
-                sections={[{ title: 'Page Schema', data: renderedPage }]}
-              />
-            </div>
-            {modalElement}
-          </ActionProvider>
-          </DiscussionContextProvider>
-          </HighlightFieldsProvider>
-        </RecordContextProvider>
-
-        {/* Action Confirm Dialog */}
-        <ActionConfirmDialog
-          state={confirmState}
-          onOpenChange={(open) => {
-            if (!open) setConfirmState(s => ({ ...s, open: false }));
-          }}
-        />
-
-        {/* Action Param Collection Dialog */}
-        <ActionParamDialog
-          state={paramState}
-          onOpenChange={(open) => {
-            if (!open) setParamState(s => ({ ...s, open: false }));
-          }}
-        />
-
-        {/* Action Result Reveal Dialog */}
-        <ActionResultDialog
-          state={resultDialogState}
-          onAcknowledge={() => {
-            resultDialogState.resolve?.();
-            setResultDialogState({ open: false });
-          }}
-        />
-        <FlowRunner
-          state={screenFlow}
-          authFetch={authFetch}
-          baseUrl={import.meta.env.VITE_SERVER_URL || ''}
-          dataSource={dataSource}
-          objects={objects}
-          onClose={() => setScreenFlow(null)}
-          onComplete={() => { setScreenFlow(null); notifyRecordChanged(); }}
-        />
-      </div>
-    );
-  }
+  // The synth path hands ONLY business actions (authored on objectDef and
+  // routed to the record_header location, e.g. Lead.convert) to the page
+  // schema. System actions (Edit / Share / Delete) ride through
+  // `RecordContext.headerSystemActions` instead, so they reach both
+  // synth/slotted pages AND authored full-Lightning pages without
+  // mutating the assignedPage tree. `PageHeaderRenderer` dedupes by
+  // name so authored business actions still win on collision.
+  const renderedPage = assignedPage
+    ? effectivePage
+    : buildDefaultPageSchema(objectDef as any, {
+        sections: synthParts.sections,
+        highlightFields: synthParts.highlightFields,
+        headerActions: synthParts.headerActions,
+        related: synthParts.related,
+        history: synthParts.history,
+        // ADR-0085 removed the per-object `detail.*` presentation
+        // toggles (show/hideReferenceRail, hideRelatedTab, relatedLayout)
+        // — the synth defaults apply; per-page layout goes through an
+        // assigned Page schema (`record:reference_rail` stays available
+        // there as a renderer capability).
+        ...(assignedSlots ? { slots: assignedSlots } : {}),
+      });
 
   return (
     <div className="h-full bg-background overflow-hidden flex flex-col relative">
+      {/* Shared cross-cutting chrome: lifecycle badge + presence avatars —
+          rendered above the page tree so custom Page-assigned record pages
+          don't lose these affordances. */}
       <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-50 flex items-center gap-2">
-        {/* Lifecycle bucket indicator. Replaces the previous full-width
-            ManagedByBanner — see ManagedByBadge for the rationale.
-            Record-scoped presence avatars are sourced from the
-            <PresenceProvider> context and render only when at least one
-            other user is viewing this record — invisible until a
-            realtime transport is wired by the host app. */}
         {recordPresence.length > 0 && (
           <PresenceAvatars users={recordPresence} size="sm" maxVisible={3} showStatus />
         )}
         <ManagedByBadge managedBy={(objectDef as any)?.managedBy} />
       </div>
 
-      <div className="flex-1 overflow-hidden flex flex-row">
-        <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 scroll-pb-48">
-          {/* Cap the detail content at a comfortable reading width — record
-              pages are scan surfaces; full-bleed field rows on wide monitors
-              push values far from labels. Data surfaces (lists/dashboards)
-              stay full-width; this only affects the record detail column. */}
-          <div className="mx-auto w-full max-w-[1400px]">
-          <ActionProvider
-            context={{ record: {}, objectName, user: currentUser }}
-            onConfirm={confirmHandler}
-            onToast={toastHandler}
-            onNavigate={navigateHandler}
-            onParamCollection={paramCollectionHandler}
-            onResultDialog={resultDialogHandler}
-            onModal={modalHandler}
-            handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, approval: approvalHandler }}
-          >
-            <DetailView
-              schema={detailSchema}
-              dataSource={dataSource}
-              objectLabel={objectLabel({ name: objectDef.name, label: objectDef.label })}
-              isFavorite={isRecordFavorite}
-              onToggleFavorite={favoriteRecord ? handleToggleRecordFavorite : undefined}
-              onDataLoaded={(record) => {
-                if (!record || typeof record !== 'object') return;
-                // Resolve the same way DetailView's header does, so the
-                // breadcrumb matches the on-page title (e.g. "David Kim"
-                // instead of "#lead-1778…").
-                const resolved = getRecordDisplayName(objectDef, record);
-                if (resolved && resolved !== recordTitle && resolved !== 'Untitled') {
-                  setRecordTitle(resolved);
-                }
-              }}
-              onEdit={() => {
-                onEdit({ id: pureRecordId });
-              }}
-              discussionSlot={
-                // `enable.feeds: false` (#2707) suppresses the discussion
-                // panel; `enable.files: true` (#2727) adds the Attachments
-                // panel — same gates as the page-schema branch above.
-                feedsEnabled || filesEnabled ? (
-                  <div className="space-y-4">
-                    {filesEnabled && pureRecordId && (
-                      <RecordAttachmentsPanel
-                        objectName={objectName!}
-                        recordId={pureRecordId}
-                        dataSource={dataSource}
-                        currentUserId={currentUser?.id}
-                      />
-                    )}
-                    {feedsEnabled && (
-                      <RecordChatterPanel
-                        config={{
-                          position: 'bottom',
-                          collapsible: false,
-                          feed: {
-                            enableReactions: true,
-                            enableThreading: true,
-                            showCommentInput: true,
-                          },
-                        }}
-                        items={feedItems}
-                        onAddComment={handleAddComment}
-                        onAddReply={handleAddReply}
-                        onToggleReaction={handleToggleReaction}
-                      />
-                    )}
-                  </div>
-                ) : undefined
-              }
+      <RecordContextProvider
+        objectName={objectName!}
+        recordId={pureRecordId}
+        data={pageRecord}
+        objectSchema={objectDef}
+        dataSource={dataSource}
+        embedded={embedded}
+        headerSystemActions={synthSystemActions}
+        isFavorite={isRecordFavorite}
+        onToggleFavorite={favoriteRecord ? handleToggleRecordFavorite : undefined}
+      >
+        <HighlightFieldsProvider>
+        <DiscussionContextProvider
+          items={feedItems as any}
+          onAddComment={handleAddComment as any}
+          onAddReply={handleAddReply as any}
+          onToggleReaction={handleToggleReaction as any}
+          mentionSuggestions={mentionSuggestions}
+        >
+        <ActionProvider
+          context={{ record: pageRecord || {}, objectName, user: currentUser }}
+          onConfirm={confirmHandler}
+          onToast={toastHandler}
+          onNavigate={navigateHandler}
+          onParamCollection={paramCollectionHandler}
+          onResultDialog={resultDialogHandler}
+          onModal={modalHandler}
+          handlers={{ api: apiHandler, flow: flowHandler, script: serverActionHandler, approval: approvalHandler }}
+        >
+          <div className="flex-1 overflow-hidden flex flex-row">
+            <div className="flex-1 overflow-auto p-3 sm:p-4 lg:p-6 scroll-pb-48">
+              {originFrom?.pathname && originFrom?.label && (
+                <Link
+                  to={originFrom.pathname}
+                  className="inline-flex items-center gap-1 mb-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>{originFrom.label}</span>
+                </Link>
+              )}
+              <RelatedRecordActionsBridge
+                appName={appName}
+                objects={objects}
+                dataSource={dataSource}
+                actionLabel={actionLabel}
+                parentObjectName={objectName}
+                parentRecordId={pureRecordId ?? undefined}
+                parentTitle={recordTitle}
+              >
+                <SchemaRenderer schema={withPageTabsUrlSync(renderedPage, { defaultTab: activeTabParam, onTabChange: handleTabChange }) as any} />
+              </RelatedRecordActionsBridge>
+              {/* ADR-0056 P1b — user assignment lives in Setup (the pure
+                  model): the permission set's facets render read-only as
+                  summary + Studio deep-link, and admins add/remove users
+                  here. Rendered directly (mirrors RecordAttachmentsPanel)
+                  inside RecordContextProvider so it reads the set's name. */}
+              {objectName === 'sys_permission_set' && pureRecordId && (
+                <div className="mt-6">
+                  <RecordPermissionAssignmentsRenderer />
+                </div>
+              )}
+              {/* Generic Attachments panel (#2727) — opt-in via
+                  `enable.files: true`; the server rejects attachments
+                  targeting any other object (403 FILES_DISABLED). */}
+              {filesEnabled && pureRecordId && (
+                <div className="mt-6">
+                  <RecordAttachmentsPanel
+                    objectName={objectName!}
+                    recordId={pureRecordId}
+                    dataSource={dataSource}
+                    currentUserId={currentUser?.id}
+                  />
+                </div>
+              )}
+              {/* Auto-append RecordChatterPanel only when the page
+                  schema doesn't already place a `record:discussion` /
+                  `record:chatter` component. Hard opt-out via
+                  `assignedPage.disableDiscussion = true`. */}
+              {showAutoDiscussion && (
+                <div className="mt-6">
+                  <RecordChatterPanel
+                    config={{
+                      position: 'bottom',
+                      collapsible: false,
+                      feed: {
+                        enableReactions: true,
+                        enableThreading: true,
+                        showCommentInput: true,
+                      },
+                    }}
+                    items={feedItems}
+                    onAddComment={handleAddComment}
+                    onAddReply={handleAddReply}
+                    onToggleReaction={handleToggleReaction}
+                    mentionSuggestions={mentionSuggestions}
+                  />
+                </div>
+              )}
+            </div>
+            <MetadataPanel
+              open={showDebug}
+              sections={[{ title: 'Page Schema', data: renderedPage }]}
             />
-            {modalElement}
-          </ActionProvider>
           </div>
-        </div>
-        <MetadataPanel
-          open={showDebug}
-          sections={[{ title: 'View Schema', data: detailSchema }]}
-        />
-      </div>
+          {modalElement}
+        </ActionProvider>
+        </DiscussionContextProvider>
+        </HighlightFieldsProvider>
+      </RecordContextProvider>
 
       {/* Action Confirm Dialog */}
       <ActionConfirmDialog

@@ -110,9 +110,7 @@ The two modes are mutually exclusive: a page either has `kind: "full"`
 (default) and uses `regions[]`, or `kind: "slotted"` and uses
 `slots`.
 
-## Disabling the synthesizer entirely
-
-The default-page synthesizer is on by default. To fall back to the
-legacy DetailView monolith for an object (typically for debugging a
-regression), set `objectDef.detail.renderViaSchema = false`, or pass
-`?renderViaSchema=0` in the URL.
+> **Note:** the default-page synthesizer is the only render path for
+> record detail pages. The legacy monolithic DetailView fallback and its
+> `renderViaSchema` kill-switch (`objectDef.detail.renderViaSchema`,
+> `?renderViaSchema=0`) were removed by ADR-0085 PR4.
