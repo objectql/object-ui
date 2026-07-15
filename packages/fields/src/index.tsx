@@ -8,7 +8,7 @@
 
 import React from 'react';
 import type { FieldMetadata, SelectOptionMetadata } from '@object-ui/types';
-import { ComponentRegistry, percentDisplayValue } from '@object-ui/core';
+import { ComponentRegistry, percentDisplayValue, getRecordDisplayName } from '@object-ui/core';
 import { useLocalization } from '@object-ui/i18n';
 import { Badge, Avatar, AvatarImage, AvatarFallback, Button, Checkbox, EmptyValue, cn } from '@object-ui/components';
 import { Check, X, Copy, Phone as PhoneIcon, MapPin } from 'lucide-react';
@@ -78,6 +78,97 @@ export function pickRecordDisplayName(
   return undefined;
 }
 
+// Module-level cache of referenced-object schemas (keyed by object name) so
+// many lookup cells pointing at the same object trigger ONE metadata fetch.
+type RefSchemaCacheEntry =
+  | { state: 'pending'; promise: Promise<void> }
+  | { state: 'ok'; schema: unknown }
+  | { state: 'err' };
+const refObjectSchemaCache: Map<string, RefSchemaCacheEntry> = new Map();
+
+/**
+ * Fetch (and cache) the referenced object's schema via
+ * `dataSource.getObjectSchema`. Resolves to `undefined` when the data source
+ * doesn't expose schema metadata or the fetch fails — callers fall back to the
+ * key heuristic in that case.
+ */
+async function fetchRefObjectSchema(dataSource: any, referenceTo: string): Promise<any> {
+  const settled = () => {
+    const entry = refObjectSchemaCache.get(referenceTo);
+    return entry?.state === 'ok' ? entry.schema : undefined;
+  };
+  const existing = refObjectSchemaCache.get(referenceTo);
+  if (existing?.state === 'pending') {
+    await existing.promise;
+    return settled();
+  }
+  if (existing) return settled();
+  const getSchema = dataSource?.getObjectSchema;
+  if (typeof getSchema !== 'function') return undefined;
+  const promise = Promise.resolve()
+    .then(() => getSchema.call(dataSource, referenceTo))
+    .then((schema: unknown) => { refObjectSchemaCache.set(referenceTo, { state: 'ok', schema }); })
+    .catch(() => { refObjectSchemaCache.set(referenceTo, { state: 'err' }); });
+  refObjectSchemaCache.set(referenceTo, { state: 'pending', promise });
+  await promise;
+  return settled();
+}
+
+/**
+ * React hook wrapper over {@link fetchRefObjectSchema}: returns the referenced
+ * object's schema once loaded (re-rendering when it lands), `undefined` while
+ * pending or when schema metadata isn't available.
+ */
+function useRefObjectSchema(referenceTo: string | undefined): any {
+  const ctx = React.useContext(_SchemaRendererContext);
+  const dataSource = ctx?.dataSource as any;
+  const [, force] = React.useState(0);
+  const canFetch =
+    !!referenceTo && !!dataSource && typeof dataSource.getObjectSchema === 'function';
+
+  React.useEffect(() => {
+    if (!canFetch) return;
+    const entry = refObjectSchemaCache.get(referenceTo!);
+    if (entry && entry.state !== 'pending') return; // settled before this render
+    let alive = true;
+    fetchRefObjectSchema(dataSource, referenceTo!).then(() => {
+      if (alive) force((n) => n + 1);
+    });
+    return () => { alive = false; };
+  }, [canFetch, referenceTo, dataSource]);
+
+  if (!canFetch) return undefined;
+  const entry = refObjectSchemaCache.get(referenceTo!);
+  return entry?.state === 'ok' ? entry.schema : undefined;
+}
+
+/**
+ * Resolve an expanded/fetched lookup record to its display name the same way
+ * the picker does (issue #2357): explicit `displayField` first, then the
+ * unified ADR-0079 resolver against the referenced object's schema
+ * (`nameField`/`displayNameField` → `titleFormat` → type-aware derivation,
+ * which excludes autonumber). Only when no schema is available does it fall
+ * back to {@link pickRecordDisplayName}, whose `_number`/`_code` suffix scan
+ * can otherwise surface an autonumber (`0001`) over the record's real name.
+ */
+function resolveLookupRecordName(
+  record: Record<string, unknown> | null | undefined,
+  refSchema?: any,
+  displayField?: string,
+): string | undefined {
+  if (!record || typeof record !== 'object') return undefined;
+  if (refSchema) {
+    const resolved = getRecordDisplayName(refSchema, record, { titleField: displayField });
+    // Stop short of the resolver's `Record #<id>` / `Untitled` floor so the
+    // cell keeps its own id-placeholder handling for nameless records.
+    const id = (record as any).id ?? (record as any)._id;
+    const isFloor =
+      resolved === 'Untitled' || (id != null && resolved === `Record #${id}`);
+    if (!isFloor && resolved) return resolved;
+  }
+  return pickRecordDisplayName(record, displayField);
+}
+
 /**
  * Heuristic: detect strings that look like opaque foreign-key IDs (e.g. nanoid
  * or BSON ObjectId). Used so we don't display random gibberish to users when
@@ -101,7 +192,11 @@ export function isLikelyOpaqueId(v: unknown): boolean {
  * the context isn't installed. Returns the resolved display name or
  * `undefined` while pending or unresolvable.
  */
-function useLookupName(referenceTo: string | undefined, value: unknown): string | undefined {
+function useLookupName(
+  referenceTo: string | undefined,
+  value: unknown,
+  displayField?: string,
+): string | undefined {
   const ctx = React.useContext(_SchemaRendererContext);
   const dataSource = ctx?.dataSource;
   const [, force] = React.useState(0);
@@ -112,7 +207,9 @@ function useLookupName(referenceTo: string | undefined, value: unknown): string 
     typeof dataSource.find === 'function' &&
     (typeof value === 'string' || typeof value === 'number') &&
     value !== '';
-  const cacheKey = isResolvable ? `${referenceTo}:${String(value)}` : '';
+  const cacheKey = isResolvable
+    ? `${referenceTo}:${String(value)}:${displayField ?? ''}`
+    : '';
 
   React.useEffect(() => {
     if (!isResolvable) return;
@@ -135,7 +232,11 @@ function useLookupName(referenceTo: string | undefined, value: unknown): string 
             : (result?.value || result?.data || []);
           record = records[0];
         }
-        const name = pickRecordDisplayName(record);
+        // Resolve through the referenced object's schema (nameField /
+        // titleFormat) so the chip agrees with the picker — the bare key
+        // heuristic alone can surface an autonumber over the real name.
+        const schema = await fetchRefObjectSchema(dataSource, referenceTo!);
+        const name = resolveLookupRecordName(record, schema, displayField);
         lookupNameCache.set(cacheKey, { state: 'ok', name });
       } catch {
         lookupNameCache.set(cacheKey, { state: 'err' });
@@ -144,7 +245,7 @@ function useLookupName(referenceTo: string | undefined, value: unknown): string 
     })();
 
     lookupNameCache.set(cacheKey, { state: 'pending', promise });
-  }, [cacheKey, isResolvable, referenceTo, value, dataSource]);
+  }, [cacheKey, isResolvable, referenceTo, value, displayField, dataSource]);
 
   if (!isResolvable) return undefined;
   const entry = lookupNameCache.get(cacheKey);
@@ -1167,6 +1268,11 @@ export function ImageCellRenderer({ value }: CellRendererProps): React.ReactElem
  * 3. Fetch-on-demand: when the value is a primitive ID and `field.reference_to`
  *    is known, resolve via dataSource and show the related record's display name.
  *    Falls back to a muted placeholder while pending and on failure.
+ *
+ * Record → name resolution (1 and 3) goes through the referenced object's
+ * schema when the data source exposes it (`displayField` → nameField/titleFormat
+ * → derivation, see {@link resolveLookupRecordName}), so the chip and the
+ * picker agree (issue #2357).
  */
 export function LookupCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
   // ObjectStack object metadata uses `reference` for the lookup target while the
@@ -1177,6 +1283,17 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   const referenceTo =
     (field as { reference_to?: string }).reference_to ||
     (field as { reference?: string }).reference;
+
+  // Explicit author-chosen display field on the lookup — beats every resolver.
+  const displayField =
+    (field as { display_field?: string }).display_field ||
+    (field as { displayField?: string }).displayField ||
+    (field as { reference_field?: string }).reference_field ||
+    undefined;
+
+  // Referenced object's schema (nameField / titleFormat) so expanded records
+  // resolve through the same unified resolver as the picker (issue #2357).
+  const refSchema = useRefObjectSchema(referenceTo);
 
   // Pick the FIRST primitive id we see (for arrays, only the first one is auto-resolved
   // to keep the cell cheap; multi-value lookups should generally be expanded server-side).
@@ -1199,7 +1316,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   })();
 
   // Always call the hook (rules of hooks). It safely no-ops when inputs are missing.
-  const resolvedName = useLookupName(referenceTo, primaryPrimitiveId);
+  const resolvedName = useLookupName(referenceTo, primaryPrimitiveId, displayField);
 
   if (value == null || value === '') return <EmptyValue />;
 
@@ -1213,7 +1330,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
         const parsed = JSON.parse(s) as Record<string, unknown>;
         if (parsed && typeof parsed === 'object') {
           const display =
-            pickRecordDisplayName(parsed) ||
+            resolveLookupRecordName(parsed, refSchema, displayField) ||
             String(parsed.externalId ?? parsed.id ?? parsed._id ?? '');
           if (display) return <span className="truncate">{display}</span>;
         }
@@ -1225,7 +1342,8 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   // (e.g. { id, name }). Render its display name directly — no fetch needed.
   if (!Array.isArray(value) && typeof value === 'object') {
     const obj = value as Record<string, unknown>;
-    const display = pickRecordDisplayName(obj) || String(obj.id || obj._id || '');
+    const display =
+      resolveLookupRecordName(obj, refSchema, displayField) || String(obj.id || obj._id || '');
     if (display) {
       return <span className="truncate">{display}</span>;
     }
@@ -1259,7 +1377,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
           let label: string;
           let muted = false;
           if (item != null && typeof item === 'object') {
-            label = pickRecordDisplayName(item as Record<string, unknown>) || String((item as any).id || (item as any)._id || '[Object]');
+            label = resolveLookupRecordName(item as Record<string, unknown>, refSchema, displayField) || String((item as any).id || (item as any)._id || '[Object]');
           } else {
             const r = resolveLabel(item);
             label = r.text;
@@ -1285,7 +1403,7 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
 
   if (typeof value === 'object' && value !== null) {
     const label =
-      pickRecordDisplayName(value as Record<string, unknown>) ||
+      resolveLookupRecordName(value as Record<string, unknown>, refSchema, displayField) ||
       String((value as any).id || (value as any)._id || '[Object]');
     return <span className="truncate">{label}</span>;
   }

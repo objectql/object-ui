@@ -347,6 +347,7 @@ describe('isTitleEligibleField — type gate', () => {
     ['lookup', false],
     ['master_detail', false],
     ['autonumber', false],
+    ['auto_number', false],
     ['phone', false],
   ])('type %s -> eligible=%s', (type, eligible) => {
     expect(isTitleEligibleField({ type })).toBe(eligible);
