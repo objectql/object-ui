@@ -89,6 +89,7 @@ import { MetadataTypeActions } from './MetadataTypeActions';
 import { LayeredDiff, countOverlaidFields } from './LayeredDiff';
 import { DraftReviewPanel, computeDraftChangeCount } from './DraftReviewPanel';
 import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
+import { collectPageComponentIds } from './widgets';
 import {
   useMetadataClient,
   useMetadataTypes,
@@ -652,9 +653,19 @@ function MetadataResourceEditPageImpl({
     return () => { cancelled = true; };
   }, [client, sourceObjectName]);
 
+  // Component ids placed on the page being edited — fuels the `ref:component`
+  // picker so a page variable's `source` (the component that writes it) is
+  // chosen from the real canvas components, not a free-text id. Derived from
+  // the live draft so newly-added components appear immediately; a no-op empty
+  // list for non-page types (they carry no `regions`).
+  const componentIds = React.useMemo(
+    () => (type === 'page' ? collectPageComponentIds(draft) : []),
+    [type, draft],
+  );
+
   const widgetContext = React.useMemo(
-    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions }),
-    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions],
+    () => ({ objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds }),
+    [objectNames, objectsLoading, objectFields, objectFieldsLoading, objectViews, objectViewsLoading, objectActions, componentIds],
   );
 
   // Load layered view + initial draft.
