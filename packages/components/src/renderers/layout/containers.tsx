@@ -745,6 +745,53 @@ export function cleanupTitleSeparators(s: string): string {
   return out;
 }
 
+/**
+ * One-time diagnostics for header-action `visible` / `hidden` predicates
+ * (#2358). Both warn-once per (action, predicate) pair so re-renders don't
+ * spam the console, mirroring ActionEngine's `warnHiddenPredicate` (#2183).
+ */
+const _warnedHeaderPredicates = new Set<string>();
+
+/** Warn when a predicate THREW — the action is fail-closed hidden. */
+function warnHeaderActionPredicate(name: unknown, source: string, err: unknown): void {
+  const key = `throw::${String(name)}::${source}`;
+  if (_warnedHeaderPredicates.has(key)) return;
+  _warnedHeaderPredicates.add(key);
+  const msg = err instanceof Error ? err.message : String(err);
+  console.warn(
+    `[page:header] action "${String(name)}" hidden: its predicate threw — ${msg}. ` +
+    `Predicate: ${source}. Header-action predicates evaluate against ` +
+    `{ record, user, os.user, ctx.user, app, features, <record fields> }.`,
+  );
+}
+
+/**
+ * Warn when a predicate references `record.<field>` keys that are absent from
+ * the loaded record payload (#2358 trap 3): the server strips `hidden: true`
+ * fields from detail payloads, so such a predicate silently resolves to
+ * `undefined` and fail-closed hides the action with no error to catch. A key
+ * that is present-but-null does NOT trigger this (legitimately empty field).
+ * Skipped while the record is empty/loading to avoid false positives.
+ */
+function warnMissingRecordFields(name: unknown, source: string, record: unknown): void {
+  if (!record || typeof record !== 'object' || Object.keys(record as object).length === 0) return;
+  const re = /\brecord\.([A-Za-z_][A-Za-z0-9_]*)/g;
+  const missing: string[] = [];
+  for (let m = re.exec(source); m; m = re.exec(source)) {
+    if (!(m[1] in (record as Record<string, unknown>)) && !missing.includes(m[1])) missing.push(m[1]);
+  }
+  if (missing.length === 0) return;
+  const key = `missing::${String(name)}::${source}`;
+  if (_warnedHeaderPredicates.has(key)) return;
+  _warnedHeaderPredicates.add(key);
+  console.warn(
+    `[page:header] action "${String(name)}" predicate references record field(s) ` +
+    `not present in the record payload: ${missing.join(', ')}. Predicate: ${source}. ` +
+    `Hidden (hidden: true) fields are stripped from detail payloads server-side, ` +
+    `so a predicate gating on one may evaluate to a hide-by-default verdict.`,
+  );
+}
+
 const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const ctx = useRecordContext();
@@ -826,6 +873,10 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       record: recordData,
       data: recordData,
       user: scopeUser,
+      // Server-CEL-parity identity alias (#2358 trap 1): the spec's canonical
+      // CEL identity scope is `os.user.*`, so a predicate authored against the
+      // server dialect resolves here too instead of throwing (fail-closed).
+      os: (predicateScope as any)?.os ?? { user: scopeUser },
       ctx: {
         user: scopeUser,
         record: recordData,
@@ -835,19 +886,29 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       },
     };
     const evaluator = new ExpressionEvaluator(evalCtx);
-    const evalExpr = (src: string): any => {
+    // Fail-closed BUT diagnosable (#2358): a throwing `visible`/`hidden`
+    // predicate still hides the action, but now warns once (action name +
+    // predicate + reason) instead of silently swallowing the error — a
+    // predicate that throws is almost always an authoring bug (wrong scope
+    // variable, bare field reference), not a real precondition.
+    const evalExpr = (src: string, actionName: unknown): any => {
       try {
         return evaluator.evaluateExpression(src);
-      } catch {
+      } catch (err) {
+        warnHeaderActionPredicate(actionName, src, err);
         return undefined;
       }
     };
     const filterAction = (a: any): boolean => {
-      // Location filter — when `locations` is declared, require record_header.
-      // Missing/empty `locations` defaults to "show here" since the action
-      // is inlined on the header itself.
+      // Location filter — when `locations` is declared, require record_header
+      // or record_more (the latter renders in the header's ⋯ overflow menu —
+      // see renderHeaderActions; #2358 trap 2). Missing/empty `locations`
+      // defaults to "show here" since the action is inlined on the header
+      // itself.
       if (Array.isArray(a?.locations) && a.locations.length > 0) {
-        if (!a.locations.includes('record_header')) return false;
+        if (!a.locations.includes('record_header') && !a.locations.includes('record_more')) {
+          return false;
+        }
       }
       // Boolean / expression visibility — supports both `visible: false`,
       // `visible: 'record.status == "open"'` and the structured shape
@@ -864,7 +925,8 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 ? (v as any).source
                 : null;
           if (src) {
-            const result = evalExpr(src);
+            warnMissingRecordFields(a?.name, src, recordData);
+            const result = evalExpr(src, a?.name);
             // On evaluation error (undefined), hide the action rather than
             // risk surfacing a destructive button in the wrong state.
             if (!result) return false;
@@ -884,7 +946,8 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 ? (h as any).source
                 : null;
           if (src) {
-            const result = evalExpr(src);
+            warnMissingRecordFields(a?.name, src, recordData);
+            const result = evalExpr(src, a?.name);
             if (result) return false;
           }
         }
@@ -940,9 +1003,13 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     // Inline/overflow split (objectui#2361) — up to `maxVisible` actions
     // render side-by-side as buttons; the rest collapse into a `⋯` overflow
     // menu. Which actions stay inline is metadata-driven:
-    //   1. `component: 'action:menu'` forces an action into the `⋯` menu
+    //   1. actions declaring ONLY `record_more` (not `record_header`) are the
+    //      spec's "overflow menu under the ⋯ button" location — they are
+    //      always routed into the overflow menu and never occupy an inline
+    //      slot, regardless of how few actions the header has (#2358 trap 2);
+    //   2. `component: 'action:menu'` forces an action into the `⋯` menu
     //      regardless of the count (chrome actions like Share/Delete);
-    //   2. the remainder is pre-sorted by `order` / `variant: 'primary'`
+    //   3. the remainder is pre-sorted by `order` / `variant: 'primary'`
     //      (see the headerActions memo above), so the first `maxVisible`
     //      claim the inline slots.
     // `maxVisible` / `mobileMaxVisible` are overridable on the page:header
@@ -955,20 +1022,46 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     const maxVisible = isMobile
       ? (readMax(schema?.mobileMaxVisible ?? schema?.properties?.mobileMaxVisible) ?? 1)
       : (readMax(schema?.maxVisible ?? schema?.properties?.maxVisible) ?? 3);
-    const menuOnly = headerActions.filter((a: any) => a?.component === 'action:menu');
-    const buttonable = headerActions.filter((a: any) => a?.component !== 'action:menu');
+    const isMoreOnly = (a: any): boolean =>
+      Array.isArray(a?.locations) &&
+      a.locations.length > 0 &&
+      a.locations.includes('record_more') &&
+      !a.locations.includes('record_header');
+    const moreOnlyActions = headerActions.filter(isMoreOnly);
+    const menuOnly = headerActions.filter(
+      (a: any) => !isMoreOnly(a) && a?.component === 'action:menu',
+    );
+    const buttonable = headerActions.filter(
+      (a: any) => !isMoreOnly(a) && a?.component !== 'action:menu',
+    );
     const inlineActions = buttonable.slice(0, maxVisible);
-    const overflowActions = [...buttonable.slice(maxVisible), ...menuOnly];
+    const overflowActions = [
+      ...buttonable.slice(maxVisible),
+      ...menuOnly,
+      ...moreOnlyActions,
+    ];
     const useOverflow = overflowActions.length > 0;
     // Resolve a `disabled` predicate against the record. Mirrors the `visible`
     // evaluation above — a boolean OR a CEL expression (`'record.status == …'`
     // or the `{ dialect, source }` envelope). Without this a CEL `disabled`
     // silently did nothing (only boolean was honoured).
     const dRecord: any = ctx?.data;
+    const dScopeUser = (predicateScope as any)?.user;
     const dEvaluator = new ExpressionEvaluator({
       ...(dRecord && typeof dRecord === 'object' ? dRecord : {}),
       record: dRecord,
       data: dRecord,
+      // Same identity scope as the `visible` evaluation above so a
+      // user-gated `disabled` predicate resolves instead of faulting.
+      user: dScopeUser,
+      os: (predicateScope as any)?.os ?? { user: dScopeUser },
+      ctx: {
+        user: dScopeUser,
+        record: dRecord,
+        data: dRecord,
+        app: (predicateScope as any)?.app,
+        features: (predicateScope as any)?.features,
+      },
     });
     const resolveDisabled = (d: any): boolean => {
       if (d === undefined || d === null) return false;

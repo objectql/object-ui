@@ -15,6 +15,7 @@ import {
   RecordContextProvider,
   InlineEditProvider,
   useInlineEdit,
+  PredicateScopeProvider,
 } from '@object-ui/react';
 
 function PageHeader({ schema }: { schema: any }) {
@@ -23,9 +24,9 @@ function PageHeader({ schema }: { schema: any }) {
   return <Component schema={schema} />;
 }
 
-function renderHeader(schema: any, opts?: { record?: any; objectSchema?: any; execute?: any; headerSystemActions?: any[] }) {
+function renderHeader(schema: any, opts?: { record?: any; objectSchema?: any; execute?: any; headerSystemActions?: any[]; scope?: any }) {
   const execute = opts?.execute ?? vi.fn(async () => ({ success: true }));
-  const ui = (
+  let ui = (
     <ActionProvider>
       {opts?.record !== undefined ? (
         <RecordContextProvider
@@ -42,6 +43,9 @@ function renderHeader(schema: any, opts?: { record?: any; objectSchema?: any; ex
       )}
     </ActionProvider>
   );
+  if (opts?.scope) {
+    ui = <PredicateScopeProvider scope={opts.scope}>{ui}</PredicateScopeProvider>;
+  }
   const utils = render(ui);
   return { ...utils, execute };
 }
@@ -377,5 +381,182 @@ describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
     expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^Delete$/i })).toBeNull();
     expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
+  });
+});
+
+// #2358 — the three action-visibility traps. NOTE: the diagnostics warn ONCE
+// per (action name, predicate) pair via a module-level Set, so every test
+// below uses unique action names/predicates to stay independent.
+describe('PageHeaderRenderer — #2358 action visibility traps', () => {
+  describe('trap 2: record_more routes to the ⋯ overflow menu', () => {
+    it('renders a record_more-only action in the overflow, never inline', () => {
+      renderHeader(
+        {
+          type: 'page:header',
+          actions: [
+            { name: 'convert2358', label: 'Convert Lead' },
+            { name: 'export_pdf_2358', label: 'Export PDF', locations: ['record_more'] },
+          ],
+        },
+        { record: { id: '1' } },
+      );
+      // The plain action stays inline; the record_more action must NOT get
+      // an inline button — it lives inside the ⋯ dropdown (trigger present).
+      expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: /Export PDF/i })).toBeNull();
+      expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
+    });
+
+    it('renders the ⋯ menu even when a record_more action is the ONLY action', () => {
+      renderHeader(
+        {
+          type: 'page:header',
+          actions: [
+            { name: 'archive_2358', label: 'Archive Record', locations: ['record_more'] },
+          ],
+        },
+        { record: { id: '1' } },
+      );
+      expect(screen.queryByRole('button', { name: /Archive Record/i })).toBeNull();
+      expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
+    });
+
+    it('still excludes locations that are neither record_header nor record_more', () => {
+      renderHeader(
+        {
+          type: 'page:header',
+          actions: [
+            { name: 'list_only_2358', label: 'List Only', locations: ['list_item'] },
+          ],
+        },
+        { record: { id: '1' } },
+      );
+      expect(screen.queryByRole('button', { name: /List Only/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /More actions/i })).toBeNull();
+    });
+  });
+
+  describe('trap 1: os.user identity alias (server CEL parity)', () => {
+    it('shows an action gated on os.user.* when the ambient user matches', () => {
+      renderHeader(
+        {
+          type: 'page:header',
+          actions: [
+            {
+              name: 'admin_gate_2358',
+              label: 'Admin Gate',
+              visible: 'os.user.role == "admin"',
+            },
+          ],
+        },
+        { record: { id: '1' }, scope: { user: { id: 'u1', role: 'admin' } } },
+      );
+      expect(screen.getByRole('button', { name: /Admin Gate/i })).toBeTruthy();
+    });
+
+    it('hides an os.user.* gated action when the ambient user does not match', () => {
+      renderHeader(
+        {
+          type: 'page:header',
+          actions: [
+            {
+              name: 'admin_gate_no_match_2358',
+              label: 'Admin Gate',
+              visible: 'os.user.role == "admin"',
+            },
+          ],
+        },
+        { record: { id: '1' }, scope: { user: { id: 'u1', role: 'viewer' } } },
+      );
+      expect(screen.queryByRole('button', { name: /Admin Gate/i })).toBeNull();
+    });
+  });
+
+  describe('unified diagnostics: no more silent fail-closed hide', () => {
+    it('hides a throwing predicate AND warns once with the action name', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const schema = {
+          type: 'page:header',
+          actions: [
+            {
+              name: 'bad_scope_2358',
+              label: 'Bad Scope',
+              visible: 'undeclared_var_2358 == 1',
+            },
+          ],
+        };
+        const { unmount } = renderHeader(schema, { record: { id: '1' } });
+        expect(screen.queryByRole('button', { name: /Bad Scope/i })).toBeNull();
+        const matching = () =>
+          warn.mock.calls.filter(c => String(c[0]).includes('bad_scope_2358'));
+        expect(matching()).toHaveLength(1);
+        expect(String(matching()[0][0])).toMatch(/predicate threw/);
+        expect(String(matching()[0][0])).toContain('undeclared_var_2358 == 1');
+        // Re-render must not spam the warning (deduped per action+predicate).
+        unmount();
+        renderHeader(schema, { record: { id: '1' } });
+        expect(matching()).toHaveLength(1);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('trap 3: warns when a predicate references record fields absent from the payload', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        renderHeader(
+          {
+            type: 'page:header',
+            actions: [
+              {
+                name: 'hidden_field_gate_2358',
+                label: 'Hidden Field Gate',
+                visible: 'record.secret_level_2358 == "high"',
+              },
+            ],
+          },
+          // Non-empty payload WITHOUT the referenced field — mirrors the
+          // server stripping `hidden: true` fields from detail payloads.
+          { record: { id: '1', status: 'new' } },
+        );
+        expect(screen.queryByRole('button', { name: /Hidden Field Gate/i })).toBeNull();
+        const hits = warn.mock.calls.filter(c =>
+          String(c[0]).includes('hidden_field_gate_2358'),
+        );
+        expect(hits).toHaveLength(1);
+        expect(String(hits[0][0])).toContain('secret_level_2358');
+        expect(String(hits[0][0])).toMatch(/not present in the record payload/);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it('does not fire the missing-field warning for present-but-null fields', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        renderHeader(
+          {
+            type: 'page:header',
+            actions: [
+              {
+                name: 'null_field_gate_2358',
+                label: 'Null Field Gate',
+                visible: 'record.approver_2358 == "u1"',
+              },
+            ],
+          },
+          { record: { id: '1', approver_2358: null } },
+        );
+        // Legitimately empty field → predicate is false, action hidden, but
+        // no "missing field" noise.
+        expect(screen.queryByRole('button', { name: /Null Field Gate/i })).toBeNull();
+        expect(
+          warn.mock.calls.filter(c => String(c[0]).includes('null_field_gate_2358')),
+        ).toHaveLength(0);
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });

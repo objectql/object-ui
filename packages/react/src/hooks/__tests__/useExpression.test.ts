@@ -111,6 +111,29 @@ describe('useCondition', () => {
       );
       expect(result.current).toBe(true);
     });
+
+    it('warns ONCE with the label when a fail-closed predicate throws (#2358)', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const SRC = '${undeclaredWarnProbe2358.field}';
+        const { unmount } = renderHook(() =>
+          useCondition(SRC, { data: {} }, { throwOnError: true, label: 'action "probe_2358" (visible)' }),
+        );
+        const matching = () =>
+          warn.mock.calls.filter(c => String(c[0]).includes('probe_2358'));
+        expect(matching()).toHaveLength(1);
+        expect(String(matching()[0][0])).toMatch(/hidden\/disabled/);
+        expect(String(matching()[0][0])).toContain(SRC);
+        // Remount with the same predicate → deduped, no second warning.
+        unmount();
+        renderHook(() =>
+          useCondition(SRC, { data: {} }, { throwOnError: true, label: 'action "probe_2358" (visible)' }),
+        );
+        expect(matching()).toHaveLength(1);
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });
 

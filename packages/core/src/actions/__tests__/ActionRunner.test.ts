@@ -169,7 +169,9 @@ describe('ActionRunner', () => {
       const action: ActionDef = { type: 'my-action', params: { foo: 'bar' } };
       const result = await runner.execute(action);
 
-      expect(handler).toHaveBeenCalledWith(action, context);
+      // The runner context carries the derived `os.user` identity alias
+      // (server-CEL parity, #2358) alongside the caller-provided keys.
+      expect(handler).toHaveBeenCalledWith(action, { ...context, os: { user: context.user } });
       expect(result.success).toBe(true);
       expect(result.data).toBe(42);
     });
@@ -342,7 +344,7 @@ describe('ActionRunner', () => {
         modal: modalSchema,
       });
 
-      expect(modalHandler).toHaveBeenCalledWith(modalSchema, context);
+      expect(modalHandler).toHaveBeenCalledWith(modalSchema, { ...context, os: { user: context.user } });
       expect(result.success).toBe(true);
       expect(result.data).toEqual({ saved: true });
     });
@@ -375,7 +377,7 @@ describe('ActionRunner', () => {
       const action: ActionDef = { type: 'flow', target: 'approval_flow' };
       const result = await runner.execute(action);
 
-      expect(flowHandler).toHaveBeenCalledWith(action, context);
+      expect(flowHandler).toHaveBeenCalledWith(action, { ...context, os: { user: context.user } });
       expect(result.success).toBe(true);
     });
 

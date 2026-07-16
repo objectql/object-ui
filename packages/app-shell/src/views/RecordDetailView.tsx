@@ -1461,11 +1461,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // drawer continues to hide them via `DEFAULT_SYSTEM_FIELDS` in
     // `@object-ui/plugin-detail/RecordDetailDrawer`.
 
-    // Filter actions for record_header location and deduplicate by name
+    // Filter actions for the record page header and deduplicate by name.
+    // Both header locations are included: `record_header` renders inline,
+    // `record_more` renders inside the header's ⋯ overflow menu (the spec's
+    // "overflow menu under the More/⋯ button" location — PageHeaderRenderer
+    // routes record_more-only actions into the overflow; #2358 trap 2).
     const recordHeaderActions = (() => {
       const seen = new Set<string>();
       const base = (objectDef.actions || []).filter((a: any) => {
-        if (!a.locations?.includes('record_header')) return false;
+        if (!a.locations?.includes('record_header') && !a.locations?.includes('record_more')) return false;
         if (!a.name) return true;
         if (seen.has(a.name)) return false;
         seen.add(a.name);
