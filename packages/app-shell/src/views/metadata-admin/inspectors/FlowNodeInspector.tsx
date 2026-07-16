@@ -33,6 +33,7 @@ import {
   type FlowConfigField,
 } from './flow-node-config';
 import { jsonSchemaToFlowFields } from './json-schema-to-fields';
+import { applyDecisionBranches, syncDecisionEdgesByOrder, withBranchTargets } from './flow-decision-edges';
 import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
 import { FlowNodeConfigField } from './FlowNodeConfigField';
 import { useFlowScope } from './useFlowScope';
@@ -59,40 +60,18 @@ interface FlowEdge {
 }
 
 /**
- * Mirror a decision node's `conditions` (branches) onto its outgoing sequence
- * edges, in declared order: branch i -> the i-th out-edge. A branch whose
- * expression is `true` marks its edge as the default/else path; an empty
- * expression clears the guard. Fault / back edges are left untouched.
- *
- * This is what lets a decision authored entirely in Studio actually route at
- * runtime: the engine and the simulator branch on `edge.condition`, NOT on
- * `node.config.conditions` (which is only a node-local branch list). Without
- * the mirror, every out-edge stays unconditional and all branches fire.
+ * The decision Branches editor field: the `config.conditions` list whose
+ * columns include the virtual `target` column (#1942). For it, the value shown
+ * is augmented with per-branch targets derived from the out-edges, and a
+ * commit reconciles the chosen targets back onto the edges — see
+ * `flow-decision-edges` for the full semantics.
  */
-function syncDecisionEdges(decisionId: string, conditions: unknown, edges: FlowEdge[]): FlowEdge[] {
-  const branches = Array.isArray(conditions) ? conditions : [];
-  let bi = 0;
-  return edges.map((e) => {
-    if (e.source !== decisionId || e.type === 'fault' || e.type === 'back') return e;
-    const branch = branches[bi++] as Record<string, unknown> | undefined;
-    if (!branch || typeof branch !== 'object') return e;
-    const expr = typeof branch.expression === 'string' ? branch.expression.trim() : '';
-    const label = typeof branch.label === 'string' ? branch.label.trim() : '';
-    const next: FlowEdge = { ...e };
-    if (label) next.label = label;
-    else delete next.label;
-    if (expr && expr !== 'true') {
-      next.condition = expr;
-      delete next.isDefault;
-    } else if (expr === 'true') {
-      next.isDefault = true;
-      delete next.condition;
-    } else {
-      delete next.condition;
-      delete next.isDefault;
-    }
-    return next;
-  });
+function isBranchTargetField(field: FlowConfigField): boolean {
+  return (
+    field.kind === 'objectList' &&
+    configKeyOf(field) === 'conditions' &&
+    (field.columns ?? []).some((c) => c.key === 'target')
+  );
 }
 
 function asConfig(node: FlowNode | null): Record<string, unknown> {
@@ -202,20 +181,32 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
 
   const setField = (field: FlowConfigField, value: unknown) => {
     const path = field.path;
-    let nextNode = setAtPath(node, path, value);
+    const draftEdges = Array.isArray((draft as { edges?: unknown }).edges)
+      ? ((draft as { edges: FlowEdge[] }).edges)
+      : [];
+    // Decision branches drive routing — mirror them onto the node's outgoing
+    // edges so the engine/simulator can actually branch (they read
+    // edge.condition, not node.config.conditions). The Branches editor's
+    // Target column (#1942) additionally wires each branch to its downstream
+    // node: applyDecisionBranches strips the virtual `target` cells from the
+    // stored conditions and creates / updates / detaches the matching edges.
+    let stored = value;
+    let nextEdges: FlowEdge[] | undefined;
+    if (isBranchTargetField(field)) {
+      const applied = applyDecisionBranches(node.id, value, draftEdges);
+      stored = applied.conditions.length ? applied.conditions : undefined;
+      nextEdges = applied.edges;
+    } else if (node.type === 'decision' && path.length === 2 && path[0] === 'config' && path[1] === 'conditions') {
+      // A decision branch list without a Target column (engine-published
+      // configSchema form) keeps the legacy by-order mirror.
+      nextEdges = syncDecisionEdgesByOrder(node.id, value, draftEdges);
+    }
+    let nextNode = setAtPath(node, path, stored);
     // Migrate-on-edit: writing the canonical path drops any looser fallback
     // location, so the node never carries a stale duplicate (engine + designer agree).
     if (field.fallbackPath) nextNode = setAtPath(nextNode, field.fallbackPath, undefined);
     const patch: Record<string, unknown> = { nodes: spliceArray(nodes, index, nextNode) };
-    // Decision branches drive routing — mirror them onto the node's outgoing
-    // edges so the engine/simulator can actually branch (they read
-    // edge.condition, not node.config.conditions).
-    if (node.type === 'decision' && path.length === 2 && path[0] === 'config' && path[1] === 'conditions') {
-      const draftEdges = Array.isArray((draft as { edges?: unknown }).edges)
-        ? ((draft as { edges: FlowEdge[] }).edges)
-        : [];
-      patch.edges = syncDecisionEdges(node.id, value, draftEdges);
-    }
+    if (nextEdges) patch.edges = nextEdges;
     onPatch(patch);
   };
 
@@ -292,7 +283,17 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
         <FlowNodeConfigField
           key={field.id}
           field={field}
-          value={getFieldValue(node, field)}
+          // The Branches editor's Target column (#1942) is virtual: derived
+          // from the node's out-edges, never stored on the branch rows.
+          value={
+            isBranchTargetField(field)
+              ? withBranchTargets(
+                  node.id,
+                  getFieldValue(node, field),
+                  Array.isArray((draft as { edges?: unknown }).edges) ? ((draft as { edges: FlowEdge[] }).edges) : [],
+                )
+              : getFieldValue(node, field)
+          }
           onCommit={(v) => setField(field, v)}
           disabled={readOnly}
           locale={locale}

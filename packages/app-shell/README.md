@@ -328,6 +328,19 @@ Config keys come in three editable shapes so authors never hand-write JSON:
   `{name,label,type,required,visibleWhen}` definitions) — use a column-driven
   **object-list repeater** (`objectList` kind).
 
+A `decision` node's **Branches** repeater additionally shows a per-branch
+**Target** column (#1942) — a node picker scoped to this flow — so the whole
+decision (conditions *and* destinations) is authored in one table, like
+Salesforce Flow Decision Outcomes. The column is **virtual**: it is derived
+from the decision's outgoing edges (routing truth lives on `edge.condition` /
+`label` / `isDefault`, which the engine and simulator evaluate) and is never
+stored on `config.conditions`. Picking a target creates or retargets the
+branch's out-edge carrying its condition/label/default; clearing it detaches
+(removes) that edge — never the node. Because edges stay the single source of
+truth, it round-trips with the reciprocal per-edge **Branch** picker in
+`FlowEdgeInspector` (#1930) and with canvas rewiring; custom hand-written edge
+guards and fault/back edges are never touched (`flow-decision-edges.ts`).
+
 Anything still not covered by a field (nested objects, arrays, plugin-specific
 keys) lives in an **optional** Advanced (JSON) escape hatch: it is shown only
 when such keys already exist, and is otherwise reachable through a low-emphasis
