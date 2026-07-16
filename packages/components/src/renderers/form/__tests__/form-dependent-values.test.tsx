@@ -32,6 +32,10 @@ beforeAll(async () => {
   // Override the protocol placeholder for `field:lookup` with the probe
   // (the fields package owns the real widget; components tests never load it).
   ComponentRegistry.register('field:lookup', DependentValuesProbe, { namespace: 'test' });
+  // Cascading `select`/`radio`/`multiselect` options resolve their per-option
+  // `visibleWhen` + `dependsOn` gate from the SAME live `dependentValues` channel
+  // (#2284/#1583) — regression guard for the injection reaching option fields.
+  ComponentRegistry.register('field:select', DependentValuesProbe, { namespace: 'test' });
 }, 30000);
 
 function renderForm(fields: any[]) {
@@ -66,4 +70,38 @@ describe('form renderer — dependentValues injection for data-source fields (#2
       });
     });
   });
+
+  it('feeds live form values to a cascading select as the user edits the parent (#2284)', async () => {
+    renderForm([
+      { name: 'country', label: 'Country', type: 'input', defaultValue: '' },
+      {
+        name: 'province',
+        label: 'Province',
+        // `widget: 'field:select'` forces the REGISTERED SelectField path (what
+        // ObjectForm uses in the real console) rather than the builtin `case
+        // 'select'` fallback — the registered path is where the injection was
+        // missing, leaving a cascading select gated forever in create mode.
+        type: 'select',
+        widget: 'field:select',
+        dependsOn: 'country',
+        options: [
+          { label: 'Zhejiang', value: 'zj', visibleWhen: "record.country == 'cn'" },
+          { label: 'California', value: 'ca', visibleWhen: "record.country == 'us'" },
+        ],
+      },
+    ]);
+
+    // The probe stands in for SelectField; it must receive the live record, not
+    // an undefined/empty snapshot, so its `dependsOn` gate + `visibleWhen`
+    // filter can resolve against the chosen parent.
+    expect(JSON.parse(screen.getByTestId('dep-probe').textContent!)).not.toBeNull();
+
+    fireEvent.change(screen.getByLabelText(/country/i), { target: { value: 'cn' } });
+    await waitFor(() => {
+      expect(JSON.parse(screen.getByTestId('dep-probe').textContent!)).toMatchObject({
+        country: 'cn',
+      });
+    });
+  });
+
 });
