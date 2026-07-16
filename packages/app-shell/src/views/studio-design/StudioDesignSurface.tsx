@@ -3393,6 +3393,7 @@ function AccessPillar({
               packageId={packageId}
               publishNonce={publishNonce}
               onDraftSaved={onDraftSaved}
+              readOnly={readOnly}
               onOpenOwd={(objectName) => {
                 setOwdHighlight(objectName || null);
                 setOwdOpen(true);

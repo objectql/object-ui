@@ -161,13 +161,22 @@ export interface PermissionMatrixEditPageProps {
    * badge stays a plain read-only chip.
    */
   onOpenOwd?: (objectName: string) => void;
+  /**
+   * Host-level read-only gate — set by the Studio Access pillar when the
+   * surrounding PACKAGE is read-only. Independent of the TYPE-level
+   * `allowOrgOverride` writability: either gate locks the matrix (checkboxes,
+   * bulk buttons, name/label, facets), hides Save, and shows the read-only
+   * badge — the badge hint names the package as the reason when this gate
+   * is the one that tripped.
+   */
+  readOnly?: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Component                                                          */
 /* ────────────────────────────────────────────────────────────────── */
 
-export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce, onOpenOwd }: PermissionMatrixEditPageProps) {
+export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce, onOpenOwd, readOnly = false }: PermissionMatrixEditPageProps) {
   const navigate = useNavigate();
   const client = useMetadataClient();
   // Data adapter (records) — the capability picker reads the live sys_capability
@@ -177,7 +186,11 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   const { entries } = useMetadataTypes(client);
   const entry: RichMetadataTypeEntry | undefined = entries.find((t) => t.type === type);
   const resolved = resolveResourceConfig(type, entry);
-  const writable = !!resolved.allowOrgOverride;
+  // Two independent read-only gates: the metadata TYPE may forbid org
+  // overrides (allowOrgOverride), and the HOST may pass a package-level
+  // `readOnly` (read-only package in the Studio Access pillar). Either one
+  // must lock every authoring affordance below.
+  const writable = !!resolved.allowOrgOverride && !readOnly;
   const locale = React.useMemo(() => detectLocale(), []);
   const t = React.useCallback((k: string) => translate(k, locale), [locale]);
   const OBJECT_ACTIONS = React.useMemo(() => getObjectActions(locale), [locale]);
@@ -587,8 +600,16 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             )}
           </div>
           {!writable && (
-            <Badge variant="secondary" className="ml-auto">
-              {t('perm.readOnly')}
+            // Same badge slot, two distinct reasons: a read-only PACKAGE
+            // (host gate — mirror the top-bar wording so the screen is not
+            // self-contradictory) vs. metadata writes disabled environment-
+            // wide (type gate).
+            <Badge
+              variant="secondary"
+              className="ml-auto"
+              title={readOnly ? t('engine.studio.pkg.readonlyHint') : undefined}
+            >
+              {readOnly ? t('engine.studio.pkg.readonly') : t('perm.readOnly')}
             </Badge>
           )}
         </div>
