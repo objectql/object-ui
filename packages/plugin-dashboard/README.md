@@ -259,6 +259,13 @@ Notes:
   not filtered.
 - Filter values are also readable in widget expressions as `page.<name>`
   (e.g. `page.region`), since they are hosted as dashboard variables.
+- `optionsFrom` resolves distinct option values server-side (a dataset
+  GROUP BY) when the data source supports dataset queries, falling back to
+  a client-side dedupe over the first 200 records otherwise.
+- Default bindings are metadata-aware for inline `object` widgets: a default
+  field that doesn't exist on the widget's object is skipped with a console
+  warning instead of emitting a query that matches nothing. Explicit
+  `filterBindings` strings are always honoured as written.
 
 ## TypeScript Support
 

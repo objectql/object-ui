@@ -130,9 +130,10 @@ Options can be static (`options`) or fetched from an object at runtime:
 }
 ```
 
-`optionsFrom` fetches records through the dashboard's data source and
-de-duplicates values client-side (top 200 records; server-side distinct is a
-planned enhancement).
+With a dataset-capable data source, `optionsFrom` resolves distinct values
+**server-side** (a GROUP BY over the source object), so the option list is
+complete regardless of row count. Data sources without dataset queries fall
+back to a best-effort client-side dedupe over the first 200 records.
 
 ### Step 4 — bind each widget's own fields
 
@@ -223,25 +224,30 @@ dataset widget forwards to the dataset query as `runtimeFilter`. Inline
 (`object`-based) and dataset-bound widgets can mix freely on one filtered
 dashboard.
 
+## Nested variable scopes
+
+When a filtered dashboard is embedded inside a Page that declares its own
+`variables`, the two scopes **merge**: inside the dashboard subtree, `page.*`
+resolves the outer Page's variables plus the dashboard's filter values, and a
+dashboard filter only shadows an outer variable that has the **same name**.
+Writes route to the scope that defines the variable — setting an outer-page
+variable from inside the dashboard updates the outer scope, so both subtrees
+stay in sync.
+
 ## Known limitations
 
-- **Embedding a Page with its own `variables`** — the dashboard hosts its
-  filter values in its own variables provider. When a dashboard and a
-  surrounding Page both declare variables, expressions inside the dashboard
-  resolve `page.*` against the **innermost** provider only: the outer Page's
-  variables are shadowed inside the dashboard subtree. Workaround: don't rely
-  on outer-page variables inside a filtered dashboard's widgets (or duplicate
-  the value into a dashboard filter). Merging nested variable contexts is a
-  candidate future enhancement.
 - **Static-data widgets are not filtered** — a widget with an inline `data`
   array has no query to scope, so dashboard filters do not apply to it. Bind
   the widget to an `object` (or a `dataset`) if it should respond to filters.
-- **Default bindings assume the field exists** — when a filter's default
-  `field` does not exist on a widget's object, the widget's query returns
-  empty (or errors, depending on the backend). Map the filter to the right
-  field with `filterBindings: { "<name>": "<field>" }`, or opt the widget out
-  with `filterBindings: { "<name>": false }`. Metadata-aware skipping is a
-  planned enhancement.
+- **Default bindings are metadata-checked for `object` widgets only** — when
+  a filter's default `field` does not exist on an inline widget's object, the
+  binding is skipped with a console warning instead of issuing a query that
+  matches nothing. Dataset-bound widgets can't be checked this way (the
+  dashboard doesn't know the dataset's base-object fields), so map their
+  filters explicitly with `filterBindings: { "<name>": "<field>" }` or opt
+  out with `false`. Explicit string bindings are always honoured as written —
+  a typo shows up as a visibly empty widget rather than a silently dropped
+  filter.
 
 ## i18n
 

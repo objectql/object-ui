@@ -218,11 +218,21 @@ function resolveBoundField(
  * one `{ [boundField]: condition }` entry per active, bound filter, combined
  * with `$and` when several apply. Returns `undefined` when nothing applies —
  * callers then leave the widget's own filter untouched.
+ *
+ * Metadata-aware default bindings (#2578 item 5): when `knownFields` is
+ * provided (the widget's object field names), a DEFAULT binding whose target
+ * field is not on the object is skipped with a console warning instead of
+ * emitting a query the backend will empty-match or reject. An EXPLICIT
+ * `filterBindings` string is always honoured — the author asked for that
+ * field, so a typo surfaces as a visible (fixable) empty widget rather than
+ * being silently dropped. Callers omit `knownFields` when metadata is not
+ * (yet) available, preserving the previous behaviour.
  */
 export function buildWidgetScopedFilter(
   widget: Pick<DashboardWidgetSchema, 'id' | 'filterBindings'>,
   defs: DashboardFilterDef[],
   values: Record<string, unknown>,
+  knownFields?: ReadonlySet<string>,
 ): Record<string, unknown> | undefined {
   const conditions: Record<string, unknown>[] = [];
 
@@ -231,6 +241,17 @@ export function buildWidgetScopedFilter(
     if (isEmptyValue(def, value)) continue;
     const field = resolveBoundField(widget, def);
     if (!field) continue;
+    const isExplicit = typeof widget.filterBindings?.[def.name] === 'string';
+    if (!isExplicit && knownFields && !knownFields.has(field)) {
+      if (typeof console !== 'undefined') {
+        console.warn(
+          `[dashboard-filters] skipping filter "${def.name}" on widget "${widget.id ?? '?'}": ` +
+            `default field "${field}" does not exist on the widget's object — ` +
+            `map it with filterBindings: { "${def.name}": "<field>" } or opt out with false`,
+        );
+      }
+      continue;
+    }
     const condition = buildFilterCondition(def, value);
     if (condition === undefined) continue;
     conditions.push({ [field]: condition });

@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   resolveDashboardFilterDefs,
   dashboardFilterVariableDefs,
@@ -187,6 +187,38 @@ describe('buildWidgetScopedFilter', () => {
       ],
     });
     expect(buildWidgetScopedFilter({ id: 'w1' }, defs, {})).toBeUndefined();
+  });
+
+  it('skips a DEFAULT binding whose field is not on the object (knownFields), with a warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const known = new Set(['status', 'signed_at']);
+      // Default region binding targets `region`, which the object lacks → skipped.
+      expect(buildWidgetScopedFilter({ id: 'w1' }, [regionDef], { region: 'EMEA' }, known)).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toContain('does not exist');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('always honours an EXPLICIT filterBindings string, even when knownFields lacks it', () => {
+    const known = new Set(['status']);
+    const scoped = buildWidgetScopedFilter(
+      { id: 'w1', filterBindings: { region: 'sales_region' } },
+      [regionDef],
+      { region: 'EMEA' },
+      known,
+    );
+    // The author asked for that field — a typo surfaces as an empty widget,
+    // never a silently-dropped filter.
+    expect(scoped).toEqual({ sales_region: 'EMEA' });
+  });
+
+  it('applies no metadata check when knownFields is omitted (metadata unavailable)', () => {
+    expect(buildWidgetScopedFilter({ id: 'w1' }, [regionDef], { region: 'EMEA' })).toEqual({
+      region: 'EMEA',
+    });
   });
 });
 

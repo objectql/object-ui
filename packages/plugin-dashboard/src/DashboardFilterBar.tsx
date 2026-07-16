@@ -135,32 +135,83 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
   const tt = useSafeTranslate();
   const [dynamicOptions, setDynamicOptions] = useState<Array<{ value: string; label: string }> | null>(null);
 
-  // Best-effort dynamic options: fetch once, dedupe client-side, degrade to
-  // an empty list on failure (same tolerance style as DatasetWidget's
-  // option-color fetch).
+  // Dynamic options, server-side first (#2578 item 5): when the data source
+  // supports dataset queries, distinct values come from a GROUP BY on the
+  // server (an inline dataset draft over the source object), so the option
+  // list is complete regardless of row count. Falls back to the original
+  // best-effort client-side dedupe (top 200 records) when dataset queries
+  // are unavailable or the draft is rejected; degrades to an empty list on
+  // total failure (same tolerance style as DatasetWidget's option-color
+  // fetch).
   const from = def.optionsFrom;
   useEffect(() => {
-    if (!from || !dataSource || typeof dataSource.find !== 'function') return;
+    if (!from || !dataSource) return;
     let cancelled = false;
-    dataSource
-      .find(from.object, {
-        fields: [from.valueField, ...(from.labelField ? [from.labelField] : [])],
-        ...(from.filter ? { $filter: from.filter } : {}),
-        top: 200,
-      })
-      .then((records: any) => {
-        if (cancelled) return;
-        const rows: any[] = Array.isArray(records) ? records : records?.items ?? [];
-        const seen = new Map<string, string>();
-        for (const r of rows) {
-          const v = r?.[from.valueField];
-          if (v === undefined || v === null || v === '') continue;
-          const key = String(v);
-          if (!seen.has(key)) seen.set(key, String(from.labelField ? r?.[from.labelField] ?? key : key));
-        }
-        setDynamicOptions(Array.from(seen, ([v, l]) => ({ value: v, label: l })));
-      })
-      .catch(() => { if (!cancelled) setDynamicOptions([]); });
+
+    const clientSideFallback = () => {
+      if (typeof dataSource.find !== 'function') {
+        if (!cancelled) setDynamicOptions([]);
+        return;
+      }
+      dataSource
+        .find(from.object, {
+          fields: [from.valueField, ...(from.labelField ? [from.labelField] : [])],
+          ...(from.filter ? { $filter: from.filter } : {}),
+          top: 200,
+        })
+        .then((records: any) => {
+          if (cancelled) return;
+          const rows: any[] = Array.isArray(records) ? records : records?.items ?? [];
+          const seen = new Map<string, string>();
+          for (const r of rows) {
+            const v = r?.[from.valueField];
+            if (v === undefined || v === null || v === '') continue;
+            const key = String(v);
+            if (!seen.has(key)) seen.set(key, String(from.labelField ? r?.[from.labelField] ?? key : key));
+          }
+          setDynamicOptions(Array.from(seen, ([v, l]) => ({ value: v, label: l })));
+        })
+        .catch(() => { if (!cancelled) setDynamicOptions([]); });
+    };
+
+    if (typeof dataSource.queryDataset === 'function') {
+      const dimensions = [{ name: from.valueField, field: from.valueField }];
+      if (from.labelField && from.labelField !== from.valueField) {
+        dimensions.push({ name: from.labelField, field: from.labelField });
+      }
+      dataSource
+        .queryDataset(
+          {
+            name: 'dashboard_filter_options',
+            label: 'Dashboard filter options',
+            object: from.object,
+            dimensions,
+            measures: [{ name: 'option_count', aggregate: 'count' }],
+          },
+          {
+            dimensions: dimensions.map((d) => d.name),
+            measures: ['option_count'],
+            ...(from.filter ? { runtimeFilter: from.filter } : {}),
+            order: { [from.valueField]: 'asc' as const },
+            limit: 1000,
+          },
+        )
+        .then((res: any) => {
+          if (cancelled) return;
+          const rows: any[] = Array.isArray(res?.rows) ? res.rows : [];
+          const seen = new Map<string, string>();
+          for (const r of rows) {
+            const v = r?.[from.valueField];
+            if (v === undefined || v === null || v === '') continue;
+            const key = String(v);
+            if (!seen.has(key)) seen.set(key, String(from.labelField ? r?.[from.labelField] ?? key : key));
+          }
+          setDynamicOptions(Array.from(seen, ([v, l]) => ({ value: v, label: l })));
+        })
+        .catch(() => { if (!cancelled) clientSideFallback(); });
+    } else {
+      clientSideFallback();
+    }
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from?.object, from?.valueField, from?.labelField, dataSource]);

@@ -265,6 +265,38 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
     );
     const { variables: filterValues, setVariable: setFilterValue, resetVariables: resetFilterValues } = usePageVariables();
 
+    // Metadata-aware default bindings (#2578 item 5): fetch each inline
+    // widget object's field names once so buildWidgetScopedFilter can skip a
+    // DEFAULT binding whose field doesn't exist on that object (explicit
+    // filterBindings strings are always honoured). Best-effort — while a
+    // schema is loading (or the data source can't describe objects), the
+    // entry stays absent and the previous unchecked behaviour applies.
+    const [objectFieldSets, setObjectFieldSets] = useState<Record<string, ReadonlySet<string>>>({});
+    useEffect(() => {
+      if (filterDefs.length === 0 || !dataSource || typeof (dataSource as any).getObjectSchema !== 'function') return;
+      const objects = Array.from(
+        new Set(
+          (schema.widgets ?? [])
+            .map((w: DashboardWidgetSchema) => (w as any).object)
+            .filter((o: unknown): o is string => typeof o === 'string' && o.length > 0),
+        ),
+      );
+      let cancelled = false;
+      for (const objectName of objects) {
+        (dataSource as any)
+          .getObjectSchema(objectName)
+          .then((objSchema: any) => {
+            if (cancelled) return;
+            const fields = objSchema?.fields;
+            if (!fields || typeof fields !== 'object') return;
+            setObjectFieldSets((prev) => ({ ...prev, [objectName]: new Set(Object.keys(fields)) }));
+          })
+          .catch(() => { /* stay unchecked for this object */ });
+      }
+      return () => { cancelled = true; };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filterDefs.length, dataSource, schema.widgets]);
+
     // Build ActionDef[] from header actions so useActionEngine can dispatch by name.
     const headerActionDefs = useMemo<ActionDef[]>(() => {
       const actions = schema.header?.actions ?? [];
@@ -830,7 +862,12 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
         // schemas re-fetch on filter change, so no widget renderer changes
         // are needed downstream.
         const scopedFilter = filterDefs.length > 0
-            ? buildWidgetScopedFilter(widget, filterDefs, filterValues)
+            ? buildWidgetScopedFilter(
+                widget,
+                filterDefs,
+                filterValues,
+                typeof (widget as any).object === 'string' ? objectFieldSets[(widget as any).object] : undefined,
+              )
             : undefined;
         const componentSchema = (() => {
             const cs = getComponentSchema() as Record<string, any>;
@@ -1139,9 +1176,10 @@ DashboardRendererInner.displayName = 'DashboardRendererInner';
  * them, and widget expressions can reference them as `page.<name>`.
  * Dashboards without filters render exactly as before — no provider mounted.
  *
- * Known limitation: when a filtered dashboard is embedded inside a Page with
- * its own variables, this inner provider shadows the outer one for widget
- * subtrees. The primary path (`DashboardView`) mounts no outer provider.
+ * When a filtered dashboard is embedded inside a Page with its own
+ * variables, the nested providers MERGE (#2578 item 5): outer page variables
+ * stay readable inside widget subtrees, and only a same-named filter shadows
+ * the outer variable.
  */
 export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererProps>(
   (props, ref) => {
