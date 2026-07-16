@@ -618,7 +618,11 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
 
     const resolvedObjectName = relatedObjectName;
-    const SKIP_TYPES = new Set(['image', 'file', 'attachment', 'rich_text', 'html', 'json']);
+    // file/image are NOT skipped: they have dedicated cell renderers (name
+    // chip / thumbnail), and dropping them hid business columns like a line's
+    // receipt attachment (objectui#2360). Only types with no useful tabular
+    // rendering stay excluded.
+    const SKIP_TYPES = new Set(['attachment', 'rich_text', 'html', 'json']);
     const PRIORITY_NAMES = [
       'name',
       'full_name',
