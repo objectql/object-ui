@@ -1807,8 +1807,19 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
             below. `canEdit` carries the object-lifecycle / permission gate
             AND the approval lock (objectui#2572 item 2): a locked record
             hides the pencil affordances and no-ops `enter()`, so users can't
-            type into a draft that Save would reject with RECORD_LOCKED. */}
-        <InlineEditProvider canEdit={resolveCrudAffordances(objectDef as any).edit && !approvalLocked}>
+            type into a draft that Save would reject with RECORD_LOCKED.
+            `locked` surfaces the approval lock as its own signal so the
+            DetailView "Locked for approval" band renders from the SAME
+            dual-source `approvalLocked` that gated `canEdit` — engaging even
+            on backends that track the lock via approval requests only and
+            never materialize an `approval_status` field (objectui#2618). */}
+        <InlineEditProvider
+          canEdit={resolveCrudAffordances(objectDef as any).edit && !approvalLocked}
+          locked={approvalLocked}
+          lockedReason={t('detail.lockedTooltip', {
+            defaultValue: 'This record has a pending approval request; editing is locked',
+          })}
+        >
         <HighlightFieldsProvider>
         <DiscussionContextProvider
           items={feedItems as any}

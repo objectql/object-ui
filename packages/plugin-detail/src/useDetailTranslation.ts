@@ -200,6 +200,14 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.concurrentUpdateReload': 'Reload latest',
   'detail.concurrentUpdateOverwrite': 'Overwrite anyway',
   'detail.concurrentUpdateCancel': 'Cancel',
+  // Approval lock band (objectui#2618)
+  'detail.lockedByApproval': 'Locked for approval',
+  'detail.lockedTooltip': 'This record has a pending approval request; editing is locked',
+  'detail.cancelApproval': 'Recall approval',
+  'detail.cancelApprovalInFlight': 'Recalling…',
+  'detail.cancelApprovalTooltip': 'Recall the pending approval request to unlock this record',
+  'detail.cancelApprovalFailed': 'Failed to recall approval',
+  'detail.cancelApprovalUnavailable': 'Recalling approvals is not supported on this data source',
 };
 
 /**
