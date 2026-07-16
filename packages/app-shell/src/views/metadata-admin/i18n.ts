@@ -319,6 +319,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.widget.values': 'Values (measures)',
   'engine.inspector.widget.valuesPlaceholder': 'e.g. revenue, deal_count (comma-separated)',
   'engine.inspector.widget.valuesHint': 'Dataset measure names to show.',
+  // Dashboard filter bindings (framework#2501)
+  'engine.inspector.widget.filterBindingsSection': 'Dashboard filter bindings',
+  'engine.inspector.widget.filterBindingsHint':
+    'Map each dashboard-level filter to one of this widget’s own fields, or untick Apply to opt the widget out. Empty = the filter’s own field.',
+  'engine.inspector.widget.filterBindingApply': 'Apply',
+  'engine.inspector.widget.filterBindingDefault': 'Default ({field})',
+  'engine.inspector.widget.filterBindingReset': 'Reset',
   // Flow node inspector
   'engine.inspector.flowNode.kind': 'Node',
   'engine.inspector.flowNode.close': 'Close node',
@@ -1646,6 +1653,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.widget.values': '值（度量）',
   'engine.inspector.widget.valuesPlaceholder': '例如：revenue, deal_count（逗号分隔）',
   'engine.inspector.widget.valuesHint': '要展示的数据集度量名。',
+  // Dashboard filter bindings (framework#2501)
+  'engine.inspector.widget.filterBindingsSection': '仪表盘过滤器绑定',
+  'engine.inspector.widget.filterBindingsHint':
+    '把每个仪表盘级过滤器映射到本组件自己的字段；取消勾选「应用」可让本组件不受该过滤器影响。留空表示使用过滤器自身的字段。',
+  'engine.inspector.widget.filterBindingApply': '应用',
+  'engine.inspector.widget.filterBindingDefault': '默认（{field}）',
+  'engine.inspector.widget.filterBindingReset': '恢复默认',
   // Flow node inspector
   'engine.inspector.flowNode.kind': '节点',
   'engine.inspector.flowNode.close': '关闭节点',

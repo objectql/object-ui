@@ -183,6 +183,11 @@ Binding rules, in precedence order:
 That's the whole feature: changing any filter live re-scopes every bound
 widget, each against **its own** field.
 
+Bindings can also be edited visually: the Studio dashboard widget inspector
+shows a **Dashboard filter bindings** section (one row per declared filter)
+with an Apply toggle (opt-out) and a field picker for the override — no JSON
+editing required.
+
 ## Reading filter values in expressions
 
 Filter values are hosted as dashboard variables, so any widget expression can
