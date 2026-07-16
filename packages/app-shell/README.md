@@ -52,22 +52,6 @@ function MyDashboard() {
 }
 ```
 
-### With Custom Form
-
-```tsx
-import { FormRenderer } from '@object-ui/app-shell';
-
-function MyForm() {
-  return (
-    <FormRenderer
-      schema={formSchema}
-      dataSource={myDataSource}
-      onSuccess={() => console.log('Saved!')}
-    />
-  );
-}
-```
-
 ## Key Features
 
 - **Zero Dependencies on Console**: No routing, no auth, no app management
@@ -127,21 +111,6 @@ Renders custom page schemas.
 ```tsx
 <PageRenderer
   schema={pageSchema}
-/>
-```
-
-### FormRenderer
-
-Renders forms (modal or inline).
-
-```tsx
-<FormRenderer
-  schema={formSchema}
-  dataSource={dataSource}
-  mode="create" // or "edit"
-  recordId={recordId}
-  onSuccess={handleSuccess}
-  onCancel={handleCancel}
 />
 ```
 
