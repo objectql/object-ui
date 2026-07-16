@@ -244,7 +244,19 @@ function extractDraftBody(resp: unknown): Record<string, unknown> | null {
  * navigation, create a new writable base via the standard CreatePackageDialog,
  * and open the standard PackageDetailSheet (info + disable / duplicate / delete
  * / publish …) for the current package. */
-function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string }): React.ReactElement {
+function PackageSwitcher({
+  packageId,
+  tab,
+  beforeNavigate,
+}: {
+  packageId: string;
+  tab: string;
+  /** objectui#2600 — veto hook for package-switch navigation: return false to
+   * stay put (the surface prompts about unsaved pillar edits). Not consulted
+   * for the deleted-package eviction in onManageChanged — that navigation is
+   * forced (the package under the editor is gone). */
+  beforeNavigate?: () => boolean;
+}): React.ReactElement {
   const navigate = useNavigate();
   const locale = useMetadataLocale();
   const [open, setOpen] = React.useState(false);
@@ -377,6 +389,10 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
                   type="button"
                   onClick={() => {
                     setOpen(false);
+                    // Re-picking the open package would re-navigate to the same
+                    // URL — nothing unmounts, so no veto and no history churn.
+                    if (p.id === packageId) return;
+                    if (beforeNavigate && !beforeNavigate()) return;
                     navigate(`/studio/${encodeURIComponent(p.id)}/${tab}`);
                   }}
                   className={
@@ -430,7 +446,13 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
       <CreatePackageDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={(id) => navigate(`/studio/${encodeURIComponent(id)}/data`)}
+        onCreated={(id) => {
+          // Same veto as a switch: the jump into the new package unmounts the
+          // current pillar. Declining keeps the edits; the created package
+          // stays reachable from the list above.
+          if (beforeNavigate && !beforeNavigate()) return;
+          navigate(`/studio/${encodeURIComponent(id)}/data`);
+        }}
       />
       <PackageDetailSheet
         pkg={manage}
@@ -474,6 +496,33 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
     };
   }, [packageId]);
   const readOnly = pkgWritable === false;
+
+  // objectui#2600 — the header's pillar links, Home button and PackageSwitcher
+  // are pure SPA client navigation, so the editors' `beforeunload` guard never
+  // fires; a dirty pillar unmounts silently and its unsaved edits are gone
+  // (Access matrix cells, Interfaces nav). Each pillar mirrors its dirty state
+  // up (the PR #2588 `onDirtyChange` contract) and every header-driven
+  // departure gates on the same native confirm the pillars use internally.
+  // Pillars reset their report on unmount, so a confirmed discard clears the
+  // flag by itself.
+  const [pillarDirty, setPillarDirty] = React.useState(false);
+  const confirmLeavePillar = React.useCallback(() => {
+    if (!pillarDirty) return true;
+    return window.confirm(t('engine.edit.unsavedLeaveConfirm', locale));
+  }, [pillarDirty, locale]);
+  // Browser-native "leave site?" prompt on tab close / reload while a pillar
+  // is dirty. The matrix editor installs its own (double registration is
+  // harmless); the Interfaces nav editor has none, so this closes that gap.
+  React.useEffect(() => {
+    if (!pillarDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Required for Chrome to actually show the prompt.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [pillarDirty]);
 
   // Package-level publish (ADR-0033/0037/0048): edits accumulate as per-item
   // drafts STAMPED with this package (each save passes packageId → the draft row's
@@ -653,14 +702,17 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
           {/* Never a dead end: walk back to the platform Home / builder landing. */}
           <button
             type="button"
-            onClick={() => shellNavigate('/home')}
+            onClick={() => {
+              if (!confirmLeavePillar()) return;
+              shellNavigate('/home');
+            }}
             title={t('engine.studio.home', locale)}
             className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <HomeIcon className="h-4 w-4" />
           </button>
           <div className="shrink-0">
-            <PackageSwitcher packageId={packageId} tab={tab} />
+            <PackageSwitcher packageId={packageId} tab={tab} beforeNavigate={confirmLeavePillar} />
           </div>
           <span className="shrink-0 text-muted-foreground">·</span>
           <nav className="flex shrink-0 gap-1">
@@ -668,6 +720,15 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               <Link
                 key={p.key}
                 to={`/studio/${packageId}/${p.key}`}
+                onClick={(e) => {
+                  // Re-clicking the open pillar re-navigates to the same URL —
+                  // nothing unmounts. Modified/aux clicks open a new tab and
+                  // leave this one (and its edits) alone; react-router defers
+                  // those to the browser, so don't veto them either.
+                  if (tab === p.key) return;
+                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  if (!confirmLeavePillar()) e.preventDefault();
+                }}
                 className={
                   'inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors ' +
                   (tab === p.key
@@ -748,7 +809,13 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
           ) : tab === 'automations' ? (
             <AutomationsPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
           ) : tab === 'access' ? (
-            <AccessPillar packageId={packageId} publishNonce={publishNonce} onDraftSaved={onDraftSaved} readOnly={readOnly} />
+            <AccessPillar
+              packageId={packageId}
+              publishNonce={publishNonce}
+              onDraftSaved={onDraftSaved}
+              readOnly={readOnly}
+              onDirtyChange={setPillarDirty}
+            />
           ) : (
             <InterfacesPillar
               packageId={packageId}
@@ -758,6 +825,7 @@ export function StudioDesignSurface({ aiSlot }: StudioDesignSurfaceProps): React
               onCreateApp={readOnly ? undefined : () => setAppCreating(true)}
               readOnly={readOnly}
               foldInspector={chatDockMode}
+              onDirtyChange={setPillarDirty}
             />
           )}
         </div>
@@ -987,6 +1055,7 @@ function InterfacesPillar({
   onCreateApp,
   readOnly = false,
   foldInspector = false,
+  onDirtyChange,
 }: {
   packageId: string;
   publishNonce?: number;
@@ -1003,6 +1072,11 @@ function InterfacesPillar({
    * into center `[canvas | properties]` tabs instead of its own right aside.
    * Default false → the classic three-zone layout, pixel-identical. */
   foldInspector?: boolean;
+  /** objectui#2600 — mirrors the unsaved-nav-edit state (`navDirty`) up to the
+   * Studio header, whose pillar/Home/package navigation unmounts this whole
+   * pillar (SPA nav, so no beforeunload). Reports `false` on unmount so a
+   * confirmed discard clears the surface's guard. */
+  onDirtyChange?: (dirty: boolean) => void;
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
@@ -1051,6 +1125,23 @@ function InterfacesPillar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navSel]);
   const [navDirty, setNavDirty] = React.useState(false);
+  // Mirror `navDirty` up to the surface (see the onDirtyChange prop doc).
+  // Ref-stabilized like PermissionMatrixEditPage's report, so a non-memoized
+  // callback prop doesn't refire the effect; the unmount cleanup reports
+  // `false` so a deliberately-discarded pillar clears the host's guard state.
+  const onDirtyChangeRef = React.useRef(onDirtyChange);
+  React.useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  });
+  React.useEffect(() => {
+    onDirtyChangeRef.current?.(navDirty);
+  }, [navDirty]);
+  React.useEffect(
+    () => () => {
+      onDirtyChangeRef.current?.(false);
+    },
+    [],
+  );
   const [navHasDraft, setNavHasDraft] = React.useState(false);
   const [navSaving, setNavSaving] = React.useState<false | 'draft' | 'publish'>(false);
   const [current, setCurrent] = React.useState<Surface | null>(null);
@@ -3092,12 +3183,18 @@ export function AccessPillar({
   publishNonce,
   onDraftSaved,
   readOnly = false,
+  onDirtyChange,
 }: {
   packageId: string;
   publishNonce?: number;
   onDraftSaved?: () => void;
   /** Courtesy gate: hide/disable permission-authoring affordances. */
   readOnly?: boolean;
+  /** objectui#2600 — mirrors the matrix's unsaved-edit state up to the Studio
+   * header, whose pillar/Home/package navigation unmounts this whole pillar
+   * (SPA nav, so no beforeunload). Reports `false` when the editor unmounts,
+   * same contract as PermissionMatrixEditPage's own onDirtyChange. */
+  onDirtyChange?: (dirty: boolean) => void;
 }): React.ReactElement {
   const client = useMetadataClient();
   const locale = useMetadataLocale();
@@ -3145,6 +3242,16 @@ export function AccessPillar({
   // resets its report on unmount, so a confirmed discard clears `matrixDirty`
   // by itself.
   const [matrixDirty, setMatrixDirty] = React.useState(false);
+  // The same dirty bit also gates the Studio header's pillar/Home/package
+  // navigation, which unmounts this whole pillar (objectui#2600) — mirror
+  // every report up alongside the local rail guard.
+  const reportMatrixDirty = React.useCallback(
+    (dirty: boolean) => {
+      setMatrixDirty(dirty);
+      onDirtyChange?.(dirty);
+    },
+    [onDirtyChange],
+  );
   const confirmDiscardMatrixEdits = React.useCallback(() => {
     if (!matrixDirty) return true;
     return window.confirm(t('engine.edit.unsavedLeaveConfirm', locale));
@@ -3434,7 +3541,7 @@ export function AccessPillar({
               publishNonce={publishNonce}
               onDraftSaved={onDraftSaved}
               readOnly={readOnly}
-              onDirtyChange={setMatrixDirty}
+              onDirtyChange={reportMatrixDirty}
               embedded
               onOpenOwd={(objectName) => {
                 // The badge deep-link swaps this page out for the OWD
