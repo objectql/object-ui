@@ -1039,7 +1039,18 @@ function FieldRow({
       }))
     : undefined;
   const referenceTo = typeof def.reference === 'string' ? (def.reference as string) : undefined;
-  const formula = typeof def.formula === 'string' ? (def.formula as string) : undefined;
+  // Formula source for the ƒ stub: the spec `expression` key (bare string or
+  // `{ dialect, source }` envelope), falling back to the legacy `formula`
+  // alias still present on unmigrated drafts.
+  const exprRaw = def.expression;
+  const formula =
+    typeof exprRaw === 'string'
+      ? exprRaw
+      : exprRaw && typeof exprRaw === 'object' && typeof (exprRaw as { source?: unknown }).source === 'string'
+        ? (exprRaw as { source: string }).source
+        : typeof def.formula === 'string'
+          ? (def.formula as string)
+          : undefined;
   const placeholder = typeof def.placeholder === 'string' ? (def.placeholder as string) : undefined;
 
   const [dropZone, setDropZone] = React.useState<'before' | 'after' | null>(null);

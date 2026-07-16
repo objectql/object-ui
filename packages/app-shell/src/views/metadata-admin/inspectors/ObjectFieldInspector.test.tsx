@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 
 // The inspector loads the object list (published + drafts) for the lookup
 // picker; stub both surfaces.
@@ -374,5 +374,197 @@ describe('ObjectFieldInspector — API name derives from label while auto-named'
     fireEvent.change(screen.getByTestId('field-label-input'), { target: { value: 'Status' } });
     const stolen = onPatch.mock.calls.some((c) => !Object.keys(c[0].fields ?? {}).includes('field_2'));
     expect(stolen).toBe(false);
+  });
+});
+
+/* ─────────────── Formula expression editor (#1582 follow-up) ─────────────── */
+
+/** A no-op engine stub with a canned type verdict — inspector tests stay deterministic. */
+const stubEngine = (inferred: string) => () =>
+  Promise.resolve({
+    validateExpression: () => ({ ok: true, errors: [], warnings: [] }),
+    introspectScope: () => ({ fields: [], roots: ['record'], functions: [] }),
+    inferExpressionType: () => inferred as 'number',
+  });
+
+/**
+ * Real-parent harness: feeds each onPatch back into `draft`, so the
+ * controlled editor sees its own edits and the debounced type inference
+ * runs against the NEW expression (a static-props render can't observe the
+ * async `returnType` stamp).
+ */
+function StatefulFormulaHarness({
+  initialFields,
+  selected,
+  patches,
+}: {
+  initialFields: Record<string, Record<string, unknown>>;
+  selected: string;
+  patches: Array<Record<string, any>>;
+}) {
+  const [fields, setFields] = React.useState(initialFields);
+  return (
+    <ObjectFieldInspector
+      type="object"
+      name="account"
+      draft={{ name: 'account', fields }}
+      selection={{ kind: 'field', id: selected }}
+      onPatch={(patch: any) => {
+        patches.push(patch);
+        setFields(patch.fields);
+      }}
+      onClearSelection={() => {}}
+      onSelectionChange={() => {}}
+      readOnly={false}
+      locale={'en-US'}
+    />
+  );
+}
+
+describe('ObjectFieldInspector — formula expression editor', () => {
+  it('renders the CEL editor seeded from the spec `expression` (envelope shape)', () => {
+    renderField(
+      {
+        amount: { type: 'number' },
+        total: { type: 'formula', expression: { dialect: 'cel', source: 'record.amount * 0.2' } },
+      },
+      'total',
+    );
+    const ta = controlFor('Formula (CEL)') as HTMLTextAreaElement;
+    expect(ta).toHaveValue('record.amount * 0.2');
+    // The CEL editor (combobox textarea), not the old plain textarea.
+    expect(ta.getAttribute('role')).toBe('combobox');
+  });
+
+  it('commits edits to `expression` and migrates the legacy `formula` key', () => {
+    const { onPatch } = renderField(
+      { amount: { type: 'number' }, total: { type: 'formula', formula: 'record.amount' } },
+      'total',
+    );
+    const ta = controlFor('Formula (CEL)') as HTMLTextAreaElement;
+    // The engine-dead legacy key still seeds the editor…
+    expect(ta).toHaveValue('record.amount');
+    fireEvent.change(ta, { target: { value: 'record.amount * 0.2' } });
+    const patch = onPatch.mock.calls.at(-1)![0];
+    // …but the edit lands on the spec key and retires the alias.
+    expect(patch.fields.total.expression).toBe('record.amount * 0.2');
+    expect(patch.fields.total.formula).toBeUndefined();
+  });
+
+  it('preserves an envelope (dialect, meta) when editing over it', () => {
+    const { onPatch } = renderField(
+      {
+        amount: { type: 'number' },
+        total: {
+          type: 'formula',
+          expression: { dialect: 'cel', source: 'record.amount', meta: { rationale: 'ai draft' } },
+        },
+      },
+      'total',
+    );
+    fireEvent.change(controlFor('Formula (CEL)'), { target: { value: 'record.amount * 2.0' } });
+    expect(onPatch.mock.calls.at(-1)![0].fields.total.expression).toEqual({
+      dialect: 'cel',
+      source: 'record.amount * 2.0',
+      meta: { rationale: 'ai draft' },
+    });
+  });
+
+  it('stamps `returnType` from the inferred type after an edit', async () => {
+    __setCelFormulaLoader(stubEngine('number'));
+    const patches: Array<Record<string, any>> = [];
+    render(
+      <StatefulFormulaHarness
+        initialFields={{ amount: { type: 'number' }, total: { type: 'formula' } }}
+        selected="total"
+        patches={patches}
+      />,
+    );
+    fireEvent.change(controlFor('Formula (CEL)'), { target: { value: 'record.amount * 0.2' } });
+    await waitFor(
+      () => expect(patches.some((p) => p.fields?.total?.returnType === 'number')).toBe(true),
+      { timeout: 3000 },
+    );
+  });
+
+  it('does NOT stamp `returnType` on mere selection (no edit this session)', async () => {
+    __setCelFormulaLoader(stubEngine('number'));
+    const patches: Array<Record<string, any>> = [];
+    render(
+      <StatefulFormulaHarness
+        initialFields={{
+          amount: { type: 'number' },
+          total: { type: 'formula', expression: 'record.amount * 0.2' },
+        }}
+        selected="total"
+        patches={patches}
+      />,
+    );
+    // Let the debounced lint + inference land, then confirm nothing patched.
+    await new Promise((r) => setTimeout(r, 500));
+    expect(patches).toEqual([]);
+  });
+
+  it('clears `returnType` when the inference degrades to unknown', async () => {
+    __setCelFormulaLoader(stubEngine('unknown'));
+    const patches: Array<Record<string, any>> = [];
+    render(
+      <StatefulFormulaHarness
+        initialFields={{
+          amount: { type: 'number' },
+          total: { type: 'formula', expression: 'record.amount * 0.2', returnType: 'number' },
+        }}
+        selected="total"
+        patches={patches}
+      />,
+    );
+    fireEvent.change(controlFor('Formula (CEL)'), { target: { value: 'record.amount + record.name' } });
+    await waitFor(
+      () =>
+        expect(
+          patches.some(
+            (p) => p.fields?.total && 'returnType' in p.fields.total && p.fields.total.returnType === undefined,
+          ),
+        ).toBe(true),
+      { timeout: 3000 },
+    );
+  });
+});
+
+/* ─────────────── Roll-up summary editor (summaryOperations) ─────────────── */
+
+describe('ObjectFieldInspector — summary roll-up editor', () => {
+  it('renders the structured roll-up editor (no CEL formula editor) for a summary field', () => {
+    renderField(
+      {
+        total: {
+          type: 'summary',
+          summaryOperations: { object: 'crm_order', function: 'sum', field: 'amount' },
+        },
+      },
+      'total',
+    );
+    expect(screen.getByText('Child object')).toBeInTheDocument();
+    expect(screen.getByText('Aggregation')).toBeInTheDocument();
+    expect(screen.getByText('Child field to aggregate')).toBeInTheDocument();
+    expect(screen.queryByText('Formula (CEL)')).not.toBeInTheDocument();
+  });
+
+  it('commits the child object into summaryOperations', () => {
+    const { onPatch } = renderField({ total: { type: 'summary' } }, 'total');
+    fireEvent.change(controlFor('Child object'), { target: { value: 'crm_order' } });
+    expect(onPatch.mock.calls.at(-1)![0].fields.total.summaryOperations).toEqual({
+      object: 'crm_order',
+    });
+  });
+
+  it('keeps the aggregate-field picker for count (the spec requires the key) with the ignored note', () => {
+    renderField(
+      { total: { type: 'summary', summaryOperations: { object: 'crm_order', function: 'count' } } },
+      'total',
+    );
+    expect(screen.getByText('Child field to aggregate')).toBeInTheDocument();
+    expect(screen.getByText(/ignored for count/i)).toBeInTheDocument();
+    expect(screen.getByText('Child relationship field (optional)')).toBeInTheDocument();
   });
 });

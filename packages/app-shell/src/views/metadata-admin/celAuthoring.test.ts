@@ -5,6 +5,7 @@ import {
   lintCelPredicate,
   introspectCelScope,
   testRunCelPredicate,
+  inferCelValueType,
   __setCelFormulaLoader,
 } from './celAuthoring';
 
@@ -82,6 +83,58 @@ describe('celAuthoring · lintCelPredicate in record scope (field conditional ru
   });
 });
 
+describe('celAuthoring · lintCelPredicate role "value" (formula expressions, #1582 follow-up)', () => {
+  const FORMULA_HINT = { ...HINT, scope: 'record' as const, role: 'value' as const };
+
+  it('is clean for a record-namespaced value expression (non-boolean is the point)', async () => {
+    expect(await lintCelPredicate('record.amount * 0.2', FORMULA_HINT)).toEqual([]);
+  });
+
+  it('flags a BARE field reference as an error with the record.<field> fix', async () => {
+    const issues = await lintCelPredicate('amount * 0.2', FORMULA_HINT);
+    expect(issues.some((i) => i.severity === 'error' && /record\.amount/.test(i.message))).toBe(true);
+  });
+
+  it('flags an unknown record.<field> as an error with did-you-mean', async () => {
+    const issues = await lintCelPredicate('record.amout * 0.2', FORMULA_HINT);
+    expect(issues.some((i) => i.severity === 'error' && /did you mean/i.test(i.message))).toBe(true);
+  });
+
+  it('reports a parse error (blocking) for malformed CEL', async () => {
+    const issues = await lintCelPredicate('record.amount *', FORMULA_HINT);
+    expect(issues.some((i) => i.severity === 'error')).toBe(true);
+  });
+});
+
+describe('celAuthoring · inferCelValueType (real engine)', () => {
+  const FIELDS = { fields: ['amount', 'name', 'start_date', 'end_date'] };
+
+  it('proves number for literal-pinned arithmetic', async () => {
+    expect(await inferCelValueType('record.amount * 0.2', FIELDS)).toBe('number');
+  });
+
+  it('proves number for a numeric stdlib return', async () => {
+    expect(await inferCelValueType('daysBetween(record.start_date, record.end_date) + 1', FIELDS)).toBe('number');
+  });
+
+  it('proves text for a string-returning stdlib call', async () => {
+    expect(await inferCelValueType('upper(record.name)', FIELDS)).toBe('text');
+  });
+
+  it('proves boolean for a comparison', async () => {
+    expect(await inferCelValueType('record.amount > 100', FIELDS)).toBe('boolean');
+  });
+
+  it('is unknown for dyn-over-dyn arithmetic (could be concatenation)', async () => {
+    expect(await inferCelValueType('record.amount + record.name', FIELDS)).toBe('unknown');
+  });
+
+  it('is null (no affordance) for empty input', async () => {
+    expect(await inferCelValueType('', FIELDS)).toBeNull();
+    expect(await inferCelValueType('   ', FIELDS)).toBeNull();
+  });
+});
+
 describe('celAuthoring · introspectCelScope (real engine)', () => {
   it('returns the object fields, scope roots, and stdlib functions', async () => {
     const scope = await introspectCelScope(HINT);
@@ -156,6 +209,11 @@ describe('celAuthoring · graceful degradation', () => {
     });
   });
 
+  it('type inference reports null (no affordance) when the engine is unavailable', async () => {
+    __setCelFormulaLoader(() => Promise.resolve(null));
+    expect(await inferCelValueType('record.amount * 0.2', { fields: ['amount'] })).toBeNull();
+  });
+
   it('swallows a loader that throws', async () => {
     __setCelFormulaLoader(() => {
       throw new Error('boom');
@@ -164,5 +222,6 @@ describe('celAuthoring · graceful degradation', () => {
     expect(await testRunCelPredicate('true', { record: {}, currentUser: {} })).toEqual({
       status: 'unavailable',
     });
+    expect(await inferCelValueType('1 + 1')).toBeNull();
   });
 });

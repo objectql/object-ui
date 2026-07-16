@@ -235,6 +235,31 @@ The object designer's field inspector (`ObjectFieldInspector`, Advanced →
   field — not just the selected one — surfaces in the editor's issue banner
   under a `fields.<field>.<rule>` path before save.
 
+#### Formula fields — CEL value expressions (objectui#1582 follow-up)
+
+A `formula` field's *Formula (CEL)* editor (Type-specific section) is the same
+`CelPredicateField`, in **`role="value"`** mode (bare CEL of any type, still
+`scope="record"`, autocomplete roots `record` only — formulas see neither
+`previous` nor `parent`):
+
+- The editor shows the **inferred result type** (Number / Text / Boolean /
+  Date) under the field — the same `@objectstack/formula`
+  `inferExpressionType` verdict dataset derivation keys **measure
+  eligibility** off, so "this formula won't be a SUM measure" is visible
+  before saving. An unprovable type reads *Unknown* with the
+  `double()` / `int()` / `string()` pinning hint.
+- Edits land on the spec's **`expression`** key (either wire shape, envelope
+  extras preserved) — the legacy `formula` key, which the engine never read,
+  seeds the editor and is migrated on the first edit — and the proven type is
+  stamped onto **`Field.returnType`** (cleared when the type can't be proven).
+- Formula expressions are also linted **draft-wide** under
+  `fields.<field>.expression`, alongside the conditional rules.
+- `summary` fields have **no CEL expression** — the spec models them as
+  `summaryOperations` — so the inspector edits the roll-up structurally
+  instead: child object, aggregation function (`count` / `sum` / `min` /
+  `max` / `avg`), the child field to aggregate, and (optionally) the child
+  relationship field pointing back to the parent.
+
 ### Visual flow canvas
 
 The `flow` designer (`FlowPreview` → `FlowCanvas`) renders an automation as an

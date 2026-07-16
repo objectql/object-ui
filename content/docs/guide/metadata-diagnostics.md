@@ -149,6 +149,12 @@ the same verdict inline as you type — with autocomplete for the object's
 fields (after `record.` / `previous.`), the runtime-bound scope roots
 (`record`, `previous`, `parent`), and the CEL stdlib.
 
+Formula fields get the same treatment for their value `expression`: the
+inline editor lints it in `role: 'value'` mode and shows the **inferred
+result type** (only a proven-Number formula is offered as a dataset
+measure), while the draft-wide pass surfaces a broken formula on any field
+under its `fields.<field>.expression` path.
+
 ### 4. Governance overview page
 
 `/apps/<app>/metadata/_diagnostics` — a single sortable table of every

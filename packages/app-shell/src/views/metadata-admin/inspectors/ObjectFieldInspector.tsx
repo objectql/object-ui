@@ -129,6 +129,14 @@ function defaultValueKind(type: string): DefaultKind | null {
  */
 const FIELD_RULE_ROOTS = ['record', 'previous', 'parent'];
 
+/**
+ * The only scope root a formula `expression` can reference: the engine
+ * evaluates it against the live record alone — there is no `previous`
+ * (formulas are recomputed on read, not diffed against a prior version) and
+ * no `parent` (objectui#1582 follow-up).
+ */
+const FORMULA_ROOTS = ['record'];
+
 /** Read a `*When` predicate for editing: a bare string or an Expression envelope's `source`. */
 function readPredicate(v: unknown): string {
   if (typeof v === 'string') return v;
@@ -187,6 +195,15 @@ export function ObjectFieldInspector({
     : [];
 
   const objectOptions = useObjectOptions();
+
+  // Spec `Field.returnType` is stamped from the formula's inferred CEL type,
+  // but ONLY once the author actually edits the formula in this session —
+  // stamping on mere selection would dirty the draft just by looking at a
+  // field whose stored returnType lags the inference.
+  const formulaEdited = React.useRef(false);
+  React.useEffect(() => {
+    formulaEdited.current = false;
+  }, [name]);
 
   if (!entry) {
     return (
@@ -459,15 +476,47 @@ export function ObjectFieldInspector({
               />
             </>
           )}
-          {isComputed(type) && (
-            <TextareaField
+          {type === 'formula' && (
+            <CelPredicateField
+              id={`field-formula-${entry.name}`}
               label={tr('designer.field.formula')}
-              value={typeof def.formula === 'string' ? (def.formula as string) : ''}
-              onCommit={(v) => patchDef({ formula: v || undefined })}
+              // Legacy alias: older Studio drafts carry a `formula` key the
+              // engine never reads (it computes from `expression`); it seeds
+              // the editor and the first edit migrates it.
+              value={readPredicate(def.expression ?? def.formula)}
+              onChange={(v) => {
+                formulaEdited.current = true;
+                patchDef({
+                  expression: writePredicate(def.expression ?? def.formula, v),
+                  formula: undefined,
+                  ...(v.trim() ? {} : { returnType: undefined }),
+                });
+              }}
+              onInferredTypeChange={(inferred) => {
+                if (!formulaEdited.current) return;
+                // Spec: `returnType` carries only a PROVEN concrete type —
+                // an ambiguous (`unknown`) or unavailable verdict clears it.
+                const next = inferred && inferred !== 'unknown' ? inferred : undefined;
+                if (def.returnType !== next) patchDef({ returnType: next });
+              }}
               disabled={readOnly}
-              rows={4}
-              mono
               placeholder="record.amount * 0.2"
+              objectName={typeof (draft as any).name === 'string' ? ((draft as any).name as string) : undefined}
+              // A formula may reference every sibling, not itself (circular).
+              fieldNames={view.entries.map((e) => e.name).filter((n) => n !== entry.name)}
+              scope="record"
+              roots={FORMULA_ROOTS}
+              role="value"
+              t={tr}
+            />
+          )}
+          {type === 'summary' && (
+            <SummaryConfigFields
+              def={def}
+              patchDef={patchDef}
+              objectOptions={objectOptions}
+              readOnly={readOnly}
+              locale={locale}
             />
           )}
           {isNumeric(type) && (
@@ -1125,6 +1174,130 @@ function LookupConfigFields({
           <InspectorCheckboxField label={tr('designer.field.lookup.allowCreate')} value={allowCreate} onCommit={(v) => patchDef({ allowCreate: v || undefined })} disabled={readOnly} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─────────────── Roll-up summary config (summaryOperations) ─────────────── */
+
+const SUMMARY_FUNCTIONS = ['count', 'sum', 'min', 'max', 'avg'] as const;
+
+interface SummaryOps {
+  object?: string;
+  field?: string;
+  function?: string;
+  relationshipField?: string;
+}
+
+function readSummaryOps(def: Record<string, unknown>): SummaryOps {
+  const raw = def.summaryOperations;
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as SummaryOps) : {};
+}
+
+/**
+ * Structured editor for a `summary` field's roll-up definition. A summary
+ * field has NO CEL expression — the spec models it as `summaryOperations`
+ * ({object, field, function, relationshipField}) and the engine recomputes
+ * the value when child records change. This replaces the formula textarea
+ * that previously edited a `formula` key the runtime never read for either
+ * computed type.
+ */
+function SummaryConfigFields({
+  def,
+  patchDef,
+  objectOptions,
+  readOnly,
+  locale,
+}: {
+  def: Record<string, unknown>;
+  patchDef: (patch: Record<string, unknown>) => void;
+  objectOptions: Array<{ value: string; label: string }>;
+  readOnly?: boolean;
+  locale?: string;
+}) {
+  const tr = (key: string) => t(key, locale);
+  const ops = readSummaryOps(def);
+  const childObject = typeof ops.object === 'string' ? ops.object : '';
+  const fn = typeof ops.function === 'string' ? ops.function : '';
+  const { fields: childFields, loading } = useObjectFields(childObject || undefined);
+
+  const patchOps = (patch: Partial<SummaryOps>) => {
+    const next: Record<string, unknown> = { ...ops, ...patch };
+    for (const k of Object.keys(next)) {
+      if (next[k] === undefined || next[k] === '') delete next[k];
+    }
+    patchDef({ summaryOperations: Object.keys(next).length > 0 ? next : undefined });
+  };
+
+  const aggregateOptions: InspectorComboOption[] = React.useMemo(
+    () => childFields.filter((f) => !f.hidden).map((f) => ({ value: f.name, label: f.label, hint: f.type })),
+    [childFields],
+  );
+  // The FK back to this parent lives on a child relation field.
+  const relationshipOptions: InspectorComboOption[] = React.useMemo(
+    () =>
+      childFields
+        .filter((f) => f.type === 'lookup' || f.type === 'master_detail')
+        .map((f) => ({ value: f.name, label: f.label, hint: f.type })),
+    [childFields],
+  );
+  const fieldPlaceholder = childObject
+    ? tr('designer.field.lookup.selectField')
+    : tr('designer.field.summary.setObjectFirst');
+
+  return (
+    <div className="space-y-2">
+      <ObjectPicker
+        label={tr('designer.field.summary.object')}
+        value={childObject}
+        options={objectOptions}
+        onCommit={(v) => patchOps({ object: v || undefined })}
+        disabled={readOnly}
+        placeholder={tr('designer.field.objectNamePlaceholder')}
+      />
+      <InspectorSelectField
+        label={tr('designer.field.summary.function')}
+        value={fn}
+        options={[
+          { value: '', label: tr('designer.field.defaultNone') },
+          ...SUMMARY_FUNCTIONS.map((f) => ({ value: f, label: tr(`designer.field.summary.fn.${f}`) })),
+        ]}
+        onCommit={(v) => patchOps({ function: v || undefined })}
+        disabled={readOnly}
+      />
+      {/* The spec requires `field` even for `count` (documented as ignored),
+          so it stays visible — hiding it would trap the author with an
+          unfixable "required" issue in the draft banner. */}
+      <InspectorComboField
+        label={tr('designer.field.summary.field')}
+        value={typeof ops.field === 'string' ? ops.field : ''}
+        onCommit={(v) => patchOps({ field: v || undefined })}
+        options={aggregateOptions}
+        loading={loading}
+        placeholder={fieldPlaceholder}
+        searchPlaceholder={tr('designer.field.lookup.searchFields')}
+        disabled={readOnly}
+        mono
+      />
+      {fn === 'count' && (
+        <p className="text-[11px] text-muted-foreground/70 px-0.5 -mt-1">
+          {tr('designer.field.summary.countFieldHint')}
+        </p>
+      )}
+      <InspectorComboField
+        label={tr('designer.field.summary.relationshipField')}
+        value={typeof ops.relationshipField === 'string' ? ops.relationshipField : ''}
+        onCommit={(v) => patchOps({ relationshipField: v || undefined })}
+        options={relationshipOptions}
+        loading={loading}
+        placeholder={fieldPlaceholder}
+        searchPlaceholder={tr('designer.field.lookup.searchFields')}
+        disabled={readOnly}
+        mono
+      />
+      <p className="text-[11px] text-muted-foreground/80 px-0.5 leading-snug">
+        {tr('designer.field.summary.hint')}
+      </p>
     </div>
   );
 }

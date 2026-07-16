@@ -125,6 +125,61 @@ describe('CelPredicateField · inline lint (real engine)', () => {
   });
 });
 
+describe('CelPredicateField · result-type affordance (role="value", real engine)', () => {
+  it('shows the inferred type for a proven-Number formula', async () => {
+    render(
+      <Harness
+        initial="record.amount * 0.2"
+        role="value"
+        scope="record"
+        roots={['record']}
+        fieldNames={['amount']}
+        clause={undefined}
+      />,
+    );
+    expect(await screen.findByText('perm.cel.type.number', {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it('reports Unknown with the pinning hint when the type cannot be proven', async () => {
+    render(
+      <Harness
+        initial="record.amount + record.owner_id"
+        role="value"
+        scope="record"
+        roots={['record']}
+        fieldNames={['amount', 'owner_id']}
+        clause={undefined}
+      />,
+    );
+    expect(await screen.findByText('perm.cel.type.unknown', {}, { timeout: 3000 })).toBeTruthy();
+    expect(screen.getByText(/perm\.cel\.type\.unknownHint/)).toBeTruthy();
+  });
+
+  it('does NOT show the affordance for predicate roles', async () => {
+    render(<Harness initial="organization_id == 1" />);
+    // Wait for the lint pass to complete (the valid affordance appears)…
+    expect(await screen.findByText('perm.cel.valid', {}, { timeout: 3000 })).toBeTruthy();
+    // …and confirm no result-type line accompanied it.
+    expect(screen.queryByText(/perm\.cel\.type/)).toBeNull();
+  });
+
+  it('withholds the affordance while the expression has lint errors', async () => {
+    render(
+      <Harness
+        initial="amount * 0.2"
+        role="value"
+        scope="record"
+        roots={['record']}
+        fieldNames={['amount']}
+        clause={undefined}
+      />,
+    );
+    const ta = screen.getByRole('combobox');
+    await waitFor(() => expect(ta.getAttribute('aria-invalid')).toBe('true'), { timeout: 3000 });
+    expect(screen.queryByText(/perm\.cel\.type\./)).toBeNull();
+  });
+});
+
 describe('CelPredicateField · autocomplete', () => {
   it('offers field/scope suggestions and inserts on Enter', async () => {
     __setCelFormulaLoader(() =>

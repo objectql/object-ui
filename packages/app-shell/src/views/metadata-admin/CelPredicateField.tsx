@@ -7,9 +7,10 @@
  */
 
 /**
- * CEL predicate editor — RLS `USING` / `CHECK` clauses (objectui#2413) and,
- * via `scope="record"`, the field conditional rules `visibleWhen` /
- * `readonlyWhen` / `requiredWhen` in the object field inspector (objectui#1582).
+ * CEL expression editor — RLS `USING` / `CHECK` clauses (objectui#2413), the
+ * field conditional rules `visibleWhen` / `readonlyWhen` / `requiredWhen` via
+ * `scope="record"` (objectui#1582), and formula field `expression`s via
+ * `role="value"` (objectui#1582 follow-up).
  *
  * Replaces the bare `<textarea>` with the same visual field plus three
  * author-time safeties, all backed by the framework's canonical CEL engine
@@ -19,7 +20,10 @@
  *    surfaced under the field as you type (debounced);
  *  - as-you-type AUTOCOMPLETE — the target object's fields, the scope roots
  *    (`current_user`, `record`, …) and the stdlib functions, so a mistyped
- *    identifier is caught before it silently never matches.
+ *    identifier is caught before it silently never matches;
+ *  - for `role="value"` (formulas), the INFERRED RESULT TYPE — the engine
+ *    verdict dataset derivation keys measure eligibility off, so the author
+ *    learns "this computes a Number" (or can't be proven to) before saving.
  *
  * The test-run affordance lives one level up (per-policy) in
  * {@link file://./CelTestRunDialog.tsx}, so both `USING` and `CHECK` can be
@@ -28,10 +32,11 @@
 
 import * as React from 'react';
 import { Label, Textarea, cn } from '@object-ui/components';
-import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Sigma } from 'lucide-react';
 import {
   lintCelPredicate,
   introspectCelScope,
+  inferCelValueType,
   tokenAt,
   memberTokenAt,
   buildCandidates,
@@ -40,6 +45,7 @@ import {
   type CelScopeInfo,
   type CelSuggestion,
   type CelSuggestionKind,
+  type CelValueType,
 } from './celAuthoring';
 
 const LINT_DEBOUNCE_MS = 250;
@@ -81,8 +87,20 @@ export interface CelPredicateFieldProps {
   scope?: 'record' | 'flattened';
   /** Override the scope roots offered by autocomplete (see CelSchemaHint.roots). */
   roots?: string[];
+  /**
+   * Engine field role (see CelSchemaHint.role). `'predicate'` (default) for
+   * boolean conditions; `'value'` for formula expressions — which also turns
+   * on the inferred-result-type affordance.
+   */
+  role?: 'predicate' | 'value';
   /** Reports the current lint issues up so the editor can gate Save on errors. */
   onLintChange?: (issues: CelLintIssue[]) => void;
+  /**
+   * `role="value"` only: reports the inferred result type after each
+   * (debounced) lint pass — `null` while empty / engine unavailable. Lets the
+   * host stamp the spec's `Field.returnType` from the same verdict it shows.
+   */
+  onInferredTypeChange?: (type: CelValueType | null) => void;
   t: (k: string) => string;
   id?: string;
 }
@@ -100,13 +118,16 @@ export function CelPredicateField({
   clause,
   scope,
   roots,
+  role,
   onLintChange,
+  onInferredTypeChange,
   t,
   id,
 }: CelPredicateFieldProps) {
   const taRef = React.useRef<HTMLTextAreaElement>(null);
   const [issues, setIssues] = React.useState<CelLintIssue[]>([]);
   const [linted, setLinted] = React.useState(false);
+  const [inferredType, setInferredType] = React.useState<CelValueType | null>(null);
   const [scopeInfo, setScopeInfo] = React.useState<CelScopeInfo | null>(null);
 
   const [open, setOpen] = React.useState(false);
@@ -119,37 +140,50 @@ export function CelPredicateField({
   const fieldsKey = fieldNames.join(',');
   const rootsKey = roots ? roots.join(',') : '';
 
-  // Keep the reporter out of the lint effect deps (parent may not memoize it).
+  // Keep the reporters out of the lint effect deps (parent may not memoize them).
   const onLintChangeRef = React.useRef(onLintChange);
+  const onInferredTypeChangeRef = React.useRef(onInferredTypeChange);
   React.useEffect(() => {
     onLintChangeRef.current = onLintChange;
+    onInferredTypeChangeRef.current = onInferredTypeChange;
   });
 
-  /* Debounced lint. */
+  /* Debounced lint (and, for role="value", result-type inference). */
   React.useEffect(() => {
     let cancelled = false;
     const handle = setTimeout(() => {
-      lintCelPredicate(value, { objectName, fields: fieldNames, clause, scope }).then((res) => {
+      const hint = { objectName, fields: fieldNames, clause, scope, role };
+      lintCelPredicate(value, hint).then((res) => {
         if (cancelled) return;
         setIssues(res);
         setLinted(true);
         onLintChangeRef.current?.(res);
       });
+      if (role === 'value') {
+        inferCelValueType(value, hint).then((res) => {
+          if (cancelled) return;
+          setInferredType(res);
+          onInferredTypeChangeRef.current?.(res);
+        });
+      }
     }, LINT_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       clearTimeout(handle);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, objectName, fieldsKey, clause, scope]);
+  }, [value, objectName, fieldsKey, clause, scope, role]);
 
   /* Report "clean" upward when the field empties (no debounce needed). */
   React.useEffect(() => {
     if (!value.trim()) {
       setIssues([]);
       setLinted(false);
+      setInferredType(null);
       onLintChangeRef.current?.([]);
+      if (role === 'value') onInferredTypeChangeRef.current?.(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   /* Load the autocomplete catalog when the target object / fields change. */
@@ -266,6 +300,10 @@ export function CelPredicateField({
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
   const clean = linted && !!value.trim() && issues.length === 0;
+  // Result-type affordance (role="value"): shown once the expression parses,
+  // even alongside warnings — the type is what dataset measure eligibility
+  // keys off, so the author should see it whenever it is known.
+  const showType = role === 'value' && linted && !!value.trim() && errors.length === 0 && inferredType !== null;
   const listId = id ? `${id}-ac` : undefined;
 
   return (
@@ -355,6 +393,23 @@ export function CelPredicateField({
         <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-500" />
           {t('perm.cel.valid')}
+        </p>
+      )}
+      {showType && (
+        <p className="mt-1 flex items-start gap-1.5 text-[11px] text-muted-foreground" aria-live="polite">
+          <Sigma className="mt-[1px] h-3 w-3 shrink-0" />
+          <span>
+            {t('perm.cel.type')}{' '}
+            <span
+              className={cn(
+                'font-medium',
+                inferredType !== 'unknown' && 'text-foreground',
+              )}
+            >
+              {t(`perm.cel.type.${inferredType}`)}
+            </span>
+            {inferredType === 'unknown' && <> — {t('perm.cel.type.unknownHint')}</>}
+          </span>
         </p>
       )}
     </div>

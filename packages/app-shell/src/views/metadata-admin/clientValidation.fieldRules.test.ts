@@ -92,3 +92,52 @@ describe('validateMetadataDraft — object field conditional rules (real engine)
     expect(res.issues.filter((i) => RULE_PATH.test(i.path))).toEqual([]);
   });
 });
+
+describe('validateMetadataDraft — formula field expressions (role value, real engine)', () => {
+  it('flags a malformed formula under fields.<name>.expression', async () => {
+    const res = await validateMetadataDraft(
+      'object',
+      draftWith({
+        amount: { type: 'number' },
+        total: { type: 'formula', expression: 'record.amount *' },
+      }),
+    );
+    expect(res.ok).toBe(false);
+    expect(res.issues.some((i) => i.path === 'fields.total.expression')).toBe(true);
+  });
+
+  it('flags a bare field reference with the record.<field> fix', async () => {
+    const res = await validateMetadataDraft(
+      'object',
+      draftWith({
+        amount: { type: 'number' },
+        total: { type: 'formula', expression: 'amount * 0.2' },
+      }),
+    );
+    const issue = res.issues.find((i) => i.path === 'fields.total.expression');
+    expect(issue).toBeTruthy();
+    expect(issue!.message).toMatch(/record\.amount/);
+  });
+
+  it('is clean for a valid formula in both wire shapes', async () => {
+    const res = await validateMetadataDraft(
+      'object',
+      draftWith({
+        amount: { type: 'number' },
+        total: { type: 'formula', expression: 'record.amount * 0.2' },
+        margin: { type: 'formula', expression: { dialect: 'cel', source: 'record.amount * 0.1' } },
+      }),
+    );
+    expect(res.issues.filter((i) => i.path.endsWith('.expression'))).toEqual([]);
+  });
+
+  it('does NOT lint expression on non-formula fields (summary has none)', async () => {
+    const res = await validateMetadataDraft(
+      'object',
+      draftWith({
+        total: { type: 'summary', summaryOperations: { object: 'crm_order', function: 'count' } },
+      }),
+    );
+    expect(res.issues.filter((i) => i.path.endsWith('.expression'))).toEqual([]);
+  });
+});

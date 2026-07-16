@@ -19,11 +19,12 @@
  * CEL engine, `@objectstack/formula` — the SAME parser/validator the server and
  * the `validate_expression` agent tool use — so the GUI, SDK, and CLI reach the
  * identical verdict rather than maintaining a second grammar (ADR-0032). It
- * exposes exactly the three author-time affordances the editor needs:
+ * exposes exactly the four author-time affordances the editors need:
  *
  *   1. {@link lintCelPredicate}    — parse/field lint (surfaced inline as you type).
  *   2. {@link introspectCelScope}  — the valid field + scope identifiers (autocomplete).
  *   3. {@link testRunCelPredicate} — dry-run a predicate against a sample record.
+ *   4. {@link inferCelValueType}   — the value type a formula computes (objectui#1582 follow-up).
  *
  * Progressive enhancement (mirrors `preview/capabilityLint.ts`): the engine is
  * loaded LAZILY via dynamic `import()` — it carries the CEL parser (cel-js), so
@@ -67,6 +68,17 @@ export interface CelSchemaHint {
    * would author a predicate that silently never fires.
    */
   roots?: string[];
+  /**
+   * The engine field role of the authoring site (mirrors `FieldRole` minus
+   * `template`, which no CEL editor hosts):
+   *  - `'predicate'` (default) — bare CEL expected to return bool (RLS
+   *    clauses, conditional rules). The engine words its parse errors around
+   *    predicates.
+   *  - `'value'` — bare CEL of ANY type (a `formula` field's `expression`).
+   *    Same parse/field checks, but a non-boolean result is the point, and
+   *    {@link inferCelValueType} reports WHICH type it computes.
+   */
+  role?: 'predicate' | 'value';
 }
 
 /** A single lint finding surfaced inline under the editor. */
@@ -123,6 +135,10 @@ interface FormulaModule {
     role: string,
     schema?: unknown,
   ) => { fields?: string[]; roots?: string[]; functions?: string[] };
+  inferExpressionType?: (
+    input: unknown,
+    schema?: unknown,
+  ) => 'number' | 'text' | 'boolean' | 'date' | 'unknown';
   isPushdownableCel?: (
     input: string | { source?: string },
     opts?: { fieldRoots?: readonly string[]; variableRoots?: readonly string[] },
@@ -168,7 +184,7 @@ const PUSHDOWN_VARIABLE_ROOTS = ['current_user', 'user'] as const;
 /* ── 1. Lint ─────────────────────────────────────────────────────────── */
 
 /**
- * Validate one RLS predicate. Returns the findings to surface inline: parse
+ * Validate one CEL source. Returns the findings to surface inline: parse
  * faults as `error` (block save), unknown-field near-misses and non-pushdown-able
  * read filters as `warning` (advisory).
  *
@@ -177,6 +193,10 @@ const PUSHDOWN_VARIABLE_ROOTS = ['current_user', 'user'] as const;
  * unknown one is a non-blocking "did you mean" warning, never a hard error.
  * We never fail-CLOSED on a maybe-typo for a security surface: flag it, don't
  * silently narrow (or, worse, block) the author's row scope.
+ *
+ * With `hint.role: 'value'` the same checks run for a formula-style value
+ * expression (usually paired with `scope: 'record'`, where a bare field ref IS
+ * a hard error — it silently evaluates to null at runtime).
  *
  * Empty input is always clean.
  */
@@ -188,7 +208,7 @@ export async function lintCelPredicate(
   try {
     const mod = await loadFormula();
     if (!mod?.validateExpression) return [];
-    const res = mod.validateExpression('predicate', source, {
+    const res = mod.validateExpression(hint.role ?? 'predicate', source, {
       objectName: hint.objectName,
       fields: hint.fields,
       scope: hint.scope ?? 'flattened',
@@ -230,6 +250,48 @@ export async function lintCelPredicate(
   }
 }
 
+/* ── 1b. Value-type inference (formulas) ─────────────────────────────── */
+
+/**
+ * The coarse value categories a formula can compute — mirrors the engine's
+ * `InferredValueType`. `'unknown'` means cel-js could not PROVE a concrete
+ * type (e.g. `record.a + record.b` could be number addition or string
+ * concatenation); wrapping operands in `double()` / `int()` / `string()`
+ * pins it.
+ */
+export type CelValueType = 'number' | 'text' | 'boolean' | 'date' | 'unknown';
+
+const CEL_VALUE_TYPES: readonly CelValueType[] = ['number', 'text', 'boolean', 'date', 'unknown'];
+
+/**
+ * Infer the value type a formula (`role: 'value'`) expression computes, via
+ * the engine's `inferExpressionType` — the SAME verdict dataset derivation
+ * uses for measure eligibility (only a proven-`number` formula becomes a SUM
+ * measure), so the editor can show the author what their formula will and
+ * won't be usable as *before* they save.
+ *
+ * Returns `null` — "no affordance", not "unknown type" — for empty input or
+ * when the engine (or its `inferExpressionType` export) is unavailable.
+ */
+export async function inferCelValueType(
+  source: string,
+  hint: CelSchemaHint = {},
+): Promise<CelValueType | null> {
+  if (!source || !source.trim()) return null;
+  try {
+    const mod = await loadFormula();
+    if (!mod?.inferExpressionType) return null;
+    const res = mod.inferExpressionType(source, {
+      objectName: hint.objectName,
+      fields: hint.fields,
+      scope: hint.scope ?? 'record',
+    });
+    return CEL_VALUE_TYPES.includes(res as CelValueType) ? (res as CelValueType) : 'unknown';
+  } catch {
+    return null;
+  }
+}
+
 /* ── 2. Autocomplete scope ───────────────────────────────────────────── */
 
 /**
@@ -247,7 +309,7 @@ export async function introspectCelScope(hint: CelSchemaHint = {}): Promise<CelS
   try {
     const mod = await loadFormula();
     if (!mod?.introspectScope) return fallback;
-    const res = mod.introspectScope('predicate', {
+    const res = mod.introspectScope(hint.role ?? 'predicate', {
       objectName: hint.objectName,
       fields: hint.fields,
       scope: hint.scope ?? 'flattened',

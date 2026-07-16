@@ -148,10 +148,11 @@ function predicateSource(v: unknown): string | null {
 }
 
 /**
- * Lint every field conditional rule on an object draft. Runs with
- * `scope: 'record'` (fields are namespaced under `record` in these rules) and
- * reports only lint ERRORS — warnings would be noise at the draft level; the
- * inline editor already surfaces them where the author can act.
+ * Lint every field conditional rule — and every `formula` field's
+ * `expression` (role `value`, objectui#1582 follow-up) — on an object draft.
+ * Runs with `scope: 'record'` (fields are namespaced under `record` in both
+ * sites) and reports only lint ERRORS — warnings would be noise at the draft
+ * level; the inline editor already surfaces them where the author can act.
  */
 async function validateObjectFieldRules(draft: unknown): Promise<SchemaFormIssue[]> {
   const d = draft as { name?: unknown; fields?: unknown } | null | undefined;
@@ -174,6 +175,21 @@ async function validateObjectFieldRules(draft: unknown): Promise<SchemaFormIssue
       for (const f of findings) {
         if (f.severity !== 'error') continue;
         issues.push({ path: `fields.${pathKey}.${key}`, message: f.message });
+      }
+    }
+    if (entry.def.type === 'formula') {
+      const source = predicateSource(entry.def.expression);
+      if (source == null || !source.trim()) continue;
+      const findings = await lintCelPredicate(source, {
+        objectName,
+        // A formula may reference every sibling, not itself (circular).
+        fields: fieldNames.filter((n) => n !== entry.name),
+        scope: 'record',
+        role: 'value',
+      });
+      for (const f of findings) {
+        if (f.severity !== 'error') continue;
+        issues.push({ path: `fields.${pathKey}.expression`, message: f.message });
       }
     }
   }
