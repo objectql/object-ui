@@ -1,5 +1,180 @@
 # @object-ui/components
 
+## 14.1.0
+
+### Minor Changes
+
+- dea65f7: Unify the list-view conditional tier onto the canonical CEL engine (#1584).
+
+  Conditional formatting (list / grid / kanban) and row-action `visible` /
+  `disabled` predicates are now evaluated by `@objectstack/formula`'s
+  `ExpressionEngine` — the same engine the server uses — instead of the legacy
+  JS-dialect `ExpressionEvaluator`, matching how `@objectstack/spec` already types
+  these surfaces (`ExpressionInputSchema` / CEL). The whole platform now speaks one
+  expression dialect (framework ADR-0058).
+
+  - `@object-ui/core`: new `evalRowPredicate` + `resolveConditionalFormatting`
+    helpers (next to `evalFieldPredicate`). One implementation of all three
+    formatting rule shapes; dialect routing (a `{ dialect: 'cel' }` envelope is
+    always CEL; a bare string is CEL unless it carries legacy-only syntax
+    (`${…}` / `===` / `?.` / `.includes()`), which routes to the old engine with a
+    one-time deprecation warning); the native `{ field, operator, value }` form is
+    translated to CEL.
+  - `@object-ui/react`: new `useRowPredicate` hook (canonical CEL, ambient
+    predicate scope merged).
+  - Consumers converged: `ListView.evaluateConditionalFormatting` (thin wrapper,
+    export kept), `ObjectGrid` row styling (inline copy removed), kanban card
+    styles, and the grid / data-table row-action menus. `plugin-view`'s kanban
+    branch now forwards top-level `conditionalFormatting` (previously dropped).
+  - Row-action `visible` fails **closed** (broken predicate → hidden + warn);
+    `disabled` fails soft. The CEL `in` operator (and list membership) now work in
+    row predicates — the legacy engine could not parse them.
+  - The legacy `FormField.condition: { field, equals/notEquals/in }` is retired to
+    a CEL translation (back-compat preserved); `FieldDesigner` migrated to
+    `visibleWhen`.
+
+  Fully back-compat: existing conditional-formatting rules, row-action predicates,
+  and form `condition` metadata keep working (translated / routed as needed).
+
+- 073e7aa: Conditional tabs (framework#2606): the `page:tabs` renderer honors an item-level
+  `visibleWhen` CEL predicate — when it evaluates FALSE the WHOLE tab (header +
+  panel) is omitted from the strip, unlike a child component's own `visibleWhen`,
+  which hides only the panel content and leaves an empty tab header behind. The
+  predicate binds the same environment as page-component `visibleWhen` (record
+  fields bare and via `record.`/`data.`, `user`/`current_user`, and page state as
+  `page.<var>`) and re-evaluates live as page variables change. The strip is now
+  controlled: when the ACTIVE tab's predicate flips false, selection falls back to
+  the first visible tab instead of leaving a blank panel, and the user's own
+  selection is restored if the tab becomes visible again. Canonical ADR-0089 key
+  only — the deprecated `visibility`/`visibleOn` aliases are not read on this new
+  surface. Items without `visibleWhen` behave exactly as before.
+- 6c0135c: feat(page-header): metadata-driven multi-button record header (#2361)
+
+  The record detail page header no longer hardcodes a single inline primary
+  button (`INLINE_MAX = 1`). It now renders up to `maxVisible` actions
+  side-by-side (default 3 desktop / 1 mobile, overridable via
+  `maxVisible` / `mobileMaxVisible` on the `page:header` schema) — the same
+  contract as `action:bar` — so multi-action objects (e.g. Lead: Convert /
+  Assign / Return) can surface several primary buttons at once.
+
+  Which actions claim the inline slots is declared in metadata, mirroring the
+  `action:bar` #2339 rules:
+
+  - `order` ascending (unset = 0; lower = more prominent), stable sort;
+  - `variant: 'primary'` as a tie-break within equal order (also mapped to the
+    Shadcn `default` Button variant instead of leaking through);
+  - `component: 'action:menu'` pins an action inside the `⋯` overflow menu
+    regardless of the action count.
+
+  The synthesized system actions declare their placement accordingly:
+  `sys_edit` gets `order: 100` (behind every authored business action, but
+  still inline when slots remain), while `sys_share` / `sys_delete` are pinned
+  into the `⋯` menu via `component: 'action:menu'` — Delete never surfaces as
+  an inline red button just because an object has few actions.
+
+### Patch Changes
+
+- 055e1d2: fix(components): exit inline edit mode for injected cell editors (#2321)
+
+  Non-discrete inline-edit cells (text, number, date, lookup, user, currency,
+  percent, …) got permanently stuck in edit mode: the host-injected `@object-ui/fields`
+  widget staged its value on every change but had no way to leave edit mode, so
+  clicking outside, pressing Enter, and the row Save button all failed to dismiss
+  the editor. Only discrete pickers (select/boolean/radio/rating), which commit on
+  selection, exited correctly.
+
+  The DataTable now gives injected widget editors the same exit affordances the
+  built-in `<input>` editors have:
+
+  - **Click-outside** commits the staged value and exits, via a capture-phase
+    document `pointerdown` listener. It is portal-aware — clicking inside a lookup
+    popover / record-picker dialog the widget itself opened does not exit, and a
+    modal that merely hosts the grid does not suppress the commit.
+  - **Enter** commits and exits (a multi-line `textarea` keeps inserting newlines).
+  - **Escape** reverts this session's staged changes and exits.
+
+  Keys that bubble up through a React portal from the widget's own popover keep
+  driving that popover rather than the cell. Built-in editors are untouched.
+
+- f30ff68: fix(components): keep the list-view horizontal scrollbar pinned to the viewport bottom
+
+  In a list/grid view with many columns, the horizontal scrollbar was only
+  reachable after scrolling all the way to the last row. Root cause: the shadcn
+  `<Table>` wraps its `<table>` in a `overflow-auto` scroll `<div>`. When
+  `DataTable` already renders the table inside a _bounded_
+  `flex-1 min-h-0 overflow-auto` region, that default wrapper became a SECOND,
+  height-unbounded scroll container — it stretched to the full table height, so
+  its horizontal scrollbar sat at the bottom of _all_ rows.
+
+  - `Table` gains an optional `containerClassName` prop that overrides the
+    scroll-wrapper `<div>`'s classes (default behavior unchanged).
+  - `DataTable` passes `containerClassName="overflow-visible"` so the outer
+    bounded container owns both axes and the horizontal scrollbar stays pinned to
+    the viewport bottom — reachable from any scroll position, no need to scroll to
+    the last row.
+
+  Verified end-to-end against the running console (data-table with 60+ rows × 19
+  columns): the horizontal scroller is now the bounded `flex-1 min-h-0
+overflow-auto` region (bottom on-screen, within the viewport) and the table can
+  be scrolled fully right while still at the top row.
+
+- 4afb251: Record-level inline edit polish (objectui#2572, follow-up to #2407) — the five
+  rough edges from the live showcase verification pass:
+
+  - **Expanded reference values pass through to the picker.** `InlineFieldInput`
+    no longer collapses an `$expand`-ed record object to a bare id before
+    handing it to `LookupField` / `UserField` — the picker resolves the display
+    name it already carries instead of re-fetching the referenced record via
+    `findOne` (or sticking on the placeholder when it can't). `LookupField`
+    still hands its Level-2 pickers (PeoplePicker / RecordPickerDialog) bare
+    ids, collapsed via the existing `normalizeId`.
+  - **Approval-lock preflight.** The record page now re-reads the approval
+    state whenever the record is invalidated (a save can _trigger_ an approval
+    flow that locks the record), derives one `approvalLocked` signal
+    (`approval_status` pending/in_approval OR an open pending request), gates
+    the inline-edit session's `canEdit` with it — hiding the pencil affordances
+    and no-op'ing `enter()` on a locked record — and drives the save bar's
+    `locked`/`lockedHint` so users can't type into a draft that Save would
+    reject with `RECORD_LOCKED`.
+  - **Numeric field types edit with the real numeric widgets.** `number` /
+    `currency` / `percent` route to `NumberField` / `CurrencyField` /
+    `PercentField` (the same widgets the form uses) instead of a free-text
+    input: numeric keyboard, symbol adornment, fraction↔percent display
+    conversion, and numbers (not strings) into the draft. `NumberField` and
+    `CurrencyField` now surface metadata `min`/`max` on the input, `NumberField`
+    honors an explicit `step` and steps by 1 for `scale: 0` (previously fell
+    back to `any`).
+  - **Header Edit CTA stands down during an inline session.** The synthesized
+    `sys_edit` action carries `disableDuringInlineEdit`, and the `page:header`
+    renderer greys such actions out while `InlineEditContext.editing` — the
+    classic form-edit surface can no longer be stacked on top of a live inline
+    draft.
+  - **Keyboard shortcuts for the shared edit session.** `InlineEditSaveBar`
+    binds **Esc → cancel** (deferring to any open Radix layer — popover /
+    select / dialog — which owns Escape for "close") and **Cmd/Ctrl+Enter →
+    save**, both respecting `saving`/`locked`.
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [23d65c3]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [5b52624]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/react-runtime@14.1.0
+  - @object-ui/sdui-parser@14.1.0
+
 ## 14.0.0
 
 ### Minor Changes

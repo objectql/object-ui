@@ -1,5 +1,475 @@
 # @object-ui/app-shell — Changelog
 
+## 14.1.0
+
+### Minor Changes
+
+- 82441e4: feat(console-ai): proactive AI usage indicator in the ChatDock (ADR-0057 #8)
+
+  Surfaces remaining AI headroom **before** a send hits the 429 wall, instead of
+  only learning the limit reactively.
+
+  - **AiUsageIndicator** — two meters (build + dataChat) as small progress rings in
+    the ChatDock header (desktop rail + mobile sheet). Near-full → an amber
+    "running low" hint and a popover with "resets tonight / next cycle" plus the
+    upgrade / top-up CTA (reusing the 429 deep-link). D5-safe: fractions and
+    qualitative words only, never a token number. Hides itself when the usage
+    endpoint is absent (older backend / OSS / no seat).
+  - **useAiUsage** — fetches the D5-safe per-meter fractions; refetches on the chat
+    engine's post-turn / 429 nudge and on tab re-focus; fails soft to nothing.
+  - **useObjectChat** emits `AI_USAGE_REFRESH_EVENT` on a rejected send (429) and on
+    the turn-finish edge so the ring updates right after the user's action.
+  - i18n: `console.ai.usage.*` in en + zh-CN.
+
+  Consumes the cloud `GET /api/v1/ai/usage` endpoint (objectstack-ai/cloud#824).
+
+- 0908391: feat(flow-designer): connector picker lists dispatchable connectors + marks declarative instances (ADR-0096)
+
+  The `connector_action` node's connector picker read `client.list('connector')` —
+  the declared `connectors:` metadata, which includes inert catalog descriptors and
+  **misses** plugin-registered connectors. It now reads the runtime registry
+  (`GET /api/v1/automation/connectors`), i.e. exactly the connectors a
+  `connector_action` can dispatch: plugin connectors and materialized declarative
+  instances (framework ADR-0096). Declarative instances are annotated `· declarative`
+  (from the descriptor's new `origin` field) so authors can tell a materialized
+  metadata connector apart from a plugin one. Degrades to empty on fetch failure;
+  the field stays free-text editable. Tolerates an older backend with no `origin`.
+
+- 937b8ef: feat(app-shell): C2-β — AccessExplainPanel record 粒度渲染 (framework#2920)
+
+  AccessExplainPanel 现支持记录级解释(ADR-0095):
+
+  - **记录选择器**:选定对象后可输入或从 RecordPickerDialog 选择一条 `recordId`;请求带上 `recordId`。
+  - **逐层行级归因**:每层展开该记录的 `record` 归因——outcome 徽标(准入/排除/未评估)、命中的 `rules[]`(权限集 → 岗位 → 共享 → 行规则,含 kind/grants/via/effect 三态圆点)、有效行过滤(rowFilter JSON)、matchesRecord。
+  - **顶部记录判定**:`record.visible` 结论横幅 + `decidedBy` 决定性层(该记录为何可见/不可见)。
+  - **posture / kernelTier**:principal 卡片显示 posture 档位徽标;每层显示 kernel tier(租户墙 vs 业务 RLS)标签。
+  - i18n:en + zh-CN 全量 key。
+
+  **向后兼容**:不带 `recordId` 时行为与对象级完全一致。
+
+- 9530323: Studio object designer: the field inspector's conditional rules (`visibleWhen` / `readonlyWhen` / `requiredWhen`) are now edited with a proper CEL editor — live syntax/semantic validation and autocomplete (object fields after `record.` / `previous.`, the runtime-bound roots `record`/`previous`/`parent`, and the CEL stdlib), backed by the same `@objectstack/formula` validators the server uses. Bare field references are flagged with the exact `record.<field>` fix, the deprecated `conditionalRequired` alias migrates to `requiredWhen` on first edit, and draft validation reports an invalid predicate on any field under its `fields.<field>.<rule>` path before save. (#1582)
+- 754549a: Studio formula fields get the CEL editor: the field inspector's formula textarea is now the same lint + autocomplete editor as conditional rules, running in the new `role: 'value'` mode (scope `record`, roots `['record']`) with an inferred result-type affordance — the `@objectstack/formula` verdict dataset measure eligibility keys off. Edits land on the spec's `expression` key (migrating the engine-dead legacy `formula` key) and stamp `Field.returnType` from the proven type. Summary fields drop the dead formula textarea for a structured `summaryOperations` roll-up editor, and `validateMetadataDraft('object')` now lints every formula expression draft-wide.
+- cee5d6e: feat(app-shell): CEL authoring safety for RLS policies — lint, field autocomplete, test-run (objectui#2413)
+
+  The permission-set Studio editor's Row-Level Security section
+  (`PermissionAdvancedFacets`) let admins author `USING` (read filter) / `CHECK`
+  (write filter) predicates as hand-typed CEL with **no validation, no
+  autocomplete, and no way to test**. RLS is security-critical: a typo silently
+  mis-scopes rows, and some evaluation paths **fail open** — widening access with
+  no visible error. The `USING`/`CHECK` editors now run three author-time
+  safeties, all delegated to the framework's canonical CEL engine
+  (`@objectstack/formula`) so the GUI reaches the **same verdict as the server**
+  rather than maintaining a second grammar:
+
+  - **Inline lint** (`CelPredicateField`) — `validateExpression` flags parse
+    faults inline (and gates Save), unknown-field near-misses as non-blocking
+    "did-you-mean" warnings, and a non-pushdown-able `USING` filter as a
+    fail-open blast-radius advisory (`isPushdownableCel`).
+  - **Field autocomplete** — `introspectScope` offers the target object's fields
+    plus scope vars (`current_user`, `record`, …) and stdlib functions as you
+    type, so an identifier that would silently never match is caught early.
+  - **Test-run** (`CelTestRunDialog`) — dry-runs a predicate against a sample
+    record + `current_user` and shows allow / deny / non-boolean / error before
+    shipping.
+
+  The engine loads lazily (dynamic `import`, feature-detected and
+  error-swallowing), keeping the CEL parser out of the main bundle; a
+  missing/older engine degrades to "no assistance" rather than breaking the
+  editor. New bridge: `metadata-admin/celAuthoring.ts`. New `perm.cel.*` i18n keys
+  (en + zh-CN).
+
+- eeef906: Studio: CEL lint + field autocomplete for condition predicates (#1582).
+
+  `ConditionBuilder`'s raw-expression escape hatch — a bare `<textarea>` — is
+  replaced by `CelPredicateField`, so every surface that authors a condition
+  through it gains inline syntax/semantic validation and field-name autocomplete
+  on the canonical `@objectstack/formula` engine:
+
+  - field-level `visibleWhen` / `readonlyWhen` / `requiredWhen` (SchemaForm's
+    `condition` widget auto-maps `/When$/` properties),
+  - action `visible` / `disabled` (ActionDefaultInspector),
+  - every other `condition`-widget property (`visibleOn`, `predicate`, …).
+
+  The no-code [subject][op][value] builder path is unchanged; only the "Expression"
+  mode is upgraded. An invalid predicate now surfaces a readable inline error
+  instead of failing silently at runtime. English + Chinese labels.
+
+  This completes the objectui side of #1582 — the CEL assists it asked for now
+  cover the field `*When` inputs (and, since the previous change, view
+  `conditionalFormatting` conditions).
+
+- c1df2e1: Studio dashboard widget inspector: visual `filterBindings` editor (#2578
+  item 4, framework#2501). When the dashboard declares filters (`dateRange` /
+  `globalFilters`), the widget inspector shows a "Dashboard filter bindings"
+  section with one row per filter: an **Apply** toggle (unticked writes
+  `filterBindings[name] = false`, opting the widget out) and a field picker
+  that re-targets the filter to one of THIS widget's fields (empty = default:
+  the filter's own field). Previously bindings were only configurable through
+  raw JSON metadata. Filter rows come from the same `resolveDashboardFilterDefs`
+  normalization the runtime broadcasts from, so the editor offers exactly the
+  filters the renderer will apply.
+- 471c5d3: feat(detail): editable record highlights on the shared inline-edit draft (objectui#2407 P2)
+
+  The highlights strip is now editable in place and shares ONE draft + ONE atomic
+  Save with the details body (building on the P1 `InlineEditContext` / `#2529`
+  `InlineFieldInput`).
+
+  - **`HeaderHighlight`** consumes `useInlineEdit()`: hovering a highlight shows a
+    pencil and double-click enters the shared record edit session; each editable
+    highlight renders the same `<InlineFieldInput>` the body uses (value =
+    `draft[name] ?? data[name]`, write via `setField`). Computed
+    (`formula`/`summary`/`rollup`/`auto_number`), `readonly`, and system fields
+    expose no editor. Empty highlights are kept while editing so they can be
+    filled. Compact-layout UX: an actively-edited column widens and renders the
+    editor full-width (Salesforce-style expand-on-edit).
+  - **`RecordDetailView`** (app-shell) hosts ONE `<InlineEditProvider>` (with the
+    object-lifecycle `canEdit` gate) spanning both `record:highlights` and
+    `record:details`, plus the single record-level `<InlineEditSaveBar>` — so a
+    highlight edit and a body edit commit together in ONE
+    `update(obj, id, draft, { ifMatch })`.
+  - **`record:details`** drops its P1-local provider/save bar (it would otherwise
+    split the draft from the highlights) and just consumes the shared context;
+    **`record:highlights`** threads the DataSource through for lookup/user editors.
+
+  Guardrails preserved: computed/readonly/system highlights non-editable; `canEdit`
+  gate; OCC (`ifMatch` + `ConcurrentUpdateDialog`); only user-edited keys are sent.
+
+- d50977c: feat(flow-designer): pick the target node per branch in the Decision Branches editor (#1942)
+
+  The decision node's Branches editor gains a **Target** column — a node picker
+  scoped to the flow's own nodes — so a business user can author the whole
+  decision (conditions _and_ destinations) in one table, mirroring Salesforce
+  Flow Decision Outcomes. Completes #1930 (the per-edge Branch picker) from the
+  node side.
+
+  - The column is **virtual**: its value is derived from the decision's outgoing
+    edges (the routing source of truth) and never persisted on
+    `config.conditions`, so it round-trips with the `FlowEdgeInspector` Branch
+    picker and canvas rewiring for free.
+  - Picking a target creates the branch's out-edge if missing, or updates /
+    retargets the existing one in place, carrying the branch's condition, label,
+    and default flag. Clearing a target detaches (removes) that branch's edge —
+    never the node it pointed at. Custom per-edge guards, fault/back edges, and
+    surplus canvas wiring are never touched.
+  - A branch list committed with no targets anywhere (e.g. an engine-published
+    configSchema form without the column) keeps the legacy #1927 by-order edge
+    mirror, byte-for-byte.
+  - New pure module `flow-decision-edges.ts` with unit tests for the
+    branch→edge reconciliation.
+
+- 77b40db: Flow designer add-node palette follow-ups (#1943): localize the category section headings (Data / Logic / Human / Integration / Flow) to the active console language, and upgrade the "Recently used" list from browser-local storage to per-user cloud sync via `sys_user_preference` (new `FlowPaletteRecentsProvider` / `useFlowPaletteRecents`), with one-shot migration of the legacy localStorage key and a localStorage fallback when offline or outside a provider. Adds a Flow Designer guide to the docs.
+- d90d773: Flow builder: add a search box, keyboard navigation, and a "Recently used" group to the Add-node palette (#1943). Typing filters across all categories (label + hint + type, case-insensitive), ↑/↓ + Enter inserts the highlighted node, and the empty-query view is topped by a localStorage MRU of recently inserted node types. Works with the server-merged palette, so plugin-contributed nodes are searchable too.
+- ae66bfa: feat(metadata-admin): page variable `source` is a component picker, not free text (#2328)
+
+  When editing a Page in Studio, a variable's **`source`** under Data Context now
+  renders as a dropdown of the component `id`s placed on the page, instead of a
+  plain text input the author had to type an id into by hand. This mirrors the
+  sibling `object` field's `ref:object` picker.
+
+  - New `ref:component` widget in `widgets.tsx` + a `collectPageComponentIds()`
+    helper that walks the draft's `regions[].components[]` tree (including nested
+    containers), de-duped in document order. Falls back to a free-text input when
+    the page has no components yet, and preserves stale/renamed ids.
+  - `WidgetContext` gains `componentIds`; `ResourceEditPage` derives it from the
+    live page draft so newly-placed components appear immediately.
+
+  Pairs with the framework form-spec change (`@objectstack/spec`) that pins
+  `widget: 'ref:component'` on the page `variables.source` sub-field.
+
+- 6c0135c: feat(page-header): metadata-driven multi-button record header (#2361)
+
+  The record detail page header no longer hardcodes a single inline primary
+  button (`INLINE_MAX = 1`). It now renders up to `maxVisible` actions
+  side-by-side (default 3 desktop / 1 mobile, overridable via
+  `maxVisible` / `mobileMaxVisible` on the `page:header` schema) — the same
+  contract as `action:bar` — so multi-action objects (e.g. Lead: Convert /
+  Assign / Return) can surface several primary buttons at once.
+
+  Which actions claim the inline slots is declared in metadata, mirroring the
+  `action:bar` #2339 rules:
+
+  - `order` ascending (unset = 0; lower = more prominent), stable sort;
+  - `variant: 'primary'` as a tie-break within equal order (also mapped to the
+    Shadcn `default` Button variant instead of leaking through);
+  - `component: 'action:menu'` pins an action inside the `⋯` overflow menu
+    regardless of the action count.
+
+  The synthesized system actions declare their placement accordingly:
+  `sys_edit` gets `order: 100` (behind every authored business action, but
+  still inline when slots remain), while `sys_share` / `sys_delete` are pinned
+  into the `⋯` menu via `component: 'action:menu'` — Delete never surfaces as
+  an inline red button just because an object has few actions.
+
+- f0f10f5: feat(kanban): default lane field honours the ADR-0085 `stageField` role
+
+  Kanban views without an explicit `groupByField`/`groupField` hard-coded their
+  lane field to the literal `'status'` (in both app-shell's ObjectView options
+  and plugin-list's ListView fallback) — ignoring the object's declared
+  lifecycle and even inventing a field the object doesn't have. The default now
+  resolves through the shared `stageField` detector:
+
+  1. explicit view config (unchanged, always wins);
+  2. the object's `stageField` semantic role;
+  3. `stageField: false` → **no default lanes** (the status-shaped field is
+     declared non-linear; the board renders its empty state until the view
+     picks a lane field explicitly);
+  4. else the shared name/type heuristic (status / stage / state / phase by
+     name, then status/stage by type) — never a nonexistent field.
+
+  `detectStatusField` moved from `@object-ui/plugin-detail` to
+  `@object-ui/types` (new export, with the `StatusFieldSource` input type) so
+  plugin-list and app-shell share the exact semantics; plugin-detail re-exports
+  it unchanged.
+
+  Also fixes ListView's pre-existing rules-of-hooks error while touching the
+  file: `useListFieldLabel` wrapped `useObjectLabel()` in try/catch (hook-order
+  desync risk; the hook is provider-safe) — same fix as objectui#2595's
+  `useFieldLabel`.
+
+  Behavior change is limited to kanban views with no explicit lane field on
+  objects that either declare `stageField` (now honoured), declare
+  `stageField: false` (now suppressed), or have no status-shaped field at all
+  (previously grouped by a nonexistent `status` into one "undefined" lane; now
+  an honest empty state). Objects with a real `status` field — the common case —
+  are unchanged.
+
+- 466a5c6: feat(studio-access): package-level OWD overview — audit & batch-edit sharingModel (objectui#2505)
+
+  Add a package-scoped **"Record Sharing Baseline (OWD)"** panel to the Studio
+  Access pillar, a sibling surface next to the permission-set rail. It surveys —
+  and batch-edits — the org-wide default of every object the package owns, so an
+  author no longer has to open each object's Settings page to audit the baseline.
+
+  - **`PackageOwdOverviewPanel`** — a table of object × `sharingModel` ×
+    `externalSharingModel` covering the package's objects (published ∪ pending
+    drafts). Inline selects reuse the canonical four OWD values and the option
+    labels/help copy from `ObjectSettingsPanel`. Save writes one package-scoped
+    metadata **draft per changed object** (identical to the per-object Settings
+    write); publish flows through the unchanged security-domain gate.
+  - `controlled_by_parent` rows show the master link (read-only) instead of an
+    external dial; row-level `external ≤ internal` validation (ADR-0090 D11) is
+    surfaced inline and blocks Save.
+  - New shared **`owd-sharing.ts`** — `OWD_MODELS`, the `OWD_WIDTH` axis,
+    `isExternalWider`, `deriveMasterObject`.
+  - The Access pillar hosts it via a pinned rail entry + the existing `?surface=`
+    deep-link (`owd:overview`); the read-only OWD badge in `PermissionMatrixEditor`
+    now links here (plain chip at environment scope, unchanged).
+  - Read-only packages render the table non-editable. EN + zh-CN i18n.
+
+- fba6875: Studio: author list/grid `conditionalFormatting` rules with a CEL editor (#1584 / #1582 follow-up).
+
+  `conditionalFormatting` previously had no authoring UI in Studio — a low-code
+  author could only hand-write the JSON. Adds a `ConditionalFormattingEditor` to the
+  View inspector (`ViewVariantInspector`, list-family views; also hosted by the
+  runtime ObjectView's right-rail view editor): an ordered list of rules, each a
+  **CEL predicate** authored with `CelPredicateField` (inline lint + field
+  autocomplete on the canonical `@objectstack/formula` engine — the same engine the
+  runtime and server use) plus background / text / border colors. Rules are
+  first-match-wins, so the editor supports move up / down.
+
+  It reads and writes the spec-canonical `{ condition, style }` shape (what the list
+  / grid / kanban renderers evaluate since #1584). Legacy rule shapes — native
+  `{ field, operator, value }`, top-level color props, or a `{ dialect, source }`
+  condition envelope — are normalized to `{ condition, style }` on read, so opening
+  an existing rule upgrades it in place. English + Chinese labels included.
+
+- 2fe6659: feat(metadata-admin): create form-family views through the View create UI (#2323)
+
+  `ViewItemSchema` is a discriminated union on `viewKind` (`list` | `form`), but the
+  View create form could only ever emit `viewKind: 'list'` — its `createBuildBody`
+  hardcoded the family and routed the chosen `kind` straight into `config.type`, so
+  form-family views were unreachable through the create UI.
+
+  - **Create schema** now asks for the **view family** up front (`viewKind`:
+    List / Form) and offers the layout types appropriate to that family — the
+    existing list layouts (grid / kanban / gallery / calendar / timeline / gantt /
+    chart) for `list`, and the `FormViewSchema` layouts (simple / tabbed / wizard /
+    split / drawer / modal) for `form`.
+  - **`createBuildBody`** discriminates on `viewKind`: a form view builds a
+    `FormViewSchema` config (`{ type, data, sections: [] }`) instead of the list
+    `{ type, columns: [], data }`. Both build outputs validate against the real
+    `@objectstack/spec` `ViewItemSchema`.
+  - **SchemaForm** flat (create) rendering now honors per-property `visibleOn`, so
+    the list-layout picker shows only for List and the form-layout picker only for
+    Form. Additive and a no-op when a property has no predicate.
+
+### Patch Changes
+
+- 2efa9fd: Detail-page UX follow-ups from the ADR-0085 PR4 real-backend browser pass (framework#2548):
+
+  - **Highlight strip no longer repeats the record title.** A declared
+    `highlightFields` list containing the title field rendered it as the first
+    chip — truncated — directly under the identical page H1. `deriveHighlightFields`
+    now resolves the title (`primaryField` / `nameField` / deprecated
+    `displayNameField`, else the conventional display-field names) via the new
+    exported `resolveTitleField` and filters it from declared lists before the
+    4-chip cap, matching what the heuristic branch always did. app-shell's
+    `RecordDetailView` synthParts (which pre-computes the list and bypasses the
+    derivation) applies the same filter.
+  - **Per-field currency reaches the renderers.** The spec channel
+    (`currencyConfig.defaultCurrency`) was dropped by the highlight-strip and
+    detail-section field enrichment, so a spec-authored currency field could
+    never show its symbol ("25,000,000" instead of "$25,000,000");
+    `resolveFieldCurrency` reads it second after the designer-only bare
+    `currency` key.
+  - **app-shell approvals fetches send the Bearer token.** The header badge
+    poll, home-inbox count, and record-page approvals panel were cookie-only
+    (new shared `bearerAuthHeaders()` util) — same split-origin failure mode as
+    the console `approvalsApi` fix below.
+  - **`fieldGroups[].icon` / `description` reach detail pages.** The shared
+    derivation (ADR-0085 §5) already passed them through; the detail synth
+    dropped them. Sections now carry both, and `DetailSection` renders a real
+    Lucide icon for identifier-shaped names (emoji/text values keep the
+    historical text rendering).
+  - **Record meta footer stops dangling without an actor.** Seeded/system rows
+    with `created_by: null` rendered "Created by · 10m ago"; the footer now
+    falls back to actor-less labels ("Created / Updated"), with new i18n keys in
+    all six locales (and the zh `createdBy`/`updatedBy` mistranslation fixed:
+    创建人/更新人, not 创建于/更新于).
+  - **Select badges ellipsize instead of clipping mid-glyph.** In bounded
+    containers (highlight-strip columns, grid cells) an overlong option label
+    used to be cut at the container edge ("Technolog…"); badges now shrink with
+    an inner truncate and expose the full label as a hover title. The highlight
+    strip's hover title also prefers the option label over the raw stored value.
+
+  Console app (unversioned): `approvalsApi` now sends the stored Bearer token
+  like every other console call — cookie-only auth silently lost the approvals
+  surface on split-origin deployments where the SameSite cookie doesn't flow.
+
+- a56c596: chore(app-shell): remove the legacy monolith detail renderer + the `renderViaSchema` kill-switch (ADR-0085 PR4, #2181)
+
+  `RecordDetailView` now always renders through the SchemaRenderer Page
+  pipeline (an authored `PageSchema(pageType='record')` when assigned, else
+  the `buildDefaultPageSchema` synthesis). The non-schema-driven monolithic
+  `DetailView` branch and both of its entry points are gone:
+
+  - `objectDef.detail?.renderViaSchema === false` is no longer read (it was
+    the last surviving `detail.*` key — ADR-0085 removed the block from the
+    spec, and the key had been kept only as this path's kill-switch);
+  - the `?renderViaSchema=0` debug URL param is no longer honored.
+
+  Also drops the legacy-only plumbing: the eager per-record related-lists
+  fan-out (`record:related_list` self-fetches lazily on the schema path)
+  and the intermediate `DetailViewSchema` translation layer. The
+  `DetailView` component itself remains in `@object-ui/plugin-detail`
+  (still used internally by the `record:details` renderer).
+
+- d018ef8: fix(attachments): download attachments via authenticated signed URL (framework #2970)
+
+  The framework now requires an authenticated session to download an
+  attachments-scope file (the stable `/storage/files/:fileId` endpoint returns
+  `401`/`403` for them). `RecordAttachmentsPanel`'s download control no longer
+  uses a bare `<a href>` (which cannot carry the console's Bearer token) — it
+  fetches a short-lived signed URL from `/storage/files/:fileId/url` with
+  `createAuthenticatedFetch`, then opens it. `403 ATTACHMENT_DOWNLOAD_DENIED` and
+  `401 AUTH_REQUIRED` map to friendly copy instead of a broken link.
+
+- 2e49595: fix(attachments): authenticated uploads + friendly denial copy in RecordAttachmentsPanel (framework #2755)
+
+  The framework now gates the storage upload routes on an authenticated session
+  and enforces parent-derived attachment access. The panel's upload adapter
+  accordingly authenticates with the console's Bearer token
+  (`createAuthenticatedFetch` — the token console has no session cookie for
+  `credentials: 'include'` to carry), and the new fail-closed 403 codes
+  (`ATTACHMENT_DELETE_DENIED`, `ATTACHMENT_PARENT_ACCESS`, `PERMISSION_DENIED`)
+  map to friendly copy instead of raw server errors. The delete button still
+  renders for every row by design — the server is the gate, and the client
+  lacks the parent-edit data to pre-compute it. `uploaded_by` is still sent for
+  back-compat with older servers; current servers stamp it from the session.
+
+- f4d25f5: feat(app-shell): A4 — permission-provenance tri-state badge (framework#2920)
+
+  The Studio permission-matrix editor's provenance badge was two-state
+  (package / custom). It is now a **tri-state — platform / package / admin(custom)**,
+  mirroring the unified `sys_*.managed_by` vocabulary landed in framework#2920 so
+  the Studio matrix and the Setup record page read the same source-of-truth
+  labels.
+
+  - `PermissionMatrixEditor` — `managedBy === 'platform'` renders a **Platform**
+    badge; `'package'` (or an active `packageId`) renders **Package**; everything
+    else (including legacy `'user'`) falls through to **Custom**.
+  - New `perm.badge.platform` i18n key (en + zh-CN).
+
+  The Setup record page surfaces provenance via the framework object's now-`select`
+  `managed_by` field (rendered by the generic record renderer), so no record-page
+  change is required here.
+
+- 092bd85: Forward the authenticated user's `positions` into the client predicate scope (`current_user.positions`) in the console shell and the record form page. Position-gated select options (`'admin' in current_user.positions`, ADR-0058 / objectui#2284) now hide client-side like they do everywhere else, instead of failing open as visible and only being rejected by the server on submit — `positions` is the actor shape the framework rule-validator actually binds and enforces. Docs, the schema-catalog role-gated example, the skills guide, and inline examples switch the role-gating spelling from `current_user.roles` (never bound server-side, so never enforced) to `current_user.positions`.
+- 4afb251: Record-level inline edit polish (objectui#2572, follow-up to #2407) — the five
+  rough edges from the live showcase verification pass:
+
+  - **Expanded reference values pass through to the picker.** `InlineFieldInput`
+    no longer collapses an `$expand`-ed record object to a bare id before
+    handing it to `LookupField` / `UserField` — the picker resolves the display
+    name it already carries instead of re-fetching the referenced record via
+    `findOne` (or sticking on the placeholder when it can't). `LookupField`
+    still hands its Level-2 pickers (PeoplePicker / RecordPickerDialog) bare
+    ids, collapsed via the existing `normalizeId`.
+  - **Approval-lock preflight.** The record page now re-reads the approval
+    state whenever the record is invalidated (a save can _trigger_ an approval
+    flow that locks the record), derives one `approvalLocked` signal
+    (`approval_status` pending/in_approval OR an open pending request), gates
+    the inline-edit session's `canEdit` with it — hiding the pencil affordances
+    and no-op'ing `enter()` on a locked record — and drives the save bar's
+    `locked`/`lockedHint` so users can't type into a draft that Save would
+    reject with `RECORD_LOCKED`.
+  - **Numeric field types edit with the real numeric widgets.** `number` /
+    `currency` / `percent` route to `NumberField` / `CurrencyField` /
+    `PercentField` (the same widgets the form uses) instead of a free-text
+    input: numeric keyboard, symbol adornment, fraction↔percent display
+    conversion, and numbers (not strings) into the draft. `NumberField` and
+    `CurrencyField` now surface metadata `min`/`max` on the input, `NumberField`
+    honors an explicit `step` and steps by 1 for `scale: 0` (previously fell
+    back to `any`).
+  - **Header Edit CTA stands down during an inline session.** The synthesized
+    `sys_edit` action carries `disableDuringInlineEdit`, and the `page:header`
+    renderer greys such actions out while `InlineEditContext.editing` — the
+    classic form-edit surface can no longer be stacked on top of a live inline
+    draft.
+  - **Keyboard shortcuts for the shared edit session.** `InlineEditSaveBar`
+    binds **Esc → cancel** (deferring to any open Radix layer — popover /
+    select / dialog — which owns Escape for "close") and **Cmd/Ctrl+Enter →
+    save**, both respecting `saving`/`locked`.
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [6b2d74e]
+- Updated dependencies [579b24d]
+- Updated dependencies [2b30583]
+- Updated dependencies [2b30583]
+- Updated dependencies [23d65c3]
+- Updated dependencies [055e1d2]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [3e8bf07]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [2712fc1]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/fields@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/auth@14.1.0
+  - @object-ui/permissions@14.1.0
+  - @object-ui/components@14.1.0
+  - @object-ui/data-objectstack@14.1.0
+  - @object-ui/layout@14.1.0
+  - @object-ui/plugin-editor@14.1.0
+  - @object-ui/collaboration@14.1.0
+  - @object-ui/providers@14.1.0
+
 ## 14.0.0
 
 ### Minor Changes

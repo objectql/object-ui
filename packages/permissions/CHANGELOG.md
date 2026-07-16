@@ -1,5 +1,21 @@
 # @object-ui/permissions
 
+## 14.1.0
+
+### Minor Changes
+
+- 2b30583: fix(permissions): close the console FLS fail-open for token-only sessions (framework#2926 ④). Two halves: `MePermissionsProvider` gains a `fetcher` prop and the console passes `createAuthenticatedFetch()` so `/me/permissions` carries the Bearer token like every other data call (the cookie-only default fetch resolved token-only sessions as anonymous); and the unknown-object default is now authentication-gated — authenticated sessions fail CLOSED when an object has no resolved perms (fields render read-only instead of inviting input the data layer strips), while anonymous sessions keep the permissive default so guest/public forms keep working. Pairing note: with an older framework whose `/me/permissions` returns sparse objects for authenticated users, unconfigured objects now render read-only.
+
+### Patch Changes
+
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [887062c]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f0f10f5]
+  - @object-ui/types@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes

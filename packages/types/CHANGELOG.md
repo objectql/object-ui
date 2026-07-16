@@ -1,5 +1,140 @@
 # @object-ui/types
 
+## 14.1.0
+
+### Minor Changes
+
+- 887062c: feat(dashboard): dashboard-level filters (date / region) driving multiple charts (framework#2501)
+
+  A dashboard's `dateRange` + `globalFilters` declarations are now wired end to
+  end: the filter values live as dashboard-level variables (the page variables
+  primitive, so they're also readable as `page.<name>` in widget expressions),
+  a filter bar renders above the widgets, and at render time the dashboard
+  broadcasts the active values into every bound widget's inline query —
+  `AND`-merged with the widget's own `filter`. Charts stay inline and
+  self-contained; each widget maps a filter to **its own** field.
+
+  - **`@object-ui/types`** — `globalFilters[].name` (stable filter/variable key,
+    defaults to `field`) and `DashboardWidgetSchema.filterBindings`
+    (`Record<string, string | false>`: per-widget field override / `false`
+    opt-out). Zod mirrors included. **Pending paired `@objectstack/spec`
+    alignment (framework#2501)** — same precedent as `dataset` /
+    `categoryGranularity`.
+  - **`@object-ui/core`** — new pure `dashboard-filters` module
+    (`resolveDashboardFilterDefs`, `dashboardFilterVariableDefs`,
+    `buildFilterCondition`, `buildWidgetScopedFilter`); `mergeFilters` lifted
+    from plugin-report (re-exported there unchanged). Date presets emit
+    date-macro tokens (`{30_days_ago}` …) so widgets resolve them at query time
+    like hand-authored filters.
+  - **`@object-ui/plugin-dashboard`** — `DashboardFilterBar` (date presets +
+    custom range calendar, select with static `options` or `optionsFrom`,
+    text/number inputs, reset); `DashboardRenderer` mounts a
+    `PageVariablesProvider` when filters are declared and merges the
+    widget-scoped condition into inline widgets' `filter` and dataset widgets'
+    `runtimeFilter`. Dashboards without filters render exactly as before.
+
+  Binding precedence: explicit `filterBindings` string/`false` → legacy
+  `targetWidgets` allow-list → the filter's own `field` (dateRange defaults to
+  `created_at`). Static-data widgets are not filtered.
+
+- d5b1bc0: remove(tenant): drop the zero-consumer `@object-ui/tenant` package and the `types/tenant.ts` mirror (#2564)
+
+  `@object-ui/tenant` (`TenantProvider` / `TenantGuard` / `TenantScopedQuery` /
+  `createTenantResolver` / `useTenant` / `useTenantBranding`) was an
+  exported-but-dead aspirational surface: no workspace package depended on it
+  and nothing imported it. Its `TenantConfig.isolation` strategy enum
+  (`'database' | 'schema' | 'row' | 'hybrid'`) was the UI mirror of the spec's
+  `tenancy.strategy`, which framework#2763/framework#2962 removed under the same
+  enforce-or-remove doctrine — the platform has exactly two tenancy modes, and
+  neither is configured client-side.
+
+  `@object-ui/types` no longer exports the tenant type family
+  (`TenantConfig`, `TenantIsolationStrategy`, `TenantStatus`, `TenantPlan`,
+  `TenantBranding`, `TenantLimits`, `TenantContext`,
+  `TenantResolutionStrategy`, `TenantProviderConfig`,
+  `TenantScopedQueryConfig`).
+
+  Migration: real tenant scoping is server-enforced — `createAuthenticatedFetch`
+  (`@object-ui/auth`) already injects the active organization as `X-Tenant-ID`
+  on every API call, and the backend applies row-level isolation
+  (`tenancy.enabled` + `tenantField` in `@objectstack/spec`). Per-tenant
+  branding is a `ThemeSchema` concern. The skills guides and docs that
+  advertised the dead package have been rewritten to say exactly that.
+
+- f0f10f5: feat(kanban): default lane field honours the ADR-0085 `stageField` role
+
+  Kanban views without an explicit `groupByField`/`groupField` hard-coded their
+  lane field to the literal `'status'` (in both app-shell's ObjectView options
+  and plugin-list's ListView fallback) — ignoring the object's declared
+  lifecycle and even inventing a field the object doesn't have. The default now
+  resolves through the shared `stageField` detector:
+
+  1. explicit view config (unchanged, always wins);
+  2. the object's `stageField` semantic role;
+  3. `stageField: false` → **no default lanes** (the status-shaped field is
+     declared non-linear; the board renders its empty state until the view
+     picks a lane field explicitly);
+  4. else the shared name/type heuristic (status / stage / state / phase by
+     name, then status/stage by type) — never a nonexistent field.
+
+  `detectStatusField` moved from `@object-ui/plugin-detail` to
+  `@object-ui/types` (new export, with the `StatusFieldSource` input type) so
+  plugin-list and app-shell share the exact semantics; plugin-detail re-exports
+  it unchanged.
+
+  Also fixes ListView's pre-existing rules-of-hooks error while touching the
+  file: `useListFieldLabel` wrapped `useObjectLabel()` in try/catch (hook-order
+  desync risk; the hook is provider-safe) — same fix as objectui#2595's
+  `useFieldLabel`.
+
+  Behavior change is limited to kanban views with no explicit lane field on
+  objects that either declare `stageField` (now honoured), declare
+  `stageField: false` (now suppressed), or have no status-shaped field at all
+  (previously grouped by a nonexistent `status` into one "undefined" lane; now
+  an honest empty state). Objects with a real `status` field — the common case —
+  are unchanged.
+
+### Patch Changes
+
+- 2ded18c: Fix: a dashboard filter declaring its static `options` in the
+  `@objectstack/spec` object form (`options: [{ value, label }]` — the shape
+  the spec validates and what framework-authored dashboards ship) crashed the
+  whole dashboard with "Objects are not valid as a React child". Caught driving
+  the showcase Revenue Pulse dashboard in a real browser.
+
+  `resolveDashboardFilterDefs` now normalizes both the spec object form and the
+  bare-string shorthand (`options: ['EMEA']`) to `{ value, label }` pairs —
+  `DashboardFilterDef.options` is typed accordingly — and the filter bar's
+  select renders labels (the trigger now shows the selected option's label, not
+  its raw value). `@object-ui/types` aligns the `GlobalFilterSchema.options`
+  shape with the spec union.
+
+- e628d1f: Dashboard-level filters follow-ups (#2578, framework#2501):
+
+  - **i18n**: the `DashboardFilterBar` strings now ship as real locale entries —
+    `dashboard.filters.*` (bar label, "All time", "Custom…", "All", "Reset",
+    and the 13 date-range preset labels) added to `en` and `zh`. Previously the
+    bar always rendered the `useSafeTranslate` English fallbacks.
+  - **types**: `GlobalFilterSchema.name` and `DashboardWidgetSchema.filterBindings`
+    landed in `@objectstack/spec` (framework#2501), so the local type
+    annotations flip from "Pending alignment" to "Aligned" — no shape changes.
+
+  Also adds five schema-catalog examples (`plugin-dashboard/filtered-dashboard-*`:
+  dynamic `optionsFrom` options, text/number/lookup filter types, dataset +
+  inline widget mix, `targetWidgets` allow-list, date presets + custom range)
+  and a new "Dashboard-Level Filters" guide page covering the full tutorial,
+  `page.*` expression usage, and known limitations with workarounds.
+
+- 9e2d58f: Kanban `conditionalFormatting` now accepts CEL rules in its type + schema (#1584 follow-up).
+
+  Since #1584 moved kanban card styling onto the shared CEL evaluator, the runtime
+  already accepts the spec `{ condition, style }` rule shape — but the type and zod
+  schema still only allowed the native `{ field, operator, value }` shape, so a
+  CEL kanban rule failed validation for something that worked at runtime. The
+  `KanbanConditionalFormattingRule` type and `ObjectKanbanSchema` zod schema are
+  widened to a union of both shapes, matching list/grid `conditionalFormatting` and
+  the runtime. Back-compat: the native shape keeps validating unchanged.
+
 ## 14.0.0
 
 ### Minor Changes
