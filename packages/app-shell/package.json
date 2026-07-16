@@ -48,6 +48,7 @@
     "@object-ui/providers": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
+    "@objectstack/formula": "^14.6.0",
     "@objectstack/lint": "^14.6.0",
     "@objectstack/spec": "^14.6.0",
     "@sentry/react": "^10.65.0",

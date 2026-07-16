@@ -16,7 +16,7 @@
 
 import * as React from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { SchemaRenderer, useAdapter, SchemaRendererProvider } from '@object-ui/react';
+import { useAdapter, SchemaRendererProvider } from '@object-ui/react';
 import { StudioChatDock } from './StudioAiCopilot';
 import { nextCenterTab, type StudioCenterTab } from './centerTab';
 import {
@@ -70,6 +70,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { getMetadataPreview, type MetadataSelection } from '../metadata-admin/preview-registry';
+import { getStudioCanvasPreview } from './studio-canvas-preview';
 import { PermissionMatrixEditPage } from '../metadata-admin/PermissionMatrixEditor';
 import { AccessExplainPanel } from '../metadata-admin/AccessExplainPanel';
 import { getMetadataInspector } from '../metadata-admin/inspector-registry';
@@ -110,7 +111,7 @@ import { ObjectApiPanel } from './ObjectApiPanel';
 import { ObjectHooksPanel } from './ObjectHooksPanel';
 import { ObjectActionsPanel } from './ObjectActionsPanel';
 import { getIcon } from '../../utils/getIcon';
-import { fetchPackages, type PkgEntry } from './packages-io';
+import { fetchPackages, prefixObjectName, type PkgEntry } from './packages-io';
 import { DraftChangesPanel } from '../../preview/DraftChangesPanel';
 import { resolveConsoleUrl } from '../../console/organizations/resolveHomeUrl';
 import { toast } from 'sonner';
@@ -255,15 +256,24 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
 
   React.useEffect(() => {
     let cancelled = false;
-    fetchPackages()
-      .then((parsed) => {
-        if (!cancelled) setPkgs(parsed);
-      })
-      .catch(() => {
-        /* leave null — switcher still works for navigation-free display */
-      });
+    const load = () => {
+      fetchPackages()
+        .then((parsed) => {
+          if (!cancelled) setPkgs(parsed);
+        })
+        .catch(() => {
+          /* leave null — switcher still works for navigation-free display */
+        });
+    };
+    load();
+    // Refresh the switcher list (and thus the top-bar package name) when a
+    // package is created or its manifest is edited elsewhere — PackageFormDialog
+    // dispatches `objectui:packages-changed` on create/edit. Without this the
+    // header showed the OLD name after a rename until a full page reload.
+    window.addEventListener('objectui:packages-changed', load);
     return () => {
       cancelled = true;
+      window.removeEventListener('objectui:packages-changed', load);
     };
   }, [packageId]);
 
@@ -1194,15 +1204,21 @@ function InterfacesPillar({
   }, [client, packageId, publishNonce, draftNonce]);
 
   const Preview = getMetadataPreview(current?.type ?? '');
+  // Studio-canvas surface override: the SAME type can render as a different
+  // surface here than in the Data pillar. Only `object` opts in today (→ the
+  // runtime records grid, not the field-form designer that is `object`'s
+  // MetadataPreview). Overridable/extendable via `registerStudioCanvasPreview`.
+  const StudioCanvas = getStudioCanvasPreview(current?.type ?? '');
   const Inspector = getMetadataInspector(current?.type ?? '');
   // The "home" (no-selection) inspector for the surface type — e.g. a page's
   // interfaceConfig form. Interface/list pages (kanban/calendar boards) have no
   // block tree, so `selection` never populates; without this the panel would
   // sit permanently on the "click a block" empty state.
   const DefaultInspector = getMetadataDefaultInspector(current?.type ?? '');
-  // Object leaves render as a runtime records grid (preview = runtime); schema
-  // editing is the Data pillar's job, so they are not draft-editable in this canvas.
-  const isEditable = !!Preview && current?.type !== 'object';
+  // A studio-canvas surface (e.g. object → runtime records grid) renders the
+  // running app, not an editable draft — schema editing is the Data pillar's
+  // job — so those leaves are not draft-editable in this canvas.
+  const isEditable = !!Preview && !StudioCanvas;
   // `kind: 'html'`/`'react'` pages are a `source` string (ADR-0080/0081),
   // rendered by SourcePageEditor as a code-editor + live-preview split — there
   // is no block tree, so `selection` never populates and the generic "click a
@@ -1351,11 +1367,14 @@ function InterfacesPillar({
           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> {t('engine.studio.loading', locale)}
           </div>
-        ) : current.type === 'object' ? (
-          // Object nav leaf = the records list as the running app shows it
-          // (preview = runtime). Schema editing lives in the Data pillar, so
-          // here we render the object-view grid, not the field-form preview.
-          <SchemaRenderer schema={{ type: 'object-view', objectName: current.name } as never} />
+        ) : StudioCanvas ? (
+          // Studio-canvas surface override. The object nav leaf resolves here to
+          // the records list as the running app shows it (preview = runtime) —
+          // schema editing lives in the Data pillar, so this is the object-view
+          // grid, not the field-form preview. Default lives in
+          // `studio-canvas-preview`; downstream can override via
+          // `registerStudioCanvasPreview()` instead of forking this component.
+          <StudioCanvas type={current.type} name={current.name} draft={draft} locale={locale} />
         ) : isSourcePage ? (
           // Source pages have no block tree — the canvas shows only the live
           // preview; the code editor lives in the inspector's Source tab.
@@ -1895,6 +1914,24 @@ function DataPillar({
   // A draft-only object has NO physical table yet (DDL lands at publish), so the
   // Records grid must not fire data SQL against it.
   const [hasBaseline, setHasBaseline] = React.useState(true);
+  // The package's object-name namespace (framework#2694). New objects are
+  // auto-prefixed with `<namespace>_` so an author can never draft a prefix-less
+  // object that publish would later reject (code NAMESPACE_PREFIX).
+  const [namespace, setNamespace] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetchPackages()
+      .then((list) => {
+        if (!cancelled) setNamespace(list.find((p) => p.id === packageId)?.namespace ?? null);
+      })
+      .catch(() => {
+        /* namespace is best-effort; publish still enforces the prefix server-side */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [packageId]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -2003,8 +2040,11 @@ function DataPillar({
   // until the package publish, so we land on 表单·布局 — the metadata-level
   // surface that never fires data SQL.
   const doCreateObject = React.useCallback(
-    async (label: string, name: string) => {
+    async (label: string, rawName: string) => {
       if (readOnly) return;
+      // Auto-prefix with the package namespace (framework#2694) so a prefix-less
+      // object can't be authored; the rule lives in packages-io/spec.
+      const name = prefixObjectName(rawName, namespace);
       if (objects.some((o) => o.name === name)) {
         setError(tFormat('engine.studio.data.idExists', locale, { name }));
         return;
@@ -2027,7 +2067,7 @@ function DataPillar({
         setCreateBusy(false);
       }
     },
-    [objects, client, packageId, onDraftSaved, readOnly, locale],
+    [objects, client, packageId, onDraftSaved, readOnly, locale, namespace],
   );
 
   const doSave = React.useCallback(async () => {

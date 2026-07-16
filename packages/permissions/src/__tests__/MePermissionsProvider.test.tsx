@@ -99,6 +99,77 @@ describe('MePermissionsProvider', () => {
     expect(screen.queryByTestId('read')).toBeNull();
   });
 
+  // [#2926 ④] Unknown-object default is authentication-gated.
+  it('fails CLOSED for an authenticated user when the object has no configured perms', async () => {
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        authenticated: true,
+        userId: 'u1',
+        tenantId: 't1',
+        roles: ['member'],
+        permissionSets: ['restricted'],
+        objects: { account: { allowRead: true, allowEdit: true } }, // no '*', nothing for 'project'
+        fields: {},
+      }),
+    });
+
+    render(
+      <MePermissionsProvider endpoint="/x">
+        <Probe object="project" field="budget" />
+      </MePermissionsProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('loaded').textContent).toBe('true'));
+    expect(screen.getByTestId('read').textContent).toBe('false');
+    expect(screen.getByTestId('write').textContent).toBe('false');
+  });
+
+  it('keeps the permissive default for anonymous sessions (guest/public surfaces)', async () => {
+    // The endpoint's no-session response: authenticated:false, NO objects/fields.
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ authenticated: false }),
+    });
+
+    render(
+      <MePermissionsProvider endpoint="/x">
+        <Probe object="showcase_inquiry" field="message" />
+      </MePermissionsProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('loaded').textContent).toBe('true'));
+    // Server still enforces; the anon UI must not brick public forms.
+    expect(screen.getByTestId('read').textContent).toBe('true');
+    expect(screen.getByTestId('write').textContent).toBe('true');
+  });
+
+  it('uses the injected fetcher (authenticated fetch) instead of global fetch', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        authenticated: true,
+        userId: 'u1',
+        tenantId: 't1',
+        roles: [],
+        permissionSets: [],
+        objects: { '*': { allowRead: true, allowEdit: true } },
+        fields: {},
+      }),
+    });
+
+    render(
+      <MePermissionsProvider endpoint="/perm-endpoint" fetcher={fetcher as any}>
+        <Probe object="account" field="name" />
+      </MePermissionsProvider>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('loaded').textContent).toBe('true'));
+    expect(fetcher).toHaveBeenCalledWith('/perm-endpoint', expect.objectContaining({ credentials: 'include' }));
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(screen.getByTestId('write').textContent).toBe('true');
+  });
+
   it('skips fetch when initialPermissions provided', () => {
     render(
       <MePermissionsProvider

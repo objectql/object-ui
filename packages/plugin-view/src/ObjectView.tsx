@@ -734,7 +734,15 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
             ? kanbanCfg.columns
             : baseProps.fields) || [];
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { columns: _kanbanColumns, groupByField: _gbf, groupField: _gf, titleField: _tf, ...restKanban } = kanbanCfg;
+        const { columns: _kanbanColumns, groupByField: _gbf, groupField: _gf, titleField: _tf, conditionalFormatting: _kanbanCf, ...restKanban } = kanbanCfg;
+        // Forward conditional formatting to kanban (issue #1584): nested
+        // `options.kanban.conditionalFormatting` wins, then the view-level, then
+        // the schema-level rule — matching how the grid branch resolves it.
+        // Previously the top-level rule was dropped for kanban entirely.
+        const kanbanConditionalFormatting =
+          kanbanCfg.conditionalFormatting ??
+          activeView?.conditionalFormatting ??
+          (schema as any).conditionalFormatting;
         return {
           type: 'object-kanban',
           ...baseProps,
@@ -743,6 +751,7 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
           titleField: kanbanCfg.titleField || 'name',
           cardFields,
           ...restKanban,
+          ...(kanbanConditionalFormatting ? { conditionalFormatting: kanbanConditionalFormatting } : {}),
         };
       }
       case 'calendar':

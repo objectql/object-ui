@@ -316,6 +316,38 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
     }
   }
 
+  /**
+   * Resolve a policy object's field NAMES for the RLS CEL editor
+   * (objectui#2413) — powers field lint + autocomplete. Reads the merged object
+   * definition like {@link ensureFields}; the facets cache the result per object.
+   */
+  const loadObjectFields = React.useCallback(
+    async (objectName: string): Promise<string[]> => {
+      try {
+        const obj = (await client.get<any>('object', objectName)) as
+          | { fields?: Record<string, any> | Array<any> }
+          | null;
+        const raw = obj?.fields;
+        const names = (
+          Array.isArray(raw)
+            ? raw.map((f: any) => String(f?.name ?? ''))
+            : raw && typeof raw === 'object'
+              ? Object.entries(raw).map(([name, f]: [string, any]) => String((f as any)?.name ?? name))
+              : []
+        ).filter(Boolean);
+        return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+      } catch {
+        return [];
+      }
+    },
+    [client],
+  );
+
+  // Count of blocking CEL parse errors in the RLS editor — gates Save
+  // (objectui#2413): a malformed predicate silently mis-scopes rows, so we
+  // don't let it persist.
+  const [celErrorCount, setCelErrorCount] = React.useState(0);
+
   function toggleExpand(objectName: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -489,7 +521,12 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             <HistoryIcon className="h-4 w-4 mr-1" /> {t('engine.edit.history')}
           </Button>
           {writable && (
-            <Button size="sm" onClick={() => doSave(false)} disabled={saving}>
+            <Button
+              size="sm"
+              onClick={() => doSave(false)}
+              disabled={saving || celErrorCount > 0}
+              title={celErrorCount > 0 ? t('perm.cel.saveBlocked') : undefined}
+            >
               {saving ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
@@ -635,6 +672,8 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             setDraft={setDraft}
             writable={writable}
             allSetNames={allSetNames}
+            loadObjectFields={loadObjectFields}
+            onCelErrorsChange={setCelErrorCount}
             t={t}
           />
         </div>

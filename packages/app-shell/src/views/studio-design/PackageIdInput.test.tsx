@@ -5,7 +5,7 @@ import * as React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { sanitizePackageId, PACKAGE_ID_RE } from './packages-io';
-import { PackageIdInput, PackageIdSuggestionHint } from './PackageIdInput';
+import { PackageIdInput } from './PackageIdInput';
 
 afterEach(cleanup);
 
@@ -64,14 +64,5 @@ describe('PackageIdInput', () => {
     render(<Harness />);
     expect(screen.queryByTestId('pkg-id-format-hint')).not.toBeInTheDocument();
     expect(screen.queryByTestId('pkg-id-stripped')).not.toBeInTheDocument();
-  });
-});
-
-describe('PackageIdSuggestionHint', () => {
-  it('renders only when shown (CJK name yielded no suggestion)', () => {
-    const { rerender } = render(<PackageIdSuggestionHint show={false} />);
-    expect(screen.queryByTestId('pkg-id-manual-hint')).not.toBeInTheDocument();
-    rerender(<PackageIdSuggestionHint show />);
-    expect(screen.getByTestId('pkg-id-manual-hint')).toBeInTheDocument();
   });
 });

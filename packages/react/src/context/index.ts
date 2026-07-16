@@ -6,6 +6,7 @@ export * from './NotificationContext';
 export * from './DndContext';
 export * from './AppShellContext';
 export * from './RecordContext';
+export * from './InlineEditContext';
 export * from './DiscussionContext';
 export * from './DrillNavigationContext';
 export * from './RelatedRecordActionsContext';

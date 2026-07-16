@@ -594,9 +594,18 @@ export interface ObjectGridSchema extends BaseSchema {
   
   /**
    * Custom batch actions
-   * NOTE: This is ObjectUI-specific and not part of @objectstack/spec
+   * NOTE: This is ObjectUI-specific and not part of @objectstack/spec.
+   * Legacy alias of `bulkActions` — prefer `bulkActions`. When both are
+   * set, `batchActions` wins (preserved for backward compatibility).
    */
   batchActions?: string[];
+
+  /**
+   * Bulk action identifiers (action names from ActionSchema).
+   * Aligned with @objectstack/spec ListViewSchema.bulkActions — the
+   * canonical key; `batchActions` is the legacy ObjectUI alias.
+   */
+  bulkActions?: string[];
   
   /**
    * Enable inline cell editing (Grid mode)

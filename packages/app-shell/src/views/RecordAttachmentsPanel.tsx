@@ -10,6 +10,7 @@ import * as React from 'react';
 import { cn, Button } from '@object-ui/components';
 import { Paperclip, Upload, Trash2, Download, Loader2 } from 'lucide-react';
 import { createObjectStackUploadAdapter } from '@object-ui/providers';
+import { createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/react';
 
 /**
@@ -24,8 +25,9 @@ import { useObjectTranslation } from '@object-ui/react';
  * Storage model: one `sys_file` row per uploaded blob (three-step
  * presigned upload via @object-ui/providers' ObjectStack adapter), one
  * `sys_attachment` join row linking it to `(parent_object, parent_id)`.
- * Downloads go through the stable `/storage/files/:fileId` endpoint,
- * which 302-redirects to a freshly signed URL on every request.
+ * Downloads fetch a short-lived signed URL from `/storage/files/:fileId/url`
+ * with the console's Bearer token (the endpoint requires an authenticated
+ * session for attachments-scope files, #2970), then open it.
  */
 
 interface AttachmentRow {
@@ -73,9 +75,49 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
   // Vite dev console proxies same-origin `/api` unless VITE_SERVER_URL
   // points elsewhere.
   const baseUrl = (import.meta as any).env?.VITE_SERVER_URL || '';
+  // One authenticated fetch (Bearer token from localStorage) reused for the
+  // upload adapter and the download-URL fetch — the storage routes require a
+  // session and there is no cookie for `credentials: 'include'` to carry.
+  const authFetch = React.useMemo(() => createAuthenticatedFetch(), []);
   const adapter = React.useMemo(
-    () => createObjectStackUploadAdapter({ baseUrl, scope: 'attachments' }),
-    [baseUrl],
+    () => createObjectStackUploadAdapter({ baseUrl, scope: 'attachments', fetchImpl: authFetch }),
+    [baseUrl, authFetch],
+  );
+
+  /** Map the server's fail-closed 40x codes (#2755, #2970) to friendly copy. */
+  const friendlyError = React.useCallback(
+    (err: unknown): string => {
+      const anyErr = err as { code?: string; message?: unknown } | null;
+      const raw = String(anyErr?.message ?? err ?? '');
+      const has = (code: string) => anyErr?.code === code || raw.includes(code);
+      if (has('ATTACHMENT_DELETE_DENIED')) {
+        return t('detail.attachmentDeleteDenied', {
+          defaultValue: 'Only the uploader or someone who can edit this record may delete this attachment.',
+        });
+      }
+      if (has('ATTACHMENT_PARENT_ACCESS')) {
+        return t('detail.attachmentParentAccessDenied', {
+          defaultValue: "You don't have access to attach files to this record.",
+        });
+      }
+      if (has('ATTACHMENT_DOWNLOAD_DENIED')) {
+        return t('detail.attachmentDownloadDenied', {
+          defaultValue: "You don't have access to download this attachment.",
+        });
+      }
+      if (has('AUTH_REQUIRED')) {
+        return t('detail.attachmentAuthRequired', {
+          defaultValue: 'Please sign in to download this attachment.',
+        });
+      }
+      if (has('PERMISSION_DENIED')) {
+        return t('detail.attachmentPermissionDenied', {
+          defaultValue: "You don't have permission to do that.",
+        });
+      }
+      return raw;
+    },
+    [t],
   );
 
   const refresh = React.useCallback(async () => {
@@ -121,12 +163,14 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
             file_name: uploaded.name ?? file.name,
             mime_type: uploaded.mimeType ?? file.type,
             size: uploaded.size ?? file.size,
+            // Back-compat with pre-#2755 servers; a current server stamps
+            // `uploaded_by` from the session and ignores this value.
             ...(currentUserId ? { uploaded_by: currentUserId } : {}),
           });
         }
         await refresh();
       } catch (err: any) {
-        setError(String(err?.message ?? err));
+        setError(friendlyError(err));
       } finally {
         setUploading(false);
         if (inputRef.current) inputRef.current.value = '';
@@ -143,10 +187,46 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
         await dataSource.delete('sys_attachment', row.id);
         setRows((prev) => prev.filter((r) => r.id !== row.id));
       } catch (err: any) {
-        setError(String(err?.message ?? err));
+        // The delete button deliberately renders for every row: the server
+        // is the gate (uploader-or-parent-editor, #2755) and the client
+        // lacks the parent-edit data to pre-compute it — a denial surfaces
+        // here as friendly copy instead.
+        setError(friendlyError(err));
       }
     },
-    [dataSource],
+    [dataSource, friendlyError],
+  );
+
+  const handleDownload = React.useCallback(
+    async (row: AttachmentRow) => {
+      setError(null);
+      try {
+        // The stable `/files/:fileId` endpoint now requires an authenticated
+        // session for attachments-scope files (#2970) — an <a href> can't
+        // carry the Bearer token. Fetch a short-lived signed URL with auth,
+        // then open it (the signed URL itself needs no credentials).
+        const res = await authFetch(
+          `${baseUrl}/api/v1/storage/files/${encodeURIComponent(row.file_id)}/url`,
+        );
+        if (!res.ok) {
+          let code: string | undefined;
+          try {
+            code = (await res.json())?.code;
+          } catch {
+            /* non-JSON body */
+          }
+          throw Object.assign(new Error(code ?? `Download failed (${res.status})`), { code });
+        }
+        const body = await res.json();
+        const url: string | undefined = body?.url ?? body?.data?.url;
+        if (!url) throw new Error('Download URL missing from response');
+        const target = /^https?:/i.test(url) ? url : `${baseUrl}${url}`;
+        window.open(target, '_blank', 'noopener,noreferrer');
+      } catch (err: any) {
+        setError(friendlyError(err));
+      }
+    },
+    [authFetch, baseUrl, friendlyError],
   );
 
   return (
@@ -211,17 +291,15 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
                     .join(' · ')}
                 </div>
               </div>
-              <a
-                href={`${baseUrl}/api/v1/storage/files/${encodeURIComponent(row.file_id)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex"
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
                 aria-label={t('detail.downloadAttachment', { defaultValue: 'Download' })}
+                onClick={() => void handleDownload(row)}
               >
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Download className="h-4 w-4" />
-                </Button>
-              </a>
+                <Download className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"

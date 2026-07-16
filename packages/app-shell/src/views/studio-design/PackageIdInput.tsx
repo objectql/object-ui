@@ -1,9 +1,10 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 /**
- * Package-identifier input shared by the three package wizards (switcher
- * create, landing create, landing duplicate). Fixes the dogfood wizard
- * findings (framework#2615 P2): illegal characters are still normalized
+ * Package-identifier input used by the landing "duplicate package" form.
+ * (Package create/edit now runs through the spec-driven PackageFormDialog.)
+ * Fixes the dogfood wizard findings (framework#2615 P2): illegal characters
+ * are still normalized
  * away, but no longer silently — a notice says so — and while the value
  * doesn't parse as a package id yet, an inline hint spells out the
  * reverse-domain format instead of leaving the user staring at a disabled
@@ -70,25 +71,5 @@ export function PackageIdInput({
         </p>
       )}
     </div>
-  );
-}
-
-/**
- * Hint under the display-name input when the name yields no identifier
- * suggestion (CJK-only names slug to nothing) — say the id must be typed
- * manually instead of leaving the id box silently empty.
- */
-export function PackageIdSuggestionHint({
-  show,
-  locale,
-}: {
-  show: boolean;
-  locale?: string;
-}): React.ReactElement | null {
-  if (!show) return null;
-  return (
-    <p className="text-[10px] text-muted-foreground" data-testid="pkg-id-manual-hint">
-      {t('engine.studio.pkg.idFromNameUnavailable', locale)}
-    </p>
   );
 }

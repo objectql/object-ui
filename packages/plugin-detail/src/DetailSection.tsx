@@ -25,13 +25,14 @@ import {
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff, Pencil } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
-import { getCellRenderer, resolveCellRendererType, SelectField, BooleanField, LookupField, UserField, CapabilityMultiSelectField, coerceToSafeValue } from '@object-ui/fields';
+import { getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
 import type { DetailViewSection as DetailViewSectionType, DetailViewField, FieldMetadata } from '@object-ui/types';
 import { applyDetailAutoLayout } from './autoLayout';
 import { useDetailTranslation } from './useDetailTranslation';
 import { useSafeFieldLabel } from '@object-ui/react';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
+import { InlineFieldInput, TEXTUAL_REF_FALLBACK_TYPES } from './InlineFieldInput';
 
 /**
  * Compute responsive col-span classes so that col-span never exceeds the
@@ -64,29 +65,6 @@ export function getResponsiveSpanClass(span: number | undefined, columns: number
   if (span >= 4) return 'md:col-span-2 lg:col-span-3 xl:col-span-4';
 
   return '';
-}
-
-/**
- * Field types that carry a `reference_to` for relational metadata but are NOT
- * edited via the lookup picker (they have their own dedicated inputs/renderers).
- * Used so the inline-edit branch doesn't hijack them into a record picker.
- */
-const TEXTUAL_REF_FALLBACK_TYPES = new Set(['formula', 'summary', 'rollup', 'auto_number']);
-
-/**
- * Extract the id a reference widget expects from a value that may already be
- * an `$expand`-ed record object (`{ id, name, ... }`), an array of those, or a
- * bare id. Mirrors the display logic in `LookupCellRenderer` so edit-mode and
- * read-mode agree on which id a relationship points at.
- */
-function extractLookupId(value: unknown): unknown {
-  if (value == null) return value;
-  if (Array.isArray(value)) return value.map(extractLookupId);
-  if (typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    return obj.id ?? obj._id ?? obj.value ?? '';
-  }
-  return value;
 }
 
 export interface VirtualScrollOptions {
@@ -335,112 +313,13 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
         </div>
         {isEditing && fieldEditable ? (
           <div className="min-h-[44px] sm:min-h-0">
-            {(() => {
-              const editType = enrichedField.type || field.type;
-              // Per-field widget override (ADR-0056 P2) — honor a `widget` hint
-              // before the type switch so a structured editor (e.g. the
-              // capability multi-select on sys_permission_set.system_permissions)
-              // replaces the raw type in inline edit too, matching the form path.
-              const editWidget = (enrichedField as any).widget || (field as any).widget;
-              // Permission facets are designed in Studio, never edited in Setup —
-              // even in section edit mode they stay a read-only summary + deep-link.
-              if (editWidget === 'permission-facet-link') {
-                return <PermissionFacetLink value={value} field={enrichedField as any} />;
-              }
-              if (editWidget === 'capability-multiselect') {
-                return (
-                  <CapabilityMultiSelectField
-                    value={value}
-                    onChange={(v: any) => onFieldChange?.(field.name, v)}
-                    field={enrichedField as any}
-                    dataSource={dataSource}
-                  />
-                );
-              }
-              // Picklist → real Select widget so users see localized
-              // option labels and can't free-type invalid values.
-              if (editType === 'select' && Array.isArray(enrichedField.options) && enrichedField.options.length > 0) {
-                return (
-                  <SelectField
-                    field={enrichedField as any}
-                    value={value == null ? '' : String(value)}
-                    onChange={(v) => onFieldChange?.(field.name, v)}
-                  />
-                );
-              }
-              // Boolean → Switch widget instead of free-text "true"/"false".
-              if (editType === 'boolean') {
-                return (
-                  <BooleanField
-                    field={enrichedField as any}
-                    value={!!value}
-                    onChange={(v) => onFieldChange?.(field.name, v)}
-                  />
-                );
-              }
-              // Reference fields (lookup / master_detail / tree / user / owner)
-              // store an id but may arrive `$expand`-ed as a record object. A
-              // plain text input would stringify that to "[object Object]", so
-              // render the real picker and feed it the id extracted from the
-              // (possibly expanded) value.
-              const isUserRef = editType === 'user' || editType === 'owner';
-              const isLookupRef =
-                editType === 'lookup' ||
-                editType === 'master_detail' ||
-                editType === 'tree' ||
-                (!!enrichedField.reference_to && !TEXTUAL_REF_FALLBACK_TYPES.has(editType as string));
-              if (isUserRef || isLookupRef) {
-                const RefWidget = isUserRef ? UserField : LookupField;
-                return (
-                  <RefWidget
-                    field={enrichedField as any}
-                    value={extractLookupId(value)}
-                    onChange={(v: any) => onFieldChange?.(field.name, v)}
-                    dataSource={dataSource}
-                  />
-                );
-              }
-              const isDate = editType === 'date' || editType === 'datetime';
-              const inputType = editType === 'number' ? 'number' : isDate ? 'date' : 'text';
-              // <input type="date"> needs a YYYY-MM-DD string; raw ISO
-              // timestamps ("2026-02-14T14:46:20.862Z") leave the picker
-              // blank. Slice down to the date portion so existing values
-              // round-trip correctly.
-              const inputValue = value == null
-                ? ''
-                : isDate
-                  ? (() => {
-                      const s = String(value);
-                      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-                      const d = new Date(s);
-                      return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-CA');
-                    })()
-                  // Coerce objects (e.g. an unexpanded reference that slipped
-                  // through type detection) to a readable label rather than
-                  // leaking "[object Object]" into the input.
-                  : typeof value === 'object'
-                    ? String(coerceToSafeValue(value) ?? '')
-                    : String(value);
-              return (
-                <input
-                  type={inputType}
-                  autoFocus={autoFocusField === field.name}
-                  className="w-full px-2 py-1.5 text-sm border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  value={inputValue}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    // Re-emit dates as full ISO so backend validation that
-                    // expects ISO timestamps keeps working.
-                    if (isDate && v) {
-                      const iso = new Date(v + 'T00:00:00').toISOString();
-                      onFieldChange?.(field.name, iso);
-                    } else {
-                      onFieldChange?.(field.name, v);
-                    }
-                  }}
-                />
-              );
-            })()}
+            <InlineFieldInput
+              field={enrichedField}
+              value={value}
+              onChange={(v) => onFieldChange?.(field.name, v)}
+              dataSource={dataSource}
+              autoFocus={autoFocusField === field.name}
+            />
           </div>
         ) : (
         <div

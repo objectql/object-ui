@@ -19,7 +19,7 @@
 
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName } from '@object-ui/core';
-import { useRecordContext, useAction, usePredicateScope } from '@object-ui/react';
+import { useRecordContext, useAction, usePredicateScope, usePageVariables } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
@@ -257,6 +257,14 @@ interface PageTabsItem {
    * Numbers >= 1000 are shortened to `1.2k`-style.
    */
   count?: number | string;
+  /**
+   * Conditional tab (framework#2606): CEL predicate — when it evaluates FALSE
+   * the whole tab (header + panel) is omitted from the strip. Canonical
+   * ADR-0089 key only; the deprecated `visibility`/`visibleOn` aliases are
+   * not read on this surface. Accepts a bare CEL string or the normalized
+   * `{ dialect, source }` Expression envelope the spec emits at parse.
+   */
+  visibleWhen?: string | boolean | { dialect?: string; source?: string };
   children: any[];
 }
 
@@ -305,7 +313,7 @@ const collectRelatedLists = (nodes: any, acc: any[] = []): any[] => {
 const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const { language } = useObjectTranslation();
-  const items: PageTabsItem[] = schema?.items || [];
+  const rawItems: PageTabsItem[] = schema?.items || [];
   // Tab visual style lives at `properties.type` ('line'|'card'|'pill') — the
   // outer `schema.type` is always 'page:tabs' (the component dispatch key).
   const type: 'line' | 'card' | 'pill' = schema?.properties?.type || schema?.tabStyle || 'line';
@@ -325,6 +333,43 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const ctx = useRecordContext();
   const parentId = ctx?.data?.id;
   const ds: any = ctx?.dataSource;
+
+  // Conditional tabs (framework#2606): an item-level `visibleWhen` CEL
+  // predicate removes the ENTIRE tab (header + panel) when FALSE — unlike a
+  // child component's own `visibleWhen`, which hides only the panel content
+  // and leaves an empty tab header behind. Same binding environment as
+  // page-component `visibleWhen`: record fields (bare and via `record.` /
+  // `data.`), `user`/`current_user`, and page state as `page.<var>` — so tabs
+  // appear/disappear live as page variables change. Canonical key only
+  // (ADR-0089): the deprecated `visibility`/`visibleOn` aliases are not read
+  // on this new surface.
+  const predicateScope = usePredicateScope();
+  const { variables: pageVariables } = usePageVariables();
+  const recordData: any = ctx?.data;
+  const isItemVisible = (it: PageTabsItem): boolean => {
+    if (it?.visibleWhen === undefined || it?.visibleWhen === null) return true;
+    const evaluator = new ExpressionEvaluator({
+      ...(recordData && typeof recordData === 'object' ? recordData : {}),
+      ...predicateScope,
+      current_user: (predicateScope as any)?.user,
+      record: recordData,
+      data: recordData,
+      page: pageVariables,
+    });
+    // evaluateCondition is fail-open (unparseable predicate → visible) — the
+    // same semantics SchemaRenderer applies to component-level `visibleWhen`.
+    return evaluator.evaluateCondition(it.visibleWhen);
+  };
+  const visibleFlags = rawItems.map(isItemVisible);
+  // Keep the filtered array's identity stable while visibility is unchanged
+  // (usePageVariables returns a fresh object per render outside a Page), so
+  // the count-probe memo/effect below don't re-walk on unrelated renders.
+  const visibleKey = visibleFlags.join(',');
+  const items = React.useMemo(
+    () => rawItems.filter((_, i) => visibleFlags[i]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rawItems, visibleKey],
+  );
   // Subscribe to the store version so badges re-render on invalidation /
   // remote count updates, and RE-PROBE freshly-invalidated keys (#2269): the
   // version is a dep of the probe effect below, so an invalidation (deleted
@@ -421,6 +466,18 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // Host callback on tab switch (app-shell writes `?tab=` with replace).
   const onTabChange: ((value: string) => void) | undefined = (schema as any)?.onTabChange;
 
+  // Controlled active tab so a CONDITIONAL tab can vanish under the user
+  // (framework#2606): when the active tab's `visibleWhen` flips FALSE (a page
+  // variable or record change), fall back to the first visible tab instead of
+  // leaving Radix pointing at a value with no trigger/panel — a blank content
+  // area. The user's own selection is kept whenever it is still visible, and
+  // restored semantics for `?tab=` (`defaultTab`) are unchanged.
+  const [selectedValue, setSelectedValue] = React.useState<string | undefined>(defaultValue);
+  const activeValue =
+    (selectedValue && itemsWithValue.some((it) => it.value === selectedValue)
+      ? selectedValue
+      : undefined) ?? itemsWithValue[0]?.value ?? '';
+
   const listClass = cn(
     isVertical && 'flex-col h-auto items-stretch p-1',
     type === 'card' && 'bg-transparent gap-1',
@@ -445,8 +502,11 @@ const PageTabsRenderer: React.FC<any> = ({ schema, className, ...props }) => {
 
   return (
     <Tabs
-      defaultValue={defaultValue}
-      onValueChange={onTabChange}
+      value={activeValue}
+      onValueChange={(v) => {
+        setSelectedValue(v);
+        onTabChange?.(v);
+      }}
       orientation={isVertical ? 'vertical' : 'horizontal'}
       className={cn(className, isVertical && 'flex gap-4 w-full')}
       {...designer}

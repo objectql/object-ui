@@ -1,0 +1,142 @@
+// Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
+
+import * as React from 'react';
+import { describe, it, expect, afterEach } from 'vitest';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { CelPredicateField } from './CelPredicateField';
+import {
+  tokenAt,
+  buildCandidates,
+  filterCandidates,
+  __setCelFormulaLoader,
+} from './celAuthoring';
+
+afterEach(() => {
+  cleanup();
+  __setCelFormulaLoader(undefined);
+});
+
+const t = (k: string) => k;
+
+/** Controlled harness — the field is controlled, so hold its value in state. */
+function Harness({ initial = '', ...rest }: { initial?: string } & Record<string, unknown>) {
+  const [v, setV] = React.useState(initial);
+  return (
+    <CelPredicateField
+      value={v}
+      onChange={setV}
+      label="USING"
+      objectName="account"
+      fieldNames={['organization_id', 'owner_id']}
+      clause="using"
+      t={t}
+      {...rest}
+    />
+  );
+}
+
+describe('tokenAt', () => {
+  it('returns the identifier run ending at the caret', () => {
+    expect(tokenAt('org', 3)).toEqual({ start: 0, end: 3, text: 'org' });
+    expect(tokenAt('a && org', 8)).toEqual({ start: 5, end: 8, text: 'org' });
+  });
+  it('suppresses member-access segments (after a dot)', () => {
+    expect(tokenAt('current_user.org', 16)).toBeNull();
+  });
+  it('returns null when the caret is not at an identifier', () => {
+    expect(tokenAt('a == ', 5)).toBeNull();
+    expect(tokenAt('', 0)).toBeNull();
+  });
+  it('ignores a leading digit (not an identifier)', () => {
+    expect(tokenAt('123', 3)).toBeNull();
+  });
+});
+
+describe('buildCandidates / filterCandidates', () => {
+  const scope = {
+    fields: ['organization_id', 'owner_id'],
+    roots: ['current_user', 'record'],
+    functions: ['has', 'contains'],
+  };
+  it('merges fields, roots and functions (deduped, fields first)', () => {
+    const c = buildCandidates(scope);
+    expect(c[0]).toEqual({ label: 'organization_id', kind: 'field' });
+    expect(c.find((x) => x.label === 'current_user')?.kind).toBe('root');
+    expect(c.find((x) => x.label === 'has')?.kind).toBe('function');
+  });
+  it('prefix-filters case-insensitively and excludes exact matches', () => {
+    const c = buildCandidates(scope);
+    expect(filterCandidates(c, 'org').map((x) => x.label)).toEqual(['organization_id']);
+    expect(filterCandidates(c, 'ORG').map((x) => x.label)).toEqual(['organization_id']);
+    expect(filterCandidates(c, 'organization_id')).toEqual([]); // exact excluded
+    expect(filterCandidates(c, '')).toEqual([]);
+  });
+});
+
+describe('CelPredicateField · inline lint (real engine)', () => {
+  it('flags malformed CEL and marks the field invalid', async () => {
+    render(<Harness initial="organization_id ==" />);
+    const ta = screen.getByRole('combobox');
+    await waitFor(() => expect(ta.getAttribute('aria-invalid')).toBe('true'), { timeout: 3000 });
+  });
+
+  it('shows the valid affordance for a clean predicate', async () => {
+    render(<Harness initial="organization_id == current_user.organization_id" />);
+    expect(await screen.findByText('perm.cel.valid', {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it('warns (non-blocking) on an unknown-field near miss', async () => {
+    render(<Harness initial="organizaton_id == 1" />);
+    const ta = screen.getByRole('combobox');
+    expect(await screen.findByText(/did you mean/i, {}, { timeout: 3000 })).toBeTruthy();
+    // A warning must NOT mark the field invalid (never block on a maybe-typo).
+    expect(ta.getAttribute('aria-invalid')).not.toBe('true');
+  });
+
+  it('advises on a non-pushdown-able USING read filter (fail-open blast radius)', async () => {
+    render(<Harness initial={'upper(status) == "OPEN"'} />);
+    expect(await screen.findByText(/push it down|widen/i, {}, { timeout: 3000 })).toBeTruthy();
+  });
+});
+
+describe('CelPredicateField · autocomplete', () => {
+  it('offers field/scope suggestions and inserts on Enter', async () => {
+    __setCelFormulaLoader(() =>
+      Promise.resolve({
+        validateExpression: () => ({ ok: true, errors: [], warnings: [] }),
+        introspectScope: () => ({
+          fields: ['organization_id', 'owner_id'],
+          roots: ['current_user'],
+          functions: ['has'],
+        }),
+      }),
+    );
+    const user = userEvent.setup();
+    render(<Harness initial="" />);
+    const ta = screen.getByRole('combobox') as HTMLTextAreaElement;
+    await user.click(ta);
+    await user.type(ta, 'org');
+    const option = await screen.findByRole('option', { name: /organization_id/i }, { timeout: 3000 });
+    expect(option).toBeTruthy();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(ta.value).toBe('organization_id'));
+  });
+
+  it('does not suggest after a member-access dot', async () => {
+    __setCelFormulaLoader(() =>
+      Promise.resolve({
+        validateExpression: () => ({ ok: true, errors: [], warnings: [] }),
+        introspectScope: () => ({ fields: ['organization_id'], roots: ['current_user'], functions: [] }),
+      }),
+    );
+    const user = userEvent.setup();
+    render(<Harness initial="" />);
+    const ta = screen.getByRole('combobox') as HTMLTextAreaElement;
+    await user.click(ta);
+    await user.type(ta, 'current_user.org');
+    // Give the catalog a beat to load; the menu must stay closed for member access.
+    await new Promise((r) => setTimeout(r, 150));
+    expect(screen.queryByRole('option')).toBeNull();
+  });
+});

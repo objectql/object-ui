@@ -1,0 +1,86 @@
+/**
+ * ObjectUI
+ * Copyright (c) 2024-present ObjectStack Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { InlineEditProvider, useInlineEdit } from '@object-ui/react';
+
+/**
+ * `InlineEditContext` (objectui#2407 P1) — the record-level inline-edit session
+ * lifted out of DetailView so the details body and (P2) the highlights strip
+ * share ONE draft. These tests pin the pure-UI-state contract: enter/exit,
+ * draft staging, and the `canEdit` gate.
+ */
+
+function Probe() {
+  const inline = useInlineEdit();
+  if (!inline) return <div data-testid="state">no-provider</div>;
+  return (
+    <div>
+      <span data-testid="editing">{String(inline.editing)}</span>
+      <span data-testid="draft">{JSON.stringify(inline.draft)}</span>
+      <span data-testid="focus">{inline.autoFocusField ?? ''}</span>
+      <button onClick={() => inline.enter('status')}>enter</button>
+      <button onClick={() => inline.setField('status', 'active')}>set</button>
+      <button onClick={() => inline.cancel()}>cancel</button>
+    </div>
+  );
+}
+
+describe('InlineEditContext', () => {
+  it('returns null outside a provider (bare DetailView → read-only)', () => {
+    render(<Probe />);
+    expect(screen.getByTestId('state').textContent).toBe('no-provider');
+  });
+
+  it('enter() flips into edit mode and records the auto-focus field', () => {
+    render(
+      <InlineEditProvider canEdit>
+        <Probe />
+      </InlineEditProvider>,
+    );
+    expect(screen.getByTestId('editing').textContent).toBe('false');
+    fireEvent.click(screen.getByText('enter'));
+    expect(screen.getByTestId('editing').textContent).toBe('true');
+    expect(screen.getByTestId('focus').textContent).toBe('status');
+  });
+
+  it('setField() stages ONLY the edited keys into the draft', () => {
+    render(
+      <InlineEditProvider canEdit>
+        <Probe />
+      </InlineEditProvider>,
+    );
+    fireEvent.click(screen.getByText('enter'));
+    fireEvent.click(screen.getByText('set'));
+    expect(screen.getByTestId('draft').textContent).toBe('{"status":"active"}');
+  });
+
+  it('cancel() exits edit mode and discards the draft', () => {
+    render(
+      <InlineEditProvider canEdit>
+        <Probe />
+      </InlineEditProvider>,
+    );
+    fireEvent.click(screen.getByText('enter'));
+    fireEvent.click(screen.getByText('set'));
+    fireEvent.click(screen.getByText('cancel'));
+    expect(screen.getByTestId('editing').textContent).toBe('false');
+    expect(screen.getByTestId('draft').textContent).toBe('{}');
+  });
+
+  it('gates enter() behind canEdit — a non-editable record never enters edit', () => {
+    render(
+      <InlineEditProvider canEdit={false}>
+        <Probe />
+      </InlineEditProvider>,
+    );
+    fireEvent.click(screen.getByText('enter'));
+    expect(screen.getByTestId('editing').textContent).toBe('false');
+  });
+});

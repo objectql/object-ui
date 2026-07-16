@@ -39,6 +39,10 @@ vi.mock('@object-ui/react', async () => {
     useSafeFieldLabel: () => (React.useRef(0), {
       sectionLabel: (_obj: string, _name: string, fallback: string) => fallback,
     }),
+    // The inline-edit session provider is a passthrough here — this suite
+    // exercises the renderer's rules-of-hooks contract, not the edit flow.
+    InlineEditProvider: ({ children }: any) => children,
+    useInlineEdit: () => (React.useRef(0), null),
   };
 });
 
@@ -57,9 +61,10 @@ vi.mock('@object-ui/permissions', async () => {
 vi.mock('../../DetailView', () => ({
   DetailView: (props: any) => <div data-testid="detail-view" data-object={props?.schema?.objectName} />,
 }));
-vi.mock('../../ConcurrentUpdateDialog', () => ({
-  ConcurrentUpdateDialog: () => null,
-  isConcurrentUpdateError: () => false,
+// Save + OCC now live in <InlineEditSaveBar> (objectui#2407 P1); stub it so the
+// suite stays focused on the renderer's hook ordering.
+vi.mock('../../InlineEditSaveBar', () => ({
+  InlineEditSaveBar: () => null,
 }));
 
 import { RecordDetailsRenderer } from '../record-details';

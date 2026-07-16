@@ -2,9 +2,10 @@
  * Tests for useExpression and useCondition hooks
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { useExpression, useCondition } from '../useExpression';
+import { createElement } from 'react';
+import { useExpression, useCondition, useRowPredicate, PredicateScopeProvider } from '../useExpression';
 
 describe('useExpression', () => {
   it('returns string value directly for non-expression strings', () => {
@@ -110,5 +111,46 @@ describe('useCondition', () => {
       );
       expect(result.current).toBe(true);
     });
+  });
+});
+
+describe('useRowPredicate (canonical CEL row predicate — issue #1584)', () => {
+  it('returns a boolean predicate as-is (short-circuit)', () => {
+    expect(renderHook(() => useRowPredicate(true, { a: 1 })).result.current).toBe(true);
+    expect(renderHook(() => useRowPredicate(false, { a: 1 })).result.current).toBe(false);
+  });
+
+  it('returns the fallback for an absent predicate (default true)', () => {
+    expect(renderHook(() => useRowPredicate(undefined, { a: 1 })).result.current).toBe(true);
+    expect(renderHook(() => useRowPredicate('', { a: 1 })).result.current).toBe(true);
+    expect(renderHook(() => useRowPredicate(undefined, { a: 1 }, { fallback: false })).result.current).toBe(false);
+  });
+
+  it('evaluates a CEL predicate over the row (record.* and bare)', () => {
+    expect(renderHook(() => useRowPredicate("record.status == 'active'", { status: 'active' })).result.current).toBe(true);
+    expect(renderHook(() => useRowPredicate("status == 'active'", { status: 'closed' })).result.current).toBe(false);
+  });
+
+  it('supports the CEL `in` operator (legacy engine could not)', () => {
+    expect(renderHook(() => useRowPredicate("record.role in ['admin', 'owner']", { role: 'owner' })).result.current).toBe(true);
+    expect(renderHook(() => useRowPredicate("record.role in ['admin', 'owner']", { role: 'member' })).result.current).toBe(false);
+  });
+
+  it('merges the ambient predicate scope (features/user)', () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      createElement(PredicateScopeProvider, { scope: { features: { canEdit: true } } }, children);
+    expect(
+      renderHook(() => useRowPredicate('features.canEdit == true', { id: '1' }), { wrapper }).result.current,
+    ).toBe(true);
+  });
+
+  it('fails CLOSED and warns on a broken predicate when warnOnError is set', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { result } = renderHook(() =>
+      useRowPredicate('record.status ==', { status: 'x' }, { fallback: false, warnOnError: true, label: 'resume' }),
+    );
+    expect(result.current).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

@@ -20,7 +20,6 @@ const ImportWizard = lazy(() =>
   import('@object-ui/plugin-grid').then((m) => ({ default: m.ImportWizard })),
 );
 import { ListView } from '@object-ui/plugin-list';
-import { DetailView, RecordChatterPanel } from '@object-ui/plugin-detail';
 import { ObjectView as PluginObjectView, ViewTabBar, ManageViewsDialog, deriveRecordSurface, overlayWidthFor } from '@object-ui/plugin-view';
 import type { ViewTabItem } from '@object-ui/plugin-view';
 import { RECORD_DRAWER_PARAM } from '../urlParams';

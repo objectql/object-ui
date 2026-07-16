@@ -163,6 +163,15 @@ export interface AuthPublicConfig {
      * entry (framework#2766 / #2782).
      */
     admin?: boolean;
+    /**
+     * better-auth deviceAuthorization plugin mounted server-side
+     * (`auth.plugins.deviceAuthorization`, opt-in / off by default). Gates the
+     * RFC 8628 device-approval page: when falsy the `/device`, `/device/approve`
+     * and `/device/deny` endpoints aren't wired, so the UI shows an
+     * "not enabled" notice instead of a form that only fails on submit
+     * (framework#2874 / objectui#2513).
+     */
+    deviceAuthorization?: boolean;
   };
 }
 

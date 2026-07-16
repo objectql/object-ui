@@ -49,6 +49,17 @@ describe('P1.1 ListView Spec Alignment', () => {
     expect(schema.bulkActions).toHaveLength(3);
   });
 
+  it('should accept spec-canonical bulkActions on ObjectGridSchema (#1763)', () => {
+    const schema: ObjectGridSchema = {
+      type: 'object-grid',
+      objectName: 'Account',
+      bulkActions: ['delete', 'assign'],
+      batchActions: ['delete'],
+    };
+    expect(schema.bulkActions).toHaveLength(2);
+    expect(schema.batchActions).toHaveLength(1);
+  });
+
   it('should accept virtualScroll boolean', () => {
     const schema: ListViewSchema = {
       type: 'list-view',

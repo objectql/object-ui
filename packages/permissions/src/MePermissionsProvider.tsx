@@ -43,6 +43,15 @@ export interface MePermissionsResponse {
 export interface MePermissionsProviderProps {
   /** Absolute or relative URL to the /me/permissions endpoint */
   endpoint?: string;
+  /**
+   * Fetch implementation used to call the endpoint. Pass an authenticated
+   * fetch (e.g. `createAuthenticatedFetch()` from `@object-ui/auth`) so the
+   * request carries the Bearer token: with the default global `fetch` the
+   * request is cookie-only, and a token-only session (localStorage, no
+   * better-auth cookie) resolves as anonymous — the UI then renders
+   * restricted fields as editable (#2926 ④).
+   */
+  fetcher?: typeof fetch;
   /** Pre-fetched permissions payload (testing / SSR) */
   initialPermissions?: MePermissionsResponse;
   /** Rendered while permissions load (fail-closed) */
@@ -68,6 +77,7 @@ const DEFAULT_ENDPOINT = '/api/v1/auth/me/permissions';
  */
 export function MePermissionsProvider({
   endpoint = DEFAULT_ENDPOINT,
+  fetcher,
   initialPermissions,
   loadingFallback = null,
   errorFallback,
@@ -81,7 +91,8 @@ export function MePermissionsProvider({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(endpoint, {
+      const doFetch = fetcher ?? fetch;
+      const res = await doFetch(endpoint, {
         credentials: 'include',
         headers: { Accept: 'application/json' },
       });
@@ -93,7 +104,7 @@ export function MePermissionsProvider({
     } finally {
       setLoading(false);
     }
-  }, [endpoint]);
+  }, [endpoint, fetcher]);
 
   useEffect(() => {
     if (initialPermissions) return;
@@ -115,7 +126,18 @@ export function MePermissionsProvider({
       }
       // No explicit field-level override → defer to object-level perms.
       const objPerm = data.objects?.[objKey] ?? data.objects?.[object] ?? data.objects?.['*'];
-      if (!objPerm) return true; // permissive default when nothing configured
+      if (!objPerm) {
+        // [#2926 ④] Unknown-object default is authentication-gated:
+        //  - authenticated session → fail-CLOSED. The server resolved this
+        //    user's permissions and said nothing about the object, so
+        //    rendering it editable invites input the data layer will strip.
+        //  - anonymous (`authenticated: false` — the endpoint's no-session
+        //    200 carries no objects/fields at all) → keep the permissive
+        //    default. Guest/public surfaces have no resolvable perms by
+        //    design; the server still enforces, and locking every field
+        //    would brick public forms.
+        return data.authenticated !== true;
+      }
       return action === 'read'
         ? objPerm.allowRead !== false
         : objPerm.allowEdit !== false;
@@ -136,7 +158,8 @@ export function MePermissionsProvider({
         delete: 'allowDelete',
       };
       const k = map[action as string] ?? 'allowRead';
-      const allowed = objPerm ? (objPerm as any)[k] !== false : true;
+      // Same authentication-gated default as checkField (#2926 ④).
+      const allowed = objPerm ? (objPerm as any)[k] !== false : data.authenticated !== true;
       return { allowed, reason: allowed ? undefined : 'denied-by-permission-set' };
     },
     [data],

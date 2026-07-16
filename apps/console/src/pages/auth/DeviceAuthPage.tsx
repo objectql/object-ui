@@ -7,7 +7,7 @@
  * device-authorization endpoints directly via fetch.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -55,7 +55,7 @@ export function DeviceAuthPage() {
   // warning copy below is what carries the anti-phishing weight.
   const runtimeName = params.get('runtime_name') ?? '';
   const runtimeVersion = params.get('runtime_version') ?? '';
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, getAuthConfig } = useAuth();
   const navigate = useNavigate();
 
   const [submitting, setSubmitting] = useState(false);
@@ -63,6 +63,29 @@ export function DeviceAuthPage() {
   const [approved, setApproved] = useState(false);
   const [denied, setDenied] = useState(false);
   const [error, setError] = useState('');
+  // Whether the server actually wires the deviceAuthorization plugin
+  // (framework#2874 / objectui#2513). `null` while the public config is still
+  // loading. The `/device*` endpoints only exist when this is on, so we gate
+  // the whole page on it instead of rendering a form that would only fail on
+  // submit with "not enabled".
+  const [deviceAuthEnabled, setDeviceAuthEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getAuthConfig()
+      .then((config) => {
+        if (active) setDeviceAuthEnabled(config?.features?.deviceAuthorization === true);
+      })
+      .catch(() => {
+        // Config unreachable → don't hard-block a page that may legitimately
+        // work; fall back to the prior behavior and let the endpoints surface
+        // the real error.
+        if (active) setDeviceAuthEnabled(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [getAuthConfig]);
 
   if (!code) {
     return (
@@ -83,7 +106,31 @@ export function DeviceAuthPage() {
     );
   }
 
-  if (isLoading) {
+  // Gate on the deviceAuthorization capability before anything else that
+  // requires it (login round-trip, claim/approve): if the plugin is off the
+  // endpoints 404, so tell the user plainly instead of advertising a form
+  // that can't work (framework#2874 / objectui#2513).
+  if (deviceAuthEnabled === false) {
+    return (
+      <PageShell>
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle>
+              {t('auth.device.disabledTitle', { defaultValue: 'Device authorization not enabled' })}
+            </CardTitle>
+            <CardDescription>
+              {t('auth.device.disabledDescription', {
+                defaultValue:
+                  'This deployment does not have device authorization enabled, so this device cannot be approved here.',
+              })}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </PageShell>
+    );
+  }
+
+  if (isLoading || deviceAuthEnabled === null) {
     return (
       <PageShell>
         <Card>

@@ -129,7 +129,8 @@ export const ObjectGridSchema = BaseSchema.extend({
   showColumnTypeIcons: z.boolean().optional().describe('Show column type icons (T/Tag/Calendar) in headers. Off by default — type is usually obvious from cell content; the icons add visual noise.'),
   selection: SelectionConfigSchema.optional().describe('Selection configuration'),
   pagination: PaginationConfigSchema.optional().describe('Pagination configuration'),
-  
+  bulkActions: z.array(z.string()).optional().describe('Bulk action identifiers (spec-canonical key; batchActions is the legacy alias)'),
+
   // Legacy fields
   fields: z.array(z.string()).optional(),
   staticData: z.array(z.any()).optional(),

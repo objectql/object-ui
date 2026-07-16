@@ -487,9 +487,17 @@ export function SchemaForm({
   // Resolve top-level object properties.
   const props = (effectiveSchema.properties ?? {}) as Record<string, JsonSchema>;
   const required: string[] = Array.isArray(effectiveSchema.required) ? effectiveSchema.required : [];
-  const keys = orderKeys(Object.keys(props), fieldOrder).filter(
-    (k) => !hiddenFields.includes(k),
-  );
+  // Per-property `visibleOn` predicate context — the current draft under
+  // `data`, mirroring the sectioned form's field-level filtering. Lets a flat
+  // (create) schema gate a field on a sibling value (e.g. show the list layout
+  // picker only when `data.viewKind == 'list'`). No `visibleOn` → always shown.
+  const predicateData = (value ?? {}) as Record<string, unknown>;
+  const keys = orderKeys(Object.keys(props), fieldOrder)
+    .filter((k) => !hiddenFields.includes(k))
+    .filter((k) => {
+      const visibleOn = (props[k] as any)?.visibleOn;
+      return !visibleOn || evaluatePredicate(visibleOn, { data: predicateData });
+    });
 
   const issuesByPath = React.useMemo(() => {
     const map: Record<string, string[]> = {};

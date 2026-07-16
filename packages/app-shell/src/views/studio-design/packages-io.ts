@@ -11,10 +11,19 @@
  * sets expectations up front.
  */
 
+import { deriveNamespaceFromPackageId, validateObjectNamespacePrefix } from '@objectstack/spec/kernel';
+
 export interface PkgEntry {
   id: string;
   name: string;
   writable: boolean;
+  /**
+   * The package's object-name namespace (framework#2694): every object in the
+   * package must be named `<namespace>_*`. An explicit `manifest.namespace`
+   * wins; otherwise it is back-derived from the id (same rule the kernel uses),
+   * so authoring surfaces can prefix object names before publish rejects them.
+   */
+  namespace: string | null;
 }
 
 export function parsePackages(payload: unknown): PkgEntry[] {
@@ -28,7 +37,9 @@ export function parsePackages(payload: unknown): PkgEntry[] {
     if (!id) continue;
     const scope = typeof m.scope === 'string' ? m.scope : '';
     if (scope === 'system' || scope === 'cloud') continue; // kernel — not app packages
-    out.push({ id, name: String(m.name ?? id), writable: scope !== 'project' });
+    const namespace =
+      typeof m.namespace === 'string' && m.namespace ? m.namespace : deriveNamespaceFromPackageId(id);
+    out.push({ id, name: String(m.name ?? id), writable: scope !== 'project', namespace });
   }
   return out;
 }
@@ -41,22 +52,6 @@ export async function fetchPackages(): Promise<PkgEntry[]> {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return parsePackages(await res.json());
-}
-
-/** Create a writable base package (POST /packages {id, name}). */
-export async function createBasePackage(id: string, name: string): Promise<void> {
-  const res = await fetch('/api/v1/packages', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ id, name }),
-  });
-  const payload = (await res.json().catch(() => null)) as
-    | { success?: boolean; error?: { message?: string } }
-    | null;
-  if (!res.ok || payload?.success === false) {
-    throw new Error(payload?.error?.message || `HTTP ${res.status}`);
-  }
 }
 
 /**
@@ -81,6 +76,28 @@ export async function duplicatePackage(sourceId: string, targetId: string, targe
 }
 
 export const PACKAGE_ID_RE = /^[a-z][a-z0-9_.-]*(\.[a-z0-9_-]+)+$/;
+
+/**
+ * Object-namespace format (framework#2694 / `@objectstack/spec/kernel`): a
+ * lowercase letter followed by 1–19 letters/digits/underscores (2–20 chars).
+ * `deriveNamespaceFromPackageId` already sanitizes to this shape; the authoring
+ * dialogs validate the user's edits against the same rule.
+ */
+export const NAMESPACE_RE = /^[a-z][a-z0-9_]{1,19}$/;
+
+/**
+ * Prefix an object name with the package namespace so it can't be authored
+ * prefix-less (framework#2694 rejects those at publish with code
+ * `NAMESPACE_PREFIX`). The compliance decision is the spec-owned rule
+ * (`validateObjectNamespacePrefix`) — a `null` verdict means already-compliant
+ * or exempt (e.g. `sys_*`), which we leave untouched (never double-prefix).
+ * With no namespace we can't prefix, so the name passes through unchanged (the
+ * server-side gate stays the backstop).
+ */
+export function prefixObjectName(rawName: string, namespace: string | null | undefined): string {
+  if (!namespace) return rawName;
+  return validateObjectNamespacePrefix(rawName, namespace) ? `${namespace}_${rawName}` : rawName;
+}
 
 /**
  * Normalize raw package-id keystrokes to the allowed alphabet, and SAY when

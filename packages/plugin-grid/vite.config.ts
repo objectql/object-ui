@@ -9,7 +9,11 @@ export default defineConfig({
     dts({
       insertTypesEntry: true,
       include: ['src'],
-      compilerOptions: { rootDir: resolve(__dirname, 'src') },
+      // Clear the inherited tsconfig `paths` so the dts type program resolves
+      // `@object-ui/*` to each dependency's published `dist/*.d.ts` (external)
+      // instead of following the workspace `src` aliases into files outside
+      // this package's `rootDir` — which would emit TS6059 rootDir errors.
+      compilerOptions: { rootDir: resolve(__dirname, 'src'), paths: {} },
       aliasesExclude: [/^@object-ui\//],
     }),
   ],

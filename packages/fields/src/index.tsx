@@ -207,6 +207,9 @@ function useLookupName(
     typeof dataSource.find === 'function' &&
     (typeof value === 'string' || typeof value === 'number') &&
     value !== '';
+  // The preferred display field is part of the cache identity: two columns
+  // targeting the same record with different `display_field`s must not
+  // serve each other's cached name (#2926 ⑧).
   const cacheKey = isResolvable
     ? `${referenceTo}:${String(value)}:${displayField ?? ''}`
     : '';
@@ -1285,6 +1288,8 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
     (field as { reference?: string }).reference;
 
   // Explicit author-chosen display field on the lookup — beats every resolver.
+  // ObjectGrid forwards `display_field` on the column meta (RELATIONAL_META_KEYS)
+  // the same way it forwards `reference` (#2926 ⑧).
   const displayField =
     (field as { display_field?: string }).display_field ||
     (field as { displayField?: string }).displayField ||
