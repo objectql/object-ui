@@ -27,7 +27,7 @@
  *   1. `syntax`      — the predicate is valid CEL. Delegated to the canonical
  *                      `@objectstack/formula` `validateExpression` (no schema
  *                      hint → pure parse validation, so a legitimate
- *                      `current_user.roles` reference is never flagged).
+ *                      `current_user.positions` reference is never flagged).
  *   2. `unknown-field` — a `record.<name>` reference names a field the form
  *                      doesn't declare (a sibling typo, `record.contry`).
  *   3. `option-literal-not-in-domain` — a `record.<enum> == '<literal>'` (or

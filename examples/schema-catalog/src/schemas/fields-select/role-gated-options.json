@@ -21,7 +21,7 @@
         {
           "label": "Public — external",
           "value": "public",
-          "visibleWhen": "'admin' in current_user.roles"
+          "visibleWhen": "'admin' in current_user.positions"
         }
       ]
     }
