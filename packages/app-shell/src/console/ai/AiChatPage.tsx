@@ -96,6 +96,7 @@ import { useReconcileOnError } from '../../hooks/useReconcileOnError';
 import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
 import { ConversationsSidebar } from './ConversationsSidebar';
 import { LiveCanvas } from './LiveCanvas';
+import { artifactStudioPath } from './artifactStudioPath';
 import { BuildDebugDrawer } from './BuildDebugDrawer';
 import { isConversationZh } from './conversationLanguage';
 
@@ -2069,6 +2070,25 @@ export function ChatPane({
         onOpenBuiltApp={(appName, appSegment) =>
           navigate(`/apps/${encodeURIComponent(appSegment ?? appName)}`)}
         openBuiltAppLabel={t('console.ai.openBuiltApp', { defaultValue: 'Open app' })}
+        // ADR-0080 D5 cold-start handoff — the PRIMARY action on a finished
+        // build: Studio is the built app's iteration home (direct edit + the
+        // same copilot conversation in the dock), so the flow's natural end
+        // is "step into Studio", not "leave for the published front-end".
+        // The package id is the canvas segment (one package = one app).
+        onDesignBuiltApp={(_appName, appSegment) => {
+          const pkg = appSegment ?? canvasApp?.segment;
+          if (!pkg) return;
+          navigate(`/studio/${encodeURIComponent(pkg)}/interfaces`);
+        }}
+        designBuiltAppLabel={t('console.ai.designBuiltApp', { defaultValue: 'Design in Studio' })}
+        // Artifact deep links: every artifact the agent built gets a one-click
+        // path to where it can be edited BY HAND (object → Data, flow →
+        // Automations, dashboard/page/view/app → Interfaces). Returns null for
+        // types with no direct-edit home (seed/dataset) → rendered as text.
+        getArtifactAction={(artifact, appSegment) => {
+          const path = artifactStudioPath(appSegment ?? canvasApp?.segment, artifact);
+          return path ? () => navigate(path) : null;
+        }}
         // Live lifecycle truth for draft cards: the server's pending count per
         // package, so reloaded conversations show Published/Publish honestly.
         fetchPendingDraftCount={fetchPendingDraftCount}

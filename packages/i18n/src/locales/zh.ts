@@ -1387,6 +1387,7 @@ const zh = {
       publishOk: '已发布，对象已生效。',
       seedWarn: '已发布，但部分示例数据未能载入。',
       openBuiltApp: '打开应用',
+      designBuiltApp: '进入 Studio 继续完善',
       previewDraft: '预览',
       previewApp: '预览应用',
       resizeSplit: '调整对话与预览的宽度',

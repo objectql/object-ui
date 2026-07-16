@@ -1316,6 +1316,7 @@ const en = {
       publishOk: 'Published — objects are now live.',
       seedWarn: 'Published, but some sample data failed to load.',
       openBuiltApp: 'Open app',
+      designBuiltApp: 'Design in Studio',
       previewDraft: 'Preview',
       previewApp: 'Preview app',
       resizeSplit: 'Resize chat and preview',
