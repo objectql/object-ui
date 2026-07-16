@@ -11,7 +11,7 @@
 // option-mapping the picker relies on (the fetch/render is thin glue on top).
 
 import { describe, it, expect } from 'vitest';
-import { resolveConnectorName, connectorActionsToOptions } from './FlowReferenceField';
+import { resolveConnectorName, connectorActionsToOptions, connectorsToOptions } from './FlowReferenceField';
 
 describe('resolveConnectorName', () => {
   const ctx = (connectorConfig: unknown) => ({ draft: {}, node: { connectorConfig } as Record<string, unknown> });
@@ -54,5 +54,29 @@ describe('connectorActionsToOptions', () => {
     ]);
     expect(connectorActionsToOptions(undefined)).toEqual([]);
     expect(connectorActionsToOptions('nope')).toEqual([]);
+  });
+});
+
+describe('connectorsToOptions (ADR-0096 connector picker)', () => {
+  it('maps the runtime registry to {value,label}, annotating declarative instances', () => {
+    expect(
+      connectorsToOptions([
+        { name: 'billing', label: 'Billing API', origin: 'declarative' },
+        { name: 'rest', label: 'REST', origin: 'plugin' },
+        { name: 'slack', origin: 'plugin' }, // no label → name is the label
+      ]),
+    ).toEqual([
+      { value: 'billing', label: 'Billing API (billing) · declarative' },
+      { value: 'rest', label: 'REST (rest)' },
+      { value: 'slack', label: 'slack' },
+    ]);
+  });
+
+  it('tolerates a missing origin (older backend) and malformed entries / non-arrays', () => {
+    expect(connectorsToOptions([{ name: 'x', label: 'X' }, null, { label: 'no name' }, { name: '' }])).toEqual([
+      { value: 'x', label: 'X (x)' },
+    ]);
+    expect(connectorsToOptions(undefined)).toEqual([]);
+    expect(connectorsToOptions('nope')).toEqual([]);
   });
 });
