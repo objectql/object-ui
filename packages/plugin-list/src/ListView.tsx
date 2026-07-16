@@ -17,6 +17,7 @@ import { UserFilters } from './UserFilters';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
+import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel } from '@object-ui/i18n';
@@ -227,12 +228,6 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.viewSettingsHint': 'Grouping, color, density, and visible fields.',
 };
 
-// Stable module-level fallback used when no I18nProvider is mounted.
-// Reusing the same function reference across renders keeps downstream
-// `useCallback`/`useMemo` deps stable (otherwise filterFields and tFieldLabel
-// would invalidate every render in the no-provider case).
-const FALLBACK_FIELD_LABEL = (_objectName: string, _fieldName: string, fallback: string) => fallback;
-
 const fallbackListT = (key: string, options?: Record<string, unknown>) => {
   let value = LIST_DEFAULT_TRANSLATIONS[key] || key;
   if (options) {
@@ -262,15 +257,15 @@ function useListViewTranslation() {
 }
 
 /**
- * Safe wrapper for useObjectLabel that falls back to identity when I18nProvider is unavailable.
+ * Thin selector over useObjectLabel. The underlying hook is provider-safe
+ * (optional context + global i18n fallback), so no try/catch — wrapping a
+ * hook call in try/catch violates rules-of-hooks: a throw after other hooks
+ * ran would desync hook order on the next render (same fix as
+ * fields#useFieldLabel, objectui#2595).
  */
 function useListFieldLabel() {
-  try {
-    const { fieldLabel, actionLabel, objectLabel } = useObjectLabel();
-    return { fieldLabel, actionLabel, objectLabel };
-  } catch {
-    return { fieldLabel: FALLBACK_FIELD_LABEL, actionLabel: undefined as any, objectLabel: undefined as any };
-  }
+  const { fieldLabel, actionLabel, objectLabel } = useObjectLabel();
+  return { fieldLabel, actionLabel, objectLabel };
 }
 
 /**
@@ -1347,8 +1342,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         return {
           type: 'object-kanban',
           ...baseProps,
-          groupBy: schema.kanban?.groupField || schema.options?.kanban?.groupField || 'status',
-          groupField: schema.kanban?.groupField || schema.options?.kanban?.groupField || 'status',
+          // ADR-0085: no explicit lane field → the object's declared
+          // lifecycle (`stageField`, incl. strict-false suppression) via the
+          // shared detector — mirrors ObjectView's default so a schema that
+          // omits groupField behaves the same on both entry paths. objectDef
+          // loads async: until it lands this stays undefined and the board
+          // re-derives lanes once it does.
+          groupBy: schema.kanban?.groupField || schema.options?.kanban?.groupField
+            || detectStatusField(objectDef) || undefined,
+          groupField: schema.kanban?.groupField || schema.options?.kanban?.groupField
+            || detectStatusField(objectDef) || undefined,
           ...(schema.kanban?.titleField || schema.options?.kanban?.titleField
             ? { titleField: schema.kanban?.titleField || schema.options?.kanban?.titleField }
             : {}),
@@ -1492,7 +1495,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         };
       }
     }
-  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit]);
+  // objectDef is in the deps because the kanban default lane field derives
+  // from it (ADR-0085 stageField) and it loads async — without it the board
+  // would keep the null-def result forever.
+  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, objectDef]);
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 

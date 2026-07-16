@@ -66,6 +66,10 @@ export type {
 } from './app';
 export { menuItemToNavigationItem, isValidAppName, wizardDraftToAppSchema } from './app';
 
+// Object-level semantic-role readers (ADR-0085), shared across surfaces.
+export { detectStatusField } from './record-semantics';
+export type { StatusFieldSource } from './record-semantics';
+
 // ============================================================================
 // Base Types - The Foundation
 // ============================================================================

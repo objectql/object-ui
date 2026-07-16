@@ -24,6 +24,7 @@
  */
 
 import { deriveFieldGroupLayout } from '@objectstack/spec/data';
+import { detectStatusField } from '@object-ui/types';
 import { inferDetailColumns } from '../autoLayout';
 
 /** Minimal shape of an object definition we read here. We deliberately
@@ -227,29 +228,13 @@ function toNodeArray(slot: any | any[] | undefined): any[] {
 /**
  * Detect the canonical "status" / "stage" field on an object definition.
  *
- * Heuristic — same as DetailView's `autoSummaryFields`:
- *   1) the top-level `objectDef.stageField` semantic role (spec-typed since
- *      ADR-0085). `false` = the status-shaped field is NOT a linear flow —
- *      suppress stage detection entirely (no `record:path`, #2065).
- *   2) else first field named status / stage / state / phase
- *   3) else null
+ * The implementation moved to `@object-ui/types` (`detectStatusField`) so
+ * non-detail consumers of the `stageField` role — kanban default lanes in
+ * app-shell/plugin-list — share the exact semantics (incl. the strict
+ * `stageField: false` suppression). Re-exported here unchanged for the
+ * long-standing plugin-detail import path.
  */
-export function detectStatusField(def?: ObjectDefLike): string | null {
-  if (!def) return null;
-  const hint = def.stageField;
-  if (hint === false) return null;
-  if (typeof hint === 'string' && hint) return hint;
-  const fields = def.fields || {};
-  const candidates = ['status', 'stage', 'state', 'phase'];
-  for (const key of candidates) {
-    if (key in fields) return key;
-  }
-  for (const [name, field] of Object.entries(fields)) {
-    const t = (field?.type || '').toLowerCase();
-    if (t === 'status' || t === 'stage') return name;
-  }
-  return null;
-}
+export { detectStatusField };
 
 /**
  * Derive stage values from an object field's `options` (picklist).

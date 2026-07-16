@@ -37,6 +37,7 @@ import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar
 import { useFavorites } from '../hooks/useFavorites';
 import { getIcon } from '../utils/getIcon';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
+import { detectStatusField } from '@object-ui/types';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
 import { useMetadataClient } from './metadata-admin/useMetadata';
@@ -1403,8 +1404,21 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
             ...(viewDef.sort?.length ? { sort: viewDef.sort } : {}),
             options: {
                 kanban: {
-                    groupBy: viewDef.kanban?.groupByField || viewDef.kanban?.groupField || 'status',
-                    groupField: viewDef.kanban?.groupByField || viewDef.kanban?.groupField || 'status',
+                    // ADR-0085: when the view doesn't pick a lane field, the
+                    // object's declared lifecycle (`stageField`) decides —
+                    // including the strict `stageField: false` suppression
+                    // (no default lanes; the status-shaped field is declared
+                    // non-linear) and the shared name/type heuristic, which
+                    // never invents a field the object doesn't have (the old
+                    // hard-coded 'status' did).
+                    ...(() => {
+                        const lane =
+                            viewDef.kanban?.groupByField ||
+                            viewDef.kanban?.groupField ||
+                            detectStatusField(objectDef as any) ||
+                            undefined;
+                        return lane ? { groupBy: lane, groupField: lane } : {};
+                    })(),
                     titleField: viewDef.kanban?.titleField || objectDef.titleField || 'name',
                     cardFields: viewDef.kanban?.columns,
                 },
