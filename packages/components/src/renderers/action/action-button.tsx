@@ -55,7 +55,10 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
     // `visible` fails CLOSED on a throwing predicate (mirrors ActionEngine's
     // getActionsForLocation) — a precondition that can't be evaluated should
     // hide the action, not silently show one whose guard is broken.
-    const isVisible = useCondition(toPredicateInput(schema.visible), recordData, { throwOnError: true });
+    const isVisible = useCondition(toPredicateInput(schema.visible), recordData, {
+      throwOnError: true,
+      label: `action "${schema.name ?? schema.label ?? 'action:button'}" (visible)`,
+    });
     // Spec field is `disabled` (boolean | CEL predicate — disabled when TRUE).
     // It previously had zero consumers (the renderer only read a non-spec
     // `enabled`), so a spec-authored `disabled` guard did nothing (#1885,

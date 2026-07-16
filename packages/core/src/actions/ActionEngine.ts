@@ -84,7 +84,7 @@ function warnHiddenPredicate(name: unknown, raw: unknown, err: unknown): void {
   // eslint-disable-next-line no-console
   console.warn(
     `[ActionEngine] action "${String(name)}" hidden: its \`visible\` predicate threw — ${msg}. ` +
-    `Predicate: ${src}. Action predicates evaluate against { record, recordId, objectName, user, … }; ` +
+    `Predicate: ${src}. Action predicates evaluate against { record, recordId, objectName, user, os.user, … }; ` +
     `use \`record.<field>\` (not a bare field).`,
   );
 }
