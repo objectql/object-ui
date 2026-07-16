@@ -260,15 +260,15 @@ function useLookupName(
  * default when no I18nProvider is available or when the key is missing.
  */
 function useFieldLabel() {
-  try {
-    const { t } = useObjectTranslation();
-    return (key: string, fallback: string) => {
-      const v = t(key);
-      return !v || v === key ? fallback : v;
-    };
-  } catch {
-    return (_k: string, fallback: string) => fallback;
-  }
+  // useObjectTranslation is provider-safe (its context read is optional and
+  // react-i18next falls back to the global instance), so no try/catch —
+  // wrapping a hook call in try/catch violates rules-of-hooks: a throw after
+  // some hooks ran would desync hook order on the next render.
+  const { t } = useObjectTranslation();
+  return (key: string, fallback: string) => {
+    const v = t(key);
+    return !v || v === key ? fallback : v;
+  };
 }
 
 import { TextField } from './widgets/TextField';
@@ -586,14 +586,16 @@ export function NumberCellRenderer({ value, field }: CellRendererProps): React.R
  * Currency field cell renderer
  */
 export function CurrencyCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  // Hooks before the empty-value early return — a value flipping between
+  // null and set must not change the hook count between renders.
+  const { currency: tenantCurrency } = useLocalization();
   if (value == null) return <EmptyValue />;
-  
+
   const safe = coerceToSafeValue(value);
   // Resolve the display currency via the shared precedence: field `currency` →
   // `currencyConfig.defaultCurrency` → the tenant default (ADR-0053). When none
   // is known, render a plain number — never a guessed symbol (silently assuming
   // USD mis-displays non-USD orgs, e.g. RMB amounts shown as $).
-  const { currency: tenantCurrency } = useLocalization();
   const currency = resolveFieldCurrency(field as any, tenantCurrency);
   const num = Number(safe);
   const formatted = !isNaN(num)
@@ -1082,11 +1084,12 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
  * Email field cell renderer
  */
 export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  // Hooks before the empty-value early return (rules-of-hooks).
+  const label = useFieldLabel();
+  const [copied, setCopied] = React.useState(false);
   if (!value) return <EmptyValue />;
 
-  const label = useFieldLabel();
   const safe = String(coerceToSafeValue(value) ?? '');
-  const [copied, setCopied] = React.useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1156,11 +1159,12 @@ export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElemen
  * Phone field cell renderer
  */
 export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  // Hooks before the empty-value early return (rules-of-hooks).
+  const label = useFieldLabel();
+  const [copied, setCopied] = React.useState(false);
   if (!value) return <EmptyValue />;
 
-  const label = useFieldLabel();
   const safe = String(coerceToSafeValue(value) ?? '');
-  const [copied, setCopied] = React.useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1336,15 +1340,18 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   if (typeof value === 'string') {
     const s = value.trim();
     if (s.startsWith('{') && s.endsWith('}')) {
+      // Compute inside try, render outside — constructing JSX in a try/catch
+      // doesn't catch its render errors anyway (react-hooks/error-boundaries).
+      let parsedDisplay = '';
       try {
         const parsed = JSON.parse(s) as Record<string, unknown>;
         if (parsed && typeof parsed === 'object') {
-          const display =
+          parsedDisplay =
             resolveLookupRecordName(parsed, refSchema, displayField) ||
             String(parsed.externalId ?? parsed.id ?? parsed._id ?? '');
-          if (display) return <span className="truncate">{display}</span>;
         }
       } catch { /* not JSON — fall through to normal resolution */ }
+      if (parsedDisplay) return <span className="truncate">{parsedDisplay}</span>;
     }
   }
 

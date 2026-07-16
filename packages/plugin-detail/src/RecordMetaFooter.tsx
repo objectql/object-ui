@@ -93,11 +93,18 @@ const UserRef: React.FC<UserRefProps> = ({ value, objectSchema, fieldName }) => 
   };
   const resolvedType = resolveCellRendererType(enrichedField as { type?: string }) || enrichedField.type;
   if (resolvedType) {
-    const CellRenderer = getCellRenderer(resolvedType);
-    if (CellRenderer) {
+    const cellRenderer = getCellRenderer(resolvedType);
+    if (cellRenderer) {
+      // createElement over a JSX tag: the registry returns a STABLE component
+      // reference, but a locally-assigned capitalized tag reads as "component
+      // created during render" to the hooks lint (state would reset if it
+      // were). Direct invocation makes the stable-reference intent explicit.
       return (
         <span className="inline-flex items-center [&_a]:text-inherit [&_a]:hover:underline">
-          <CellRenderer value={value} field={enrichedField as unknown as FieldMetadata} />
+          {React.createElement(cellRenderer, {
+            value,
+            field: enrichedField as unknown as FieldMetadata,
+          })}
         </span>
       );
     }
