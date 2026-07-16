@@ -1846,7 +1846,9 @@ function renderStudioGridList(props: {
   );
 }
 
-function DataPillar({
+// Exported for tests (StudioDesignSurface.emptyPackage.test.tsx) — the empty-
+// package behavior (no forced creator modal, empty-state CTA) lives here.
+export function DataPillar({
   packageId,
   publishNonce = 0,
   onDraftSaved,
@@ -1961,9 +1963,10 @@ function DataPillar({
         // actually have; otherwise open the first object as before.
         const deepLinked = resolveSurfaceDeepLink(items, initialSurface, 'object');
         setCurrent((c) => c ?? deepLinked ?? items[0] ?? null);
-        // First-run: an empty writable package opens the creator right away —
-        // the first thing to do here is make an object, so put the inputs up.
-        if (items.length === 0 && !readOnly) setCreating(true);
+        // An empty writable package does NOT auto-open the creator dialog —
+        // it used to, which forced an unrequested modal on EVERY visit to an
+        // empty package (dogfood #2555). The empty-state panel carries the
+        // create CTA instead.
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -2279,12 +2282,25 @@ function DataPillar({
           {!current ? (
             objectsLoaded && objects.length === 0 ? (
               /* Fresh package: the first act is creating an object — say so and
-               * point at the rail creator (already auto-opened). */
+               * offer the creator right here (no auto-opened modal, dogfood #2555). */
               <div className="flex flex-col items-center gap-2 py-16 text-center">
                 <p className="text-sm font-medium">{t('engine.studio.data.firstObjectTitle', locale)}</p>
                 <p className="max-w-sm text-[11px] leading-5 text-muted-foreground">
                   {t('engine.studio.data.firstObjectHint', locale)}
                 </p>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    data-testid="empty-state-new-object"
+                    onClick={() => {
+                      setError(null);
+                      setCreating(true);
+                    }}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="py-16 text-center text-sm text-muted-foreground">{t('engine.studio.data.pickObject', locale)}</div>
