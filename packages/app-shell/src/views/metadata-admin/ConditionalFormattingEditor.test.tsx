@@ -3,9 +3,12 @@
 import * as React from 'react';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { evalRowPredicate } from '@object-ui/core';
 import {
   ConditionalFormattingEditor,
   normalizeRule,
+  ROW_PREDICATE_ROOTS,
   type ConditionalFormattingRuleDraft,
 } from './ConditionalFormattingEditor';
 import { __setCelFormulaLoader } from './celAuthoring';
@@ -126,5 +129,83 @@ describe('ConditionalFormattingEditor', () => {
     // an edit commits the normalized { condition, style } shape
     fireEvent.change(ta, { target: { value: "record.status == 'x'" } });
     expect(state()[0]).toEqual({ condition: "record.status == 'x'", style: { backgroundColor: '#f00' } });
+  });
+});
+
+describe('ConditionalFormattingEditor · CEL authoring scope (#2571 follow-up)', () => {
+  it('lints a BARE field condition clean — row predicates bind fields bare at runtime', async () => {
+    render(<Harness initial={[{ condition: "status == 'overdue'", style: {} }]} />);
+    // The real engine must accept the bare form (evalRowPredicate spreads the
+    // row); flipping this editor to scope="record" would break this test.
+    expect(await screen.findByText('perm.cel.valid', {}, { timeout: 3000 })).toBeTruthy();
+    const ta = document.getElementById('cf-condition-0') as HTMLTextAreaElement;
+    expect(ta.getAttribute('aria-invalid')).not.toBe('true');
+  });
+
+  it('still flags an unknown record.<field> with did-you-mean', async () => {
+    render(<Harness initial={[{ condition: "record.statu == 'x'", style: {} }]} />);
+    expect(await screen.findByText(/did you mean/i, {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it('advertises runtime-bound roots and withholds unbound engine roots', async () => {
+    __setCelFormulaLoader(() =>
+      Promise.resolve({
+        validateExpression: () => ({ ok: true, errors: [], warnings: [] }),
+        // The engine's default advertisement — the editor's roots override
+        // must win over it (introspectCelScope: hint.roots ?? engine roots).
+        introspectScope: () => ({
+          fields: ['status', 'amount'],
+          roots: ['record', 'previous', 'input', 'os', 'current_user', 'user', 'vars'],
+          functions: [],
+        }),
+      }),
+    );
+    const user = userEvent.setup();
+    render(<Harness initial={[{ condition: '', style: {} }]} />);
+    const ta = document.getElementById('cf-condition-0') as HTMLTextAreaElement;
+    await user.click(ta);
+    // `features` is bound at runtime (host predicate scope) — advertised.
+    await user.type(ta, 'fea');
+    expect(await screen.findByRole('option', { name: /features/ }, { timeout: 3000 })).toBeTruthy();
+    // `vars` is an engine-default root NOT bound for row predicates — withheld.
+    await user.clear(ta);
+    await user.type(ta, 'va');
+    await new Promise((r) => setTimeout(r, 150));
+    expect(screen.queryByRole('option')).toBeNull();
+  });
+});
+
+describe('ROW_PREDICATE_ROOTS ↔ evalRowPredicate runtime contract', () => {
+  // Shaped like the app-shell global predicate scope (ExpressionProvider,
+  // #1583/ADR-0068) that hosts pass into the shared row-predicate evaluator.
+  const u = { id: 'u1' };
+  const hostScope = {
+    current_user: u,
+    user: u,
+    ctx: { user: u },
+    app: { name: 'crm' },
+    data: {},
+    features: { beta: true },
+  };
+
+  it('every advertised root is bound when a row predicate evaluates', () => {
+    for (const root of ROW_PREDICATE_ROOTS) {
+      // `size(<root>) >= 0` is true iff the root resolves to a bound map —
+      // an unbound root faults and falls back to `false`.
+      expect(
+        evalRowPredicate(`size(${root}) >= 0`, { id: 'r1' }, { fallback: false, scope: hostScope }),
+        `root "${root}" should be bound at runtime`,
+      ).toBe(true);
+    }
+  });
+
+  it('the engine-default extras stay unadvertised because they are NOT bound', () => {
+    for (const root of ['previous', 'input', 'os', 'vars']) {
+      expect(ROW_PREDICATE_ROOTS).not.toContain(root);
+      expect(
+        evalRowPredicate(`size(${root}) >= 0`, { id: 'r1' }, { fallback: false, scope: hostScope }),
+        `root "${root}" should NOT be bound at runtime`,
+      ).toBe(false);
+    }
   });
 });

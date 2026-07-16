@@ -2098,6 +2098,17 @@ describe('ListView', () => {
       );
       expect(result).toEqual({ backgroundColor: '#e0ffe0', color: '#0a0' });
     });
+
+    it('binds a host predicate scope alongside the row (grid/kanban parity)', () => {
+      const rules = [
+        { condition: 'features.highlight && record.status == "active"', style: { backgroundColor: '#fee' } },
+      ] as any;
+      expect(
+        evaluateConditionalFormatting({ status: 'active' }, rules, { features: { highlight: true } }),
+      ).toEqual({ backgroundColor: '#fee' });
+      // Without the scope the features.* condition fails soft — no style.
+      expect(evaluateConditionalFormatting({ status: 'active' }, rules)).toEqual({});
+    });
   });
 
   // ============================

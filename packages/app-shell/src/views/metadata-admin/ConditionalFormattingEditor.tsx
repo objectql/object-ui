@@ -29,6 +29,28 @@ import { Button, Input, cn } from '@object-ui/components';
 import { Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { CelPredicateField } from './CelPredicateField';
 
+/**
+ * Scope roots bound at RUNTIME for a row predicate, advertised to autocomplete.
+ *
+ * A formatting `condition` is evaluated by `@object-ui/core`'s
+ * `evalRowPredicate` (ADR-0058 — list rows, grid rows, kanban cards), which
+ * binds the row's fields BARE, under `record.*`, and under `data.*`, plus the
+ * host shell's global predicate scope (`ExpressionProvider`, #1583/ADR-0068:
+ * `current_user` / `user` / `ctx` / `app` / `features`). The engine's default
+ * advertisement adds `previous` / `input` / `os` / `vars`, which are NOT bound
+ * for row predicates — suggesting those would author a condition that silently
+ * never matches, so this override pins the truthful catalog (#2571 follow-up).
+ */
+export const ROW_PREDICATE_ROOTS = [
+  'record',
+  'current_user',
+  'user',
+  'features',
+  'app',
+  'data',
+  'ctx',
+];
+
 /** The canonical authoring shape this editor reads and writes. */
 export interface ConditionalFormattingRuleDraft {
   condition: string;
@@ -254,6 +276,12 @@ export function ConditionalFormattingEditor({
             placeholder="record.status == 'overdue'"
             objectName={objectName}
             fieldNames={fieldNames}
+            // Row predicates bind the row's fields BARE at runtime
+            // (`status == 'overdue'` works — evalRowPredicate spreads the
+            // row), so lint stays in the flattened scope; only the advertised
+            // roots change to the runtime-bound set.
+            scope="flattened"
+            roots={ROW_PREDICATE_ROOTS}
             onChange={(v) => setRule(i, { condition: v })}
             t={t}
             id={`cf-condition-${i}`}

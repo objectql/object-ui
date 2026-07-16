@@ -167,12 +167,17 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
  * fallback) so a list view speaks the same expression dialect the server does
  * (issue #1584 / ADR-0058). Kept exported for back-compat with consumers that
  * evaluate formatting outside the ListView component.
+ *
+ * @param scope  Extra top-level scope (the host predicate scope) bound
+ *               alongside the row, so `features.*` / `current_user.*`
+ *               conditions resolve as they do on grid rows / kanban cards.
  */
 export function evaluateConditionalFormatting(
   record: Record<string, unknown>,
-  rules?: ListViewSchema['conditionalFormatting']
+  rules?: ListViewSchema['conditionalFormatting'],
+  scope?: Record<string, unknown>
 ): React.CSSProperties {
-  return resolveConditionalFormatting(record, rules as any) as React.CSSProperties;
+  return resolveConditionalFormatting(record, rules as any, scope) as React.CSSProperties;
 }
 
 // Default English translations for fallback when I18nProvider is not available

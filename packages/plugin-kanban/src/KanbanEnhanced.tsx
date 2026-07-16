@@ -27,6 +27,7 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input } from "@object-ui/components"
 import { resolveConditionalFormatting } from "@object-ui/core"
+import { usePredicateScope } from "@object-ui/react"
 import type { KanbanConditionalFormattingRule } from "@object-ui/types"
 import { ChevronDown, ChevronRight, AlertTriangle, Plus } from "lucide-react"
 
@@ -70,8 +71,14 @@ export interface KanbanEnhancedProps {
 // (issue #1584 / ADR-0058) so kanban cards, list rows, and grid rows reach the
 // identical verdict. Beyond the native `{ field, operator, value }` rules the
 // kanban schema declares, this also accepts spec `{ condition, style }` rules.
-function getCardStyles(card: KanbanCard, rules?: ConditionalFormattingRule[]): React.CSSProperties {
-  return resolveConditionalFormatting(card as Record<string, unknown>, rules as any) as React.CSSProperties
+// The host predicate scope is bound alongside the card so `features.*` /
+// `current_user.*` conditions resolve here exactly as they do on grid rows.
+function getCardStyles(
+  card: KanbanCard,
+  rules?: ConditionalFormattingRule[],
+  scope?: Record<string, unknown>,
+): React.CSSProperties {
+  return resolveConditionalFormatting(card as Record<string, unknown>, rules as any, scope) as React.CSSProperties
 }
 
 function SortableCard({ card, conditionalFormatting }: { card: KanbanCard; conditionalFormatting?: ConditionalFormattingRule[] }) {
@@ -90,7 +97,8 @@ function SortableCard({ card, conditionalFormatting }: { card: KanbanCard; condi
     opacity: isDragging ? 0.5 : undefined,
   }
 
-  const cardStyles = getCardStyles(card, conditionalFormatting)
+  const predicateScope = usePredicateScope()
+  const cardStyles = getCardStyles(card, conditionalFormatting, predicateScope)
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
