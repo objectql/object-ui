@@ -43,7 +43,9 @@ const ITEMS: PaletteItem[] = [
   { type: 'end', label: 'End', hint: 'Terminate the flow', category: 'Flow' },
 ];
 
-function renderPalette(overrides: { onPick?: (type: string) => void; open?: boolean } = {}) {
+function renderPalette(
+  overrides: { onPick?: (type: string) => void; open?: boolean; locale?: string } = {},
+) {
   const onPick = overrides.onPick ?? vi.fn();
   const view = render(
     <NodePalette
@@ -51,6 +53,7 @@ function renderPalette(overrides: { onPick?: (type: string) => void; open?: bool
       open={overrides.open ?? true}
       onOpenChange={() => {}}
       onPick={onPick}
+      locale={overrides.locale}
     >
       <button type="button">Add node</button>
     </NodePalette>,
@@ -72,6 +75,18 @@ describe('NodePalette search & filtering', () => {
     for (const item of ITEMS) {
       expect(screen.getByText(item.label)).toBeTruthy();
     }
+  });
+
+  it('localizes the category headings for the active locale', () => {
+    renderPalette({ locale: 'zh-CN' });
+    // Headings are translated; the canonical English literals are gone.
+    for (const heading of ['数据', '逻辑', '人工', '集成', '流程']) {
+      expect(screen.getByText(heading)).toBeTruthy();
+    }
+    expect(screen.queryByText('Data')).toBeNull();
+    expect(screen.queryByText('Logic')).toBeNull();
+    // Item labels come from the (server-merged) items, not i18n — unchanged.
+    expect(screen.getByText('Create record')).toBeTruthy();
   });
 
   it('filters across all categories and hides empty sections', async () => {

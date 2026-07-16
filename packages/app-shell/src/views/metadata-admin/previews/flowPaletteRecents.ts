@@ -13,10 +13,16 @@
  * self-heals on the next pick.
  */
 
-const KEY = 'flow-palette-recents';
+/**
+ * localStorage key. Also the base key + legacy-migration source for the
+ * cloud-synced {@link ../../../context/FlowPaletteRecentsProvider}.
+ */
+export const PALETTE_RECENTS_KEY = 'flow-palette-recents';
+const KEY = PALETTE_RECENTS_KEY;
 
 /** Most-recent-first cap — keeps the group glanceable, not a second palette. */
-const MAX_RECENTS = 5;
+export const MAX_PALETTE_RECENTS = 5;
+const MAX_RECENTS = MAX_PALETTE_RECENTS;
 
 /** Read the MRU list. Returns `[]` on missing/corrupt storage or during SSR. */
 export function readPaletteRecents(): string[] {

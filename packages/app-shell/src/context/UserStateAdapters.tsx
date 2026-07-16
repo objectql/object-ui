@@ -42,11 +42,12 @@ export interface UserDataAdapter<T> {
   save(items: T[]): Promise<void>;
 }
 
-export type UserStateKind = 'favorites' | 'recent';
+export type UserStateKind = 'favorites' | 'recent' | 'flowPaletteRecents';
 
 interface UserStateAdaptersValue {
   favorites: UserDataAdapter<any> | null;
   recent: UserDataAdapter<any> | null;
+  flowPaletteRecents: UserDataAdapter<any> | null;
 }
 
 interface AttachApi {
@@ -57,7 +58,11 @@ interface AttachApi {
 // Contexts (split read / write so consumers don't re-render unnecessarily)
 // ---------------------------------------------------------------------------
 
-const ReadCtx = createContext<UserStateAdaptersValue>({ favorites: null, recent: null });
+const ReadCtx = createContext<UserStateAdaptersValue>({
+  favorites: null,
+  recent: null,
+  flowPaletteRecents: null,
+});
 const WriteCtx = createContext<AttachApi | null>(null);
 
 // ---------------------------------------------------------------------------
@@ -68,6 +73,7 @@ export function UserStateAdaptersProvider({ children }: { children: ReactNode })
   const [adapters, setAdapters] = useState<UserStateAdaptersValue>({
     favorites: null,
     recent: null,
+    flowPaletteRecents: null,
   });
 
   // Stable attach API so bridge useEffect deps don't churn.

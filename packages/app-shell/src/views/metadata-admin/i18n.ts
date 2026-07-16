@@ -507,6 +507,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.flowPalette.search': 'Search nodes…',
   'engine.flowPalette.empty': 'No matching nodes.',
   'engine.flowPalette.recent': 'Recently used',
+  // Palette section headings (localized display; the canonical NodeCategory
+  // literals stay English as in-memory bucket keys — see flow-canvas-parts).
+  'engine.flowPalette.category.data': 'Data',
+  'engine.flowPalette.category.logic': 'Logic',
+  'engine.flowPalette.category.human': 'Human',
+  'engine.flowPalette.category.integration': 'Integration',
+  'engine.flowPalette.category.flow': 'Flow',
   // Reorder buttons (used in InspectorShell header)
   'engine.inspector.reorder.up': 'Move up',
   'engine.inspector.reorder.down': 'Move down',
@@ -1810,6 +1817,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.flowPalette.search': '搜索节点…',
   'engine.flowPalette.empty': '没有匹配的节点。',
   'engine.flowPalette.recent': '最近使用',
+  // Palette section headings (localized display only)
+  'engine.flowPalette.category.data': '数据',
+  'engine.flowPalette.category.logic': '逻辑',
+  'engine.flowPalette.category.human': '人工',
+  'engine.flowPalette.category.integration': '集成',
+  'engine.flowPalette.category.flow': '流程',
   // Reorder buttons
   'engine.inspector.reorder.up': '上移',
   'engine.inspector.reorder.down': '下移',

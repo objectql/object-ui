@@ -49,7 +49,7 @@ import {
 } from '@object-ui/components';
 import { t as tr } from '../i18n';
 import { NODE_W, NODE_H, type Point } from './flow-canvas-layout';
-import { readPaletteRecents, recordPaletteRecent } from './flowPaletteRecents';
+import { useFlowPaletteRecents } from '../../../context/FlowPaletteRecentsProvider';
 
 export function nodeIcon(type: string): LucideIcon {
   switch (type) {
@@ -593,19 +593,19 @@ const PALETTE_GROUP_CLASS =
  */
 export function NodePalette({ locale, items = NODE_PALETTE, onPick, open, onOpenChange, children }: NodePaletteProps) {
   const [q, setQ] = React.useState('');
-  // Lazy init covers mounting in the already-open state (tests, controlled use).
-  const [recents, setRecents] = React.useState<string[]>(() => (open ? readPaletteRecents() : []));
+  // Per-user "recently used" (cloud-synced when a provider is mounted; falls
+  // back to a localStorage MRU outside one — tests, the dev preview gallery).
+  const { recents, recordRecent } = useFlowPaletteRecents();
   const inputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Watching `open` (not onOpenChange) covers both close paths: outside-click/
   // Escape fires onOpenChange, but a pick closes via the parent's setState
   // only. Render-phase adjustment (not an effect) per react.dev's "adjusting
-  // state when a prop changes"; re-reading recents per open keeps them fresh.
+  // state when a prop changes" — clear the query when the palette closes.
   const [prevOpen, setPrevOpen] = React.useState(open);
   if (open !== prevOpen) {
     setPrevOpen(open);
-    if (open) setRecents(readPaletteRecents());
-    else setQ('');
+    if (!open) setQ('');
   }
 
   const query = q.trim().toLowerCase();
@@ -649,7 +649,7 @@ export function NodePalette({ locale, items = NODE_PALETTE, onPick, open, onOpen
   }, [items, recents, query]);
 
   const handlePick = (type: string) => {
-    recordPaletteRecent(type);
+    recordRecent(type);
     onPick(type);
   };
 
@@ -707,7 +707,11 @@ export function NodePalette({ locale, items = NODE_PALETTE, onPick, open, onOpen
               </CommandGroup>
             )}
             {grouped.map(([category, list]) => (
-              <CommandGroup key={category} heading={category} className={PALETTE_GROUP_CLASS}>
+              <CommandGroup
+                key={category}
+                heading={tr(`engine.flowPalette.category.${category.toLowerCase()}`, locale)}
+                className={PALETTE_GROUP_CLASS}
+              >
                 {list.map((item) => renderItem(item))}
               </CommandGroup>
             ))}

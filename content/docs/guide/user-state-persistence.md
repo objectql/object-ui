@@ -2,7 +2,7 @@
 title: "User-Scoped State Persistence"
 ---
 
-Object UI keeps two pieces of per-user UI state — **Favorites** (pinned apps, starred records, and pinned navigation entries) and **Recent Items** (last visited entities) — alive across reloads, devices, and accounts. The persistence layer is **backend-agnostic**: drop in an adapter, or just let it run on localStorage.
+Object UI keeps per-user UI state — **Favorites** (pinned apps, starred records, and pinned navigation entries), **Recent Items** (last visited entities), and **Flow-palette recents** (node types recently added in the flow designer) — alive across reloads, devices, and accounts. The persistence layer is **backend-agnostic**: drop in an adapter, or just let it run on localStorage.
 
 ## Design
 
@@ -16,21 +16,21 @@ export interface UserDataAdapter<T> {
   save(items: T[]): Promise<void>;
 }
 
-export type UserStateKind = 'favorites' | 'recent';
+export type UserStateKind = 'favorites' | 'recent' | 'flowPaletteRecents';
 ```
 
 Three layers, top-down:
 
 | Layer | Package | Role |
 |---|---|---|
-| **Providers** (`FavoritesProvider`, `RecentItemsProvider`) | `@object-ui/app-shell` | Own the state, debounce writes, scope storage by user. |
+| **Providers** (`FavoritesProvider`, `RecentItemsProvider`, `FlowPaletteRecentsProvider`) | `@object-ui/app-shell` | Own the state, debounce writes, scope storage by user. |
 | **Adapter registry** (`UserStateAdaptersProvider`) | `@object-ui/app-shell` | Lets a bridge component inject adapters at runtime once `dataSource` + `user.id` are available. |
 | **Adapters** (`createObjectStackUserStateAdapter`, your own) | `@object-ui/data-objectstack`, custom | Translate `load/save` into HTTP / GraphQL / ObjectQL calls. |
 
 ### Three guarantees
 
 1. **localStorage-first.** First paint never blocks on the network. If no adapter is attached, persistence is purely local.
-2. **Scoped per `user.id`.** Storage key is `objectui-favorites:u:<id>` (and `objectui-recent-items:u:<id>`). Two accounts on the same browser never see each other's state.
+2. **Scoped per `user.id`.** Storage key is `objectui-favorites:u:<id>` (and `objectui-recent-items:u:<id>`, `flow-palette-recents:u:<id>`). Two accounts on the same browser never see each other's state.
 3. **Silent degrade.** Adapters must never throw. A 404 / network error means "behave like there is no backend"; the UI keeps working from localStorage.
 
 ## Provider tree
@@ -179,11 +179,12 @@ Each provider keeps a monotonic `hydrationToken`. If the user switches accounts 
 | `useFavorites()` | `@object-ui/app-shell` | `{ favorites, addFavorite, removeFavorite, toggleFavorite, isFavorite, clearFavorites, setPinned, isPinned, pinnedNavIds }` |
 | `useNavPins()` | `@object-ui/app-shell` | Thin shim over `useFavorites` for sidebar pinning — `{ pinnedIds, togglePin, isPinned, applyPins, clearPins }`. |
 | `useRecentItems()` | `@object-ui/app-shell` | `{ recentItems, addRecentItem, clearRecentItems }` |
+| `useFlowPaletteRecents()` | `@object-ui/app-shell` | `{ recents, recordRecent }` — flow-designer add-node MRU; falls back to localStorage outside a provider. |
 | `createObjectStackUserStateAdapter(opts)` | `@object-ui/data-objectstack` | Official adapter against the `user_app_state` object. |
 
 ## Limits
 
-- **20** favorites and **20** nav-pins per user (independent buckets), **8** recent items. Enforced by the providers; older entries roll off within their own bucket without evicting the other.
+- **20** favorites and **20** nav-pins per user (independent buckets), **8** recent items, **5** flow-palette recents. Enforced by the providers; older entries roll off within their own bucket without evicting the other.
 - One JSON blob per (user, kind). Not designed for high-frequency / large payloads — this is UI state, not data.
 - No automatic cross-tab sync today (see the roadmap).
 

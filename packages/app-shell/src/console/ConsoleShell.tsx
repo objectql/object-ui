@@ -24,6 +24,7 @@ import { PreviewModeProvider } from '../preview/PreviewModeContext';
 import { NavigationProvider } from '../context/NavigationContext';
 import { FavoritesProvider } from '../context/FavoritesProvider';
 import { RecentItemsProvider } from '../context/RecentItemsProvider';
+import { FlowPaletteRecentsProvider } from '../context/FlowPaletteRecentsProvider';
 import {
   UserStateAdaptersProvider,
   useAttachUserStateAdapters,
@@ -83,9 +84,11 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         <UserStateAdaptersProvider>
           <FavoritesProvider>
             <RecentItemsProvider>
-              <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
-              {/* ADR-0069 — full-screen gate (expired password / required MFA) above all routes */}
-              <RemediationOverlay />
+              <FlowPaletteRecentsProvider>
+                <Suspense fallback={<LoadingFallback />}>{children}</Suspense>
+                {/* ADR-0069 — full-screen gate (expired password / required MFA) above all routes */}
+                <RemediationOverlay />
+              </FlowPaletteRecentsProvider>
             </RecentItemsProvider>
           </FavoritesProvider>
         </UserStateAdaptersProvider>
@@ -175,6 +178,7 @@ function UserStateBridge() {
     if (!user?.id || !dataSource) {
       attach('favorites', null);
       attach('recent', null);
+      attach('flowPaletteRecents', null);
       return;
     }
     const favorites = createObjectStackUserStateAdapter({
@@ -187,11 +191,18 @@ function UserStateBridge() {
       userId: user.id,
       key: 'ui.recent',
     });
+    const flowPaletteRecents = createObjectStackUserStateAdapter<string>({
+      dataSource,
+      userId: user.id,
+      key: 'ui.flow.palette.recents',
+    });
     attach('favorites', favorites);
     attach('recent', recent);
+    attach('flowPaletteRecents', flowPaletteRecents);
     return () => {
       attach('favorites', null);
       attach('recent', null);
+      attach('flowPaletteRecents', null);
     };
   }, [user?.id, dataSource, attach]);
 
