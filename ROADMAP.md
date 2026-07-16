@@ -79,7 +79,7 @@ ObjectUI is a universal Server-Driven UI (SDUI) engine built on React + Tailwind
 | Area | New in v4 | Where to surface |
 |------|-----------|------------------|
 | **Automation** | Refined `WaitEventConfig`, `ExecutionLog`/`Checkpoint` v4 shape, retry policy v4 (`backoffMultiplier`, `jitter`) | `plugin-workflow`, Automation builder (P1.6) |
-| **Multi-Tenant** | Updated `TursoMultiTenantConfig`, `TenantResolverStrategy` v4 | `@object-ui/tenant`, `apps/console` tenant switch |
+| **Multi-Tenant** | Updated `TursoMultiTenantConfig`, `TenantResolverStrategy` v4 | `apps/console` tenant switch (server-enforced via `X-Tenant-ID`; the client-side `@object-ui/tenant` package was removed as dead surface, #2564) |
 | **Data Export** | v4 `ExportJobStatus`/`CreateExportJobRequest` (streaming) | Console Import/Export (P1.3) |
 | **Plugin Kernel** | `PluginBuildOptions`, `PluginPublishOptions`, `PluginValidateOptions`, `MetadataCategory`, `NamespaceConflictError` | `@object-ui/cli`, `@object-ui/create-plugin` (P2.4) |
 | **Cloud Contracts** | `IAppLifecycleService`, `IDeployPipelineService`, `IProvisioningService` (refined) | `apps/console` deployment surface (P2.4) |

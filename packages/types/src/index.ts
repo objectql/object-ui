@@ -525,22 +525,6 @@ export type {
 } from './permissions';
 
 // ============================================================================
-// Multi-Tenancy Types (Q2 2026)
-// ============================================================================
-export type {
-  TenantIsolationStrategy,
-  TenantStatus,
-  TenantPlan,
-  TenantConfig,
-  TenantBranding,
-  TenantLimits,
-  TenantContext,
-  TenantResolutionStrategy,
-  TenantProviderConfig,
-  TenantScopedQueryConfig,
-} from './tenant';
-
-// ============================================================================
 // Mobile Optimization Types (Q2 2026)
 // ============================================================================
 export type {
