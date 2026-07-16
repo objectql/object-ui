@@ -112,6 +112,37 @@ export function normalizeFilterCondition(condition: any[]): any[] {
  * Format an action identifier string into a human-readable label.
  * e.g., 'send_email' → 'Send Email'
  */
+/**
+ * Normalize a view's `sort` declaration to SortItem[]. @objectstack/spec
+ * ListViewSchema.sort is `string | Array<{ field, order }>` — the TOP-LEVEL
+ * value may be a bare string ("name desc"); array entries may be strings
+ * (legacy "field desc") or `{ field, order }` objects. Calling `.map` on the
+ * bare-string form threw "schema.sort.map is not a function" and crashed the
+ * list (spec/renderer shape-mismatch audit, objectui#2578 follow-up).
+ */
+export function parseSortConfig(sort: unknown): SortItem[] {
+  const entries = typeof sort === 'string' ? [sort] : Array.isArray(sort) ? sort : [];
+  const items: SortItem[] = [];
+  for (const s of entries) {
+    if (typeof s === 'string') {
+      const parts = s.trim().split(/\s+/);
+      if (!parts[0]) continue;
+      items.push({
+        id: crypto.randomUUID(),
+        field: parts[0],
+        order: (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc',
+      });
+    } else if (s && typeof s === 'object' && typeof (s as any).field === 'string') {
+      items.push({
+        id: crypto.randomUUID(),
+        field: (s as any).field,
+        order: ((s as any).order as 'asc' | 'desc') || 'asc',
+      });
+    }
+  }
+  return items;
+}
+
 function formatActionLabel(action: string): string {
   return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -381,27 +412,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   
   // Sort State
   const [showSort, setShowSort] = React.useState(false);
-  const [currentSort, setCurrentSort] = React.useState<SortItem[]>(() => {
-    if (schema.sort && schema.sort.length > 0) {
-      return schema.sort.map((s: any) => {
-        // Support legacy string format "field desc"
-        if (typeof s === 'string') {
-          const parts = s.trim().split(/\s+/);
-          return {
-            id: crypto.randomUUID(),
-            field: parts[0],
-            order: (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc',
-          };
-        }
-        return {
-          id: crypto.randomUUID(),
-          field: s.field,
-          order: (s.order as 'asc' | 'desc') || 'asc',
-        };
-      });
-    }
-    return [];
-  });
+  const [currentSort, setCurrentSort] = React.useState<SortItem[]>(() =>
+    parseSortConfig(schema.sort),
+  );
 
   // Sync when parent schema.sort changes (view switch / reload pulls a
   // saved override). Compare by stringified payload to avoid render loops.
@@ -410,27 +423,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     [schema.sort]
   );
   React.useEffect(() => {
-    if (schema.sort && schema.sort.length > 0) {
-      setCurrentSort(
-        schema.sort.map((s: any) => {
-          if (typeof s === 'string') {
-            const parts = s.trim().split(/\s+/);
-            return {
-              id: crypto.randomUUID(),
-              field: parts[0],
-              order: (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc',
-            };
-          }
-          return {
-            id: crypto.randomUUID(),
-            field: s.field,
-            order: (s.order as 'asc' | 'desc') || 'asc',
-          };
-        })
-      );
-    } else {
-      setCurrentSort([]);
-    }
+    setCurrentSort(parseSortConfig(schema.sort));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemaSortKey]);
 
