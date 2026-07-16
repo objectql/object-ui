@@ -25,7 +25,7 @@ import { Button } from '@object-ui/components';
 import { RecordPickerDialog } from '@object-ui/fields';
 import { useAdapter } from '@object-ui/react';
 import { Plus, X, Users, Loader2, AlertCircle } from 'lucide-react';
-import { detectLocale } from './i18n';
+import { useMetadataLocale } from './i18n';
 
 export interface AssignedUsersSectionProps {
   /** The permission set's machine name (e.g. `ai_seat`, `admin_full_access`). */
@@ -44,7 +44,7 @@ interface AssignedRow {
 
 /** Minimal locale-aware copy (zh vs everything-else) — keeps the surface in the user's language. */
 function useCopy() {
-  const zh = React.useMemo(() => detectLocale().toLowerCase().startsWith('zh'), []);
+  const zh = useMetadataLocale() === 'zh-CN';
   return React.useMemo(
     () =>
       zh

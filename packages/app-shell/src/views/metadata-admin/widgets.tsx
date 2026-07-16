@@ -44,7 +44,7 @@ import {
 import { ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
 // @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
 import { iconNames } from 'lucide-react/dynamic.mjs';
-import { detectLocale, t, tFormat } from './i18n';
+import { useMetadataLocale, t, tFormat } from './i18n';
 import { ColorVariantPicker } from './color-variant-field';
 import { ConditionBuilder } from './inspectors/ConditionBuilder';
 
@@ -145,7 +145,7 @@ function RefObjectWidget({
   readOnly,
   context,
 }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const names = context?.objectNames ?? [];
   const v = value == null ? '' : String(value);
   if (context?.objectsLoading) {
@@ -258,7 +258,7 @@ export function collectPageComponentIds(
  * editable. Mirrors {@link RefObjectWidget} / {@link ViewRefWidget}.
  */
 function RefComponentWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const components = context?.componentIds ?? [];
   const current = value == null ? '' : String(value);
   // No components placed yet → free-text fallback so the field is still usable.
@@ -322,7 +322,7 @@ function ObjectSelectorWidget({
   context,
   fieldSpec,
 }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const names = context?.objectNames ?? [];
   const multiple = fieldSpec?.multiple ?? false;
   
@@ -417,7 +417,7 @@ function FieldSelectorWidget({
   fieldSpec,
   formData,
 }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const [fields, setFields] = React.useState<Array<{ name: string; label: string; type: string }>>([]);
   const [loading, setLoading] = React.useState(false);
   
@@ -550,7 +550,7 @@ function MasterDetailWidget({
   readOnly,
   context,
 }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   // Unwrap anyOf/oneOf: pick the first array-of-object branch.
   let resolved = schema as Record<string, any> | undefined;
   if (resolved?.anyOf || resolved?.oneOf) {
@@ -773,7 +773,7 @@ function StringTagsWidget({
   onChange,
   readOnly,
 }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const tags = Array.isArray(value) ? (value as string[]) : [];
   const [draft, setDraft] = React.useState('');
 
@@ -943,7 +943,7 @@ const NO_FIELD = '__none__';
  * present in the catalog is still shown so stale/custom values survive.
  */
 function FieldRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const fields = context?.objectFields ?? [];
   const current = value == null ? '' : String(value);
   const inCatalog = !current || fields.some((f) => f.name === current);
@@ -1006,7 +1006,7 @@ export function resolveStoredViewRef(
  * free-text input where an author could type a non-existent view name.
  */
 function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const views = context?.objectViews ?? [];
   const current = value == null ? '' : String(value);
   // Mirror the runtime resolver (InterfaceListPage.resolveSourceView): a stored
@@ -1059,7 +1059,7 @@ function ViewRefWidget({ id, value, onChange, readOnly, context }: WidgetProps) 
  * and removal; values outside the catalog are retained.
  */
 function FieldRefMultiWidget({ id, value, onChange, readOnly, context }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const fields = context?.objectFields ?? [];
   const selected: string[] = Array.isArray(value)
     ? value.map(String)
@@ -1189,7 +1189,7 @@ const ICON_RESULT_LIMIT = 120;
  * jsdom-friendly choice the other pickers' tests rely on.
  */
 export function IconPickerWidget({ id, value, onChange, readOnly }: WidgetProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const current = value == null ? '' : String(value);
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');

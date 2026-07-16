@@ -21,7 +21,7 @@ import { Badge } from '@object-ui/components';
 import { Button } from '@object-ui/components';
 import { ChevronRight } from 'lucide-react';
 import type { RichMetadataTypeEntry } from './useMetadata';
-import { detectLocale, t, translateMetadataType, translateMetadataDomain } from './i18n';
+import { useMetadataLocale, t, translateMetadataType, translateMetadataDomain } from './i18n';
 
 export interface PageShellProps {
   /** The type entry from `/meta/types` (or a synthesized stub). */
@@ -47,7 +47,7 @@ export function PageShell({
   children,
 }: PageShellProps) {
   const type = entry?.type ?? '';
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   // Prefer locale-table translation over server's English label.
   const label = translateMetadataType(type, locale, entry?.label);
 

@@ -2867,7 +2867,14 @@ export function translateValidationMessage(
   return raw;
 }
 
-/** Returns the locale string most browsers report (matches navigator.language). */
+/**
+ * Returns the locale string most browsers report (matches navigator.language).
+ *
+ * ⚠️ Non-reactive and browser-only — it ignores the app language picked in
+ * the LocaleSwitcher. Component code should use {@link useMetadataLocale}
+ * instead, which follows the live i18next language (and re-renders on
+ * change); this stays only as a fallback for non-hook call sites.
+ */
 export function detectLocale(): SupportedLocale {
   if (typeof navigator !== 'undefined' && /^zh/i.test(navigator.language)) return 'zh-CN';
   return 'en-US';

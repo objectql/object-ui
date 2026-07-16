@@ -39,7 +39,7 @@ import {
   getMetadataResource,
   resolveResourceConfig,
 } from './registry';
-import { t, tFormat, translateMetadataType, detectLocale } from './i18n';
+import { t, tFormat, translateMetadataType, useMetadataLocale } from './i18n';
 import { buildPackageScopeOptions } from './package-scope';
 
 export interface MetadataResourceListPageProps {
@@ -335,7 +335,7 @@ function DefaultMetadataList({ type, appName }: { type: string; appName?: string
   );
 
   const columns = config.listColumns ?? defaultColumns(config.primaryKey ?? 'name');
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const typeLabel = translateMetadataType(type, locale, entry?.label ?? type);
 
   // Localise default column labels — registered columns keep their

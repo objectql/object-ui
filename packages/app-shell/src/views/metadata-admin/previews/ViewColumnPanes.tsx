@@ -26,7 +26,7 @@ import {
 } from '@object-ui/components';
 import { resolveFieldTypeMeta, resolveCategoryTone } from './field-types';
 import type { ObjectFieldInfo } from './useObjectFields';
-import { detectLocale, t, tFormat } from '../i18n';
+import { useMetadataLocale, t, tFormat } from '../i18n';
 
 const DND_MIME = 'text/x-objectui-viewcol';
 
@@ -278,7 +278,7 @@ export function AddFieldPopover({
   error: string | null;
   onAdd: (field: ObjectFieldInfo) => void;
 }) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
 

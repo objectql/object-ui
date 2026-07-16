@@ -57,7 +57,7 @@ import {
 } from '@object-ui/components';
 import { evaluatePredicate } from './predicate';
 import { WIDGETS, type WidgetContext } from './widgets';
-import { detectLocale, t, tFormat, translateValidationMessage } from './i18n';
+import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
 
 type JsonSchema = Record<string, any>;
 
@@ -464,6 +464,9 @@ export function SchemaForm({
   createMode = false,
   widgetContext,
 }: SchemaFormProps) {
+  // Live app locale (follows the i18next language, not just the browser) —
+  // hoisted above the no-schema early return so the hook order is stable.
+  const locale = useMetadataLocale();
   // No schema → synthesize one from the value's top-level keys so the
   // form renderer can still produce a structured, labelled view (with
   // proper read-only semantics) instead of falling back to a raw JSON
@@ -501,12 +504,11 @@ export function SchemaForm({
 
   const issuesByPath = React.useMemo(() => {
     const map: Record<string, string[]> = {};
-    const locale = detectLocale();
     for (const i of issues) {
       (map[i.path] ??= []).push(translateValidationMessage(i.message, locale));
     }
     return map;
-  }, [issues]);
+  }, [issues, locale]);
 
   const v = value ?? {};
 
@@ -617,6 +619,7 @@ function SectionedSchemaForm({
   widgetContext?: WidgetContext;
   onChange: (key: string, val: unknown) => void;
 }) {
+  const locale = useMetadataLocale();
   const sections = (form.sections ?? []).filter(
     (s) => !s.visibleOn || evaluatePredicate(s.visibleOn, { data: value }),
   );
@@ -653,7 +656,7 @@ function SectionedSchemaForm({
                   className="rounded border border-dashed border-amber-500/40 bg-amber-500/5 p-2 text-xs text-amber-700 dark:text-amber-300"
                   style={{ gridColumn: `span ${f.colSpan ?? 1}` }}
                 >
-                  {tFormat('engine.form.missingField', detectLocale(), { field: f.field })}
+                  {tFormat('engine.form.missingField', locale, { field: f.field })}
                 </div>
               );
             }
@@ -937,7 +940,7 @@ function FieldControl({
   widgetContext?: WidgetContext;
   formData?: Record<string, unknown>;
 }) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   // Composite/repeater are first-class structured types — render natively
   // with recursive FieldRow calls so all UI features (widgets, options,
   // visibility, readonly) work uniformly at every nesting level.
@@ -1444,6 +1447,7 @@ function RepeaterField({
   widget?: string;
   onChange: (v: unknown) => void;
 }) {
+  const locale = useMetadataLocale();
   const rows = Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
   const specs = fields.map(normaliseField);
   const [openIdx, setOpenIdx] = React.useState<number | null>(null);
@@ -1483,7 +1487,7 @@ function RepeaterField({
             <tbody>
               {rows.length === 0 && (
                 <tr><td colSpan={specs.length + 1} className="px-2 py-3 text-center text-xs text-muted-foreground">
-                  {t('engine.repeater.empty', detectLocale())}
+                  {t('engine.repeater.empty', locale)}
                 </td></tr>
               )}
               {rows.map((row, idx) => (
@@ -1509,7 +1513,7 @@ function RepeaterField({
                   {!readOnly && (
                     <td className="p-1.5 text-right">
                       <Button type="button" variant="ghost" size="sm" onClick={() => remove(idx)}
-                        className="h-7 w-7 p-0" aria-label={t('engine.form.remove', detectLocale())}>
+                        className="h-7 w-7 p-0" aria-label={t('engine.form.remove', locale)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </td>
@@ -1521,7 +1525,7 @@ function RepeaterField({
         </div>
         {!readOnly && (
           <Button type="button" variant="outline" size="sm" onClick={add}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> {t('engine.form.add', detectLocale())}
+            <Plus className="h-3.5 w-3.5 mr-1" /> {t('engine.form.add', locale)}
           </Button>
         )}
       </div>
@@ -1533,7 +1537,7 @@ function RepeaterField({
     <div className="space-y-2">
       {rows.length === 0 && (
         <div className="rounded-md border border-dashed border-border/50 px-3 py-4 text-center text-xs text-muted-foreground">
-          {t('engine.list.empty', detectLocale())}
+          {t('engine.list.empty', locale)}
         </div>
       )}
       {rows.map((row, idx) => {
@@ -1554,7 +1558,7 @@ function RepeaterField({
               </button>
               {!readOnly && (
                 <Button type="button" variant="ghost" size="sm" onClick={() => remove(idx)}
-                  className="h-7 w-7 p-0" aria-label={t('engine.form.remove', detectLocale())}>
+                  className="h-7 w-7 p-0" aria-label={t('engine.form.remove', locale)}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
@@ -1585,7 +1589,7 @@ function RepeaterField({
       })}
       {!readOnly && (
         <Button type="button" variant="outline" size="sm" onClick={add}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> {t('engine.form.addItem', detectLocale())}
+          <Plus className="h-3.5 w-3.5 mr-1" /> {t('engine.form.addItem', locale)}
         </Button>
       )}
     </div>
@@ -1638,7 +1642,7 @@ function RecordField({
   formData?: Record<string, unknown>;
   onChange: (v: unknown) => void;
 }) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   // Delegate to a registered widget if the form spec asked for one
   // explicitly (e.g. `widget: 'airtable'`). The widget owns the entire UI.
   if (widget) {
@@ -1884,7 +1888,7 @@ function RawJsonEditor({
   readOnly?: boolean;
   small?: boolean;
 }) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const [text, setText] = React.useState<string>(() =>
     safeStringify(value),
   );

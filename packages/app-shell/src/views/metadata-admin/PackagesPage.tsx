@@ -60,7 +60,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@object-ui/components';
-import { detectLocale, t, tFormat } from './i18n';
+import { useMetadataLocale, t, tFormat } from './i18n';
 import { PackageFormDialog } from './PackageFormDialog';
 
 /* -------------------------------------------------------------------------- */
@@ -115,7 +115,7 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 /* -------------------------------------------------------------------------- */
 
 function ScopeBadge({ scope }: { scope?: string }) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   // Writability semantics, aligned with the builder (studio-design/packages-io):
   // a SCOPE-LESS entry is a database base package (writable — authoring lives
   // there), while `project` marks a read-only code package. Defaulting the
@@ -142,7 +142,7 @@ function ScopeBadge({ scope }: { scope?: string }) {
 }
 
 function StatusBadge({ pkg }: { pkg: InstalledPackage }) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const enabled = pkg.enabled !== false && pkg.status !== 'disabled';
   return (
     <Badge variant={enabled ? ('default' as any) : ('outline' as any)}>
@@ -238,7 +238,7 @@ export function PackageDetailSheet({
   onOpenChange: (v: boolean) => void;
   onChanged: () => void;
 }) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   // ADR-0033 — pending DRAFT items bound to this package. AI-authored metadata
@@ -672,7 +672,7 @@ export function PackageDetailSheet({
 /* -------------------------------------------------------------------------- */
 
 export function PackagesPage() {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const { pathname } = useLocation();
   // App base = path up to (and excluding) `/component/...`, so links to
   // `/apps/:app/metadata/...` work regardless of nesting.

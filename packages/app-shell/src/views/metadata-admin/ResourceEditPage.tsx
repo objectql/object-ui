@@ -110,7 +110,7 @@ import { readFields } from './previews/object-fields-io';
 import { useRegisterAssistantEditor, type AssistantEditorContext } from '../../assistant/assistantBus';
 import { getMetadataInspector } from './inspector-registry';
 import { getMetadataDefaultInspector } from './default-inspector-registry';
-import { detectLocale, t, tFormat, translateValidationMessage } from './i18n';
+import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
 import { JsonSourceEditor } from './JsonSourceEditor';
 import { validateMetadataDraft, hasClientValidator } from './clientValidation';
 import { describeIssuePath } from './issuePath';
@@ -275,7 +275,7 @@ function MetadataResourceEditPageImpl({
       ? config.createSchema
       : (entry?.schema as Record<string, unknown> | undefined)) ??
     (config.defaultSchema as Record<string, unknown> | undefined);
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
 
   const [layered, setLayered] = React.useState<MetadataLayered<any> | null>(null);
   const identityField = config.identityField ?? 'name';

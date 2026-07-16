@@ -66,7 +66,7 @@ import { CapabilityMultiSelectField, parseCapabilityNames } from '@object-ui/fie
 import { PageShell } from './PageShell';
 import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
 import { resolveResourceConfig } from './registry';
-import { t as translate, detectLocale } from './i18n';
+import { t as translate, useMetadataLocale } from './i18n';
 import { PermissionAdvancedFacets } from './PermissionAdvancedFacets';
 import {
   mergePermissionSlice,
@@ -178,7 +178,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   const entry: RichMetadataTypeEntry | undefined = entries.find((t) => t.type === type);
   const resolved = resolveResourceConfig(type, entry);
   const writable = !!resolved.allowOrgOverride;
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const t = React.useCallback((k: string) => translate(k, locale), [locale]);
   const OBJECT_ACTIONS = React.useMemo(() => getObjectActions(locale), [locale]);
 

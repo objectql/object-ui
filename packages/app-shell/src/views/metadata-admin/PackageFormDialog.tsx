@@ -30,7 +30,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@object-ui/components';
-import { detectLocale, t, tFormat } from './i18n';
+import { useMetadataLocale, t, tFormat } from './i18n';
 import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
 import { getPackageSchema, getPackageForm } from './package-schema';
 
@@ -89,7 +89,7 @@ export function PackageFormDialog({
   manifest?: ManifestRecord | null;
   onSaved?: (result: PackageSaveResult) => void;
 }) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const schema = React.useMemo(() => getPackageSchema(), []);
   const form = React.useMemo(() => getPackageForm(locale), [locale]);
 
