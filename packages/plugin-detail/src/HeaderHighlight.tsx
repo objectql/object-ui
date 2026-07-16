@@ -82,6 +82,11 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
             // Enrich field metadata from objectSchema
             const objectDefField = objectSchema?.fields?.[field.name];
             const resolvedType = field.type || objectDefField?.type;
+            // Backend object schemas use the ObjectStack-convention `reference`
+            // key (DetailSection normalizes the same pair) — without it the
+            // lookup editor has no target object to hydrate or search against.
+            const refTarget =
+              objectDefField?.reference_to || (objectDefField as any)?.reference;
             const enrichedField = {
               name: field.name,
               label: field.label,
@@ -91,7 +96,10 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
               ...(objectDefField?.precision !== undefined && { precision: objectDefField.precision }),
               ...((objectDefField as any)?.scale !== undefined && { scale: (objectDefField as any).scale }),
               ...(objectDefField?.format && { format: objectDefField.format }),
-              ...(objectDefField?.reference_to && { reference_to: objectDefField.reference_to }),
+              ...(refTarget && { reference_to: refTarget }),
+              ...((objectDefField as any)?.reference_field && {
+                reference_field: (objectDefField as any).reference_field,
+              }),
               ...((objectDefField as any)?.widget && { widget: (objectDefField as any).widget }),
             };
 
