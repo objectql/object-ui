@@ -256,15 +256,24 @@ function PackageSwitcher({ packageId, tab }: { packageId: string; tab: string })
 
   React.useEffect(() => {
     let cancelled = false;
-    fetchPackages()
-      .then((parsed) => {
-        if (!cancelled) setPkgs(parsed);
-      })
-      .catch(() => {
-        /* leave null — switcher still works for navigation-free display */
-      });
+    const load = () => {
+      fetchPackages()
+        .then((parsed) => {
+          if (!cancelled) setPkgs(parsed);
+        })
+        .catch(() => {
+          /* leave null — switcher still works for navigation-free display */
+        });
+    };
+    load();
+    // Refresh the switcher list (and thus the top-bar package name) when a
+    // package is created or its manifest is edited elsewhere — PackageFormDialog
+    // dispatches `objectui:packages-changed` on create/edit. Without this the
+    // header showed the OLD name after a rename until a full page reload.
+    window.addEventListener('objectui:packages-changed', load);
     return () => {
       cancelled = true;
+      window.removeEventListener('objectui:packages-changed', load);
     };
   }, [packageId]);
 
