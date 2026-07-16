@@ -574,41 +574,46 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
       // navigates the browser to `data.url` when the server responds with
       // `{ url, redirect: true }`). The server still returns that payload
       // for OAuth/OIDC providers — we just have to honour it ourselves.
-      if (type === 'oidc') {
-        const oauth2 = (betterAuth as unknown as {
-          signIn: { oauth2?: (args: Record<string, unknown>) => Promise<{ data: { url?: string; redirect?: boolean } | null; error: { message?: string; status: number } | null }> };
-        }).signIn.oauth2;
-        if (!oauth2) {
-          throw new Error('OIDC sign-in is not supported by this auth client build');
-        }
-        const { data, error } = await oauth2({ providerId, callbackURL, errorCallbackURL });
-        if (error) {
-          throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
-        }
-        // A missing redirect URL means the flow CANNOT continue — surface it
-        // instead of resolving silently (the user would see a dead button).
-        if (!data?.url) {
-          throw new Error(`Sign-in with "${providerId}" did not return a redirect URL — please try again or contact your administrator.`);
-        }
-        if (typeof window !== 'undefined') {
-          window.location.href = data.url;
-        }
-        return;
-      }
-      const { data, error } = await betterAuth.signIn.social({
+      const signInSocial = async () => await betterAuth.signIn.social({
         provider: providerId as Parameters<typeof betterAuth.signIn.social>[0]['provider'],
         callbackURL,
         errorCallbackURL,
-      });
+      }) as { data: { url?: string; redirect?: boolean } | null; error: { message?: string; status: number } | null };
+      let result: Awaited<ReturnType<typeof signInSocial>>;
+      if (type === 'oidc') {
+        // better-auth ≥ 1.7 registers generic OAuth/OIDC providers through
+        // the core social sign-in flow — `POST /sign-in/social` with the
+        // provider id — and no longer mounts the dedicated
+        // `/sign-in/oauth2` endpoint. Try the social route first; when it
+        // rejects the provider (an older < 1.7 server that only knows OIDC
+        // providers via `/sign-in/oauth2`), fall back to the legacy route.
+        result = await signInSocial();
+        if (result.error) {
+          const oauth2 = (betterAuth as unknown as {
+            signIn: { oauth2?: (args: Record<string, unknown>) => Promise<{ data: { url?: string; redirect?: boolean } | null; error: { message?: string; status: number } | null }> };
+          }).signIn.oauth2;
+          const legacy = oauth2 ? await oauth2({ providerId, callbackURL, errorCallbackURL }) : null;
+          if (legacy && !legacy.error) {
+            result = legacy;
+          }
+          // Legacy also failed (or is unavailable) — keep the social-route
+          // error below: on a ≥ 1.7 server it is the real failure, while the
+          // legacy route only 404s.
+        }
+      } else {
+        result = await signInSocial();
+      }
+      const { data, error } = result;
       if (error) {
         throw new Error(error.message ?? `Auth request failed with status ${error.status}`);
       }
-      const socialUrl = (data as { url?: string; redirect?: boolean } | null)?.url;
-      if (!socialUrl) {
+      // A missing redirect URL means the flow CANNOT continue — surface it
+      // instead of resolving silently (the user would see a dead button).
+      if (!data?.url) {
         throw new Error(`Sign-in with "${providerId}" did not return a redirect URL — please try again or contact your administrator.`);
       }
       if (typeof window !== 'undefined') {
-        window.location.href = socialUrl;
+        window.location.href = data.url;
       }
     },
 

@@ -397,15 +397,42 @@ describe('createAuthClient — signInWithProvider redirect contract (objectui#24
   // silently — the user clicked "Continue with …" and nothing happened. The
   // client must throw so the buttons can surface an inline error.
 
-  it('oidc: rejects when /sign-in/oauth2 returns no url', async () => {
+  it('oidc: signs in through /sign-in/social (better-auth ≥ 1.7 servers)', async () => {
     const { mockFn, calls } = createMockFetch({
-      '/sign-in/oauth2': { body: { redirect: false } },
+      '/sign-in/social': { body: { url: 'https://cloud.example.com/oauth2/authorize?x=1', redirect: true } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(
+      client.signInWithProvider('objectstack-cloud', { type: 'oidc', callbackURL: '/x' }),
+    ).resolves.toBeUndefined();
+    expect(calls.some((c) => c.url.includes('/sign-in/social') && c.method === 'POST')).toBe(true);
+    // The legacy route is only a fallback — it must NOT be hit when the
+    // social route succeeds.
+    expect(calls.some((c) => c.url.includes('/sign-in/oauth2'))).toBe(false);
+  });
+
+  it('oidc: falls back to /sign-in/oauth2 when /sign-in/social rejects (< 1.7 servers)', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/sign-in/social': { status: 404, body: { message: 'Not found' } },
+      '/sign-in/oauth2': { body: { url: 'https://cloud.example.com/oauth2/authorize?x=1', redirect: true } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(
+      client.signInWithProvider('objectstack-cloud', { type: 'oidc', callbackURL: '/x' }),
+    ).resolves.toBeUndefined();
+    expect(calls.some((c) => c.url.includes('/sign-in/social') && c.method === 'POST')).toBe(true);
+    expect(calls.some((c) => c.url.includes('/sign-in/oauth2') && c.method === 'POST')).toBe(true);
+  });
+
+  it('oidc: rejects when neither route returns a url', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/sign-in/social': { body: { redirect: false } },
     });
     const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
     await expect(
       client.signInWithProvider('objectstack-cloud', { type: 'oidc', callbackURL: '/x' }),
     ).rejects.toThrow(/did not return a redirect URL/);
-    expect(calls.some((c) => c.url.includes('/sign-in/oauth2') && c.method === 'POST')).toBe(true);
+    expect(calls.some((c) => c.url.includes('/sign-in/social') && c.method === 'POST')).toBe(true);
   });
 
   it('social: rejects when /sign-in/social returns no url', async () => {
@@ -418,9 +445,10 @@ describe('createAuthClient — signInWithProvider redirect contract (objectui#24
     ).rejects.toThrow(/did not return a redirect URL/);
   });
 
-  it('oidc: rejects with the server message when the endpoint errors', async () => {
+  it('oidc: surfaces the social-route error when the fallback also fails', async () => {
     const { mockFn } = createMockFetch({
-      '/sign-in/oauth2': { status: 400, body: { message: 'Provider not found' } },
+      '/sign-in/social': { status: 400, body: { message: 'Provider not found' } },
+      '/sign-in/oauth2': { status: 404, body: { message: 'Not found' } },
     });
     const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
     await expect(
