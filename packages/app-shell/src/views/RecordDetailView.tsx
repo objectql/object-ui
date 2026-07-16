@@ -8,10 +8,10 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { DetailView, RecordChatterPanel, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
+import { DetailView, RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
-import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
+import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { toast } from 'sonner';
 import { useRecordPresence, PresenceAvatars } from '@object-ui/collaboration';
@@ -1966,6 +1966,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           isFavorite={isRecordFavorite}
           onToggleFavorite={favoriteRecord ? handleToggleRecordFavorite : undefined}
         >
+          {/* objectui#2407 P2 — ONE record-level inline-edit session spanning
+              the highlights strip AND the details body (both descend from this
+              provider), committed together by the single <InlineEditSaveBar>
+              below. `canEdit` carries the object-lifecycle / permission gate. */}
+          <InlineEditProvider canEdit={resolveCrudAffordances(objectDef as any).edit}>
           <HighlightFieldsProvider>
           <DiscussionContextProvider
             items={feedItems as any}
@@ -2053,6 +2058,18 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                     />
                   </div>
                 )}
+                {/* Record-level inline-edit Save/Cancel bar (objectui#2407 P2)
+                    — commits the whole draft (highlights + body) in ONE atomic
+                    OCC update; renders (sticky) only while editing. */}
+                <InlineEditSaveBar
+                  dataSource={dataSource}
+                  objectName={objectName}
+                  recordId={pureRecordId}
+                  data={pageRecord}
+                  refresh={notifyRecordChanged}
+                  fieldLabelFor={(name: string) => (objectDef as any)?.fields?.[name]?.label || fieldLabel(objectName || '', name, name)}
+                  locked={(pageRecord as any)?.approval_status === 'pending' || (pageRecord as any)?.approval_status === 'in_approval'}
+                />
               </div>
               <MetadataPanel
                 open={showDebug}
@@ -2063,6 +2080,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           </ActionProvider>
           </DiscussionContextProvider>
           </HighlightFieldsProvider>
+          </InlineEditProvider>
         </RecordContextProvider>
 
         {/* Action Confirm Dialog */}

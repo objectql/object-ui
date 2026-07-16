@@ -11,12 +11,11 @@
  */
 
 import React from 'react';
-import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel, InlineEditProvider } from '@object-ui/react';
+import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel } from '@object-ui/react';
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { RecordDetailsComponentProps } from '@object-ui/types';
 import { DetailView } from '../DetailView';
-import { InlineEditSaveBar } from '../InlineEditSaveBar';
 
 /** Normalize a field entry (string | {field} | {name}) to its machine name. */
 const fieldName = (entry: any): string | null => {
@@ -63,25 +62,6 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // Phase N.4b: field names registered live by a mounted `record:highlights`
   // instance via HighlightFieldsContext (used to dedupe them out of the grid).
   const liveHighlightNames = useHighlightFieldNames();
-
-  const fieldLabelFor = React.useCallback(
-    (name: string): string | undefined => {
-      const all: any[] = [
-        ...(Array.isArray(schema.fields) ? (schema.fields as any[]) : []),
-        ...((Array.isArray(schema.sections) ? (schema.sections as any[]) : [])
-          .flatMap((s: any) => (Array.isArray(s?.fields) ? s.fields : []))),
-      ];
-      for (const f of all) {
-        const fname = typeof f === 'string' ? f : (f?.name || f?.field);
-        if (fname === name) {
-          const label = typeof f === 'object' ? (f?.label as string | undefined) : undefined;
-          return label;
-        }
-      }
-      return undefined;
-    },
-    [schema.fields, schema.sections]
-  );
 
   // Inline-edit save + OCC now live in the record-level <InlineEditSaveBar>
   // (objectui#2407 P1): it commits the whole draft in ONE atomic
@@ -272,33 +252,18 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
     inlineEdit: inlineEditDefault,
   };
 
-  // Approval-locked records (pending / in_approval) can't be written — the
-  // backend rejects with RECORD_LOCKED — so disable Save on the bar. DetailView
-  // renders the lock REASON badge; the save bar just prevents the write.
-  const approvalStatus = (ctx.data as any)?.approval_status;
-  const locked = approvalStatus === 'pending' || approvalStatus === 'in_approval';
-
+  // The inline-edit session (InlineEditProvider) + the atomic Save bar are now
+  // hosted by the PAGE host (app-shell RecordDetailView) so ONE draft spans the
+  // highlights strip AND this body (objectui#2407 P2). DetailView here just
+  // consumes that shared context; `inlineEdit` gates the affordance to this
+  // object's lifecycle/permission.
   return (
     <div className={className} {...designer}>
-      {/* One shared inline-edit session for this record. In P2 this provider
-          lifts to the page host so the highlights strip shares the same draft;
-          for now it scopes the details body + its atomic Save bar. */}
-      <InlineEditProvider canEdit={inlineEditDefault}>
-        <DetailView
-          schema={synthesized}
-          dataSource={ctx.dataSource as any}
-          inlineEdit={inlineEditDefault}
-        />
-        <InlineEditSaveBar
-          dataSource={ctx.dataSource as any}
-          objectName={ctx.objectName}
-          recordId={ctx.recordId ?? undefined}
-          data={ctx.data}
-          refresh={ctx.refresh}
-          fieldLabelFor={fieldLabelFor}
-          locked={locked}
-        />
-      </InlineEditProvider>
+      <DetailView
+        schema={synthesized}
+        dataSource={ctx.dataSource as any}
+        inlineEdit={inlineEditDefault}
+      />
     </div>
   );
 };
