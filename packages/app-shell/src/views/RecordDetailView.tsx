@@ -13,6 +13,7 @@ import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'reac
 import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
+import { usePermissions } from '@object-ui/permissions';
 import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { toast } from 'sonner';
@@ -833,9 +834,20 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // out via `relatedList: false`. `relatedListTitle` / `relatedListColumns`
   // on the FK override the derived title / columns. Audit FKs are skipped and
   // children deduped — see `deriveRelatedLists`.
+  // Object-level READ gate (objectui#2359): the relationship graph alone
+  // decides WHICH lists exist, but the current user's permissions decide
+  // which they may SEE. Children the user cannot read are dropped here, so
+  // neither the section nor its tab is ever rendered (previously they showed
+  // an empty grid + a "New" button that 403'd on save). While permissions
+  // are still loading (`isLoaded === false`, e.g. no PermissionProvider in a
+  // standalone embed) the gate stays open — fail-open is safe because the
+  // server enforces data access regardless; this is purely a UI/DX filter.
+  const { can: canOnObject, isLoaded: permissionsLoaded } = usePermissions();
   const childRelations = useMemo(
-    () => deriveRelatedLists(objectDef, objects),
-    [objectDef, objects],
+    () => deriveRelatedLists(objectDef, objects, {
+      canRead: permissionsLoaded ? (name) => canOnObject(name, 'read') : undefined,
+    }),
+    [objectDef, objects, canOnObject, permissionsLoaded],
   );
 
   // ── Audit history fetch ────────────────────────────────────────────

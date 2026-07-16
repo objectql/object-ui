@@ -74,6 +74,13 @@ its own tab is a one-word change on the relationship, not a page-authoring task.
 `relatedLayout: 'tabs' | 'stack'` remains an app-level override (force
 all-own-tabs / all-stacked).
 
+Related lists are additionally gated on the current user's **object-level
+read permission** for the child object: a relationship whose child the user
+cannot read produces no section and no tab (and the `record:related_list`
+renderer suppresses itself the same way on hand-authored pages). The server
+always enforced data access — this keeps the UI from rendering an empty
+grid with a "New" button that would be rejected on save.
+
 ## Composing default + custom
 
 When you want "the default actions plus one custom button," you have

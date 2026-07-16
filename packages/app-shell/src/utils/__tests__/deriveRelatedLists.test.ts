@@ -183,6 +183,33 @@ describe('deriveRelatedLists', () => {
     expect(deriveRelatedLists(project, [project, other])).toEqual([]);
   });
 
+  it('drops children the current user cannot read via canRead (objectui#2359)', () => {
+    const task = {
+      name: 'task',
+      label: 'Task',
+      fields: { project: { type: 'master_detail', reference: 'project' } },
+    };
+    const note = {
+      name: 'note',
+      label: 'Note',
+      fields: { project_id: { type: 'lookup', reference: 'project' } },
+    };
+    const out = deriveRelatedLists(project, [project, task, note], {
+      canRead: (name) => name !== 'task',
+    });
+    expect(out.map((r) => r.childObject)).toEqual(['note']);
+  });
+
+  it('keeps all children when canRead is omitted (permissions still loading)', () => {
+    const task = {
+      name: 'task',
+      label: 'Task',
+      fields: { project: { type: 'master_detail', reference: 'project' } },
+    };
+    expect(deriveRelatedLists(project, [project, task])).toHaveLength(1);
+    expect(deriveRelatedLists(project, [project, task], {})).toHaveLength(1);
+  });
+
   it('handles array-shaped fields', () => {
     const task = {
       name: 'task',
