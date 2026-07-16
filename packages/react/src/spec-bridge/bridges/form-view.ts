@@ -11,6 +11,12 @@ import type { BridgeContext, BridgeFn } from '../types';
 
 interface FormField {
   field: string;
+  /** Field type (spec FormFieldSchema reuses Data.FieldType; auto-infers widget). */
+  type?: string;
+  /** Options for select/multiselect/radio/checkboxes fields. */
+  options?: any[];
+  /** Target object name for lookup/master_detail fields. */
+  reference?: string;
   label?: string;
   placeholder?: string;
   helpText?: string;
@@ -27,19 +33,51 @@ interface FormField {
 }
 
 interface FormSection {
+  /** Stable section identifier for i18n lookup (spec FormSectionSchema.name). */
+  name?: string;
   label?: string;
+  description?: string;
   collapsible?: boolean;
   collapsed?: boolean;
   columns?: number;
+  /** Section-level conditional-visibility predicate (ADR-0089). */
+  visibleWhen?: string;
   fields?: FormField[];
 }
 
+/**
+ * The subset of `@objectstack/spec` FormViewSchema the bridge consumes.
+ * Every serializable spec key is either mapped onto the `object-form` node
+ * or listed here with an explicit reason for being ignored — the bridge must
+ * never silently drop spec configuration (#2545).
+ */
 interface FormViewSpec {
   type?: string;
+  layout?: string;
+  columns?: number;
+  title?: string;
+  description?: string;
+  // Tabbed (`type: 'tabbed'`)
+  defaultTab?: string;
+  tabPosition?: string;
+  // Wizard (`type: 'wizard'`)
+  allowSkip?: boolean;
+  showStepIndicator?: boolean;
+  // Split (`type: 'split'`)
+  splitDirection?: string;
+  splitSize?: number;
+  splitResizable?: boolean;
+  // Drawer (`type: 'drawer'`)
+  drawerSide?: string;
+  drawerWidth?: string;
+  // Modal (`type: 'modal'`)
+  modalSize?: string;
   data?: any;
   sections?: FormSection[];
-  groups?: any;
-  // P1.2 additions
+  /** Legacy alias of `sections` (spec: "Legacy support → alias to sections"). */
+  groups?: FormSection[];
+  /** Inline master-detail child collections. */
+  subforms?: any[];
   defaultSort?: any;
   sharing?: any;
   aria?: { ariaLabel?: string; ariaDescribedBy?: string; role?: string };
@@ -52,6 +90,9 @@ function mapField(field: FormField): Record<string, any> {
     label: field.label ?? field.field,
   };
 
+  if (field.type) mapped.type = field.type;
+  if (field.options) mapped.options = field.options;
+  if (field.reference) mapped.reference = field.reference;
   if (field.placeholder) mapped.placeholder = field.placeholder;
   if (field.helpText) mapped.helpText = field.helpText;
   if (field.readonly != null) mapped.readonly = field.readonly;
@@ -75,10 +116,13 @@ function mapSection(section: FormSection): Record<string, any> {
     fields: (section.fields ?? []).map(mapField),
   };
 
+  if (section.name) mapped.name = section.name;
   if (section.label) mapped.label = section.label;
+  if (section.description) mapped.description = section.description;
   if (section.collapsible != null) mapped.collapsible = section.collapsible;
   if (section.collapsed != null) mapped.collapsed = section.collapsed;
   if (section.columns != null) mapped.columns = section.columns;
+  if (section.visibleWhen) mapped.visibleWhen = section.visibleWhen;
 
   return mapped;
 }
@@ -90,12 +134,39 @@ function mapFormType(type?: string): string | undefined {
   return validTypes.includes(type) ? type : undefined;
 }
 
+/**
+ * Spec FormViewSchema keys carried onto the `object-form` node verbatim.
+ * All of them are declared with the same name (and semantics) on
+ * `ObjectFormSchema`, so no per-key mapping is needed — only presence checks.
+ */
+const PASSTHROUGH_KEYS = [
+  'layout',
+  'columns',
+  'title',
+  'description',
+  'defaultTab',
+  'tabPosition',
+  'allowSkip',
+  'showStepIndicator',
+  'splitDirection',
+  'splitSize',
+  'splitResizable',
+  'drawerSide',
+  'drawerWidth',
+  'modalSize',
+  'subforms',
+] as const;
+
 /** Transforms a FormView spec into a Form SchemaNode */
 export const bridgeFormView: BridgeFn<FormViewSpec> = (
   spec: FormViewSpec,
   _context: BridgeContext,
 ): SchemaNode => {
-  const sections = (spec.sections ?? []).map(mapSection);
+  // Spec defines `groups` as a legacy alias of `sections`; normalize here so
+  // downstream renderers only ever see `sections` (ObjectForm never reads a
+  // `groups` key — before this normalization a groups-only spec silently
+  // rendered no sections at all, #2545).
+  const sections = (spec.sections ?? spec.groups ?? []).map(mapSection);
   const formType = mapFormType(spec.type);
 
   const node: SchemaNode = {
@@ -107,7 +178,13 @@ export const bridgeFormView: BridgeFn<FormViewSpec> = (
 
   // P1.2 — formType mapping (tabbed, wizard, split, drawer, modal)
   if (formType) node.formType = formType;
-  if (spec.groups) node.groups = spec.groups;
+
+  // #2545 — same-name spec keys (layout, title, tab/wizard/split/drawer/modal
+  // options, subforms) pass straight through onto the node.
+  for (const key of PASSTHROUGH_KEYS) {
+    if (spec[key] != null) node[key] = spec[key];
+  }
+
   if (spec.defaultSort) node.defaultSort = spec.defaultSort;
   if (spec.submitBehavior) node.submitBehavior = spec.submitBehavior;
 

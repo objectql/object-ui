@@ -815,19 +815,12 @@ A smart form that auto-generates fields from an ObjectQL object. Supports simple
   "fields": ["firstName", "lastName", "email", "phone", "company"],
   "sections": [
     {
-      "title": "Basic Info",
+      "label": "Basic Info",
       "fields": ["firstName", "lastName", "email"]
     },
     {
-      "title": "Details",
+      "label": "Details",
       "fields": ["phone", "company", "address"]
-    }
-  ],
-  "groups": [
-    {
-      "title": "Contact Information",
-      "fields": ["firstName", "lastName", "email"],
-      "collapsible": true
     }
   ],
   "showSubmit": true,
@@ -841,18 +834,26 @@ A smart form that auto-generates fields from an ObjectQL object. Supports simple
 |----------|------|-------------|
 | `objectName` | `string` | **Required.** ObjectQL object API name. |
 | `mode` | `"create" \| "edit" \| "view"` | **Required.** Form interaction mode. |
-| `formType` | `string` | Layout type: `"simple"`, `"tabbed"`, `"wizard"`, `"split"`, `"drawer"`, `"modal"`. |
+| `formType` | `string` | Layout type: `"simple"`, `"tabbed"`, `"wizard"`, `"split"`, `"drawer"`, `"modal"`. Aligned with `@objectstack/spec` `FormViewSchema.type`. |
 | `recordId` | `string \| number` | Record ID for edit/view modes. |
 | `fields` | `string[]` | Field API names to include (auto-resolved from object metadata). |
 | `customFields` | `FormField[]` | Manually defined fields that override auto-generated ones. |
-| `sections` | `ObjectFormSection[]` | Tabbed/wizard sections. |
-| `groups` | `array` | Collapsible field groups. |
+| `sections` | `ObjectFormSection[]` | Field sections (simple groups, tabs, or wizard steps depending on `formType`). Spec-aligned key. |
+| `groups` | `array` | **Deprecated.** Legacy alias of `sections` (spec defines `groups` as an alias); normalized into `sections` when `sections` is absent. Legacy shape: `title`→`label`, `defaultCollapsed`→`collapsed`. |
 | `layout` | `string` | Label layout: `"vertical"`, `"horizontal"`, `"inline"`, `"grid"`. |
 | `columns` | `number` | Number of form columns. |
 | `submitText` / `cancelText` | `string` | Button labels. |
 | `showSubmit` / `showCancel` / `showReset` | `boolean` | Toggle action buttons. |
 | `drawerSide` | `string` | Drawer position: `"top"`, `"bottom"`, `"left"`, `"right"`. |
 | `modalSize` | `string` | Modal size: `"sm"`, `"default"`, `"lg"`, `"xl"`, `"full"`. |
+
+#### Spec alignment & extension keys
+
+`ObjectFormSchema` keys fall into three classes (#2545):
+
+- **Spec-aligned** — same name and semantics as `@objectstack/spec` `FormViewSchema`: `title`, `description`, `layout`, `columns`, `sections`, `defaultTab`, `tabPosition`, `allowSkip`, `showStepIndicator`, `splitDirection`/`splitSize`/`splitResizable`, `drawerSide`/`drawerWidth`, `modalSize`, `subforms`, `submitBehavior` (plus `formType` ↔ spec `type`). Metadata using these keys round-trips through the SpecBridge without loss.
+- **ObjectUI extensions** — serializable extras with no spec backing yet: `showSubmit`/`submitText`, `showCancel`/`cancelText`, `showReset`, `nextText`/`prevText`, `successMessage`, `navigateOnSuccess`, `resetOnSuccess`, `modalCloseButton`, `className`, `initialValues`, `fields`, `customFields`. Sanctioned and documented here; candidates for upstreaming into the spec are tracked in #2545.
+- **Runtime-only** — non-serializable renderer concerns that never appear in view metadata: `mode`, `recordId`, `open`/`onOpenChange`, `readOnly`, and all callbacks (`onSuccess`, `onError`, `onCancel`, `onStepChange`, `submitHandler`).
 
 **Related:** [FormSchema](#formschema), [ObjectViewSchema](#objectviewschema)
 

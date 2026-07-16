@@ -888,6 +888,10 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       description: schema.form?.description,
       fields: schema.form?.fields,
       customFields: schema.form?.customFields,
+      // #2545: `sections` is the spec-aligned key (it used to be dropped
+      // here); `groups` is its deprecated legacy alias, normalized to
+      // sections inside ObjectForm.
+      sections: schema.form?.sections,
       groups: schema.form?.groups,
       layout: schema.form?.layout,
       columns: schema.form?.columns,

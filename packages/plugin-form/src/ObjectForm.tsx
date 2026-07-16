@@ -83,13 +83,31 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   // (Tabbed/Wizard/Split/Drawer/Modal/Simple) transparently honour FLS.
   // Fail-open when no provider mounted (perms.isLoaded false).
   const schema = useMemo<ObjectFormProps['schema']>(() => {
-    if (!perms?.isLoaded) return rawSchema;
+    // #2545: spec FormViewSchema defines `groups` as a legacy alias of
+    // `sections`, and this renderer only ever consumes `sections` — normalize
+    // FIRST so groups-only metadata actually renders (it used to be silently
+    // ignored). Legacy shape maps `title`→`label`, `defaultCollapsed`→`collapsed`.
+    const legacyGroups = (rawSchema as any).groups;
+    const base: ObjectFormProps['schema'] =
+      !rawSchema.sections?.length && Array.isArray(legacyGroups) && legacyGroups.length
+        ? {
+            ...rawSchema,
+            sections: legacyGroups.map((g: any) => ({
+              label: g.title ?? g.label,
+              description: g.description,
+              collapsible: g.collapsible,
+              collapsed: g.defaultCollapsed ?? g.collapsed,
+              fields: g.fields ?? [],
+            })),
+          }
+        : rawSchema;
+    if (!perms?.isLoaded) return base;
     const gateField = (f: any) => {
       if (!f?.name) return f;
-      const canRead = perms.checkField(rawSchema.objectName, f.name, 'read');
+      const canRead = perms.checkField(base.objectName, f.name, 'read');
       if (!canRead) return null;
-      const canWrite = perms.checkField(rawSchema.objectName, f.name, 'write');
-      if (!canWrite && rawSchema.mode !== 'view') {
+      const canWrite = perms.checkField(base.objectName, f.name, 'write');
+      if (!canWrite && base.mode !== 'view') {
         return { ...f, readOnly: true, disabled: true };
       }
       return f;
@@ -97,9 +115,9 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
     const filterArr = (arr?: any[]) =>
       Array.isArray(arr) ? arr.map(gateField).filter(Boolean) : arr;
     return {
-      ...rawSchema,
-      fields: filterArr(rawSchema.fields as any[]),
-      sections: rawSchema.sections?.map((s: any) => ({
+      ...base,
+      fields: filterArr(base.fields as any[]),
+      sections: base.sections?.map((s: any) => ({
         ...s,
         fields: filterArr(s.fields),
       })),

@@ -829,6 +829,21 @@ export type SubmitBehavior =
   | { kind: 'continue' }
   | { kind: 'next-record' };
 
+/**
+ * Key taxonomy (#2545 — spec `FormViewSchema` alignment):
+ *
+ * - **[spec-aligned]** — same name & semantics as `@objectstack/spec`
+ *   `FormViewSchema` (`title`, `description`, `layout`, `columns`, `sections`,
+ *   `defaultTab`, `tabPosition`, `allowSkip`, `showStepIndicator`,
+ *   `splitDirection`/`splitSize`/`splitResizable`, `drawerSide`/`drawerWidth`,
+ *   `modalSize`, `subforms`, `submitBehavior`; `formType` ↔ spec `type`).
+ * - **[ObjectUI extension]** — serializable renderer extras with no spec
+ *   backing yet (button visibility/labels, `className`, `initialValues`,
+ *   `fields`/`customFields`, …). Candidates for upstreaming are tracked in
+ *   #2545; until then they are sanctioned, documented extensions.
+ * - **[runtime-only]** — non-serializable runtime concerns that never belong
+ *   in view metadata (`mode`, `recordId`, `open`, callbacks, …).
+ */
 export interface ObjectFormSchema extends BaseSchema {
   type: 'object-form';
   
@@ -900,7 +915,15 @@ export interface ObjectFormSchema extends BaseSchema {
   sections?: ObjectFormSection[];
   
   /**
-   * Field groups for organized layout (legacy, prefer sections)
+   * Field groups for organized layout.
+   *
+   * @deprecated Legacy alias of {@link sections} — `@objectstack/spec`
+   * FormViewSchema defines `groups` as "Legacy support → alias to sections",
+   * and the form renderer only consumes `sections`. Consumers (spec-bridge,
+   * ObjectForm) normalize `groups` into `sections` when `sections` is absent;
+   * new metadata should declare `sections` directly. Note the legacy shape
+   * differs from {@link ObjectFormSection}: `title`→`label`,
+   * `defaultCollapsed`→`collapsed`.
    */
   groups?: Array<{
     title?: string;

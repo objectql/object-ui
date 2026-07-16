@@ -312,12 +312,18 @@ describe('SpecBridge', () => {
       expect(node.sections[0].fields[0].label).toBe('age');
     });
 
-    it('passes groups through', () => {
+    it('normalizes legacy groups into sections (#2545)', () => {
+      // Spec: `groups` is a legacy alias of `sections`. The renderer only
+      // consumes `sections`, so the bridge folds groups into it instead of
+      // passing a dead `groups` key through.
       const node = bridgeFormView(
         { groups: [{ name: 'g1', label: 'Group 1' }] },
         {},
       );
-      expect(node.groups).toEqual([{ name: 'g1', label: 'Group 1' }]);
+      expect(node.groups).toBeUndefined();
+      expect(node.sections).toEqual([
+        { name: 'g1', label: 'Group 1', fields: [] },
+      ]);
     });
   });
 
