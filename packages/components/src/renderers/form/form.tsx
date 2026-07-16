@@ -149,6 +149,34 @@ function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
   return domProps as T;
 }
 
+/** Serialize a JS value as a CEL literal (string / number / bool / list / null). */
+function celLiteral(v: unknown): string {
+  if (v === null || v === undefined) return 'null';
+  const t = typeof v;
+  if (t === 'string') return JSON.stringify(v);
+  if (t === 'number' || t === 'boolean') return String(v);
+  if (Array.isArray(v)) return `[${v.map(celLiteral).join(', ')}]`;
+  return JSON.stringify(String(v));
+}
+
+/**
+ * Translate the legacy `FormField.condition` shape
+ * (`{ field, equals?/notEquals?/in? }`) into an equivalent CEL visible-when
+ * predicate, so it evaluates on the canonical engine like every other
+ * conditional rule (issue #1584 / ADR-0036) instead of a bespoke JSON branch.
+ * The present sub-conditions are AND-ed (matching the legacy "hide unless all
+ * clauses hold"); returns `null` when there is nothing to gate on.
+ */
+function legacyConditionToCel(condition: FieldCondition | undefined): string | null {
+  if (!condition || !condition.field) return null;
+  const ref = `record[${JSON.stringify(condition.field)}]`;
+  const clauses: string[] = [];
+  if (condition.equals !== undefined) clauses.push(`${ref} == ${celLiteral(condition.equals)}`);
+  if (condition.notEquals !== undefined) clauses.push(`${ref} != ${celLiteral(condition.notEquals)}`);
+  if (Array.isArray(condition.in)) clauses.push(`${ref} in ${celLiteral(condition.in)}`);
+  return clauses.length > 0 ? clauses.join(' && ') : null;
+}
+
 function normalizeFieldType(type: string): string {
   return type.startsWith('field:') ? type.slice('field:'.length) : type;
 }
@@ -653,23 +681,14 @@ ComponentRegistry.register('form',
                 // Skip hidden fields
                 if (hidden) return null;
 
-                // Handle conditional rendering with null/undefined safety
-                if (condition) {
-                  const watchField = condition.field;
-                  const watchValue = form.watch(watchField);
-
-                  // Check for null/undefined before evaluating conditions
-                  const hasValue = watchValue !== undefined && watchValue !== null;
-
-                  if (condition.equals !== undefined && watchValue !== condition.equals) {
-                    return null;
-                  }
-                  if (condition.notEquals !== undefined && watchValue === condition.notEquals) {
-                    return null;
-                  }
-                  if (condition.in && (!hasValue || !condition.in.includes(watchValue))) {
-                    return null;
-                  }
+                // Legacy `condition: { field, equals/notEquals/in }` — translated
+                // to CEL and evaluated on the canonical engine over the seeded
+                // live record (issue #1584), so it agrees with `visibleWhen` and
+                // the server. Fail-open (a broken predicate shows the field),
+                // matching the CEL rules below.
+                const legacyConditionCel = legacyConditionToCel(condition);
+                if (legacyConditionCel && !evalFieldPredicate(legacyConditionCel, ruleRecord, true)) {
+                  return null;
                 }
 
                 // Field-level CEL conditional rules (B2). Evaluated reactively

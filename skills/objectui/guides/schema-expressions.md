@@ -235,6 +235,55 @@ paid_on:   Field.date({
   never locks a field. `visibleWhen` is client-only — never rely on it for
   security; use `readonlyWhen`/`requiredWhen` (or a validation rule) for guarantees.
 
+## List-view conditional tier (CEL — conditional formatting + row-action visibility)
+
+> **Same engine as the data-model tier.** Conditional formatting on a
+> list/grid/kanban, and a row action's `visible` / `disabled`, are **CEL
+> predicates over the row record**, evaluated by the canonical
+> `@objectstack/formula` engine — *not* the `${}` schema/widget evaluator
+> (issue #1584, framework ADR-0058). Per `@objectstack/spec` these were always
+> typed as CEL (`ListViewSchema.conditionalFormatting[].condition` and
+> `ActionSchema.visible` are `ExpressionInputSchema`); ObjectUI now honors that
+> at runtime. Authors reuse the same `record.*` predicates everywhere.
+
+**Conditional formatting** — first matching rule wins; author it the spec way:
+
+```jsonc
+{ "type": "list-view", "objectName": "invoice",
+  "conditionalFormatting": [
+    { "condition": "record.status == 'overdue'", "style": { "backgroundColor": "#fee2e2", "color": "#991b1b" } },
+    { "condition": "record.amount > 10000",       "style": { "backgroundColor": "#fef9c3" } }
+  ]
+}
+```
+
+The predicate binds the row three ways — `record.status` (canonical), bare
+`status`, and `data.status` (legacy) — plus the host predicate scope
+(`features.*`, `user.*`). The legacy ObjectUI shapes still work and are
+translated to CEL transparently: the native `{ field, operator, value }` form
+(`operator` ∈ `equals` / `not_equals` / `greater_than` / `less_than` /
+`contains` / `in`) and the `{ expression: "${…}" }` template form. A string
+carrying legacy-only syntax (`${…}`, `===`, `?.`, `.includes()`) is routed to
+the old engine **with a one-time deprecation warning** — rewrite it in CEL.
+
+**Row-action visibility** — a row/list_item action's `visible` (and `disabled`)
+is CEL over the row:
+
+```jsonc
+{ "name": "resume", "label": "Resume",
+  "visible": "record.status in ['paused', 'stopped']" }   // `in` needs the CEL engine
+```
+
+- `visible` **fails closed** (broken predicate → action hidden + warn), matching
+  the record-header `ActionEngine`; `disabled` fails soft (not disabled + warn).
+- The CEL `in` operator, list membership, and `has()` — none of which the legacy
+  JS evaluator parsed — now work; `===` / `?.` / `.includes()` do **not** (use
+  `==` / `record.x` / `.contains()`).
+
+**Legacy form-field `condition`.** `FormField.condition: { field, equals/notEquals/in }`
+is retired in favor of `visibleWhen` (it is now translated to CEL internally, so
+existing metadata keeps working). Prefer authoring `visibleWhen: "record.type == 'lookup'"`.
+
 ## Cascading & role-gated select options (`option.visibleWhen` + `dependsOn`)
 
 For dependent selects (country → province → city) and role-gated options, do

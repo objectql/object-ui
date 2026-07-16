@@ -18,7 +18,7 @@ import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { evaluatePlainCondition, buildExpandFields, buildExportFileName } from '@object-ui/core';
+import { resolveConditionalFormatting, buildExpandFields, buildExportFileName } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel } from '@object-ui/i18n';
 import { usePermissions } from '@object-ui/permissions';
 
@@ -158,66 +158,20 @@ export function convertFilterGroupToAST(group: FilterGroup): any[] {
 /**
  * Evaluate conditional formatting rules against a record.
  * Returns a CSSProperties object for the first matching rule, or empty object.
- * Supports both field/operator/value rules and expression-based rules.
+ * Supports all three historical rule shapes (spec `{ condition, style }`,
+ * ObjectUI `{ expression, … }`, native `{ field, operator, value, … }`).
  *
- * Exported for use by child view renderers (e.g., ObjectGrid) and consumers
- * who need to evaluate formatting rules outside the ListView component.
+ * Thin wrapper over `@object-ui/core`'s `resolveConditionalFormatting`, which
+ * evaluates every predicate on the canonical CEL engine (with a legacy-dialect
+ * fallback) so a list view speaks the same expression dialect the server does
+ * (issue #1584 / ADR-0058). Kept exported for back-compat with consumers that
+ * evaluate formatting outside the ListView component.
  */
 export function evaluateConditionalFormatting(
   record: Record<string, unknown>,
   rules?: ListViewSchema['conditionalFormatting']
 ): React.CSSProperties {
-  if (!rules || rules.length === 0) return {};
-  for (const rule of rules) {
-    let match = false;
-
-    // Determine expression: spec uses 'condition', ObjectUI uses 'expression'
-    const expression =
-      ('condition' in rule ? rule.condition : undefined)
-      || ('expression' in rule ? rule.expression : undefined)
-      || undefined;
-
-    // Expression-based evaluation using safe ExpressionEvaluator
-    // Supports both template expressions (${data.field > value}) and
-    // plain Spec expressions (field == 'value').
-    if (expression) {
-      match = evaluatePlainCondition(expression, record as Record<string, any>);
-    } else if ('field' in rule && 'operator' in rule && rule.field && rule.operator) {
-      // Standard field/operator/value evaluation (ObjectUI format)
-      const fieldValue = record[rule.field];
-      switch (rule.operator) {
-        case 'equals':
-          match = fieldValue === rule.value;
-          break;
-        case 'not_equals':
-          match = fieldValue !== rule.value;
-          break;
-        case 'contains':
-          match = typeof fieldValue === 'string' && typeof rule.value === 'string' && fieldValue.includes(rule.value);
-          break;
-        case 'greater_than':
-          match = typeof fieldValue === 'number' && typeof rule.value === 'number' && fieldValue > rule.value;
-          break;
-        case 'less_than':
-          match = typeof fieldValue === 'number' && typeof rule.value === 'number' && fieldValue < rule.value;
-          break;
-        case 'in':
-          match = Array.isArray(rule.value) && rule.value.includes(fieldValue);
-          break;
-      }
-    }
-
-    if (match) {
-      // Build style: spec 'style' object is base, individual properties override
-      const style: React.CSSProperties = {};
-      if ('style' in rule && rule.style) Object.assign(style, rule.style);
-      if ('backgroundColor' in rule && rule.backgroundColor) style.backgroundColor = rule.backgroundColor;
-      if ('textColor' in rule && rule.textColor) style.color = rule.textColor;
-      if ('borderColor' in rule && rule.borderColor) style.borderColor = rule.borderColor;
-      return style;
-    }
-  }
-  return {};
+  return resolveConditionalFormatting(record, rules as any) as React.CSSProperties;
 }
 
 // Default English translations for fallback when I18nProvider is not available

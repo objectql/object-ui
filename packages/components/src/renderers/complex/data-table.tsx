@@ -13,7 +13,7 @@ import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
 import { ComponentRegistry } from '@object-ui/core';
 import type { DataTableSchema } from '@object-ui/types';
-import { useObjectTranslation, useCondition, toPredicateInput } from '@object-ui/react';
+import { useObjectTranslation, useRowPredicate } from '@object-ui/react';
 import { 
   Table, 
   TableHeader, 
@@ -243,17 +243,12 @@ export const DataTableRowActionItem: React.FC<{
   row: any;
   onActionDef?: (action: RowActionDef, row: any) => void | Promise<void>;
 }> = ({ action, row, onActionDef }) => {
-  const predicateCtx = { ...(row && typeof row === 'object' ? row : {}), record: row };
   const visiblePred = action.visible;
-  const isVisible = useCondition(toPredicateInput(visiblePred), predicateCtx);
-  // `disabled` may be a boolean or a CEL predicate evaluated against the row
-  // (e.g. grey out an action once a record reaches a terminal state).
-  const disabledPred = toPredicateInput(action.disabled);
-  const evalDisabled = useCondition(
-    typeof disabledPred === 'string' ? disabledPred : undefined,
-    predicateCtx,
-  );
-  const isDisabled = typeof disabledPred === 'string' ? evalDisabled : disabledPred === true;
+  // Evaluate on the canonical CEL engine (issue #1584): row bound bare + as
+  // `record.*`, ambient `features`/`user` scope merged. `visible` fails CLOSED
+  // (hidden + warn); `disabled` fails soft (not disabled).
+  const isVisible = useRowPredicate(visiblePred, row, { fallback: false, warnOnError: true, label: action.name });
+  const isDisabled = useRowPredicate(action.disabled, row, { fallback: false, warnOnError: true, label: `${action.name}:disabled` });
   if (visiblePred && !isVisible) return null;
   const ActionIcon = resolveIcon(action.icon);
   return (

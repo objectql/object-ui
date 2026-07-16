@@ -27,6 +27,7 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, ScrollArea, Button, Input, useResizeObserver, DataEmptyState } from "@object-ui/components"
 import { useHasDndProvider, useDnd } from "@object-ui/react"
+import { resolveConditionalFormatting } from "@object-ui/core"
 import { createSafeTranslation } from "@object-ui/i18n"
 import { Plus } from "lucide-react"
 
@@ -104,39 +105,12 @@ export interface KanbanBoardProps {
  * Evaluate conditional formatting rules for a card.
  * Returns CSS style overrides for backgroundColor and borderColor.
  */
+// Card conditional formatting now delegates to the shared CEL evaluator
+// (issue #1584 / ADR-0058) so kanban cards, list rows, and grid rows reach the
+// identical verdict. Beyond the native `{ field, operator, value }` rules the
+// kanban schema declares, this also accepts spec `{ condition, style }` rules.
 function getCardStyles(card: KanbanCard, rules?: ConditionalFormattingRule[]): React.CSSProperties {
-  if (!rules || rules.length === 0) return {}
-
-  for (const rule of rules) {
-    const fieldValue = card[rule.field]
-    if (fieldValue === undefined || fieldValue === null) continue
-
-    let matches = false
-    const strValue = String(fieldValue)
-
-    switch (rule.operator) {
-      case 'equals':
-        matches = strValue === String(rule.value)
-        break
-      case 'not_equals':
-        matches = strValue !== String(rule.value)
-        break
-      case 'contains':
-        matches = strValue.toLowerCase().includes(String(rule.value).toLowerCase())
-        break
-      case 'in':
-        matches = Array.isArray(rule.value) && rule.value.includes(strValue)
-        break
-    }
-
-    if (matches) {
-      return {
-        ...(rule.backgroundColor ? { backgroundColor: rule.backgroundColor } : {}),
-        ...(rule.borderColor ? { borderColor: rule.borderColor } : {}),
-      }
-    }
-  }
-  return {}
+  return resolveConditionalFormatting(card as Record<string, unknown>, rules as any) as React.CSSProperties
 }
 
 function SortableCard({ card, onCardClick, conditionalFormatting }: { card: KanbanCard; onCardClick?: (card: KanbanCard, event?: React.MouseEvent) => void; conditionalFormatting?: ConditionalFormattingRule[] }) {

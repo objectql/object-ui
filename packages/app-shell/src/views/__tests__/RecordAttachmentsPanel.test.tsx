@@ -93,3 +93,70 @@ describe('RecordAttachmentsPanel — server-denial error mapping (#2755)', () =>
     expect(dataSource.delete).toHaveBeenCalledWith('sys_attachment', 'a1');
   });
 });
+
+describe('RecordAttachmentsPanel — authenticated signed-URL download (#2970)', () => {
+  it('fetches /files/:id/url with auth and opens the signed URL', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ url: '/api/v1/storage/_local/raw/tok123' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    setup(makeDataSource());
+    await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Download' }));
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    const calledUrl = String(fetchSpy.mock.calls[0][0]);
+    expect(calledUrl).toContain('/api/v1/storage/files/f1/url');
+    await waitFor(() =>
+      expect(openSpy).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/storage/_local/raw/tok123'),
+        '_blank',
+        'noopener,noreferrer',
+      ),
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('maps a 403 ATTACHMENT_DOWNLOAD_DENIED to friendly copy and does not open a tab', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ code: 'ATTACHMENT_DOWNLOAD_DENIED' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    setup(makeDataSource());
+    await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Download' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "You don't have access to download this attachment.",
+      ),
+    );
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('maps a 401 AUTH_REQUIRED to friendly copy', async () => {
+    vi.spyOn(window, 'open').mockImplementation(() => null);
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ code: 'AUTH_REQUIRED' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    setup(makeDataSource());
+    await waitFor(() => expect(screen.getByText('report.pdf')).toBeInTheDocument());
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Download' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Please sign in to download this attachment.'),
+    );
+  });
+});

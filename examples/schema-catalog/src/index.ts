@@ -346,6 +346,7 @@ import fields_select_basic_select from './schemas/fields-select/basic-select.jso
 import fields_select_cascading_options from './schemas/fields-select/cascading-options.json' with { type: 'json' };
 import fields_select_colored_options from './schemas/fields-select/colored-options.json' with { type: 'json' };
 import fields_select_multi_select from './schemas/fields-select/multi-select.json' with { type: 'json' };
+import fields_select_role_gated_options from './schemas/fields-select/role-gated-options.json' with { type: 'json' };
 import fields_summary_average_of_field_values from './schemas/fields-summary/average-of-field-values.json' with { type: 'json' };
 import fields_summary_count_of_related_records from './schemas/fields-summary/count-of-related-records.json' with { type: 'json' };
 import fields_summary_sum_of_field_values from './schemas/fields-summary/sum-of-field-values.json' with { type: 'json' };
@@ -3526,7 +3527,7 @@ const REGISTRY: Record<string, Example> = {
     id: 'fields-select/cascading-options',
     meta: {
       title: "Cascading Options",
-      description: "Dependent select — province options narrow to the chosen country via per-option visibleWhen + dependsOn",
+      description: "",
       category: 'fields-select',
     },
     schema: fields_select_cascading_options,
@@ -3548,6 +3549,15 @@ const REGISTRY: Record<string, Example> = {
       category: 'fields-select',
     },
     schema: fields_select_multi_select,
+  },
+  'fields-select/role-gated-options': {
+    id: 'fields-select/role-gated-options',
+    meta: {
+      title: "Role Gated Options",
+      description: "",
+      category: 'fields-select',
+    },
+    schema: fields_select_role_gated_options,
   },
   'fields-summary/average-of-field-values': {
     id: 'fields-summary/average-of-field-values',

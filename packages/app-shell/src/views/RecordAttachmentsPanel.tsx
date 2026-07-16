@@ -25,8 +25,9 @@ import { useObjectTranslation } from '@object-ui/react';
  * Storage model: one `sys_file` row per uploaded blob (three-step
  * presigned upload via @object-ui/providers' ObjectStack adapter), one
  * `sys_attachment` join row linking it to `(parent_object, parent_id)`.
- * Downloads go through the stable `/storage/files/:fileId` endpoint,
- * which 302-redirects to a freshly signed URL on every request.
+ * Downloads fetch a short-lived signed URL from `/storage/files/:fileId/url`
+ * with the console's Bearer token (the endpoint requires an authenticated
+ * session for attachments-scope files, #2970), then open it.
  */
 
 interface AttachmentRow {
@@ -74,16 +75,16 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
   // Vite dev console proxies same-origin `/api` unless VITE_SERVER_URL
   // points elsewhere.
   const baseUrl = (import.meta as any).env?.VITE_SERVER_URL || '';
+  // One authenticated fetch (Bearer token from localStorage) reused for the
+  // upload adapter and the download-URL fetch — the storage routes require a
+  // session and there is no cookie for `credentials: 'include'` to carry.
+  const authFetch = React.useMemo(() => createAuthenticatedFetch(), []);
   const adapter = React.useMemo(
-    // `fetchImpl`: the storage upload routes require an authenticated
-    // session when the server has an auth service (#2755), and the console
-    // authenticates with a Bearer token (localStorage) — there is no session
-    // cookie for `credentials: 'include'` to carry.
-    () => createObjectStackUploadAdapter({ baseUrl, scope: 'attachments', fetchImpl: createAuthenticatedFetch() }),
-    [baseUrl],
+    () => createObjectStackUploadAdapter({ baseUrl, scope: 'attachments', fetchImpl: authFetch }),
+    [baseUrl, authFetch],
   );
 
-  /** Map the server's fail-closed 403 codes (#2755) to friendly copy. */
+  /** Map the server's fail-closed 40x codes (#2755, #2970) to friendly copy. */
   const friendlyError = React.useCallback(
     (err: unknown): string => {
       const anyErr = err as { code?: string; message?: unknown } | null;
@@ -97,6 +98,16 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
       if (has('ATTACHMENT_PARENT_ACCESS')) {
         return t('detail.attachmentParentAccessDenied', {
           defaultValue: "You don't have access to attach files to this record.",
+        });
+      }
+      if (has('ATTACHMENT_DOWNLOAD_DENIED')) {
+        return t('detail.attachmentDownloadDenied', {
+          defaultValue: "You don't have access to download this attachment.",
+        });
+      }
+      if (has('AUTH_REQUIRED')) {
+        return t('detail.attachmentAuthRequired', {
+          defaultValue: 'Please sign in to download this attachment.',
         });
       }
       if (has('PERMISSION_DENIED')) {
@@ -186,6 +197,38 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
     [dataSource, friendlyError],
   );
 
+  const handleDownload = React.useCallback(
+    async (row: AttachmentRow) => {
+      setError(null);
+      try {
+        // The stable `/files/:fileId` endpoint now requires an authenticated
+        // session for attachments-scope files (#2970) — an <a href> can't
+        // carry the Bearer token. Fetch a short-lived signed URL with auth,
+        // then open it (the signed URL itself needs no credentials).
+        const res = await authFetch(
+          `${baseUrl}/api/v1/storage/files/${encodeURIComponent(row.file_id)}/url`,
+        );
+        if (!res.ok) {
+          let code: string | undefined;
+          try {
+            code = (await res.json())?.code;
+          } catch {
+            /* non-JSON body */
+          }
+          throw Object.assign(new Error(code ?? `Download failed (${res.status})`), { code });
+        }
+        const body = await res.json();
+        const url: string | undefined = body?.url ?? body?.data?.url;
+        if (!url) throw new Error('Download URL missing from response');
+        const target = /^https?:/i.test(url) ? url : `${baseUrl}${url}`;
+        window.open(target, '_blank', 'noopener,noreferrer');
+      } catch (err: any) {
+        setError(friendlyError(err));
+      }
+    },
+    [authFetch, baseUrl, friendlyError],
+  );
+
   return (
     <div className={cn('rounded-lg border bg-card', className)} data-testid="record-attachments-panel">
       <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -248,17 +291,15 @@ export const RecordAttachmentsPanel: React.FC<RecordAttachmentsPanelProps> = ({
                     .join(' · ')}
                 </div>
               </div>
-              <a
-                href={`${baseUrl}/api/v1/storage/files/${encodeURIComponent(row.file_id)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex"
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
                 aria-label={t('detail.downloadAttachment', { defaultValue: 'Download' })}
+                onClick={() => void handleDownload(row)}
               >
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Download className="h-4 w-4" />
-                </Button>
-              </a>
+                <Download className="h-4 w-4" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
