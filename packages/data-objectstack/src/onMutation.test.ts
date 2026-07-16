@@ -112,6 +112,121 @@ describe('ObjectStackAdapter.onMutation', () => {
     expect(events).toEqual([]);
   });
 
+  it('emits one event per operation after a committed batchTransaction (master-detail save)', async () => {
+    // Regression (related-list stale after ModalForm create): MasterDetailForm
+    // persists parent + children through ONE `/api/v1/batch` transaction, so
+    // no per-record create/update/delete ever runs. batchTransaction must emit
+    // the equivalent mutation events itself, or the invalidation bridge
+    // (objectui#2269) never fires and the parent detail page's related lists +
+    // count badges stay stale until a full reload.
+    const ds = makeDS({});
+    const batchFetch = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          results: [
+            { id: 'parent-1', name: 'P' },
+            { id: 'child-1', parent: 'parent-1' },
+          ],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+    vi.stubGlobal('fetch', batchFetch);
+    try {
+      const events: MutationEvent[] = [];
+      ds.onMutation((e: MutationEvent) => events.push(e));
+
+      const res = await ds.batchTransaction([
+        { object: 'parent_obj', action: 'create', data: { name: 'P' } },
+        { object: 'child_obj', action: 'create', data: { parent: { $ref: 0 } } },
+      ]);
+
+      expect(res.results).toHaveLength(2);
+      expect(events).toEqual([
+        { type: 'create', resource: 'parent_obj', id: 'parent-1', record: { id: 'parent-1', name: 'P' } },
+        { type: 'create', resource: 'child_obj', id: 'child-1', record: { id: 'child-1', parent: 'parent-1' } },
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('emits update/delete events for the edit-mode batch (diffed child ops)', async () => {
+    const ds = makeDS({});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ results: [{ id: 'parent-1' }, { id: 'child-1' }, null] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+    try {
+      const events: MutationEvent[] = [];
+      ds.onMutation((e: MutationEvent) => events.push(e));
+
+      await ds.batchTransaction([
+        { object: 'parent_obj', action: 'update', id: 'parent-1', data: { name: 'P2' } },
+        { object: 'child_obj', action: 'update', id: 'child-1', data: { qty: 2 } },
+        { object: 'child_obj', action: 'delete', id: 'child-2' },
+      ]);
+
+      expect(events).toEqual([
+        { type: 'update', resource: 'parent_obj', id: 'parent-1', record: { id: 'parent-1' } },
+        { type: 'update', resource: 'child_obj', id: 'child-1', record: { id: 'child-1' } },
+        { type: 'delete', resource: 'child_obj', id: 'child-2' },
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not emit when batchTransaction fails', async () => {
+    const ds = makeDS({});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ error: 'rolled back' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+    try {
+      const events: MutationEvent[] = [];
+      ds.onMutation((e: MutationEvent) => events.push(e));
+
+      await expect(ds.batchTransaction([{ object: 'parent_obj', action: 'create', data: {} }]))
+        .rejects.toThrow('rolled back');
+      expect(events).toEqual([]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('emits a single resource-scoped create event per bulk create call', async () => {
+    const createMany = vi.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }]);
+    const ds = makeDS({ createMany });
+    const events: MutationEvent[] = [];
+    ds.onMutation((e: MutationEvent) => events.push(e));
+
+    await ds.bulk('child_obj', 'create', [{ name: 'A' }, { name: 'B' }]);
+
+    expect(events).toEqual([{ type: 'create', resource: 'child_obj' }]);
+  });
+
+  it('emits a single delete event per bulk delete call', async () => {
+    const deleteMany = vi.fn().mockResolvedValue(undefined);
+    const ds = makeDS({ deleteMany });
+    const events: MutationEvent[] = [];
+    ds.onMutation((e: MutationEvent) => events.push(e));
+
+    await ds.bulk('child_obj', 'delete', [{ id: 'a' }, { id: 'b' }]);
+
+    expect(events).toEqual([{ type: 'delete', resource: 'child_obj' }]);
+  });
+
   it('isolates a throwing listener so the mutation still resolves and others fire', async () => {
     const update = vi.fn().mockResolvedValue({ record: { id: 'r1' } });
     const ds = makeDS({ update });

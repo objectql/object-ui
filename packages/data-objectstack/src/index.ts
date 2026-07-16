@@ -954,7 +954,26 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         response.status,
       );
     }
-    return response.json();
+    const payload = (await response.json()) as { results?: any[] };
+    // The transaction committed — surface every op as a normal mutation event,
+    // exactly as the per-record create/update/delete methods do. Master-detail
+    // saves go through here (parent + children in ONE /batch call), and without
+    // these events the invalidation bridge (objectui#2269) never hears about
+    // the write: related lists and count badges on the parent's detail page
+    // stayed stale until a full page reload.
+    const results = Array.isArray(payload?.results) ? payload.results : [];
+    operations.forEach((op, i) => {
+      const type = op.action ?? 'create';
+      const record = results[i];
+      const id = op.id ?? (record != null && typeof record === 'object' ? (record.id ?? record._id) : undefined);
+      this.emitMutation({
+        type,
+        resource: op.object,
+        ...(type !== 'delete' && record != null && typeof record === 'object' ? { record: { ...record } } : {}),
+        ...(id != null ? { id } : {}),
+      } as MutationEvent<T>);
+    });
+    return payload as { results: any[] };
   }
 
   async bulk(resource: string, operation: 'create' | 'update' | 'delete', data: Partial<T>[]): Promise<T[]> {
@@ -986,6 +1005,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           completed = created.length;
           failed = total - completed;
           emitProgress();
+          // One resource-scoped event per bulk call (mirrors bulkUpdate /
+          // bulkDelete) so onMutation readers refresh after bulk writes too.
+          if (completed > 0) this.emitMutation({ type: 'create', resource });
           return created;
         }
         
@@ -1010,6 +1032,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           completed = ids.length;
           failed = total - completed;
           emitProgress();
+          if (completed > 0) this.emitMutation({ type: 'delete', resource });
           return [] as T[];
         }
         
@@ -1025,6 +1048,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
               completed = updated.length;
               failed = total - completed;
               emitProgress();
+              if (completed > 0) this.emitMutation({ type: 'update', resource });
               return updated;
             } catch {
               // If updateMany is not supported, fall back to individual updates
@@ -1060,6 +1084,9 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
             }
           }
           
+          // Partial successes DID mutate data — notify before surfacing errors.
+          if (completed > 0) this.emitMutation({ type: 'update', resource });
+
           // If there were any errors, throw BulkOperationError
           if (errors.length > 0) {
             throw new BulkOperationError(
@@ -1070,7 +1097,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
               { resource, totalRecords: data.length }
             );
           }
-          
+
           return results;
         }
         
