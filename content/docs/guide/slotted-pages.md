@@ -81,6 +81,41 @@ renderer suppresses itself the same way on hand-authored pages). The server
 always enforced data access — this keeps the UI from rendering an empty
 grid with a "New" button that would be rejected on save.
 
+## Header actions: inline vs. overflow
+
+`page:header` renders the record's `record_header` actions (authored
+business actions plus the host-injected system set — Edit / Share /
+Delete) as a button row. Up to **`maxVisible`** actions render inline,
+side by side (default **3** on desktop, **`mobileMaxVisible`**, default
+**1**, on mobile); the rest collapse into a `⋯` "More actions" menu.
+
+Which actions claim the inline slots is declared in metadata, using the
+same rules as `action:bar`:
+
+- **`order`** (number, default `0`) — actions are stable-sorted
+  ascending before the split, so a lower `order` promotes an action
+  into the inline slots and a higher `order` pushes it toward the `⋯`
+  menu. The synthesized system actions use `order: 100+`, so authored
+  business actions outrank them by default.
+- **`variant: 'primary'`** — tie-break within equal `order`: a primary
+  action outranks its unordered siblings without needing an explicit
+  `order`.
+- **`component: 'action:menu'`** — pins the action inside the `⋯` menu
+  regardless of how few actions exist (the synthesized Share / Delete
+  use this).
+
+```ts
+slots: {
+  header: {
+    type: 'page:header',
+    properties: {
+      title: '{name}',
+      maxVisible: 4, // allow four inline buttons on this page
+    },
+  },
+},
+```
+
 ## Composing default + custom
 
 When you want "the default actions plus one custom button," you have

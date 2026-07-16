@@ -1626,6 +1626,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // System actions (Edit / Share / Delete) — synthesized for every record
   // page so objects without authored record_header actions still surface
   // the basic affordances.
+  //
+  // Placement metadata (objectui#2361): the page header now renders up to
+  // `maxVisible` inline buttons sorted by `order` (lower = more prominent).
+  // Authored business actions default to `order: 0`, so giving the system
+  // set high orders (100+) keeps them behind every business action, and
+  // `component: 'action:menu'` pins Share/Delete inside the `⋯` overflow
+  // menu permanently — Delete must never surface as an inline red button
+  // just because an object has few actions.
   const synthSystemActions: ActionDef[] = (() => {
     const affordances = resolveCrudAffordances(objectDef as any);
     const items: ActionDef[] = [];
@@ -1641,6 +1649,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         type: 'script',
         locations: ['record_header'],
         variant: 'default',
+        order: 100,
         onClick: () => onEdit({ id: pureRecordId }),
       } as any);
     }
@@ -1650,6 +1659,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       type: 'script',
       locations: ['record_header'],
       variant: 'outline',
+      order: 110,
+      component: 'action:menu',
       onClick: async () => {
         try {
           if ((navigator as any).share) {
@@ -1684,6 +1695,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         type: 'script',
         locations: ['record_header'],
         variant: 'destructive',
+        order: 120,
+        component: 'action:menu',
         onClick: async () => {
           const msg = t('detail.deleteConfirmation', {
             defaultValue: 'Are you sure you want to delete this record?',
