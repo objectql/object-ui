@@ -89,18 +89,18 @@ describe('resolveVisibleOptions — cascade', () => {
 describe('resolveVisibleOptions — role / context gating via scope', () => {
   const options: OptionLike[] = [
     { label: 'Standard', value: 'standard' },
-    { label: 'Admin only', value: 'admin_only', visibleWhen: "'admin' in current_user.roles" },
+    { label: 'Admin only', value: 'admin_only', visibleWhen: "'admin' in current_user.positions" },
   ];
 
   it('hides the admin option for a non-admin', () => {
-    const vals = resolveVisibleOptions(options, {}, { current_user: { roles: ['sales'] } }).map(
+    const vals = resolveVisibleOptions(options, {}, { current_user: { positions: ['sales'] } }).map(
       (o) => o.value,
     );
     expect(vals).toEqual(['standard']);
   });
 
   it('offers the admin option to an admin', () => {
-    const vals = resolveVisibleOptions(options, {}, { current_user: { roles: ['admin'] } }).map(
+    const vals = resolveVisibleOptions(options, {}, { current_user: { positions: ['admin'] } }).map(
       (o) => o.value,
     );
     expect(vals).toEqual(['standard', 'admin_only']);

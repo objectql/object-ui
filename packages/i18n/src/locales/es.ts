@@ -105,6 +105,9 @@ const es = {
     deleteSuccess: "{{object}} eliminado",
   },
   fields: {
+    relativeDate: {
+      overdue: "Atrasado {{count}} d",
+    },
     richText: {
       format: "Formato: {{format}}",
       basicEditorHint: "Editor de texto enriquecido (básico)",
@@ -510,6 +513,8 @@ const es = {
     highlightFields: "Campos clave",
     createdBy: "Creado por",
     updatedBy: "Actualizado por",
+    created: "Creado",
+    updated: "Actualizado",
     showEmptyRelated_one: "+ {{count}} vacío",
     showEmptyRelated_other: "+ {{count}} vacíos",
     copyEmail: "Copiar correo",

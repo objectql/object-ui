@@ -7,7 +7,9 @@
  */
 
 /**
- * CEL predicate editor for RLS `USING` / `CHECK` clauses (objectui#2413).
+ * CEL predicate editor — RLS `USING` / `CHECK` clauses (objectui#2413) and,
+ * via `scope="record"`, the field conditional rules `visibleWhen` /
+ * `readonlyWhen` / `requiredWhen` in the object field inspector (objectui#1582).
  *
  * Replaces the bare `<textarea>` with the same visual field plus three
  * author-time safeties, all backed by the framework's canonical CEL engine
@@ -31,9 +33,11 @@ import {
   lintCelPredicate,
   introspectCelScope,
   tokenAt,
+  memberTokenAt,
   buildCandidates,
   filterCandidates,
   type CelLintIssue,
+  type CelScopeInfo,
   type CelSuggestion,
   type CelSuggestionKind,
 } from './celAuthoring';
@@ -45,6 +49,14 @@ const KIND_TAG: Record<CelSuggestionKind, string> = {
   root: 'scope',
   function: 'fn',
 };
+
+/**
+ * Roots whose member shape IS the target object's field catalog, so typing
+ * `record.` / `previous.` completes to field names. `parent` (a master-detail
+ * header of some OTHER object) and `current_user` stay suppressed — suggesting
+ * this object's fields there would be wrong.
+ */
+const FIELD_MEMBER_ROOTS = new Set(['record', 'previous']);
 
 export interface CelPredicateFieldProps {
   value: string;
@@ -59,6 +71,16 @@ export interface CelPredicateFieldProps {
   fieldNames?: string[];
   /** Which RLS clause this is (drives the pushdown / fail-open advisory). */
   clause?: 'using' | 'check';
+  /**
+   * Evaluation scope of the authoring site (objectui#1582). `'flattened'`
+   * (default — RLS / flow style, fields referenced bare) or `'record'`
+   * (field conditional rules / formulas — fields live under the `record`
+   * namespace, so bare completion offers roots + functions only and the
+   * field catalog surfaces after `record.` / `previous.`).
+   */
+  scope?: 'record' | 'flattened';
+  /** Override the scope roots offered by autocomplete (see CelSchemaHint.roots). */
+  roots?: string[];
   /** Reports the current lint issues up so the editor can gate Save on errors. */
   onLintChange?: (issues: CelLintIssue[]) => void;
   t: (k: string) => string;
@@ -76,6 +98,8 @@ export function CelPredicateField({
   objectName,
   fieldNames = EMPTY_FIELDS,
   clause,
+  scope,
+  roots,
   onLintChange,
   t,
   id,
@@ -83,7 +107,7 @@ export function CelPredicateField({
   const taRef = React.useRef<HTMLTextAreaElement>(null);
   const [issues, setIssues] = React.useState<CelLintIssue[]>([]);
   const [linted, setLinted] = React.useState(false);
-  const [candidates, setCandidates] = React.useState<CelSuggestion[]>([]);
+  const [scopeInfo, setScopeInfo] = React.useState<CelScopeInfo | null>(null);
 
   const [open, setOpen] = React.useState(false);
   const [suggestions, setSuggestions] = React.useState<CelSuggestion[]>([]);
@@ -91,8 +115,9 @@ export function CelPredicateField({
   const tokenRef = React.useRef<{ start: number; end: number } | null>(null);
   const pendingCaret = React.useRef<number | null>(null);
 
-  // Stable dep for the field-name array (parent may pass a fresh array each render).
+  // Stable deps for the identifier arrays (parent may pass fresh arrays each render).
   const fieldsKey = fieldNames.join(',');
+  const rootsKey = roots ? roots.join(',') : '';
 
   // Keep the reporter out of the lint effect deps (parent may not memoize it).
   const onLintChangeRef = React.useRef(onLintChange);
@@ -104,7 +129,7 @@ export function CelPredicateField({
   React.useEffect(() => {
     let cancelled = false;
     const handle = setTimeout(() => {
-      lintCelPredicate(value, { objectName, fields: fieldNames, clause }).then((res) => {
+      lintCelPredicate(value, { objectName, fields: fieldNames, clause, scope }).then((res) => {
         if (cancelled) return;
         setIssues(res);
         setLinted(true);
@@ -116,7 +141,7 @@ export function CelPredicateField({
       clearTimeout(handle);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, objectName, fieldsKey, clause]);
+  }, [value, objectName, fieldsKey, clause, scope]);
 
   /* Report "clean" upward when the field empties (no debounce needed). */
   React.useEffect(() => {
@@ -130,14 +155,29 @@ export function CelPredicateField({
   /* Load the autocomplete catalog when the target object / fields change. */
   React.useEffect(() => {
     let cancelled = false;
-    introspectCelScope({ objectName, fields: fieldNames }).then((scope) => {
-      if (!cancelled) setCandidates(buildCandidates(scope));
+    introspectCelScope({ objectName, fields: fieldNames, scope, roots }).then((info) => {
+      if (!cancelled) setScopeInfo(info);
     });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [objectName, fieldsKey]);
+  }, [objectName, fieldsKey, scope, rootsKey]);
+
+  // Bare-position catalog. In `record` scope a bare field ref is a lint ERROR
+  // (the record is namespaced), so fields are withheld here and offered as
+  // member completion after `record.` / `previous.` instead.
+  const bareCandidates = React.useMemo(
+    () =>
+      scopeInfo
+        ? buildCandidates(scope === 'record' ? { ...scopeInfo, fields: [] } : scopeInfo)
+        : [],
+    [scopeInfo, scope],
+  );
+  const fieldCandidates = React.useMemo<CelSuggestion[]>(
+    () => (scopeInfo ? scopeInfo.fields.map((f) => ({ label: f, kind: 'field' as const })) : []),
+    [scopeInfo],
+  );
 
   /* Restore the caret after a controlled-value change from accepting a suggestion. */
   React.useEffect(() => {
@@ -159,15 +199,27 @@ export function CelPredicateField({
     if (!ta || disabled) return closeAc();
     const text = ta.value;
     const caret = ta.selectionStart ?? text.length;
-    const tok = tokenAt(text, caret);
-    if (!tok) return closeAc();
-    const matches = filterCandidates(candidates, tok.text);
-    if (!matches.length) return closeAc();
+    let tok: { start: number; end: number } | null = null;
+    let matches: CelSuggestion[] = [];
+    const bare = tokenAt(text, caret);
+    if (bare) {
+      tok = bare;
+      matches = filterCandidates(bareCandidates, bare.text);
+    } else {
+      // Member position: `record.` / `previous.` complete to the object's
+      // fields — including the empty segment right after the dot.
+      const member = memberTokenAt(text, caret);
+      if (member && FIELD_MEMBER_ROOTS.has(member.root)) {
+        tok = member;
+        matches = filterCandidates(fieldCandidates, member.text, true);
+      }
+    }
+    if (!tok || !matches.length) return closeAc();
     tokenRef.current = { start: tok.start, end: tok.end };
     setSuggestions(matches);
     setActive(0);
     setOpen(true);
-  }, [candidates, disabled, closeAc]);
+  }, [bareCandidates, fieldCandidates, disabled, closeAc]);
 
   const accept = React.useCallback(
     (s: CelSuggestion) => {
@@ -192,7 +244,7 @@ export function CelPredicateField({
   }, [refreshAc]);
   React.useEffect(() => {
     if (taRef.current && document.activeElement === taRef.current) refreshAcRef.current();
-  }, [candidates]);
+  }, [bareCandidates, fieldCandidates]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (!open || suggestions.length === 0) return;

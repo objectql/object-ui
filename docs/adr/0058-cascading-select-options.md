@@ -37,9 +37,9 @@ Rationale:
    its cascade; `visibleWhen` is already the field-level CEL predicate (ADR-0036).
    Reusing both introduces no new category and no bespoke matrix format.
 2. **`visibleWhen` is strictly more expressive than a value cascade.** It sees
-   `current_user` (roles/tenant) and `now()`, so the *same* knob covers cascades
+   `current_user` (positions/tenant) and `now()`, so the *same* knob covers cascades
    (`record.country == 'cn'`) **and** role/context gating
-   (`'admin' in current_user.roles`). `validFor` can only express "varies with
+   (`'admin' in current_user.positions`). `validFor` can only express "varies with
    another field's value" — it cannot gate by role. `current_user` is already
    bound on every predicate surface (server formula, RLS, client UI gates), so a
    role-referencing option predicate needs **zero new binding**.
@@ -113,7 +113,7 @@ expression parses and the field exists.
 `@object-ui/core`'s `lintOptionPredicates(fields)` (`evaluator/optionLint.ts`)
 closes this at authoring/CI time with three conservative checks: `syntax` (via
 `@objectstack/formula`'s `validateExpression`, no schema hint so a legitimate
-`current_user.roles` reference is never flagged), `unknown-field` (a `record.<name>`
+`current_user.positions` reference is never flagged), `unknown-field` (a `record.<name>`
 naming no declared sibling), and `option-literal-not-in-domain` (a literal
 compared against an *enum* sibling that is outside its declared value set). It
 only flags what it can statically prove — non-`record.` roots, open-domain

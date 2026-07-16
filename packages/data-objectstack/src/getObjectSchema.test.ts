@@ -75,6 +75,38 @@ describe('ObjectStackAdapter.getObjectSchema', () => {
     expect(Object.keys(schema.fields)).toEqual(['x']);
   });
 
+  it('canonicalizes the ObjectStack-convention `reference` key onto `reference_to` (and back)', async () => {
+    // The server names a relational field's target `reference`
+    // (showcase_project.account → { type: 'lookup', reference: 'showcase_account' }),
+    // while most consumers read `reference_to` (#2407 / PR #2587). getObjectSchema
+    // is the choke point every schema read goes through, so both keys must come
+    // back stamped — regardless of which convention the served schema used.
+    const { fetchImpl } = makeFetch({
+      name: 'showcase_project',
+      fields: {
+        name: { type: 'text' },
+        account: { type: 'lookup', reference: 'showcase_account' },
+        team_members: { type: 'user', reference: 'sys_user', multiple: true },
+        legacy: { type: 'master_detail', reference_to: 'showcase_order' },
+      },
+    });
+    const adapter = new ObjectStackAdapter({
+      baseUrl: 'http://localhost:3000',
+      autoReconnect: false,
+      fetch: fetchImpl as any,
+    });
+
+    const schema: any = await adapter.getObjectSchema('showcase_project');
+
+    expect(schema.fields.account.reference_to).toBe('showcase_account');
+    expect(schema.fields.team_members.reference_to).toBe('sys_user');
+    // Mirror direction: `.reference`-only readers (e.g. attachInlineSubforms)
+    // must also see the target on a reference_to-authored schema.
+    expect(schema.fields.legacy.reference).toBe('showcase_order');
+    // Non-relational fields stay untouched.
+    expect('reference_to' in schema.fields.name).toBe(false);
+  });
+
   it('preserves `validations` (incl. state_machine transitions) — the seam the inline editor depends on', async () => {
     // Inert-metadata regression guard. The inline select editor filters its
     // options by the object's `state_machine` validation (objectui#2110). That

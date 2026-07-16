@@ -22,6 +22,8 @@ import {
 } from '@object-ui/components';
 import { Plus, X, Code2, ListFilter } from 'lucide-react';
 import { useObjectFields } from '../previews/useObjectFields';
+import { CelPredicateField } from '../CelPredicateField';
+import { t, useMetadataLocale } from '../i18n';
 
 type Op = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'truthy' | 'falsy';
 
@@ -125,6 +127,14 @@ export function ConditionBuilder({ label, value, onCommit, objectName, fields: f
       .map((f) => ({ value: `record.${f.name}`, label: `record.${f.name}` }));
     return [...fieldOpts, ...CONTEXT_SUBJECTS];
   }, [fields]);
+  // The raw-expression editor's CEL assists (#1582): field-existence lint +
+  // autocomplete need the bare field-name catalog and a locale-bound `t`.
+  const locale = useMetadataLocale();
+  const tLocal = React.useCallback((k: string) => t(k, locale), [locale]);
+  const fieldNames = React.useMemo(
+    () => fields.filter((f) => !f.hidden).map((f) => f.name),
+    [fields],
+  );
 
   const init = React.useMemo(() => initFrom(value), []); // first mount only
   const [rows, setRowsState] = React.useState<Row[]>(init.rows);
@@ -168,17 +178,21 @@ export function ConditionBuilder({ label, value, onCommit, objectName, fields: f
             <ListFilter className="h-3 w-3" /> Builder
           </button>
         </div>
-        <textarea
+        {/* CEL editor with inline lint + field autocomplete (#1582) — the same
+            author-time assists the RLS policy editor gets, on the canonical
+            @objectstack/formula engine. Replaces the bare <textarea>. */}
+        <CelPredicateField
+          label={tLocal('engine.condition.celLabel')}
           value={value}
-          onChange={(e) => { lastEmitted.current = e.target.value; onCommit(e.target.value); }}
+          onChange={(v) => { lastEmitted.current = v; onCommit(v); }}
           disabled={disabled}
-          spellCheck={false}
-          rows={2}
-          placeholder="CEL expression, e.g. record.status != 'done' && user.isAdmin"
-          className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs font-mono outline-none focus:ring-1 focus:ring-primary resize-y disabled:opacity-60"
+          placeholder="record.status != 'done' && user.isAdmin"
+          objectName={objectName}
+          fieldNames={fieldNames}
+          t={tLocal}
         />
         {value && !parse(value) && (
-          <div className="text-[10px] text-muted-foreground/70">Advanced expression — Builder only supports simple AND/OR conditions.</div>
+          <div className="text-[10px] text-muted-foreground/70">{tLocal('engine.condition.advancedHint')}</div>
         )}
       </div>
     );

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
+import { UploadProvider } from '@object-ui/providers';
 import { GridField, LineItemsField, sumColumn, lookupAutofillPatch } from './GridField';
 
 const columns = [
@@ -255,6 +256,88 @@ describe('GridField / LineItemsField — editable line items', () => {
       expect(screen.getByTestId('line-items-invalid-0-description')).toBeTruthy();
       // ...but the trailing ghost row (index 1) is not.
       expect(screen.queryByTestId('line-items-invalid-1-description')).toBeNull();
+    });
+  });
+
+  describe('file columns (upload in a grid cell — #2360)', () => {
+    const fileField = {
+      columns: [
+        { field: 'description', label: 'Description', type: 'text' as const },
+        { field: 'receipt', label: 'Receipt', type: 'file' as const },
+      ],
+    } as any;
+
+    it('renders a real upload control in the cell, not a text input', () => {
+      render(<GridField value={[{ description: 'Taxi', receipt: null }]} onChange={() => {}} field={fileField} />);
+      // One upload button per row (data row + ghost), backed by a native file input.
+      expect(screen.getAllByRole('button', { name: 'Receipt' }).length).toBeGreaterThan(0);
+      expect(document.querySelector('input[type="file"]')).toBeTruthy();
+      expect(screen.queryByRole('textbox', { name: 'Receipt' })).toBeNull();
+    });
+
+    it('uploads a picked file and writes the file object into the row', async () => {
+      const onChange = vi.fn();
+      const adapter = {
+        name: 'test',
+        upload: async (f: File) => ({ url: 'https://cdn/receipt.png', name: f.name, size: f.size, mimeType: f.type }),
+      };
+      render(
+        <UploadProvider adapter={adapter as any}>
+          <GridField value={[{ description: 'Taxi', receipt: null }]} onChange={onChange} field={fileField} />
+        </UploadProvider>,
+      );
+      const file = new File(['x'], 'receipt.png', { type: 'image/png' });
+      const input = document.querySelectorAll('input[type="file"]')[0] as HTMLInputElement;
+      fireEvent.change(input, { target: { files: [file] } });
+      await waitFor(() => expect(onChange).toHaveBeenCalled());
+      expect(onChange).toHaveBeenCalledWith([
+        {
+          description: 'Taxi',
+          receipt: {
+            name: 'receipt.png',
+            original_name: 'receipt.png',
+            size: file.size,
+            mime_type: 'image/png',
+            url: 'https://cdn/receipt.png',
+          },
+        },
+      ]);
+    });
+
+    it('shows an uploaded file as a removable chip', () => {
+      const onChange = vi.fn();
+      render(
+        <GridField
+          value={[{ description: 'Taxi', receipt: { name: 'receipt.png', mime_type: 'image/png' } }]}
+          onChange={onChange}
+          field={fileField}
+        />,
+      );
+      expect(screen.getByText('receipt.png')).toBeTruthy();
+      fireEvent.click(screen.getByLabelText('Remove receipt.png'));
+      expect(onChange).toHaveBeenCalledWith([{ description: 'Taxi', receipt: null }]);
+    });
+
+    it('passes the column accept list to the native picker', () => {
+      const withAccept = {
+        columns: [{ field: 'receipt', label: 'Receipt', type: 'file' as const, accept: ['image/*', '.pdf'] }],
+      } as any;
+      render(<GridField value={[]} onChange={() => {}} field={withAccept} />);
+      const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      expect(input.getAttribute('accept')).toBe('image/*,.pdf');
+    });
+
+    it('renders the file name read-only in readonly mode', () => {
+      render(
+        <GridField
+          value={[{ description: 'Taxi', receipt: { name: 'receipt.png' } }]}
+          onChange={() => {}}
+          field={fileField}
+          readonly
+        />,
+      );
+      expect(screen.getByText('receipt.png')).toBeTruthy();
+      expect(document.querySelector('input[type="file"]')).toBeNull();
     });
   });
 

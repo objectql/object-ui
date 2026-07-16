@@ -24,7 +24,7 @@ import { FieldWidgetProps } from './types';
  * Supports cascading / role-gated options (#2284): each option may carry a
  * `visibleWhen` CEL predicate, evaluated against the live form record +
  * `current_user`, so the offered set narrows as a controlling field changes
- * (`record.country == 'cn'`) or by role (`'admin' in current_user.roles`). A
+ * (`record.country == 'cn'`) or by role (`'admin' in current_user.positions`). A
  * field declares which sibling fields drive its list via `dependsOn`; while any
  * of those is empty the control is gated with a "select the parent first" hint,
  * mirroring the dependent-lookup UX.

@@ -79,12 +79,11 @@ Add plugins as needed (full plugin catalog):
 }
 ```
 
-Opt-in platform packages (auth, multi-tenancy, i18n, mobile, realtime):
+Opt-in platform packages (auth, i18n, mobile, realtime):
 ```json
 {
   "@object-ui/auth": "latest",
   "@object-ui/permissions": "latest",
-  "@object-ui/tenant": "latest",
   "@object-ui/i18n": "latest",
   "@object-ui/mobile": "latest",
   "@object-ui/collaboration": "latest"
@@ -370,7 +369,7 @@ import { DataSourceProvider, MetadataProvider, ThemeProvider } from '@object-ui/
 Use when integrating ObjectUI into a host system (CRM, ERP, custom admin) and you want:
 
 - `AppShell` (sidebar + main split layout)
-- `ObjectRenderer`, `DashboardRenderer`, `PageRenderer`, `FormRenderer`
+- `ObjectRenderer`, `DashboardRenderer`, `PageRenderer`
 - `AdapterProvider`, `MetadataProvider`, `ExpressionProvider`
 - `useObjectActions`, `useRecentItems`, `useAdapter`, `useMetadataItem`
 

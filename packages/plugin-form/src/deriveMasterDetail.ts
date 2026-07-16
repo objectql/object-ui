@@ -33,10 +33,12 @@ const SYSTEM_FIELDS = new Set([
  *  columns and the row form (the grid stamps them on drag-reorder instead). */
 const SORT_FIELD_NAMES = new Set(['position', 'sort_order', 'sequence', 'line_no', 'line_number', 'sort']);
 
-/** Field types that are not directly editable in a line-item grid. */
+/** Field types that are not directly editable in a line-item grid.
+ *  file/image/avatar are NOT here: they render a compact upload cell
+ *  (`GridColumn.type: 'file'` → FileCell) since objectui#2360. */
 const NON_EDITABLE_TYPES = new Set([
   'formula', 'summary', 'rollup', 'autonumber', 'auto_number',
-  'file', 'image', 'avatar', 'json', 'object', 'grid', 'table',
+  'json', 'object', 'grid', 'table',
   'location', 'vector', 'html', 'markdown', 'richtext',
 ]);
 
@@ -63,8 +65,27 @@ export function fieldTypeToColumnType(type: string | undefined): GridColumn['typ
     case 'lookup':
     case 'master_detail':
       return 'lookup';
+    case 'file':
+    case 'image':
+    case 'avatar':
+    case 'attachment':
+      return 'file';
     default:
       return 'text';
+  }
+}
+
+/** Image-flavoured field types whose picker should be restricted to images. */
+const IMAGE_TYPES = new Set(['image', 'avatar']);
+
+/** Carry a file field's upload constraints onto its grid column: `multiple`,
+ *  the field's `accept` list, or an `image/*` restriction for image fields.
+ *  Values already present on the column (author-supplied) are left untouched. */
+function applyFileColumnProps(col: GridColumn, d: any): void {
+  if (col.multiple == null && d?.multiple) col.multiple = true;
+  if (col.accept == null) {
+    if (Array.isArray(d?.accept) && d.accept.length > 0) col.accept = d.accept;
+    else if (IMAGE_TYPES.has(d?.type)) col.accept = ['image/*'];
   }
 }
 
@@ -187,6 +208,7 @@ export function deriveColumns(
       col.reference = d?.reference;
       col.displayField = d?.display_field || d?.reference_field;
     }
+    if (col.type === 'file') applyFileColumnProps(col, d);
     // Field-level CEL conditional rules (B2 in grids). Carried through verbatim
     // so the grid cell evaluates them per row (against the row + `parent`
     // header). requiredWhen falls back to the conditionalRequired alias.
@@ -240,6 +262,7 @@ export function hydrateColumns(
       if (next.reference == null) next.reference = d?.reference;
       if (next.displayField == null) next.displayField = d?.display_field || d?.reference_field;
     }
+    if (type === 'file') applyFileColumnProps(next, d);
     if (next.readonlyWhen == null && d?.readonlyWhen) next.readonlyWhen = d.readonlyWhen;
     if (next.requiredWhen == null && (d?.requiredWhen ?? d?.conditionalRequired)) {
       next.requiredWhen = d.requiredWhen ?? d.conditionalRequired;

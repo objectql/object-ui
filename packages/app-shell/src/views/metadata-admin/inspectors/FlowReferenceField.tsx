@@ -137,6 +137,26 @@ export function connectorActionsToOptions(actions: unknown): Option[] {
 }
 
 /**
+ * The runtime connector registry (`GET /api/v1/automation/connectors`) → connector
+ * picker options (exported for test). Each descriptor is `{ name, label?, origin? }`.
+ *
+ * A materialized declarative instance (ADR-0096, `origin: 'declarative'`) is
+ * annotated `· declarative` so an author can tell it apart from a plugin-registered
+ * connector — both are equally dispatchable, but the provenance differs. The
+ * option `value` stays the bare connector name, so selecting it commits the name.
+ */
+export function connectorsToOptions(connectors: unknown): Option[] {
+  if (!Array.isArray(connectors)) return [];
+  return connectors
+    .filter((c): c is { name: string; label?: string; origin?: string } =>
+      !!c && typeof (c as { name?: unknown }).name === 'string' && !!(c as { name: string }).name)
+    .map((c) => {
+      const base = typeof c.label === 'string' && c.label && c.label !== c.name ? `${c.label} (${c.name})` : c.name;
+      return { value: c.name, label: c.origin === 'declarative' ? `${base} · declarative` : base };
+    });
+}
+
+/**
  * Fetch a metadata type's items as combobox options. `type === undefined`
  * disables the fetch (returns empty), so the hook can be called
  * unconditionally regardless of the reference kind.
@@ -214,6 +234,40 @@ function useConnectorActionOptions(connectorName: string | undefined): { options
   return state;
 }
 
+/**
+ * Fetch the runtime connector registry (`GET /api/v1/automation/connectors`) as
+ * connector picker options. Unlike a generic `client.list('connector')` — which
+ * lists declared `connectors:` metadata (including inert catalog descriptors, and
+ * missing plugin-registered connectors) — this lists exactly the **dispatchable**
+ * connectors a `connector_action` node can call: plugin connectors AND materialized
+ * declarative instances (ADR-0096), the latter annotated by origin. `enabled === false`
+ * disables the fetch (hook stays unconditional). Degrades to empty on any failure.
+ */
+function useConnectorListOptions(enabled: boolean): { options: Option[] } {
+  const [state, setState] = React.useState<{ options: Option[] }>({ options: [] });
+  React.useEffect(() => {
+    if (!enabled) {
+      setState({ options: [] });
+      return;
+    }
+    let cancelled = false;
+    fetch('/api/v1/automation/connectors', { credentials: 'include', headers: { Accept: 'application/json' } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        const connectors = payload?.data?.connectors ?? payload?.connectors ?? [];
+        setState({ options: connectorsToOptions(connectors) });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ options: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+  return state;
+}
+
 export interface ReferenceComboboxProps {
   /** The resolved concrete reference, or undefined → plain free text. */
   resolved: ResolvedRef | undefined;
@@ -246,8 +300,15 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
   const connectorName = resolved ? resolveConnectorName(resolved.kind, resolved.connectorSource, ctx) : undefined;
   const { options: connectorActionOptions } = useConnectorActionOptions(kind === 'connector-action' ? connectorName : undefined);
 
+  // connector: the dispatchable runtime registry (plugin + materialized declarative
+  // instances, ADR-0096), NOT the generic declared-metadata list — see the hook.
+  const { options: connectorListOptions } = useConnectorListOptions(kind === 'connector');
+
   // Flat metadata-list kinds (object / flow / role / user / team / …).
-  const listType = kind && kind !== 'object-field' && kind !== 'node' && kind !== 'connector-action' ? KIND_TO_META_TYPE[kind] : undefined;
+  const listType =
+    kind && kind !== 'object-field' && kind !== 'node' && kind !== 'connector-action' && kind !== 'connector'
+      ? KIND_TO_META_TYPE[kind]
+      : undefined;
   const { options: listOptions } = useMetadataListOptions(listType);
 
   const options = React.useMemo<Option[]>(() => {
@@ -258,6 +319,7 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
       }));
     }
     if (kind === 'connector-action') return connectorActionOptions;
+    if (kind === 'connector') return connectorListOptions;
     if (kind === 'node') {
       const nodes = Array.isArray(ctx.draft.nodes) ? (ctx.draft.nodes as Array<Record<string, unknown>>) : [];
       const currentId = typeof ctx.node?.id === 'string' ? ctx.node.id : undefined;
@@ -271,7 +333,7 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
     }
     if (listType) return listOptions;
     return [];
-  }, [kind, listType, objectFields, connectorActionOptions, listOptions, ctx.draft, ctx.node]);
+  }, [kind, listType, objectFields, connectorActionOptions, connectorListOptions, listOptions, ctx.draft, ctx.node]);
 
   // For an object-field whose object can't be resolved, tell the author why the
   // suggestions are empty — but still let them type a value.

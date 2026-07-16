@@ -2,11 +2,16 @@
  * Approvals REST helper.
  *
  * Thin fetch wrapper around the framework's approval endpoints
- * (`/api/v1/approvals/*`). Sends cookies for auth.
+ * (`/api/v1/approvals/*`). Auth mirrors the rest of the console: the stored
+ * Bearer token when present, plus cookies. Cookie-only auth silently lost
+ * the approvals surface on split-origin deployments (custom-domain console ↔
+ * API, or a dev console pointed at a remote backend) where the SameSite
+ * cookie never flows — every other console call already sends the Bearer.
  *
  * Mirrors the shape exposed by `@objectstack/plugin-approvals` /
  * `packages/rest/src/rest-server.ts`.
  */
+import { TokenStorage } from '@object-ui/auth';
 
 const SERVER_URL = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');
 const API_BASE = `${SERVER_URL}/api/v1`;
@@ -73,9 +78,14 @@ export interface ApprovalActionRow {
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = TokenStorage.get();
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init?.headers || {}),
+    },
     ...init,
   });
   let payload: any = null;

@@ -34,9 +34,9 @@
  * "no lint / no suggestions / test-run unavailable", never to an exception.
  */
 
-/** A schema hint for the policy's target object — powers field-existence lint. */
+/** A schema hint for the predicate's target object — powers field-existence lint. */
 export interface CelSchemaHint {
-  /** The policy's target object api-name (`*` / undefined => no field hints). */
+  /** The target object api-name (`*` / undefined => no field hints). */
   objectName?: string;
   /** Known field names of {@link objectName}, so `<field>` refs can be checked. */
   fields?: string[];
@@ -46,6 +46,27 @@ export interface CelSchemaHint {
    * blast-radius the issue calls out, so we advise on it (see {@link lintCelPredicate}).
    */
   clause?: 'using' | 'check';
+  /**
+   * Evaluation scope of the authoring site (mirrors the engine's
+   * `ExprSchemaHint.scope`, objectui#1582):
+   *  - `'flattened'` (default) — the record's fields are spread to bare
+   *    top-level (RLS predicates, flow conditions), so `organization_id == …`
+   *    is legal and an unknown bare identifier is only a warning.
+   *  - `'record'` — the record is bound ONLY as the `record` namespace
+   *    (field conditional rules `visibleWhen`/`readonlyWhen`/`requiredWhen`,
+   *    formulas). A bare field ref silently evaluates to null at runtime, so
+   *    the engine flags it as an ERROR with the `record.<field>` fix.
+   */
+  scope?: 'record' | 'flattened';
+  /**
+   * Override the scope roots offered by autocomplete. The engine advertises
+   * every root ANY predicate site may see (`current_user`, `os`, `vars`, …),
+   * but a given authoring surface binds only a subset — field conditional
+   * rules bind exactly `record` / `previous` / `parent` (see
+   * `@object-ui/core`'s `evalFieldPredicate`). Suggesting an unbound root
+   * would author a predicate that silently never fires.
+   */
+  roots?: string[];
 }
 
 /** A single lint finding surfaced inline under the editor. */
@@ -170,7 +191,7 @@ export async function lintCelPredicate(
     const res = mod.validateExpression('predicate', source, {
       objectName: hint.objectName,
       fields: hint.fields,
-      scope: 'flattened',
+      scope: hint.scope ?? 'flattened',
     });
     const issues: CelLintIssue[] = [];
     for (const e of res?.errors ?? []) {
@@ -222,18 +243,18 @@ export async function lintCelPredicate(
  * field suggestions from metadata even with an older/absent engine.
  */
 export async function introspectCelScope(hint: CelSchemaHint = {}): Promise<CelScopeInfo> {
-  const fallback: CelScopeInfo = { fields: hint.fields ?? [], roots: [], functions: [] };
+  const fallback: CelScopeInfo = { fields: hint.fields ?? [], roots: hint.roots ?? [], functions: [] };
   try {
     const mod = await loadFormula();
     if (!mod?.introspectScope) return fallback;
     const res = mod.introspectScope('predicate', {
       objectName: hint.objectName,
       fields: hint.fields,
-      scope: 'flattened',
+      scope: hint.scope ?? 'flattened',
     });
     return {
       fields: res?.fields ?? hint.fields ?? [],
-      roots: res?.roots ?? [],
+      roots: hint.roots ?? res?.roots ?? [],
       functions: res?.functions ?? [],
     };
   } catch {
@@ -260,7 +281,8 @@ export const MAX_CEL_SUGGESTIONS = 8;
  * The identifier segment being typed immediately before `caret`, or `null` when
  * there is nothing to complete. A segment preceded by `.` is member access
  * (`current_user.org…`) — we can't know the member shape, so we suppress rather
- * than suggest a wrong top-level identifier.
+ * than suggest a wrong top-level identifier (but see {@link memberTokenAt} for
+ * the roots whose member shape IS known).
  */
 export function tokenAt(
   text: string,
@@ -273,6 +295,35 @@ export function tokenAt(
   if (!IDENT_START.test(seg[0])) return null; // starts with a digit → not an identifier
   if (start > 0 && text[start - 1] === '.') return null; // member access → suppress
   return { start, end: caret, text: seg };
+}
+
+/**
+ * The member segment being typed immediately after `<root>.` — e.g. caret at
+ * the end of `record.sta` yields `{ root: 'record', text: 'sta' }`, and caret
+ * right after `record.` yields `{ root: 'record', text: '' }` (so the full
+ * field catalog can surface as soon as the dot is typed). Unlike
+ * {@link tokenAt} the segment may be EMPTY, and only a single-level chain
+ * qualifies: in `record.owner.name` the `name` segment's root is `owner`
+ * (unknown shape), not `record`, so it returns `null` via the root's own
+ * preceding-dot check. Returns `null` when the caret is not in a member
+ * position (objectui#1582).
+ */
+export function memberTokenAt(
+  text: string,
+  caret: number,
+): { root: string; start: number; end: number; text: string } | null {
+  let start = caret;
+  while (start > 0 && IDENT_CHAR.test(text[start - 1])) start--;
+  const seg = text.slice(start, caret);
+  if (seg && !IDENT_START.test(seg[0])) return null; // digit-led → not an identifier
+  if (start === 0 || text[start - 1] !== '.') return null; // not member access
+  // The identifier run immediately before the dot is the root.
+  let rootStart = start - 1;
+  while (rootStart > 0 && IDENT_CHAR.test(text[rootStart - 1])) rootStart--;
+  const root = text.slice(rootStart, start - 1);
+  if (!root || !IDENT_START.test(root[0])) return null;
+  if (rootStart > 0 && text[rootStart - 1] === '.') return null; // deeper chain → unknown shape
+  return { root, start, end: caret, text: seg };
 }
 
 /** Merge a scope into a single de-duplicated, ordered candidate catalog. */
@@ -291,10 +342,19 @@ export function buildCandidates(scope: CelScopeInfo): CelSuggestion[] {
   return out;
 }
 
-/** Prefix-filter the catalog for `query` (case-insensitive), excluding exact hits. */
-export function filterCandidates(candidates: CelSuggestion[], query: string): CelSuggestion[] {
+/**
+ * Prefix-filter the catalog for `query` (case-insensitive), excluding exact
+ * hits. An empty query yields nothing unless `allowEmpty` — member completion
+ * wants the full (capped) catalog the moment the dot is typed, while bare
+ * completion staying quiet until a character is typed avoids a popup on focus.
+ */
+export function filterCandidates(
+  candidates: CelSuggestion[],
+  query: string,
+  allowEmpty = false,
+): CelSuggestion[] {
   const q = query.toLowerCase();
-  if (!q) return [];
+  if (!q && !allowEmpty) return [];
   const out: CelSuggestion[] = [];
   for (const c of candidates) {
     const l = c.label.toLowerCase();

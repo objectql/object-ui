@@ -311,10 +311,19 @@ export function PeoplePicker({
 
   // --- keyboard cursor ---
   const [activeIndex, setActiveIndex] = useState(-1);
-  // Reset the cursor when the query changes (results replaced).
+  // Reset the cursor when the query results are actually *replaced* — keyed on
+  // the record-id signature, not the array identity. A background refetch that
+  // returns the same records (StrictMode double-effect, refetch-on-focus)
+  // re-emits a new array; resetting on identity alone yanked the cursor to -1
+  // mid-navigation (flaky ArrowDown→Enter, and a real UX nit).
+  const recordsSignature = useMemo(
+    () => query.records.map(r => String(getPersonId(r, idField))).join(' '),
+    [query.records, idField],
+  );
   useEffect(() => {
     setActiveIndex(-1);
-  }, [query.search, query.records]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.search, recordsSignature]);
   // Keep it in range if the list shrinks.
   useEffect(() => {
     setActiveIndex(i => (i >= navList.length ? navList.length - 1 : i));

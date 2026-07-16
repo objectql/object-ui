@@ -192,6 +192,13 @@ Tab navigation for organizing content into different views.
 
 Displays related records in list, grid, or table format.
 
+The `record:related_list` renderer is automatically gated on the current
+user's object-level `read` permission for the child object: when the
+permission system (`@object-ui/permissions`) is loaded and denies read,
+the whole section renders nothing — no header, no empty grid, no "New"
+button that would be rejected server-side. With no `PermissionProvider`
+mounted (Studio designer, standalone embeds) the gate stays open.
+
 <!-- release-metadata:v3.3.0 -->
 
 ## Compatibility

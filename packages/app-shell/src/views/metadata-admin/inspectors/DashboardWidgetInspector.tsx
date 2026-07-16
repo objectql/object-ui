@@ -30,9 +30,10 @@ import {
   SelectValue,
 } from '@object-ui/components';
 import type { DashboardWidgetSchema } from '@object-ui/types';
+import { resolveDashboardFilterDefs, type DashboardFilterDef } from '@object-ui/core';
 import type { MetadataInspectorProps } from '../inspector-registry';
-import { t } from '../i18n';
-import { InspectorReorderButtons, moveArray } from './_shared';
+import { t, tFormat } from '../i18n';
+import { InspectorCheckboxField, InspectorReorderButtons, moveArray } from './_shared';
 import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
 import { DatasetNamesEditor } from './ReportDefaultInspector';
 import { useDatasetCatalog, useDatasetSemantics } from '../previews/useDatasetCatalog';
@@ -135,6 +136,19 @@ export function DashboardWidgetInspector({
   const dimensionOptions: ObjectFieldInfo[] = React.useMemo(
     () => semantics.dimensions.map((d) => ({ name: d.name, label: d.name, type: d.type ?? 'text', hidden: false })),
     [semantics.dimensions],
+  );
+
+  // ── Dashboard filter bindings (framework#2501) ─────────────────────────
+  // The dashboard's own dateRange + globalFilters declarations, normalized
+  // to the same flat def list the runtime broadcasts from — so the editor
+  // offers exactly the filters the renderer will apply.
+  const filterDefs: DashboardFilterDef[] = React.useMemo(
+    () =>
+      resolveDashboardFilterDefs({
+        globalFilters: (draft as any).globalFilters,
+        dateRange: (draft as any).dateRange,
+      }),
+    [draft],
   );
 
   if (selection.kind !== 'widget') {
@@ -342,6 +356,79 @@ export function DashboardWidgetInspector({
           </SelectContent>
         </Select>
       </Field>
+
+      {/* Dashboard filter bindings (framework#2501) — one row per dashboard
+          filter: an Apply toggle (unchecked writes `false` = opt out) and a
+          field picker re-targeting the filter to THIS widget's field (empty =
+          default: the filter's own field). Only rendered when the dashboard
+          declares filters. */}
+      {filterDefs.length > 0 && (
+        <div className="space-y-3 rounded-md border p-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {t('engine.inspector.widget.filterBindingsSection', locale)}
+          </div>
+          <p className="text-[10px] leading-snug text-muted-foreground">
+            {t('engine.inspector.widget.filterBindingsHint', locale)}
+          </p>
+          {filterDefs.map((def) => {
+            const bindings = (widget as any).filterBindings as
+              | Record<string, string | false>
+              | undefined;
+            const binding = bindings?.[def.name];
+            const optedOut = binding === false;
+            const override = typeof binding === 'string' ? binding : '';
+            const setBinding = (next: string | false | undefined) => {
+              const current: Record<string, string | false> = { ...(bindings ?? {}) };
+              if (next === undefined) delete current[def.name];
+              else current[def.name] = next;
+              patchWidget({
+                filterBindings: Object.keys(current).length > 0 ? current : undefined,
+              } as Partial<DashboardWidgetSchema>);
+            };
+            return (
+              <div key={def.name} className="space-y-1.5" data-testid={`widget-filter-binding-${def.name}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="text-xs font-medium text-muted-foreground truncate">
+                    {def.label || def.name}
+                  </Label>
+                  <InspectorCheckboxField
+                    label={t('engine.inspector.widget.filterBindingApply', locale)}
+                    value={!optedOut}
+                    onCommit={(apply) => setBinding(apply ? undefined : false)}
+                    disabled={readOnly}
+                  />
+                </div>
+                {!optedOut && (
+                  <div className="flex items-center gap-1">
+                    <div className="min-w-0 flex-1">
+                      <InspectorComboField
+                        value={override}
+                        onCommit={(v) => setBinding(v ? v : undefined)}
+                        options={fieldComboOptions}
+                        placeholder={tFormat('engine.inspector.widget.filterBindingDefault', locale, { field: def.field })}
+                        searchPlaceholder="Search fields…"
+                        disabled={readOnly}
+                        mono
+                      />
+                    </div>
+                    {override && !readOnly && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 shrink-0 px-2 text-[10px] text-muted-foreground"
+                        onClick={() => setBinding(undefined)}
+                      >
+                        {t('engine.inspector.widget.filterBindingReset', locale)}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <Field id="widget-color" label={t('engine.inspector.widget.color', locale)}>
         <ColorVariantPicker

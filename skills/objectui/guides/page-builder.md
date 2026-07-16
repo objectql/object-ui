@@ -447,7 +447,7 @@ For host apps that need more than the raw renderer, prefer `@object-ui/app-shell
 import { AppShell, ObjectRenderer, PageRenderer, DashboardRenderer } from '@object-ui/app-shell';
 ```
 
-It exposes `ObjectRenderer`, `PageRenderer`, `DashboardRenderer`, `FormRenderer` and matching providers (`AdapterProvider`, `MetadataProvider`, `ExpressionProvider`). See `guides/project-setup.md` for the decision matrix.
+It exposes `ObjectRenderer`, `PageRenderer`, `DashboardRenderer` and matching providers (`AdapterProvider`, `MetadataProvider`, `ExpressionProvider`). See `guides/project-setup.md` for the decision matrix.
 
 ## Common mistakes to avoid
 

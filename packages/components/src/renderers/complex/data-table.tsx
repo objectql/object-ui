@@ -7,7 +7,7 @@
  */
 
 // Enterprise-level DataTable Component (Airtable-like)
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
@@ -428,6 +428,52 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [columns, setColumns] = useState(initialColumns);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+
+  // Sticky-left offsets for the leading pinned cells (checkbox, row number,
+  // frozen data columns), measured from the REAL rendered header-cell widths.
+  // The table's auto layout does not guarantee the utility columns their
+  // declared `w-10`: the checkbox column can collapse to its ~28px min-content
+  // while the row-number column stretches past 40px. Hardcoded 40px offsets
+  // then leave an uncovered strip between pinned cells where horizontally
+  // scrolled content shows through (titanwind-ehr#418), so pin each cell at
+  // the cumulative measured width of the cells before it instead.
+  const headerRowRef = useRef<HTMLTableRowElement | null>(null);
+  const [measuredStickyLefts, setMeasuredStickyLefts] = useState<number[] | null>(null);
+  const stickyLeadingCount = frozenColumns > 0
+    ? (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + Math.min(frozenColumns, columns.length)
+    : 0;
+
+  useLayoutEffect(() => {
+    const headerRow = headerRowRef.current;
+    if (stickyLeadingCount === 0 || !headerRow) {
+      setMeasuredStickyLefts(null);
+      return;
+    }
+    const measure = () => {
+      const cells = Array.from(headerRow.children).slice(0, stickyLeadingCount) as HTMLElement[];
+      let acc = 0;
+      const lefts = cells.map((cell) => {
+        const left = acc;
+        acc += cell.getBoundingClientRect().width;
+        return left;
+      });
+      setMeasuredStickyLefts((prev) =>
+        prev && prev.length === lefts.length && prev.every((v, i) => Math.abs(v - lefts[i]) < 0.5)
+          ? prev
+          : lefts
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    // Header-cell widths ARE the column widths, and they change outside React
+    // (column resize drag, density toggle, content growth), so re-measure on
+    // any of the observed cells resizing.
+    const observer = new ResizeObserver(measure);
+    Array.from(headerRow.children)
+      .slice(0, stickyLeadingCount)
+      .forEach((cell) => observer.observe(cell));
+    return () => observer.disconnect();
+  }, [stickyLeadingCount, columns]);
   const [draggedColumn, setDraggedColumn] = useState<number | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<number | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowIndex: number; columnKey: string } | null>(null);
@@ -1214,7 +1260,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
         <Table containerClassName="overflow-visible">
           {caption && <TableCaption>{caption}</TableCaption>}
           <TableHeader className="sticky top-0 bg-background z-10">
-            <TableRow>
+            <TableRow ref={headerRowRef}>
               {selectable && (
                 <TableHead className={cn("w-10 bg-background px-3", frozenColumns > 0 && "sticky left-0 z-20")}>
                   <Checkbox
@@ -1224,7 +1270,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 </TableHead>
               )}
               {showRowNumbers && (
-                <TableHead className={cn("w-10 bg-background text-center px-3", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: selectable ? 40 : 0 } : undefined}>
+                <TableHead className={cn("w-10 bg-background text-center px-3", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: measuredStickyLefts?.[selectable ? 1 : 0] ?? (selectable ? 40 : 0) } : undefined}>
                   <span className="text-xs text-muted-foreground">#</span>
                 </TableHead>
               )}
@@ -1240,7 +1286,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 const isDragOver = dragOverColumn === index;
                 const isFrozen = frozenColumns > 0 && index < frozenColumns;
                 const frozenOffset = isFrozen
-                  ? columns.slice(0, index).reduce((sum, c, i) => {
+                  ? measuredStickyLefts?.[(selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + index]
+                    ?? columns.slice(0, index).reduce((sum, c, i) => {
                       if (i < frozenColumns) {
                         const w = columnWidths[c.accessorKey] || c.width || autoSizedWidths[c.accessorKey];
                         return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
@@ -1440,7 +1487,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         </TableCell>
                       )}
                       {showRowNumbers && (
-                        <TableCell className={cn("text-center w-10 relative", cellClassName, frozenColumns > 0 && "sticky z-10 bg-background")} style={frozenColumns > 0 ? { left: selectable ? 40 : 0 } : undefined}>
+                        <TableCell className={cn("text-center w-10 relative", cellClassName, frozenColumns > 0 && "sticky z-10 bg-background")} style={frozenColumns > 0 ? { left: measuredStickyLefts?.[selectable ? 1 : 0] ?? (selectable ? 40 : 0) } : undefined}>
                           <span className={cn("text-xs text-muted-foreground tabular-nums select-none", !selectable && schema.onRowClick && "group-hover/row:invisible")}>
                             {globalIndex + 1}
                           </span>
@@ -1474,7 +1521,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         const isEditable = editable && col.editable !== false;
                         const isFrozen = frozenColumns > 0 && colIndex < frozenColumns;
                         const frozenOffset = isFrozen
-                          ? columns.slice(0, colIndex).reduce((sum, c, i) => {
+                          ? measuredStickyLefts?.[(selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + colIndex]
+                            ?? columns.slice(0, colIndex).reduce((sum, c, i) => {
                               if (i < frozenColumns) {
                                 const w = columnWidths[c.accessorKey] || c.width || autoSizedWidths[c.accessorKey];
                                 return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);

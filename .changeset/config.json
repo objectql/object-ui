@@ -16,7 +16,6 @@
       "@object-ui/create-plugin",
       "@object-ui/runner",
       "@object-ui/auth",
-      "@object-ui/tenant",
       "@object-ui/permissions",
       "@object-ui/mobile",
       "@object-ui/plugin-ai",

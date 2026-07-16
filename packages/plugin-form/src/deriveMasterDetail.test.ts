@@ -79,6 +79,22 @@ describe('deriveColumns', () => {
     // conditionalRequired is carried as the requiredWhen alias.
     expect(byName.memo.requiredWhen).toBe('record.qty >= 1');
   });
+
+  it('keeps file/image fields as upload columns instead of dropping them (#2360)', () => {
+    const schema = {
+      name: 'expense_line',
+      fields: {
+        expense: { type: 'master_detail', reference: 'expense' },
+        description: { type: 'text', label: 'Description' },
+        receipt: { type: 'file', label: 'Receipt', multiple: true, accept: ['image/*', '.pdf'] },
+        photo: { type: 'image', label: 'Photo' },
+      },
+    };
+    const byName = Object.fromEntries(deriveColumns(schema, { relationshipField: 'expense' }).map((c) => [c.field, c]));
+    expect(byName.receipt).toMatchObject({ type: 'file', multiple: true, accept: ['image/*', '.pdf'] });
+    // Image fields restrict the picker to images when no accept list is declared.
+    expect(byName.photo).toMatchObject({ type: 'file', accept: ['image/*'] });
+  });
 });
 
 describe('deriveColumns curation (column budget)', () => {
@@ -225,6 +241,19 @@ describe('hydrateColumns (fill types on bare author columns)', () => {
     );
     expect(cols.map((c) => c.field)).toEqual(['due_date', 'status']); // order kept, no extra columns
     expect(cols[0].label).toBe('合同时间'); // author label kept, not schema's "Due Date"
+  });
+
+  it('hydrates a bare file-field column into an upload column with its constraints (#2360)', () => {
+    const schema = {
+      fields: {
+        expense: { type: 'master_detail', reference: 'expense' },
+        receipt: { type: 'file', label: 'Receipt', multiple: true, accept: ['.pdf'] },
+        photo: { type: 'image', label: 'Photo' },
+      },
+    };
+    const cols = hydrateColumns([{ field: 'receipt' }, { field: 'photo' }] as any, schema);
+    expect(cols[0]).toMatchObject({ type: 'file', multiple: true, accept: ['.pdf'] });
+    expect(cols[1]).toMatchObject({ type: 'file', accept: ['image/*'] });
   });
 
   it('never overrides an explicit type the author already set', () => {

@@ -24,6 +24,7 @@
  */
 
 import { deriveFieldGroupLayout } from '@objectstack/spec/data';
+import { detectStatusField } from '@object-ui/types';
 import { inferDetailColumns } from '../autoLayout';
 
 /** Minimal shape of an object definition we read here. We deliberately
@@ -227,29 +228,13 @@ function toNodeArray(slot: any | any[] | undefined): any[] {
 /**
  * Detect the canonical "status" / "stage" field on an object definition.
  *
- * Heuristic — same as DetailView's `autoSummaryFields`:
- *   1) the top-level `objectDef.stageField` semantic role (spec-typed since
- *      ADR-0085). `false` = the status-shaped field is NOT a linear flow —
- *      suppress stage detection entirely (no `record:path`, #2065).
- *   2) else first field named status / stage / state / phase
- *   3) else null
+ * The implementation moved to `@object-ui/types` (`detectStatusField`) so
+ * non-detail consumers of the `stageField` role — kanban default lanes in
+ * app-shell/plugin-list — share the exact semantics (incl. the strict
+ * `stageField: false` suppression). Re-exported here unchanged for the
+ * long-standing plugin-detail import path.
  */
-export function detectStatusField(def?: ObjectDefLike): string | null {
-  if (!def) return null;
-  const hint = def.stageField;
-  if (hint === false) return null;
-  if (typeof hint === 'string' && hint) return hint;
-  const fields = def.fields || {};
-  const candidates = ['status', 'stage', 'state', 'phase'];
-  for (const key of candidates) {
-    if (key in fields) return key;
-  }
-  for (const [name, field] of Object.entries(fields)) {
-    const t = (field?.type || '').toLowerCase();
-    if (t === 'status' || t === 'stage') return name;
-  }
-  return null;
-}
+export { detectStatusField };
 
 /**
  * Derive stage values from an object field's `options` (picklist).
@@ -263,6 +248,31 @@ export function deriveStages(
   const options = field?.options;
   if (!Array.isArray(options) || options.length === 0) return null;
   return options.map((o) => ({ value: o.value, label: o.label }));
+}
+
+/**
+ * Resolve the record's title field — the value the page renders as its H1.
+ * Declared role first (`primaryField` / `nameField` / deprecated
+ * `displayNameField`), else the first conventional display-field name present
+ * on the object. Mirrors `record-details`' titleCandidates so "what the H1
+ * shows" and "what the strip skips" can never disagree.
+ */
+export function resolveTitleField(def: ObjectDefLike | undefined): string | null {
+  if (!def) return null;
+  const fields = def.fields || {};
+  for (const candidate of [
+    def.primaryField,
+    (def as any).nameField,
+    (def as any).displayNameField,
+  ]) {
+    if (typeof candidate === 'string' && candidate.length > 0 && candidate in fields) {
+      return candidate;
+    }
+  }
+  for (const candidate of ['name', 'full_name', 'title', 'subject', 'display_name']) {
+    if (candidate in fields) return candidate;
+  }
+  return null;
 }
 
 /**
@@ -282,8 +292,14 @@ export function deriveHighlightFields(
     ? def.highlightFields
     : null;
   if (declared) {
+    // Drop the title field from a DECLARED list too: it is already the page
+    // H1, and repeating it as the first chip duplicated the record name —
+    // truncated — directly under the identical heading. The heuristic branch
+    // below always skipped it; both branches now agree (#2548 follow-up).
+    // Filtering before the slice means the title never wastes a strip slot.
+    const titleField = resolveTitleField(def);
     return declared
-      .filter((n): n is string => typeof n === 'string' && n.length > 0)
+      .filter((n): n is string => typeof n === 'string' && n.length > 0 && n !== titleField)
       .slice(0, max);
   }
   // System fields and tenancy metadata never make useful highlights —
@@ -449,6 +465,9 @@ export function deriveFieldGroupDetailSections(
         : {}),
       ...((f as any).reference_field ? { reference_field: (f as any).reference_field } : {}),
       ...((f as any).currency ? { currency: (f as any).currency } : {}),
+      // Spec channel for per-field currency — renderers resolve
+      // currency → currencyConfig.defaultCurrency → tenant default (#2548).
+      ...((f as any).currencyConfig ? { currencyConfig: (f as any).currencyConfig } : {}),
     };
   };
 
@@ -467,6 +486,12 @@ export function deriveFieldGroupDetailSections(
   // instead of surfacing an internal key as a header.
   return derived.map((s) => ({
     ...(s.key !== undefined ? { name: s.key, title: s.label ?? s.key } : {}),
+    // Group header chrome (ADR-0085 §5): the shared derivation passes the
+    // declared icon/description through; DetailSection renders them under
+    // the section title. Dropping them here made the spec keys silently
+    // inert on detail pages (#2548 follow-up).
+    ...(s.icon ? { icon: s.icon } : {}),
+    ...(s.description ? { description: s.description } : {}),
     ...(s.collapse !== 'none' ? { collapsible: true } : {}),
     ...(s.collapse === 'collapsed' ? { defaultCollapsed: true } : {}),
     columns,

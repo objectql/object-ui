@@ -52,22 +52,6 @@ function MyDashboard() {
 }
 ```
 
-### With Custom Form
-
-```tsx
-import { FormRenderer } from '@object-ui/app-shell';
-
-function MyForm() {
-  return (
-    <FormRenderer
-      schema={formSchema}
-      dataSource={myDataSource}
-      onSuccess={() => console.log('Saved!')}
-    />
-  );
-}
-```
-
 ## Key Features
 
 - **Zero Dependencies on Console**: No routing, no auth, no app management
@@ -127,21 +111,6 @@ Renders custom page schemas.
 ```tsx
 <PageRenderer
   schema={pageSchema}
-/>
-```
-
-### FormRenderer
-
-Renders forms (modal or inline).
-
-```tsx
-<FormRenderer
-  schema={formSchema}
-  dataSource={dataSource}
-  mode="create" // or "edit"
-  recordId={recordId}
-  onSuccess={handleSuccess}
-  onCancel={handleCancel}
 />
 ```
 
@@ -243,6 +212,29 @@ error-swallowing like `preview/capabilityLint.ts`), so the CEL parser stays out
 of the main bundle and a missing/older engine degrades to "no assistance"
 rather than breaking the editor. The bridge is `metadata-admin/celAuthoring.ts`.
 
+#### Field conditional rules — CEL editors (objectui#1582)
+
+The object designer's field inspector (`ObjectFieldInspector`, Advanced →
+*Conditional rules*) edits the ADR-0036 B2 field-level predicates
+`visibleWhen` / `readonlyWhen` / `requiredWhen` with the same
+`CelPredicateField` editor, in **`scope="record"`** mode:
+
+- These rules evaluate with the record bound **only as the `record`
+  namespace** (see `@object-ui/core`'s `evalFieldPredicate`), so a bare field
+  reference is flagged as an **error** with the exact `record.<field>` fix,
+  and autocomplete offers the roots that are actually bound at runtime —
+  `record` / `previous` / `parent` (master-detail header) — plus the stdlib;
+  typing `record.` / `previous.` completes the object's own field names.
+- Values round-trip both wire shapes: a bare CEL string or the
+  `{ dialect, source }` Expression envelope (envelope extras such as
+  `meta.rationale` are preserved on edit). The deprecated
+  `conditionalRequired` alias is read into the *Required when* editor and
+  migrated to `requiredWhen` on the first edit.
+- The same lint also runs draft-wide in `clientValidation.ts`
+  (`validateMetadataDraft('object', …)`), so an invalid predicate on any
+  field — not just the selected one — surfaces in the editor's issue banner
+  under a `fields.<field>.<rule>` path before save.
+
 ### Visual flow canvas
 
 The `flow` designer (`FlowPreview` → `FlowCanvas`) renders an automation as an
@@ -327,6 +319,19 @@ Config keys come in three editable shapes so authors never hand-write JSON:
 - **Arrays of objects** — a `screen` node's **Fields** (a list of
   `{name,label,type,required,visibleWhen}` definitions) — use a column-driven
   **object-list repeater** (`objectList` kind).
+
+A `decision` node's **Branches** repeater additionally shows a per-branch
+**Target** column (#1942) — a node picker scoped to this flow — so the whole
+decision (conditions *and* destinations) is authored in one table, like
+Salesforce Flow Decision Outcomes. The column is **virtual**: it is derived
+from the decision's outgoing edges (routing truth lives on `edge.condition` /
+`label` / `isDefault`, which the engine and simulator evaluate) and is never
+stored on `config.conditions`. Picking a target creates or retargets the
+branch's out-edge carrying its condition/label/default; clearing it detaches
+(removes) that edge — never the node. Because edges stay the single source of
+truth, it round-trips with the reciprocal per-edge **Branch** picker in
+`FlowEdgeInspector` (#1930) and with canvas rewiring; custom hand-written edge
+guards and fault/back edges are never touched (`flow-decision-edges.ts`).
 
 Anything still not covered by a field (nested objects, arrays, plugin-specific
 keys) lives in an **optional** Advanced (JSON) escape hatch: it is shown only

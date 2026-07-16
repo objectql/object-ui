@@ -58,6 +58,8 @@ export interface MetadataField {
   track_history?: boolean;
   indexed?: boolean;
   reference_to?: string;
+  /** ObjectStack-convention key for the relational target (what the server serves). */
+  reference?: string;
   referenceTo?: string;
   formula?: string;
 }
@@ -125,7 +127,7 @@ export function toFieldDefinition(field: MetadataField, index: number): Designer
     externalId: field.externalId || false,
     trackHistory: field.trackHistory || field.track_history || false,
     indexed: field.indexed || false,
-    referenceTo: field.reference_to || field.referenceTo || undefined,
+    referenceTo: field.reference_to || field.reference || field.referenceTo || undefined,
     formula: field.formula || undefined,
   };
 }

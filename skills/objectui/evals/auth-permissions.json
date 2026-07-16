@@ -37,20 +37,6 @@
           "// TODO"
         ]
       }
-    },
-    {
-      "id": 3,
-      "prompt": "Set up multi-tenancy so each company sees their own branding (logo, colors) and data in our Object UI app.",
-      "expected_output": "Provides TenantProvider setup with fetchTenant, useTenantBranding for theming, and TenantScopedQuery for data isolation.",
-      "files": [],
-      "assertions": {
-        "must_contain": [
-          "TenantProvider",
-          "useTenantBranding",
-          "tenant"
-        ],
-        "must_not_contain": []
-      }
     }
   ]
 }
