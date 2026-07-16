@@ -61,9 +61,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@object-ui/components';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@object-ui/components';
 import { useAdapter } from '@object-ui/react';
 import { CapabilityMultiSelectField, parseCapabilityNames } from '@object-ui/fields';
 import { PageShell } from './PageShell';
+import { HistoryPanel } from './ResourceHistoryPage';
 import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
 import { resolveResourceConfig } from './registry';
 import { t as translate, detectLocale } from './i18n';
@@ -178,13 +186,22 @@ export interface PermissionMatrixEditPageProps {
    * is the one that tripped.
    */
   readOnly?: boolean;
+  /**
+   * When true, the editor is hosted inside another surface (the Studio Access
+   * pillar) rather than the routed metadata admin. Relative navigation would
+   * resolve against the HOST's route (`/studio/:packageId/access/...`), where
+   * the metadata-admin routes don't exist — so History opens as an in-place
+   * sheet instead of navigating, and the PageShell breadcrumb loses its
+   * `/metadata` links (same rule as MetadataResourceEditPage's `embedded`).
+   */
+  embedded?: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Component                                                          */
 /* ────────────────────────────────────────────────────────────────── */
 
-export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce, onOpenOwd, onDirtyChange, readOnly = false }: PermissionMatrixEditPageProps) {
+export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce, onOpenOwd, onDirtyChange, readOnly = false, embedded = false }: PermissionMatrixEditPageProps) {
   const navigate = useNavigate();
   const client = useMetadataClient();
   // Data adapter (records) — the capability picker reads the live sys_capability
@@ -231,6 +248,8 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   >(null);
   const [filter, setFilter] = React.useState('');
   const [showOnlyEnabled, setShowOnlyEnabled] = React.useState(false);
+  // Embedded-mode History sheet (see `embedded` prop doc).
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   // All permission-set api-names — the admin-scope editor's assignable
   // allowlist picks from these (ADR-0056 P3).
   const [allSetNames, setAllSetNames] = React.useState<string[]>([]);
@@ -575,7 +594,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
 
   if (loading) {
     return (
-      <PageShell entry={entry} itemName={name}>
+      <PageShell entry={entry} itemName={name} embedded={embedded}>
         <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" /> {t('perm.loading').replace('{name}', name)}
         </div>
@@ -589,12 +608,17 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
       itemName={name}
       subtitle={t('perm.subtitle.set')}
       stats={stats}
+      embedded={embedded}
       actions={
         <>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(`./history?type=${encodeURIComponent(type)}`)}
+            onClick={() =>
+              embedded
+                ? setHistoryOpen(true)
+                : navigate(`./history?type=${encodeURIComponent(type)}`)
+            }
           >
             <HistoryIcon className="h-4 w-4 mr-1" /> {t('engine.edit.history')}
           </Button>
@@ -801,6 +825,27 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Embedded-mode History sheet — the routed history page doesn't exist
+          under the host's router scope (see `embedded` prop doc). No rollback
+          here: under a packageId the set is package METADATA whose truth moves
+          via draft + atomic Publish (ADR-0086 D6/D7); a rollback would write a
+          live overlay behind the draft flow's back. */}
+      {embedded && (
+        <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+          <SheetContent side="right" className="w-[92vw] sm:max-w-[720px] p-0 flex flex-col gap-0">
+            <SheetHeader className="px-4 py-3 border-b">
+              <SheetTitle className="text-base">{t('engine.edit.history')}</SheetTitle>
+              <SheetDescription className="text-xs">
+                {type} / {name}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 min-h-0 overflow-auto p-4">
+              {historyOpen && <HistoryPanel type={type} name={name} client={client} />}
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </PageShell>
   );
 }

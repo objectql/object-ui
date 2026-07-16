@@ -3435,6 +3435,7 @@ export function AccessPillar({
               onDraftSaved={onDraftSaved}
               readOnly={readOnly}
               onDirtyChange={setMatrixDirty}
+              embedded
               onOpenOwd={(objectName) => {
                 // The badge deep-link swaps this page out for the OWD
                 // overview — same remount, same guard.
