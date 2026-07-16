@@ -868,7 +868,10 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
         const fd = fieldDefs[def.field] ?? fieldDefs[def.field.split('.')[0]];
         const type: string | undefined = fd?.type;
         if (type !== 'lookup' && type !== 'master_detail') continue;
-        const refObject: string | undefined = fd?.reference_to ?? fd?.referenceTo;
+        // Served schemas key the target as `reference` (ObjectStack
+        // convention); reference_to/referenceTo cover ObjectUI-authored defs.
+        const refObject: string | undefined =
+          fd?.reference_to ?? fd?.reference ?? fd?.referenceTo;
         if (!refObject) continue;
         try {
           const result = await dataSource.find(refObject, { $top: 1000 });

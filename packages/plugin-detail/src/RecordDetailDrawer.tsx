@@ -245,7 +245,10 @@ export function RecordDetailDrawer({
         precision: def.precision,
         scale: (def as any).scale,
         format: def.format,
-        reference_to: def.reference_to ?? def.referenceTo ?? def.target,
+        // Served schemas key the target as `reference` (ObjectStack
+        // convention, #2407); the drawer can receive a raw schema from any
+        // DataSource, so resolve every spelling.
+        reference_to: def.reference_to ?? def.reference ?? def.referenceTo ?? def.target,
         reference_field: def.reference_field ?? def.referenceField,
         required: def.required,
         validation: def.validation,

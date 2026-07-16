@@ -23,7 +23,7 @@ import type {
   ImportJobUndoResult,
   ListImportJobsOptions,
 } from '@object-ui/types';
-import { convertFiltersToAST } from '@object-ui/core';
+import { convertFiltersToAST, normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
 import {
   ObjectStackError,
@@ -1641,6 +1641,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       const schema = await this.metadataCache.get(objectName, () =>
         this.fetchObjectSchemaFresh(objectName),
       );
+
+      // Canonicalize the relational-target key: the server names it
+      // `reference` (ObjectStack convention) while most consumers read
+      // `reference_to` (#2407 / PR #2587). Stamping both here — the choke
+      // point every schema read goes through — means no per-consumer
+      // dual-key fallback can drift. Idempotent on the cached object.
+      normalizeSchemaReferenceKeys(schema);
 
       // ADR-0056 P2 (epic #2398): stamp structured-widget hints onto specific
       // platform fields. This is the single choke point both the record form
