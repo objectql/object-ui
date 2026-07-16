@@ -297,7 +297,13 @@ export const GlobalFilterSchema = z.object({
   field: z.string().describe('Default target field'),
   label: z.string().optional().describe('Display label'),
   type: z.enum(['text', 'select', 'date', 'number', 'lookup']).optional().describe('Filter control type'),
-  options: z.array(z.string()).optional().describe('Static options for select filters'),
+  options: z.array(z.union([
+    z.string(),
+    z.object({
+      value: z.union([z.string(), z.number(), z.boolean()]),
+      label: z.string().optional(),
+    }),
+  ])).optional().describe('Static options — spec `{value,label}` objects or bare-string shorthand'),
   optionsFrom: z.object({
     object: z.string(),
     valueField: z.string(),

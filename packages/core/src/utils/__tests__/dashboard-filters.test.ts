@@ -21,7 +21,11 @@ const regionDef: DashboardFilterDef = {
   name: 'region',
   field: 'region',
   type: 'select',
-  options: ['EMEA', 'APAC', 'AMER'],
+  options: [
+    { value: 'EMEA', label: 'EMEA' },
+    { value: 'APAC', label: 'APAC' },
+    { value: 'AMER', label: 'AMER' },
+  ],
 };
 
 const dateDef: DashboardFilterDef = {
@@ -31,6 +35,26 @@ const dateDef: DashboardFilterDef = {
 };
 
 describe('resolveDashboardFilterDefs', () => {
+  it('normalizes options: spec {value,label} objects AND bare-string shorthand → {value,label} pairs', () => {
+    const defs = resolveDashboardFilterDefs({
+      globalFilters: [
+        // @objectstack/spec object form — rendering this un-normalized as a
+        // React child crashed the Revenue Pulse dashboard (caught in dogfood).
+        { name: 'region', field: 'region', type: 'select', options: [{ value: 'amer', label: 'AMER' }, { value: 'emea', label: 'EMEA' }] },
+        // objectui bare-string shorthand.
+        { name: 'status', field: 'status', type: 'select', options: ['draft', 'paid'] },
+      ] as any,
+    });
+    expect(defs[0].options).toEqual([
+      { value: 'amer', label: 'AMER' },
+      { value: 'emea', label: 'EMEA' },
+    ]);
+    expect(defs[1].options).toEqual([
+      { value: 'draft', label: 'draft' },
+      { value: 'paid', label: 'paid' },
+    ]);
+  });
+
   it('maps dateRange to the reserved name with a created_at field default', () => {
     const defs = resolveDashboardFilterDefs({
       dateRange: { defaultRange: 'last_30_days' },

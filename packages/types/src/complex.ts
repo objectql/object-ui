@@ -807,7 +807,12 @@ export interface DashboardSchema extends BaseSchema {
     field: string;
     label?: string;
     type?: 'text' | 'select' | 'date' | 'number' | 'lookup';
-    options?: string[];
+    /**
+     * Static options. The @objectstack/spec form is `{ value, label }`
+     * objects; the bare-string shorthand is also accepted (normalized by
+     * the runtime).
+     */
+    options?: Array<string | { value: string | number | boolean; label?: string }>;
     optionsFrom?: {
       object: string;
       valueField: string;

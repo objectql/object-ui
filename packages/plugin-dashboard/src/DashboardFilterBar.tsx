@@ -217,11 +217,16 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
   }, [from?.object, from?.valueField, from?.labelField, dataSource]);
 
   const options = useMemo(() => {
-    if (def.options?.length) return def.options.map((o) => ({ value: o, label: o }));
+    // def.options is already normalized to { value, label } pairs by
+    // resolveDashboardFilterDefs (spec object form and string shorthand alike).
+    if (def.options?.length) return def.options;
     return dynamicOptions ?? [];
   }, [def.options, dynamicOptions]);
 
   const label = def.label || def.name;
+  const selectedLabel = value
+    ? options.find((o) => o.value === String(value))?.label ?? String(value)
+    : undefined;
   return (
     <Select
       // The variables provider initializes string variables to '' — treat
@@ -230,7 +235,7 @@ function SelectFilter({ def, value, onChange, dataSource }: { def: DashboardFilt
       onValueChange={(v) => onChange(v === ALL_VALUE ? undefined : v)}
     >
       <SelectTrigger className="h-8 w-auto min-w-32" aria-label={label} data-testid={`dashboard-filter-${def.name}`}>
-        <SelectValue>{value ? String(value) : `${label}: ${tt('dashboard.filters.all', 'All')}`}</SelectValue>
+        <SelectValue>{selectedLabel ?? `${label}: ${tt('dashboard.filters.all', 'All')}`}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={ALL_VALUE}>{tt('dashboard.filters.all', 'All')}</SelectItem>

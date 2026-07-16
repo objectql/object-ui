@@ -35,7 +35,13 @@ export interface DashboardFilterDef {
   field: string;
   label?: string;
   type: 'text' | 'select' | 'date' | 'number' | 'lookup' | 'dateRange';
-  options?: string[];
+  /**
+   * Static options, NORMALIZED to `{ value, label }` pairs by
+   * `resolveDashboardFilterDefs` — authors may write either the
+   * @objectstack/spec object form (`{ value, label }`) or the bare-string
+   * shorthand; consumers always see the object form.
+   */
+  options?: Array<{ value: string; label: string }>;
   optionsFrom?: {
     object: string;
     valueField: string;
@@ -83,6 +89,36 @@ const PRESET_RANGES: Record<string, { from?: string; to?: string }> = {
 export const DATE_RANGE_PRESETS = Object.keys(PRESET_RANGES);
 
 /**
+ * Normalize a filter's static `options` declaration to `{ value, label }`
+ * pairs. The @objectstack/spec `GlobalFilterSchema.options` form is
+ * `{ value, label }` objects (label possibly an i18n record); the bare-string
+ * shorthand (`options: ['EMEA', …]`) is also accepted. Rendering an
+ * un-normalized object child crashes React — this is the single place both
+ * shapes converge.
+ */
+function normalizeFilterOptions(
+  options: unknown,
+): Array<{ value: string; label: string }> | undefined {
+  if (!Array.isArray(options) || options.length === 0) return undefined;
+  const normalized: Array<{ value: string; label: string }> = [];
+  for (const o of options) {
+    if (o === null || o === undefined) continue;
+    if (typeof o === 'object') {
+      const value = (o as any).value;
+      if (value === undefined || value === null) continue;
+      const label = (o as any).label;
+      normalized.push({
+        value: String(value),
+        label: typeof label === 'string' && label ? label : String(value),
+      });
+    } else {
+      normalized.push({ value: String(o), label: String(o) });
+    }
+  }
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+/**
  * Normalize a dashboard schema's filter declarations into a flat list of
  * filter definitions. The built-in `dateRange` (when declared) comes first
  * under the reserved name `"dateRange"`; each `globalFilters` entry follows,
@@ -116,7 +152,7 @@ export function resolveDashboardFilterDefs(
       field: f.field,
       label: f.label,
       type: f.type ?? 'text',
-      options: f.options,
+      options: normalizeFilterOptions(f.options),
       optionsFrom: f.optionsFrom,
       defaultValue: f.defaultValue,
       targetWidgets: f.targetWidgets,

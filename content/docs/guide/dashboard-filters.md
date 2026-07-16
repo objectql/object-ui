@@ -114,7 +114,11 @@ Add a `globalFilters` entry. Each entry renders one control in the filter bar:
 | `select` / `lookup` | dropdown | `{ field: value }` (or `$in` for arrays) |
 | `date` | preset/custom range | `{ field: { "$gte": from, "$lte": to } }` |
 
-Options can be static (`options`) or fetched from an object at runtime:
+Static `options` accept the `@objectstack/spec` object form
+(`{ "value": "amer", "label": "AMER" }` — canonical, and what the spec
+validates) or a bare-string shorthand (`["EMEA", "APAC"]`); the runtime
+normalizes both to value/label pairs. Options can also be fetched from an
+object at runtime:
 
 ```json
 {
@@ -182,12 +186,25 @@ Binding rules, in precedence order:
    defaults to `dateRange.field ?? 'created_at'`).
 
 That's the whole feature: changing any filter live re-scopes every bound
-widget, each against **its own** field.
+widget, each against **its own** field. Here it is running in the showcase
+app's *Revenue Pulse* dashboard — the date range's default field is the
+invoice `issued_on`, account widgets re-map it to `signed_on`, and the
+"Accounts (all time)" KPI opts out of both filters:
+
+![Revenue Pulse — dashboard-level date + region filters over two objects](/img/guide/dashboard-filters/revenue-pulse.png)
+
+Selecting **EMEA** re-scopes every bound widget live (invoices via their own
+`region`, accounts via `sales_region`), while the opted-out KPI holds steady —
+and a Reset button appears once any filter deviates from its default:
+
+![Revenue Pulse re-scoped to EMEA — bound widgets update, the opted-out KPI holds](/img/guide/dashboard-filters/revenue-pulse-emea.png)
 
 Bindings can also be edited visually: the Studio dashboard widget inspector
 shows a **Dashboard filter bindings** section (one row per declared filter)
 with an Apply toggle (opt-out) and a field picker for the override — no JSON
 editing required.
+
+![The widget inspector's Dashboard filter bindings section](/img/guide/dashboard-filters/filter-bindings-inspector.png)
 
 ## Reading filter values in expressions
 
