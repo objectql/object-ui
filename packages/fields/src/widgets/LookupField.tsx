@@ -544,6 +544,16 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
     [idField],
   );
 
+  // Level-2 pickers (PeoplePicker / RecordPickerDialog) operate on bare ids —
+  // their seed queries and selected-row matching compare against `idField`
+  // values. Collapse any `$expand`-ed record objects (passed through
+  // uncollapsed by the inline editor, objectui#2572) before handing the value
+  // down, or the seed fetch would query for a bogus object-shaped id.
+  const pickerValue = useMemo(
+    () => (multiple ? (Array.isArray(value) ? value.map(normalizeId) : []) : normalizeId(value)),
+    [multiple, value, normalizeId],
+  );
+
   // Resolve a raw field value into its display option. An expanded-reference
   // object is mapped directly (mirroring the read cell's display-name path) so
   // the inline editor shows the record's name instead of the placeholder; a bare
@@ -914,7 +924,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           subtitleFields={subtitleFields}
           avatarField={avatarField}
           pageSize={lookupPageSize}
-          value={value}
+          value={pickerValue}
           onSelect={onChange}
           onSelectRecords={handlePickerSelectRecords}
           lookupFilters={lookupFilters}
@@ -1135,7 +1145,7 @@ export function LookupField({ value, onChange, field, readonly, ...props }: Fiel
           titleFormat={refTitleFormat}
           idField={idField}
           pageSize={lookupPageSize}
-          value={value}
+          value={pickerValue}
           onSelect={onChange}
           onSelectRecords={handlePickerSelectRecords}
           lookupFilters={lookupFilters}

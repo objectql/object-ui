@@ -7,11 +7,14 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { useEffect } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ComponentRegistry } from '@object-ui/core';
 import {
   ActionProvider,
   RecordContextProvider,
+  InlineEditProvider,
+  useInlineEdit,
 } from '@object-ui/react';
 
 function PageHeader({ schema }: { schema: any }) {
@@ -219,6 +222,59 @@ describe('PageHeaderRenderer — actions slot', () => {
       },
     );
     expect(screen.getByRole('button', { name: /编辑/i })).toBeTruthy();
+  });
+});
+
+describe('PageHeaderRenderer — inline-edit session gate (objectui#2572)', () => {
+  // Enters the shared inline-edit session on mount, simulating a user
+  // double-clicking a field in the record body.
+  function EnterInlineEdit() {
+    const inline = useInlineEdit()!;
+    useEffect(() => {
+      inline.enter();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    return null;
+  }
+
+  function renderWithInlineEdit(opts: { editing: boolean; actions: any[] }) {
+    return render(
+      <ActionProvider>
+        <RecordContextProvider
+          objectName="proj"
+          recordId="1"
+          data={{ id: '1' }}
+          objectSchema={{ name: 'proj', label: 'Project' }}
+          headerSystemActions={opts.actions}
+        >
+          <InlineEditProvider canEdit>
+            {opts.editing && <EnterInlineEdit />}
+            <PageHeader schema={{ type: 'page:header', title: 'Project' }} />
+          </InlineEditProvider>
+        </RecordContextProvider>
+      </ActionProvider>,
+    );
+  }
+
+  const editCta = { name: 'sys_edit', label: 'Edit', disableDuringInlineEdit: true };
+
+  it('disables a `disableDuringInlineEdit` action while the session is active', () => {
+    renderWithInlineEdit({ editing: true, actions: [editCta] });
+    expect(screen.getByRole('button', { name: /Edit/i })).toBeDisabled();
+  });
+
+  it('keeps the action enabled when no session is active', () => {
+    renderWithInlineEdit({ editing: false, actions: [editCta] });
+    expect(screen.getByRole('button', { name: /Edit/i })).toBeEnabled();
+  });
+
+  it('leaves unflagged actions alone during the session', () => {
+    renderWithInlineEdit({
+      editing: true,
+      actions: [editCta, { name: 'convert', label: 'Convert' }],
+    });
+    expect(screen.getByRole('button', { name: /Edit/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Convert/i })).toBeEnabled();
   });
 });
 

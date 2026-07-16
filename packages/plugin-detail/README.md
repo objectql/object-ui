@@ -199,6 +199,26 @@ the whole section renders nothing — no header, no empty grid, no "New"
 button that would be rejected server-side. With no `PermissionProvider`
 mounted (Studio designer, standalone embeds) the gate stays open.
 
+### InlineEditSaveBar & InlineFieldInput
+
+The record-level inline-edit session (#2407): double-clicking a field (or its
+hover pencil) in the highlights strip or details body stages edits into ONE
+shared draft (`InlineEditProvider` from `@object-ui/react`), committed by
+`<InlineEditSaveBar>` as a single atomic OCC-guarded update. Polish shipped in
+#2572:
+
+- **Editors**: `InlineFieldInput` routes every field type to the same widget
+  the form uses — including `number` / `currency` / `percent` (numeric
+  keyboard, `min`/`max`/`step` from metadata, fraction↔percent conversion) and
+  reference pickers, which receive `$expand`-ed record objects as-is so the
+  display name renders without a hydration re-fetch.
+- **Keyboard shortcuts**: while the session is active, **Esc** cancels (open
+  popovers/dialogs keep owning Escape for "close") and **Cmd/Ctrl+Enter**
+  saves; both respect the in-flight `saving` and `locked` states.
+- **Approval lock**: hosts pass `locked` / `lockedHint` to the save bar and
+  gate `InlineEditProvider.canEdit` when the record is approval-locked, so a
+  locked record hides its edit affordances instead of rejecting at Save.
+
 <!-- release-metadata:v3.3.0 -->
 
 ## Compatibility

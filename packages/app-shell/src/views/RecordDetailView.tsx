@@ -797,6 +797,31 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const approvalsRef = useRef(approvals);
   approvalsRef.current = approvals;
 
+  // Approval-lock preflight (objectui#2572 item 2): re-read the approval
+  // state whenever this record is invalidated on the bus — a saved edit can
+  // TRIGGER an approval flow (e.g. a budget change), and without this
+  // re-fetch the page kept the pre-save snapshot: the user could re-enter
+  // inline edit, fill a whole draft, and only learn about the lock when Save
+  // came back RECORD_LOCKED. Skips the initial mount (the hook fetches on
+  // mount itself); the ref keeps the effect off the approvals identity.
+  const skippedInitialApprovalsRefresh = useRef(false);
+  useEffect(() => {
+    if (!skippedInitialApprovalsRefresh.current) {
+      skippedInitialApprovalsRefresh.current = true;
+      return;
+    }
+    void approvalsRef.current.refresh();
+  }, [recordInvalidationNonce]);
+
+  // The shared lock signal for the inline-edit session: the record's own
+  // `approval_status` (what the DetailView lock band keys off) OR an open
+  // pending request from the approvals API — the latter catches backends
+  // that lock via the request record without materializing the field.
+  const approvalLocked =
+    (pageRecord as any)?.approval_status === 'pending' ||
+    (pageRecord as any)?.approval_status === 'in_approval' ||
+    !!approvals.pendingRequest;
+
   const approvalHandler = useCallback(async (action: ActionDef) => {
     const target = action.target || action.name;
     const params = (action.params && !Array.isArray(action.params))
@@ -1655,6 +1680,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         locations: ['record_header'],
         variant: 'default',
         order: 100,
+        // objectui#2572 item 4 — while a shared inline-edit draft is live,
+        // the page:header renderer greys this CTA out so the classic form
+        // can't be stacked on top of the draft (two competing edit sessions
+        // with no reconciliation).
+        disableDuringInlineEdit: true,
         onClick: () => onEdit({ id: pureRecordId }),
       } as any);
     }
@@ -1770,8 +1800,11 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         {/* objectui#2407 P2 — ONE record-level inline-edit session spanning
             the highlights strip AND the details body (both descend from this
             provider), committed together by the single <InlineEditSaveBar>
-            below. `canEdit` carries the object-lifecycle / permission gate. */}
-        <InlineEditProvider canEdit={resolveCrudAffordances(objectDef as any).edit}>
+            below. `canEdit` carries the object-lifecycle / permission gate
+            AND the approval lock (objectui#2572 item 2): a locked record
+            hides the pencil affordances and no-ops `enter()`, so users can't
+            type into a draft that Save would reject with RECORD_LOCKED. */}
+        <InlineEditProvider canEdit={resolveCrudAffordances(objectDef as any).edit && !approvalLocked}>
         <HighlightFieldsProvider>
         <DiscussionContextProvider
           items={feedItems as any}
@@ -1869,7 +1902,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 data={pageRecord}
                 refresh={notifyRecordChanged}
                 fieldLabelFor={(name: string) => (objectDef as any)?.fields?.[name]?.label || fieldLabel(objectName || '', name, name)}
-                locked={(pageRecord as any)?.approval_status === 'pending' || (pageRecord as any)?.approval_status === 'in_approval'}
+                locked={approvalLocked}
+                lockedHint={t('detail.lockedTooltip', {
+                  defaultValue: 'This record has a pending approval request; editing is locked',
+                })}
               />
             </div>
             <MetadataPanel

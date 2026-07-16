@@ -19,7 +19,7 @@
 
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName } from '@object-ui/core';
-import { useRecordContext, useAction, usePredicateScope, usePageVariables } from '@object-ui/react';
+import { useRecordContext, useAction, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
@@ -748,6 +748,13 @@ export function cleanupTitleSeparators(s: string): string {
 const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const ctx = useRecordContext();
+  // Record-level inline-edit session (objectui#2572 item 4): while a shared
+  // inline draft is active, header actions flagged `disableDuringInlineEdit`
+  // (the host's Edit CTA) grey out so the classic form-edit surface can't be
+  // stacked on top of the live draft — two competing edit sessions with no
+  // reconciliation. `useInlineEdit` is null outside an InlineEditProvider
+  // (non-record pages), which leaves everything enabled.
+  const inlineEditing = !!useInlineEdit()?.editing;
   // Ambient host scope (signed-in user / app / features), fed by app-shell's
   // ExpressionProvider. Needed so header-action `visible` CEL predicates can
   // gate on `ctx.user.*` (e.g. sys_environment "Change Plan (admin)" →
@@ -972,13 +979,19 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       if (!src) return false;
       try { return !!dEvaluator.evaluateExpression(src); } catch { return false; }
     };
+    // A live inline-edit session disables actions the host flagged with
+    // `disableDuringInlineEdit` (objectui#2572 item 4) — see `inlineEditing`
+    // at the top of the renderer.
+    const isActionDisabled = (action: any): boolean =>
+      (inlineEditing && action?.disableDuringInlineEdit === true) ||
+      resolveDisabled(action?.disabled);
     const renderButton = (action: any, idx: number) => {
       const label = resolveLabel(action, idx);
       // `variant: 'primary'` is valid ActionSchema but not a Shadcn Button
       // variant — map it to `default` (same as action-button.tsx).
       const variant = action.variant === 'primary' ? 'default' : (action.variant || 'default');
       const size = action.size || 'sm';
-      const disabled = resolveDisabled(action.disabled);
+      const disabled = isActionDisabled(action);
       const icon = typeof action.icon === 'string' ? action.icon : null;
       return (
         <Button
@@ -1022,7 +1035,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
             <DropdownMenuContent align="end" className="w-44">
               {overflowActions.map((action, idx) => {
                 const label = resolveLabel(action, idx + inlineActions.length);
-                const disabled = resolveDisabled(action.disabled);
+                const disabled = isActionDisabled(action);
                 const icon = typeof action.icon === 'string' ? action.icon : null;
                 const isDestructive =
                   action.variant === 'destructive' || action.name === 'sys_delete';
