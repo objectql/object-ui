@@ -445,6 +445,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.view.cf.remove': 'Remove rule',
   'engine.inspector.view.cf.moveUp': 'Move up',
   'engine.inspector.view.cf.moveDown': 'Move down',
+  // ConditionBuilder raw-expression mode (CEL editor, #1582)
+  'engine.condition.celLabel': 'CEL expression',
+  'engine.condition.advancedHint': 'Advanced expression — Builder only supports simple AND/OR conditions.',
   'engine.inspector.view.type.grid': 'Table / List',
   'engine.inspector.view.type.kanban': 'Kanban',
   'engine.inspector.view.type.calendar': 'Calendar',
@@ -1768,6 +1771,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.view.cf.remove': '删除规则',
   'engine.inspector.view.cf.moveUp': '上移',
   'engine.inspector.view.cf.moveDown': '下移',
+  // ConditionBuilder 裸表达式模式（CEL 编辑器，#1582）
+  'engine.condition.celLabel': 'CEL 表达式',
+  'engine.condition.advancedHint': '高级表达式 —— 搭建器仅支持简单的 AND/OR 条件。',
   'engine.inspector.view.type.grid': '表格 / 列表',
   'engine.inspector.view.type.kanban': '看板',
   'engine.inspector.view.type.calendar': '日历',
