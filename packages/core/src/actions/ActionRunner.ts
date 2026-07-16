@@ -600,7 +600,17 @@ export class ActionRunner {
       }
 
       if (!result.success && showToast.showOnError !== false && result.error) {
-        const message = action.errorMessage || result.error;
+        // `result.error` is typed as a string, but a handler bug can leak an
+        // error OBJECT (e.g. the ObjectStack `{ code, message }` envelope)
+        // through here — and a non-string toast payload is rendered as a React
+        // child, crashing the page (React #31). Coerce defensively at this
+        // single sink so no handler can take the whole page down.
+        const raw: unknown = action.errorMessage || result.error;
+        const message = typeof raw === 'string'
+          ? raw
+          : (raw && typeof (raw as { message?: unknown }).message === 'string')
+            ? (raw as { message: string }).message
+            : 'Action failed';
         this.toastHandler(message, { type: 'error', duration });
       }
     }

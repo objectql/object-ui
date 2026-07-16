@@ -617,6 +617,38 @@ describe('ActionRunner', () => {
       expect(toastHandler).toHaveBeenCalledWith('Custom error', { type: 'error', duration: undefined });
     });
 
+    it('coerces a non-string result.error to its message before toasting (React #31 guard)', async () => {
+      const toastHandler = vi.fn();
+      runner.setToastHandler(toastHandler);
+      // A buggy handler leaks the ObjectStack error envelope OBJECT through
+      // `result.error`. Passing it to toast.error() renders it as a React
+      // child and crashes the page — the sink must flatten it to a string.
+      runner.registerHandler('leaky', vi.fn().mockResolvedValue({
+        success: false,
+        error: { code: 'invalid_request', message: 'Provide either password or generatePassword, not both' },
+      }));
+
+      await runner.execute({ type: 'leaky' });
+
+      expect(toastHandler).toHaveBeenCalledWith(
+        'Provide either password or generatePassword, not both',
+        { type: 'error', duration: undefined },
+      );
+    });
+
+    it('falls back to a generic string when a non-string result.error has no message', async () => {
+      const toastHandler = vi.fn();
+      runner.setToastHandler(toastHandler);
+      runner.registerHandler('leaky', vi.fn().mockResolvedValue({
+        success: false,
+        error: { code: 'boom' },
+      }));
+
+      await runner.execute({ type: 'leaky' });
+
+      expect(toastHandler).toHaveBeenCalledWith('Action failed', { type: 'error', duration: undefined });
+    });
+
     it('should suppress toast when showOnSuccess is false', async () => {
       const toastHandler = vi.fn();
       runner.setToastHandler(toastHandler);
