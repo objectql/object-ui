@@ -271,6 +271,20 @@ function useFieldLabel() {
   }
 }
 
+/**
+ * Raw translate fn (with interpolation params) for cell-level strings, or
+ * undefined when no I18nProvider is mounted — callers keep their English
+ * fallback in that case.
+ */
+function useFieldTranslate(): ((key: string, params?: Record<string, unknown>) => string) | undefined {
+  try {
+    const { t } = useObjectTranslation();
+    return t as (key: string, params?: Record<string, unknown>) => string;
+  } catch {
+    return undefined;
+  }
+}
+
 import { TextField } from './widgets/TextField';
 import { NumberField } from './widgets/NumberField';
 import { BooleanField } from './widgets/BooleanField';
@@ -465,14 +479,43 @@ export function humanizeLabel(value: string): string {
   return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+/** Options shared by {@link formatDate} / {@link formatRelativeDate}. */
+export interface DateDisplayOptions {
+  dueLike?: boolean;
+  /** BCP-47 display locale (ADR-0053 tenant default); falls back to the runtime locale. */
+  locale?: string;
+  /** i18n translate fn for phrases `Intl` can't produce (the "Overdue Nd" wording). */
+  t?: (key: string, params?: Record<string, unknown>) => string;
+}
+
 /**
- * Format date as relative time (e.g., "2 days ago", "Today", "Overdue 3d")
+ * Localized day-granularity relative phrase ("Tomorrow", "3 days ago", "明天",
+ * "3天前"), sentence-cased for locales whose `Intl` output starts lowercase.
+ */
+function formatRelativeDays(diffDays: number, locale?: string): string {
+  try {
+    const phrase = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(diffDays, 'day');
+    return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+  } catch {
+    // Invalid locale tag — degrade to English rather than crash the cell.
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays === -1) return 'Yesterday';
+    return diffDays > 0 ? `In ${diffDays} days` : `${Math.abs(diffDays)} days ago`;
+  }
+}
+
+/**
+ * Format date as relative time (e.g., "3 days ago", "Today", "Overdue 3d"),
+ * localized via `Intl.RelativeTimeFormat` (objectstack-ai/framework#3040).
  *
  * `dueLike` gates the "Overdue" wording — a past `start_date`/`created_at`
  * isn't overdue, only a past due/deadline-semantic field is. Non-due-like
- * past dates render as "Nd ago" instead.
+ * past dates render as plain "N days ago" instead. The overdue phrase has no
+ * `Intl` equivalent, so it resolves through `options.t` (key
+ * `fields.relativeDate.overdue`) with an English fallback.
  */
-export function formatRelativeDate(value: string | Date | number, options?: { dueLike?: boolean }): string {
+export function formatRelativeDate(value: string | Date | number, options?: DateDisplayOptions): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
@@ -483,22 +526,22 @@ export function formatRelativeDate(value: string | Date | number, options?: { du
   const diffMs = startOfDate.getTime() - startOfToday.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
-  if (diffDays === -1) return 'Yesterday';
-  if (diffDays < -1) {
+  // Beyond the ±7-day window, fall back to the absolute (already localized) form.
+  if (diffDays < -7 || diffDays > 7) return formatDate(date, undefined, options);
+
+  if (diffDays < -1 && options?.dueLike) {
     const absDays = Math.abs(diffDays);
-    if (absDays <= 7) return options?.dueLike ? `Overdue ${absDays}d` : `${absDays}d ago`;
-    return formatDate(date);
+    const key = 'fields.relativeDate.overdue';
+    const translated = options.t?.(key, { count: absDays });
+    return translated && translated !== key ? translated : `Overdue ${absDays}d`;
   }
-  if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
-  return formatDate(date);
+  return formatRelativeDays(diffDays, options?.locale);
 }
 
 /**
  * Format date value
  */
-export function formatDate(value: string | Date | number, style?: string, options?: { dueLike?: boolean }): string {
+export function formatDate(value: string | Date | number, style?: string, options?: DateDisplayOptions): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
@@ -521,7 +564,7 @@ export function formatDate(value: string | Date | number, style?: string, option
   // verbose "2026年7月21日" form crowds cards and table cells. Past- /
   // future-year dates keep the year so users can disambiguate.
   const isCurrentYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString(options?.locale, {
     year: isCurrentYear ? undefined : 'numeric',
     month: 'short',
     day: 'numeric',
@@ -702,6 +745,8 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
  * Date field cell renderer
  */
 export function DateCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  const { locale } = useLocalization();
+  const t = useFieldTranslate();
   if (!value) return <EmptyValue />;
   const safe = coerceToSafeValue(value);
   const dateField = field as any;
@@ -714,7 +759,7 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
   const dueLike =
     dateField?.dueLike === true ||
     /(^|_)(due|deadline|expires?|expiry|expiration|expected_close|target_close|sla|return_by|renewal|next_action)(_|$)/.test(fieldName);
-  const formatted = formatDate(safe as string | Date, style, { dueLike });
+  const formatted = formatDate(safe as string | Date, style, { dueLike, locale, t });
 
   const date = safe != null ? new Date(safe as string | number) : null;
   const isValidDate = date !== null && !isNaN(date.getTime());

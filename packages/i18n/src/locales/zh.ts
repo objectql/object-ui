@@ -112,6 +112,9 @@ const zh = {
     deleteSuccess: '{{object}}删除成功',
   },
   fields: {
+    relativeDate: {
+      overdue: '逾期 {{count}} 天',
+    },
     richText: {
       format: '格式: {{format}}',
       basicEditorHint: '富文本编辑器（基础）',

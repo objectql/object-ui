@@ -112,6 +112,9 @@ const en = {
     deleteSuccess: '{{object}} deleted successfully',
   },
   fields: {
+    relativeDate: {
+      overdue: 'Overdue {{count}}d',
+    },
     richText: {
       format: 'Format: {{format}}',
       basicEditorHint: 'Rich text editor (basic)',

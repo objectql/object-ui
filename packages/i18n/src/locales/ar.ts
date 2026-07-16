@@ -105,6 +105,9 @@ const ar = {
     deleteSuccess: "تم حذف {{object}}",
   },
   fields: {
+    relativeDate: {
+      overdue: "متأخر {{count}} يوم",
+    },
     richText: {
       format: "التنسيق: {{format}}",
       basicEditorHint: "محرر النص الغني (أساسي)",

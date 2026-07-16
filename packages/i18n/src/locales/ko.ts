@@ -105,6 +105,9 @@ const ko = {
     deleteSuccess: "{{object}} 삭제됨",
   },
   fields: {
+    relativeDate: {
+      overdue: "기한 초과 {{count}}일",
+    },
     richText: {
       format: "형식: {{format}}",
       basicEditorHint: "서식 있는 텍스트 편집기 (기본)",

@@ -105,6 +105,9 @@ const ru = {
     deleteSuccess: "{{object}} удалён",
   },
   fields: {
+    relativeDate: {
+      overdue: "Просрочено на {{count}} дн.",
+    },
     richText: {
       format: "Формат: {{format}}",
       basicEditorHint: "Редактор форматированного текста (базовый)",

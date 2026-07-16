@@ -105,6 +105,9 @@ const de = {
     deleteSuccess: "{{object}} erfolgreich gelöscht",
   },
   fields: {
+    relativeDate: {
+      overdue: "{{count}} T. überfällig",
+    },
     richText: {
       format: "Format: {{format}}",
       basicEditorHint: "Rich-Text-Editor (einfach)",

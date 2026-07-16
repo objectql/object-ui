@@ -105,6 +105,9 @@ const ja = {
     deleteSuccess: "{{object}}が削除されました",
   },
   fields: {
+    relativeDate: {
+      overdue: "期限超過 {{count}}日",
+    },
     richText: {
       format: "フォーマット: {{format}}",
       basicEditorHint: "リッチテキストエディター（基本）",
