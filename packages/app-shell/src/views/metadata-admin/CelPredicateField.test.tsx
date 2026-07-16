@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { CelPredicateField } from './CelPredicateField';
 import {
   tokenAt,
+  memberTokenAt,
   buildCandidates,
   filterCandidates,
   __setCelFormulaLoader,
@@ -53,6 +54,26 @@ describe('tokenAt', () => {
   });
 });
 
+describe('memberTokenAt', () => {
+  it('returns the member segment and its root', () => {
+    expect(memberTokenAt('record.sta', 10)).toEqual({ root: 'record', start: 7, end: 10, text: 'sta' });
+  });
+  it('returns an EMPTY segment right after the dot', () => {
+    expect(memberTokenAt('record.', 7)).toEqual({ root: 'record', start: 7, end: 7, text: '' });
+  });
+  it('returns null for a bare identifier (no dot)', () => {
+    expect(memberTokenAt('record', 6)).toBeNull();
+  });
+  it('returns null for a deeper chain (unknown member shape)', () => {
+    expect(memberTokenAt('record.owner.na', 15)).toBeNull();
+    expect(memberTokenAt('record.owner.', 13)).toBeNull();
+  });
+  it('returns null when the segment is digit-led or the root is missing', () => {
+    expect(memberTokenAt('record.1a', 9)).toBeNull();
+    expect(memberTokenAt('.foo', 4)).toBeNull();
+  });
+});
+
 describe('buildCandidates / filterCandidates', () => {
   const scope = {
     fields: ['organization_id', 'owner_id'],
@@ -71,6 +92,10 @@ describe('buildCandidates / filterCandidates', () => {
     expect(filterCandidates(c, 'ORG').map((x) => x.label)).toEqual(['organization_id']);
     expect(filterCandidates(c, 'organization_id')).toEqual([]); // exact excluded
     expect(filterCandidates(c, '')).toEqual([]);
+  });
+  it('returns the full (capped) catalog for an empty query when allowEmpty', () => {
+    const c = buildCandidates(scope);
+    expect(filterCandidates(c, '', true).length).toBe(c.length);
   });
 });
 
@@ -123,7 +148,7 @@ describe('CelPredicateField · autocomplete', () => {
     await waitFor(() => expect(ta.value).toBe('organization_id'));
   });
 
-  it('does not suggest after a member-access dot', async () => {
+  it('does not suggest after a member-access dot on an unknown-shape root', async () => {
     __setCelFormulaLoader(() =>
       Promise.resolve({
         validateExpression: () => ({ ok: true, errors: [], warnings: [] }),
@@ -138,5 +163,57 @@ describe('CelPredicateField · autocomplete', () => {
     // Give the catalog a beat to load; the menu must stay closed for member access.
     await new Promise((r) => setTimeout(r, 150));
     expect(screen.queryByRole('option')).toBeNull();
+  });
+
+  it('completes field names after record. — including right at the dot', async () => {
+    __setCelFormulaLoader(() =>
+      Promise.resolve({
+        validateExpression: () => ({ ok: true, errors: [], warnings: [] }),
+        introspectScope: () => ({
+          fields: ['organization_id', 'owner_id'],
+          roots: ['record', 'previous', 'parent'],
+          functions: ['has'],
+        }),
+      }),
+    );
+    const user = userEvent.setup();
+    render(<Harness initial="" scope="record" roots={['record', 'previous', 'parent']} />);
+    const ta = screen.getByRole('combobox') as HTMLTextAreaElement;
+    await user.click(ta);
+    await user.type(ta, 'record.');
+    // The full field catalog surfaces the moment the dot is typed…
+    const options = await screen.findAllByRole('option', {}, { timeout: 3000 });
+    expect(options.map((o) => o.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining('organization_id'), expect.stringContaining('owner_id')]),
+    );
+    // …and narrowing + accepting inserts the member, not a bare field.
+    await user.type(ta, 'own');
+    await screen.findByRole('option', { name: /owner_id/i }, { timeout: 3000 });
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(ta.value).toBe('record.owner_id'));
+  });
+
+  it('withholds BARE field suggestions in record scope (fields live under record.*)', async () => {
+    __setCelFormulaLoader(() =>
+      Promise.resolve({
+        validateExpression: () => ({ ok: true, errors: [], warnings: [] }),
+        introspectScope: () => ({
+          fields: ['organization_id'],
+          roots: ['record', 'previous', 'parent'],
+          functions: ['has'],
+        }),
+      }),
+    );
+    const user = userEvent.setup();
+    render(<Harness initial="" scope="record" roots={['record', 'previous', 'parent']} />);
+    const ta = screen.getByRole('combobox') as HTMLTextAreaElement;
+    await user.click(ta);
+    await user.type(ta, 'org');
+    await new Promise((r) => setTimeout(r, 150));
+    expect(screen.queryByRole('option')).toBeNull();
+    // Roots still complete bare — `rec` offers `record`.
+    await user.clear(ta);
+    await user.type(ta, 'rec');
+    expect(await screen.findByRole('option', { name: /record/i }, { timeout: 3000 })).toBeTruthy();
   });
 });

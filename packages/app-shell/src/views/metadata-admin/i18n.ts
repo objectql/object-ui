@@ -976,8 +976,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.helpText': 'Help text',
   'designer.field.helpTextPlaceholder': 'Shown below the field on the form',
   'designer.field.minLength': 'Min length',
-  'designer.field.conditionalRequired': 'Required when (CEL)',
-  'designer.field.conditionalRequiredHint': 'Field becomes required when this predicate is true.',
+  'designer.field.conditionalRules': 'Conditional rules (CEL)',
+  'designer.field.visibleWhen': 'Visible when',
+  'designer.field.readonlyWhen': 'Read-only when',
+  'designer.field.requiredWhen': 'Required when',
+  'designer.field.conditionalRulesHint':
+    'While a predicate is true the field becomes visible / read-only / required. Reference the live record as record.<field>, the last saved values as previous.<field>, and (in master-detail line items) the header record as parent.<field>.',
   // Bulk multi-select (Tier 2)
   'designer.canvas.bulkSelected': '{n} selected',
   'designer.canvas.bulkMoveTo': 'Move to section',
@@ -2292,8 +2296,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.helpText': '帮助文本',
   'designer.field.helpTextPlaceholder': '显示在表单字段下方',
   'designer.field.minLength': '最小长度',
-  'designer.field.conditionalRequired': '条件必填 (CEL)',
-  'designer.field.conditionalRequiredHint': '当此表达式为真时，该字段变为必填。',
+  'designer.field.conditionalRules': '条件规则 (CEL)',
+  'designer.field.visibleWhen': '可见条件',
+  'designer.field.readonlyWhen': '只读条件',
+  'designer.field.requiredWhen': '必填条件',
+  'designer.field.conditionalRulesHint':
+    '表达式为真时字段相应地变为可见 / 只读 / 必填。用 record.<字段> 引用当前记录，previous.<字段> 引用最近保存的值，parent.<字段>（主从明细行）引用表头记录。',
   // Bulk multi-select (Tier 2)
   'designer.canvas.bulkSelected': '已选 {n} 项',
   'designer.canvas.bulkMoveTo': '移至分组',

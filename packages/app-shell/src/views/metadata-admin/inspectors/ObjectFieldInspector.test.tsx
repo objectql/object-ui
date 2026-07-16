@@ -28,8 +28,12 @@ vi.mock('../previews/useObjectFields', () => ({
 }));
 
 import { ObjectFieldInspector } from './ObjectFieldInspector';
+import { __setCelFormulaLoader } from '../celAuthoring';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  __setCelFormulaLoader(undefined);
+});
 
 function renderField(
   fields: Record<string, Record<string, unknown>>,
@@ -185,17 +189,83 @@ describe('ObjectFieldInspector — power props (conditional & validation)', () =
     expect(onPatch.mock.calls.at(-1)![0].fields.note.minLength).toBe(3);
   });
 
-  it('commits a conditional-required CEL predicate', () => {
+  it('commits a required-when CEL predicate (as requiredWhen)', () => {
     const { onPatch } = renderField({ note: { type: 'text' } }, 'note');
-    fireEvent.change(controlFor('Required when (CEL)'), { target: { value: 'record.x == 1' } });
-    expect(onPatch.mock.calls.at(-1)![0].fields.note.conditionalRequired).toBe('record.x == 1');
+    fireEvent.change(controlFor('Required when'), { target: { value: 'record.x == 1' } });
+    const field = onPatch.mock.calls.at(-1)![0].fields.note;
+    expect(field.requiredWhen).toBe('record.x == 1');
+    expect(field.conditionalRequired).toBeUndefined();
   });
 
-  it('offers conditional-required for non-text types too', () => {
+  it('offers the conditional rules for non-text types too', () => {
     renderField({ active: { type: 'boolean' } }, 'active');
-    expect(screen.getByText('Required when (CEL)')).toBeInTheDocument();
+    expect(screen.getByText('Conditional rules (CEL)')).toBeInTheDocument();
+    expect(screen.getByText('Visible when')).toBeInTheDocument();
+    expect(screen.getByText('Read-only when')).toBeInTheDocument();
+    expect(screen.getByText('Required when')).toBeInTheDocument();
     // Min length is text-only, so it should not show for a boolean.
     expect(screen.queryByText('Min length')).not.toBeInTheDocument();
+  });
+});
+
+describe('ObjectFieldInspector — conditional rules (CEL editors, #1582)', () => {
+  // Deterministic fake engine — the editors' live lint/autocomplete against the
+  // REAL engine is covered by CelPredicateField.test.tsx; here we test the
+  // inspector's wiring (read/write shapes, legacy migration).
+  const stubEngine = () =>
+    __setCelFormulaLoader(() =>
+      Promise.resolve({
+        validateExpression: () => ({ ok: true, errors: [], warnings: [] }),
+        introspectScope: () => ({
+          fields: ['note', 'status'],
+          roots: ['record', 'previous', 'parent'],
+          functions: ['has'],
+        }),
+      }),
+    );
+
+  it('commits a visibleWhen predicate as the bare-string shorthand', () => {
+    stubEngine();
+    const { onPatch } = renderField({ note: { type: 'text' } }, 'note');
+    fireEvent.change(controlFor('Visible when'), { target: { value: "record.status != 'draft'" } });
+    const field = onPatch.mock.calls.at(-1)![0].fields.note;
+    expect(field.visibleWhen).toBe("record.status != 'draft'");
+  });
+
+  it('reads an Expression envelope and preserves its extra keys on write', () => {
+    stubEngine();
+    const envelope = { dialect: 'cel', source: 'record.a == 1', meta: { rationale: 'AI draft' } };
+    const { onPatch } = renderField({ note: { type: 'text', readonlyWhen: envelope } }, 'note');
+    expect(controlFor('Read-only when')).toHaveValue('record.a == 1');
+    fireEvent.change(controlFor('Read-only when'), { target: { value: 'record.a == 2' } });
+    expect(onPatch.mock.calls.at(-1)![0].fields.note.readonlyWhen).toEqual({
+      dialect: 'cel',
+      source: 'record.a == 2',
+      meta: { rationale: 'AI draft' },
+    });
+  });
+
+  it('clears a rule when the editor is emptied', () => {
+    stubEngine();
+    const { onPatch } = renderField(
+      { note: { type: 'text', visibleWhen: 'record.a == 1' } },
+      'note',
+    );
+    fireEvent.change(controlFor('Visible when'), { target: { value: '' } });
+    expect(onPatch.mock.calls.at(-1)![0].fields.note.visibleWhen).toBeUndefined();
+  });
+
+  it('reads legacy conditionalRequired into Required when and migrates it on edit', () => {
+    stubEngine();
+    const { onPatch } = renderField(
+      { note: { type: 'text', conditionalRequired: 'record.x == 1' } },
+      'note',
+    );
+    expect(controlFor('Required when')).toHaveValue('record.x == 1');
+    fireEvent.change(controlFor('Required when'), { target: { value: 'record.x == 2' } });
+    const field = onPatch.mock.calls.at(-1)![0].fields.note;
+    expect(field.requiredWhen).toBe('record.x == 2');
+    expect(field.conditionalRequired).toBeUndefined();
   });
 });
 
@@ -208,7 +278,7 @@ describe('ObjectFieldInspector — read-only', () => {
   it('disables the power-prop inputs when read-only', () => {
     renderField({ note: { type: 'text' } }, 'note', { readOnly: true });
     expect(controlFor('Help text')).toBeDisabled();
-    expect(controlFor('Required when (CEL)')).toBeDisabled();
+    expect(controlFor('Required when')).toBeDisabled();
   });
 });
 

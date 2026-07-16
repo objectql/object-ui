@@ -212,6 +212,29 @@ error-swallowing like `preview/capabilityLint.ts`), so the CEL parser stays out
 of the main bundle and a missing/older engine degrades to "no assistance"
 rather than breaking the editor. The bridge is `metadata-admin/celAuthoring.ts`.
 
+#### Field conditional rules — CEL editors (objectui#1582)
+
+The object designer's field inspector (`ObjectFieldInspector`, Advanced →
+*Conditional rules*) edits the ADR-0036 B2 field-level predicates
+`visibleWhen` / `readonlyWhen` / `requiredWhen` with the same
+`CelPredicateField` editor, in **`scope="record"`** mode:
+
+- These rules evaluate with the record bound **only as the `record`
+  namespace** (see `@object-ui/core`'s `evalFieldPredicate`), so a bare field
+  reference is flagged as an **error** with the exact `record.<field>` fix,
+  and autocomplete offers the roots that are actually bound at runtime —
+  `record` / `previous` / `parent` (master-detail header) — plus the stdlib;
+  typing `record.` / `previous.` completes the object's own field names.
+- Values round-trip both wire shapes: a bare CEL string or the
+  `{ dialect, source }` Expression envelope (envelope extras such as
+  `meta.rationale` are preserved on edit). The deprecated
+  `conditionalRequired` alias is read into the *Required when* editor and
+  migrated to `requiredWhen` on the first edit.
+- The same lint also runs draft-wide in `clientValidation.ts`
+  (`validateMetadataDraft('object', …)`), so an invalid predicate on any
+  field — not just the selected one — surfaces in the editor's issue banner
+  under a `fields.<field>.<rule>` path before save.
+
 ### Visual flow canvas
 
 The `flow` designer (`FlowPreview` → `FlowCanvas`) renders an automation as an
