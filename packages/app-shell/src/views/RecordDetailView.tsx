@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
+import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
@@ -1513,9 +1513,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // to their name. Empty → undefined below, so the synthesizer
     // auto-derives instead.
     const rawHighlightFields = (objectDef as any).highlightFields ?? [];
+    // Drop the record's title field: it is the page H1 and repeating it as
+    // the first chip duplicated the name, truncated, right under the
+    // heading. Mirrors deriveHighlightFields' declared-list handling —
+    // this pre-computed list bypasses that derivation (#2548).
+    const titleField = resolveTitleField(objectDef as any);
     const highlightFields: string[] = (Array.isArray(rawHighlightFields) ? rawHighlightFields : [])
       .map((f: any) => (typeof f === 'string' ? f : f?.name))
-      .filter((n: any): n is string => typeof n === 'string' && n.length > 0);
+      .filter((n: any): n is string => typeof n === 'string' && n.length > 0 && n !== titleField);
 
     // Related child lists from reverse-reference relationships, in
     // `buildDefaultPageSchema`'s `related` shape. `relationshipField` is

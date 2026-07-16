@@ -614,9 +614,13 @@ const en = {
     // Activity feed actors
     systemActor: 'System',
     unknownUser: 'Unknown',
-    // Record meta footer (audit provenance)
+    // Record meta footer (audit provenance). `created`/`updated` are the
+    // actor-less variants — "Created by · 5m ago" dangles when created_by
+    // is null (system/seeded rows), so the footer falls back to these.
     createdBy: 'Created by',
     updatedBy: 'Updated by',
+    created: 'Created',
+    updated: 'Updated',
     // Attachments
     dropFilesToUpload: 'Drop files here or click to upload',
     attachmentCount: '{{count}} attachment',

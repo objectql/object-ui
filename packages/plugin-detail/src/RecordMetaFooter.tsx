@@ -191,7 +191,9 @@ export const RecordMetaFooter: React.FC<RecordMetaFooterProps> = ({
     >
       {hasCreated && (
         <MetaEntry
-          label={t('detail.createdBy')}
+          // No actor (system/seeded rows) → the "by"-less label; "Created
+          // by · 5m ago" read as a dangling phrase.
+          label={createdBy ? t('detail.createdBy') : t('detail.created')}
           user={createdBy}
           date={createdAt}
           objectSchema={objectSchema}
@@ -201,7 +203,7 @@ export const RecordMetaFooter: React.FC<RecordMetaFooterProps> = ({
       )}
       {hasUpdated && (
         <MetaEntry
-          label={t('detail.updatedBy')}
+          label={updatedBy ? t('detail.updatedBy') : t('detail.updated')}
           user={updatedBy}
           date={updatedAt}
           objectSchema={objectSchema}

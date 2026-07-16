@@ -510,6 +510,8 @@ const de = {
     highlightFields: "Schlüsselfelder",
     createdBy: "Erstellt von",
     updatedBy: "Aktualisiert von",
+    created: "Erstellt",
+    updated: "Aktualisiert",
     showEmptyRelated_one: "+ {{count}} leer",
     showEmptyRelated_other: "+ {{count}} leer",
     copyEmail: "E-Mail kopieren",

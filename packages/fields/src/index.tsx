@@ -1050,13 +1050,18 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
     }
 
     const colorClasses = getBadgeColorClasses(option?.color, val);
+    // max-w-full + inner truncate: in bounded containers (detail highlight
+    // strip columns, grid cells) an overlong label used to clip mid-glyph at
+    // the container edge; now the badge shrinks and ellipsizes, with the full
+    // label on hover.
     return (
       <Badge
         key={key}
         variant="outline"
-        className={colorClasses}
+        className={cn('max-w-full min-w-0', colorClasses)}
+        title={label}
       >
-        {label}
+        <span className="truncate">{label}</span>
       </Badge>
     );
   };

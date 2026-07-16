@@ -695,9 +695,13 @@ const zh = {
     // Activity feed actors
     systemActor: '系统',
     unknownUser: '未知用户',
-    // Record meta footer (audit provenance)
-    createdBy: '创建于',
-    updatedBy: '更新于',
+    // Record meta footer (audit provenance)。createdBy/updatedBy 后面跟的是
+    // 操作者("创建人 Dev Admin · 5 分钟前");created/updated 是无操作者时的
+    // 兜底("创建于 5 分钟前")。旧文案把"创建于"用在了操作者位置,属误译。
+    createdBy: '创建人',
+    updatedBy: '更新人',
+    created: '创建于',
+    updated: '更新于',
     // Attachments
     dropFilesToUpload: '拖拽文件到此处或点击上传',
     attachmentCount: '{{count}} 个附件',
