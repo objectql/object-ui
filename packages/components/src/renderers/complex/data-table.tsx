@@ -269,8 +269,56 @@ export const DataTableRowActionItem: React.FC<{
 };
 
 /**
+ * A built-in Edit/Delete item in the data-table's row overflow menu, gated by
+ * the per-record CEL predicates from the object's `userActions.edit` /
+ * `delete` object form (objectui#2614) — `schema.rowEditPredicates` /
+ * `rowDeletePredicates`. Mirrors `BuiltinRowActionItem` on the ObjectGrid
+ * path so BOTH row-menu renderers honor the predicates identically (the
+ * related-list case is where the master-detail scenario from the issue
+ * actually renders). Same posture: `visibleWhen` fails CLOSED, `disabledWhen`
+ * fails soft. Evaluation only happens when the menu is open (Radix mounts
+ * content lazily), so declared predicates cost nothing at table render time.
+ *
+ * Exported for unit tests — NOT part of the package's public API (the barrel
+ * only side-effect-imports this module; see `DataTableRowActionItem`).
+ */
+export const DataTableBuiltinRowActionItem: React.FC<{
+  name: 'edit' | 'delete';
+  predicates?: { visibleWhen?: unknown; disabledWhen?: unknown };
+  row: any;
+  icon: React.ReactNode;
+  label: string;
+  className?: string;
+  onSelect: (row: any) => void;
+}> = ({ name, predicates, row, icon, label, className, onSelect }) => {
+  const isVisible = useRowPredicate(predicates?.visibleWhen, row, {
+    fallback: false,
+    warnOnError: true,
+    label: `builtin:${name}:visibleWhen`,
+  });
+  const isDisabled = useRowPredicate(predicates?.disabledWhen, row, {
+    fallback: false,
+    warnOnError: true,
+    label: `builtin:${name}:disabledWhen`,
+  });
+  if (predicates?.visibleWhen != null && !isVisible) return null;
+  const disabled = predicates?.disabledWhen != null && isDisabled;
+  return (
+    <DropdownMenuItem
+      disabled={disabled}
+      onClick={() => { if (!disabled) onSelect(row); }}
+      data-testid={`row-action-builtin-${name}`}
+      className={className}
+    >
+      {icon}
+      {label}
+    </DropdownMenuItem>
+  );
+};
+
+/**
  * Enterprise-level data table component with Airtable-like features.
- * 
+ *
  * Provides comprehensive table functionality including:
  * - Multi-column sorting (ascending/descending/none)
  * - Real-time search across all columns
@@ -1796,10 +1844,14 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                                     {schema.onRowEdit && (
-                                      <DropdownMenuItem onClick={() => schema.onRowEdit?.(row)}>
-                                        <Edit className="mr-2 h-4 w-4" />
-                                        {t('table.edit')}
-                                      </DropdownMenuItem>
+                                      <DataTableBuiltinRowActionItem
+                                        name="edit"
+                                        predicates={schema.rowEditPredicates}
+                                        row={row}
+                                        icon={<Edit className="mr-2 h-4 w-4" />}
+                                        label={t('table.edit')}
+                                        onSelect={(r) => schema.onRowEdit?.(r)}
+                                      />
                                     )}
                                     {/* Child-object custom actions (e.g. a related
                                         list surfacing the child's `list_item`
@@ -1815,13 +1867,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                     ))}
                                     {schema.onRowDelete && (schema.onRowEdit || customActions.length > 0) && <DropdownMenuSeparator />}
                                     {schema.onRowDelete && (
-                                      <DropdownMenuItem
-                                        onClick={() => schema.onRowDelete?.(row)}
+                                      <DataTableBuiltinRowActionItem
+                                        name="delete"
+                                        predicates={schema.rowDeletePredicates}
+                                        row={row}
+                                        icon={<Trash2 className="mr-2 h-4 w-4" />}
+                                        label={t('table.delete')}
                                         className="text-destructive focus:text-destructive"
-                                      >
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        {t('table.delete')}
-                                      </DropdownMenuItem>
+                                        onSelect={(r) => schema.onRowDelete?.(r)}
+                                      />
                                     )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>

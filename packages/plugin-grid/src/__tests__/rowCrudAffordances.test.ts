@@ -37,4 +37,47 @@ describe('resolveRowCrudAffordances', () => {
     expect(resolveRowCrudAffordances({ wantEditAction: true, wantDeleteAction: true, hasOnEdit: true, hasOnDelete: true }))
       .toEqual({ canEdit: true, canDelete: true });
   });
+
+  describe('#2614 object form (per-record CEL predicates)', () => {
+    it('passes visibleWhen/disabledWhen through untouched and keeps canEdit/canDelete on', () => {
+      const res = resolveRowCrudAffordances({
+        ...wired,
+        userActions: {
+          edit: { disabledWhen: 'record.frozen == true' },
+          delete: { visibleWhen: { dialect: 'cel', source: 'record.frozen != true' } },
+        },
+      });
+      expect(res.canEdit).toBe(true);
+      expect(res.canDelete).toBe(true);
+      expect(res.editPredicates).toEqual({ disabledWhen: 'record.frozen == true' });
+      expect(res.deletePredicates).toEqual({ visibleWhen: { dialect: 'cel', source: 'record.frozen != true' } });
+    });
+
+    it('object form with enabled:false opts out like the bare boolean (and drops predicates)', () => {
+      const res = resolveRowCrudAffordances({
+        ...wired,
+        userActions: { edit: { enabled: false, disabledWhen: 'record.frozen == true' } },
+      });
+      expect(res.canEdit).toBe(false);
+      expect(res.editPredicates).toBeUndefined();
+      expect(res.canDelete).toBe(true);
+    });
+
+    it('object form without predicates adds nothing (boolean-equivalent)', () => {
+      const res = resolveRowCrudAffordances({ ...wired, userActions: { edit: { enabled: true }, delete: {} } });
+      expect(res).toEqual({ canEdit: true, canDelete: true });
+      expect(res.editPredicates).toBeUndefined();
+      expect(res.deletePredicates).toBeUndefined();
+    });
+
+    it('predicates are not surfaced when the affordance is not wired at all', () => {
+      const res = resolveRowCrudAffordances({
+        hasOnEdit: false,
+        operationsUpdate: true,
+        userActions: { edit: { disabledWhen: 'record.frozen == true' } },
+      });
+      expect(res.canEdit).toBe(false);
+      expect(res.editPredicates).toBeUndefined();
+    });
+  });
 });

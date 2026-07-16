@@ -230,7 +230,14 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
   // Authors can still force-disable with `inlineEdit: false`.
   const NON_EDITABLE_BUCKETS = new Set(['system', 'append-only', 'better-auth']);
   const managedBy = objSchema?.managedBy as string | undefined;
-  const userEditOverride = (objSchema?.userActions as { edit?: boolean } | undefined)?.edit;
+  // `userActions.edit` is a boolean or, since #2614, an object form whose
+  // `enabled` carries the boolean (its per-record predicates gate row action
+  // buttons, not detail inline-edit, so they are ignored here).
+  const rawEditOverride = (objSchema?.userActions as { edit?: boolean | { enabled?: boolean } } | undefined)?.edit;
+  const userEditOverride =
+    typeof rawEditOverride === 'object' && rawEditOverride !== null
+      ? rawEditOverride.enabled
+      : rawEditOverride;
   const objectInlineEditable =
     userEditOverride ?? !(managedBy != null && NON_EDITABLE_BUCKETS.has(managedBy));
   const inlineEditDefault = (schema.inlineEdit ?? true) && objectInlineEditable;

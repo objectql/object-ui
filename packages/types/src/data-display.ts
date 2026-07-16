@@ -462,6 +462,20 @@ export interface DataTableSchema extends BaseSchema {
    */
   onRowDelete?: (row: any) => void;
   /**
+   * Per-record CEL predicates gating the built-in row Edit item
+   * (objectui#2614), from the object's `userActions.edit` object form.
+   * `visibleWhen` false → the item is not rendered for that row (fail-closed);
+   * `disabledWhen` true → rendered disabled (fail-soft). Bare CEL string or
+   * `{ dialect: 'cel', source }` envelope, evaluated per row with the record
+   * bound as `record.*` and bare fields.
+   */
+  rowEditPredicates?: { visibleWhen?: unknown; disabledWhen?: unknown };
+  /**
+   * Per-record CEL predicates gating the built-in row Delete item
+   * (objectui#2614), from the object's `userActions.delete` object form.
+   */
+  rowDeletePredicates?: { visibleWhen?: unknown; disabledWhen?: unknown };
+  /**
    * Extra per-row action definitions rendered in the row overflow menu, after
    * Edit/Delete. Each is dispatched via {@link onRowActionDef} with the clicked
    * row. Surfaces an object's own row actions in embedded tables (e.g. a detail
