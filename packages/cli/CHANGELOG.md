@@ -1,5 +1,13 @@
 # @object-ui/cli
 
+## 15.0.0
+
+### Patch Changes
+
+- @object-ui/types@15.0.0
+- @object-ui/react@15.0.0
+- @object-ui/components@15.0.0
+
 ## 14.1.0
 
 ### Patch Changes

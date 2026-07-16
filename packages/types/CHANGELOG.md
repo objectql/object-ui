@@ -1,5 +1,7 @@
 # @object-ui/types
 
+## 15.0.0
+
 ## 14.1.0
 
 ### Minor Changes

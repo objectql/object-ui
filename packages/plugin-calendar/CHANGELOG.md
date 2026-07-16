@@ -1,5 +1,19 @@
 # @object-ui/plugin-calendar
 
+## 15.0.0
+
+### Patch Changes
+
+- Updated dependencies [bb22788]
+  - @object-ui/plugin-detail@15.0.0
+  - @object-ui/types@15.0.0
+  - @object-ui/core@15.0.0
+  - @object-ui/i18n@15.0.0
+  - @object-ui/react@15.0.0
+  - @object-ui/components@15.0.0
+  - @object-ui/fields@15.0.0
+  - @object-ui/mobile@15.0.0
+
 ## 14.1.0
 
 ### Patch Changes

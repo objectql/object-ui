@@ -1,5 +1,16 @@
 # @object-ui/fields
 
+## 15.0.0
+
+### Patch Changes
+
+- @object-ui/types@15.0.0
+- @object-ui/core@15.0.0
+- @object-ui/i18n@15.0.0
+- @object-ui/react@15.0.0
+- @object-ui/components@15.0.0
+- @object-ui/providers@15.0.0
+
 ## 14.1.0
 
 ### Minor Changes

@@ -1,5 +1,36 @@
 # @object-ui/app-shell — Changelog
 
+## 15.0.0
+
+### Patch Changes
+
+- Updated dependencies [bb22788]
+  - @object-ui/plugin-detail@15.0.0
+  - @object-ui/plugin-calendar@15.0.0
+  - @object-ui/plugin-kanban@15.0.0
+  - @object-ui/types@15.0.0
+  - @object-ui/core@15.0.0
+  - @object-ui/i18n@15.0.0
+  - @object-ui/react@15.0.0
+  - @object-ui/components@15.0.0
+  - @object-ui/fields@15.0.0
+  - @object-ui/layout@15.0.0
+  - @object-ui/data-objectstack@15.0.0
+  - @object-ui/auth@15.0.0
+  - @object-ui/permissions@15.0.0
+  - @object-ui/plugin-charts@15.0.0
+  - @object-ui/plugin-chatbot@15.0.0
+  - @object-ui/plugin-dashboard@15.0.0
+  - @object-ui/plugin-designer@15.0.0
+  - @object-ui/plugin-editor@15.0.0
+  - @object-ui/plugin-form@15.0.0
+  - @object-ui/plugin-grid@15.0.0
+  - @object-ui/plugin-list@15.0.0
+  - @object-ui/plugin-report@15.0.0
+  - @object-ui/plugin-view@15.0.0
+  - @object-ui/collaboration@15.0.0
+  - @object-ui/providers@15.0.0
+
 ## 14.1.0
 
 ### Minor Changes

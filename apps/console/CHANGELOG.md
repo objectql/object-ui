@@ -1,5 +1,16 @@
 # @object-ui/console
 
+## 15.0.0
+
+### Major Changes
+
+- a46ce5e: align with objectstack
+
+### Patch Changes
+
+- @object-ui/react-runtime@15.0.0
+- @object-ui/sdui-parser@15.0.0
+
 ## 14.1.0
 
 ### Patch Changes
