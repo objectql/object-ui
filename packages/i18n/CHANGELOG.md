@@ -1,5 +1,96 @@
 # @object-ui/i18n
 
+## 14.1.0
+
+### Patch Changes
+
+- 82441e4: feat(console-ai): proactive AI usage indicator in the ChatDock (ADR-0057 #8)
+
+  Surfaces remaining AI headroom **before** a send hits the 429 wall, instead of
+  only learning the limit reactively.
+
+  - **AiUsageIndicator** — two meters (build + dataChat) as small progress rings in
+    the ChatDock header (desktop rail + mobile sheet). Near-full → an amber
+    "running low" hint and a popover with "resets tonight / next cycle" plus the
+    upgrade / top-up CTA (reusing the 429 deep-link). D5-safe: fractions and
+    qualitative words only, never a token number. Hides itself when the usage
+    endpoint is absent (older backend / OSS / no seat).
+  - **useAiUsage** — fetches the D5-safe per-meter fractions; refetches on the chat
+    engine's post-turn / 429 nudge and on tab re-focus; fails soft to nothing.
+  - **useObjectChat** emits `AI_USAGE_REFRESH_EVENT` on a rejected send (429) and on
+    the turn-finish edge so the ring updates right after the user's action.
+  - i18n: `console.ai.usage.*` in en + zh-CN.
+
+  Consumes the cloud `GET /api/v1/ai/usage` endpoint (objectstack-ai/cloud#824).
+
+- 2efa9fd: Detail-page UX follow-ups from the ADR-0085 PR4 real-backend browser pass (framework#2548):
+
+  - **Highlight strip no longer repeats the record title.** A declared
+    `highlightFields` list containing the title field rendered it as the first
+    chip — truncated — directly under the identical page H1. `deriveHighlightFields`
+    now resolves the title (`primaryField` / `nameField` / deprecated
+    `displayNameField`, else the conventional display-field names) via the new
+    exported `resolveTitleField` and filters it from declared lists before the
+    4-chip cap, matching what the heuristic branch always did. app-shell's
+    `RecordDetailView` synthParts (which pre-computes the list and bypasses the
+    derivation) applies the same filter.
+  - **Per-field currency reaches the renderers.** The spec channel
+    (`currencyConfig.defaultCurrency`) was dropped by the highlight-strip and
+    detail-section field enrichment, so a spec-authored currency field could
+    never show its symbol ("25,000,000" instead of "$25,000,000");
+    `resolveFieldCurrency` reads it second after the designer-only bare
+    `currency` key.
+  - **app-shell approvals fetches send the Bearer token.** The header badge
+    poll, home-inbox count, and record-page approvals panel were cookie-only
+    (new shared `bearerAuthHeaders()` util) — same split-origin failure mode as
+    the console `approvalsApi` fix below.
+  - **`fieldGroups[].icon` / `description` reach detail pages.** The shared
+    derivation (ADR-0085 §5) already passed them through; the detail synth
+    dropped them. Sections now carry both, and `DetailSection` renders a real
+    Lucide icon for identifier-shaped names (emoji/text values keep the
+    historical text rendering).
+  - **Record meta footer stops dangling without an actor.** Seeded/system rows
+    with `created_by: null` rendered "Created by · 10m ago"; the footer now
+    falls back to actor-less labels ("Created / Updated"), with new i18n keys in
+    all six locales (and the zh `createdBy`/`updatedBy` mistranslation fixed:
+    创建人/更新人, not 创建于/更新于).
+  - **Select badges ellipsize instead of clipping mid-glyph.** In bounded
+    containers (highlight-strip columns, grid cells) an overlong option label
+    used to be cut at the container edge ("Technolog…"); badges now shrink with
+    an inner truncate and expose the full label as a hover title. The highlight
+    strip's hover title also prefers the option label over the raw stored value.
+
+  Console app (unversioned): `approvalsApi` now sends the stored Bearer token
+  like every other console call — cookie-only auth silently lost the approvals
+  surface on split-origin deployments where the SameSite cookie doesn't flow.
+
+- e628d1f: Dashboard-level filters follow-ups (#2578, framework#2501):
+
+  - **i18n**: the `DashboardFilterBar` strings now ship as real locale entries —
+    `dashboard.filters.*` (bar label, "All time", "Custom…", "All", "Reset",
+    and the 13 date-range preset labels) added to `en` and `zh`. Previously the
+    bar always rendered the `useSafeTranslate` English fallbacks.
+  - **types**: `GlobalFilterSchema.name` and `DashboardWidgetSchema.filterBindings`
+    landed in `@objectstack/spec` (framework#2501), so the local type
+    annotations flip from "Pending alignment" to "Aligned" — no shape changes.
+
+  Also adds five schema-catalog examples (`plugin-dashboard/filtered-dashboard-*`:
+  dynamic `optionsFrom` options, text/number/lookup filter types, dataset +
+  inline widget mix, `targetWidgets` allow-list, date presets + custom range)
+  and a new "Dashboard-Level Filters" guide page covering the full tutorial,
+  `page.*` expression usage, and known limitations with workarounds.
+
+- 23d65c3: fix(i18n): `createSafeTranslation` / `useSafeTranslate` no longer wrap the
+  translation hook in try/catch — the last known rules-of-hooks violation of
+  the class fixed in objectui#2595/#2596 (a throw after the hook ran would
+  desync hook order on the next render; the factory closure just escaped the
+  static lint). `useObjectTranslation` is provider-safe, and the actual
+  fallback behavior is unchanged: the testKey probe (createSafeTranslation)
+  and per-key `t(key) === key` detection (useSafeTranslate) still return the
+  English defaults when translations aren't configured. The fallback `t` is
+  now a stable per-factory reference, so downstream memo deps stop
+  invalidating every render in the no-translations case.
+
 ## 14.0.0
 
 ### Patch Changes

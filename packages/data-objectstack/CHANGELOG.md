@@ -1,5 +1,21 @@
 # @object-ui/data-objectstack
 
+## 14.1.0
+
+### Patch Changes
+
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f0f10f5]
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+
 ## 14.0.0
 
 ### Minor Changes

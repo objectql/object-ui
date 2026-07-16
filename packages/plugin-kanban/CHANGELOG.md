@@ -1,5 +1,105 @@
 # @object-ui/plugin-kanban
 
+## 14.1.0
+
+### Minor Changes
+
+- d741937: feat(kanban): default card fields to the object's `highlightFields` when a view configures none (ADR-0085 follow-up, #2162)
+
+  `ObjectKanban` used to render explicit view-level `cardFields` and, when a board
+  declared none, drop straight to a legacy semantic-field heuristic (guessing at
+  amount / owner / priority). That guesswork ignored the object's own declared
+  intent and diverged from every other surface.
+
+  Card fields now resolve through a shared `resolveKanbanCardFields` helper in
+  priority order:
+
+  1. **View-level `cardFields`** — the author's explicit choice always wins.
+  2. **The object's `highlightFields`** — the ADR-0085 semantic role (its curated
+     "most important fields"), the same list Grid, List and Detail already default
+     to. Entries referencing a field the object no longer declares are dropped.
+  3. **The legacy semantic-field heuristic** — used only when neither is available.
+
+  A board over an object with no per-view card config now shows the same curated
+  fields as the object's other views, instead of best-effort guesses.
+
+- dea65f7: Unify the list-view conditional tier onto the canonical CEL engine (#1584).
+
+  Conditional formatting (list / grid / kanban) and row-action `visible` /
+  `disabled` predicates are now evaluated by `@objectstack/formula`'s
+  `ExpressionEngine` — the same engine the server uses — instead of the legacy
+  JS-dialect `ExpressionEvaluator`, matching how `@objectstack/spec` already types
+  these surfaces (`ExpressionInputSchema` / CEL). The whole platform now speaks one
+  expression dialect (framework ADR-0058).
+
+  - `@object-ui/core`: new `evalRowPredicate` + `resolveConditionalFormatting`
+    helpers (next to `evalFieldPredicate`). One implementation of all three
+    formatting rule shapes; dialect routing (a `{ dialect: 'cel' }` envelope is
+    always CEL; a bare string is CEL unless it carries legacy-only syntax
+    (`${…}` / `===` / `?.` / `.includes()`), which routes to the old engine with a
+    one-time deprecation warning); the native `{ field, operator, value }` form is
+    translated to CEL.
+  - `@object-ui/react`: new `useRowPredicate` hook (canonical CEL, ambient
+    predicate scope merged).
+  - Consumers converged: `ListView.evaluateConditionalFormatting` (thin wrapper,
+    export kept), `ObjectGrid` row styling (inline copy removed), kanban card
+    styles, and the grid / data-table row-action menus. `plugin-view`'s kanban
+    branch now forwards top-level `conditionalFormatting` (previously dropped).
+  - Row-action `visible` fails **closed** (broken predicate → hidden + warn);
+    `disabled` fails soft. The CEL `in` operator (and list membership) now work in
+    row predicates — the legacy engine could not parse them.
+  - The legacy `FormField.condition: { field, equals/notEquals/in }` is retired to
+    a CEL translation (back-compat preserved); `FieldDesigner` migrated to
+    `visibleWhen`.
+
+  Fully back-compat: existing conditional-formatting rules, row-action predicates,
+  and form `condition` metadata keep working (translated / routed as needed).
+
+### Patch Changes
+
+- 9e2d58f: Kanban `conditionalFormatting` now accepts CEL rules in its type + schema (#1584 follow-up).
+
+  Since #1584 moved kanban card styling onto the shared CEL evaluator, the runtime
+  already accepts the spec `{ condition, style }` rule shape — but the type and zod
+  schema still only allowed the native `{ field, operator, value }` shape, so a
+  CEL kanban rule failed validation for something that worked at runtime. The
+  `KanbanConditionalFormattingRule` type and `ObjectKanbanSchema` zod schema are
+  widened to a union of both shapes, matching list/grid `conditionalFormatting` and
+  the runtime. Back-compat: the native shape keeps validating unchanged.
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [471c5d3]
+- Updated dependencies [579b24d]
+- Updated dependencies [2b30583]
+- Updated dependencies [23d65c3]
+- Updated dependencies [055e1d2]
+- Updated dependencies [f9a7907]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [3e8bf07]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [2712fc1]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/plugin-detail@14.1.0
+  - @object-ui/fields@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/components@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes

@@ -1,5 +1,132 @@
 # @object-ui/react
 
+## 14.1.0
+
+### Minor Changes
+
+- 5523fc4: Dashboard-level filters — the three #2578 item-5 enhancements (framework#2501):
+
+  - **react**: nested `PageVariablesProvider`s now MERGE instead of shadowing
+    wholesale. A filtered dashboard embedded in a Page with its own `variables`
+    keeps the outer page variables readable inside widget subtrees (`page.*`);
+    an inner definition shadows only the SAME name; writes route to the scope
+    that defines the variable (writing an outer-defined name from inside the
+    nested subtree updates the outer provider); `resetVariables` stays local.
+    Names defined nowhere still write locally, exactly as before.
+  - **core**: `buildWidgetScopedFilter` accepts an optional `knownFields` set —
+    a DEFAULT binding whose target field is not on the widget's object is
+    skipped with a console warning instead of emitting a query the backend
+    empty-matches. Explicit `filterBindings` strings are always honoured (a
+    typo surfaces as a visibly empty widget, never a silently dropped filter).
+    Omitting `knownFields` preserves the previous unchecked behaviour.
+  - **plugin-dashboard**: `DashboardRenderer` feeds `knownFields` from
+    `dataSource.getObjectSchema` for inline `object` widgets (best-effort —
+    unchecked while metadata loads or when the source can't describe objects).
+    `optionsFrom` dynamic filter options now resolve DISTINCT values
+    server-side via a dataset GROUP BY (`queryDataset` with an inline draft)
+    when the data source supports it, falling back to the previous client-side
+    top-200 dedupe otherwise.
+
+- dea65f7: Unify the list-view conditional tier onto the canonical CEL engine (#1584).
+
+  Conditional formatting (list / grid / kanban) and row-action `visible` /
+  `disabled` predicates are now evaluated by `@objectstack/formula`'s
+  `ExpressionEngine` — the same engine the server uses — instead of the legacy
+  JS-dialect `ExpressionEvaluator`, matching how `@objectstack/spec` already types
+  these surfaces (`ExpressionInputSchema` / CEL). The whole platform now speaks one
+  expression dialect (framework ADR-0058).
+
+  - `@object-ui/core`: new `evalRowPredicate` + `resolveConditionalFormatting`
+    helpers (next to `evalFieldPredicate`). One implementation of all three
+    formatting rule shapes; dialect routing (a `{ dialect: 'cel' }` envelope is
+    always CEL; a bare string is CEL unless it carries legacy-only syntax
+    (`${…}` / `===` / `?.` / `.includes()`), which routes to the old engine with a
+    one-time deprecation warning); the native `{ field, operator, value }` form is
+    translated to CEL.
+  - `@object-ui/react`: new `useRowPredicate` hook (canonical CEL, ambient
+    predicate scope merged).
+  - Consumers converged: `ListView.evaluateConditionalFormatting` (thin wrapper,
+    export kept), `ObjectGrid` row styling (inline copy removed), kanban card
+    styles, and the grid / data-table row-action menus. `plugin-view`'s kanban
+    branch now forwards top-level `conditionalFormatting` (previously dropped).
+  - Row-action `visible` fails **closed** (broken predicate → hidden + warn);
+    `disabled` fails soft. The CEL `in` operator (and list membership) now work in
+    row predicates — the legacy engine could not parse them.
+  - The legacy `FormField.condition: { field, equals/notEquals/in }` is retired to
+    a CEL translation (back-compat preserved); `FieldDesigner` migrated to
+    `visibleWhen`.
+
+  Fully back-compat: existing conditional-formatting rules, row-action predicates,
+  and form `condition` metadata keep working (translated / routed as needed).
+
+- 5b52624: feat(detail): record-level inline edit — shared `InlineEditContext` + one atomic Save (objectui#2407 P1)
+
+  Lift the inline-edit session out of `DetailView`'s private state into a
+  record-level, shared context so a record page's surfaces can share ONE draft and
+  commit it in ONE atomic, cross-field-validated write (replacing the per-field
+  save loop).
+
+  - **`InlineEditContext` / `InlineEditProvider` / `useInlineEdit`** (@object-ui/react)
+    — pure UI state (`editing`, `canEdit`, `draft`, `autoFocusField`, `saving`,
+    `error` + `enter` / `setField` / `cancel` / `reset`). A _separate_ context from
+    `RecordContext` (mirrors `HighlightFieldsContext`) so per-keystroke draft churn
+    doesn't re-render other `record:*` consumers.
+  - **`<InlineEditSaveBar>`** (@object-ui/plugin-detail) — the record-level sticky
+    Save/Cancel bar. Commits the whole draft in ONE
+    `dataSource.update(obj, id, draft, { ifMatch: data.updated_at })` → `refresh()`;
+    a `409 CONCURRENT_UPDATE` reuses `<ConcurrentUpdateDialog>` (reload / overwrite).
+    A callback mode (`onFieldSave`) preserves the drawer's per-field persistence
+    contract with plugin-gantt/calendar/kanban.
+  - **`DetailView`** now consumes `useInlineEdit()` instead of owning inline-edit
+    state; its header/inline Save-Cancel bars and per-field batch-save are removed
+    (the approval-lock badge stays). Rendered without a provider it is simply
+    read-only.
+  - **`record:details`** and **`RecordDetailDrawer`** each wrap their `DetailView`
+    in an `<InlineEditProvider>` + `<InlineEditSaveBar>`. The object-lifecycle /
+    permission gate flows through `canEdit`; computed / readonly / system fields
+    and the OCC path are unchanged.
+
+  Guardrails preserved: computed (`formula`/`summary`/`rollup`/`auto_number`) +
+  `readonly` + system fields expose no editor; `canEdit` gate; OCC (`ifMatch` +
+  `ConcurrentUpdateDialog`); the atomic partial update carries only user-edited
+  keys (never computed/read-only). Editable highlights ride on top of this in P2.
+
+- f94905d: remove(react): drop the unused `FormRenderer` / `FieldFactory` duplicate render path (#2545)
+
+  `FormRenderer` (and its captive `FieldFactory`) was an exported-but-dead second
+  form render path: zero runtime consumers anywhere in the repo — the only import
+  was its own test file. It duplicated `@object-ui/plugin-form`'s `ObjectForm`
+  (the path every app actually uses via the component registry) but had drifted
+  into a degraded variant: raw-HTML/Tailwind instead of the shared UI primitives,
+  a hard-coded Submit button, and no support for `submitBehavior` / `aria` /
+  `groups`.
+
+  **Breaking (ships as minor per the pre-1.0 launch-window convention):** the
+  public exports `FormRenderer`, `FormRendererProps`, `FieldFactory`,
+  `FieldFactoryProps`, and `ExtendedFormField` are removed from
+  `@object-ui/react`. Render forms through the `object-form` schema node
+  (`@object-ui/plugin-form` `ObjectForm`, reachable from a `FormViewSchema` via
+  `SchemaRenderer` / the spec bridge) instead. Closes Phase 4 of #2545.
+
+### Patch Changes
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [23d65c3]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/data-objectstack@14.1.0
+
 ## 14.0.0
 
 ### Minor Changes

@@ -1,5 +1,142 @@
 # @object-ui/core
 
+## 14.1.0
+
+### Minor Changes
+
+- 0890fa7: feat(core): build-time guardrail for cascading select option predicates (#1583)
+
+  `@object-ui/core` now exports `lintOptionPredicates(fields)` — a static,
+  conservative validator for the per-option `visibleWhen` CEL predicates that
+  drive cascading / role-gated `select` options (#2284). An option predicate fails
+  _closed_ — a wrong one makes its option silently never appear — so this catches
+  the class of bug runtime fail-open can't surface:
+
+  - `syntax` — invalid CEL, delegated to `@objectstack/formula`'s
+    `validateExpression` (no schema hint, so a legitimate `current_user.roles`
+    reference is never mistaken for an error);
+  - `unknown-field` — a `record.<name>` reference to a field the form never
+    declares (a sibling typo);
+  - `option-literal-not-in-domain` — a literal compared against an _enum_ sibling
+    that is outside its declared option values, e.g. `record.country == 'chna'`
+    when `country` is `cn`/`us` (the AI-authoring typo #2284 called out).
+
+  It only flags what it can statically prove — non-`record.` roots
+  (`current_user.*`), open-domain fields, and unrecognized shapes are left alone,
+  so there are no false positives. The schema catalog runs it over every shipped
+  example. Design recorded in ADR-0058.
+
+- 5523fc4: Dashboard-level filters — the three #2578 item-5 enhancements (framework#2501):
+
+  - **react**: nested `PageVariablesProvider`s now MERGE instead of shadowing
+    wholesale. A filtered dashboard embedded in a Page with its own `variables`
+    keeps the outer page variables readable inside widget subtrees (`page.*`);
+    an inner definition shadows only the SAME name; writes route to the scope
+    that defines the variable (writing an outer-defined name from inside the
+    nested subtree updates the outer provider); `resetVariables` stays local.
+    Names defined nowhere still write locally, exactly as before.
+  - **core**: `buildWidgetScopedFilter` accepts an optional `knownFields` set —
+    a DEFAULT binding whose target field is not on the widget's object is
+    skipped with a console warning instead of emitting a query the backend
+    empty-matches. Explicit `filterBindings` strings are always honoured (a
+    typo surfaces as a visibly empty widget, never a silently dropped filter).
+    Omitting `knownFields` preserves the previous unchecked behaviour.
+  - **plugin-dashboard**: `DashboardRenderer` feeds `knownFields` from
+    `dataSource.getObjectSchema` for inline `object` widgets (best-effort —
+    unchecked while metadata loads or when the source can't describe objects).
+    `optionsFrom` dynamic filter options now resolve DISTINCT values
+    server-side via a dataset GROUP BY (`queryDataset` with an inline draft)
+    when the data source supports it, falling back to the previous client-side
+    top-200 dedupe otherwise.
+
+- 887062c: feat(dashboard): dashboard-level filters (date / region) driving multiple charts (framework#2501)
+
+  A dashboard's `dateRange` + `globalFilters` declarations are now wired end to
+  end: the filter values live as dashboard-level variables (the page variables
+  primitive, so they're also readable as `page.<name>` in widget expressions),
+  a filter bar renders above the widgets, and at render time the dashboard
+  broadcasts the active values into every bound widget's inline query —
+  `AND`-merged with the widget's own `filter`. Charts stay inline and
+  self-contained; each widget maps a filter to **its own** field.
+
+  - **`@object-ui/types`** — `globalFilters[].name` (stable filter/variable key,
+    defaults to `field`) and `DashboardWidgetSchema.filterBindings`
+    (`Record<string, string | false>`: per-widget field override / `false`
+    opt-out). Zod mirrors included. **Pending paired `@objectstack/spec`
+    alignment (framework#2501)** — same precedent as `dataset` /
+    `categoryGranularity`.
+  - **`@object-ui/core`** — new pure `dashboard-filters` module
+    (`resolveDashboardFilterDefs`, `dashboardFilterVariableDefs`,
+    `buildFilterCondition`, `buildWidgetScopedFilter`); `mergeFilters` lifted
+    from plugin-report (re-exported there unchanged). Date presets emit
+    date-macro tokens (`{30_days_ago}` …) so widgets resolve them at query time
+    like hand-authored filters.
+  - **`@object-ui/plugin-dashboard`** — `DashboardFilterBar` (date presets +
+    custom range calendar, select with static `options` or `optionsFrom`,
+    text/number inputs, reset); `DashboardRenderer` mounts a
+    `PageVariablesProvider` when filters are declared and merges the
+    widget-scoped condition into inline widgets' `filter` and dataset widgets'
+    `runtimeFilter`. Dashboards without filters render exactly as before.
+
+  Binding precedence: explicit `filterBindings` string/`false` → legacy
+  `targetWidgets` allow-list → the filter's own `field` (dateRange defaults to
+  `created_at`). Static-data widgets are not filtered.
+
+- dea65f7: Unify the list-view conditional tier onto the canonical CEL engine (#1584).
+
+  Conditional formatting (list / grid / kanban) and row-action `visible` /
+  `disabled` predicates are now evaluated by `@objectstack/formula`'s
+  `ExpressionEngine` — the same engine the server uses — instead of the legacy
+  JS-dialect `ExpressionEvaluator`, matching how `@objectstack/spec` already types
+  these surfaces (`ExpressionInputSchema` / CEL). The whole platform now speaks one
+  expression dialect (framework ADR-0058).
+
+  - `@object-ui/core`: new `evalRowPredicate` + `resolveConditionalFormatting`
+    helpers (next to `evalFieldPredicate`). One implementation of all three
+    formatting rule shapes; dialect routing (a `{ dialect: 'cel' }` envelope is
+    always CEL; a bare string is CEL unless it carries legacy-only syntax
+    (`${…}` / `===` / `?.` / `.includes()`), which routes to the old engine with a
+    one-time deprecation warning); the native `{ field, operator, value }` form is
+    translated to CEL.
+  - `@object-ui/react`: new `useRowPredicate` hook (canonical CEL, ambient
+    predicate scope merged).
+  - Consumers converged: `ListView.evaluateConditionalFormatting` (thin wrapper,
+    export kept), `ObjectGrid` row styling (inline copy removed), kanban card
+    styles, and the grid / data-table row-action menus. `plugin-view`'s kanban
+    branch now forwards top-level `conditionalFormatting` (previously dropped).
+  - Row-action `visible` fails **closed** (broken predicate → hidden + warn);
+    `disabled` fails soft. The CEL `in` operator (and list membership) now work in
+    row predicates — the legacy engine could not parse them.
+  - The legacy `FormField.condition: { field, equals/notEquals/in }` is retired to
+    a CEL translation (back-compat preserved); `FieldDesigner` migrated to
+    `visibleWhen`.
+
+  Fully back-compat: existing conditional-formatting rules, row-action predicates,
+  and form `condition` metadata keep working (translated / routed as needed).
+
+### Patch Changes
+
+- 2ded18c: Fix: a dashboard filter declaring its static `options` in the
+  `@objectstack/spec` object form (`options: [{ value, label }]` — the shape
+  the spec validates and what framework-authored dashboards ship) crashed the
+  whole dashboard with "Objects are not valid as a React child". Caught driving
+  the showcase Revenue Pulse dashboard in a real browser.
+
+  `resolveDashboardFilterDefs` now normalizes both the spec object form and the
+  bare-string shorthand (`options: ['EMEA']`) to `{ value, label }` pairs —
+  `DashboardFilterDef.options` is typed accordingly — and the filter bar's
+  select renders labels (the trigger now shows the selected option's label, not
+  its raw value). `@object-ui/types` aligns the `GlobalFilterSchema.options`
+  shape with the spec union.
+
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [887062c]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f0f10f5]
+  - @object-ui/types@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes
