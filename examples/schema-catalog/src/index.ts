@@ -388,6 +388,11 @@ import plugin_chatbot_customer_support_chat from './schemas/plugin-chatbot/custo
 import plugin_dashboard_basic_dashboard from './schemas/plugin-dashboard/basic-dashboard.json' with { type: 'json' };
 import plugin_dashboard_e_commerce_dashboard from './schemas/plugin-dashboard/e-commerce-dashboard.json' with { type: 'json' };
 import plugin_dashboard_filtered_dashboard from './schemas/plugin-dashboard/filtered-dashboard.json' with { type: 'json' };
+import plugin_dashboard_filtered_dashboard_dataset_widgets from './schemas/plugin-dashboard/filtered-dashboard-dataset-widgets.json' with { type: 'json' };
+import plugin_dashboard_filtered_dashboard_date_presets from './schemas/plugin-dashboard/filtered-dashboard-date-presets.json' with { type: 'json' };
+import plugin_dashboard_filtered_dashboard_dynamic_options from './schemas/plugin-dashboard/filtered-dashboard-dynamic-options.json' with { type: 'json' };
+import plugin_dashboard_filtered_dashboard_filter_types from './schemas/plugin-dashboard/filtered-dashboard-filter-types.json' with { type: 'json' };
+import plugin_dashboard_filtered_dashboard_target_widgets from './schemas/plugin-dashboard/filtered-dashboard-target-widgets.json' with { type: 'json' };
 import plugin_dashboard_support_dashboard from './schemas/plugin-dashboard/support-dashboard.json' with { type: 'json' };
 import plugin_editor_javascript_editor from './schemas/plugin-editor/javascript-editor.json' with { type: 'json' };
 import plugin_editor_python_editor from './schemas/plugin-editor/python-editor.json' with { type: 'json' };
@@ -3937,6 +3942,51 @@ const REGISTRY: Record<string, Example> = {
       category: 'plugin-dashboard',
     },
     schema: plugin_dashboard_filtered_dashboard,
+  },
+  'plugin-dashboard/filtered-dashboard-dataset-widgets': {
+    id: 'plugin-dashboard/filtered-dashboard-dataset-widgets',
+    meta: {
+      title: "Filtered Dashboard — Dataset + Inline Widgets",
+      description: "Dashboard filters scoping dataset-bound widgets (via the dataset query's runtimeFilter) alongside inline object widgets",
+      category: 'plugin-dashboard',
+    },
+    schema: plugin_dashboard_filtered_dashboard_dataset_widgets,
+  },
+  'plugin-dashboard/filtered-dashboard-date-presets': {
+    id: 'plugin-dashboard/filtered-dashboard-date-presets',
+    meta: {
+      title: "Filtered Dashboard — Date Presets + Custom Range",
+      description: "Built-in dateRange with presets and allowCustomRange; per-widget date-field override and a dateRange: false opt-out",
+      category: 'plugin-dashboard',
+    },
+    schema: plugin_dashboard_filtered_dashboard_date_presets,
+  },
+  'plugin-dashboard/filtered-dashboard-dynamic-options': {
+    id: 'plugin-dashboard/filtered-dashboard-dynamic-options',
+    meta: {
+      title: "Filtered Dashboard — Dynamic Options",
+      description: "Select filter whose options are fetched from object records via optionsFrom (distinct values at runtime)",
+      category: 'plugin-dashboard',
+    },
+    schema: plugin_dashboard_filtered_dashboard_dynamic_options,
+  },
+  'plugin-dashboard/filtered-dashboard-filter-types': {
+    id: 'plugin-dashboard/filtered-dashboard-filter-types',
+    meta: {
+      title: "Filtered Dashboard — Text / Number / Lookup Filters",
+      description: "Text ($contains), number (equality) and lookup (optionsFrom) filter types, plus a fully opted-out metric",
+      category: 'plugin-dashboard',
+    },
+    schema: plugin_dashboard_filtered_dashboard_filter_types,
+  },
+  'plugin-dashboard/filtered-dashboard-target-widgets': {
+    id: 'plugin-dashboard/filtered-dashboard-target-widgets',
+    meta: {
+      title: "Filtered Dashboard — Target Widgets Allow-list",
+      description: "Legacy targetWidgets allow-list: only listed widgets get the default binding; an explicit filterBindings entry still wins",
+      category: 'plugin-dashboard',
+    },
+    schema: plugin_dashboard_filtered_dashboard_target_widgets,
   },
   'plugin-editor/javascript-editor': {
     id: 'plugin-editor/javascript-editor',

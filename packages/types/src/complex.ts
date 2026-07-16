@@ -750,7 +750,7 @@ export interface DashboardWidgetSchema {
    * - false  → opt this widget out of that filter
    * - absent → default binding: the filter's own `field`
    *   (dateRange: `dateRange.field ?? 'created_at'`)
-   * Pending alignment with @objectstack/spec DashboardWidgetSchema
+   * Aligned with @objectstack/spec DashboardWidgetSchema.filterBindings
    * (framework#2501).
    */
   filterBindings?: Record<string, string | false>;
@@ -800,7 +800,7 @@ export interface DashboardSchema extends BaseSchema {
     /**
      * Stable filter name used as the dashboard-variable key and as the key
      * widgets reference in `filterBindings`. Defaults to `field`.
-     * Pending alignment with @objectstack/spec GlobalFilterSchema
+     * Aligned with @objectstack/spec GlobalFilterSchema.name
      * (framework#2501).
      */
     name?: string;

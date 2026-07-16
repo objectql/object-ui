@@ -290,7 +290,7 @@ export const DashboardWidgetSchema = z.object({
 
 /**
  * Global Filter Schema — a dashboard-level filter definition.
- * Pending alignment with @objectstack/spec GlobalFilterSchema (framework#2501: `name`).
+ * Aligned with @objectstack/spec GlobalFilterSchema (framework#2501: `name`).
  */
 export const GlobalFilterSchema = z.object({
   name: z.string().optional().describe('Stable filter name (variable key); defaults to field'),
