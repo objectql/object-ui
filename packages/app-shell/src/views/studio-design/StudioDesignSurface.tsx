@@ -3190,10 +3190,11 @@ export function AccessPillar({
   onDraftSaved?: () => void;
   /** Courtesy gate: hide/disable permission-authoring affordances. */
   readOnly?: boolean;
-  /** objectui#2600 — mirrors the matrix's unsaved-edit state up to the Studio
-   * header, whose pillar/Home/package navigation unmounts this whole pillar
-   * (SPA nav, so no beforeunload). Reports `false` when the editor unmounts,
-   * same contract as PermissionMatrixEditPage's own onDirtyChange. */
+  /** objectui#2600 — mirrors the pillar's unsaved-edit state (permission
+   * matrix or OWD overview rows) up to the Studio header, whose
+   * pillar/Home/package navigation unmounts this whole pillar (SPA nav, so no
+   * beforeunload). Reports `false` when the pillar unmounts, same contract as
+   * PermissionMatrixEditPage's own onDirtyChange. */
   onDirtyChange?: (dirty: boolean) => void;
 }): React.ReactElement {
   const client = useMetadataClient();
@@ -3234,28 +3235,39 @@ export function AccessPillar({
   const [busy, setBusy] = React.useState(false);
   // [ADR-0090 D6] "why can this user access?" — right-side explain sheet.
   const [explainOpen, setExplainOpen] = React.useState(false);
-  // The matrix page below is keyed by `current` (and unmounts entirely when
-  // the OWD overview swaps in), so any rail-driven surface change REMOUNTS it
-  // and would silently discard unsaved matrix edits. The editor reports its
-  // dirty state up (`onDirtyChange`), and every swap is gated on this confirm
-  // — same native prompt as the metadata editor's leave guard. The editor
-  // resets its report on unmount, so a confirmed discard clears `matrixDirty`
-  // by itself.
+  // Both main-panel surfaces hold unsaved edits and unmount on a rail-driven
+  // swap: the matrix page is keyed by `current` (and unmounts entirely when
+  // the OWD overview swaps in), and the OWD overview batch-editor unmounts
+  // when a set swaps back in. Each editor reports its dirty state up
+  // (`onDirtyChange` — the two never coexist, so at most one bit is set), and
+  // every swap is gated on this confirm — same native prompt as the metadata
+  // editor's leave guard. Each editor resets its report on unmount, so a
+  // confirmed discard clears its bit by itself.
   const [matrixDirty, setMatrixDirty] = React.useState(false);
-  // The same dirty bit also gates the Studio header's pillar/Home/package
-  // navigation, which unmounts this whole pillar (objectui#2600) — mirror
-  // every report up alongside the local rail guard.
-  const reportMatrixDirty = React.useCallback(
-    (dirty: boolean) => {
-      setMatrixDirty(dirty);
-      onDirtyChange?.(dirty);
+  const [owdDirty, setOwdDirty] = React.useState(false);
+  const pillarDirty = matrixDirty || owdDirty;
+  // The combined bit also gates the Studio header's pillar/Home/package
+  // navigation, which unmounts this whole pillar (objectui#2600) — mirror it
+  // up alongside the local rail guard. Ref-stabilized like the editors' own
+  // reports; the unmount cleanup reports `false` so a discarded pillar clears
+  // the surface's guard state.
+  const onDirtyChangeRef = React.useRef(onDirtyChange);
+  React.useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  });
+  React.useEffect(() => {
+    onDirtyChangeRef.current?.(pillarDirty);
+  }, [pillarDirty]);
+  React.useEffect(
+    () => () => {
+      onDirtyChangeRef.current?.(false);
     },
-    [onDirtyChange],
+    [],
   );
-  const confirmDiscardMatrixEdits = React.useCallback(() => {
-    if (!matrixDirty) return true;
+  const confirmDiscardEdits = React.useCallback(() => {
+    if (!pillarDirty) return true;
     return window.confirm(t('engine.edit.unsavedLeaveConfirm', locale));
-  }, [matrixDirty, locale]);
+  }, [pillarDirty, locale]);
 
   const load = React.useCallback(async () => {
     try {
@@ -3327,6 +3339,9 @@ export function AccessPillar({
         setCreating(false);
         onDraftSaved?.();
         await load();
+        // Land on the new set's matrix — also from the OWD overview, whose
+        // discard the "+ New" gate already confirmed up front.
+        setOwdOpen(false);
         setCurrent(name);
       } catch (e) {
         setCreateErr(formatMetadataError(e));
@@ -3429,7 +3444,14 @@ export function AccessPillar({
             <button
               type="button"
               onClick={() => {
-                if (!confirmDiscardMatrixEdits()) return;
+                // Re-clicking the open overview is a no-op — nothing
+                // remounts, so no confirm (mirrors the set re-click below).
+                if (owdOpen) {
+                  setOwdHighlight(null);
+                  if (isMobile) setRailOpen(false);
+                  return;
+                }
+                if (!confirmDiscardEdits()) return;
                 setOwdOpen(true);
                 setOwdHighlight(null);
                 if (isMobile) setRailOpen(false);
@@ -3468,7 +3490,7 @@ export function AccessPillar({
                     if (isMobile) setRailOpen(false);
                     return;
                   }
-                  if (!confirmDiscardMatrixEdits()) return;
+                  if (!confirmDiscardEdits()) return;
                   setOwdOpen(false);
                   setCurrent(p.name);
                   if (isMobile) setRailOpen(false);
@@ -3500,9 +3522,10 @@ export function AccessPillar({
               <button
                 type="button"
                 onClick={() => {
-                  // Creating a set ends in setCurrent(newName) — a remount of
-                  // the open matrix — so gate the flow up front.
-                  if (!confirmDiscardMatrixEdits()) return;
+                  // Creating a set lands on the new set's matrix — a remount
+                  // of the open matrix, or a swap out of the OWD overview —
+                  // so gate the flow up front.
+                  if (!confirmDiscardEdits()) return;
                   setCreateErr(null);
                   setCreating(true);
                 }}
@@ -3527,6 +3550,7 @@ export function AccessPillar({
               readOnly={readOnly}
               locale={locale}
               highlightObject={owdHighlight}
+              onDirtyChange={setOwdDirty}
             />
           ) : current ? (
             /* The existing Salesforce-style matrix page, embedded unchanged —
@@ -3541,12 +3565,12 @@ export function AccessPillar({
               publishNonce={publishNonce}
               onDraftSaved={onDraftSaved}
               readOnly={readOnly}
-              onDirtyChange={reportMatrixDirty}
+              onDirtyChange={setMatrixDirty}
               embedded
               onOpenOwd={(objectName) => {
                 // The badge deep-link swaps this page out for the OWD
                 // overview — same remount, same guard.
-                if (!confirmDiscardMatrixEdits()) return;
+                if (!confirmDiscardEdits()) return;
                 setOwdHighlight(objectName || null);
                 setOwdOpen(true);
               }}

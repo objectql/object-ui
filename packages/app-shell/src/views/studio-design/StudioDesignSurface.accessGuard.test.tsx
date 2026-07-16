@@ -6,14 +6,17 @@
  * The permission matrix in the main panel is keyed by the selected set
  * (`key={current}`) and unmounts entirely when the OWD overview swaps in, so
  * before this guard existed a rail click silently REMOUNTED the matrix and
- * discarded any unsaved cell edits. The pillar now holds the editor's
- * reported dirty state (`onDirtyChange`) and gates every swap on a native
- * confirm:
+ * discarded any unsaved cell edits. The OWD overview batch-editor holds
+ * unsaved rows the same way and unmounts when a set swaps back in
+ * (objectui#2600). The pillar now holds both editors' reported dirty state
+ * (`onDirtyChange`) and gates every swap on a native confirm:
  *
  *   • dirty + switch to another set → confirm; cancel keeps the edits,
  *   • dirty + swap to the OWD overview → same confirm,
+ *   • dirty OWD rows + swap to a set / create flow → same confirm,
  *   • clean switches never prompt,
- *   • re-clicking the already-open set never prompts (nothing remounts),
+ *   • re-clicking the already-open set / overview never prompts (nothing
+ *     remounts),
  *   • a confirmed discard clears the guard (the editor resets on unmount).
  */
 
@@ -38,9 +41,7 @@ vi.mock('../metadata-admin/useMetadata', async (importOriginal) => {
 });
 
 // Rail siblings that are irrelevant to the guard — keep the render light.
-vi.mock('./PackageOwdOverviewPanel', () => ({
-  PackageOwdOverviewPanel: () => <div data-testid="owd-overview" />,
-}));
+// (The OWD overview is NOT mocked: its dirty report is under test.)
 vi.mock('../../components/SuggestedBindingsPanel', () => ({
   SuggestedBindingsPanel: () => null,
 }));
@@ -112,8 +113,10 @@ function makeClient(server: Server) {
     getDraft: async () => null,
     get: async (type: string) =>
       type === 'object' ? { fields: [{ name: 'name', label: 'Name' }] } : null,
-    save: async (_t: string, _n: string, payload: Record<string, unknown>) => {
+    save: async (_t: string, name: string, payload: Record<string, unknown>) => {
       server.saved.push(payload);
+      // Register the set so the post-create reload can list and open it.
+      server.byName[name] = payload;
       return payload;
     },
   } as any;
@@ -209,5 +212,79 @@ describe('AccessPillar — unsaved matrix edits guard', () => {
     // Not remounted — the unsaved edit is still visible.
     const row = screen.getByText('a_account').closest('tr')!;
     expect(within(row).getByRole('checkbox', { name: 'a_account Read' })).not.toBeChecked();
+  });
+});
+
+/** Swap the main panel to the (real) OWD overview and edit a row so the panel
+ * reports dirty. Assumes the open matrix is clean, so the swap never prompts. */
+async function openAndDirtyTheOwd() {
+  fireEvent.click(screen.getByRole('button', { name: 'Record sharing (OWD)' }));
+  await screen.findByTestId('owd-internal-a_account');
+  fireEvent.change(screen.getByTestId('owd-internal-a_account'), { target: { value: 'private' } });
+  await screen.findByTestId('owd-dirty-a_account');
+}
+
+const owdInternalValue = () =>
+  (screen.getByTestId('owd-internal-a_account') as HTMLSelectElement).value;
+
+describe('AccessPillar — unsaved OWD overview edits guard (#2600)', () => {
+  it('asks before swapping a dirty overview for a set; cancel keeps the edits', async () => {
+    await renderPillarOnSetA();
+    await openAndDirtyTheOwd();
+
+    confirmSpy.mockReturnValueOnce(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Set A' }));
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // Still on the overview, edit intact.
+    expect(owdInternalValue()).toBe('private');
+
+    // Confirming the same swap discards and mounts the set A matrix.
+    confirmSpy.mockReturnValueOnce(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Set A' }));
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    await screen.findByDisplayValue('set_a');
+
+    // The discarded panel reset the guard on unmount — swapping back to the
+    // overview must NOT prompt, and it reloads the untouched baseline.
+    fireEvent.click(screen.getByRole('button', { name: 'Record sharing (OWD)' }));
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    await screen.findByTestId('owd-internal-a_account');
+    expect(owdInternalValue()).toBe('');
+  });
+
+  it('never prompts when re-clicking the OWD rail entry (nothing remounts)', async () => {
+    await renderPillarOnSetA();
+    await openAndDirtyTheOwd();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Record sharing (OWD)' }));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    // Not remounted — the unsaved edit is still visible.
+    expect(owdInternalValue()).toBe('private');
+  });
+
+  it('gates the create-set flow, and creating lands on the new set matrix', async () => {
+    await renderPillarOnSetA();
+    await openAndDirtyTheOwd();
+
+    // Cancel keeps the overview (and its edits) — no dialog.
+    confirmSpy.mockReturnValueOnce(false);
+    fireEvent.click(screen.getByRole('button', { name: 'New permission set' }));
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(owdInternalValue()).toBe('private');
+
+    // Confirm opens the creator; submitting swaps the overview out for the
+    // new set's matrix (the discard the gate warned about).
+    confirmSpy.mockReturnValueOnce(true);
+    fireEvent.click(screen.getByRole('button', { name: 'New permission set' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByPlaceholderText('Display name (e.g. Sales permissions)'), {
+      target: { value: 'Set C' },
+    });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
+
+    await screen.findByDisplayValue('set_c');
+    expect(screen.queryByTestId('owd-overview')).not.toBeInTheDocument();
   });
 });

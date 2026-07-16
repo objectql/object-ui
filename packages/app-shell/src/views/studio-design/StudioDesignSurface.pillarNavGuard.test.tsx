@@ -13,6 +13,8 @@
  *   • dirty + pillar switch → confirm; cancel keeps the pillar and its edits,
  *   • dirty + Home → same confirm; cancel stays, confirm leaves,
  *   • dirty + package switch → same confirm,
+ *   • dirty OWD overview rows + pillar switch → same confirm (the pillar
+ *     folds the overview's report into the same bit, objectui#2600 follow-up),
  *   • clean navigation never prompts,
  *   • re-clicking the open pillar never prompts (nothing unmounts),
  *   • a confirmed discard clears the guard (the pillar resets on unmount).
@@ -55,10 +57,8 @@ vi.mock('./packages-io', async (importOriginal) => {
   };
 });
 
-// Rail siblings / docks that are irrelevant to the guard — keep the render light.
-vi.mock('./PackageOwdOverviewPanel', () => ({
-  PackageOwdOverviewPanel: () => <div data-testid="owd-overview" />,
-}));
+// Rail siblings / docks that are irrelevant to the guard — keep the render
+// light. (The OWD overview is NOT mocked: its dirty report is under test.)
 vi.mock('../../components/SuggestedBindingsPanel', () => ({
   SuggestedBindingsPanel: () => null,
 }));
@@ -212,6 +212,32 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
 
     // The discarded pillar reset the guard on unmount — walking back to
     // Access must NOT prompt again.
+    fireEvent.click(screen.getByRole('link', { name: 'Access' }));
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    await screen.findByDisplayValue('set_a');
+  });
+
+  it('gates a pillar switch on dirty OWD overview rows (#2600 follow-up)', async () => {
+    await renderSurfaceOnAccess();
+    // Swap the main panel to the (real) OWD overview and edit a row so the
+    // panel's dirty report crosses AccessPillar into the surface guard.
+    fireEvent.click(screen.getByRole('button', { name: 'Record sharing (OWD)' }));
+    await screen.findByTestId('owd-internal-a_account');
+    fireEvent.change(screen.getByTestId('owd-internal-a_account'), { target: { value: 'private' } });
+
+    confirmSpy.mockReturnValueOnce(false);
+    fireEvent.click(screen.getByRole('link', { name: 'Interfaces' }));
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // Still on the overview, edit intact.
+    expect((screen.getByTestId('owd-internal-a_account') as HTMLSelectElement).value).toBe('private');
+
+    // Confirming discards and leaves; the unmounting pillar resets the guard,
+    // so walking back to Access must NOT prompt again.
+    confirmSpy.mockReturnValueOnce(true);
+    fireEvent.click(screen.getByRole('link', { name: 'Interfaces' }));
+    expect(confirmSpy).toHaveBeenCalledTimes(2);
+    await screen.findByText('This package has no app yet');
+
     fireEvent.click(screen.getByRole('link', { name: 'Access' }));
     expect(confirmSpy).toHaveBeenCalledTimes(2);
     await screen.findByDisplayValue('set_a');
