@@ -1,5 +1,72 @@
 # @object-ui/plugin-view
 
+## 14.1.0
+
+### Minor Changes
+
+- dea65f7: Unify the list-view conditional tier onto the canonical CEL engine (#1584).
+
+  Conditional formatting (list / grid / kanban) and row-action `visible` /
+  `disabled` predicates are now evaluated by `@objectstack/formula`'s
+  `ExpressionEngine` — the same engine the server uses — instead of the legacy
+  JS-dialect `ExpressionEvaluator`, matching how `@objectstack/spec` already types
+  these surfaces (`ExpressionInputSchema` / CEL). The whole platform now speaks one
+  expression dialect (framework ADR-0058).
+
+  - `@object-ui/core`: new `evalRowPredicate` + `resolveConditionalFormatting`
+    helpers (next to `evalFieldPredicate`). One implementation of all three
+    formatting rule shapes; dialect routing (a `{ dialect: 'cel' }` envelope is
+    always CEL; a bare string is CEL unless it carries legacy-only syntax
+    (`${…}` / `===` / `?.` / `.includes()`), which routes to the old engine with a
+    one-time deprecation warning); the native `{ field, operator, value }` form is
+    translated to CEL.
+  - `@object-ui/react`: new `useRowPredicate` hook (canonical CEL, ambient
+    predicate scope merged).
+  - Consumers converged: `ListView.evaluateConditionalFormatting` (thin wrapper,
+    export kept), `ObjectGrid` row styling (inline copy removed), kanban card
+    styles, and the grid / data-table row-action menus. `plugin-view`'s kanban
+    branch now forwards top-level `conditionalFormatting` (previously dropped).
+  - Row-action `visible` fails **closed** (broken predicate → hidden + warn);
+    `disabled` fails soft. The CEL `in` operator (and list membership) now work in
+    row predicates — the legacy engine could not parse them.
+  - The legacy `FormField.condition: { field, equals/notEquals/in }` is retired to
+    a CEL translation (back-compat preserved); `FieldDesigner` migrated to
+    `visibleWhen`.
+
+  Fully back-compat: existing conditional-formatting rules, row-action predicates,
+  and form `condition` metadata keep working (translated / routed as needed).
+
+### Patch Changes
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [579b24d]
+- Updated dependencies [23d65c3]
+- Updated dependencies [06d5ec6]
+- Updated dependencies [055e1d2]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/plugin-form@14.1.0
+  - @object-ui/plugin-grid@14.1.0
+  - @object-ui/components@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes

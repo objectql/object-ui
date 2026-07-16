@@ -1,5 +1,25 @@
 # @object-ui/console
 
+## 14.1.0
+
+### Patch Changes
+
+- 6b2d74e: fix(auth): gate the device-approval page on `features.deviceAuthorization` (framework#2874 / #2513)
+
+  `DeviceAuthPage` hit the RFC 8628 `/device*` endpoints unconditionally, even
+  though the better-auth `deviceAuthorization` plugin is opt-in (off by default) —
+  so on a deployment without it the page rendered an approve form that only failed
+  on submit. It now reads `features.deviceAuthorization` from the public auth
+  config and shows a plain "not enabled" notice when the capability is off,
+  matching the "form follows plugin" honesty guard the framework side introduced
+  in #2874. `AuthPublicConfig.features` gains the `deviceAuthorization` flag
+  (previously absent from the client type). A config-fetch error fails open so a
+  transient blip never hides a legitimately-enabled page.
+
+- 2b30583: fix(permissions): close the console FLS fail-open for token-only sessions (framework#2926 ④). Two halves: `MePermissionsProvider` gains a `fetcher` prop and the console passes `createAuthenticatedFetch()` so `/me/permissions` carries the Bearer token like every other data call (the cookie-only default fetch resolved token-only sessions as anonymous); and the unknown-object default is now authentication-gated — authenticated sessions fail CLOSED when an object has no resolved perms (fields render read-only instead of inviting input the data layer strips), while anonymous sessions keep the permissive default so guest/public forms keep working. Pairing note: with an older framework whose `/me/permissions` returns sparse objects for authenticated users, unconfigured objects now render read-only.
+  - @object-ui/react-runtime@14.1.0
+  - @object-ui/sdui-parser@14.1.0
+
 ## 14.0.0
 
 ### Major Changes

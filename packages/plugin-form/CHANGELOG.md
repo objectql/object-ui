@@ -1,5 +1,62 @@
 # @object-ui/plugin-form
 
+## 14.1.0
+
+### Minor Changes
+
+- 579b24d: feat(fields+form+detail): file/image uploads in inline line-item grids (#2360)
+
+  `Field.file` in a master-detail inline grid previously degraded to a plain text
+  input (no `input[type=file]` on the page → no way to upload from the grid), and
+  auto-derived subform / related-list columns silently dropped file fields.
+
+  - **fields**: new `FileCell` — a compact upload control for grid cells (upload
+    button + removable chips, image thumbnails), sharing the `UploadProvider`
+    pipeline with the full-size `FileField` via an extracted `useFileUploads`
+    hook. `GridField` supports `type: 'file'` columns (with `accept` /
+    `multiple`), renders file names in list/readonly modes, and no longer falls
+    back to a text `<Input>` for file columns.
+  - **plugin-form**: `deriveColumns` / `hydrateColumns` no longer exclude
+    `file`/`image`/`avatar` fields — they map to `file` columns and carry the
+    field's `multiple` + `accept` (image fields default to `['image/*']`).
+  - **plugin-detail**: auto-derived related-list columns no longer skip
+    `file`/`image` fields — they render through the existing FileCellRenderer /
+    ImageCellRenderer (file-name chip / thumbnail).
+
+### Patch Changes
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [579b24d]
+- Updated dependencies [2b30583]
+- Updated dependencies [2b30583]
+- Updated dependencies [23d65c3]
+- Updated dependencies [055e1d2]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [3e8bf07]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [2712fc1]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/fields@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/permissions@14.1.0
+  - @object-ui/components@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes

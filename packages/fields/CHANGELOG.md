@@ -1,5 +1,167 @@
 # @object-ui/fields
 
+## 14.1.0
+
+### Minor Changes
+
+- 579b24d: feat(fields+form+detail): file/image uploads in inline line-item grids (#2360)
+
+  `Field.file` in a master-detail inline grid previously degraded to a plain text
+  input (no `input[type=file]` on the page → no way to upload from the grid), and
+  auto-derived subform / related-list columns silently dropped file fields.
+
+  - **fields**: new `FileCell` — a compact upload control for grid cells (upload
+    button + removable chips, image thumbnails), sharing the `UploadProvider`
+    pipeline with the full-size `FileField` via an extracted `useFileUploads`
+    hook. `GridField` supports `type: 'file'` columns (with `accept` /
+    `multiple`), renders file names in list/readonly modes, and no longer falls
+    back to a text `<Input>` for file columns.
+  - **plugin-form**: `deriveColumns` / `hydrateColumns` no longer exclude
+    `file`/`image`/`avatar` fields — they map to `file` columns and carry the
+    field's `multiple` + `accept` (image fields default to `['image/*']`).
+  - **plugin-detail**: auto-derived related-list columns no longer skip
+    `file`/`image` fields — they render through the existing FileCellRenderer /
+    ImageCellRenderer (file-name chip / thumbnail).
+
+### Patch Changes
+
+- 2efa9fd: Detail-page UX follow-ups from the ADR-0085 PR4 real-backend browser pass (framework#2548):
+
+  - **Highlight strip no longer repeats the record title.** A declared
+    `highlightFields` list containing the title field rendered it as the first
+    chip — truncated — directly under the identical page H1. `deriveHighlightFields`
+    now resolves the title (`primaryField` / `nameField` / deprecated
+    `displayNameField`, else the conventional display-field names) via the new
+    exported `resolveTitleField` and filters it from declared lists before the
+    4-chip cap, matching what the heuristic branch always did. app-shell's
+    `RecordDetailView` synthParts (which pre-computes the list and bypasses the
+    derivation) applies the same filter.
+  - **Per-field currency reaches the renderers.** The spec channel
+    (`currencyConfig.defaultCurrency`) was dropped by the highlight-strip and
+    detail-section field enrichment, so a spec-authored currency field could
+    never show its symbol ("25,000,000" instead of "$25,000,000");
+    `resolveFieldCurrency` reads it second after the designer-only bare
+    `currency` key.
+  - **app-shell approvals fetches send the Bearer token.** The header badge
+    poll, home-inbox count, and record-page approvals panel were cookie-only
+    (new shared `bearerAuthHeaders()` util) — same split-origin failure mode as
+    the console `approvalsApi` fix below.
+  - **`fieldGroups[].icon` / `description` reach detail pages.** The shared
+    derivation (ADR-0085 §5) already passed them through; the detail synth
+    dropped them. Sections now carry both, and `DetailSection` renders a real
+    Lucide icon for identifier-shaped names (emoji/text values keep the
+    historical text rendering).
+  - **Record meta footer stops dangling without an actor.** Seeded/system rows
+    with `created_by: null` rendered "Created by · 10m ago"; the footer now
+    falls back to actor-less labels ("Created / Updated"), with new i18n keys in
+    all six locales (and the zh `createdBy`/`updatedBy` mistranslation fixed:
+    创建人/更新人, not 创建于/更新于).
+  - **Select badges ellipsize instead of clipping mid-glyph.** In bounded
+    containers (highlight-strip columns, grid cells) an overlong option label
+    used to be cut at the container edge ("Technolog…"); badges now shrink with
+    an inner truncate and expose the full label as a hover title. The highlight
+    strip's hover title also prefers the option label over the raw stored value.
+
+  Console app (unversioned): `approvalsApi` now sends the stored Bearer token
+  like every other console call — cookie-only auth silently lost the approvals
+  surface on split-origin deployments where the SameSite cookie doesn't flow.
+
+- 2b30583: fix(fields): LookupCellRenderer honors the target object's configured `display_field` (framework#2926 ⑧). ObjectGrid already forwarded `display_field` on the column meta, but the read cell ignored it and always ran the hardcoded heuristics (`name` first), so lookup columns showed the raw API name instead of the configured display/label field. The preferred field now threads through every render path (expanded objects, arrays, JSON strings, and the on-demand `useLookupName` fetch, whose cache key includes the display field to prevent cross-column stale names).
+- 3e8bf07: fix(fields): PeoplePicker keyboard cursor no longer resets on identity-only
+  result re-emissions
+
+  The cursor-reset effect keyed on the records array identity, so a background
+  refetch returning the same records (StrictMode double-effect, refetch-on-focus)
+  yanked the active row back to none mid-navigation — surfacing as a flaky
+  ArrowDown→Enter CI test and a real (if rare) keyboard UX glitch. The reset is
+  now keyed on the record-id signature, so the cursor only resets when the
+  results actually change.
+
+- 4afb251: Record-level inline edit polish (objectui#2572, follow-up to #2407) — the five
+  rough edges from the live showcase verification pass:
+
+  - **Expanded reference values pass through to the picker.** `InlineFieldInput`
+    no longer collapses an `$expand`-ed record object to a bare id before
+    handing it to `LookupField` / `UserField` — the picker resolves the display
+    name it already carries instead of re-fetching the referenced record via
+    `findOne` (or sticking on the placeholder when it can't). `LookupField`
+    still hands its Level-2 pickers (PeoplePicker / RecordPickerDialog) bare
+    ids, collapsed via the existing `normalizeId`.
+  - **Approval-lock preflight.** The record page now re-reads the approval
+    state whenever the record is invalidated (a save can _trigger_ an approval
+    flow that locks the record), derives one `approvalLocked` signal
+    (`approval_status` pending/in_approval OR an open pending request), gates
+    the inline-edit session's `canEdit` with it — hiding the pencil affordances
+    and no-op'ing `enter()` on a locked record — and drives the save bar's
+    `locked`/`lockedHint` so users can't type into a draft that Save would
+    reject with `RECORD_LOCKED`.
+  - **Numeric field types edit with the real numeric widgets.** `number` /
+    `currency` / `percent` route to `NumberField` / `CurrencyField` /
+    `PercentField` (the same widgets the form uses) instead of a free-text
+    input: numeric keyboard, symbol adornment, fraction↔percent display
+    conversion, and numbers (not strings) into the draft. `NumberField` and
+    `CurrencyField` now surface metadata `min`/`max` on the input, `NumberField`
+    honors an explicit `step` and steps by 1 for `scale: 0` (previously fell
+    back to `any`).
+  - **Header Edit CTA stands down during an inline session.** The synthesized
+    `sys_edit` action carries `disableDuringInlineEdit`, and the `page:header`
+    renderer greys such actions out while `InlineEditContext.editing` — the
+    classic form-edit surface can no longer be stacked on top of a live inline
+    draft.
+  - **Keyboard shortcuts for the shared edit session.** `InlineEditSaveBar`
+    binds **Esc → cancel** (deferring to any open Radix layer — popover /
+    select / dialog — which owns Escape for "close") and **Cmd/Ctrl+Enter →
+    save**, both respecting `saving`/`locked`.
+
+- 2712fc1: fix(fields+detail): resolve the pre-existing rules-of-hooks violations in the cell renderers
+
+  - `CurrencyCellRenderer` / `EmailCellRenderer` / `PhoneCellRenderer` called
+    hooks (`useLocalization`, `useFieldLabel`, `useState`) **after** their
+    empty-value early return — a value flipping between null and set changed
+    the hook count between renders (latent "Rendered more hooks than during
+    the previous render" crash). Hooks now run unconditionally before the
+    early return.
+  - `useFieldLabel` wrapped `useObjectTranslation()` in try/catch; a throw
+    after other hooks ran would desync hook order. The underlying hook is
+    provider-safe (optional context + global i18n fallback), so the guard is
+    removed.
+  - `ReferenceCellRenderer` no longer constructs JSX inside try/catch (the
+    try can't catch render errors anyway) — the display string is computed in
+    the try, rendered outside.
+  - `RecordMetaFooter`'s UserRef renders the registry cell renderer via
+    `React.createElement` instead of a locally-assigned capitalized JSX tag
+    (flagged as component-creation-during-render; the registry reference is
+    stable).
+
+  No behavior change intended; eslint react-hooks errors on these files drop
+  to zero.
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [23d65c3]
+- Updated dependencies [055e1d2]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/components@14.1.0
+  - @object-ui/providers@14.1.0
+
 ## 14.0.0
 
 ### Minor Changes

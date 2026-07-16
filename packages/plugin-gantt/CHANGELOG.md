@@ -1,5 +1,42 @@
 # @object-ui/plugin-gantt
 
+## 14.1.0
+
+### Patch Changes
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [471c5d3]
+- Updated dependencies [579b24d]
+- Updated dependencies [2b30583]
+- Updated dependencies [23d65c3]
+- Updated dependencies [055e1d2]
+- Updated dependencies [f9a7907]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [3e8bf07]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [2712fc1]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/plugin-detail@14.1.0
+  - @object-ui/fields@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/components@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes

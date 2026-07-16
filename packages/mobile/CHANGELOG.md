@@ -1,5 +1,17 @@
 # @object-ui/mobile
 
+## 14.1.0
+
+### Patch Changes
+
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [887062c]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f0f10f5]
+  - @object-ui/types@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes

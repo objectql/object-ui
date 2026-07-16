@@ -1,5 +1,110 @@
 # @object-ui/plugin-dashboard
 
+## 14.1.0
+
+### Minor Changes
+
+- 5523fc4: Dashboard-level filters — the three #2578 item-5 enhancements (framework#2501):
+
+  - **react**: nested `PageVariablesProvider`s now MERGE instead of shadowing
+    wholesale. A filtered dashboard embedded in a Page with its own `variables`
+    keeps the outer page variables readable inside widget subtrees (`page.*`);
+    an inner definition shadows only the SAME name; writes route to the scope
+    that defines the variable (writing an outer-defined name from inside the
+    nested subtree updates the outer provider); `resetVariables` stays local.
+    Names defined nowhere still write locally, exactly as before.
+  - **core**: `buildWidgetScopedFilter` accepts an optional `knownFields` set —
+    a DEFAULT binding whose target field is not on the widget's object is
+    skipped with a console warning instead of emitting a query the backend
+    empty-matches. Explicit `filterBindings` strings are always honoured (a
+    typo surfaces as a visibly empty widget, never a silently dropped filter).
+    Omitting `knownFields` preserves the previous unchecked behaviour.
+  - **plugin-dashboard**: `DashboardRenderer` feeds `knownFields` from
+    `dataSource.getObjectSchema` for inline `object` widgets (best-effort —
+    unchecked while metadata loads or when the source can't describe objects).
+    `optionsFrom` dynamic filter options now resolve DISTINCT values
+    server-side via a dataset GROUP BY (`queryDataset` with an inline draft)
+    when the data source supports it, falling back to the previous client-side
+    top-200 dedupe otherwise.
+
+- 887062c: feat(dashboard): dashboard-level filters (date / region) driving multiple charts (framework#2501)
+
+  A dashboard's `dateRange` + `globalFilters` declarations are now wired end to
+  end: the filter values live as dashboard-level variables (the page variables
+  primitive, so they're also readable as `page.<name>` in widget expressions),
+  a filter bar renders above the widgets, and at render time the dashboard
+  broadcasts the active values into every bound widget's inline query —
+  `AND`-merged with the widget's own `filter`. Charts stay inline and
+  self-contained; each widget maps a filter to **its own** field.
+
+  - **`@object-ui/types`** — `globalFilters[].name` (stable filter/variable key,
+    defaults to `field`) and `DashboardWidgetSchema.filterBindings`
+    (`Record<string, string | false>`: per-widget field override / `false`
+    opt-out). Zod mirrors included. **Pending paired `@objectstack/spec`
+    alignment (framework#2501)** — same precedent as `dataset` /
+    `categoryGranularity`.
+  - **`@object-ui/core`** — new pure `dashboard-filters` module
+    (`resolveDashboardFilterDefs`, `dashboardFilterVariableDefs`,
+    `buildFilterCondition`, `buildWidgetScopedFilter`); `mergeFilters` lifted
+    from plugin-report (re-exported there unchanged). Date presets emit
+    date-macro tokens (`{30_days_ago}` …) so widgets resolve them at query time
+    like hand-authored filters.
+  - **`@object-ui/plugin-dashboard`** — `DashboardFilterBar` (date presets +
+    custom range calendar, select with static `options` or `optionsFrom`,
+    text/number inputs, reset); `DashboardRenderer` mounts a
+    `PageVariablesProvider` when filters are declared and merges the
+    widget-scoped condition into inline widgets' `filter` and dataset widgets'
+    `runtimeFilter`. Dashboards without filters render exactly as before.
+
+  Binding precedence: explicit `filterBindings` string/`false` → legacy
+  `targetWidgets` allow-list → the filter's own `field` (dateRange defaults to
+  `created_at`). Static-data widgets are not filtered.
+
+### Patch Changes
+
+- 2ded18c: Fix: a dashboard filter declaring its static `options` in the
+  `@objectstack/spec` object form (`options: [{ value, label }]` — the shape
+  the spec validates and what framework-authored dashboards ship) crashed the
+  whole dashboard with "Objects are not valid as a React child". Caught driving
+  the showcase Revenue Pulse dashboard in a real browser.
+
+  `resolveDashboardFilterDefs` now normalizes both the spec object form and the
+  bare-string shorthand (`options: ['EMEA']`) to `{ value, label }` pairs —
+  `DashboardFilterDef.options` is typed accordingly — and the filter bar's
+  select renders labels (the trigger now shows the selected option's label, not
+  its raw value). `@object-ui/types` aligns the `GlobalFilterSchema.options`
+  shape with the spec union.
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [579b24d]
+- Updated dependencies [2b30583]
+- Updated dependencies [23d65c3]
+- Updated dependencies [055e1d2]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [3e8bf07]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [2712fc1]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/fields@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/components@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes

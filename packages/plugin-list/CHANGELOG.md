@@ -1,5 +1,87 @@
 # @object-ui/plugin-list
 
+## 14.1.0
+
+### Minor Changes
+
+- dea65f7: Unify the list-view conditional tier onto the canonical CEL engine (#1584).
+
+  Conditional formatting (list / grid / kanban) and row-action `visible` /
+  `disabled` predicates are now evaluated by `@objectstack/formula`'s
+  `ExpressionEngine` — the same engine the server uses — instead of the legacy
+  JS-dialect `ExpressionEvaluator`, matching how `@objectstack/spec` already types
+  these surfaces (`ExpressionInputSchema` / CEL). The whole platform now speaks one
+  expression dialect (framework ADR-0058).
+
+  - `@object-ui/core`: new `evalRowPredicate` + `resolveConditionalFormatting`
+    helpers (next to `evalFieldPredicate`). One implementation of all three
+    formatting rule shapes; dialect routing (a `{ dialect: 'cel' }` envelope is
+    always CEL; a bare string is CEL unless it carries legacy-only syntax
+    (`${…}` / `===` / `?.` / `.includes()`), which routes to the old engine with a
+    one-time deprecation warning); the native `{ field, operator, value }` form is
+    translated to CEL.
+  - `@object-ui/react`: new `useRowPredicate` hook (canonical CEL, ambient
+    predicate scope merged).
+  - Consumers converged: `ListView.evaluateConditionalFormatting` (thin wrapper,
+    export kept), `ObjectGrid` row styling (inline copy removed), kanban card
+    styles, and the grid / data-table row-action menus. `plugin-view`'s kanban
+    branch now forwards top-level `conditionalFormatting` (previously dropped).
+  - Row-action `visible` fails **closed** (broken predicate → hidden + warn);
+    `disabled` fails soft. The CEL `in` operator (and list membership) now work in
+    row predicates — the legacy engine could not parse them.
+  - The legacy `FormField.condition: { field, equals/notEquals/in }` is retired to
+    a CEL translation (back-compat preserved); `FieldDesigner` migrated to
+    `visibleWhen`.
+
+  Fully back-compat: existing conditional-formatting rules, row-action predicates,
+  and form `condition` metadata keep working (translated / routed as needed).
+
+- f0f10f5: feat(kanban): default lane field honours the ADR-0085 `stageField` role
+
+  Kanban views without an explicit `groupByField`/`groupField` hard-coded their
+  lane field to the literal `'status'` (in both app-shell's ObjectView options
+  and plugin-list's ListView fallback) — ignoring the object's declared
+  lifecycle and even inventing a field the object doesn't have. The default now
+  resolves through the shared `stageField` detector:
+
+  1. explicit view config (unchanged, always wins);
+  2. the object's `stageField` semantic role;
+  3. `stageField: false` → **no default lanes** (the status-shaped field is
+     declared non-linear; the board renders its empty state until the view
+     picks a lane field explicitly);
+  4. else the shared name/type heuristic (status / stage / state / phase by
+     name, then status/stage by type) — never a nonexistent field.
+
+  `detectStatusField` moved from `@object-ui/plugin-detail` to
+  `@object-ui/types` (new export, with the `StatusFieldSource` input type) so
+  plugin-list and app-shell share the exact semantics; plugin-detail re-exports
+  it unchanged.
+
+  Also fixes ListView's pre-existing rules-of-hooks error while touching the
+  file: `useListFieldLabel` wrapped `useObjectLabel()` in try/catch (hook-order
+  desync risk; the hook is provider-safe) — same fix as objectui#2595's
+  `useFieldLabel`.
+
+  Behavior change is limited to kanban views with no explicit lane field on
+  objects that either declare `stageField` (now honoured), declare
+  `stageField: false` (now suppressed), or have no status-shaped field at all
+  (previously grouped by a nonexistent `status` into one "undefined" lane; now
+  an honest empty state). Objects with a real `status` field — the common case —
+  are unchanged.
+
+### Patch Changes
+
+- 4b0aee6: Fix: a view declaring its `sort` in the `@objectstack/spec` bare-string
+  top-level form (`sort: "name desc"` — `ListViewSchema.sort` is
+  `string | Array<{field, order}>`) crashed ListView with
+  "schema.sort.map is not a function". Found by the spec/renderer
+  shape-mismatch audit that followed the dashboard filter-options crash.
+  Sort parsing is now a single normalized `parseSortConfig` (exported) that
+  accepts the bare string, legacy `"field desc"` array entries, and
+  `{ field, order }` objects, and returns `[]` for malformed entries instead
+  of throwing. The `@object-ui/types` declaration already carried the union —
+  only the implementation missed the string branch.
+
 ## 14.0.0
 
 ### Patch Changes

@@ -1,5 +1,249 @@
 # @object-ui/plugin-detail
 
+## 14.1.0
+
+### Minor Changes
+
+- 471c5d3: feat(detail): editable record highlights on the shared inline-edit draft (objectui#2407 P2)
+
+  The highlights strip is now editable in place and shares ONE draft + ONE atomic
+  Save with the details body (building on the P1 `InlineEditContext` / `#2529`
+  `InlineFieldInput`).
+
+  - **`HeaderHighlight`** consumes `useInlineEdit()`: hovering a highlight shows a
+    pencil and double-click enters the shared record edit session; each editable
+    highlight renders the same `<InlineFieldInput>` the body uses (value =
+    `draft[name] ?? data[name]`, write via `setField`). Computed
+    (`formula`/`summary`/`rollup`/`auto_number`), `readonly`, and system fields
+    expose no editor. Empty highlights are kept while editing so they can be
+    filled. Compact-layout UX: an actively-edited column widens and renders the
+    editor full-width (Salesforce-style expand-on-edit).
+  - **`RecordDetailView`** (app-shell) hosts ONE `<InlineEditProvider>` (with the
+    object-lifecycle `canEdit` gate) spanning both `record:highlights` and
+    `record:details`, plus the single record-level `<InlineEditSaveBar>` — so a
+    highlight edit and a body edit commit together in ONE
+    `update(obj, id, draft, { ifMatch })`.
+  - **`record:details`** drops its P1-local provider/save bar (it would otherwise
+    split the draft from the highlights) and just consumes the shared context;
+    **`record:highlights`** threads the DataSource through for lookup/user editors.
+
+  Guardrails preserved: computed/readonly/system highlights non-editable; `canEdit`
+  gate; OCC (`ifMatch` + `ConcurrentUpdateDialog`); only user-edited keys are sent.
+
+- 579b24d: feat(fields+form+detail): file/image uploads in inline line-item grids (#2360)
+
+  `Field.file` in a master-detail inline grid previously degraded to a plain text
+  input (no `input[type=file]` on the page → no way to upload from the grid), and
+  auto-derived subform / related-list columns silently dropped file fields.
+
+  - **fields**: new `FileCell` — a compact upload control for grid cells (upload
+    button + removable chips, image thumbnails), sharing the `UploadProvider`
+    pipeline with the full-size `FileField` via an extracted `useFileUploads`
+    hook. `GridField` supports `type: 'file'` columns (with `accept` /
+    `multiple`), renders file names in list/readonly modes, and no longer falls
+    back to a text `<Input>` for file columns.
+  - **plugin-form**: `deriveColumns` / `hydrateColumns` no longer exclude
+    `file`/`image`/`avatar` fields — they map to `file` columns and carry the
+    field's `multiple` + `accept` (image fields default to `['image/*']`).
+  - **plugin-detail**: auto-derived related-list columns no longer skip
+    `file`/`image` fields — they render through the existing FileCellRenderer /
+    ImageCellRenderer (file-name chip / thumbnail).
+
+- 5b52624: feat(detail): record-level inline edit — shared `InlineEditContext` + one atomic Save (objectui#2407 P1)
+
+  Lift the inline-edit session out of `DetailView`'s private state into a
+  record-level, shared context so a record page's surfaces can share ONE draft and
+  commit it in ONE atomic, cross-field-validated write (replacing the per-field
+  save loop).
+
+  - **`InlineEditContext` / `InlineEditProvider` / `useInlineEdit`** (@object-ui/react)
+    — pure UI state (`editing`, `canEdit`, `draft`, `autoFocusField`, `saving`,
+    `error` + `enter` / `setField` / `cancel` / `reset`). A _separate_ context from
+    `RecordContext` (mirrors `HighlightFieldsContext`) so per-keystroke draft churn
+    doesn't re-render other `record:*` consumers.
+  - **`<InlineEditSaveBar>`** (@object-ui/plugin-detail) — the record-level sticky
+    Save/Cancel bar. Commits the whole draft in ONE
+    `dataSource.update(obj, id, draft, { ifMatch: data.updated_at })` → `refresh()`;
+    a `409 CONCURRENT_UPDATE` reuses `<ConcurrentUpdateDialog>` (reload / overwrite).
+    A callback mode (`onFieldSave`) preserves the drawer's per-field persistence
+    contract with plugin-gantt/calendar/kanban.
+  - **`DetailView`** now consumes `useInlineEdit()` instead of owning inline-edit
+    state; its header/inline Save-Cancel bars and per-field batch-save are removed
+    (the approval-lock badge stays). Rendered without a provider it is simply
+    read-only.
+  - **`record:details`** and **`RecordDetailDrawer`** each wrap their `DetailView`
+    in an `<InlineEditProvider>` + `<InlineEditSaveBar>`. The object-lifecycle /
+    permission gate flows through `canEdit`; computed / readonly / system fields
+    and the OCC path are unchanged.
+
+  Guardrails preserved: computed (`formula`/`summary`/`rollup`/`auto_number`) +
+  `readonly` + system fields expose no editor; `canEdit` gate; OCC (`ifMatch` +
+  `ConcurrentUpdateDialog`); the atomic partial update carries only user-edited
+  keys (never computed/read-only). Editable highlights ride on top of this in P2.
+
+### Patch Changes
+
+- 2efa9fd: Detail-page UX follow-ups from the ADR-0085 PR4 real-backend browser pass (framework#2548):
+
+  - **Highlight strip no longer repeats the record title.** A declared
+    `highlightFields` list containing the title field rendered it as the first
+    chip — truncated — directly under the identical page H1. `deriveHighlightFields`
+    now resolves the title (`primaryField` / `nameField` / deprecated
+    `displayNameField`, else the conventional display-field names) via the new
+    exported `resolveTitleField` and filters it from declared lists before the
+    4-chip cap, matching what the heuristic branch always did. app-shell's
+    `RecordDetailView` synthParts (which pre-computes the list and bypasses the
+    derivation) applies the same filter.
+  - **Per-field currency reaches the renderers.** The spec channel
+    (`currencyConfig.defaultCurrency`) was dropped by the highlight-strip and
+    detail-section field enrichment, so a spec-authored currency field could
+    never show its symbol ("25,000,000" instead of "$25,000,000");
+    `resolveFieldCurrency` reads it second after the designer-only bare
+    `currency` key.
+  - **app-shell approvals fetches send the Bearer token.** The header badge
+    poll, home-inbox count, and record-page approvals panel were cookie-only
+    (new shared `bearerAuthHeaders()` util) — same split-origin failure mode as
+    the console `approvalsApi` fix below.
+  - **`fieldGroups[].icon` / `description` reach detail pages.** The shared
+    derivation (ADR-0085 §5) already passed them through; the detail synth
+    dropped them. Sections now carry both, and `DetailSection` renders a real
+    Lucide icon for identifier-shaped names (emoji/text values keep the
+    historical text rendering).
+  - **Record meta footer stops dangling without an actor.** Seeded/system rows
+    with `created_by: null` rendered "Created by · 10m ago"; the footer now
+    falls back to actor-less labels ("Created / Updated"), with new i18n keys in
+    all six locales (and the zh `createdBy`/`updatedBy` mistranslation fixed:
+    创建人/更新人, not 创建于/更新于).
+  - **Select badges ellipsize instead of clipping mid-glyph.** In bounded
+    containers (highlight-strip columns, grid cells) an overlong option label
+    used to be cut at the container edge ("Technolog…"); badges now shrink with
+    an inner truncate and expose the full label as a hover title. The highlight
+    strip's hover title also prefers the option label over the raw stored value.
+
+  Console app (unversioned): `approvalsApi` now sends the stored Bearer token
+  like every other console call — cookie-only auth silently lost the approvals
+  surface on split-origin deployments where the SameSite cookie doesn't flow.
+
+- f9a7907: refactor(plugin-detail): extract `<InlineFieldInput>` from `DetailSection`
+
+  Lift the inline-edit input branch out of `DetailSection` into a standalone,
+  reusable `<InlineFieldInput>` component (objectui#2407, step 0 — the
+  behavior-preserving refactor that precedes the record-level `InlineEditContext`
+  and editable-highlights work).
+
+  Behavior is unchanged: `<InlineFieldInput>` renders the exact same type-aware
+  editors the detail body handled inline — `SelectField`, `BooleanField`,
+  `LookupField`, `UserField`, `CapabilityMultiSelectField`, the
+  `permission-facet-link` read-only facet, and the plain number/date/text input
+  (with ISO-date coercion and `$expand`-ed-reference safety so an object value
+  never leaks `"[object Object]"`). `DetailSection` now delegates to it and keeps
+  the field-editability gate (computed / `readonly` / system-field / object
+  lifecycle) exactly as before. The `extractLookupId` helper and the
+  `TEXTUAL_REF_FALLBACK_TYPES` set move alongside the component.
+
+  This lets any record-level surface (the details body **and** the highlights
+  strip) share one editor, shrinking the surface of the follow-up
+  editable-highlights change. Covered by the existing `DetailSection` inline-edit
+  suites plus a new `InlineFieldInput` parity test.
+
+- 4afb251: Record-level inline edit polish (objectui#2572, follow-up to #2407) — the five
+  rough edges from the live showcase verification pass:
+
+  - **Expanded reference values pass through to the picker.** `InlineFieldInput`
+    no longer collapses an `$expand`-ed record object to a bare id before
+    handing it to `LookupField` / `UserField` — the picker resolves the display
+    name it already carries instead of re-fetching the referenced record via
+    `findOne` (or sticking on the placeholder when it can't). `LookupField`
+    still hands its Level-2 pickers (PeoplePicker / RecordPickerDialog) bare
+    ids, collapsed via the existing `normalizeId`.
+  - **Approval-lock preflight.** The record page now re-reads the approval
+    state whenever the record is invalidated (a save can _trigger_ an approval
+    flow that locks the record), derives one `approvalLocked` signal
+    (`approval_status` pending/in_approval OR an open pending request), gates
+    the inline-edit session's `canEdit` with it — hiding the pencil affordances
+    and no-op'ing `enter()` on a locked record — and drives the save bar's
+    `locked`/`lockedHint` so users can't type into a draft that Save would
+    reject with `RECORD_LOCKED`.
+  - **Numeric field types edit with the real numeric widgets.** `number` /
+    `currency` / `percent` route to `NumberField` / `CurrencyField` /
+    `PercentField` (the same widgets the form uses) instead of a free-text
+    input: numeric keyboard, symbol adornment, fraction↔percent display
+    conversion, and numbers (not strings) into the draft. `NumberField` and
+    `CurrencyField` now surface metadata `min`/`max` on the input, `NumberField`
+    honors an explicit `step` and steps by 1 for `scale: 0` (previously fell
+    back to `any`).
+  - **Header Edit CTA stands down during an inline session.** The synthesized
+    `sys_edit` action carries `disableDuringInlineEdit`, and the `page:header`
+    renderer greys such actions out while `InlineEditContext.editing` — the
+    classic form-edit surface can no longer be stacked on top of a live inline
+    draft.
+  - **Keyboard shortcuts for the shared edit session.** `InlineEditSaveBar`
+    binds **Esc → cancel** (deferring to any open Radix layer — popover /
+    select / dialog — which owns Escape for "close") and **Cmd/Ctrl+Enter →
+    save**, both respecting `saving`/`locked`.
+
+- 2712fc1: fix(fields+detail): resolve the pre-existing rules-of-hooks violations in the cell renderers
+
+  - `CurrencyCellRenderer` / `EmailCellRenderer` / `PhoneCellRenderer` called
+    hooks (`useLocalization`, `useFieldLabel`, `useState`) **after** their
+    empty-value early return — a value flipping between null and set changed
+    the hook count between renders (latent "Rendered more hooks than during
+    the previous render" crash). Hooks now run unconditionally before the
+    early return.
+  - `useFieldLabel` wrapped `useObjectTranslation()` in try/catch; a throw
+    after other hooks ran would desync hook order. The underlying hook is
+    provider-safe (optional context + global i18n fallback), so the guard is
+    removed.
+  - `ReferenceCellRenderer` no longer constructs JSX inside try/catch (the
+    try can't catch render errors anyway) — the display string is computed in
+    the try, rendered outside.
+  - `RecordMetaFooter`'s UserRef renders the registry cell renderer via
+    `React.createElement` instead of a locally-assigned capitalized JSX tag
+    (flagged as component-creation-during-render; the registry reference is
+    stable).
+
+  No behavior change intended; eslint react-hooks errors on these files drop
+  to zero.
+
+- f0f10f5: feat(kanban): default lane field honours the ADR-0085 `stageField` role
+
+  Kanban views without an explicit `groupByField`/`groupField` hard-coded their
+  lane field to the literal `'status'` (in both app-shell's ObjectView options
+  and plugin-list's ListView fallback) — ignoring the object's declared
+  lifecycle and even inventing a field the object doesn't have. The default now
+  resolves through the shared `stageField` detector:
+
+  1. explicit view config (unchanged, always wins);
+  2. the object's `stageField` semantic role;
+  3. `stageField: false` → **no default lanes** (the status-shaped field is
+     declared non-linear; the board renders its empty state until the view
+     picks a lane field explicitly);
+  4. else the shared name/type heuristic (status / stage / state / phase by
+     name, then status/stage by type) — never a nonexistent field.
+
+  `detectStatusField` moved from `@object-ui/plugin-detail` to
+  `@object-ui/types` (new export, with the `StatusFieldSource` input type) so
+  plugin-list and app-shell share the exact semantics; plugin-detail re-exports
+  it unchanged.
+
+  Also fixes ListView's pre-existing rules-of-hooks error while touching the
+  file: `useListFieldLabel` wrapped `useObjectLabel()` in try/catch (hook-order
+  desync risk; the hook is provider-safe) — same fix as objectui#2595's
+  `useFieldLabel`.
+
+  Behavior change is limited to kanban views with no explicit lane field on
+  objects that either declare `stageField` (now honoured), declare
+  `stageField: false` (now suppressed), or have no status-shaped field at all
+  (previously grouped by a nonexistent `status` into one "undefined" lane; now
+  an honest empty state). Objects with a real `status` field — the common case —
+  are unchanged.
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [e628d1f]
+- Updated dependencies [23d65c3]
+  - @object-ui/i18n@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes

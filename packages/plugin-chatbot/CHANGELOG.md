@@ -1,5 +1,49 @@
 # @object-ui/plugin-chatbot
 
+## 14.1.0
+
+### Patch Changes
+
+- 82441e4: feat(console-ai): proactive AI usage indicator in the ChatDock (ADR-0057 #8)
+
+  Surfaces remaining AI headroom **before** a send hits the 429 wall, instead of
+  only learning the limit reactively.
+
+  - **AiUsageIndicator** — two meters (build + dataChat) as small progress rings in
+    the ChatDock header (desktop rail + mobile sheet). Near-full → an amber
+    "running low" hint and a popover with "resets tonight / next cycle" plus the
+    upgrade / top-up CTA (reusing the 429 deep-link). D5-safe: fractions and
+    qualitative words only, never a token number. Hides itself when the usage
+    endpoint is absent (older backend / OSS / no seat).
+  - **useAiUsage** — fetches the D5-safe per-meter fractions; refetches on the chat
+    engine's post-turn / 429 nudge and on tab re-focus; fails soft to nothing.
+  - **useObjectChat** emits `AI_USAGE_REFRESH_EVENT` on a rejected send (429) and on
+    the turn-finish edge so the ring updates right after the user's action.
+  - i18n: `console.ai.usage.*` in en + zh-CN.
+
+  Consumes the cloud `GET /api/v1/ai/usage` endpoint (objectstack-ai/cloud#824).
+
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [055e1d2]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [f0f10f5]
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/components@14.1.0
+
 ## 14.0.0
 
 ### Minor Changes

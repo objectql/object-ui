@@ -1,5 +1,74 @@
 # @object-ui/plugin-report
 
+## 14.1.0
+
+### Patch Changes
+
+- 887062c: feat(dashboard): dashboard-level filters (date / region) driving multiple charts (framework#2501)
+
+  A dashboard's `dateRange` + `globalFilters` declarations are now wired end to
+  end: the filter values live as dashboard-level variables (the page variables
+  primitive, so they're also readable as `page.<name>` in widget expressions),
+  a filter bar renders above the widgets, and at render time the dashboard
+  broadcasts the active values into every bound widget's inline query —
+  `AND`-merged with the widget's own `filter`. Charts stay inline and
+  self-contained; each widget maps a filter to **its own** field.
+
+  - **`@object-ui/types`** — `globalFilters[].name` (stable filter/variable key,
+    defaults to `field`) and `DashboardWidgetSchema.filterBindings`
+    (`Record<string, string | false>`: per-widget field override / `false`
+    opt-out). Zod mirrors included. **Pending paired `@objectstack/spec`
+    alignment (framework#2501)** — same precedent as `dataset` /
+    `categoryGranularity`.
+  - **`@object-ui/core`** — new pure `dashboard-filters` module
+    (`resolveDashboardFilterDefs`, `dashboardFilterVariableDefs`,
+    `buildFilterCondition`, `buildWidgetScopedFilter`); `mergeFilters` lifted
+    from plugin-report (re-exported there unchanged). Date presets emit
+    date-macro tokens (`{30_days_ago}` …) so widgets resolve them at query time
+    like hand-authored filters.
+  - **`@object-ui/plugin-dashboard`** — `DashboardFilterBar` (date presets +
+    custom range calendar, select with static `options` or `optionsFrom`,
+    text/number inputs, reset); `DashboardRenderer` mounts a
+    `PageVariablesProvider` when filters are declared and merges the
+    widget-scoped condition into inline widgets' `filter` and dataset widgets'
+    `runtimeFilter`. Dashboards without filters render exactly as before.
+
+  Binding precedence: explicit `filterBindings` string/`false` → legacy
+  `targetWidgets` allow-list → the filter's own `field` (dateRange defaults to
+  `created_at`). Static-data widgets are not filtered.
+
+- Updated dependencies [82441e4]
+- Updated dependencies [2efa9fd]
+- Updated dependencies [0890fa7]
+- Updated dependencies [2ded18c]
+- Updated dependencies [e628d1f]
+- Updated dependencies [5523fc4]
+- Updated dependencies [887062c]
+- Updated dependencies [579b24d]
+- Updated dependencies [2b30583]
+- Updated dependencies [23d65c3]
+- Updated dependencies [06d5ec6]
+- Updated dependencies [055e1d2]
+- Updated dependencies [9e2d58f]
+- Updated dependencies [dea65f7]
+- Updated dependencies [f30ff68]
+- Updated dependencies [073e7aa]
+- Updated dependencies [3e8bf07]
+- Updated dependencies [6c0135c]
+- Updated dependencies [5b52624]
+- Updated dependencies [4afb251]
+- Updated dependencies [d5b1bc0]
+- Updated dependencies [f94905d]
+- Updated dependencies [2712fc1]
+- Updated dependencies [f0f10f5]
+  - @object-ui/i18n@14.1.0
+  - @object-ui/fields@14.1.0
+  - @object-ui/core@14.1.0
+  - @object-ui/types@14.1.0
+  - @object-ui/react@14.1.0
+  - @object-ui/plugin-grid@14.1.0
+  - @object-ui/components@14.1.0
+
 ## 14.0.0
 
 ### Patch Changes
