@@ -73,6 +73,7 @@ function ViewObjectPicker({
   );
 }
 import { FieldsListEditor } from '../previews/FieldsListEditor';
+import { ConditionalFormattingEditor } from '../ConditionalFormattingEditor';
 import {
   getViewForm,
   getListVariantSchema,
@@ -88,7 +89,7 @@ import { t } from '../i18n';
  * `hiddenFields` passed to SchemaForm (`type`/`object`/`label`) plus the
  * canvas-owned `columns`.
  */
-const VIEW_CURATED_FIELDS = new Set(['type', 'object', 'label', 'columns']);
+const VIEW_CURATED_FIELDS = new Set(['type', 'object', 'label', 'columns', 'conditionalFormatting']);
 
 export interface ViewVariantInspectorProps extends MetadataDefaultInspectorProps {
   /**
@@ -224,6 +225,13 @@ export function ViewVariantInspector({
     binding.value || undefined,
     objectFieldsOverride,
   );
+  // Locale-bound `t` for child components that take a bare `(key) => string`
+  // (e.g. CelPredicateField / ConditionalFormattingEditor).
+  const tLocal = React.useCallback((k: string) => t(k, locale), [locale]);
+  const fieldNames = React.useMemo(() => objectFields.map((f) => f.name), [objectFields]);
+  const cfRules = Array.isArray(variant.conditionalFormatting)
+    ? (variant.conditionalFormatting as unknown[])
+    : [];
   const widgetContext = React.useMemo(
     () => ({
       objectFields: objectFields.map((f) => ({
@@ -336,6 +344,21 @@ export function ViewVariantInspector({
             readOnly={readOnly}
             onPatch={onPatch}
             onSelectionChange={onSelectionChange}
+          />
+        </div>
+      )}
+
+      {!isFormFamily && (
+        <div className="border-t pt-3">
+          <ConditionalFormattingEditor
+            rules={cfRules as any}
+            objectName={binding.value || undefined}
+            fieldNames={fieldNames}
+            disabled={readOnly}
+            t={tLocal}
+            onChange={(rules) =>
+              writeVariant({ conditionalFormatting: rules.length > 0 ? rules : undefined })
+            }
           />
         </div>
       )}
