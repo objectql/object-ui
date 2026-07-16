@@ -219,6 +219,11 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
       if (objectDefField.currency && !enrichedField.currency) enrichedField.currency = objectDefField.currency;
       if (objectDefField.precision !== undefined && enrichedField.precision === undefined) enrichedField.precision = objectDefField.precision;
       if ((objectDefField as any).scale !== undefined && (enrichedField as any).scale === undefined) (enrichedField as any).scale = (objectDefField as any).scale;
+      // Numeric range/step constraints (objectui#2572 item 3) — without these
+      // the metadata's `min: 0` never reaches the numeric edit widgets.
+      if ((objectDefField as any).min !== undefined && (enrichedField as any).min === undefined) (enrichedField as any).min = (objectDefField as any).min;
+      if ((objectDefField as any).max !== undefined && (enrichedField as any).max === undefined) (enrichedField as any).max = (objectDefField as any).max;
+      if ((objectDefField as any).step !== undefined && (enrichedField as any).step === undefined) (enrichedField as any).step = (objectDefField as any).step;
       if (objectDefField.format && !enrichedField.format) enrichedField.format = objectDefField.format;
       // Per-field widget override (ADR-0056 P2) — carry it from the object
       // metadata so the inline-edit widget branch (and read cell) can honor a

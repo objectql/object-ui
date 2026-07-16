@@ -99,6 +99,11 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
               ...(objectDefField?.currencyConfig && { currencyConfig: objectDefField.currencyConfig }),
               ...(objectDefField?.precision !== undefined && { precision: objectDefField.precision }),
               ...((objectDefField as any)?.scale !== undefined && { scale: (objectDefField as any).scale }),
+              // Numeric range/step constraints (objectui#2572 item 3) — keep in
+              // sync with DetailSection's enrichment so both editors honor them.
+              ...((objectDefField as any)?.min !== undefined && { min: (objectDefField as any).min }),
+              ...((objectDefField as any)?.max !== undefined && { max: (objectDefField as any).max }),
+              ...((objectDefField as any)?.step !== undefined && { step: (objectDefField as any).step }),
               ...(objectDefField?.format && { format: objectDefField.format }),
               ...(refTarget && { reference_to: refTarget }),
               ...((objectDefField as any)?.reference_field && {

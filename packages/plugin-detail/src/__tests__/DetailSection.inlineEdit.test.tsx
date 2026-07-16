@@ -68,3 +68,27 @@ describe('DetailSection inline-edit reference fields', () => {
     expect(screen.getByDisplayValue('Hello')).toBeInTheDocument();
   });
 });
+
+/**
+ * objectui#2572 (live dogfood find): the field enrichment copied an explicit
+ * whitelist that dropped `min`/`max`/`step`, so a currency field declaring
+ * `min: 0` rendered a numeric editor with no range constraints. The enrichment
+ * must pass them through to the edit widget.
+ */
+describe('DetailSection inline-edit numeric constraints', () => {
+  it('passes metadata min/max/step through to the numeric editor', () => {
+    render(
+      <DetailSection
+        section={{ fields: [{ name: 'budget', label: 'Budget' }] } as DetailViewSection}
+        data={{ budget: 150000 }}
+        objectSchema={{ fields: { budget: { type: 'currency', scale: 2, min: 0, max: 500000 } } }}
+        isEditing
+      />,
+    );
+    const input = screen.getByRole('spinbutton');
+    expect(input).toHaveAttribute('min', '0');
+    expect(input).toHaveAttribute('max', '500000');
+    expect(input).toHaveAttribute('step', '0.01');
+    expect(input).toHaveValue(150000);
+  });
+});
