@@ -104,14 +104,43 @@ export async function parseExcelArrayBuffer(buffer: ArrayBuffer): Promise<string
 }
 
 /**
- * Parse any supported import file into `string[][]`. Delimited text is read as
- * UTF-8; .xlsx is parsed via {@link parseExcelArrayBuffer}. Throws an
+ * Decode a delimited-text import file's bytes into a string. Real-world
+ * spreadsheet CSVs are not reliably UTF-8 — zh-CN Excel's "另存为 CSV" writes
+ * GBK, which `file.text()` (always UTF-8) turns into mojibake headers that can
+ * never be mapped — so the encoding is sniffed instead of assumed:
+ *   1. An explicit BOM (UTF-8 / UTF-16 LE / UTF-16 BE) wins.
+ *   2. Otherwise try strict UTF-8; its validation rejects GBK multi-byte runs.
+ *   3. Fall back to GB18030 (a superset of GBK/GB2312), the dominant
+ *      non-UTF-8 CSV encoding in practice.
+ */
+export function decodeSpreadsheetText(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return new TextDecoder('utf-8').decode(bytes);
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes);
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    try {
+      return new TextDecoder('gb18030').decode(bytes);
+    } catch {
+      // Runtimes without the gb18030 decoder (e.g. small-ICU Node) — degrade
+      // to lossy UTF-8 rather than failing the whole import.
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+  }
+}
+
+/**
+ * Parse any supported import file into `string[][]`. Delimited text is
+ * decoded via {@link decodeSpreadsheetText} (UTF-8 with GB18030 fallback);
+ * .xlsx is parsed via {@link parseExcelArrayBuffer}. Throws an
  * {@link ImportParseError} code for unsupported / legacy formats.
  */
 export async function parseSpreadsheetFile(file: File): Promise<string[][]> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.csv') || name.endsWith('.tsv') || name.endsWith('.txt')) {
-    const text = await file.text();
+    const text = decodeSpreadsheetText(await file.arrayBuffer());
     return parseDelimited(text, name.endsWith('.tsv') ? '\t' : ',');
   }
   if (name.endsWith('.xlsx') || name.endsWith('.xlsm')) {

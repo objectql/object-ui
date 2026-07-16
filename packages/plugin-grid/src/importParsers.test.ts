@@ -109,6 +109,38 @@ describe('parseSpreadsheetFile', () => {
     const grid = await parseSpreadsheetFile(makeFile('data.csv', 'a,b\n1,2'));
     expect(grid).toEqual([['a', 'b'], ['1', '2']]);
   });
+
+  // Encoding sniffing (#185): zh-CN Excel's "save as CSV" writes GBK, which a
+  // plain UTF-8 read turns into unmappable mojibake headers.
+  it('decodes a GBK/GB18030 .csv (zh-CN Excel default) via fallback', async () => {
+    // '名称 *,编号 *\n测试岛2,TEST-001' encoded as GBK
+    const gbk = new Uint8Array([
+      0xc3, 0xfb, 0xb3, 0xc6, 0x20, 0x2a, 0x2c, 0xb1, 0xe0, 0xba, 0xc5, 0x20, 0x2a, 0x0a,
+      0xb2, 0xe2, 0xca, 0xd4, 0xb5, 0xba, 0x32, 0x2c, 0x54, 0x45, 0x53, 0x54, 0x2d, 0x30, 0x30, 0x31,
+    ]);
+    const grid = await parseSpreadsheetFile(makeFile('data.csv', gbk));
+    expect(grid).toEqual([['名称 *', '编号 *'], ['测试岛2', 'TEST-001']]);
+  });
+
+  it('keeps plain UTF-8 Chinese without a BOM intact', async () => {
+    const grid = await parseSpreadsheetFile(makeFile('data.csv', '名称,城市\n张三,北京'));
+    expect(grid).toEqual([['名称', '城市'], ['张三', '北京']]);
+  });
+
+  it('strips a UTF-8 BOM (our own downloaded template round-trips)', async () => {
+    const grid = await parseSpreadsheetFile(makeFile('data.csv', '﻿a,b\n1,2'));
+    expect(grid).toEqual([['a', 'b'], ['1', '2']]);
+  });
+
+  it('decodes UTF-16 LE with a BOM', async () => {
+    // 'name,城市\n1,北京' encoded as UTF-16 LE with BOM
+    const utf16 = new Uint8Array([
+      0xff, 0xfe, 0x6e, 0x00, 0x61, 0x00, 0x6d, 0x00, 0x65, 0x00, 0x2c, 0x00,
+      0xce, 0x57, 0x02, 0x5e, 0x0a, 0x00, 0x31, 0x00, 0x2c, 0x00, 0x17, 0x53, 0xac, 0x4e,
+    ]);
+    const grid = await parseSpreadsheetFile(makeFile('data.csv', utf16));
+    expect(grid).toEqual([['name', '城市'], ['1', '北京']]);
+  });
 });
 
 describe('suggestColumnMappings', () => {
