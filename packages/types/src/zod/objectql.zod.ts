@@ -436,13 +436,23 @@ export const ObjectCalendarSchema = BaseSchema.extend({
 /**
  * ObjectKanban Schema
  */
-const KanbanConditionalFormattingRuleSchema = z.object({
-  field: z.string().describe('Field name to check'),
-  operator: z.enum(['equals', 'not_equals', 'contains', 'in']).describe('Comparison operator'),
-  value: z.union([z.string(), z.array(z.string())]).describe('Value to compare against'),
-  backgroundColor: z.string().optional().describe('Background color'),
-  borderColor: z.string().optional().describe('Border color'),
-});
+// Since #1584, kanban card styling runs on the shared CEL evaluator, so a
+// kanban rule accepts BOTH the native `{ field, operator, value }` shape and the
+// spec `{ condition, style }` shape (a CEL predicate + style map) — matching
+// list/grid `conditionalFormatting`. The type/schema now match the runtime.
+const KanbanConditionalFormattingRuleSchema = z.union([
+  z.object({
+    field: z.string().describe('Field name to check'),
+    operator: z.enum(['equals', 'not_equals', 'contains', 'in']).describe('Comparison operator'),
+    value: z.union([z.string(), z.array(z.string())]).describe('Value to compare against'),
+    backgroundColor: z.string().optional().describe('Background color'),
+    borderColor: z.string().optional().describe('Border color'),
+  }),
+  z.object({
+    condition: z.string().describe('CEL predicate evaluated against the card record'),
+    style: z.record(z.string(), z.string()).describe('CSS styles applied when the condition is true'),
+  }),
+]);
 
 export const ObjectKanbanSchema = BaseSchema.extend({
   type: z.literal('object-kanban'),

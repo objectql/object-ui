@@ -28,6 +28,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, ScrollArea, Button, Input, useResizeObserver, DataEmptyState } from "@object-ui/components"
 import { useHasDndProvider, useDnd } from "@object-ui/react"
 import { resolveConditionalFormatting } from "@object-ui/core"
+import type { KanbanConditionalFormattingRule } from "@object-ui/types"
 import { createSafeTranslation } from "@object-ui/i18n"
 import { Plus } from "lucide-react"
 
@@ -80,13 +81,9 @@ export interface KanbanColumn {
   className?: string
 }
 
-export interface ConditionalFormattingRule {
-  field: string
-  operator: 'equals' | 'not_equals' | 'contains' | 'in'
-  value: string | string[]
-  backgroundColor?: string
-  borderColor?: string
-}
+// Card formatting accepts the native `{ field, operator, value }` shape and the
+// spec `{ condition, style }` CEL shape (issue #1584) — see @object-ui/types.
+export type ConditionalFormattingRule = KanbanConditionalFormattingRule
 
 export interface KanbanBoardProps {
   columns: KanbanColumn[]

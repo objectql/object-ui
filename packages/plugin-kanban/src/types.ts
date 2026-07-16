@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { BaseSchema, GroupingConfig } from '@object-ui/types';
+import type { BaseSchema, GroupingConfig, KanbanConditionalFormattingRule } from '@object-ui/types';
 
 /**
  * Kanban card interface.
@@ -118,15 +118,11 @@ export interface KanbanSchema extends BaseSchema {
   allowCollapse?: boolean;
 
   /**
-   * Conditional formatting rules for card coloring.
+   * Conditional formatting rules for card coloring. Accepts the native
+   * `{ field, operator, value }` shape and the spec `{ condition, style }` CEL
+   * shape (issue #1584).
    */
-  conditionalFormatting?: Array<{
-    field: string;
-    operator: 'equals' | 'not_equals' | 'contains' | 'in';
-    value: string | string[];
-    backgroundColor?: string;
-    borderColor?: string;
-  }>;
+  conditionalFormatting?: KanbanConditionalFormattingRule[];
 
   /**
    * Predefined card templates for quick-add.

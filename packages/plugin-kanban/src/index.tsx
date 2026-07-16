@@ -10,6 +10,7 @@ import React, { Suspense } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import { useSchemaContext } from '@object-ui/react';
 import { Skeleton } from '@object-ui/components';
+import type { KanbanConditionalFormattingRule } from '@object-ui/types';
 import { ObjectKanban } from './ObjectKanban';
 
 // Export types for external use
@@ -47,13 +48,7 @@ export interface KanbanRendererProps {
     quickAdd?: boolean;
     onQuickAdd?: (columnId: string, title: string) => void;
     coverImageField?: string;
-    conditionalFormatting?: Array<{
-      field: string;
-      operator: 'equals' | 'not_equals' | 'contains' | 'in';
-      value: string | string[];
-      backgroundColor?: string;
-      borderColor?: string;
-    }>;
+    conditionalFormatting?: KanbanConditionalFormattingRule[];
   };
 }
 
