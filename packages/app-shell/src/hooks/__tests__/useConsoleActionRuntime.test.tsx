@@ -143,6 +143,48 @@ describe('useConsoleActionRuntime — authenticated handlers', () => {
     expect(onRefresh).not.toHaveBeenCalled();
   });
 
+  it('apiHandler flattens an ObjectStack `{ error: { code, message } }` envelope to the message string', async () => {
+    // The admin/create-user 400 returns `{ success: false, error: { code:
+    // 'invalid_request', message: '...' } }`. Pre-fix the whole error OBJECT
+    // rode `result.error` into the ActionRunner's toast → `toast.error(object)`
+    // rendered it as a React child and crashed the page (React #31).
+    authFetchSpy.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        success: false,
+        error: { code: 'invalid_request', message: 'Provide either password or generatePassword, not both' },
+      }),
+    });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.apiHandler({ type: 'api', name: 'x', target: '/api/v1/x' } as any);
+    });
+
+    expect(res).toEqual({
+      success: false,
+      error: 'Provide either password or generatePassword, not both',
+    });
+  });
+
+  it('apiHandler falls back to an HTTP-status message when the error body is unusable', async () => {
+    authFetchSpy.mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: {} }) });
+    const { result } = renderHook(() =>
+      useConsoleActionRuntime({ dataSource: {}, objects: [] }),
+    );
+
+    let res: any;
+    await act(async () => {
+      res = await result.current.apiHandler({ type: 'api', name: 'x', target: '/api/v1/x' } as any);
+    });
+
+    expect(res).toEqual({ success: false, error: 'HTTP 500' });
+  });
+
   it('apiHandler turns an entitlement 403 into the upgrade dialog, not a red error toast', async () => {
     // Free org that already has its production env clicks "create" → the control
     // plane 403s with DEV_ENV_PLAN_LOCKED. The runtime must open a friendly

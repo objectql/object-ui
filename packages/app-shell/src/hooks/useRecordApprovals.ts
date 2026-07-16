@@ -19,6 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { bearerAuthHeaders } from '../utils/authToken';
 
 export interface ApprovalRequestLite {
   id: string;
@@ -53,7 +54,13 @@ function apiBase() {
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${apiBase()}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+    headers: {
+      'Content-Type': 'application/json',
+      // Bearer too — cookie-only auth loses this surface on split-origin
+      // deployments where the SameSite cookie doesn't flow (#2548).
+      ...bearerAuthHeaders(),
+      ...(init?.headers || {}),
+    },
     ...init,
   });
   let payload: any = null;

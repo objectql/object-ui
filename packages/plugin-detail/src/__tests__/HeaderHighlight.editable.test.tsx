@@ -6,10 +6,27 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { InlineEditProvider, useInlineEdit } from '@object-ui/react';
 import { HeaderHighlight } from '../HeaderHighlight';
+
+// Probe the LookupField editor so the reference-key tests can assert which
+// relation target the enriched field carried. Everything else in
+// @object-ui/fields stays real (cell renderers, other editors).
+vi.mock('@object-ui/fields', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, any>>();
+  return {
+    ...actual,
+    LookupField: ({ field }: any) => (
+      <div
+        data-testid="lookup-editor"
+        data-reference-to={field?.reference_to ?? ''}
+        data-reference-field={field?.reference_field ?? ''}
+      />
+    ),
+  };
+});
 
 /**
  * objectui#2407 P2 — the highlights strip becomes editable against the SHARED
@@ -90,5 +107,58 @@ describe('HeaderHighlight — editable highlights (P2)', () => {
     );
     fireEvent.doubleClick(screen.getByText('Alice'));
     expect(screen.queryByDisplayValue('Alice')).toBeNull();
+  });
+});
+
+/**
+ * objectui#2407 P2 follow-up — backend object schemas use the
+ * ObjectStack-convention `reference` key (e.g. showcase_project.account has
+ * `"reference": "showcase_account"`), not `reference_to`. The strip must
+ * normalize both (like DetailSection) or the lookup editor gets no target
+ * object: it can neither hydrate the current value nor search candidates.
+ */
+describe('HeaderHighlight — lookup highlight reference-key normalization', () => {
+  const lookupFields = [{ name: 'account', label: 'Account' }] as any;
+  const lookupData = { account: 'acc-1' };
+
+  // Enters the shared edit session on the lookup field directly (its read-mode
+  // rendering of a bare id is not what these tests are about).
+  function EnterEdit() {
+    const inline = useInlineEdit();
+    return (
+      <button type="button" onClick={() => inline!.enter('account')}>
+        enter-edit
+      </button>
+    );
+  }
+
+  const renderStrip = (accountField: Record<string, any>) => {
+    render(
+      <InlineEditProvider canEdit>
+        <HeaderHighlight
+          fields={lookupFields}
+          data={lookupData}
+          objectSchema={{ fields: { account: accountField } }}
+        />
+        <EnterEdit />
+      </InlineEditProvider>,
+    );
+    fireEvent.click(screen.getByText('enter-edit'));
+    return screen.getByTestId('lookup-editor');
+  };
+
+  it('passes the backend `reference` key to the LookupField as reference_to', () => {
+    const editor = renderStrip({
+      type: 'lookup',
+      reference: 'showcase_account',
+      reference_field: 'name',
+    });
+    expect(editor.getAttribute('data-reference-to')).toBe('showcase_account');
+    expect(editor.getAttribute('data-reference-field')).toBe('name');
+  });
+
+  it('still honors the `reference_to` key', () => {
+    const editor = renderStrip({ type: 'lookup', reference_to: 'showcase_account' });
+    expect(editor.getAttribute('data-reference-to')).toBe('showcase_account');
   });
 });

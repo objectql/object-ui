@@ -21,6 +21,8 @@
  */
 
 import type { SchemaFormIssue } from './SchemaForm';
+import { lintCelPredicate } from './celAuthoring';
+import { readFields } from './previews/object-fields-io';
 
 type ZodLikeSchema = {
   safeParse: (value: unknown) => {
@@ -124,6 +126,60 @@ function nodeTypeAt(draft: unknown, index: number): string | undefined {
   return typeof node?.type === 'string' ? node.type : undefined;
 }
 
+/**
+ * Field conditional-rule keys validated as CEL predicates (ADR-0036 B2,
+ * objectui#1582). The spec's Zod only checks the SHAPE (`string | envelope`);
+ * a syntactically broken predicate round-trips fine and then silently
+ * fail-opens at runtime, so we lint the CEL here — the same
+ * `@objectstack/formula` verdict the field inspector's editor shows live.
+ */
+const FIELD_RULE_KEYS = ['visibleWhen', 'readonlyWhen', 'requiredWhen', 'conditionalRequired'] as const;
+
+/** Extract a predicate's CEL source from either wire shape (string | envelope). */
+function predicateSource(v: unknown): string | null {
+  if (typeof v === 'string') return v;
+  if (v && typeof v === 'object' && typeof (v as { source?: unknown }).source === 'string') {
+    // Only lint envelopes that are (implicitly) CEL — a non-CEL dialect is the
+    // engine's own error to raise, not ours to mis-lint as CEL.
+    const dialect = (v as { dialect?: unknown }).dialect;
+    if (dialect === undefined || dialect === 'cel') return (v as { source: string }).source;
+  }
+  return null;
+}
+
+/**
+ * Lint every field conditional rule on an object draft. Runs with
+ * `scope: 'record'` (fields are namespaced under `record` in these rules) and
+ * reports only lint ERRORS — warnings would be noise at the draft level; the
+ * inline editor already surfaces them where the author can act.
+ */
+async function validateObjectFieldRules(draft: unknown): Promise<SchemaFormIssue[]> {
+  const d = draft as { name?: unknown; fields?: unknown } | null | undefined;
+  const view = readFields(d?.fields);
+  if (view.entries.length === 0) return [];
+  const objectName = typeof d?.name === 'string' ? d.name : undefined;
+  const fieldNames = view.entries.map((e) => e.name);
+  const issues: SchemaFormIssue[] = [];
+  for (let i = 0; i < view.entries.length; i++) {
+    const entry = view.entries[i];
+    const pathKey = view.shape === 'array' ? String(i) : entry.name;
+    for (const key of FIELD_RULE_KEYS) {
+      const source = predicateSource(entry.def[key]);
+      if (source == null || !source.trim()) continue;
+      const findings = await lintCelPredicate(source, {
+        objectName,
+        fields: fieldNames,
+        scope: 'record',
+      });
+      for (const f of findings) {
+        if (f.severity !== 'error') continue;
+        issues.push({ path: `fields.${pathKey}.${key}`, message: f.message });
+      }
+    }
+  }
+  return issues;
+}
+
 const SCHEMA_CACHE = new Map<string, ZodLikeSchema | null>();
 
 async function getSchemaForType(type: string): Promise<ZodLikeSchema | null> {
@@ -182,8 +238,14 @@ export async function validateMetadataDraft(
   const schema = await getSchemaForType(type);
   if (!schema) return { ok: true, issues: [] };
 
+  // CEL lint for object field conditional rules — additive to the Zod shape
+  // check (a draft can be shape-valid yet carry an unparsable predicate).
+  const celIssues = type === 'object' ? await validateObjectFieldRules(draft) : [];
+
   const result = schema.safeParse(draft);
-  if (result.success) return { ok: true, issues: [] };
+  if (result.success) {
+    return celIssues.length > 0 ? { ok: false, issues: celIssues } : { ok: true, issues: [] };
+  }
 
   let rawIssues = result.error?.issues ?? [];
 
@@ -217,11 +279,14 @@ export async function validateMetadataDraft(
       return !(nodeType && FORWARD_COMPAT_FLOW_NODE_TYPES.has(nodeType));
     });
   }
-  if (rawIssues.length === 0) return { ok: true, issues: [] };
+  if (rawIssues.length === 0 && celIssues.length === 0) return { ok: true, issues: [] };
 
-  const issues: SchemaFormIssue[] = rawIssues.map((i) => ({
-    path: (i.path ?? []).map((seg) => String(seg)).join('.'),
-    message: i.message,
-  }));
+  const issues: SchemaFormIssue[] = [
+    ...rawIssues.map((i) => ({
+      path: (i.path ?? []).map((seg) => String(seg)).join('.'),
+      message: i.message,
+    })),
+    ...celIssues,
+  ];
   return { ok: false, issues };
 }

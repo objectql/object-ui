@@ -18,6 +18,7 @@ import {
 import { Plus, Trash2, SlidersHorizontal, Maximize2, Copy, GripVertical } from 'lucide-react';
 import { resolveFieldRuleState } from '@object-ui/core';
 import { LookupField } from './LookupField';
+import { FileCell } from './FileField';
 
 /**
  * GridField / LineItemsField — editable child-grid ("line items") widget.
@@ -30,7 +31,7 @@ import { LookupField } from './LookupField';
  *
  * Column config (a subset of `GridColumnDefinition`):
  *   { field, label?, type?, options?, width?, required?, prefix?, step? }
- *   type ∈ 'text' | 'number' | 'currency' | 'date' | 'select'
+ *   type ∈ 'text' | 'number' | 'currency' | 'date' | 'select' | 'lookup' | 'file'
  *
  * Field-level config (from `GridFieldMetadata`):
  *   columns, min_rows, max_rows, allow_add, allow_delete, total_field
@@ -39,7 +40,7 @@ import { LookupField } from './LookupField';
 export interface GridColumn {
   field: string;
   label?: string;
-  type?: 'text' | 'number' | 'currency' | 'date' | 'select' | 'lookup';
+  type?: 'text' | 'number' | 'currency' | 'date' | 'select' | 'lookup' | 'file';
   options?: Array<{ label: string; value: string }>;
   width?: number;
   required?: boolean;
@@ -49,7 +50,11 @@ export interface GridColumn {
   reference?: string;
   displayField?: string;
   idField?: string;
+  /** Multi-value column: multi-record lookup, or multi-file upload cell. */
   multiple?: boolean;
+  /** For `type: 'file'` — accepted MIME types / extensions for the picker
+   *  (e.g. `['image/*', '.pdf']`). Omit to accept anything. */
+  accept?: string[];
   /**
    * Hidden from the grid by default but revealable via the column chooser.
    * Set by `deriveColumns` for fields beyond the default-visible budget — the
@@ -105,6 +110,7 @@ const MIN_WIDTH_BY_TYPE: Record<string, number> = {
   number: 104,
   currency: 116,
   date: 150,
+  file: 168,
 };
 const minWidthFor = (c: GridColumn): number => c.width ?? MIN_WIDTH_BY_TYPE[c.type ?? 'text'] ?? 132;
 
@@ -252,6 +258,13 @@ export function computeRow(columns: GridColumn[], row: Row): Row {
  *  currency/number → formatted, empty → em dash). Lookups render separately. */
 function displayText(c: GridColumn, value: any): string {
   if (value === null || value === undefined || value === '') return '—';
+  if (c.type === 'file') {
+    const files = Array.isArray(value) ? value : [value];
+    if (files.length === 0) return '—';
+    if (files.length > 1) return `${files.length} files`;
+    const f = files[0];
+    return typeof f === 'string' ? f : f?.name || f?.original_name || 'File';
+  }
   if (c.type === 'select' && Array.isArray(c.options)) {
     const opt = c.options.find((o) => String(o.value) === String(value));
     return opt ? opt.label : String(value);
@@ -613,6 +626,8 @@ export function GridField({
                           readonly
                           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField } as any}
                         />
+                      ) : c.type === 'file' ? (
+                        displayText(c, row[c.field])
                       ) : row[c.field] != null && row[c.field] !== '' ? (
                         String(row[c.field])
                       ) : (
@@ -697,6 +712,21 @@ export function GridField({
           compact
           field={{ reference: c.reference, display_field: c.displayField, id_field: c.idField, multiple: c.multiple, options: c.options, placeholder: '—' } as any}
           disabled={locked}
+        />
+      );
+    }
+    // File / image column → a real upload control in the cell (objectui#2360),
+    // not a text input: chips for uploaded files + a compact picker button.
+    if (c.type === 'file') {
+      return (
+        <FileCell
+          value={val}
+          onChange={(v: any) => setCellValue(rowIdx, c.field, v)}
+          multiple={c.multiple}
+          accept={Array.isArray(c.accept) && c.accept.length > 0 ? c.accept.join(',') : undefined}
+          disabled={locked}
+          aria-label={c.label || c.field}
+          data-cell={`${rowIdx}-${colIdx}`}
         />
       );
     }

@@ -40,7 +40,7 @@ Lives in `packages/types/`. Re-exports spec types and adds ObjectUI-specific sch
 
 ### Layer 3 — Implementations (The Runtime)
 
-All packages that ship runnable code: `core`, `react`, `components`, `fields`, `layout`, `i18n`, `auth`, `permissions`, `tenant`, and every `plugin-*` package.
+All packages that ship runnable code: `core`, `react`, `components`, `fields`, `layout`, `i18n`, `auth`, `permissions`, and every `plugin-*` package.
 
 ## Package Dependency Graph
 
@@ -192,7 +192,6 @@ ObjectUI uses **React Context** for all state management, with contexts scoped t
 |---------|---------|---------|
 | `AuthContext` | `packages/auth/` | Authentication state |
 | `PermissionContext` | `packages/permissions/` | RBAC/ABAC permissions |
-| `TenantContext` | `packages/tenant/` | Multi-tenant isolation |
 | `I18nProvider` | `packages/i18n/` | Locale and translations |
 
 Contexts are composed at the application root and consumed by plugins and components via hooks (e.g., `useActionRunner`, `useExpression`, `useViewData`).
@@ -289,7 +288,6 @@ packages/
 ├── i18n/                # Internationalization
 ├── auth/                # AuthContext + providers
 ├── permissions/         # RBAC/ABAC
-├── tenant/              # Multi-tenancy
 └── plugin-*/            # 20 plugin packages
     ├── plugin-grid/
     ├── plugin-kanban/

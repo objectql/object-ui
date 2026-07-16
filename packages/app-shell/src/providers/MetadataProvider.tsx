@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { type ObjectStackAdapter } from '@object-ui/data-objectstack';
+import { normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { resolveInlineMode } from '@object-ui/plugin-form';
 import { MetadataCtx, useMetadata, type MetadataContextValue, type MetadataState } from '@object-ui/react';
 import { usePreviewDrafts } from '../preview/PreviewModeContext';
@@ -257,7 +258,8 @@ export function attachInlineSubforms(objects: any[]): any[] {
       const d: any = fdef;
       if (!fname || !d?.inlineEdit) continue;
       if (d.type !== 'master_detail' && d.type !== 'lookup') continue;
-      const parent = d.reference;
+      // Served schemas use `reference`; ObjectUI-authored defs use `reference_to`.
+      const parent = d.reference ?? d.reference_to;
       if (!parent) continue;
       (inlineByParent[parent] ||= []).push({
         childObject: child.name,
@@ -400,6 +402,13 @@ export function MetadataProvider({ children, adapter, ttlMs = DEFAULT_TTL_MS }: 
       const promise = fetchItems
         .then((res: unknown) => {
           const items = extractItems(res);
+          // Canonicalize `reference` ↔ `reference_to` on object field defs at
+          // ingestion (the store-side choke point, mirroring the adapter's
+          // getObjectSchema pass) so `useMetadata().objects` consumers can
+          // read either key (#2407 / PR #2587). Idempotent, in place.
+          if (type === 'object') {
+            for (const it of items) normalizeSchemaReferenceKeys(it);
+          }
           entry.items = items;
           entry.status = 'ready';
           entry.error = null;

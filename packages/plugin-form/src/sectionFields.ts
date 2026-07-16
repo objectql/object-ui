@@ -131,7 +131,13 @@ export function normalizeSectionField(
   if (fd.span != null) base.span = fd.span;
   if (fd.options != null) base.options = fd.options;
   if (fd.multiple != null) base.multiple = fd.multiple;
-  if (fd.reference != null) base.reference = fd.reference;
+  // Spec canon for the lookup target is `reference_to` (views.zod.ts); accept
+  // both spellings and stamp both keys so dual-key readers see the override.
+  const refOverride = fd.reference ?? fd.reference_to;
+  if (refOverride != null) {
+    base.reference = refOverride;
+    base.reference_to = refOverride;
+  }
   if (fd.maxLength != null) base.maxLength = fd.maxLength;
   if (fd.minLength != null) base.minLength = fd.minLength;
   if (fd.min != null) base.min = fd.min;

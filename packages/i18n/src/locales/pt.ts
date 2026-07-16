@@ -105,6 +105,9 @@ const pt = {
     deleteSuccess: "{{object}} excluído",
   },
   fields: {
+    relativeDate: {
+      overdue: "Atrasado {{count}} d",
+    },
     richText: {
       format: "Formato: {{format}}",
       basicEditorHint: "Editor de texto rico (básico)",

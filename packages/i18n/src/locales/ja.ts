@@ -105,6 +105,9 @@ const ja = {
     deleteSuccess: "{{object}}が削除されました",
   },
   fields: {
+    relativeDate: {
+      overdue: "期限超過 {{count}}日",
+    },
     richText: {
       format: "フォーマット: {{format}}",
       basicEditorHint: "リッチテキストエディター（基本）",
@@ -510,6 +513,8 @@ const ja = {
     deleteRowTitle: "レコードを削除",
     createdBy: "作成者",
     updatedBy: "更新者",
+    created: "作成",
+    updated: "更新",
     showEmptyRelated_one: "+ {{count}} 件（空）",
     showEmptyRelated_other: "+ {{count}} 件（空）",
     copyEmail: "メールをコピー",

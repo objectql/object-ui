@@ -319,6 +319,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.widget.values': 'Values (measures)',
   'engine.inspector.widget.valuesPlaceholder': 'e.g. revenue, deal_count (comma-separated)',
   'engine.inspector.widget.valuesHint': 'Dataset measure names to show.',
+  // Dashboard filter bindings (framework#2501)
+  'engine.inspector.widget.filterBindingsSection': 'Dashboard filter bindings',
+  'engine.inspector.widget.filterBindingsHint':
+    'Map each dashboard-level filter to one of this widget’s own fields, or untick Apply to opt the widget out. Empty = the filter’s own field.',
+  'engine.inspector.widget.filterBindingApply': 'Apply',
+  'engine.inspector.widget.filterBindingDefault': 'Default ({field})',
+  'engine.inspector.widget.filterBindingReset': 'Reset',
   // Flow node inspector
   'engine.inspector.flowNode.kind': 'Node',
   'engine.inspector.flowNode.close': 'Close node',
@@ -445,6 +452,9 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.view.cf.remove': 'Remove rule',
   'engine.inspector.view.cf.moveUp': 'Move up',
   'engine.inspector.view.cf.moveDown': 'Move down',
+  // ConditionBuilder raw-expression mode (CEL editor, #1582)
+  'engine.condition.celLabel': 'CEL expression',
+  'engine.condition.advancedHint': 'Advanced expression — Builder only supports simple AND/OR conditions.',
   'engine.inspector.view.type.grid': 'Table / List',
   'engine.inspector.view.type.kanban': 'Kanban',
   'engine.inspector.view.type.calendar': 'Calendar',
@@ -976,8 +986,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.helpText': 'Help text',
   'designer.field.helpTextPlaceholder': 'Shown below the field on the form',
   'designer.field.minLength': 'Min length',
-  'designer.field.conditionalRequired': 'Required when (CEL)',
-  'designer.field.conditionalRequiredHint': 'Field becomes required when this predicate is true.',
+  'designer.field.conditionalRules': 'Conditional rules (CEL)',
+  'designer.field.visibleWhen': 'Visible when',
+  'designer.field.readonlyWhen': 'Read-only when',
+  'designer.field.requiredWhen': 'Required when',
+  'designer.field.conditionalRulesHint':
+    'While a predicate is true the field becomes visible / read-only / required. Reference the live record as record.<field>, the last saved values as previous.<field>, and (in master-detail line items) the header record as parent.<field>.',
   // Bulk multi-select (Tier 2)
   'designer.canvas.bulkSelected': '{n} selected',
   'designer.canvas.bulkMoveTo': 'Move to section',
@@ -1240,7 +1254,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.readOnlyPackage': 'This package is read-only — switch to or create a writable package to add objects',
   'engine.studio.data.firstObjectTitle': 'Start with your first object',
   'engine.studio.data.firstObjectHint':
-    'Objects are your app’s data foundation (e.g. “Orders”, “Customers”). Enter a display name and identifier at the bottom-left to create one; then design its fields, forms, and automations, and publish once at the end.',
+    'Objects are your app’s data foundation (e.g. “Orders”, “Customers”). Create one below; then design its fields, forms, and automations, and publish once at the end.',
   'engine.studio.data.tab.records': 'Records',
   'engine.studio.data.tab.form': 'Form',
   'engine.studio.data.tab.rules': 'Validations',
@@ -1643,6 +1657,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.widget.values': '值（度量）',
   'engine.inspector.widget.valuesPlaceholder': '例如：revenue, deal_count（逗号分隔）',
   'engine.inspector.widget.valuesHint': '要展示的数据集度量名。',
+  // Dashboard filter bindings (framework#2501)
+  'engine.inspector.widget.filterBindingsSection': '仪表盘过滤器绑定',
+  'engine.inspector.widget.filterBindingsHint':
+    '把每个仪表盘级过滤器映射到本组件自己的字段；取消勾选「应用」可让本组件不受该过滤器影响。留空表示使用过滤器自身的字段。',
+  'engine.inspector.widget.filterBindingApply': '应用',
+  'engine.inspector.widget.filterBindingDefault': '默认（{field}）',
+  'engine.inspector.widget.filterBindingReset': '恢复默认',
   // Flow node inspector
   'engine.inspector.flowNode.kind': '节点',
   'engine.inspector.flowNode.close': '关闭节点',
@@ -1768,6 +1789,9 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.view.cf.remove': '删除规则',
   'engine.inspector.view.cf.moveUp': '上移',
   'engine.inspector.view.cf.moveDown': '下移',
+  // ConditionBuilder 裸表达式模式（CEL 编辑器，#1582）
+  'engine.condition.celLabel': 'CEL 表达式',
+  'engine.condition.advancedHint': '高级表达式 —— 搭建器仅支持简单的 AND/OR 条件。',
   'engine.inspector.view.type.grid': '表格 / 列表',
   'engine.inspector.view.type.kanban': '看板',
   'engine.inspector.view.type.calendar': '日历',
@@ -2292,8 +2316,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.helpText': '帮助文本',
   'designer.field.helpTextPlaceholder': '显示在表单字段下方',
   'designer.field.minLength': '最小长度',
-  'designer.field.conditionalRequired': '条件必填 (CEL)',
-  'designer.field.conditionalRequiredHint': '当此表达式为真时，该字段变为必填。',
+  'designer.field.conditionalRules': '条件规则 (CEL)',
+  'designer.field.visibleWhen': '可见条件',
+  'designer.field.readonlyWhen': '只读条件',
+  'designer.field.requiredWhen': '必填条件',
+  'designer.field.conditionalRulesHint':
+    '表达式为真时字段相应地变为可见 / 只读 / 必填。用 record.<字段> 引用当前记录，previous.<字段> 引用最近保存的值，parent.<字段>（主从明细行）引用表头记录。',
   // Bulk multi-select (Tier 2)
   'designer.canvas.bulkSelected': '已选 {n} 项',
   'designer.canvas.bulkMoveTo': '移至分组',
@@ -2555,7 +2583,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.readOnlyPackage': '此包为只读——请切换到或新建一个可写的包后再添加对象',
   'engine.studio.data.firstObjectTitle': '从第一个对象开始',
   'engine.studio.data.firstObjectHint':
-    '对象是应用的数据基座(如「订单」「客户」)。在左下角输入显示名与标识符即可创建;之后为它设计字段、表单与自动化,最后一次发布。',
+    '对象是应用的数据基座(如「订单」「客户」)。点击下方按钮创建一个;之后为它设计字段、表单与自动化,最后一次发布。',
   'engine.studio.data.tab.records': '记录',
   'engine.studio.data.tab.form': '表单',
   'engine.studio.data.tab.rules': '验证',

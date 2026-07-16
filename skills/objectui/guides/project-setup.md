@@ -79,12 +79,11 @@ Add plugins as needed (full plugin catalog):
 }
 ```
 
-Opt-in platform packages (auth, multi-tenancy, i18n, mobile, realtime):
+Opt-in platform packages (auth, i18n, mobile, realtime):
 ```json
 {
   "@object-ui/auth": "latest",
   "@object-ui/permissions": "latest",
-  "@object-ui/tenant": "latest",
   "@object-ui/i18n": "latest",
   "@object-ui/mobile": "latest",
   "@object-ui/collaboration": "latest"

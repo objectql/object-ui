@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
+import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { usePermissions } from '@object-ui/permissions';
@@ -1513,9 +1513,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // to their name. Empty → undefined below, so the synthesizer
     // auto-derives instead.
     const rawHighlightFields = (objectDef as any).highlightFields ?? [];
+    // Drop the record's title field: it is the page H1 and repeating it as
+    // the first chip duplicated the name, truncated, right under the
+    // heading. Mirrors deriveHighlightFields' declared-list handling —
+    // this pre-computed list bypasses that derivation (#2548).
+    const titleField = resolveTitleField(objectDef as any);
     const highlightFields: string[] = (Array.isArray(rawHighlightFields) ? rawHighlightFields : [])
       .map((f: any) => (typeof f === 'string' ? f : f?.name))
-      .filter((n: any): n is string => typeof n === 'string' && n.length > 0);
+      .filter((n: any): n is string => typeof n === 'string' && n.length > 0 && n !== titleField);
 
     // Related child lists from reverse-reference relationships, in
     // `buildDefaultPageSchema`'s `related` shape. `relationshipField` is
@@ -1626,6 +1631,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // System actions (Edit / Share / Delete) — synthesized for every record
   // page so objects without authored record_header actions still surface
   // the basic affordances.
+  //
+  // Placement metadata (objectui#2361): the page header now renders up to
+  // `maxVisible` inline buttons sorted by `order` (lower = more prominent).
+  // Authored business actions default to `order: 0`, so giving the system
+  // set high orders (100+) keeps them behind every business action, and
+  // `component: 'action:menu'` pins Share/Delete inside the `⋯` overflow
+  // menu permanently — Delete must never surface as an inline red button
+  // just because an object has few actions.
   const synthSystemActions: ActionDef[] = (() => {
     const affordances = resolveCrudAffordances(objectDef as any);
     const items: ActionDef[] = [];
@@ -1641,6 +1654,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         type: 'script',
         locations: ['record_header'],
         variant: 'default',
+        order: 100,
         onClick: () => onEdit({ id: pureRecordId }),
       } as any);
     }
@@ -1650,6 +1664,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       type: 'script',
       locations: ['record_header'],
       variant: 'outline',
+      order: 110,
+      component: 'action:menu',
       onClick: async () => {
         try {
           if ((navigator as any).share) {
@@ -1684,6 +1700,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         type: 'script',
         locations: ['record_header'],
         variant: 'destructive',
+        order: 120,
+        component: 'action:menu',
         onClick: async () => {
           const msg = t('detail.deleteConfirmation', {
             defaultValue: 'Are you sure you want to delete this record?',

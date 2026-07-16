@@ -17,6 +17,7 @@ import { UserFilters } from './UserFilters';
 import { SchemaRenderer, useNavigationOverlay } from '@object-ui/react';
 import { useDensityMode } from '@object-ui/react';
 import type { ListViewSchema } from '@object-ui/types';
+import { detectStatusField } from '@object-ui/types';
 import { usePullToRefresh } from '@object-ui/mobile';
 import { resolveConditionalFormatting, buildExpandFields, buildExportFileName } from '@object-ui/core';
 import { useObjectTranslation, useObjectLabel, useSafeFieldLabel } from '@object-ui/i18n';
@@ -112,6 +113,37 @@ export function normalizeFilterCondition(condition: any[]): any[] {
  * Format an action identifier string into a human-readable label.
  * e.g., 'send_email' → 'Send Email'
  */
+/**
+ * Normalize a view's `sort` declaration to SortItem[]. @objectstack/spec
+ * ListViewSchema.sort is `string | Array<{ field, order }>` — the TOP-LEVEL
+ * value may be a bare string ("name desc"); array entries may be strings
+ * (legacy "field desc") or `{ field, order }` objects. Calling `.map` on the
+ * bare-string form threw "schema.sort.map is not a function" and crashed the
+ * list (spec/renderer shape-mismatch audit, objectui#2578 follow-up).
+ */
+export function parseSortConfig(sort: unknown): SortItem[] {
+  const entries = typeof sort === 'string' ? [sort] : Array.isArray(sort) ? sort : [];
+  const items: SortItem[] = [];
+  for (const s of entries) {
+    if (typeof s === 'string') {
+      const parts = s.trim().split(/\s+/);
+      if (!parts[0]) continue;
+      items.push({
+        id: crypto.randomUUID(),
+        field: parts[0],
+        order: (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc',
+      });
+    } else if (s && typeof s === 'object' && typeof (s as any).field === 'string') {
+      items.push({
+        id: crypto.randomUUID(),
+        field: (s as any).field,
+        order: ((s as any).order as 'asc' | 'desc') || 'asc',
+      });
+    }
+  }
+  return items;
+}
+
 function formatActionLabel(action: string): string {
   return action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
@@ -227,12 +259,6 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.viewSettingsHint': 'Grouping, color, density, and visible fields.',
 };
 
-// Stable module-level fallback used when no I18nProvider is mounted.
-// Reusing the same function reference across renders keeps downstream
-// `useCallback`/`useMemo` deps stable (otherwise filterFields and tFieldLabel
-// would invalidate every render in the no-provider case).
-const FALLBACK_FIELD_LABEL = (_objectName: string, _fieldName: string, fallback: string) => fallback;
-
 const fallbackListT = (key: string, options?: Record<string, unknown>) => {
   let value = LIST_DEFAULT_TRANSLATIONS[key] || key;
   if (options) {
@@ -262,15 +288,15 @@ function useListViewTranslation() {
 }
 
 /**
- * Safe wrapper for useObjectLabel that falls back to identity when I18nProvider is unavailable.
+ * Thin selector over useObjectLabel. The underlying hook is provider-safe
+ * (optional context + global i18n fallback), so no try/catch — wrapping a
+ * hook call in try/catch violates rules-of-hooks: a throw after other hooks
+ * ran would desync hook order on the next render (same fix as
+ * fields#useFieldLabel, objectui#2595).
  */
 function useListFieldLabel() {
-  try {
-    const { fieldLabel, actionLabel, objectLabel } = useObjectLabel();
-    return { fieldLabel, actionLabel, objectLabel };
-  } catch {
-    return { fieldLabel: FALLBACK_FIELD_LABEL, actionLabel: undefined as any, objectLabel: undefined as any };
-  }
+  const { fieldLabel, actionLabel, objectLabel } = useObjectLabel();
+  return { fieldLabel, actionLabel, objectLabel };
 }
 
 /**
@@ -381,27 +407,9 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   
   // Sort State
   const [showSort, setShowSort] = React.useState(false);
-  const [currentSort, setCurrentSort] = React.useState<SortItem[]>(() => {
-    if (schema.sort && schema.sort.length > 0) {
-      return schema.sort.map((s: any) => {
-        // Support legacy string format "field desc"
-        if (typeof s === 'string') {
-          const parts = s.trim().split(/\s+/);
-          return {
-            id: crypto.randomUUID(),
-            field: parts[0],
-            order: (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc',
-          };
-        }
-        return {
-          id: crypto.randomUUID(),
-          field: s.field,
-          order: (s.order as 'asc' | 'desc') || 'asc',
-        };
-      });
-    }
-    return [];
-  });
+  const [currentSort, setCurrentSort] = React.useState<SortItem[]>(() =>
+    parseSortConfig(schema.sort),
+  );
 
   // Sync when parent schema.sort changes (view switch / reload pulls a
   // saved override). Compare by stringified payload to avoid render loops.
@@ -410,27 +418,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     [schema.sort]
   );
   React.useEffect(() => {
-    if (schema.sort && schema.sort.length > 0) {
-      setCurrentSort(
-        schema.sort.map((s: any) => {
-          if (typeof s === 'string') {
-            const parts = s.trim().split(/\s+/);
-            return {
-              id: crypto.randomUUID(),
-              field: parts[0],
-              order: (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as 'asc' | 'desc',
-            };
-          }
-          return {
-            id: crypto.randomUUID(),
-            field: s.field,
-            order: (s.order as 'asc' | 'desc') || 'asc',
-          };
-        })
-      );
-    } else {
-      setCurrentSort([]);
-    }
+    setCurrentSort(parseSortConfig(schema.sort));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schemaSortKey]);
 
@@ -1347,8 +1335,16 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         return {
           type: 'object-kanban',
           ...baseProps,
-          groupBy: schema.kanban?.groupField || schema.options?.kanban?.groupField || 'status',
-          groupField: schema.kanban?.groupField || schema.options?.kanban?.groupField || 'status',
+          // ADR-0085: no explicit lane field → the object's declared
+          // lifecycle (`stageField`, incl. strict-false suppression) via the
+          // shared detector — mirrors ObjectView's default so a schema that
+          // omits groupField behaves the same on both entry paths. objectDef
+          // loads async: until it lands this stays undefined and the board
+          // re-derives lanes once it does.
+          groupBy: schema.kanban?.groupField || schema.options?.kanban?.groupField
+            || detectStatusField(objectDef) || undefined,
+          groupField: schema.kanban?.groupField || schema.options?.kanban?.groupField
+            || detectStatusField(objectDef) || undefined,
           ...(schema.kanban?.titleField || schema.options?.kanban?.titleField
             ? { titleField: schema.kanban?.titleField || schema.options?.kanban?.titleField }
             : {}),
@@ -1492,7 +1488,10 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
         };
       }
     }
-  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit]);
+  // objectDef is in the deps because the kanban default lane field derives
+  // from it (ADR-0085 stageField) and it loads async — without it the board
+  // would keep the null-def result forever.
+  }, [currentView, schema, currentSort, effectiveFields, groupingConfig, rowColorConfig, navigation.handleClick, density.mode, galleryCardSize, inlineEdit, objectDef]);
 
   const hasFilters = currentFilters.conditions && currentFilters.conditions.length > 0;
 

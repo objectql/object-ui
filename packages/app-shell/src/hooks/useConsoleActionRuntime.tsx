@@ -66,6 +66,22 @@ function isRecordScoped(action: ActionDef): boolean {
     l === 'list_item' || l === 'record_header' || l === 'record_more' || l === 'record_section');
 }
 
+/**
+ * Extract a human-readable message from an error response body. The
+ * ObjectStack envelope nests it as `{ error: { code, message } }` — passing
+ * that object through as `ActionResult.error` reaches `toast.error()` as a
+ * React child and crashes the page (React #31). Always resolve to a string.
+ */
+function errorDetail(body: unknown, fallback: string): string {
+  const b = body as { error?: unknown; message?: unknown } | null;
+  const err = b?.error;
+  if (typeof err === 'string' && err.length > 0) return err;
+  const nested = (err as { message?: unknown } | null)?.message;
+  if (typeof nested === 'string' && nested.length > 0) return nested;
+  if (typeof b?.message === 'string' && b.message.length > 0) return b.message;
+  return fallback;
+}
+
 export interface ConsoleActionRuntimeOptions {
   /** Adapter for generic CRUD / execute calls. */
   dataSource: any;
@@ -312,8 +328,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
             openEntitlementDialog(entitlementSpec);
             return { success: false };
           }
-          const detail = (body as any)?.error || (body as any)?.message || `HTTP ${res.status}`;
-          return { success: false, error: detail };
+          return { success: false, error: errorDetail(body, `HTTP ${res.status}`) };
         }
         const json = await res.json().catch(() => ({}));
         if (action.refreshAfter !== false) refresh();
@@ -437,8 +452,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       );
       const json = await res.json().catch(() => null);
       if (!res.ok || (json && json.success === false)) {
-        const errMsg = json?.error || `Flow "${flowName}" failed (HTTP ${res.status})`;
-        return { success: false, error: errMsg };
+        return { success: false, error: errorDetail(json, `Flow "${flowName}" failed (HTTP ${res.status})`) };
       }
       // Screen-flow runtime: paused at a `screen` node awaiting input — open
       // the FlowRunner to render the form + resume. Refresh happens on complete.
@@ -556,7 +570,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
       );
       const json = await res.json().catch(() => null);
       if (!res.ok || (json && json.success === false)) {
-        const errMsg = json?.error || `Action "${targetName}" failed (HTTP ${res.status})`;
+        const errMsg = errorDetail(json, `Action "${targetName}" failed (HTTP ${res.status})`);
         if (preOpenedTab) { try { preOpenedTab.close(); } catch { /* ignore */ } }
         // Don't toast here — the ActionRunner's post-execution hook surfaces
         // `error` as a toast (see apiHandler/flowHandler, which likewise only

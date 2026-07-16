@@ -1,22 +1,21 @@
 ---
 name: objectui-auth-permissions
-description: Implement authentication, authorization, and role-based access control in Object UI apps. Use this skill when the user asks to add login/signup flows, protect routes with auth guards, implement RBAC (role-based access control), configure field-level or row-level permissions, set up multi-tenancy with tenant branding, integrate auth tokens with data fetching, or debug permission evaluation. Also applies when the user mentions AuthProvider, PermissionProvider, TenantProvider, user roles, access control, or "only admins should see this".
+description: Implement authentication, authorization, and role-based access control in Object UI apps. Use this skill when the user asks to add login/signup flows, protect routes with auth guards, implement RBAC (role-based access control), configure field-level or row-level permissions, integrate auth tokens with data fetching, or debug permission evaluation. Also applies when the user mentions AuthProvider, PermissionProvider, user roles, access control, or "only admins should see this".
 ---
 
 # ObjectUI Auth & Permissions
 
-Use this skill to implement authentication, authorization, and multi-tenancy in Object UI applications. The auth system is built on three independent but composable packages: `@object-ui/auth`, `@object-ui/permissions`, and `@object-ui/tenant`.
+Use this skill to implement authentication and authorization in Object UI applications. The auth system is built on two independent but composable packages: `@object-ui/auth` and `@object-ui/permissions`.
 
 ## Architecture
 
 ```
 ┌────────────────────────────────┐
-│  TenantProvider                │  ← Multi-tenancy context
-│  ├── AuthProvider              │  ← Authentication state
-│  │   ├── PermissionProvider    │  ← RBAC evaluation
-│  │   │   └── App Content       │
-│  │   │       └── AuthGuard     │  ← Route protection
-│  │   │           └── Pages     │
+│  AuthProvider                  │  ← Authentication state
+│  ├── PermissionProvider        │  ← RBAC evaluation
+│  │   └── App Content           │
+│  │       └── AuthGuard         │  ← Route protection
+│  │           └── Pages         │
 ```
 
 Each provider is optional. Use only what you need.
@@ -257,79 +256,13 @@ Then in schema:
 }
 ```
 
-## Multi-tenancy (`@object-ui/tenant`)
+## Multi-tenancy
 
-### TenantProvider setup
-
-```typescript
-import { TenantProvider } from '@object-ui/tenant';
-
-function App() {
-  return (
-    <TenantProvider
-      tenant={{
-        id: 'acme-corp',
-        name: 'ACME Corporation',
-        branding: {
-          companyName: 'ACME Corp',
-          primaryColor: '#2563eb',
-          logo: '/logos/acme.svg',
-        },
-      }}
-      fetchTenant={async (tenantId) => {
-        const res = await fetch(`/api/tenants/${tenantId}`);
-        return res.json();
-      }}
-    >
-      <AppContent />
-    </TenantProvider>
-  );
-}
-```
-
-### useTenant hook
-
-```typescript
-import { useTenant, useTenantBranding } from '@object-ui/tenant';
-
-function Header() {
-  const { tenant, switchTenant } = useTenant();
-  const branding = useTenantBranding();
-
-  return (
-    <header style={{ backgroundColor: branding.primaryColor }}>
-      <img src={branding.logo} alt={branding.companyName} />
-      <h1>{branding.companyName}</h1>
-    </header>
-  );
-}
-```
-
-### TenantBranding defaults
-
-```typescript
-interface TenantBranding {
-  companyName: string;      // default: 'ObjectUI'
-  primaryColor: string;     // default: '#3b82f6'
-  secondaryColor: string;   // default: '#64748b'
-  logo?: string;
-  favicon?: string;
-  // ... additional theme overrides
-}
-```
-
-### Tenant-scoped data queries
-
-```typescript
-import { TenantScopedQuery } from '@object-ui/tenant';
-
-// Automatically adds tenant filter to all queries
-<TenantScopedQuery>
-  <SchemaRendererProvider dataSource={dataSource}>
-    <SchemaRenderer schema={schema} />
-  </SchemaRendererProvider>
-</TenantScopedQuery>
-```
+There is no client-side tenancy layer. Tenant scoping is server-enforced:
+`createAuthenticatedFetch` (`@object-ui/auth`) injects the active
+organization as the `X-Tenant-ID` header on every API call, and the backend
+applies row-level isolation. Per-tenant branding is a `ThemeSchema` concern
+(see the theming guide), not an auth concern.
 
 ## Provider composition pattern
 
@@ -337,19 +270,17 @@ Here's the typical nesting order for a full-featured app:
 
 ```typescript
 <BrowserRouter>
-  <TenantProvider tenant={tenantConfig}>
-    <AuthProvider authClient={authClient}>
-      <PermissionProvider roles={roles} permissions={perms} userRoles={userRoles}>
-        <SchemaRendererProvider dataSource={authenticatedDataSource}>
-          <AuthGuard fallback={<LoginPage />}>
-            <AppShell>
-              <Routes>...</Routes>
-            </AppShell>
-          </AuthGuard>
-        </SchemaRendererProvider>
-      </PermissionProvider>
-    </AuthProvider>
-  </TenantProvider>
+  <AuthProvider authClient={authClient}>
+    <PermissionProvider roles={roles} permissions={perms} userRoles={userRoles}>
+      <SchemaRendererProvider dataSource={authenticatedDataSource}>
+        <AuthGuard fallback={<LoginPage />}>
+          <AppShell>
+            <Routes>...</Routes>
+          </AppShell>
+        </AuthGuard>
+      </SchemaRendererProvider>
+    </PermissionProvider>
+  </AuthProvider>
 </BrowserRouter>
 ```
 

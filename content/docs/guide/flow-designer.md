@@ -107,6 +107,14 @@ For node types whose engine executor publishes a `configSchema` (ADR-0018), the
 inspector renders a **server-driven property form** from that schema — so a
 plugin's node gets a real config UI without the designer hardcoding its fields.
 
+A **Decision** node's Branches editor defines each branch's label, CEL
+expression, **and target node** in one table: the **Target** column picks the
+downstream node, wiring (creating, retargeting, or detaching) the branch's
+outgoing edge with its condition, label, and default flag. The same binding can
+also be edited from the edge side — select a connector and use its **Branch**
+picker — and the two stay in sync, because the routing always lives on the
+edges.
+
 ## Validate, simulate, inspect runs
 
 The toolbar toggles four side panels:

@@ -23,6 +23,7 @@ import { useRecordContext, useAction, usePredicateScope, usePageVariables } from
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
+import { useIsMobile } from '../../hooks/use-mobile';
 import {
   Tabs,
   TabsList,
@@ -755,6 +756,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // action was silently filtered out.
   const predicateScope = usePredicateScope();
   const { execute } = useAction();
+  const isMobile = useIsMobile();
   const { objectLabel: tObjectLabel, actionLabel: tActionLabel } = useObjectLabel();
   const { fieldOptionLabel } = useSafeFieldLabel();
   const { language } = useObjectTranslation();
@@ -897,7 +899,24 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       if (key) seen.add(key);
       out.push(a);
     }
-    return out;
+    // Order the merged list before the inline/overflow split — the same rule
+    // action:bar applies (objectui#2339):
+    //   1. `order` ascending (unset = 0; lower = more prominent)
+    //   2. `variant === 'primary'` as a tie-break within equal order
+    //   3. original registration order (stable) for the remaining ties
+    // This is what lets metadata declare which actions claim the inline
+    // button slots vs. the `⋯` overflow menu (objectui#2361).
+    const needsOrdering = out.some(
+      (a) => a?.order !== undefined || a?.variant === 'primary',
+    );
+    if (!needsOrdering) return out;
+    return [...out].sort((a, b) => {
+      const byOrder = (a?.order ?? 0) - (b?.order ?? 0);
+      if (byOrder !== 0) return byOrder;
+      const ap = a?.variant === 'primary' ? 0 : 1;
+      const bp = b?.variant === 'primary' ? 0 : 1;
+      return ap - bp; // equal → stable sort preserves registration order
+    });
   }, [rawHeaderActions, hostSystemActions, ctx?.data, predicateScope]);
 
   const renderHeaderActions = () => {
@@ -911,15 +930,29 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       if (!key) return fallback;
       return tActionLabel(ctx?.objectName, key, fallback);
     };
-    // Collapse secondary actions into a `⋯` overflow menu when more than 2
-    // actions are present. The first 1 action (typically the primary
-    // business action, e.g. "克隆商机") stays inline; everything else
-    // becomes a dropdown item. This keeps the header from drowning in 4–5
-    // buttons (Clone + Edit + Share + Delete + …) on every record page.
-    const INLINE_MAX = 1;
-    const useOverflow = headerActions.length > INLINE_MAX + 1;
-    const inlineActions = useOverflow ? headerActions.slice(0, INLINE_MAX) : headerActions;
-    const overflowActions = useOverflow ? headerActions.slice(INLINE_MAX) : [];
+    // Inline/overflow split (objectui#2361) — up to `maxVisible` actions
+    // render side-by-side as buttons; the rest collapse into a `⋯` overflow
+    // menu. Which actions stay inline is metadata-driven:
+    //   1. `component: 'action:menu'` forces an action into the `⋯` menu
+    //      regardless of the count (chrome actions like Share/Delete);
+    //   2. the remainder is pre-sorted by `order` / `variant: 'primary'`
+    //      (see the headerActions memo above), so the first `maxVisible`
+    //      claim the inline slots.
+    // `maxVisible` / `mobileMaxVisible` are overridable on the page:header
+    // schema and default to 3 / 1 — the same contract as action:bar. This
+    // still keeps the header from drowning in 4–5 buttons on every record
+    // page, while letting multi-action objects surface several primary
+    // buttons at once.
+    const readMax = (v: any): number | undefined =>
+      typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : undefined;
+    const maxVisible = isMobile
+      ? (readMax(schema?.mobileMaxVisible ?? schema?.properties?.mobileMaxVisible) ?? 1)
+      : (readMax(schema?.maxVisible ?? schema?.properties?.maxVisible) ?? 3);
+    const menuOnly = headerActions.filter((a: any) => a?.component === 'action:menu');
+    const buttonable = headerActions.filter((a: any) => a?.component !== 'action:menu');
+    const inlineActions = buttonable.slice(0, maxVisible);
+    const overflowActions = [...buttonable.slice(maxVisible), ...menuOnly];
+    const useOverflow = overflowActions.length > 0;
     // Resolve a `disabled` predicate against the record. Mirrors the `visible`
     // evaluation above — a boolean OR a CEL expression (`'record.status == …'`
     // or the `{ dialect, source }` envelope). Without this a CEL `disabled`
@@ -941,7 +974,9 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
     };
     const renderButton = (action: any, idx: number) => {
       const label = resolveLabel(action, idx);
-      const variant = action.variant || 'default';
+      // `variant: 'primary'` is valid ActionSchema but not a Shadcn Button
+      // variant — map it to `default` (same as action-button.tsx).
+      const variant = action.variant === 'primary' ? 'default' : (action.variant || 'default');
       const size = action.size || 'sm';
       const disabled = resolveDisabled(action.disabled);
       const icon = typeof action.icon === 'string' ? action.icon : null;
@@ -986,7 +1021,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               {overflowActions.map((action, idx) => {
-                const label = resolveLabel(action, idx + INLINE_MAX);
+                const label = resolveLabel(action, idx + inlineActions.length);
                 const disabled = resolveDisabled(action.disabled);
                 const icon = typeof action.icon === 'string' ? action.icon : null;
                 const isDestructive =

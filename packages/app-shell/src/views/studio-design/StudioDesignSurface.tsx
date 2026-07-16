@@ -1846,7 +1846,9 @@ function renderStudioGridList(props: {
   );
 }
 
-function DataPillar({
+// Exported for tests (StudioDesignSurface.emptyPackage.test.tsx) — the empty-
+// package behavior (no forced creator modal, empty-state CTA) lives here.
+export function DataPillar({
   packageId,
   publishNonce = 0,
   onDraftSaved,
@@ -1961,9 +1963,10 @@ function DataPillar({
         // actually have; otherwise open the first object as before.
         const deepLinked = resolveSurfaceDeepLink(items, initialSurface, 'object');
         setCurrent((c) => c ?? deepLinked ?? items[0] ?? null);
-        // First-run: an empty writable package opens the creator right away —
-        // the first thing to do here is make an object, so put the inputs up.
-        if (items.length === 0 && !readOnly) setCreating(true);
+        // An empty writable package does NOT auto-open the creator dialog —
+        // it used to, which forced an unrequested modal on EVERY visit to an
+        // empty package (dogfood #2555). The empty-state panel carries the
+        // create CTA instead.
       } catch (e) {
         if (!cancelled) setError(formatMetadataError(e));
       } finally {
@@ -2279,12 +2282,25 @@ function DataPillar({
           {!current ? (
             objectsLoaded && objects.length === 0 ? (
               /* Fresh package: the first act is creating an object — say so and
-               * point at the rail creator (already auto-opened). */
+               * offer the creator right here (no auto-opened modal, dogfood #2555). */
               <div className="flex flex-col items-center gap-2 py-16 text-center">
                 <p className="text-sm font-medium">{t('engine.studio.data.firstObjectTitle', locale)}</p>
                 <p className="max-w-sm text-[11px] leading-5 text-muted-foreground">
                   {t('engine.studio.data.firstObjectHint', locale)}
                 </p>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    data-testid="empty-state-new-object"
+                    onClick={() => {
+                      setError(null);
+                      setCreating(true);
+                    }}
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> {t('engine.studio.data.newObject', locale)}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="py-16 text-center text-sm text-muted-foreground">{t('engine.studio.data.pickObject', locale)}</div>
@@ -3070,7 +3086,8 @@ function AutomationsPillar({
  * leaving other packages' contributed rows untouched (P0). Save writes a package
  * DRAFT and publishes with the whole package via the top-bar Publish (P2, D6).
  */
-function AccessPillar({
+// Exported for tests — routed only through StudioDesignSurface in production.
+export function AccessPillar({
   packageId,
   publishNonce,
   onDraftSaved,
@@ -3120,6 +3137,18 @@ function AccessPillar({
   const [busy, setBusy] = React.useState(false);
   // [ADR-0090 D6] "why can this user access?" — right-side explain sheet.
   const [explainOpen, setExplainOpen] = React.useState(false);
+  // The matrix page below is keyed by `current` (and unmounts entirely when
+  // the OWD overview swaps in), so any rail-driven surface change REMOUNTS it
+  // and would silently discard unsaved matrix edits. The editor reports its
+  // dirty state up (`onDirtyChange`), and every swap is gated on this confirm
+  // — same native prompt as the metadata editor's leave guard. The editor
+  // resets its report on unmount, so a confirmed discard clears `matrixDirty`
+  // by itself.
+  const [matrixDirty, setMatrixDirty] = React.useState(false);
+  const confirmDiscardMatrixEdits = React.useCallback(() => {
+    if (!matrixDirty) return true;
+    return window.confirm(t('engine.edit.unsavedLeaveConfirm', locale));
+  }, [matrixDirty, locale]);
 
   const load = React.useCallback(async () => {
     try {
@@ -3293,6 +3322,7 @@ function AccessPillar({
             <button
               type="button"
               onClick={() => {
+                if (!confirmDiscardMatrixEdits()) return;
                 setOwdOpen(true);
                 setOwdHighlight(null);
                 if (isMobile) setRailOpen(false);
@@ -3325,6 +3355,13 @@ function AccessPillar({
               <button
                 key={p.name}
                 onClick={() => {
+                  // Re-clicking the already-open set is a no-op — nothing
+                  // remounts, so no confirm.
+                  if (!owdOpen && current === p.name) {
+                    if (isMobile) setRailOpen(false);
+                    return;
+                  }
+                  if (!confirmDiscardMatrixEdits()) return;
                   setOwdOpen(false);
                   setCurrent(p.name);
                   if (isMobile) setRailOpen(false);
@@ -3356,6 +3393,9 @@ function AccessPillar({
               <button
                 type="button"
                 onClick={() => {
+                  // Creating a set ends in setCurrent(newName) — a remount of
+                  // the open matrix — so gate the flow up front.
+                  if (!confirmDiscardMatrixEdits()) return;
                   setCreateErr(null);
                   setCreating(true);
                 }}
@@ -3393,7 +3433,12 @@ function AccessPillar({
               packageId={packageId}
               publishNonce={publishNonce}
               onDraftSaved={onDraftSaved}
+              readOnly={readOnly}
+              onDirtyChange={setMatrixDirty}
               onOpenOwd={(objectName) => {
+                // The badge deep-link swaps this page out for the OWD
+                // overview — same remount, same guard.
+                if (!confirmDiscardMatrixEdits()) return;
                 setOwdHighlight(objectName || null);
                 setOwdOpen(true);
               }}

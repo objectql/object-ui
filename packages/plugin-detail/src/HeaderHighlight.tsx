@@ -82,16 +82,28 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
             // Enrich field metadata from objectSchema
             const objectDefField = objectSchema?.fields?.[field.name];
             const resolvedType = field.type || objectDefField?.type;
+            // Backend object schemas use the ObjectStack-convention `reference`
+            // key (DetailSection normalizes the same pair) — without it the
+            // lookup editor has no target object to hydrate or search against.
+            const refTarget =
+              objectDefField?.reference_to || (objectDefField as any)?.reference;
             const enrichedField = {
               name: field.name,
               label: field.label,
               type: resolvedType || 'text',
               ...(objectDefField?.options && { options: objectDefField.options }),
               ...(objectDefField?.currency && { currency: objectDefField.currency }),
+              // The SPEC channel for a per-field currency (a bare `currency`
+              // key is designer/DB-only) — resolveFieldCurrency reads
+              // currencyConfig.defaultCurrency second (#2548).
+              ...(objectDefField?.currencyConfig && { currencyConfig: objectDefField.currencyConfig }),
               ...(objectDefField?.precision !== undefined && { precision: objectDefField.precision }),
               ...((objectDefField as any)?.scale !== undefined && { scale: (objectDefField as any).scale }),
               ...(objectDefField?.format && { format: objectDefField.format }),
-              ...(objectDefField?.reference_to && { reference_to: objectDefField.reference_to }),
+              ...(refTarget && { reference_to: refTarget }),
+              ...((objectDefField as any)?.reference_field && {
+                reference_field: (objectDefField as any).reference_field,
+              }),
               ...((objectDefField as any)?.widget && { widget: (objectDefField as any).widget }),
             };
 
@@ -196,7 +208,19 @@ export const HeaderHighlight: React.FC<HeaderHighlightProps> = ({
                         </span>
                       ) : (
                         <span
-                          title={typeof value === 'string' ? value : undefined}
+                          // Hover reveals the full value; for option-backed
+                          // fields prefer the option LABEL over the raw
+                          // stored value ('Technology', not 'technology').
+                          title={
+                            (Array.isArray((enrichedField as any).options)
+                              ? (enrichedField as any).options.find(
+                                  (o: any) => o?.value === value,
+                                )?.label
+                              : undefined) ??
+                            (typeof value === 'string' || typeof value === 'number'
+                              ? String(value)
+                              : undefined)
+                          }
                           className={cn(
                             'block min-w-0 truncate text-sm font-semibold',
                             isKpi && 'tabular-nums tracking-tight',
