@@ -387,6 +387,7 @@ import plugin_chatbot_chatbot_with_timestamps from './schemas/plugin-chatbot/cha
 import plugin_chatbot_customer_support_chat from './schemas/plugin-chatbot/customer-support-chat.json' with { type: 'json' };
 import plugin_dashboard_basic_dashboard from './schemas/plugin-dashboard/basic-dashboard.json' with { type: 'json' };
 import plugin_dashboard_e_commerce_dashboard from './schemas/plugin-dashboard/e-commerce-dashboard.json' with { type: 'json' };
+import plugin_dashboard_filtered_dashboard from './schemas/plugin-dashboard/filtered-dashboard.json' with { type: 'json' };
 import plugin_dashboard_support_dashboard from './schemas/plugin-dashboard/support-dashboard.json' with { type: 'json' };
 import plugin_editor_javascript_editor from './schemas/plugin-editor/javascript-editor.json' with { type: 'json' };
 import plugin_editor_python_editor from './schemas/plugin-editor/python-editor.json' with { type: 'json' };
@@ -3927,6 +3928,15 @@ const REGISTRY: Record<string, Example> = {
       category: 'plugin-dashboard',
     },
     schema: plugin_dashboard_support_dashboard,
+  },
+  'plugin-dashboard/filtered-dashboard': {
+    id: 'plugin-dashboard/filtered-dashboard',
+    meta: {
+      title: "Filtered Dashboard",
+      description: "Dashboard-level date + region filters driving multiple charts over different objects",
+      category: 'plugin-dashboard',
+    },
+    schema: plugin_dashboard_filtered_dashboard,
   },
   'plugin-editor/javascript-editor': {
     id: 'plugin-editor/javascript-editor',

@@ -195,6 +195,71 @@ const schema = {
 };
 ```
 
+## Dashboard-level filters
+
+A dashboard can declare top-level filters — a date range and any number of
+select / text filters — whose values drive **every bound widget at once**.
+The filter values live as dashboard-level variables (the page/dashboard
+variables primitive), and each widget declares which of **its own** fields a
+filter binds to. At render time the dashboard merges the active filter values
+into each bound widget's inline query (`AND`-combined with the widget's own
+`filter`).
+
+```jsonc
+{
+  "type": "dashboard",
+  "dateRange": {
+    "field": "created_at",          // default binding target
+    "defaultRange": "last_30_days", // today | this_week | … | last_90_days | custom
+    "allowCustomRange": true        // offer a custom from/to calendar
+  },
+  "globalFilters": [
+    {
+      "name": "region",             // stable filter name (defaults to field)
+      "field": "region",            // default binding target
+      "label": "Region",
+      "type": "select",             // text | select | date | number | lookup
+      "options": ["EMEA", "APAC", "AMER"]
+      // or dynamic: "optionsFrom": { "object": "accounts", "valueField": "region" }
+    }
+  ],
+  "widgets": [
+    // Default binding: the filter's own `field` (dateRange → created_at).
+    { "id": "w1", "type": "bar", "object": "invoices", "aggregate": "count" },
+    // Explicit binding: map each filter to THIS widget's own field.
+    {
+      "id": "w2", "type": "line", "object": "accounts", "aggregate": "count",
+      "filterBindings": { "dateRange": "signed_at", "region": "sales_region" }
+    },
+    // Opt out of a filter with `false`.
+    {
+      "id": "w3", "type": "metric", "object": "invoices", "aggregate": "count",
+      "filterBindings": { "region": false }
+    }
+  ]
+}
+```
+
+Binding rules, in precedence order:
+
+1. `filterBindings[name]` as a string — apply the filter to that field.
+2. `filterBindings[name]: false` — opt this widget out.
+3. Legacy `targetWidgets` on the filter — when set, only listed widget ids
+   get the default binding (an explicit `filterBindings` entry still wins).
+4. Otherwise the filter applies to its own `field` (the built-in date range
+   defaults to `dateRange.field ?? 'created_at'`).
+
+Notes:
+
+- Date presets stay symbolic (`{30_days_ago}` … date-macro tokens) until
+  query time, so widgets resolve them exactly like hand-authored filters.
+- Dataset-bound widgets receive the merged filter through the dataset
+  query's `runtimeFilter`.
+- Static-data widgets (inline `data` arrays) have no query to scope and are
+  not filtered.
+- Filter values are also readable in widget expressions as `page.<name>`
+  (e.g. `page.region`), since they are hosted as dashboard variables.
+
 ## TypeScript Support
 
 ```typescript

@@ -743,6 +743,18 @@ export interface DashboardWidgetSchema {
    */
   pagination?: boolean;
   /**
+   * Per-widget bindings from a dashboard-level filter (referenced by its
+   * `name`, or the reserved name `"dateRange"` for the built-in date range)
+   * to one of THIS widget's fields:
+   * - string → apply the filter to that field (e.g. `{ dateRange: 'signed_at' }`)
+   * - false  → opt this widget out of that filter
+   * - absent → default binding: the filter's own `field`
+   *   (dateRange: `dateRange.field ?? 'created_at'`)
+   * Pending alignment with @objectstack/spec DashboardWidgetSchema
+   * (framework#2501).
+   */
+  filterBindings?: Record<string, string | false>;
+  /**
    * ARIA accessibility attributes.
    * Aligned with @objectstack/spec AriaPropsSchema.
    */
@@ -785,6 +797,13 @@ export interface DashboardSchema extends BaseSchema {
    * Aligned with @objectstack/spec GlobalFilterSchema.
    */
   globalFilters?: Array<{
+    /**
+     * Stable filter name used as the dashboard-variable key and as the key
+     * widgets reference in `filterBindings`. Defaults to `field`.
+     * Pending alignment with @objectstack/spec GlobalFilterSchema
+     * (framework#2501).
+     */
+    name?: string;
     field: string;
     label?: string;
     type?: 'text' | 'select' | 'date' | 'number' | 'lookup';

@@ -148,6 +148,51 @@ Object.entries(dashboardComponents).forEach(([type, component]) => {
 }
 ```
 
+## Dashboard-level filters
+
+A dashboard can declare top-level filters — a date range plus any number of
+select / text filters — whose values drive every bound widget at once. Filter
+values live as dashboard-level variables; each widget declares which of **its
+own** fields a filter binds to via `filterBindings`, and the dashboard merges
+the active values into each bound widget's inline query (`AND`-combined with
+the widget's own `filter`).
+
+```json
+{
+  "type": "dashboard",
+  "dateRange": { "field": "created_at", "defaultRange": "last_30_days", "allowCustomRange": true },
+  "globalFilters": [
+    { "name": "region", "field": "region", "label": "Region", "type": "select", "options": ["EMEA", "APAC", "AMER"] }
+  ],
+  "widgets": [
+    { "id": "w1", "type": "bar", "object": "invoices", "aggregate": "count" },
+    {
+      "id": "w2", "type": "line", "object": "accounts", "aggregate": "count",
+      "filterBindings": { "dateRange": "signed_at", "region": "sales_region" }
+    },
+    {
+      "id": "w3", "type": "metric", "object": "invoices", "aggregate": "count",
+      "filterBindings": { "region": false }
+    }
+  ]
+}
+```
+
+Binding rules, in precedence order:
+
+1. `filterBindings[name]` as a string — apply the filter to that field.
+2. `filterBindings[name]: false` — opt this widget out.
+3. Legacy `targetWidgets` on the filter — when set, only listed widget ids get
+   the default binding (an explicit `filterBindings` entry still wins).
+4. Otherwise the filter applies to its own `field` (the built-in date range
+   defaults to `dateRange.field ?? 'created_at'`).
+
+Date presets stay symbolic (date-macro tokens such as `{30_days_ago}`) until
+query time. Dataset-bound widgets receive the merged filter through the
+dataset query's `runtimeFilter`. Static-data widgets (inline `data` arrays)
+have no query to scope and are not filtered. Filter values are also readable
+in widget expressions as `page.<name>`.
+
 ## TypeScript Support
 
 ```plaintext

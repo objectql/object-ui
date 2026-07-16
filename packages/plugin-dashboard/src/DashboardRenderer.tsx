@@ -7,9 +7,15 @@
  */
 
 import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
-import { SchemaRenderer, useActionEngine, useObjectLabel } from '@object-ui/react';
+import { SchemaRenderer, useActionEngine, useObjectLabel, PageVariablesProvider, usePageVariables } from '@object-ui/react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import type { ActionDef, ActionResult, ActionContext, ModalHandler } from '@object-ui/core';
+import {
+  resolveDashboardFilterDefs,
+  dashboardFilterVariableDefs,
+  buildWidgetScopedFilter,
+  mergeFilters,
+} from '@object-ui/core';
 import { cn, Card, CardHeader, CardTitle, CardContent, Button, getLazyIcon } from '@object-ui/components';
 import { forwardRef, useState, useEffect, useCallback, useMemo, useRef, Fragment } from 'react';
 import { RefreshCw } from 'lucide-react';
@@ -31,6 +37,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { isObjectProvider } from './utils';
 import { DatasetWidget } from './DatasetWidget';
+import { DashboardFilterBar } from './DashboardFilterBar';
 
 interface SortableWidgetWrapperProps {
   id: string;
@@ -168,6 +175,19 @@ function defaultChartDrill(chartType: string): { enabled: true } | undefined {
   return DRILLABLE_CHART_TYPES.has(chartType) ? { enabled: true } : undefined;
 }
 
+/**
+ * Object-backed child schema types whose `filter` reaches the data source —
+ * the injection surface for dashboard-level filters. Static-data widgets
+ * (`chart`, `data-table`, `pivot` with inline `data`) have no query to scope
+ * and are intentionally not filtered.
+ */
+const FILTERABLE_COMPONENT_TYPES = new Set([
+  'object-chart',
+  'object-metric',
+  'object-data-table',
+  'object-pivot',
+]);
+
 export interface DashboardRendererProps {
   schema: DashboardSchema;
   className?: string;
@@ -204,7 +224,7 @@ export interface DashboardRendererProps {
   [key: string]: any;
 }
 
-export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererProps>(
+const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps>(
   ({ schema, className, dataSource, onRefresh, recordCount, userActions, designMode, selectedWidgetId, onWidgetClick, onWidgetsReorder, modalHandler, scriptHandlers, hideHeaderText, ...props }, ref) => {
     // Auto-infer the grid column count when the dashboard schema doesn't
     // specify one. Spec convention is a 12-column grid (widgets use w: 3 for
@@ -232,6 +252,18 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     const [refreshing, setRefreshing] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // Dashboard-level filters (framework#2501). Filter values live as
+    // dashboard variables — the outer DashboardRenderer mounts a
+    // PageVariablesProvider when the schema declares filters, so
+    // usePageVariables() resolves them here (and gracefully no-ops when the
+    // dashboard has no filters and no provider is mounted).
+    const filterDefs = useMemo(
+      () => resolveDashboardFilterDefs(schema),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [schema.globalFilters, schema.dateRange]
+    );
+    const { variables: filterValues, setVariable: setFilterValue, resetVariables: resetFilterValues } = usePageVariables();
 
     // Build ActionDef[] from header actions so useActionEngine can dispatch by name.
     const headerActionDefs = useMemo<ActionDef[]>(() => {
@@ -792,7 +824,26 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
             };
         };
         
-        const componentSchema = getComponentSchema();
+        // Broadcast the dashboard filter values into this widget's inline
+        // query: resolve the widget-scoped condition from the bindings and
+        // AND-merge it with the widget's own filter. Object-backed child
+        // schemas re-fetch on filter change, so no widget renderer changes
+        // are needed downstream.
+        const scopedFilter = filterDefs.length > 0
+            ? buildWidgetScopedFilter(widget, filterDefs, filterValues)
+            : undefined;
+        const componentSchema = (() => {
+            const cs = getComponentSchema() as Record<string, any>;
+            if (scopedFilter && cs && FILTERABLE_COMPONENT_TYPES.has(cs.type)) {
+                return { ...cs, filter: mergeFilters(cs.filter, scopedFilter) };
+            }
+            return cs;
+        })();
+        // Dataset-bound widgets render through DatasetWidget, which forwards
+        // `widget.filter` to the dataset query as `runtimeFilter`.
+        const effectiveWidget = scopedFilter && datasetBound
+            ? { ...widget, filter: mergeFilters(widget.filter, scopedFilter) }
+            : widget;
         // A `metric` widget renders its own card chrome ONLY in the inline
         // (object-metric) path. A dataset-bound metric uses DatasetWidget, which
         // renders just the value — so it must take the shared Card wrapper to get
@@ -837,7 +888,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 {...designModeProps}
             >
                  {datasetBound
-                   ? <div className={cn("h-full w-full", designMode && "pointer-events-none")}><DatasetWidget widget={widget} dataSource={dataSource} /></div>
+                   ? <div className={cn("h-full w-full", designMode && "pointer-events-none")}><DatasetWidget widget={effectiveWidget} dataSource={dataSource} /></div>
                    : <SchemaRenderer schema={componentSchema} className={cn("h-full w-full", designMode && "pointer-events-none")} dataSource={dataSource} />}
                  {designMode && <div className="absolute inset-0 z-10" aria-hidden="true" data-testid="widget-click-overlay" />}
             </div>
@@ -866,7 +917,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
                 <CardContent className="p-0">
                     <div className={cn("h-full w-full", "p-3 sm:p-4 md:p-6", designMode && "pointer-events-none")}>
                         {datasetBound
-                          ? <DatasetWidget widget={widget} dataSource={dataSource} />
+                          ? <DatasetWidget widget={effectiveWidget} dataSource={dataSource} />
                           : <SchemaRenderer schema={componentSchema} dataSource={dataSource} />}
                     </div>
                 </CardContent>
@@ -944,6 +995,17 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
       </div>
     );
 
+    const filterBar = filterDefs.length > 0 && (
+      <DashboardFilterBar
+        defs={filterDefs}
+        values={filterValues}
+        onChange={setFilterValue}
+        onReset={resetFilterValues}
+        dataSource={dataSource}
+        className="mb-2"
+      />
+    );
+
     const recordCountBadge = recordCount !== undefined && (
       <span className="text-xs text-muted-foreground">
         {recordCount.toLocaleString()} records
@@ -991,6 +1053,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
       const mobileBody = (
         <div ref={ref} className={cn("flex flex-col gap-4 px-4", className)} data-user-actions={userActionsAttr} onClick={handleBackgroundClick} {...props}>
           {headerSection}
+          {filterBar}
           {refreshButton}
 
           {/* Metric cards: 2-column grid */}
@@ -1048,6 +1111,7 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
         {...props}
       >
         {headerSection}
+        {filterBar}
         {refreshButton}
         <SortableContext items={widgetIds} strategy={rectSortingStrategy} disabled={!dragEnabled}>
           {schema.widgets?.map((widget: DashboardWidgetSchema, index: number) => renderWidget(widget, index))}
@@ -1062,3 +1126,40 @@ export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererPro
     ) : desktopBody;
   }
 );
+
+DashboardRendererInner.displayName = 'DashboardRendererInner';
+
+/**
+ * DashboardRenderer — the public dashboard renderer.
+ *
+ * When the schema declares dashboard-level filters (`globalFilters` /
+ * `dateRange`, framework#2501), their values are hosted as dashboard
+ * variables in a `PageVariablesProvider` (the page/dashboard variables
+ * primitive) so the filter bar can write them, the widget broadcast can read
+ * them, and widget expressions can reference them as `page.<name>`.
+ * Dashboards without filters render exactly as before — no provider mounted.
+ *
+ * Known limitation: when a filtered dashboard is embedded inside a Page with
+ * its own variables, this inner provider shadows the outer one for widget
+ * subtrees. The primary path (`DashboardView`) mounts no outer provider.
+ */
+export const DashboardRenderer = forwardRef<HTMLDivElement, DashboardRendererProps>(
+  (props, ref) => {
+    const { schema } = props;
+    const filterDefs = useMemo(
+      () => resolveDashboardFilterDefs(schema),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [schema.globalFilters, schema.dateRange]
+    );
+    if (filterDefs.length === 0) {
+      return <DashboardRendererInner ref={ref} {...props} />;
+    }
+    return (
+      <PageVariablesProvider definitions={dashboardFilterVariableDefs(filterDefs)}>
+        <DashboardRendererInner ref={ref} {...props} />
+      </PageVariablesProvider>
+    );
+  }
+);
+
+DashboardRenderer.displayName = 'DashboardRenderer';

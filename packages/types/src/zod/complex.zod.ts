@@ -284,6 +284,29 @@ export const DashboardWidgetSchema = z.object({
   layout: DashboardWidgetLayoutSchema.optional().describe('Widget Layout'),
   type: z.string().optional().describe('Widget visualization type (spec shorthand)'),
   options: z.unknown().optional().describe('Widget specific configuration (spec shorthand)'),
+  filterBindings: z.record(z.string(), z.union([z.string(), z.literal(false)])).optional()
+    .describe('Per-widget dashboard-filter bindings: filter name → this widget\'s field, or false to opt out'),
+});
+
+/**
+ * Global Filter Schema — a dashboard-level filter definition.
+ * Pending alignment with @objectstack/spec GlobalFilterSchema (framework#2501: `name`).
+ */
+export const GlobalFilterSchema = z.object({
+  name: z.string().optional().describe('Stable filter name (variable key); defaults to field'),
+  field: z.string().describe('Default target field'),
+  label: z.string().optional().describe('Display label'),
+  type: z.enum(['text', 'select', 'date', 'number', 'lookup']).optional().describe('Filter control type'),
+  options: z.array(z.string()).optional().describe('Static options for select filters'),
+  optionsFrom: z.object({
+    object: z.string(),
+    valueField: z.string(),
+    labelField: z.string().optional(),
+    filter: z.any().optional(),
+  }).optional().describe('Dynamic option source'),
+  defaultValue: z.any().optional().describe('Initial value'),
+  scope: z.string().optional().describe('Filter scope'),
+  targetWidgets: z.array(z.string()).optional().describe('Widget-id allow-list'),
 });
 
 /**
@@ -294,6 +317,12 @@ export const DashboardSchema = BaseSchema.extend({
   columns: z.number().optional().describe('Number of columns'),
   gap: z.number().optional().describe('Grid gap'),
   widgets: z.array(DashboardWidgetSchema).describe('Dashboard widgets'),
+  globalFilters: z.array(GlobalFilterSchema).optional().describe('Dashboard-level filters'),
+  dateRange: z.object({
+    field: z.string().optional(),
+    defaultRange: z.string().optional(),
+    allowCustomRange: z.boolean().optional(),
+  }).optional().describe('Built-in date range filter'),
 });
 
 /**

@@ -41,6 +41,8 @@ export * from './runtime/capabilities.js';
 export { composeStacks } from '@objectstack/spec';
 export * from './utils/drill-down.js';
 export * from './utils/date-macros.js';
+export * from './utils/dashboard-filters.js';
+export * from './utils/merge-filters.js';
 export * from './utils/compare-to.js';
 export * from './utils/chart-series.js';
 export * from './utils/dataset-format.js';
