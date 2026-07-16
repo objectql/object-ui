@@ -179,6 +179,12 @@ describe('PeoplePicker', () => {
     await waitFor(() => expect(screen.getByText('Amy Lin')).toBeTruthy());
     const search = screen.getByTestId('people-picker-search');
     fireEvent.keyDown(search, { key: 'ArrowDown' });
+    // Wait for the cursor to actually land on the first row before committing —
+    // guards against a late background re-render swallowing the keypress (the
+    // old identity-keyed cursor reset made this flaky on slow CI).
+    await waitFor(() =>
+      expect(screen.getAllByTestId('person-row')[0].getAttribute('data-active')).toBe('true'),
+    );
     fireEvent.keyDown(search, { key: 'Enter' });
     expect(onSelect).toHaveBeenCalledWith('u1');
   });

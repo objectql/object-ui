@@ -22,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
   useIsMobile,
+  LazyIcon,
 } from '@object-ui/components';
 import { ChevronDown, ChevronRight, Copy, Check, Eye, EyeOff, Pencil } from 'lucide-react';
 import { SchemaRenderer } from '@object-ui/react';
@@ -33,6 +34,20 @@ import { useSafeFieldLabel } from '@object-ui/react';
 import { PermissionFacetLink } from './renderers/PermissionFacetLink';
 import { NON_EDITABLE_SYSTEM_FIELDS } from './systemFields';
 import { InlineFieldInput, TEXTUAL_REF_FALLBACK_TYPES } from './InlineFieldInput';
+
+/**
+ * Section-header icon. `fieldGroups[].icon` declares a Lucide name (spec),
+ * so ASCII-identifier-ish values render as the real icon; anything else
+ * (emoji / CJK text from hand-authored sections that predate the spec key)
+ * keeps the historical text rendering instead of degrading to the generic
+ * fallback icon.
+ */
+const SectionIcon: React.FC<{ name: string }> = ({ name }) => {
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(name)) {
+    return <span className="text-muted-foreground">{name}</span>;
+  }
+  return <LazyIcon name={name} className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />;
+};
 
 /**
  * Compute responsive col-span classes so that col-span never exceeds the
@@ -498,7 +513,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
           <CardHeader className={cn('py-3 px-4 sm:py-4 sm:px-6', section.headerColor && `bg-${section.headerColor}`)}>
             <CardTitle className="flex items-center justify-between text-base font-semibold tracking-tight">
               <div className="flex items-center gap-2">
-                {section.icon && <span className="text-muted-foreground">{section.icon}</span>}
+                {section.icon && <SectionIcon name={section.icon} />}
                 <span>{section.title}</span>
               </div>
             </CardTitle>
@@ -528,7 +543,7 @@ export const DetailSection: React.FC<DetailSectionProps> = ({
           )}>
             <CardTitle className="flex items-center justify-between text-base font-semibold tracking-tight">
               <div className="flex items-center gap-2">
-                {section.icon && <span className="text-muted-foreground">{section.icon}</span>}
+                {section.icon && <SectionIcon name={section.icon} />}
                 <span>{section.title}</span>
               </div>
               <div className="flex items-center gap-2">

@@ -260,14 +260,28 @@ function useLookupName(
  * default when no I18nProvider is available or when the key is missing.
  */
 function useFieldLabel() {
+  // useObjectTranslation is provider-safe (its context read is optional and
+  // react-i18next falls back to the global instance), so no try/catch —
+  // wrapping a hook call in try/catch violates rules-of-hooks: a throw after
+  // some hooks ran would desync hook order on the next render.
+  const { t } = useObjectTranslation();
+  return (key: string, fallback: string) => {
+    const v = t(key);
+    return !v || v === key ? fallback : v;
+  };
+}
+
+/**
+ * Raw translate fn (with interpolation params) for cell-level strings, or
+ * undefined when no I18nProvider is mounted — callers keep their English
+ * fallback in that case.
+ */
+function useFieldTranslate(): ((key: string, params?: Record<string, unknown>) => string) | undefined {
   try {
     const { t } = useObjectTranslation();
-    return (key: string, fallback: string) => {
-      const v = t(key);
-      return !v || v === key ? fallback : v;
-    };
+    return t as (key: string, params?: Record<string, unknown>) => string;
   } catch {
-    return (_k: string, fallback: string) => fallback;
+    return undefined;
   }
 }
 
@@ -465,14 +479,43 @@ export function humanizeLabel(value: string): string {
   return value.replace(/[_-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+/** Options shared by {@link formatDate} / {@link formatRelativeDate}. */
+export interface DateDisplayOptions {
+  dueLike?: boolean;
+  /** BCP-47 display locale (ADR-0053 tenant default); falls back to the runtime locale. */
+  locale?: string;
+  /** i18n translate fn for phrases `Intl` can't produce (the "Overdue Nd" wording). */
+  t?: (key: string, params?: Record<string, unknown>) => string;
+}
+
 /**
- * Format date as relative time (e.g., "2 days ago", "Today", "Overdue 3d")
+ * Localized day-granularity relative phrase ("Tomorrow", "3 days ago", "明天",
+ * "3天前"), sentence-cased for locales whose `Intl` output starts lowercase.
+ */
+function formatRelativeDays(diffDays: number, locale?: string): string {
+  try {
+    const phrase = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(diffDays, 'day');
+    return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+  } catch {
+    // Invalid locale tag — degrade to English rather than crash the cell.
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays === -1) return 'Yesterday';
+    return diffDays > 0 ? `In ${diffDays} days` : `${Math.abs(diffDays)} days ago`;
+  }
+}
+
+/**
+ * Format date as relative time (e.g., "3 days ago", "Today", "Overdue 3d"),
+ * localized via `Intl.RelativeTimeFormat` (objectstack-ai/framework#3040).
  *
  * `dueLike` gates the "Overdue" wording — a past `start_date`/`created_at`
  * isn't overdue, only a past due/deadline-semantic field is. Non-due-like
- * past dates render as "Nd ago" instead.
+ * past dates render as plain "N days ago" instead. The overdue phrase has no
+ * `Intl` equivalent, so it resolves through `options.t` (key
+ * `fields.relativeDate.overdue`) with an English fallback.
  */
-export function formatRelativeDate(value: string | Date | number, options?: { dueLike?: boolean }): string {
+export function formatRelativeDate(value: string | Date | number, options?: DateDisplayOptions): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
@@ -483,22 +526,22 @@ export function formatRelativeDate(value: string | Date | number, options?: { du
   const diffMs = startOfDate.getTime() - startOfToday.getTime();
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Tomorrow';
-  if (diffDays === -1) return 'Yesterday';
-  if (diffDays < -1) {
+  // Beyond the ±7-day window, fall back to the absolute (already localized) form.
+  if (diffDays < -7 || diffDays > 7) return formatDate(date, undefined, options);
+
+  if (diffDays < -1 && options?.dueLike) {
     const absDays = Math.abs(diffDays);
-    if (absDays <= 7) return options?.dueLike ? `Overdue ${absDays}d` : `${absDays}d ago`;
-    return formatDate(date);
+    const key = 'fields.relativeDate.overdue';
+    const translated = options.t?.(key, { count: absDays });
+    return translated && translated !== key ? translated : `Overdue ${absDays}d`;
   }
-  if (diffDays > 1 && diffDays <= 7) return `In ${diffDays} days`;
-  return formatDate(date);
+  return formatRelativeDays(diffDays, options?.locale);
 }
 
 /**
  * Format date value
  */
-export function formatDate(value: string | Date | number, style?: string, options?: { dueLike?: boolean }): string {
+export function formatDate(value: string | Date | number, style?: string, options?: DateDisplayOptions): string {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value as any);
   if (!(date instanceof Date) || isNaN(date.getTime())) return '—';
@@ -521,7 +564,7 @@ export function formatDate(value: string | Date | number, style?: string, option
   // verbose "2026年7月21日" form crowds cards and table cells. Past- /
   // future-year dates keep the year so users can disambiguate.
   const isCurrentYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString(options?.locale, {
     year: isCurrentYear ? undefined : 'numeric',
     month: 'short',
     day: 'numeric',
@@ -586,14 +629,16 @@ export function NumberCellRenderer({ value, field }: CellRendererProps): React.R
  * Currency field cell renderer
  */
 export function CurrencyCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  // Hooks before the empty-value early return — a value flipping between
+  // null and set must not change the hook count between renders.
+  const { currency: tenantCurrency } = useLocalization();
   if (value == null) return <EmptyValue />;
-  
+
   const safe = coerceToSafeValue(value);
   // Resolve the display currency via the shared precedence: field `currency` →
   // `currencyConfig.defaultCurrency` → the tenant default (ADR-0053). When none
   // is known, render a plain number — never a guessed symbol (silently assuming
   // USD mis-displays non-USD orgs, e.g. RMB amounts shown as $).
-  const { currency: tenantCurrency } = useLocalization();
   const currency = resolveFieldCurrency(field as any, tenantCurrency);
   const num = Number(safe);
   const formatted = !isNaN(num)
@@ -702,6 +747,8 @@ export function BooleanCellRenderer({ value, field }: CellRendererProps): React.
  * Date field cell renderer
  */
 export function DateCellRenderer({ value, field }: CellRendererProps): React.ReactElement {
+  const { locale } = useLocalization();
+  const t = useFieldTranslate();
   if (!value) return <EmptyValue />;
   const safe = coerceToSafeValue(value);
   const dateField = field as any;
@@ -714,7 +761,7 @@ export function DateCellRenderer({ value, field }: CellRendererProps): React.Rea
   const dueLike =
     dateField?.dueLike === true ||
     /(^|_)(due|deadline|expires?|expiry|expiration|expected_close|target_close|sla|return_by|renewal|next_action)(_|$)/.test(fieldName);
-  const formatted = formatDate(safe as string | Date, style, { dueLike });
+  const formatted = formatDate(safe as string | Date, style, { dueLike, locale, t });
 
   const date = safe != null ? new Date(safe as string | number) : null;
   const isValidDate = date !== null && !isNaN(date.getTime());
@@ -1050,13 +1097,18 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
     }
 
     const colorClasses = getBadgeColorClasses(option?.color, val);
+    // max-w-full + inner truncate: in bounded containers (detail highlight
+    // strip columns, grid cells) an overlong label used to clip mid-glyph at
+    // the container edge; now the badge shrinks and ellipsizes, with the full
+    // label on hover.
     return (
       <Badge
         key={key}
         variant="outline"
-        className={colorClasses}
+        className={cn('max-w-full min-w-0', colorClasses)}
+        title={label}
       >
-        {label}
+        <span className="truncate">{label}</span>
       </Badge>
     );
   };
@@ -1077,11 +1129,12 @@ export function SelectCellRenderer({ value, field }: CellRendererProps): React.R
  * Email field cell renderer
  */
 export function EmailCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  // Hooks before the empty-value early return (rules-of-hooks).
+  const label = useFieldLabel();
+  const [copied, setCopied] = React.useState(false);
   if (!value) return <EmptyValue />;
 
-  const label = useFieldLabel();
   const safe = String(coerceToSafeValue(value) ?? '');
-  const [copied, setCopied] = React.useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1151,11 +1204,12 @@ export function UrlCellRenderer({ value }: CellRendererProps): React.ReactElemen
  * Phone field cell renderer
  */
 export function PhoneCellRenderer({ value }: CellRendererProps): React.ReactElement {
+  // Hooks before the empty-value early return (rules-of-hooks).
+  const label = useFieldLabel();
+  const [copied, setCopied] = React.useState(false);
   if (!value) return <EmptyValue />;
 
-  const label = useFieldLabel();
   const safe = String(coerceToSafeValue(value) ?? '');
-  const [copied, setCopied] = React.useState(false);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1331,15 +1385,18 @@ export function LookupCellRenderer({ value, field }: CellRendererProps): React.R
   if (typeof value === 'string') {
     const s = value.trim();
     if (s.startsWith('{') && s.endsWith('}')) {
+      // Compute inside try, render outside — constructing JSX in a try/catch
+      // doesn't catch its render errors anyway (react-hooks/error-boundaries).
+      let parsedDisplay = '';
       try {
         const parsed = JSON.parse(s) as Record<string, unknown>;
         if (parsed && typeof parsed === 'object') {
-          const display =
+          parsedDisplay =
             resolveLookupRecordName(parsed, refSchema, displayField) ||
             String(parsed.externalId ?? parsed.id ?? parsed._id ?? '');
-          if (display) return <span className="truncate">{display}</span>;
         }
       } catch { /* not JSON — fall through to normal resolution */ }
+      if (parsedDisplay) return <span className="truncate">{parsedDisplay}</span>;
     }
   }
 

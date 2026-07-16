@@ -1,0 +1,45 @@
+{
+  "type": "dashboard",
+  "title": "Invoice Pipeline",
+  "columns": 2,
+  "gap": 4,
+  "globalFilters": [
+    {
+      "name": "status",
+      "field": "status",
+      "label": "Status",
+      "type": "select",
+      "options": ["draft", "sent", "paid", "void"],
+      "targetWidgets": ["invoices_by_region", "invoices_recent"]
+    }
+  ],
+  "widgets": [
+    {
+      "id": "invoices_by_region",
+      "title": "Invoices by Region (allow-listed)",
+      "type": "bar",
+      "object": "invoices",
+      "categoryField": "region",
+      "aggregate": "count"
+    },
+    {
+      "id": "invoices_recent",
+      "title": "Recent Invoices (allow-listed, field override)",
+      "type": "line",
+      "object": "invoices",
+      "categoryField": "created_at",
+      "categoryGranularity": "week",
+      "aggregate": "count",
+      "filterBindings": {
+        "status": "state"
+      }
+    },
+    {
+      "id": "total_invoices",
+      "title": "Total Invoices (not allow-listed)",
+      "type": "metric",
+      "object": "invoices",
+      "aggregate": "count"
+    }
+  ]
+}

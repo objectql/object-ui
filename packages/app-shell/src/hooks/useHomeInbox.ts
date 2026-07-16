@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAdapter } from '../providers/AdapterProvider';
 import { useAuth } from '@object-ui/auth';
+import { bearerAuthHeaders } from '../utils/authToken';
 import type { ActivityItem } from '../layout/ActivityFeed';
 
 export interface HomeNotification {
@@ -134,7 +135,11 @@ export function useHomeInbox(limit = 5): HomeInboxData {
     if (identities.length === 0) return;
     let cancelled = false;
     const qs = new URLSearchParams({ status: 'pending', approverId: identities.join(',') });
-    fetch(`${serverUrl}/api/v1/approvals/requests?${qs}`, { credentials: 'include' })
+    fetch(`${serverUrl}/api/v1/approvals/requests?${qs}`, {
+      credentials: 'include',
+      // Bearer too — see utils/authToken (#2548 split-origin fix).
+      headers: bearerAuthHeaders(),
+    })
       .then(async (res) => {
         if (!res.ok) return;
         const payload = await res.json().catch(() => null);

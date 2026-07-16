@@ -405,7 +405,14 @@ export function ReportView({ dataSource }: { dataSource?: DataSource }) {
       if (out.type === undefined && meta.type !== undefined) out.type = meta.type;
       if (out.options === undefined && Array.isArray(meta.options)) out.options = meta.options;
       if (out.referenceTo === undefined) {
-        const ref = meta.referenceTo || meta.reference?.to || meta.target;
+        // Metadata-store object defs key the lookup target as `reference`
+        // (string, ObjectStack convention); `reference_to` covers normalized /
+        // ObjectUI-authored defs (#2407 / PR #2587).
+        const ref =
+          meta.reference_to ||
+          meta.referenceTo ||
+          (typeof meta.reference === 'string' ? meta.reference : meta.reference?.to) ||
+          meta.target;
         if (ref) out.referenceTo = ref;
       }
       if (out.label === undefined && meta.label) out.label = meta.label;

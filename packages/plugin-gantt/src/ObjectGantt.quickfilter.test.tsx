@@ -293,6 +293,29 @@ describe('ObjectGantt quick filters — schema-driven options', () => {
     expect((ds.find as any).mock.calls.some((c: any[]) => c[0] === 'projects')).toBe(true);
   });
 
+  it('pulls the lookup domain when the schema keys the target as `reference` (ObjectStack convention)', async () => {
+    // Served object schemas name the relational target `reference`, not
+    // `reference_to` (#2407 / PR #2587) — the quick-filter option fetch must
+    // resolve either key, or the dropdown silently shows only loaded-row values.
+    const ds = makeDataSource();
+    (ds.getObjectSchema as any).mockResolvedValue({
+      fields: {
+        name: { type: 'text' },
+        start: { type: 'date' },
+        end: { type: 'date' },
+        project: { type: 'lookup', reference: 'projects' },
+      },
+    });
+    const { container, getByTestId } = render(<ObjectGantt schema={objSchema()} dataSource={ds} />);
+    await waitFor(() => expect(gv(container).getAttribute('data-count')).toBe('2'));
+    await waitFor(() => {
+      fireEvent.click(getByTestId('quick-filter-trigger-project'));
+      const panel = getByTestId('quick-filter-panel-project');
+      expect(within(panel).getByTestId('quick-filter-option-project-p3')).toBeTruthy();
+    });
+    expect((ds.find as any).mock.calls.some((c: any[]) => c[0] === 'projects')).toBe(true);
+  });
+
   it('filters by a lookup value resolved to the embedded record id', async () => {
     const ds = makeDataSource();
     const { container, getByTestId } = render(<ObjectGantt schema={objSchema()} dataSource={ds} />);

@@ -23,7 +23,7 @@ import type {
   ImportJobUndoResult,
   ListImportJobsOptions,
 } from '@object-ui/types';
-import { convertFiltersToAST } from '@object-ui/core';
+import { convertFiltersToAST, normalizeSchemaReferenceKeys } from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
 import {
   ObjectStackError,
@@ -936,7 +936,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     operations: Array<{ object: string; action?: 'create' | 'update' | 'delete'; data?: any; id?: string }>,
   ): Promise<{ results: any[] }> {
     const url = `${this.baseUrl}/api/v1/batch`;
-    const response = await fetch(url, {
+    const response = await this.fetchImpl(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...this.getAuthHeaders() },
       // Send the session cookie too: in the browser console auth is cookie-based
@@ -954,7 +954,27 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         response.status,
       );
     }
-    return response.json();
+    const payload: { results: any[] } = await response.json();
+    // The whole transaction committed — emit one MutationEvent per operation so
+    // the invalidation bus (#2269) sees writes that went through /batch exactly
+    // like single create/update/delete calls (master-detail ModalForm saves
+    // otherwise leave related lists and count badges stale, #2582). `results`
+    // is index-aligned with `operations`; creates take id/record from the
+    // server echo. A failed batch rolled back entirely and throws above, so
+    // nothing is emitted for it.
+    const results = Array.isArray(payload?.results) ? payload.results : [];
+    operations.forEach((op, i) => {
+      const action = op.action ?? 'create';
+      const echo = results[i];
+      if (action === 'create') {
+        this.emitMutation({ type: 'create', resource: op.object, record: echo });
+      } else if (action === 'update') {
+        this.emitMutation({ type: 'update', resource: op.object, id: op.id ?? echo?.id ?? echo?._id, record: echo });
+      } else if (action === 'delete') {
+        this.emitMutation({ type: 'delete', resource: op.object, id: op.id });
+      }
+    });
+    return payload;
   }
 
   async bulk(resource: string, operation: 'create' | 'update' | 'delete', data: Partial<T>[]): Promise<T[]> {
@@ -986,6 +1006,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           completed = created.length;
           failed = total - completed;
           emitProgress();
+          // One resource-level event for the whole batch (same contract as
+          // bulkUpdate/bulkDelete) so bound views refresh after subform child
+          // rows are created through this path (#2582).
+          if (completed > 0) this.emitMutation({ type: 'create', resource });
           return created;
         }
         
@@ -1010,6 +1034,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
           completed = ids.length;
           failed = total - completed;
           emitProgress();
+          // One resource-level event per batch — see the create branch.
+          if (completed > 0) this.emitMutation({ type: 'delete', resource });
           return [] as T[];
         }
         
@@ -1025,6 +1051,8 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
               completed = updated.length;
               failed = total - completed;
               emitProgress();
+              // One resource-level event per batch — see the create branch.
+              if (completed > 0) this.emitMutation({ type: 'update', resource });
               return updated;
             } catch {
               // If updateMany is not supported, fall back to individual updates
@@ -1060,6 +1088,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
             }
           }
           
+          // Rows that DID persist must still reach subscribers, even when the
+          // batch as a whole reports failure below (continueOnError semantics
+          // — the successful writes are not rolled back).
+          if (completed > 0) this.emitMutation({ type: 'update', resource });
+
           // If there were any errors, throw BulkOperationError
           if (errors.length > 0) {
             throw new BulkOperationError(
@@ -1070,7 +1103,7 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
               { resource, totalRecords: data.length }
             );
           }
-          
+
           return results;
         }
         
@@ -1608,6 +1641,13 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       const schema = await this.metadataCache.get(objectName, () =>
         this.fetchObjectSchemaFresh(objectName),
       );
+
+      // Canonicalize the relational-target key: the server names it
+      // `reference` (ObjectStack convention) while most consumers read
+      // `reference_to` (#2407 / PR #2587). Stamping both here — the choke
+      // point every schema read goes through — means no per-consumer
+      // dual-key fallback can drift. Idempotent on the cached object.
+      normalizeSchemaReferenceKeys(schema);
 
       // ADR-0056 P2 (epic #2398): stamp structured-widget hints onto specific
       // platform fields. This is the single choke point both the record form

@@ -105,6 +105,9 @@ const de = {
     deleteSuccess: "{{object}} erfolgreich gelöscht",
   },
   fields: {
+    relativeDate: {
+      overdue: "{{count}} T. überfällig",
+    },
     richText: {
       format: "Format: {{format}}",
       basicEditorHint: "Rich-Text-Editor (einfach)",
@@ -510,6 +513,8 @@ const de = {
     highlightFields: "Schlüsselfelder",
     createdBy: "Erstellt von",
     updatedBy: "Aktualisiert von",
+    created: "Erstellt",
+    updated: "Aktualisiert",
     showEmptyRelated_one: "+ {{count}} leer",
     showEmptyRelated_other: "+ {{count}} leer",
     copyEmail: "E-Mail kopieren",

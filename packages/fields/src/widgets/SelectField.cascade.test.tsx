@@ -102,14 +102,14 @@ describe('SelectField — role / context gating (#2284)', () => {
     type: 'select',
     options: [
       { label: 'Standard', value: 'standard' },
-      { label: 'Admin only', value: 'admin_only', visibleWhen: "'admin' in current_user.roles" },
+      { label: 'Admin only', value: 'admin_only', visibleWhen: "'admin' in current_user.positions" },
     ],
   } as any;
 
   it('clears an admin-only value for a non-admin (offered set excludes it)', () => {
     const onChange = vi.fn();
     render(
-      <PredicateScopeProvider scope={{ current_user: { roles: ['sales'] } }}>
+      <PredicateScopeProvider scope={{ current_user: { positions: ['sales'] } }}>
         <SelectField
           value={'admin_only'}
           onChange={onChange}
@@ -124,7 +124,7 @@ describe('SelectField — role / context gating (#2284)', () => {
   it('keeps an admin-only value for an admin', () => {
     const onChange = vi.fn();
     render(
-      <PredicateScopeProvider scope={{ current_user: { roles: ['admin'] } }}>
+      <PredicateScopeProvider scope={{ current_user: { positions: ['admin'] } }}>
         <SelectField
           value={'admin_only'}
           onChange={onChange}

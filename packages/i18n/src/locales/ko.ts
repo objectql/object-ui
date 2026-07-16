@@ -105,6 +105,9 @@ const ko = {
     deleteSuccess: "{{object}} 삭제됨",
   },
   fields: {
+    relativeDate: {
+      overdue: "기한 초과 {{count}}일",
+    },
     richText: {
       format: "형식: {{format}}",
       basicEditorHint: "서식 있는 텍스트 편집기 (기본)",
@@ -510,6 +513,8 @@ const ko = {
     highlightFields: "주요 필드",
     createdBy: "작성자",
     updatedBy: "업데이트한 사람",
+    created: "작성됨",
+    updated: "업데이트됨",
     showEmptyRelated_one: "+ {{count}}개 비어 있음",
     showEmptyRelated_other: "+ {{count}}개 비어 있음",
     copyEmail: "이메일 복사",

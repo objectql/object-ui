@@ -771,6 +771,31 @@ describe('semantic-role hints (ADR-0085 / #2065)', () => {
         ),
       ).toEqual(['a', 'b', 'c']);
     });
+
+    it('drops the record title field from a declared list — it is already the H1 (#2548)', () => {
+      const def: ObjectDefLike = {
+        fields: { name: {}, status: {}, amount: {} },
+        highlightFields: ['name', 'status', 'amount'],
+      };
+      expect(deriveHighlightFields(def, null)).toEqual(['status', 'amount']);
+      // Filtering happens BEFORE the cap, so the title never wastes a slot.
+      const wide: ObjectDefLike = {
+        fields: { name: {}, a: {}, b: {}, c: {}, d: {} },
+        highlightFields: ['name', 'a', 'b', 'c', 'd'],
+      };
+      expect(deriveHighlightFields(wide, null)).toEqual(['a', 'b', 'c', 'd']);
+    });
+
+    it('title resolution honours declared roles over conventional names', () => {
+      const def: ObjectDefLike = {
+        primaryField: 'subject',
+        fields: { subject: {}, name: {}, status: {} },
+        highlightFields: ['subject', 'name', 'status'],
+      };
+      // primaryField wins → `subject` is the H1 and drops; the literal
+      // `name` field is NOT the title here and stays a chip.
+      expect(deriveHighlightFields(def, null)).toEqual(['name', 'status']);
+    });
   });
 });
 
@@ -792,6 +817,30 @@ describe('deriveFieldGroupDetailSections (#2148)', () => {
       organization_id: { label: 'Org', type: 'text' },
     },
   };
+
+  it('passes group icon/description through to the section descriptors (#2548)', () => {
+    const def: ObjectDefLike = {
+      name: 'zoo',
+      fieldGroups: [
+        {
+          key: 'money',
+          label: 'Money',
+          icon: 'banknote',
+          description: 'Financial fields.',
+          collapse: 'collapsed',
+        },
+      ],
+      fields: { budget: { label: 'Budget', type: 'currency', group: 'money' } },
+    };
+    const sections = deriveFieldGroupDetailSections(def)!;
+    expect(sections[0]).toMatchObject({
+      name: 'money',
+      icon: 'banknote',
+      description: 'Financial fields.',
+      collapsible: true,
+      defaultCollapsed: true,
+    });
+  });
 
   it('returns sections in declared order with collapse passthrough, dropping empty groups', () => {
     const sections = deriveFieldGroupDetailSections(groupedDef)!;

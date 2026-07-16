@@ -253,10 +253,13 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
   ],
   decision: [
     cfg('conditions', 'Branches', 'objectList', {
-      help: 'Each branch has a label and a CEL expression (spec decision shape). A branch whose expression is "true" is the default/else path.',
+      help: 'Each branch has a label, a CEL expression, and a target node. A branch whose expression is "true" is the default/else path. Picking a target wires the branch’s outgoing edge (creating or updating it); clearing it detaches that edge.',
       columns: [
         { key: 'label', label: 'Label', kind: 'text', placeholder: 'Has deals' },
         { key: 'expression', label: 'Expression', kind: 'expression', placeholder: 'expiring_deals.length > 0' },
+        // #1942 — virtual column: derived from / applied to the out-edges by
+        // FlowNodeInspector (flow-decision-edges), never stored on the branch.
+        { key: 'target', label: 'Target', kind: 'reference', placeholder: 'next node', ref: { kind: 'node' } },
       ],
     }),
     cfg('condition', 'Condition (single)', 'expression', {

@@ -73,10 +73,14 @@ describe('ObjectGallery — shared cell renderers', () => {
   it('renders status as a Badge (not plain text)', async () => {
     renderGallery(['status']);
     await waitFor(() => expect(screen.getByText('Acme Corp')).toBeInTheDocument());
-    const badge = await screen.findByText('Active');
+    const label = await screen.findByText('Active');
     // SelectCellRenderer wraps the option label in a <Badge>-flavored
-    // span carrying the configured option color class.
-    const cls = badge.className || '';
+    // span carrying the configured option color class. Since #2548 the
+    // text sits in an inner `truncate` span (ellipsis for overlong
+    // labels), so the Badge chrome lives on the closest wrapper.
+    const badge =
+      label.closest('[class*="rounded"], [class*="inline-flex"], [class*="border"]') ?? label;
+    const cls = (badge as HTMLElement).className || '';
     expect(cls.length).toBeGreaterThan(0);
     // We don't pin the exact tailwind tokens, but the Badge always
     // applies rounded + inline-flex utilities.

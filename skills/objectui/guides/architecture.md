@@ -30,7 +30,7 @@ ObjectUI is a strict PNPM Workspace. Pick a package by **role + dependency weigh
 
 | Package | Role | Responsibility |
 |---|---|---|
-| `@object-ui/app-shell` | Minimal Shell | Framework-agnostic `AppShell`, `ObjectRenderer`, `DashboardRenderer`, `PageRenderer`, `FormRenderer`. Bring-your-own-router. |
+| `@object-ui/app-shell` | Minimal Shell | Framework-agnostic `AppShell`, `ObjectRenderer`, `DashboardRenderer`, `PageRenderer`. Bring-your-own-router. |
 | `@object-ui/providers` | Context Stack | Reusable `DataSourceProvider`, `MetadataProvider`, `ThemeProvider`. Console-free. |
 | `@object-ui/runner` | Universal Runtime | Standalone runtime + dev server for schema-driven apps. Pre-wires popular plugins. |
 | `@object-ui/data-*` | Data Adapters | Connectors for REST, ObjectQL, GraphQL (e.g. `@object-ui/data-objectstack`). |
@@ -41,7 +41,6 @@ ObjectUI is a strict PNPM Workspace. Pick a package by **role + dependency weigh
 |---|---|
 | `@object-ui/auth` | `AuthProvider`, `useAuth`, `AuthGuard`, login/signup forms, `createAuthenticatedFetch`. |
 | `@object-ui/permissions` | RBAC engine, `PermissionProvider`, object/field/row-level permission guards. |
-| `@object-ui/tenant` | Multi-tenancy: `TenantProvider`, scoped queries, per-tenant branding. |
 | `@object-ui/i18n` | i18n: 10+ language packs, RTL, date/currency formatters. |
 | `@object-ui/mobile` | Mobile/PWA: responsive primitives, touch gestures, install prompts. |
 | `@object-ui/collaboration` | Realtime: presence, live cursors, comment threads, conflict resolution. |

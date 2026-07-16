@@ -55,6 +55,7 @@ import {
   CATEGORY_LABEL_ZH,
   type FieldTypeId,
 } from '../previews/field-types';
+import { CelPredicateField } from '../CelPredicateField';
 import { t, tFormat } from '../i18n';
 
 const isZh = (locale?: string) => (locale ?? '').toLowerCase().startsWith('zh');
@@ -117,6 +118,39 @@ function defaultValueKind(type: string): DefaultKind | null {
   ];
   if (noDefault.includes(type)) return null;
   return 'text';
+}
+
+/**
+ * The scope roots a field conditional rule can actually reference at runtime:
+ * `@object-ui/core`'s `evalFieldPredicate` binds the live record as `record`,
+ * the saved record as `previous`, and (for master-detail line items) the
+ * header as `parent` — nothing else (no `current_user`), so the autocomplete
+ * must not advertise the wider RLS/flow root set (objectui#1582).
+ */
+const FIELD_RULE_ROOTS = ['record', 'previous', 'parent'];
+
+/** Read a `*When` predicate for editing: a bare string or an Expression envelope's `source`. */
+function readPredicate(v: unknown): string {
+  if (typeof v === 'string') return v;
+  if (v && typeof v === 'object' && typeof (v as { source?: unknown }).source === 'string') {
+    return (v as { source: string }).source;
+  }
+  return '';
+}
+
+/**
+ * Write an edited predicate back. Empty clears the rule; a value authored over
+ * an existing `{ dialect, source }` envelope preserves the envelope's other
+ * keys (`meta.rationale` from an AI draft, etc.) instead of collapsing to a
+ * bare string; otherwise the spec-blessed bare-string shorthand is written.
+ */
+function writePredicate(orig: unknown, next: string): unknown {
+  if (!next.trim()) return undefined;
+  if (orig && typeof orig === 'object' && !Array.isArray(orig)) {
+    const env = orig as Record<string, unknown>;
+    return { ...env, dialect: typeof env.dialect === 'string' ? env.dialect : 'cel', source: next };
+  }
+  return next;
 }
 
 function buildTypeOptions(locale?: string): Array<{ value: string; label: string }> {
@@ -525,17 +559,60 @@ export function ObjectFieldInspector({
           onCommit={(v) => patchDef({ placeholder: v || undefined })}
           disabled={readOnly}
         />
-        <div className="space-y-1">
-          <InspectorTextField
-            label={tr('designer.field.conditionalRequired')}
-            value={typeof def.conditionalRequired === 'string' ? (def.conditionalRequired as string) : ''}
-            onCommit={(v) => patchDef({ conditionalRequired: v || undefined })}
+        {/* Conditional rules (ADR-0036 B2) — CEL editors with live lint +
+            field autocomplete against THIS object's fields (objectui#1582). */}
+        <div className="space-y-2 border-t pt-2.5">
+          <div className="text-[11px] font-medium text-muted-foreground">
+            {tr('designer.field.conditionalRules')}
+          </div>
+          <CelPredicateField
+            id={`field-rule-visible-${entry.name}`}
+            label={tr('designer.field.visibleWhen')}
+            value={readPredicate(def.visibleWhen)}
+            onChange={(v) => patchDef({ visibleWhen: writePredicate(def.visibleWhen, v) })}
             disabled={readOnly}
-            mono
+            placeholder="record.status != 'draft'"
+            objectName={typeof (draft as any).name === 'string' ? ((draft as any).name as string) : undefined}
+            fieldNames={view.entries.map((e) => e.name)}
+            scope="record"
+            roots={FIELD_RULE_ROOTS}
+            t={tr}
+          />
+          <CelPredicateField
+            id={`field-rule-readonly-${entry.name}`}
+            label={tr('designer.field.readonlyWhen')}
+            value={readPredicate(def.readonlyWhen)}
+            onChange={(v) => patchDef({ readonlyWhen: writePredicate(def.readonlyWhen, v) })}
+            disabled={readOnly}
             placeholder="record.status == 'closed'"
+            objectName={typeof (draft as any).name === 'string' ? ((draft as any).name as string) : undefined}
+            fieldNames={view.entries.map((e) => e.name)}
+            scope="record"
+            roots={FIELD_RULE_ROOTS}
+            t={tr}
+          />
+          <CelPredicateField
+            id={`field-rule-required-${entry.name}`}
+            label={tr('designer.field.requiredWhen')}
+            // Legacy alias: `conditionalRequired` (spec @deprecated) reads into
+            // the same editor; the first edit migrates it to `requiredWhen`.
+            value={readPredicate(def.requiredWhen ?? def.conditionalRequired)}
+            onChange={(v) =>
+              patchDef({
+                requiredWhen: writePredicate(def.requiredWhen ?? def.conditionalRequired, v),
+                conditionalRequired: undefined,
+              })
+            }
+            disabled={readOnly}
+            placeholder="record.amount > 10000"
+            objectName={typeof (draft as any).name === 'string' ? ((draft as any).name as string) : undefined}
+            fieldNames={view.entries.map((e) => e.name)}
+            scope="record"
+            roots={FIELD_RULE_ROOTS}
+            t={tr}
           />
           <p className="text-[11px] text-muted-foreground/80 px-0.5 leading-snug">
-            {tr('designer.field.conditionalRequiredHint')}
+            {tr('designer.field.conditionalRulesHint')}
           </p>
         </div>
         {fieldGroups.length > 0 && (

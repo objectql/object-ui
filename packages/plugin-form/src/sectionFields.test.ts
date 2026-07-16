@@ -49,6 +49,19 @@ describe('normalizeSectionField', () => {
     expect((f as any).disabled).toBe(true);
   });
 
+  it('applies a spec reference override written under either key (`reference` or `reference_to`)', () => {
+    // Spec canon is `reference_to` (views.zod.ts) but `reference` (ObjectStack
+    // convention) is accepted too; both keys are stamped so any dual-key
+    // downstream reader sees the override (#2407 / PR #2587).
+    const specCanon = normalizeSectionField({ field: 'name', reference_to: 'accounts' }, ctx) as any;
+    expect(specCanon.reference).toBe('accounts');
+    expect(specCanon.reference_to).toBe('accounts');
+
+    const stackConvention = normalizeSectionField({ field: 'name', reference: 'contacts' }, ctx) as any;
+    expect(stackConvention.reference).toBe('contacts');
+    expect(stackConvention.reference_to).toBe('contacts');
+  });
+
   it('builds from the object schema for a string shorthand', () => {
     const f = normalizeSectionField('industry', ctx);
     expect(f.name).toBe('industry');
