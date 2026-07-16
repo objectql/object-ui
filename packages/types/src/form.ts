@@ -283,7 +283,7 @@ export interface SelectOption {
    * evaluates TRUE against the live record + `current_user` (same engine/env as
    * field-level {@link FormFieldConfig.visibleWhen}). Omit = always available.
    * Expresses both cascading options (`record.country == 'cn'`) and role/context
-   * gating (`'admin' in current_user.roles`). Aligns with @objectstack/spec
+   * gating (`'admin' in current_user.positions`). Aligns with @objectstack/spec
    * SelectOption.visibleWhen.
    *
    * Client-side hiding is UX, not authorization — access-control gating must also

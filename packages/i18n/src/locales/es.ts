@@ -510,6 +510,8 @@ const es = {
     highlightFields: "Campos clave",
     createdBy: "Creado por",
     updatedBy: "Actualizado por",
+    created: "Creado",
+    updated: "Actualizado",
     showEmptyRelated_one: "+ {{count}} vacío",
     showEmptyRelated_other: "+ {{count}} vacíos",
     copyEmail: "Copiar correo",

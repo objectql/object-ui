@@ -117,6 +117,7 @@ export {
   deriveHighlightFields,
   deriveFieldGroupDetailSections,
   resolveDetailSections,
+  resolveTitleField,
 } from './synth/buildDefaultPageSchema';
 export type {
   ObjectDefLike,

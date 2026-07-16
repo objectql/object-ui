@@ -58,7 +58,7 @@ describe('lintOptionPredicates — clean predicates', () => {
         type: 'select',
         options: [
           { label: 'Standard', value: 'standard' },
-          { label: 'Admin only', value: 'admin_only', visibleWhen: "'admin' in current_user.roles" },
+          { label: 'Admin only', value: 'admin_only', visibleWhen: "'admin' in current_user.positions" },
         ],
       },
     ]);

@@ -1,0 +1,44 @@
+{
+  "type": "dashboard",
+  "title": "Activity Over Time",
+  "columns": 2,
+  "gap": 4,
+  "dateRange": {
+    "field": "created_at",
+    "defaultRange": "last_90_days",
+    "allowCustomRange": true
+  },
+  "widgets": [
+    {
+      "id": "invoices_by_month",
+      "title": "Invoices by Month",
+      "type": "line",
+      "object": "invoices",
+      "categoryField": "created_at",
+      "categoryGranularity": "month",
+      "aggregate": "count"
+    },
+    {
+      "id": "accounts_signed_by_month",
+      "title": "Accounts Signed by Month",
+      "type": "area",
+      "object": "accounts",
+      "categoryField": "signed_at",
+      "categoryGranularity": "month",
+      "aggregate": "count",
+      "filterBindings": {
+        "dateRange": "signed_at"
+      }
+    },
+    {
+      "id": "all_time_total",
+      "title": "All-time Invoices",
+      "type": "metric",
+      "object": "invoices",
+      "aggregate": "count",
+      "filterBindings": {
+        "dateRange": false
+      }
+    }
+  ]
+}

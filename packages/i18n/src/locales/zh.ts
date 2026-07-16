@@ -695,9 +695,13 @@ const zh = {
     // Activity feed actors
     systemActor: '系统',
     unknownUser: '未知用户',
-    // Record meta footer (audit provenance)
-    createdBy: '创建于',
-    updatedBy: '更新于',
+    // Record meta footer (audit provenance)。createdBy/updatedBy 后面跟的是
+    // 操作者("创建人 Dev Admin · 5 分钟前");created/updated 是无操作者时的
+    // 兜底("创建于 5 分钟前")。旧文案把"创建于"用在了操作者位置,属误译。
+    createdBy: '创建人',
+    updatedBy: '更新人',
+    created: '创建于',
+    updated: '更新于',
     // Attachments
     dropFilesToUpload: '拖拽文件到此处或点击上传',
     attachmentCount: '{{count}} 个附件',
@@ -987,6 +991,29 @@ const zh = {
       vsLastYear: '较去年',
       vsYesterday: '较昨日',
       vsPreviousPeriod: '较上期',
+    },
+    filters: {
+      label: '仪表盘过滤器',
+      dateRange: '日期范围',
+      allTime: '全部时间',
+      custom: '自定义…',
+      all: '全部',
+      reset: '重置',
+      range: {
+        today: '今天',
+        yesterday: '昨天',
+        this_week: '本周',
+        last_week: '上周',
+        this_month: '本月',
+        last_month: '上月',
+        this_quarter: '本季度',
+        last_quarter: '上季度',
+        this_year: '今年',
+        last_year: '去年',
+        last_7_days: '近 7 天',
+        last_30_days: '近 30 天',
+        last_90_days: '近 90 天',
+      },
     },
   },
   configPanel: {

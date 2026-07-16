@@ -123,9 +123,13 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.minutesAgo': '{{count}}m ago',
   'detail.hoursAgo': '{{count}}h ago',
   'detail.daysAgo': '{{count}}d ago',
-  // Record meta footer (audit provenance)
+  // Record meta footer (audit provenance). created/updated are the
+  // actor-less variants used when created_by/updated_by is null (system or
+  // seeded rows) — "Created by · 5m ago" dangled without an actor.
   'detail.createdBy': 'Created by',
   'detail.updatedBy': 'Updated by',
+  'detail.created': 'Created',
+  'detail.updated': 'Updated',
   // Attachments
   'detail.dropFilesToUpload': 'Drop files here or click to upload',
   'detail.attachmentCount': '{{count}} attachment',

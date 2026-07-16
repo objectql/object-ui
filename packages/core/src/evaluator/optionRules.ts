@@ -16,7 +16,7 @@
  * {@link evalFieldPredicate}). This expresses both:
  *   - cascades — `record.country == 'cn'` (the dependent list narrows as the
  *     controlling field changes), and
- *   - role/context gating — `'admin' in current_user.roles`.
+ *   - role/context gating — `'admin' in current_user.positions`.
  *
  * A field declares which sibling fields its option list reacts to via
  * `dependsOn` (aligns with `@objectstack/spec` Field.dependsOn — the same knob

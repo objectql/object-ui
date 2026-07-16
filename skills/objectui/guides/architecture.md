@@ -41,7 +41,6 @@ ObjectUI is a strict PNPM Workspace. Pick a package by **role + dependency weigh
 |---|---|
 | `@object-ui/auth` | `AuthProvider`, `useAuth`, `AuthGuard`, login/signup forms, `createAuthenticatedFetch`. |
 | `@object-ui/permissions` | RBAC engine, `PermissionProvider`, object/field/row-level permission guards. |
-| `@object-ui/tenant` | Multi-tenancy: `TenantProvider`, scoped queries, per-tenant branding. |
 | `@object-ui/i18n` | i18n: 10+ language packs, RTL, date/currency formatters. |
 | `@object-ui/mobile` | Mobile/PWA: responsive primitives, touch gestures, install prompts. |
 | `@object-ui/collaboration` | Realtime: presence, live cursors, comment threads, conflict resolution. |

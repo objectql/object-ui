@@ -55,6 +55,17 @@ Supported types out of the box:
 - **Media**: `file`, `image`
 - **System**: `formula`, `summary`, `auto_number`
 
+### File uploads in line-item grids
+
+`GridField` (the master-detail line-items grid) supports `type: 'file'` columns:
+the cell renders a compact upload button plus removable file chips (thumbnails
+for images) instead of degrading to a text input, so users can attach a receipt
+or photo per row without opening the row form (objectui#2360). Columns accept
+`accept?: string[]` and `multiple?: boolean`; uploads run through the same
+`UploadProvider` pipeline as the full-size `FileField` (the compact control is
+exported as `FileCell`). Auto-derived subform columns map `file`/`image`/
+`avatar` fields to file columns instead of dropping them.
+
 ### Cascading & role-gated select options
 
 `select` options support a per-option `visibleWhen` CEL predicate (offered only

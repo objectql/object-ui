@@ -186,10 +186,11 @@ describe('PageHeaderRenderer — actions slot', () => {
         ],
       },
     );
-    // With 4 actions, the first stays inline; the rest collapse into a `⋯`
-    // overflow menu. We assert the primary is rendered as a button and the
-    // overflow trigger is present (full menu contents are exercised by
-    // separate dropdown interaction tests).
+    // With 4 actions and the default maxVisible of 3, the first three stay
+    // inline and the rest collapse into a `⋯` overflow menu. We assert the
+    // authored action is rendered as a button and the overflow trigger is
+    // present (full menu contents are exercised by separate dropdown
+    // interaction tests).
     expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
     expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
   });
@@ -218,5 +219,107 @@ describe('PageHeaderRenderer — actions slot', () => {
       },
     );
     expect(screen.getByRole('button', { name: /编辑/i })).toBeTruthy();
+  });
+});
+
+describe('PageHeaderRenderer — inline/overflow split (objectui#2361)', () => {
+  it('renders up to three actions side-by-side with no overflow menu', () => {
+    renderHeader({
+      type: 'page:header',
+      actions: [
+        { name: 'convert', label: 'Convert Lead' },
+        { name: 'assign', label: 'Assign' },
+        { name: 'return', label: 'Return' },
+      ],
+    });
+    expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Assign/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Return/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /More actions/i })).toBeNull();
+  });
+
+  it('overflows past the default maxVisible of 3', () => {
+    renderHeader({
+      type: 'page:header',
+      actions: [
+        { name: 'a', label: 'Action A' },
+        { name: 'b', label: 'Action B' },
+        { name: 'c', label: 'Action C' },
+        { name: 'd', label: 'Action D' },
+      ],
+    });
+    expect(screen.getByRole('button', { name: /Action C/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Action D/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
+  });
+
+  it('honors a schema-level maxVisible override', () => {
+    renderHeader({
+      type: 'page:header',
+      maxVisible: 1,
+      actions: [
+        { name: 'a', label: 'Action A' },
+        { name: 'b', label: 'Action B' },
+      ],
+    });
+    expect(screen.getByRole('button', { name: /Action A/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Action B/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
+  });
+
+  it('reads maxVisible from properties (spec bridge variant)', () => {
+    renderHeader({
+      type: 'page:header',
+      properties: {
+        maxVisible: 4,
+        actions: [
+          { name: 'a', label: 'Action A' },
+          { name: 'b', label: 'Action B' },
+          { name: 'c', label: 'Action C' },
+          { name: 'd', label: 'Action D' },
+        ],
+      },
+    });
+    expect(screen.getByRole('button', { name: /Action D/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /More actions/i })).toBeNull();
+  });
+
+  it('promotes a lower `order` into the inline slots (#2339 rule)', () => {
+    renderHeader({
+      type: 'page:header',
+      maxVisible: 1,
+      actions: [
+        { name: 'a', label: 'Action A' },
+        { name: 'b', label: 'Action B', order: -1 },
+      ],
+    });
+    expect(screen.getByRole('button', { name: /Action B/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Action A/i })).toBeNull();
+  });
+
+  it('prefers variant: primary as a tie-break within equal order', () => {
+    renderHeader({
+      type: 'page:header',
+      maxVisible: 1,
+      actions: [
+        { name: 'a', label: 'Action A' },
+        { name: 'b', label: 'Action B', variant: 'primary' },
+      ],
+    });
+    expect(screen.getByRole('button', { name: /Action B/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Action A/i })).toBeNull();
+  });
+
+  it('pins component: action:menu actions into the overflow menu even below maxVisible', () => {
+    renderHeader({
+      type: 'page:header',
+      actions: [
+        { name: 'convert', label: 'Convert Lead' },
+        { name: 'sys_delete', label: 'Delete', component: 'action:menu' },
+      ],
+    });
+    expect(screen.getByRole('button', { name: /Convert Lead/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Delete$/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /More actions/i })).toBeTruthy();
   });
 });

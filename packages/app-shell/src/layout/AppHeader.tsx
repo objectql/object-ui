@@ -68,6 +68,7 @@ import { useAuth, getUserInitials, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { useMetadata } from '../providers/MetadataProvider';
 import { resolveI18nLabel, preferLocal, matchAppBySegment, appRouteSegment, appStudioRoutePath } from '../utils';
 import { getIcon } from '../utils/getIcon';
+import { bearerAuthHeaders } from '../utils/authToken';
 import { useMobileViewSwitcher } from './MobileViewSwitcherContext';
 import { useNavigationContext } from '../context/NavigationContext';
 import { useCommandPalette } from '../context/CommandPaletteProvider';
@@ -440,7 +441,11 @@ export function AppHeader({
       approvalsInFlightRef.current = true;
       try {
         const qs = new URLSearchParams({ status: 'pending', approverId: identities.join(',') });
-        const res = await fetch(`${base}?${qs}`, { credentials: 'include' });
+        const res = await fetch(`${base}?${qs}`, {
+          credentials: 'include',
+          // Bearer too — see utils/authToken (#2548 split-origin fix).
+          headers: bearerAuthHeaders(),
+        });
         if (res.status === 404) { approvalsUnavailableRef.current = true; return; }
         if (!res.ok) return;
         const payload = await res.json().catch(() => null);
