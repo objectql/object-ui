@@ -569,6 +569,27 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   /** Label for the open-built-app action (default "Open app"). */
   openBuiltAppLabel?: string;
   /**
+   * ADR-0080 D5 cold-start handoff — when provided, a finished build renders
+   * "Design in Studio" as the PRIMARY action (Studio is the built app's
+   * iteration home), demoting "Open app" to a secondary action. The host
+   * wires this to its Studio route (e.g. `navigate('/studio/<pkg>/interfaces')`).
+   */
+  onDesignBuiltApp?: (appName: string, appSegment?: string) => void;
+  /** Label for the design-built-app action (default "Design in Studio"). */
+  designBuiltAppLabel?: string;
+  /**
+   * Deep-link a built artifact to where it can be edited directly (its Studio
+   * pillar). Called per artifact row with the owning package id (from the
+   * build's own draft envelope, so reloaded conversations link too); return
+   * the click action for a linkable artifact, or null to render it as plain
+   * text — the host decides which types have a direct-edit home (e.g.
+   * object → Data, flow → Automations).
+   */
+  getArtifactAction?: (
+    artifact: { type: string; name: string },
+    appSegment?: string,
+  ) => (() => void) | null;
+  /**
    * ADR-0037 Live Canvas: preview the drafted app *before* it is published.
    * Rendered next to the build tree's Open-app action and on draft chips
    * whose items include an `app`. The host wires this to its router with the
@@ -645,6 +666,8 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   planAdjustLabel?: string;
   /** Static badge shown in place of the "Build it" button once this plan's build has run, so it can't be re-triggered (default "Built"). */
   planBuiltLabel?: string;
+  /** Badge shown on a plan card right after its Build-it was clicked (#2627). */
+  planBuildingLabel?: string;
   /**
    * Body line of the FALLBACK confirm card shown when a propose_blueprint step
    * finished but produced no structured plan (so the rich card can't render).
@@ -1169,6 +1192,9 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       onPublishDrafts,
       onOpenBuiltApp,
       openBuiltAppLabel = 'Open app',
+      onDesignBuiltApp,
+      designBuiltAppLabel = 'Design in Studio',
+      getArtifactAction,
       onPreviewDraftApp,
       previewDraftLabel = 'Preview',
       onDraftArtifacts,
@@ -1190,6 +1216,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planApproveLabel = 'Build it',
       planAdjustLabel = 'Adjust',
       planBuiltLabel = 'Built',
+      planBuildingLabel = 'Building…',
       planReadyLabel = 'The plan is ready. Build it now, or tell me what to adjust.',
       planApproveMessage = 'Looks good — build it as proposed.',
       planApproveDefaultsMessage = 'Build it with your best assumptions; use sensible defaults for the open questions.',
@@ -1477,6 +1504,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         // clears any prior send-failure restore guard.
         lastSubmittedRef.current = text;
         restoredErrorRef.current = null;
+        // A newer send supersedes any pending approve as "the last send" — an
+        // unsent failure of THIS message must not roll back a plan card whose
+        // approval already reached the server (#2627).
+        lastApprovedPlanIdRef.current = null;
         onSendMessage?.(text, files);
       },
       [onSendMessage]
@@ -1484,6 +1515,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
 
     const handleSuggestionClick = React.useCallback(
       (text: string) => {
+        lastApprovedPlanIdRef.current = null;
         onSendMessage?.(text);
       },
       [onSendMessage]
@@ -1495,8 +1527,28 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     // approval explicitly authorizes sensible defaults so a click never silently
     // drops them.
     const promptInputWrapRef = React.useRef<HTMLDivElement>(null);
+    // Optimistic per-card feedback (#2627): the approval's visible effect (a
+    // new user bubble + a streaming turn) lands at the BOTTOM of the thread —
+    // outside the viewport when the plan card is scrolled into view — so the
+    // card itself looked untouched for the ~10s until apply_blueprint started
+    // and users clicked again. Flip the clicked card to a "Building…" badge
+    // immediately; the durable Built state still derives from the message
+    // stream (builtPlanIds). A send that never left the client (rate limit /
+    // offline) rolls the flip back so the buttons return.
+    const [approvedPlanIds, setApprovedPlanIds] = React.useState<ReadonlySet<string>>(
+      () => new Set<string>(),
+    );
+    const lastApprovedPlanIdRef = React.useRef<string | null>(null);
     const handlePlanApprove = React.useCallback(
-      (hasOpenQuestions: boolean) => {
+      (hasOpenQuestions: boolean, toolCallId?: string) => {
+        if (toolCallId) {
+          lastApprovedPlanIdRef.current = toolCallId;
+          setApprovedPlanIds((prev) => {
+            const next = new Set(prev);
+            next.add(toolCallId);
+            return next;
+          });
+        }
         onSendMessage?.(hasOpenQuestions ? planApproveDefaultsMessage : planApproveMessage);
       },
       [onSendMessage, planApproveMessage, planApproveDefaultsMessage]
@@ -1520,6 +1572,18 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       if (!error || !isUnsentSendError(error)) return;
       if (restoredErrorRef.current === error) return;
       restoredErrorRef.current = error;
+      // The approval message never left the client — roll the optimistic
+      // "Building…" badge back so the Build-it button returns (#2627).
+      if (lastApprovedPlanIdRef.current) {
+        const failedId = lastApprovedPlanIdRef.current;
+        lastApprovedPlanIdRef.current = null;
+        setApprovedPlanIds((prev) => {
+          if (!prev.has(failedId)) return prev;
+          const next = new Set(prev);
+          next.delete(failedId);
+          return next;
+        });
+      }
       const text = lastSubmittedRef.current;
       if (!text) return;
       const textarea = promptInputWrapRef.current?.querySelector('textarea');
@@ -2125,6 +2189,16 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         {planBuiltLabel}
                       </span>
                     </div>
+                  ) : approvedPlanIds.has(tool.toolCallId) ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-plan-actions">
+                      <span
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border bg-muted/40 px-3 text-xs font-medium text-muted-foreground"
+                        data-testid="proposed-plan-building"
+                      >
+                        <Loader2 className="size-3.5 animate-spin" />
+                        {planBuildingLabel}
+                      </span>
+                    </div>
                   ) : (
                   <div
                     className="flex flex-wrap items-center gap-1.5 pt-0.5"
@@ -2133,7 +2207,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     <button
                       type="button"
                       onClick={() =>
-                        handlePlanApprove(tool.proposedPlan!.questions.length > 0)
+                        handlePlanApprove(tool.proposedPlan!.questions.length > 0, tool.toolCallId)
                       }
                       className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                       data-testid="proposed-plan-approve"
@@ -2187,6 +2261,16 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         {planBuiltLabel}
                       </span>
                     </div>
+                  ) : approvedPlanIds.has(tool.toolCallId) ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-plan-actions">
+                      <span
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border bg-muted/40 px-3 text-xs font-medium text-muted-foreground"
+                        data-testid="proposed-plan-building"
+                      >
+                        <Loader2 className="size-3.5 animate-spin" />
+                        {planBuildingLabel}
+                      </span>
+                    </div>
                   ) : (
                     <div
                       className="flex flex-wrap items-center gap-1.5 pt-0.5"
@@ -2195,7 +2279,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       <button
                         type="button"
                         // No structured questions to default through → plain approve.
-                        onClick={() => handlePlanApprove(false)}
+                        onClick={() => handlePlanApprove(false, tool.toolCallId)}
                         className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                         data-testid="proposed-plan-approve"
                       >
@@ -2463,8 +2547,21 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       {buildProgress ? (
                         <BuildProgressPanel
                           progress={buildProgress}
+                          // The build's owning package, from ITS OWN draft
+                          // envelope — present on reloaded conversations too,
+                          // so the Studio CTA / artifact links never depend on
+                          // live-canvas runtime state.
+                          appSegment={
+                            message.toolInvocations
+                              ?.map((tool) => tool.draftReview)
+                              .find((dr) => dr?.packageId && dr.items?.some((i) => i.type === 'app'))
+                              ?.packageId
+                          }
                           onOpenBuiltApp={onOpenBuiltApp}
                           openBuiltAppLabel={openBuiltAppLabel}
+                          onDesignBuiltApp={onDesignBuiltApp}
+                          designBuiltAppLabel={designBuiltAppLabel}
+                          getArtifactAction={getArtifactAction}
                           onPreviewDraftApp={onPreviewDraftApp}
                           previewDraftLabel={previewDraftLabel}
                           waitingLabel={L.connectionWaiting}
@@ -3319,8 +3416,12 @@ function BlueprintProgressPanel({
  */
 function BuildProgressPanel({
   progress,
+  appSegment,
   onOpenBuiltApp,
   openBuiltAppLabel = 'Open app',
+  onDesignBuiltApp,
+  designBuiltAppLabel = 'Design in Studio',
+  getArtifactAction,
   onPreviewDraftApp,
   previewDraftLabel = 'Preview',
   waitingLabel = 'Waiting for server…',
@@ -3328,8 +3429,16 @@ function BuildProgressPanel({
   offlineLabel = 'Connection lost — reconnecting…',
 }: {
   progress: ChatBuildProgress;
+  /** The build's owning package id (from its draft envelope), for deep links. */
+  appSegment?: string;
   onOpenBuiltApp?: (appName: string) => void;
   openBuiltAppLabel?: string;
+  onDesignBuiltApp?: (appName: string, appSegment?: string) => void;
+  designBuiltAppLabel?: string;
+  getArtifactAction?: (
+    artifact: { type: string; name: string },
+    appSegment?: string,
+  ) => (() => void) | null;
   onPreviewDraftApp?: (appName: string) => void;
   previewDraftLabel?: string;
   waitingLabel?: string;
@@ -3348,10 +3457,10 @@ function BuildProgressPanel({
   // The created `app` artifact (navigation shell) — the natural "open it" target.
   const builtApp = items.find((it) => it.type === 'app');
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : isDone ? 100 : 6;
-  const groups = new Map<string, string[]>();
+  const groups = new Map<string, Array<{ name: string; display: string }>>();
   for (const it of items) {
     const arr = groups.get(it.type) ?? [];
-    arr.push(it.name.replace(/_sample$/, ''));
+    arr.push({ name: it.name, display: it.name.replace(/_sample$/, '') });
     groups.set(it.type, arr);
   }
   const orderedTypes = [
@@ -3390,26 +3499,71 @@ function BuildProgressPanel({
       </div>
       <ul className="space-y-1">
         {orderedTypes.map((type) => {
-          const names = groups.get(type)!;
+          const entries = groups.get(type)!;
           return (
             <li key={type} className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
               <span className="min-w-0 text-muted-foreground">
                 <span className="font-medium text-foreground">{BUILD_GROUP_LABEL[type] ?? type}</span>{' '}
-                {names.slice(0, 6).join(', ')}
-                {names.length > 6 ? ` +${names.length - 6} more` : ''}
+                {entries.slice(0, 6).map((entry, i) => {
+                  // Deep-link the artifact to its direct-edit home (Studio
+                  // pillar) once the build is done — the host decides which
+                  // types are linkable (null → plain text). Mid-build stays
+                  // plain: half-built artifacts have nowhere stable to land.
+                  const action = isDone
+                    ? getArtifactAction?.({ type, name: entry.name }, appSegment)
+                    : null;
+                  return (
+                    <React.Fragment key={entry.name}>
+                      {i > 0 ? ', ' : null}
+                      {action ? (
+                        <button
+                          type="button"
+                          onClick={action}
+                          className="rounded-sm text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+                          data-testid={`build-artifact-link-${type}-${entry.name}`}
+                        >
+                          {entry.display}
+                        </button>
+                      ) : (
+                        entry.display
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+                {entries.length > 6 ? ` +${entries.length - 6} more` : ''}
               </span>
             </li>
           );
         })}
       </ul>
-      {isDone && builtApp && (onOpenBuiltApp || onPreviewDraftApp) ? (
+      {isDone && builtApp && (onDesignBuiltApp || onOpenBuiltApp || onPreviewDraftApp) ? (
         <div className="mt-3 flex items-center gap-2">
+          {/* ADR-0080 D5 cold-start handoff: Studio is the built app's
+              iteration home, so it takes the PRIMARY slot; "Open app" (the
+              published front-end) demotes to a secondary. Hosts that don't
+              pass onDesignBuiltApp keep the old Open-app-primary layout. */}
+          {onDesignBuiltApp ? (
+            <button
+              type="button"
+              onClick={() => onDesignBuiltApp(builtApp.name, appSegment)}
+              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              data-testid="build-progress-design-app"
+            >
+              {designBuiltAppLabel}
+              <ArrowRight className="size-3.5" />
+            </button>
+          ) : null}
           {onOpenBuiltApp ? (
             <button
               type="button"
               onClick={() => onOpenBuiltApp(builtApp.name)}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              className={cn(
+                'inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-xs font-medium',
+                onDesignBuiltApp
+                  ? 'border hover:bg-muted'
+                  : 'bg-primary text-primary-foreground hover:bg-primary/90',
+              )}
               data-testid="build-progress-open-app"
             >
               {openBuiltAppLabel}

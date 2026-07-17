@@ -618,7 +618,11 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     }
 
     const resolvedObjectName = relatedObjectName;
-    const SKIP_TYPES = new Set(['image', 'file', 'attachment', 'rich_text', 'html', 'json']);
+    // file/image are NOT skipped: they have dedicated cell renderers (name
+    // chip / thumbnail), and dropping them hid business columns like a line's
+    // receipt attachment (objectui#2360). Only types with no useful tabular
+    // rendering stay excluded.
+    const SKIP_TYPES = new Set(['attachment', 'rich_text', 'html', 'json']);
     const PRIORITY_NAMES = [
       'name',
       'full_name',
@@ -715,6 +719,17 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       };
     }
 
+    // Per-record CEL predicates for the built-in row Edit/Delete, from the
+    // CHILD object's `userActions.edit` / `delete` object form (#2614) — the
+    // master-detail case where a child row freezes on a parent state change
+    // renders through this path. Boolean forms yield no predicates.
+    const uaEdit = objectSchema?.userActions?.edit;
+    const uaDelete = objectSchema?.userActions?.delete;
+    const predicatesOf = (v: any) =>
+      v != null && typeof v === 'object' && (v.visibleWhen != null || v.disabledWhen != null)
+        ? { visibleWhen: v.visibleWhen ?? undefined, disabledWhen: v.disabledWhen ?? undefined }
+        : undefined;
+
     // Auto-generate schema based on type. We disable the data-table's own
     // search/toolbar — RelatedList provides its own filter input above.
     switch (type) {
@@ -731,6 +746,8 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           rowActions: hasRowActions,
           onRowEdit,
           onRowDelete: onRowDelete ? handleDeleteRow : undefined,
+          rowEditPredicates: predicatesOf(uaEdit),
+          rowDeletePredicates: predicatesOf(uaDelete),
           onRowClick,
           // Child-object row actions (locations:['list_item']) rendered in the
           // same overflow menu, dispatched with the clicked row as target.
@@ -745,7 +762,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       default:
         return { type: 'div', children: 'No view configured' };
     }
-  }, [type, paginatedData, effectiveColumns, schema, effectivePageSize, hasRowActions, hasCustomRowActions, rowActions, onRowAction, onRowEdit, onRowDelete, handleDeleteRow, onRowClick, isMobile, api]);
+  }, [type, paginatedData, effectiveColumns, schema, effectivePageSize, hasRowActions, hasCustomRowActions, rowActions, onRowAction, onRowEdit, onRowDelete, handleDeleteRow, onRowClick, isMobile, api, objectSchema]);
 
   const headerClassName = collapsible ? 'cursor-pointer select-none' : undefined;
   const handleHeaderClick = collapsible ? () => setCollapsed((c) => !c) : undefined;

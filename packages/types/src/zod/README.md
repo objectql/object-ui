@@ -11,6 +11,20 @@ This directory contains runtime validation schemas using [Zod](https://github.co
 - **Auto-completion and IntelliSense** through TypeScript integration
 - **Detailed error messages** for invalid configurations
 
+### `ListViewSchema` is derived from `@objectstack/spec` (not hand-written) — #2231
+
+`ListViewSchema` (`objectql.zod.ts`) is **composed from** the spec's
+`@objectstack/spec/ui` `ListViewSchema`: spec-owned fields flow in by reference
+(`BaseSchema.extend(SpecListViewFields.shape)`), so they track the protocol automatically.
+Only the component envelope (`type: 'list-view'` + `objectName`), the legacy objectui
+vocabulary (`viewType`/`fields`/`filters`/`show*`/`densityMode`/…), and the handful of
+configs whose objectui shape is intentionally broader than spec's (`userFilters`,
+`sharing`, `aria`, `conditionalFormatting`, `exportOptions`, and the per-view-type
+`kanban`/`calendar`/`gantt`/`gallery`/`timeline`) are declared locally on top. The TS type
+is `z.infer<typeof ListViewSchema> & ListViewRuntimeProps`. A drift-guard test
+(`__tests__/list-view-spec-parity.test.ts`) fails if the spec grows a field objectui
+hasn't triaged. **Do not hand-add spec-owned fields here** — import them from the spec.
+
 ## Installation
 
 The Zod schemas are included in the `@object-ui/types` package:

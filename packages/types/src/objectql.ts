@@ -19,8 +19,9 @@
  */
 
 import type { BaseSchema } from './base';
-import type { TableColumn } from './data-display';
 import type { FormField } from './form';
+// ListView type is now derived from the zod schema (issue #2231) — see ListViewSchema below.
+import type { ListViewInferred } from './zod/objectql.zod.js';
 
 // ============================================================================
 // Spec-Canonical Types — imported from @objectstack/spec/ui
@@ -70,8 +71,6 @@ export type { PaginationConfig } from '@objectstack/spec/ui';
 
 // Import spec types for local use in interfaces below
 import type {
-  HttpMethod,
-  HttpRequest,
   ViewData,
   ListColumn,
   SelectionConfig,
@@ -80,8 +79,6 @@ import type {
   RowColorConfig,
   GalleryConfig,
   TimelineConfig,
-  UserActionsConfig,
-  AppearanceConfig,
 } from '@objectstack/spec/ui';
 
 /**
@@ -1615,479 +1612,46 @@ export interface ViewNavigationConfig {
 }
 
 /**
- * Generic View Definition
- * Aligned with @objectstack/spec View/ListView.
- * Defines the data requirement, not just the visual component.
+ * ListView component node — DERIVED from the zod `ListViewSchema` (issue #2231), which
+ * itself derives from `@objectstack/spec/ui` `ListViewSchema`. Spec-owned fields are
+ * imported by the schema rather than re-typed here, so this type can no longer drift from
+ * the protocol. The former hand-written interface (~470 lines mirroring the spec by hand)
+ * is replaced by this alias. Non-serializable runtime-only props (callbacks, refresh
+ * trigger) are intersected in via {@link ListViewRuntimeProps} — they cannot live in the
+ * zod/JSON-schema.
+ *
+ * Legacy objectui vocabulary (`viewType`/`fields`/`filters`/`show*`/`densityMode`/…) and
+ * the broader-than-spec configs (`userFilters`/`sharing`/`aria`/`conditionalFormatting`/
+ * `exportOptions`/`kanban`/`calendar`/`gantt`/`gallery`/`timeline`) remain as sanctioned
+ * local `.extend()`s on the schema; migration to the spec-canonical keys is deferred (#2231).
  */
-export interface ListViewSchema extends BaseSchema {
-  type: 'list-view';
-  
-  /** View name identifier */
-  name?: string;
-  
-  /** View display label */
-  label?: string;
-  
-  /** Object Name */
-  objectName: string;
-  
-  /** View Type (grid, kanban, etc.) @default 'grid' */
-  viewType?: 'grid' | 'kanban' | 'gallery' | 'calendar' | 'timeline' | 'gantt' | 'map';
+export type ListViewSchema = ListViewInferred & ListViewRuntimeProps;
 
+/**
+ * Non-serializable runtime-only props for the ListView component. These never belong in
+ * the zod schema — functions and imperative refresh triggers are not serialisable view
+ * metadata — so they are kept separate and intersected into {@link ListViewSchema}.
+ */
+export interface ListViewRuntimeProps {
   /**
-   * Data Source Configuration.
-   * Aligned with @objectstack/spec ViewDataSchema.
-   * Supports provider: 'object' (fetch from objectName), 'value' (inline items), 'api' (custom endpoint).
-   * If not provided, defaults to fetching from objectName via dataSource.find().
-   */
-  data?: ViewData;
-
-  /**
-   * Grouping Configuration (Airtable-style).
-   * Groups rows by specified fields with collapsible sections.
-   * Aligned with @objectstack/spec GroupingConfigSchema.
-   */
-  grouping?: GroupingConfig;
-
-  /**
-   * Row Color Configuration (Airtable-style).
-   * Colors rows based on field values.
-   * Aligned with @objectstack/spec RowColorConfigSchema.
-   */
-  rowColor?: RowColorConfig;
-
-  /** Columns definition (string field names or full column config) */
-  columns?: string[] | Array<{
-    field: string;
-    label?: string;
-    width?: number | string;
-    align?: 'left' | 'center' | 'right';
-    hidden?: boolean;
-    sortable?: boolean;
-    resizable?: boolean;
-    wrap?: boolean;
-    type?: string;
-    link?: boolean;
-    action?: string;
-    /** Pin column to left or right edge */
-    pinned?: 'left' | 'right';
-    /** Column footer summary/aggregation (e.g., 'count', 'sum', 'avg') */
-    summary?: string | { type: 'count' | 'sum' | 'avg' | 'min' | 'max'; field?: string };
-  }>;
-  
-  /** Fields to fetch/display (alias for simple string[] columns) */
-  fields?: string[];
-  
-  /** Filter conditions */
-  filters?: Array<any[] | string>;
-  
-  /** Sort order. Supports array of objects or legacy string format "field desc" */
-  sort?: Array<{ field: string; order: 'asc' | 'desc' } | string>;
-  
-  /** Fields that support text search */
-  searchableFields?: string[];
-  
-  /** Fields available for filter UI */
-  filterableFields?: string[];
-  
-  /** Row selection mode */
-  selection?: SelectionConfig;
-  
-  /** Pagination configuration */
-  pagination?: PaginationConfig;
-  
-  /** Allow column resizing @default false */
-  resizable?: boolean;
-  
-  /** Show alternating row colors @default false */
-  striped?: boolean;
-  
-  /** Show cell borders @default false */
-  bordered?: boolean;
-
-  /** Show search box in toolbar @default true */
-  showSearch?: boolean;
-
-  /** Show sort controls in toolbar @default true */
-  showSort?: boolean;
-
-  /** Show filter controls in toolbar @default true */
-  showFilters?: boolean;
-
-  /** Show hide-fields button in toolbar @default false */
-  showHideFields?: boolean;
-
-  /** Show group button in toolbar @default true */
-  showGroup?: boolean;
-
-  /** Show color button in toolbar @default false */
-  showColor?: boolean;
-
-  /** Show density/row-height button in toolbar @default false */
-  showDensity?: boolean;
-
-  /**
-   * Collapse the appearance/grouping cluster (Group + Color + Density + Hide Fields)
-   * into a single "View settings" popover button. Reduces toolbar clutter on
-   * data-heavy lists. Filter / Sort / Export remain top-level chips.
-   * @default false
-   */
-  compactToolbar?: boolean;
-
-  /** Allow data export @default undefined */
-  allowExport?: boolean;
-
-  /**
-   * Enable/disable built-in operations. The toolbar honors `export` as a hard
-   * gate: when `operations.export === false` the export button is hidden and
-   * any export request is blocked, regardless of `exportOptions`. Other keys
-   * are accepted for parity with grid schemas. Default-allow: an omitted
-   * `export` key (or `undefined`) leaves export enabled.
-   */
-  operations?: {
-    create?: boolean;
-    read?: boolean;
-    update?: boolean;
-    delete?: boolean;
-    export?: boolean;
-    import?: boolean;
-  };
-
-  /** Color field for row/card coloring */
-  color?: string;
-  
-  /** Navigation config for row click behavior */
-  navigation?: ViewNavigationConfig;
-
-  /**
-   * Callback for page-level navigation (used by 'page' mode).
+   * Callback for page-level navigation (used by 'page' navigation mode).
    * Called with recordId and action ('view' | 'edit').
    */
   onNavigate?: (recordId: string | number, action?: string) => void;
-  
-  /** Kanban-specific configuration */
-  kanban?: {
-    groupField: string;
-    titleField?: string;
-    cardFields?: string[];
-    [key: string]: any;
-  };
-  
-  /** Calendar-specific configuration */
-  calendar?: {
-    startDateField: string;
-    endDateField?: string;
-    titleField?: string;
-    defaultView?: 'month' | 'week' | 'day' | 'agenda';
-    [key: string]: any;
-  };
-  
-  /** Gantt-specific configuration */
-  gantt?: {
-    startDateField: string;
-    endDateField: string;
-    titleField?: string;
-    progressField?: string;
-    dependenciesField?: string;
-    [key: string]: any;
-  };
-
-  /** Gallery-specific configuration. Aligned with @objectstack/spec GalleryConfigSchema. */
-  gallery?: ListViewGalleryConfig;
-
-  /** Timeline-specific configuration. Aligned with @objectstack/spec TimelineConfigSchema. */
-  timeline?: ListViewTimelineConfig;
-  
-  /** Visual Component overrides (legacy, prefer typed configs above) */
-  options?: Record<string, any>;
-  
-  /** 
-   * Empty state configuration shown when no data is available.
-   * Aligned with @objectstack/spec ListViewSchema.emptyState.
-   */
-  emptyState?: {
-    /** Title text for the empty state */
-    title?: string;
-    /** Message/description for the empty state */
-    message?: string;
-    /** Icon name (Lucide icon identifier) for the empty state */
-    icon?: string;
-  };
 
   /**
-   * Fields to hide from the current view.
-   * Hides columns in grid view or fields in other view types.
-   */
-  hiddenFields?: string[];
-
-  /**
-   * Custom field display order. Fields listed first appear first.
-   * Fields not listed are appended in their original order.
-   */
-  fieldOrder?: string[];
-
-  /**
-   * Export options configuration for exporting list data.
-   * Supports both ObjectUI object format and spec simple string[] format.
-   * Spec format: ['csv', 'xlsx'] (simple array of format strings)
-   * ObjectUI format: { formats, maxRecords, includeHeaders, fileNamePrefix }
-   */
-  exportOptions?: Array<'csv' | 'xlsx' | 'json' | 'pdf'> | {
-    /** Formats available for export */
-    formats?: Array<'csv' | 'xlsx' | 'json' | 'pdf'>;
-    /** Maximum number of records to export (0 = unlimited) */
-    maxRecords?: number;
-    /** Include column headers in export */
-    includeHeaders?: boolean;
-    /** Custom file name prefix */
-    fileNamePrefix?: string;
-  };
-
-  /**
-   * Density mode for controlling row/item spacing.
-   * Aligned with @objectstack/spec DensityMode.
-   */
-  densityMode?: 'compact' | 'comfortable' | 'spacious';
-
-  /**
-   * Row height for list/grid view rows.
-   * Aligned with @objectstack/spec RowHeight enum.
-   */
-  rowHeight?: 'compact' | 'short' | 'medium' | 'tall' | 'extra_tall';
-
-  /**
-   * Optional callback fired when the user toggles row density via the
-   * toolbar. When provided, the host (typically ObjectView) is expected to
-   * persist the new value on the active view definition (e.g. via
-   * dataSource.updateViewConfig). Without this callback the toggle remains
-   * a session-local preference.
+   * Callback fired when the user toggles row density/height via the toolbar. Lets the host
+   * persist the choice (e.g. dataSource.updateViewConfig). Without it the toggle is local-only.
    */
   onDensityChange?: (mode: 'compact' | 'comfortable' | 'spacious') => void;
 
   /**
-   * Conditional formatting rules for row/cell styling.
-   * Rules are evaluated in order; first matching rule wins.
-   * Supports both ObjectUI field/operator/value rules and spec expression-based { condition, style } rules.
-   */
-  conditionalFormatting?: ConditionalFormattingRule[];
-
-  /**
-   * Enable inline editing for list view fields.
-   * When true, cells become editable on click/double-click.
-   */
-  inlineEdit?: boolean;
-
-  /** Wrap column headers in grid view @default false */
-  wrapHeaders?: boolean;
-
-  /** Navigate to record detail view when row is clicked @default true */
-  clickIntoRecordDetails?: boolean;
-
-  /** Add records via a form dialog @default false */
-  addRecordViaForm?: boolean;
-
-  /** Enable inline add/delete of records @default false */
-  addDeleteRecordsInline?: boolean;
-
-  /** Collapse all grouped sections by default @default false */
-  collapseAllByDefault?: boolean;
-
-  /** Field name for custom text color */
-  fieldTextColor?: string;
-
-  /** Prefix field displayed before the main title */
-  prefixField?: string;
-
-  /** Show field descriptions below headers @default false */
-  showDescription?: boolean;
-
-  /**
-   * ARIA attributes for accessibility.
-   * Applied to the root list container element.
-   */
-  aria?: {
-    /** Accessible label for the list view */
-    label?: string;
-    /** ID of the element that describes the list view */
-    describedBy?: string;
-    /** Live region politeness for dynamic updates */
-    live?: 'polite' | 'assertive' | 'off';
-  };
-
-  /**
-   * View sharing configuration.
-   * Supports both ObjectUI format { visibility, enabled } and spec format { type, lockedBy }.
-   * Controls who can see this view and enables share UI.
-   */
-  sharing?: {
-    /** Visibility level for the view (ObjectUI format) */
-    visibility?: 'private' | 'team' | 'organization' | 'public';
-    /** Whether sharing controls are shown in the toolbar */
-    enabled?: boolean;
-    /** Sharing type (spec format: personal or collaborative) */
-    type?: 'personal' | 'collaborative';
-    /** User who locked the view (spec format) */
-    lockedBy?: string;
-  };
-
-  /**
-   * User Filters Configuration (Airtable Interfaces-style).
-   *
-   * Supports three display modes configured by `element`:
-   * - 'dropdown': Each field renders as a dropdown selector badge (e.g., "Status ∨")
-   * - 'tabs': Named filter presets rendered as a tab bar (e.g., "Tab | my customers | All records")
-   */
-  userFilters?: {
-    /** UI element type for displaying filters */
-    element: 'dropdown' | 'tabs';
-
-    /**
-     * Field-level filter definitions (used by 'dropdown' and 'toggle' modes).
-     * Each field appears as an independent filter control in the toolbar.
-     */
-    fields?: Array<{
-      /** Field name to filter on */
-      field: string;
-      /** Display label (defaults to field label from objectDef) */
-      label?: string;
-      /** Filter input type */
-      type?: 'select' | 'multi-select' | 'boolean' | 'date-range' | 'text';
-      /** Static options (overrides auto-derived from objectDef) */
-      options?: Array<{
-        label: string;
-        value: string | number | boolean;
-        color?: string;
-      }>;
-      /** Show record count per option */
-      showCount?: boolean;
-      /** Default selected values */
-      defaultValues?: (string | number | boolean)[];
-    }>;
-
-    /**
-     * Named filter presets (used by 'tabs' mode).
-     * Each tab represents a pre-configured filter combination.
-     *
-     * Canonical shape is `{ name, label, icon?, filter, isDefault? }` — aligned
-     * with the `{ field, operator, value }` rules used by every other filter in
-     * the protocol, so AI authoring and the Studio tabs editor emit one
-     * consistent form. The legacy `{ id, filters, default }` fields remain
-     * accepted (normalized at runtime by `normalizeTabPresets`) for back-compat.
-     */
-    tabs?: Array<{
-      /** Unique tab identifier (snake_case). Falls back to `id` if omitted. */
-      name?: string;
-      /** Tab display label. */
-      label: string;
-      /** Filter rules applied when this tab is active. */
-      filter?: Array<{ field: string; operator: string; value?: unknown }>;
-      /** Icon name (Lucide icon identifier). */
-      icon?: string;
-      /** Whether this tab is active by default. */
-      isDefault?: boolean;
-
-      /** @deprecated use `name`. */
-      id?: string;
-      /** @deprecated use `filter` ({ field, operator, value }). */
-      filters?: Array<any[] | string>;
-      /** @deprecated use `isDefault`. */
-      default?: boolean;
-    }>;
-
-    /** Allow users to add new filter tabs at runtime */
-    allowAddTab?: boolean;
-    /** Show "All records" tab (tabs mode) */
-    showAllRecords?: boolean;
-  };
-
-  /**
-   * Row action identifiers (action names from ActionSchema).
-   * Aligned with @objectstack/spec ListViewSchema.rowActions.
-   */
-  rowActions?: string[];
-
-  /**
-   * Bulk action identifiers (action names from ActionSchema).
-   * Aligned with @objectstack/spec ListViewSchema.bulkActions.
-   */
-  bulkActions?: string[];
-
-  /**
-   * Rich bulk action definitions. See BulkActionDef. Takes precedence over
-   * `bulkActions` (string-id list) by opening the BulkActionDialog flow.
-   */
-  bulkActionDefs?: BulkActionDef[];
-
-  /**
-   * Enable virtual scrolling for large datasets.
-   * Aligned with @objectstack/spec ListViewSchema.virtualScroll.
-   * @default false
-   */
-  virtualScroll?: boolean;
-
-  /**
-   * User actions configuration — which toolbar affordances end users get.
-   *
-   * Derived from the spec's `UserActionsConfig` per this file's "never redefine
-   * types, always import them" rule (this field used to be a hand-maintained
-   * mirror — a drift hazard). `Partial<>` because authoring is opt-in: you write
-   * only the toggles you want, the rest fall back to the spec's defaults.
-   *
-   * `editInline` is carried as a transitional extension only because the pinned
-   * @objectstack/spec release predates it (added at the source in
-   * framework#2468). Once the spec dep is bumped, `Partial<UserActionsConfig>`
-   * supplies `editInline` itself and this `&`-extension becomes redundant.
-   */
-  userActions?: Partial<UserActionsConfig> & {
-    /**
-     * Allow end users to edit records inline (click a cell → type-aware editor,
-     * the same widgets the form uses). Default off: a list is read-only unless
-     * the author opts in. Read by InterfaceListPage → `inlineEdit`.
-     */
-    editInline?: boolean;
-  };
-
-  /**
-   * Appearance configuration — derived from the spec's `AppearanceConfig`
-   * (per the "never redefine types" rule). `Partial<>` because authoring is
-   * opt-in. Note: `allowedVisualizations` is the spec's visualization enum, not
-   * a free `string[]`.
-   */
-  appearance?: Partial<AppearanceConfig>;
-
-  /**
-   * Add record configuration.
-   * Aligned with @objectstack/spec ListViewSchema.addRecord.
-   */
-  addRecord?: {
-    enabled?: boolean;
-    position?: string;
-    mode?: string;
-    formView?: string;
-  };
-
-  /**
-   * Show total record count in the view.
-   * Aligned with @objectstack/spec ListViewSchema.showRecordCount.
-   * @default false
-   */
-  showRecordCount?: boolean;
-
-  /**
-   * Allow printing the view.
-   * Aligned with @objectstack/spec ListViewSchema.allowPrinting.
-   * @default false
-   */
-  allowPrinting?: boolean;
-
-  /**
-   * External refresh trigger.
-   * Increment this value to force the ListView to re-fetch data.
-   * Used by parent components (e.g., ObjectView) to signal that a mutation
-   * (create/update/delete) has occurred and the list should refresh.
+   * External refresh trigger. Increment this value to force the ListView to re-fetch data.
+   * Used by parent components (e.g. ObjectView) to signal that a mutation occurred.
    */
   refreshTrigger?: number;
 }
+
 export interface ObjectMapSchema extends BaseSchema {
   type: 'object-map';
   /** ObjectQL object name */

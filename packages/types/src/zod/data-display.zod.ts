@@ -147,6 +147,14 @@ export const DataTableSchema = BaseSchema.extend({
   reorderableColumns: z.boolean().optional().describe('Allow column reordering'),
   onRowEdit: z.function().optional().describe('Row edit handler'),
   onRowDelete: z.function().optional().describe('Row delete handler'),
+  rowEditPredicates: z.object({
+    visibleWhen: z.unknown().optional(),
+    disabledWhen: z.unknown().optional(),
+  }).optional().describe('Per-record CEL predicates for the built-in row Edit item (objectui#2614)'),
+  rowDeletePredicates: z.object({
+    visibleWhen: z.unknown().optional(),
+    disabledWhen: z.unknown().optional(),
+  }).optional().describe('Per-record CEL predicates for the built-in row Delete item (objectui#2614)'),
   onSelectionChange: z.function().optional().describe('Selection change handler'),
   onColumnsReorder: z.function().optional().describe('Column reorder handler'),
   frozenColumns: z.number().optional().describe('Number of frozen columns'),

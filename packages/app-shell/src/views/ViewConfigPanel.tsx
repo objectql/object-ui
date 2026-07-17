@@ -25,7 +25,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { ViewVariantInspector } from './metadata-admin/inspectors/ViewVariantInspector';
 import { RuntimeDraftBar } from './RuntimeDraftBar';
 import { isFormFamilyKey } from './metadata-admin/view-variant-model';
-import { detectLocale } from './metadata-admin/i18n';
+import { useMetadataLocale } from './metadata-admin/i18n';
 import type { ObjectFieldInfo } from './metadata-admin/previews/useObjectFields';
 import {
     runtimeViewToInspectorDraft,
@@ -102,7 +102,7 @@ function mapObjectFields(objectDef: ViewConfigPanelProps['objectDef']): ObjectFi
 export function ViewConfigPanel({ open, onClose, mode = 'edit', activeView, objectDef, onViewUpdate, onSave, onCreate, metadataClient, onAfterChange }: ViewConfigPanelProps) {
     const { t } = useObjectTranslation();
     const panelRef = useRef<HTMLDivElement>(null);
-    const locale = useMemo(() => detectLocale(), []);
+    const locale = useMetadataLocale();
 
     // Provisional id for a create-mode view. A lazy useState initializer runs
     // exactly once, keeping the impure `Date.now()` out of render; the backend

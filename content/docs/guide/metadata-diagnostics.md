@@ -138,6 +138,23 @@ Edits clear the matching diagnostic immediately — the inline error on a
 field disappears as soon as you start typing in it, then re-validates
 on save.
 
+For **object** drafts the live validation goes beyond the Zod shape check:
+every field conditional rule (`visibleWhen` / `readonlyWhen` / `requiredWhen`,
+plus the deprecated `conditionalRequired` alias) is linted as a CEL predicate
+with the same `@objectstack/formula` validators the server uses. A predicate
+that parses but references an unknown field, or references a field bare
+instead of as `record.<field>`, surfaces under its `fields.<field>.<rule>`
+path in the banner. The field inspector's *Conditional rules* editors give
+the same verdict inline as you type — with autocomplete for the object's
+fields (after `record.` / `previous.`), the runtime-bound scope roots
+(`record`, `previous`, `parent`), and the CEL stdlib.
+
+Formula fields get the same treatment for their value `expression`: the
+inline editor lints it in `role: 'value'` mode and shows the **inferred
+result type** (only a proven-Number formula is offered as a dataset
+measure), while the draft-wide pass surfaces a broken formula on any field
+under its `fields.<field>.expression` path.
+
 ### 4. Governance overview page
 
 `/apps/<app>/metadata/_diagnostics` — a single sortable table of every

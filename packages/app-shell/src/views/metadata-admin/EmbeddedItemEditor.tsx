@@ -21,7 +21,7 @@ import { Loader2, Save, AlertTriangle } from 'lucide-react';
 import { Button } from '@object-ui/components';
 import { SchemaForm, type SchemaFormIssue } from './SchemaForm';
 import { useMetadataClient, useMetadataTypes } from './useMetadata';
-import { detectLocale, t, tFormat, translateValidationMessage } from './i18n';
+import { useMetadataLocale, t, tFormat, translateValidationMessage } from './i18n';
 
 export interface EmbeddedItemEditorProps {
   parentType: string;
@@ -47,7 +47,7 @@ export function EmbeddedItemEditor({
   initialRaw,
   onSaved,
 }: EmbeddedItemEditorProps) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const client = useMetadataClient();
   const { entries } = useMetadataTypes(client);
   const subEntry = editAs ? entries.find((e) => e.type === editAs) : undefined;

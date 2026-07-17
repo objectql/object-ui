@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { ListViewSchema as SpecListViewSchema } from '@objectstack/spec/ui';
 import { BaseSchema } from './base.zod.js';
 
 /**
@@ -281,109 +282,173 @@ const UserFiltersSchema = z.object({
 });
 
 /**
- * ListView Schema
+ * ListView Schema — derived from `@objectstack/spec/ui` `ListViewSchema` (issue #2231).
+ *
+ * Spec-owned fields flow in **by reference** (see `SpecListViewFields`) so they auto-track
+ * the protocol instead of being re-typed here; the drift-guard test
+ * (`__tests__/list-view-spec-parity.test.ts`) fails if the spec grows a field objectui
+ * has not triaged. objectui-only / legacy fields are declared locally on top via
+ * `.extend()` (the final extend wins, so these override anything imported):
+ *   - component envelope: `type: 'list-view'` discriminator + `objectName` binding;
+ *   - legacy vocabulary kept for back-compat: `viewType` (renamed spec `type`),
+ *     `fields`/`columns`, `filters`, the `show*` toolbar flags, `densityMode`, `color`, …;
+ *   - configs whose objectui shape is intentionally broader than spec's (migration
+ *     deferred): `userFilters`, `sharing`, `aria`, `conditionalFormatting`,
+ *     `exportOptions`, and the per-view-type `kanban`/`calendar`/`gantt`/`gallery`/`timeline`.
+ *
+ * Migrating the legacy vocabulary to the spec-canonical keys (`type`/`columns`/`filter`/
+ * `userActions`) and adopting spec's narrower sub-shapes is deferred — see #2231.
  */
-export const ListViewSchema = BaseSchema.extend({
-  type: z.literal('list-view'),
-  objectName: z.string().describe('Object Name'),
-  viewType: z.enum(['grid', 'kanban', 'calendar', 'gantt', 'map', 'chart']).optional().describe('View Type'),
-  fields: z.array(z.string()).optional().describe('Fields to fetch'),
-  filters: z.array(z.union([z.array(z.any()), z.string()])).optional().describe('Filter conditions'),
-  sort: z.array(SortConfigSchema).optional().describe('Sort order'),
-  options: z.record(z.string(), z.any()).optional().describe('Component overrides'),
-  userFilters: UserFiltersSchema.optional().describe('User filters configuration'),
-  showSearch: z.boolean().optional().describe('Show search in toolbar'),
-  showSort: z.boolean().optional().describe('Show sort controls in toolbar'),
-  showFilters: z.boolean().optional().describe('Show filter controls in toolbar'),
-  showHideFields: z.boolean().optional().describe('Show hide-fields button in toolbar'),
-  showGroup: z.boolean().optional().describe('Show group button in toolbar'),
-  showColor: z.boolean().optional().describe('Show color button in toolbar'),
-  showDensity: z.boolean().optional().describe('Show density/row-height button in toolbar'),
-  allowExport: z.boolean().optional().describe('Allow data export'),
-  striped: z.boolean().optional().describe('Alternating row colors'),
-  bordered: z.boolean().optional().describe('Show cell borders'),
-  color: z.string().optional().describe('Color field for row/card coloring'),
-  inlineEdit: z.boolean().optional().describe('Enable inline editing'),
-  wrapHeaders: z.boolean().optional().describe('Wrap column headers'),
-  clickIntoRecordDetails: z.boolean().optional().describe('Navigate to detail on row click'),
-  addRecordViaForm: z.boolean().optional().describe('Add records via form dialog'),
-  addDeleteRecordsInline: z.boolean().optional().describe('Enable inline add/delete'),
-  collapseAllByDefault: z.boolean().optional().describe('Collapse all groups by default'),
-  fieldTextColor: z.string().optional().describe('Field for custom text color'),
-  prefixField: z.string().optional().describe('Prefix field before title'),
-  showDescription: z.boolean().optional().describe('Show field descriptions'),
-  navigation: z.object({
-    mode: z.enum(['page', 'drawer', 'modal', 'split', 'popover', 'new_window', 'none']),
-    view: z.string().optional(),
-    preventNavigation: z.boolean().optional(),
-    openNewTab: z.boolean().optional(),
-    width: z.union([z.string(), z.number()]).optional(),
-  }).optional().describe('Navigation configuration'),
-  selection: z.object({
-    type: z.enum(['none', 'single', 'multiple']),
-  }).optional().describe('Row selection mode'),
-  pagination: z.object({
-    pageSize: z.number(),
-    pageSizeOptions: z.array(z.number()).optional(),
-  }).optional().describe('Pagination configuration'),
-  searchableFields: z.array(z.string()).optional().describe('Searchable fields'),
-  filterableFields: z.array(z.string()).optional().describe('Filterable fields'),
-  resizable: z.boolean().optional().describe('Allow column resizing'),
-  densityMode: z.enum(['compact', 'comfortable', 'spacious']).optional().describe('Density mode'),
-  rowHeight: z.enum(['compact', 'short', 'medium', 'tall', 'extra_tall']).optional().describe('Row height'),
-  hiddenFields: z.array(z.string()).optional().describe('Hidden fields'),
-  exportOptions: z.union([
-    z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])),
-    z.object({
-      formats: z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])).optional(),
-      maxRecords: z.number().optional(),
-      includeHeaders: z.boolean().optional(),
-      fileNamePrefix: z.string().optional(),
-    }),
-  ]).optional().describe('Export options'),
-  rowActions: z.array(z.string()).optional().describe('Row action identifiers'),
-  bulkActions: z.array(z.string()).optional().describe('Bulk action identifiers'),
-  sharing: z.object({
-    visibility: z.enum(['private', 'team', 'organization', 'public']).optional(),
-    enabled: z.boolean().optional(),
-    type: z.enum(['personal', 'collaborative']).optional(),
-    lockedBy: z.string().optional(),
-  }).optional().describe('Sharing configuration'),
-  addRecord: z.object({
-    enabled: z.boolean().optional(),
-    position: z.string().optional(),
-    mode: z.string().optional(),
-    formView: z.string().optional(),
-  }).optional().describe('Add record configuration'),
-  conditionalFormatting: z.array(z.union([
-    z.object({
-      field: z.string(),
-      operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'in']),
-      value: z.any(),
-      backgroundColor: z.string().optional(),
-      textColor: z.string().optional(),
-      borderColor: z.string().optional(),
-      expression: z.string().optional(),
-    }),
-    z.object({
-      condition: z.string(),
-      style: z.record(z.string(), z.string()),
-    }),
-  ])).optional().describe('Conditional formatting rules'),
-  showRecordCount: z.boolean().optional().describe('Show total record count'),
-  allowPrinting: z.boolean().optional().describe('Allow printing'),
-  virtualScroll: z.boolean().optional().describe('Enable virtual scrolling'),
-  emptyState: z.object({
-    title: z.string().optional(),
-    message: z.string().optional(),
-    icon: z.string().optional(),
-  }).optional().describe('Empty state configuration'),
-  aria: z.object({
-    label: z.string().optional(),
-    describedBy: z.string().optional(),
-    live: z.enum(['polite', 'assertive', 'off']).optional(),
-  }).optional().describe('ARIA attributes'),
-});
+// Spec view-config fields, minus: the component envelope (name/label/description →
+// BaseSchema), the discriminator/renamed/relaxed keys (type/columns), and the configs
+// kept as local overrides below. `.partial()` guarantees no *future* spec field can
+// become required and silently invalidate existing objectui payloads.
+const SpecListViewFields = SpecListViewSchema
+  .omit({
+    type: true,
+    columns: true,
+    name: true,
+    label: true,
+    description: true,
+    userFilters: true,
+    sharing: true,
+    aria: true,
+    conditionalFormatting: true,
+    exportOptions: true,
+    kanban: true,
+    calendar: true,
+    gantt: true,
+    gallery: true,
+    timeline: true,
+  })
+  .partial();
+
+// View-kind enum reused from spec (unwrap its `.default('grid')`) so it cannot drift.
+const ViewKindEnum = SpecListViewSchema.shape.type.removeDefault();
+
+export const ListViewSchema = BaseSchema
+  // Import spec-owned fields by reference: data, filter, sort, searchableFields,
+  // filterableFields, resizable, striped, bordered, compactToolbar, selection, navigation,
+  // pagination, chart, tree, rowHeight, grouping, rowColor, hiddenFields, fieldOrder,
+  // rowActions, bulkActions, bulkActionDefs, virtualScroll, inlineEdit, userActions,
+  // appearance, tabs, addRecord, showRecordCount, allowPrinting, emptyState, responsive,
+  // performance.
+  .extend(SpecListViewFields.shape)
+  .extend({
+    // Component discriminator — load-bearing for the ObjectQLComponentSchema union.
+    type: z.literal('list-view'),
+    // objectui-only object binding (spec binds via data.provider:'object'; migration deferred).
+    objectName: z.string().describe('Object Name'),
+    // Renamed spec `type` (view-kind); enum imported from spec so it can't drift.
+    viewType: ViewKindEnum.optional().describe('View Type'),
+    // Relaxed spec `columns` (spec requires it) + legacy `fields` alias for string[] columns.
+    columns: z.union([z.array(z.string()), z.array(ListColumnSchema)]).optional().describe('Columns definition'),
+    fields: z.array(z.string()).optional().describe('Legacy alias for string[] columns'),
+    // Legacy tuple/CEL filter format (spec-canonical `filter` is imported above).
+    filters: z.array(z.union([z.array(z.any()), z.string()])).optional().describe('Filter conditions (legacy)'),
+    // Legacy toolbar visibility flags (spec-canonical is `userActions`; runtime dual-reads).
+    showSearch: z.boolean().optional().describe('Show search in toolbar'),
+    showSort: z.boolean().optional().describe('Show sort controls in toolbar'),
+    showFilters: z.boolean().optional().describe('Show filter controls in toolbar'),
+    showHideFields: z.boolean().optional().describe('Show hide-fields button in toolbar'),
+    showGroup: z.boolean().optional().describe('Show group button in toolbar'),
+    showColor: z.boolean().optional().describe('Show color button in toolbar'),
+    showDensity: z.boolean().optional().describe('Show density/row-height button in toolbar'),
+    showDescription: z.boolean().optional().describe('Show field descriptions'),
+    allowExport: z.boolean().optional().describe('Allow data export'),
+    densityMode: z.enum(['compact', 'comfortable', 'spacious']).optional().describe('Density mode'),
+    color: z.string().optional().describe('Color field for row/card coloring'),
+    fieldTextColor: z.string().optional().describe('Field for custom text color'),
+    prefixField: z.string().optional().describe('Prefix field before title'),
+    wrapHeaders: z.boolean().optional().describe('Wrap column headers'),
+    clickIntoRecordDetails: z.boolean().optional().describe('Navigate to detail on row click'),
+    addRecordViaForm: z.boolean().optional().describe('Add records via form dialog'),
+    addDeleteRecordsInline: z.boolean().optional().describe('Enable inline add/delete'),
+    collapseAllByDefault: z.boolean().optional().describe('Collapse all groups by default'),
+    options: z.record(z.string(), z.any()).optional().describe('Component overrides (legacy)'),
+    operations: z.object({
+      create: z.boolean().optional(),
+      read: z.boolean().optional(),
+      update: z.boolean().optional(),
+      delete: z.boolean().optional(),
+      export: z.boolean().optional(),
+      import: z.boolean().optional(),
+    }).optional().describe('Enabled operations'),
+    // ── Local overrides: objectui shapes are intentionally broader than spec (deferred) ──
+    userFilters: UserFiltersSchema.optional().describe('User filters configuration (accepts legacy tab shapes)'),
+    sharing: z.object({
+      visibility: z.enum(['private', 'team', 'organization', 'public']).optional(),
+      enabled: z.boolean().optional(),
+      type: z.enum(['personal', 'collaborative']).optional(),
+      lockedBy: z.string().optional(),
+    }).optional().describe('Sharing configuration'),
+    aria: z.object({
+      label: z.string().optional(),
+      describedBy: z.string().optional(),
+      live: z.enum(['polite', 'assertive', 'off']).optional(),
+    }).optional().describe('ARIA attributes'),
+    conditionalFormatting: z.array(z.union([
+      z.object({
+        field: z.string(),
+        operator: z.enum(['equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'in']),
+        value: z.any(),
+        backgroundColor: z.string().optional(),
+        textColor: z.string().optional(),
+        borderColor: z.string().optional(),
+        expression: z.string().optional(),
+      }),
+      z.object({
+        condition: z.string(),
+        style: z.record(z.string(), z.string()),
+      }),
+    ])).optional().describe('Conditional formatting rules'),
+    exportOptions: z.union([
+      z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])),
+      z.object({
+        formats: z.array(z.enum(['csv', 'xlsx', 'json', 'pdf'])).optional(),
+        maxRecords: z.number().optional(),
+        includeHeaders: z.boolean().optional(),
+        fileNamePrefix: z.string().optional(),
+      }),
+    ]).optional().describe('Export options'),
+    kanban: z.object({
+      groupField: z.string(),
+      titleField: z.string().optional(),
+      cardFields: z.array(z.string()).optional(),
+    }).passthrough().optional().describe('Kanban-specific configuration'),
+    calendar: z.object({
+      startDateField: z.string(),
+      endDateField: z.string().optional(),
+      titleField: z.string().optional(),
+      defaultView: z.enum(['month', 'week', 'day', 'agenda']).optional(),
+    }).passthrough().optional().describe('Calendar-specific configuration'),
+    gantt: z.object({
+      startDateField: z.string(),
+      endDateField: z.string(),
+      titleField: z.string().optional(),
+      progressField: z.string().optional(),
+      dependenciesField: z.string().optional(),
+    }).passthrough().optional().describe('Gantt-specific configuration'),
+    gallery: z.object({
+      coverField: z.string().optional(),
+      titleField: z.string().optional(),
+      imageField: z.string().optional(),
+      subtitleField: z.string().optional(),
+    }).passthrough().optional().describe('Gallery-specific configuration'),
+    timeline: z.object({
+      startDateField: z.string().optional(),
+      endDateField: z.string().optional(),
+      titleField: z.string().optional(),
+      dateField: z.string().optional(),
+    }).passthrough().optional().describe('Timeline-specific configuration'),
+  });
+
+/**
+ * Inferred TS type for the ListView component node (spec-derived; issue #2231).
+ * The hand-written `interface ListViewSchema` in `../objectql.ts` is now an alias of
+ * this inferred type intersected with the non-serializable runtime-only props.
+ */
+export type ListViewInferred = z.infer<typeof ListViewSchema>;
 
 /**
  * ObjectMap Schema

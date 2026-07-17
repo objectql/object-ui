@@ -104,6 +104,41 @@ describe('Standard Field Widgets', () => {
       );
       expect(container.textContent).toBe('99.9');
     });
+
+    it('should surface metadata min/max on the input (objectui#2572)', () => {
+      render(
+        <NumberField
+          value={5}
+          onChange={mockOnChange}
+          field={{ type: 'number', min: 0, max: 100 } as any}
+        />
+      );
+      const input = screen.getByRole('spinbutton');
+      expect(input).toHaveAttribute('min', '0');
+      expect(input).toHaveAttribute('max', '100');
+    });
+
+    it('should step by 1 for scale: 0 (whole numbers), not "any"', () => {
+      render(
+        <NumberField
+          value={5}
+          onChange={mockOnChange}
+          field={{ type: 'number', scale: 0 } as any}
+        />
+      );
+      expect(screen.getByRole('spinbutton')).toHaveAttribute('step', '1');
+    });
+
+    it('should honor an explicit metadata step over the scale-derived one', () => {
+      render(
+        <NumberField
+          value={5}
+          onChange={mockOnChange}
+          field={{ type: 'number', scale: 2, step: 5 } as any}
+        />
+      );
+      expect(screen.getByRole('spinbutton')).toHaveAttribute('step', '5');
+    });
   });
 
   describe('TextField', () => {

@@ -14,7 +14,7 @@ vi.mock('@object-ui/react', async (importActual) => ({
   SchemaRenderer: ({ schema }: any) => (
     <div data-testid="action-bar">
       {(schema.actions || []).map((a: any) => (
-        <button key={a.name} data-variant={a.variant}>{a.label}</button>
+        <button key={a.name} data-variant={a.variant} data-autotrigger={a.autoTrigger ? 'true' : undefined}>{a.label}</button>
       ))}
     </div>
   ),
@@ -60,5 +60,33 @@ describe('EnvironmentListToolbar', () => {
     render(<EnvironmentListToolbar actions={[CREATE]} entitlements={null} onUpgrade={vi.fn()} />);
     expect(screen.getByText('Create Environment')).toBeTruthy();
     expect(screen.queryByTestId('environment-add-upgrade')).toBeNull();
+  });
+});
+
+describe('EnvironmentListToolbar — ?runAction=create_environment deep link (#844)', () => {
+  const withRunActionParam = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('runAction', 'create_environment');
+    window.history.replaceState(null, '', url);
+  };
+
+  it('marks the create action autoTrigger once entitlements resolve, then strips the param', async () => {
+    withRunActionParam();
+    render(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ hasProductionEnv: false })} onUpgrade={vi.fn()} />);
+    const btn = screen.getByText('Set up your production environment');
+    // The SchemaRenderer stub surfaces autoTrigger as data-autotrigger.
+    expect(btn.getAttribute('data-autotrigger')).toBe('true');
+    // Param is consumed exactly once — stripped from the URL.
+    await vi.waitFor(() => {
+      expect(new URL(window.location.href).searchParams.get('runAction')).toBeNull();
+    });
+  });
+
+  it('upgrade state: deep link opens the upgrade prompt instead of a create POST', async () => {
+    withRunActionParam();
+    const onUpgrade = vi.fn();
+    render(<EnvironmentListToolbar actions={[CREATE]} entitlements={st({ canCreateDevelopmentEnv: false, plan: 'free' })} onUpgrade={onUpgrade} />);
+    await vi.waitFor(() => expect(onUpgrade).toHaveBeenCalledTimes(1));
+    expect(onUpgrade.mock.calls[0][0]).toMatchObject({ code: 'DEV_ENV_PLAN_LOCKED' });
   });
 });

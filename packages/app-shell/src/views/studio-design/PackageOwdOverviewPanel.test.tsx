@@ -177,3 +177,40 @@ describe('PackageOwdOverviewPanel — deep-link highlight', () => {
     expect(row.className).toMatch(/bg-primary/);
   });
 });
+
+describe('PackageOwdOverviewPanel — onDirtyChange contract (objectui#2600)', () => {
+  it('reports dirty transitions and resets to clean on unmount', async () => {
+    const onDirtyChange = vi.fn();
+    const { unmount } = renderPanel(freshServer(), { onDirtyChange });
+    await screen.findByTestId('owd-row-crm_contact');
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    fireEvent.change(screen.getByTestId('owd-internal-crm_contact'), { target: { value: 'public_read' } });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    // Reverting the edit back to the baseline reports clean again.
+    fireEvent.change(screen.getByTestId('owd-internal-crm_contact'), { target: { value: 'private' } });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+
+    // Dirty again, then unmount — a deliberately-discarded panel must clear
+    // the host's guard by itself (same contract as PermissionMatrixEditPage).
+    fireEvent.change(screen.getByTestId('owd-internal-crm_contact'), { target: { value: 'public_read' } });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+    unmount();
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('reports clean after a successful save (edits become the new baseline)', async () => {
+    const onDirtyChange = vi.fn();
+    const server = freshServer();
+    renderPanel(server, { onDirtyChange });
+    await screen.findByTestId('owd-row-crm_contact');
+
+    fireEvent.change(screen.getByTestId('owd-internal-crm_contact'), { target: { value: 'public_read' } });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByTestId('owd-save'));
+    await waitFor(() => expect(server.saved.length).toBe(1));
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+  });
+});

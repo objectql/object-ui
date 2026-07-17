@@ -85,6 +85,16 @@ export interface PageVariablesProviderProps {
  * Initializes variables from their definitions and provides read/write access
  * to all child components via the usePageVariables hook.
  *
+ * Nesting MERGES contexts (objectui#2578): a nested provider (e.g. a filtered
+ * dashboard embedded in a Page that declares its own `variables`) no longer
+ * shadows the outer scope wholesale. Inside the nested subtree, `variables`
+ * exposes the outer values plus the inner ones (an inner definition with the
+ * SAME name shadows the outer one, deliberately), and writes route to the
+ * scope that DEFINES the variable — writing an outer-defined name from inside
+ * the nested subtree updates the outer provider, so both subtrees stay in
+ * sync. Names defined nowhere are written locally. `resetVariables` resets
+ * only the local scope's definitions.
+ *
  * @example
  * ```tsx
  * <PageVariablesProvider definitions={[
@@ -99,27 +109,58 @@ export const PageVariablesProvider: React.FC<PageVariablesProviderProps> = ({
   definitions,
   children,
 }) => {
-  const [variables, setVariablesState] = useState<Record<string, any>>(() =>
+  const parent = useContext(PageVariablesContext);
+
+  const [ownVariables, setVariablesState] = useState<Record<string, any>>(() =>
     initializeVariables(definitions)
   );
 
-  const setVariable = useCallback((name: string, value: any) => {
-    setVariablesState((prev) => ({ ...prev, [name]: value }));
-  }, []);
+  const defs = useMemo<PageVariable[]>(() => definitions ?? [], [definitions]);
 
-  const setVariables = useCallback((updates: Record<string, any>) => {
-    setVariablesState((prev) => ({ ...prev, ...updates }));
-  }, []);
+  // Names THIS provider owns (defines). Writes to a name an ancestor defines
+  // — and this provider doesn't — delegate upward; everything else (own
+  // names AND names defined nowhere) writes locally, so ad-hoc variables
+  // behave exactly as before.
+  const ownNames = useMemo(() => new Set(defs.map((d) => d.name)), [defs]);
+
+  const setVariable = useCallback(
+    (name: string, value: any) => {
+      if (!ownNames.has(name) && parent && parent.definitions.some((d) => d.name === name)) {
+        parent.setVariable(name, value);
+        return;
+      }
+      setVariablesState((prev) => ({ ...prev, [name]: value }));
+    },
+    [ownNames, parent]
+  );
+
+  const setVariables = useCallback(
+    (updates: Record<string, any>) => {
+      for (const [name, value] of Object.entries(updates)) setVariable(name, value);
+    },
+    [setVariable]
+  );
 
   const resetVariables = useCallback(() => {
     setVariablesState(initializeVariables(definitions));
   }, [definitions]);
 
-  const defs = useMemo<PageVariable[]>(() => definitions ?? [], [definitions]);
+  // Merged view: outer scope first, own values win on name collisions.
+  const variables = useMemo<Record<string, any>>(
+    () => (parent ? { ...parent.variables, ...ownVariables } : ownVariables),
+    [parent, ownVariables]
+  );
+  const mergedDefs = useMemo<PageVariable[]>(
+    () =>
+      parent
+        ? [...parent.definitions.filter((d) => !ownNames.has(d.name)), ...defs]
+        : defs,
+    [parent, defs, ownNames]
+  );
 
   const value = useMemo<PageVariablesContextValue>(
-    () => ({ variables, definitions: defs, setVariable, setVariables, resetVariables }),
-    [variables, defs, setVariable, setVariables, resetVariables]
+    () => ({ variables, definitions: mergedDefs, setVariable, setVariables, resetVariables }),
+    [variables, mergedDefs, setVariable, setVariables, resetVariables]
   );
 
   return (

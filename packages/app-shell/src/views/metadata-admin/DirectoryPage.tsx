@@ -35,7 +35,7 @@ import {
   translateMetadataDomain,
   t,
   tFormat,
-  detectLocale,
+  useMetadataLocale,
 } from './i18n';
 import { buildPackageScopeOptions } from './package-scope';
 
@@ -78,7 +78,7 @@ const HIDDEN_TYPES = new Set(['field', 'package']);
 export function MetadataDirectoryPage() {
   const client = useMetadataClient();
   const { loading, error, entries } = useMetadataTypes(client);
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
 
   const [query, setQuery] = React.useState('');
   const [domainFilter, setDomainFilter] = React.useState<string>('all');

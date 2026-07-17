@@ -23,6 +23,8 @@ function Probe() {
   return (
     <div>
       <span data-testid="editing">{String(inline.editing)}</span>
+      <span data-testid="locked">{String(inline.locked)}</span>
+      <span data-testid="lockedReason">{inline.lockedReason ?? ''}</span>
       <span data-testid="draft">{JSON.stringify(inline.draft)}</span>
       <span data-testid="focus">{inline.autoFocusField ?? ''}</span>
       <button onClick={() => inline.enter('status')}>enter</button>
@@ -82,5 +84,25 @@ describe('InlineEditContext', () => {
     );
     fireEvent.click(screen.getByText('enter'));
     expect(screen.getByTestId('editing').textContent).toBe('false');
+  });
+
+  it('defaults locked to false and lockedReason to undefined (objectui#2618)', () => {
+    render(
+      <InlineEditProvider canEdit>
+        <Probe />
+      </InlineEditProvider>,
+    );
+    expect(screen.getByTestId('locked').textContent).toBe('false');
+    expect(screen.getByTestId('lockedReason').textContent).toBe('');
+  });
+
+  it('surfaces the host-supplied approval lock + reason on the context (objectui#2618)', () => {
+    render(
+      <InlineEditProvider canEdit={false} locked lockedReason="Pending approval">
+        <Probe />
+      </InlineEditProvider>,
+    );
+    expect(screen.getByTestId('locked').textContent).toBe('true');
+    expect(screen.getByTestId('lockedReason').textContent).toBe('Pending approval');
   });
 });

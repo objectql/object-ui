@@ -20,6 +20,10 @@
  *     `onFieldSave(field, value)` over the draft, preserving the drawer's
  *     existing per-field persistence contract with plugin-gantt/calendar/kanban.
  *
+ * While the session is active the bar also owns the record-level keyboard
+ * shortcuts (objectui#2572): **Esc** cancels (when no popover/dialog is open)
+ * and **Cmd/Ctrl+Enter** saves — both respecting `saving`/`locked`.
+ *
  * The bar renders nothing unless the record is actively being edited.
  */
 
@@ -223,6 +227,45 @@ export const InlineEditSaveBar: React.FC<InlineEditSaveBarProps> = ({
       closeConflict();
     }
   }, [conflict, canAtomic, inline, dataSource, objectName, recordId, refresh, closeConflict]);
+
+  // Record-level keyboard shortcuts for the shared edit session
+  // (objectui#2572 item 5): Cmd/Ctrl+Enter commits the draft, Esc cancels.
+  // Installed only while editing. Esc defers to any open Radix layer
+  // (popover / select / dropdown / dialog) — those own Escape for "close the
+  // layer", so the session only cancels when nothing is stacked on top.
+  // Both respect the in-flight `saving` state; save also respects `locked`
+  // and stands down while the conflict dialog drives the session.
+  const editing = !!inline?.editing;
+  const saving = !!inline?.saving;
+  const cancel = inline?.cancel;
+  const conflictOpen = !!conflict;
+  React.useEffect(() => {
+    if (!editing) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        if (saving || locked || conflictOpen) return;
+        e.preventDefault();
+        void handleSave();
+        return;
+      }
+      if (e.key === 'Escape') {
+        if (e.defaultPrevented || saving || conflictOpen) return;
+        // An open floating layer (lookup/select popover, dropdown, dialog)
+        // owns this Esc — let it close instead of tearing down the draft.
+        if (
+          document.querySelector(
+            '[data-radix-popper-content-wrapper], [role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]',
+          )
+        ) {
+          return;
+        }
+        e.preventDefault();
+        cancel?.();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [editing, saving, locked, conflictOpen, handleSave, cancel]);
 
   // Render nothing unless a provider is present and the record is being edited.
   if (!inline || !inline.editing) return null;

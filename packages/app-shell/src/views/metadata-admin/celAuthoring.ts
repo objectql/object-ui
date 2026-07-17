@@ -19,11 +19,12 @@
  * CEL engine, `@objectstack/formula` — the SAME parser/validator the server and
  * the `validate_expression` agent tool use — so the GUI, SDK, and CLI reach the
  * identical verdict rather than maintaining a second grammar (ADR-0032). It
- * exposes exactly the three author-time affordances the editor needs:
+ * exposes exactly the four author-time affordances the editors need:
  *
  *   1. {@link lintCelPredicate}    — parse/field lint (surfaced inline as you type).
  *   2. {@link introspectCelScope}  — the valid field + scope identifiers (autocomplete).
  *   3. {@link testRunCelPredicate} — dry-run a predicate against a sample record.
+ *   4. {@link inferCelValueType}   — the value type a formula computes (objectui#1582 follow-up).
  *
  * Progressive enhancement (mirrors `preview/capabilityLint.ts`): the engine is
  * loaded LAZILY via dynamic `import()` — it carries the CEL parser (cel-js), so
@@ -34,9 +35,9 @@
  * "no lint / no suggestions / test-run unavailable", never to an exception.
  */
 
-/** A schema hint for the policy's target object — powers field-existence lint. */
+/** A schema hint for the predicate's target object — powers field-existence lint. */
 export interface CelSchemaHint {
-  /** The policy's target object api-name (`*` / undefined => no field hints). */
+  /** The target object api-name (`*` / undefined => no field hints). */
   objectName?: string;
   /** Known field names of {@link objectName}, so `<field>` refs can be checked. */
   fields?: string[];
@@ -46,6 +47,38 @@ export interface CelSchemaHint {
    * blast-radius the issue calls out, so we advise on it (see {@link lintCelPredicate}).
    */
   clause?: 'using' | 'check';
+  /**
+   * Evaluation scope of the authoring site (mirrors the engine's
+   * `ExprSchemaHint.scope`, objectui#1582):
+   *  - `'flattened'` (default) — the record's fields are spread to bare
+   *    top-level (RLS predicates, flow conditions), so `organization_id == …`
+   *    is legal and an unknown bare identifier is only a warning.
+   *  - `'record'` — the record is bound ONLY as the `record` namespace
+   *    (field conditional rules `visibleWhen`/`readonlyWhen`/`requiredWhen`,
+   *    formulas). A bare field ref silently evaluates to null at runtime, so
+   *    the engine flags it as an ERROR with the `record.<field>` fix.
+   */
+  scope?: 'record' | 'flattened';
+  /**
+   * Override the scope roots offered by autocomplete. The engine advertises
+   * every root ANY predicate site may see (`current_user`, `os`, `vars`, …),
+   * but a given authoring surface binds only a subset — field conditional
+   * rules bind exactly `record` / `previous` / `parent` (see
+   * `@object-ui/core`'s `evalFieldPredicate`). Suggesting an unbound root
+   * would author a predicate that silently never fires.
+   */
+  roots?: string[];
+  /**
+   * The engine field role of the authoring site (mirrors `FieldRole` minus
+   * `template`, which no CEL editor hosts):
+   *  - `'predicate'` (default) — bare CEL expected to return bool (RLS
+   *    clauses, conditional rules). The engine words its parse errors around
+   *    predicates.
+   *  - `'value'` — bare CEL of ANY type (a `formula` field's `expression`).
+   *    Same parse/field checks, but a non-boolean result is the point, and
+   *    {@link inferCelValueType} reports WHICH type it computes.
+   */
+  role?: 'predicate' | 'value';
 }
 
 /** A single lint finding surfaced inline under the editor. */
@@ -102,6 +135,10 @@ interface FormulaModule {
     role: string,
     schema?: unknown,
   ) => { fields?: string[]; roots?: string[]; functions?: string[] };
+  inferExpressionType?: (
+    input: unknown,
+    schema?: unknown,
+  ) => 'number' | 'text' | 'boolean' | 'date' | 'unknown';
   isPushdownableCel?: (
     input: string | { source?: string },
     opts?: { fieldRoots?: readonly string[]; variableRoots?: readonly string[] },
@@ -147,7 +184,7 @@ const PUSHDOWN_VARIABLE_ROOTS = ['current_user', 'user'] as const;
 /* ── 1. Lint ─────────────────────────────────────────────────────────── */
 
 /**
- * Validate one RLS predicate. Returns the findings to surface inline: parse
+ * Validate one CEL source. Returns the findings to surface inline: parse
  * faults as `error` (block save), unknown-field near-misses and non-pushdown-able
  * read filters as `warning` (advisory).
  *
@@ -156,6 +193,10 @@ const PUSHDOWN_VARIABLE_ROOTS = ['current_user', 'user'] as const;
  * unknown one is a non-blocking "did you mean" warning, never a hard error.
  * We never fail-CLOSED on a maybe-typo for a security surface: flag it, don't
  * silently narrow (or, worse, block) the author's row scope.
+ *
+ * With `hint.role: 'value'` the same checks run for a formula-style value
+ * expression (usually paired with `scope: 'record'`, where a bare field ref IS
+ * a hard error — it silently evaluates to null at runtime).
  *
  * Empty input is always clean.
  */
@@ -167,10 +208,10 @@ export async function lintCelPredicate(
   try {
     const mod = await loadFormula();
     if (!mod?.validateExpression) return [];
-    const res = mod.validateExpression('predicate', source, {
+    const res = mod.validateExpression(hint.role ?? 'predicate', source, {
       objectName: hint.objectName,
       fields: hint.fields,
-      scope: 'flattened',
+      scope: hint.scope ?? 'flattened',
     });
     const issues: CelLintIssue[] = [];
     for (const e of res?.errors ?? []) {
@@ -209,6 +250,48 @@ export async function lintCelPredicate(
   }
 }
 
+/* ── 1b. Value-type inference (formulas) ─────────────────────────────── */
+
+/**
+ * The coarse value categories a formula can compute — mirrors the engine's
+ * `InferredValueType`. `'unknown'` means cel-js could not PROVE a concrete
+ * type (e.g. `record.a + record.b` could be number addition or string
+ * concatenation); wrapping operands in `double()` / `int()` / `string()`
+ * pins it.
+ */
+export type CelValueType = 'number' | 'text' | 'boolean' | 'date' | 'unknown';
+
+const CEL_VALUE_TYPES: readonly CelValueType[] = ['number', 'text', 'boolean', 'date', 'unknown'];
+
+/**
+ * Infer the value type a formula (`role: 'value'`) expression computes, via
+ * the engine's `inferExpressionType` — the SAME verdict dataset derivation
+ * uses for measure eligibility (only a proven-`number` formula becomes a SUM
+ * measure), so the editor can show the author what their formula will and
+ * won't be usable as *before* they save.
+ *
+ * Returns `null` — "no affordance", not "unknown type" — for empty input or
+ * when the engine (or its `inferExpressionType` export) is unavailable.
+ */
+export async function inferCelValueType(
+  source: string,
+  hint: CelSchemaHint = {},
+): Promise<CelValueType | null> {
+  if (!source || !source.trim()) return null;
+  try {
+    const mod = await loadFormula();
+    if (!mod?.inferExpressionType) return null;
+    const res = mod.inferExpressionType(source, {
+      objectName: hint.objectName,
+      fields: hint.fields,
+      scope: hint.scope ?? 'record',
+    });
+    return CEL_VALUE_TYPES.includes(res as CelValueType) ? (res as CelValueType) : 'unknown';
+  } catch {
+    return null;
+  }
+}
+
 /* ── 2. Autocomplete scope ───────────────────────────────────────────── */
 
 /**
@@ -222,18 +305,18 @@ export async function lintCelPredicate(
  * field suggestions from metadata even with an older/absent engine.
  */
 export async function introspectCelScope(hint: CelSchemaHint = {}): Promise<CelScopeInfo> {
-  const fallback: CelScopeInfo = { fields: hint.fields ?? [], roots: [], functions: [] };
+  const fallback: CelScopeInfo = { fields: hint.fields ?? [], roots: hint.roots ?? [], functions: [] };
   try {
     const mod = await loadFormula();
     if (!mod?.introspectScope) return fallback;
-    const res = mod.introspectScope('predicate', {
+    const res = mod.introspectScope(hint.role ?? 'predicate', {
       objectName: hint.objectName,
       fields: hint.fields,
-      scope: 'flattened',
+      scope: hint.scope ?? 'flattened',
     });
     return {
       fields: res?.fields ?? hint.fields ?? [],
-      roots: res?.roots ?? [],
+      roots: hint.roots ?? res?.roots ?? [],
       functions: res?.functions ?? [],
     };
   } catch {
@@ -260,7 +343,8 @@ export const MAX_CEL_SUGGESTIONS = 8;
  * The identifier segment being typed immediately before `caret`, or `null` when
  * there is nothing to complete. A segment preceded by `.` is member access
  * (`current_user.org…`) — we can't know the member shape, so we suppress rather
- * than suggest a wrong top-level identifier.
+ * than suggest a wrong top-level identifier (but see {@link memberTokenAt} for
+ * the roots whose member shape IS known).
  */
 export function tokenAt(
   text: string,
@@ -273,6 +357,35 @@ export function tokenAt(
   if (!IDENT_START.test(seg[0])) return null; // starts with a digit → not an identifier
   if (start > 0 && text[start - 1] === '.') return null; // member access → suppress
   return { start, end: caret, text: seg };
+}
+
+/**
+ * The member segment being typed immediately after `<root>.` — e.g. caret at
+ * the end of `record.sta` yields `{ root: 'record', text: 'sta' }`, and caret
+ * right after `record.` yields `{ root: 'record', text: '' }` (so the full
+ * field catalog can surface as soon as the dot is typed). Unlike
+ * {@link tokenAt} the segment may be EMPTY, and only a single-level chain
+ * qualifies: in `record.owner.name` the `name` segment's root is `owner`
+ * (unknown shape), not `record`, so it returns `null` via the root's own
+ * preceding-dot check. Returns `null` when the caret is not in a member
+ * position (objectui#1582).
+ */
+export function memberTokenAt(
+  text: string,
+  caret: number,
+): { root: string; start: number; end: number; text: string } | null {
+  let start = caret;
+  while (start > 0 && IDENT_CHAR.test(text[start - 1])) start--;
+  const seg = text.slice(start, caret);
+  if (seg && !IDENT_START.test(seg[0])) return null; // digit-led → not an identifier
+  if (start === 0 || text[start - 1] !== '.') return null; // not member access
+  // The identifier run immediately before the dot is the root.
+  let rootStart = start - 1;
+  while (rootStart > 0 && IDENT_CHAR.test(text[rootStart - 1])) rootStart--;
+  const root = text.slice(rootStart, start - 1);
+  if (!root || !IDENT_START.test(root[0])) return null;
+  if (rootStart > 0 && text[rootStart - 1] === '.') return null; // deeper chain → unknown shape
+  return { root, start, end: caret, text: seg };
 }
 
 /** Merge a scope into a single de-duplicated, ordered candidate catalog. */
@@ -291,10 +404,19 @@ export function buildCandidates(scope: CelScopeInfo): CelSuggestion[] {
   return out;
 }
 
-/** Prefix-filter the catalog for `query` (case-insensitive), excluding exact hits. */
-export function filterCandidates(candidates: CelSuggestion[], query: string): CelSuggestion[] {
+/**
+ * Prefix-filter the catalog for `query` (case-insensitive), excluding exact
+ * hits. An empty query yields nothing unless `allowEmpty` — member completion
+ * wants the full (capped) catalog the moment the dot is typed, while bare
+ * completion staying quiet until a character is typed avoids a popup on focus.
+ */
+export function filterCandidates(
+  candidates: CelSuggestion[],
+  query: string,
+  allowEmpty = false,
+): CelSuggestion[] {
   const q = query.toLowerCase();
-  if (!q) return [];
+  if (!q && !allowEmpty) return [];
   const out: CelSuggestion[] = [];
   for (const c of candidates) {
     const l = c.label.toLowerCase();

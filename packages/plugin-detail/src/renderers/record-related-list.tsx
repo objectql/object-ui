@@ -108,6 +108,18 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
     [relatedActions, objectName, schema.relationshipField, parentLinkValue],
   );
 
+  // Automatic object-level read gate (objectui#2359). Related lists surface
+  // the CHILD object's records, so they require `read` on that object — the
+  // schema author never has to remember an explicit `requiredPermissions`
+  // opt-in for this baseline. When the permission system has loaded and
+  // denies read, the whole section vanishes (no header, no empty grid, no
+  // "New" button that would 403 on save). Gated on `isLoaded` so unmounted /
+  // still-loading permission contexts (Studio designer, standalone embeds)
+  // keep rendering — the server enforces data access either way.
+  if (perms.isLoaded && !perms.can(objectName, 'read')) {
+    return null;
+  }
+
   const required: string[] = Array.isArray((schema as any).requiredPermissions)
     ? (schema as any).requiredPermissions
     : [];

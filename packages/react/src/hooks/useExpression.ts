@@ -113,10 +113,13 @@ export function useExpression(
  * const isVisible = useCondition('${data.status === "active"}', { data });
  * ```
  */
+/** One-time registry for fail-closed predicate warnings (see useCondition). */
+const _warnedConditions = new Set<string>();
+
 export function useCondition(
   condition: string | boolean | undefined,
   context: Record<string, any> = {},
-  options?: { throwOnError?: boolean }
+  options?: { throwOnError?: boolean; label?: string }
 ): boolean {
   const scope = usePredicateScope();
   // We evaluate directly without caching the evaluator to avoid issues with context changes
@@ -130,13 +133,27 @@ export function useCondition(
         // real action rather than passive display content.
         try {
           return evaluator.evaluateCondition(condition, { throwOnError: true });
-        } catch {
+        } catch (err) {
+          // A throwing predicate is almost always an authoring bug (wrong
+          // scope variable, bare field reference) — warn once per
+          // (label, predicate) so the silent hide is diagnosable (#2358)
+          // without spamming re-renders.
+          const src = typeof condition === 'string' ? condition : String(condition);
+          const key = `${options?.label ?? ''}::${src}`;
+          if (!_warnedConditions.has(key)) {
+            _warnedConditions.add(key);
+            const msg = err instanceof Error ? err.message : String(err);
+            console.warn(
+              `[object-ui] ${options?.label ?? 'a component'} was hidden/disabled: ` +
+              `its predicate threw — ${msg}. Predicate: ${src}.`,
+            );
+          }
           return false;
         }
       }
       return evaluator.evaluateCondition(condition);
     },
-    [condition, context, scope, options?.throwOnError]
+    [condition, context, scope, options?.throwOnError, options?.label]
   );
 }
 

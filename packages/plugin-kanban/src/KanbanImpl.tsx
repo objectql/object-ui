@@ -26,7 +26,7 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, ScrollArea, Button, Input, useResizeObserver, DataEmptyState } from "@object-ui/components"
-import { useHasDndProvider, useDnd } from "@object-ui/react"
+import { useHasDndProvider, useDnd, usePredicateScope } from "@object-ui/react"
 import { resolveConditionalFormatting } from "@object-ui/core"
 import type { KanbanConditionalFormattingRule } from "@object-ui/types"
 import { createSafeTranslation } from "@object-ui/i18n"
@@ -106,8 +106,14 @@ export interface KanbanBoardProps {
 // (issue #1584 / ADR-0058) so kanban cards, list rows, and grid rows reach the
 // identical verdict. Beyond the native `{ field, operator, value }` rules the
 // kanban schema declares, this also accepts spec `{ condition, style }` rules.
-function getCardStyles(card: KanbanCard, rules?: ConditionalFormattingRule[]): React.CSSProperties {
-  return resolveConditionalFormatting(card as Record<string, unknown>, rules as any) as React.CSSProperties
+// The host predicate scope is bound alongside the card so `features.*` /
+// `current_user.*` conditions resolve here exactly as they do on grid rows.
+function getCardStyles(
+  card: KanbanCard,
+  rules?: ConditionalFormattingRule[],
+  scope?: Record<string, unknown>,
+): React.CSSProperties {
+  return resolveConditionalFormatting(card as Record<string, unknown>, rules as any, scope) as React.CSSProperties
 }
 
 function SortableCard({ card, onCardClick, conditionalFormatting }: { card: KanbanCard; onCardClick?: (card: KanbanCard, event?: React.MouseEvent) => void; conditionalFormatting?: ConditionalFormattingRule[] }) {
@@ -126,7 +132,8 @@ function SortableCard({ card, onCardClick, conditionalFormatting }: { card: Kanb
     opacity: isDragging ? 0.5 : undefined,
   }
 
-  const cardStyles = getCardStyles(card, conditionalFormatting)
+  const predicateScope = usePredicateScope()
+  const cardStyles = getCardStyles(card, conditionalFormatting, predicateScope)
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners} role="listitem" aria-label={card.title}

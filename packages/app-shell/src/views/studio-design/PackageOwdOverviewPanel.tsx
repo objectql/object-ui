@@ -90,6 +90,11 @@ export interface PackageOwdOverviewPanelProps {
   locale: SupportedLocale;
   /** Object to scroll to / highlight (deep-link from the permission matrix badge). */
   highlightObject?: string | null;
+  /** objectui#2600 — mirrors the unsaved-row state up to the host pillar, whose
+   * rail/header navigation unmounts this panel (SPA nav, so no beforeunload).
+   * Reports `false` on unmount so a confirmed discard clears the host's guard —
+   * same contract as PermissionMatrixEditPage's own onDirtyChange. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export function PackageOwdOverviewPanel({
@@ -100,6 +105,7 @@ export function PackageOwdOverviewPanel({
   readOnly = false,
   locale,
   highlightObject,
+  onDirtyChange,
 }: PackageOwdOverviewPanelProps): React.ReactElement {
   const [rows, setRows] = React.useState<OwdRow[]>([]);
   const [edits, setEdits] = React.useState<Record<string, OwdEdit>>({});
@@ -202,6 +208,25 @@ export function PackageOwdOverviewPanel({
 
   const dirtyCount = rowState.filter((s) => s.dirty).length;
   const hasInvalid = rowState.some((s) => s.invalid);
+
+  // Report dirty transitions to the host (see onDirtyChange). Ref-stabilized
+  // so a non-memoized callback prop doesn't refire the effect; the unmount
+  // cleanup reports `false` so a deliberately-discarded panel clears the
+  // host's guard state.
+  const isDirty = dirtyCount > 0;
+  const onDirtyChangeRef = React.useRef(onDirtyChange);
+  React.useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  });
+  React.useEffect(() => {
+    onDirtyChangeRef.current?.(isDirty);
+  }, [isDirty]);
+  React.useEffect(
+    () => () => {
+      onDirtyChangeRef.current?.(false);
+    },
+    [],
+  );
 
   const doSave = React.useCallback(async () => {
     const changed = rowState.filter((s) => s.dirty && !s.invalid);

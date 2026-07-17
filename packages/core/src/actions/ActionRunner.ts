@@ -297,6 +297,24 @@ export interface ActionParamDef {
   dependsOn?: unknown[];
 }
 
+/**
+ * Bind the server-CEL-parity `os.user` identity alias into an action context
+ * (#2358 trap 1). `@objectstack/spec` documents the canonical CEL identity
+ * scope as `os.user.*` (server formula / validation / sharing), while client
+ * contexts historically only bound `user`. Deriving the alias here means an
+ * action `visible` predicate authored as `os.user.role == "admin"` evaluates
+ * identically on client and server instead of throwing (and being fail-closed
+ * hidden). `os.user` always tracks `context.user`; other consumer-provided
+ * keys under `os` are preserved.
+ */
+function withIdentityAlias(context: ActionContext): ActionContext {
+  const user = context.user;
+  if (user === undefined) return context;
+  const os = context.os;
+  if (os && typeof os === 'object' && os.user === user) return context;
+  return { ...context, os: { ...(os && typeof os === 'object' ? os : {}), user } };
+}
+
 export class ActionRunner {
   private handlers = new Map<string, ActionHandler>();
   private scripts = new Map<string, ActionHandler>();
@@ -310,8 +328,8 @@ export class ActionRunner {
   private resultDialogHandler: ResultDialogHandler | null;
 
   constructor(context: ActionContext = {}) {
-    this.context = context;
-    this.evaluator = new ExpressionEvaluator(context);
+    this.context = withIdentityAlias(context);
+    this.evaluator = new ExpressionEvaluator(this.context);
     // Default confirmation: window.confirm (can be overridden)
     this.confirmHandler = async (message: string) => window.confirm(message);
     this.toastHandler = null;
@@ -600,7 +618,17 @@ export class ActionRunner {
       }
 
       if (!result.success && showToast.showOnError !== false && result.error) {
-        const message = action.errorMessage || result.error;
+        // `result.error` is typed as a string, but a handler bug can leak an
+        // error OBJECT (e.g. the ObjectStack `{ code, message }` envelope)
+        // through here — and a non-string toast payload is rendered as a React
+        // child, crashing the page (React #31). Coerce defensively at this
+        // single sink so no handler can take the whole page down.
+        const raw: unknown = action.errorMessage || result.error;
+        const message = typeof raw === 'string'
+          ? raw
+          : (raw && typeof (raw as { message?: unknown }).message === 'string')
+            ? (raw as { message: string }).message
+            : 'Action failed';
         this.toastHandler(message, { type: 'error', duration });
       }
     }
@@ -1044,8 +1072,10 @@ export class ActionRunner {
   }
 
   updateContext(newContext: Partial<ActionContext>): void {
-    this.context = { ...this.context, ...newContext };
-    this.evaluator.updateContext(newContext);
+    this.context = withIdentityAlias({ ...this.context, ...newContext });
+    // Feed the merged (re-aliased) context so a refreshed `user` also
+    // refreshes the derived `os.user` binding in the evaluator scope.
+    this.evaluator.updateContext(this.context);
   }
 
   getContext(): ActionContext {

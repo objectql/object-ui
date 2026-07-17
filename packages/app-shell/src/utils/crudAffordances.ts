@@ -33,13 +33,33 @@ export interface CrudAffordances {
   delete: boolean;
   /** CSV / clipboard export. */
   exportCsv: boolean;
+  /**
+   * Per-record CEL predicates for the built-in row Edit/Delete actions,
+   * present only when `userActions.edit` / `delete` used the object form
+   * (objectui#2614). Carried through as authored (bare CEL string or
+   * `{ dialect, source }` envelope) for row renderers to evaluate via
+   * `useRowPredicate`; they never affect the object-level booleans above.
+   */
+  editPredicates?: RowCrudPredicates;
+  deletePredicates?: RowCrudPredicates;
 }
+
+/** Per-record predicates from the #2614 object form of a userActions flag. */
+export interface RowCrudPredicates {
+  visibleWhen?: unknown;
+  disabledWhen?: unknown;
+}
+
+/** `edit`/`delete` accept a bare boolean or the #2614 object form. */
+export type UserActionOverride =
+  | boolean
+  | { enabled?: boolean; visibleWhen?: unknown; disabledWhen?: unknown };
 
 export interface UserActionsOverride {
   create?: boolean;
   import?: boolean;
-  edit?: boolean;
-  delete?: boolean;
+  edit?: UserActionOverride;
+  delete?: UserActionOverride;
   exportCsv?: boolean;
 }
 
@@ -56,15 +76,38 @@ export interface SchemaLike {
   userActions?: UserActionsOverride | null;
 }
 
+/**
+ * Collapse an `edit`/`delete` override (boolean or #2614 object form) onto
+ * the bucket default, surfacing any per-record predicates alongside.
+ */
+function normalizeOverride(
+  v: UserActionOverride | undefined | null,
+  base: boolean,
+): { enabled: boolean; predicates?: RowCrudPredicates } {
+  if (v == null) return { enabled: base };
+  if (typeof v === 'boolean') return { enabled: v };
+  const enabled = v.enabled ?? base;
+  if (v.visibleWhen == null && v.disabledWhen == null) return { enabled };
+  const predicates: RowCrudPredicates = {};
+  if (v.visibleWhen != null) predicates.visibleWhen = v.visibleWhen;
+  if (v.disabledWhen != null) predicates.disabledWhen = v.disabledWhen;
+  return { enabled, predicates };
+}
+
 export function resolveCrudAffordances(obj: SchemaLike | null | undefined): CrudAffordances {
   const bucket = (obj?.managedBy as ManagedByBucket | undefined) ?? 'platform';
   const base = DEFAULTS[bucket] ?? DEFAULTS.platform;
   const o = obj?.userActions ?? {};
-  return {
+  const edit = normalizeOverride(o.edit, base.edit);
+  const del = normalizeOverride(o.delete, base.delete);
+  const out: CrudAffordances = {
     create:    o.create    ?? base.create,
     import:    o.import    ?? base.import,
-    edit:      o.edit      ?? base.edit,
-    delete:    o.delete    ?? base.delete,
+    edit:      edit.enabled,
+    delete:    del.enabled,
     exportCsv: o.exportCsv ?? base.exportCsv,
   };
+  if (edit.predicates) out.editPredicates = edit.predicates;
+  if (del.predicates) out.deletePredicates = del.predicates;
+  return out;
 }

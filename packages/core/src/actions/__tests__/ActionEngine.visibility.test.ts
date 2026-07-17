@@ -175,4 +175,44 @@ describe('ActionEngine.getActionsForLocation — visibility filter', () => {
     }
   });
 
+  // #2358 trap 1 — the spec's canonical CEL identity scope is `os.user.*`
+  // (server formula / validation / sharing). The runner derives an `os.user`
+  // alias from `context.user` so a predicate authored against the server
+  // dialect evaluates identically on the client instead of throwing and
+  // being fail-closed hidden.
+  describe('os.user identity alias (#2358)', () => {
+    it('resolves os.user.* predicates from context.user', () => {
+      const engine = makeEngine({ user: { id: 'u1', role: 'admin' } });
+      engine.registerAction(
+        { name: 'admin_only', type: 'api', visible: 'os.user.role == "admin"' } as any,
+        { locations: ['record_section'] },
+      );
+      engine.registerAction(
+        { name: 'manager_only', type: 'api', visible: 'os.user.role == "manager"' } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section').map(a => a.name)).toEqual(['admin_only']);
+    });
+
+    it('keeps a consumer-provided os namespace but tracks os.user', () => {
+      const engine = makeEngine({ user: { id: 'u1' }, os: { tenant: 't1' } });
+      engine.registerAction(
+        { name: 'both', type: 'api', visible: 'os.user.id == "u1" && os.tenant == "t1"' } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section')).toHaveLength(1);
+    });
+
+    it('refreshes os.user when updateContext replaces user', () => {
+      const engine = makeEngine({ user: { id: 'u1', role: 'viewer' } });
+      engine.registerAction(
+        { name: 'admin_gate', type: 'api', visible: 'os.user.role == "admin"' } as any,
+        { locations: ['record_section'] },
+      );
+      expect(engine.getActionsForLocation('record_section')).toHaveLength(0);
+      engine.updateContext({ user: { id: 'u1', role: 'admin' } });
+      expect(engine.getActionsForLocation('record_section')).toHaveLength(1);
+    });
+  });
+
 });

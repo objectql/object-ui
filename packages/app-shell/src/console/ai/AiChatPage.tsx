@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { Package as PackageIcon, Sparkles as SparklesIcon } from 'lucide-react';
 import { useAdapter } from '../../providers/AdapterProvider';
 import { useMetadata } from '../../providers/MetadataProvider';
+import { formatPublishFailures, type PublishFailure } from '../../views/studio-design/metadataError';
 import { resolveI18nLabel } from '../../utils';
 import { ExcelImportBar } from './ExcelImportBar';
 import {
@@ -96,6 +97,7 @@ import { useReconcileOnError } from '../../hooks/useReconcileOnError';
 import { chatConversationScope, chatProductOfAgent } from '../../hooks/chatScope';
 import { ConversationsSidebar } from './ConversationsSidebar';
 import { LiveCanvas } from './LiveCanvas';
+import { artifactStudioPath } from './artifactStudioPath';
 import { BuildDebugDrawer } from './BuildDebugDrawer';
 import { isConversationZh } from './conversationLanguage';
 
@@ -2069,6 +2071,25 @@ export function ChatPane({
         onOpenBuiltApp={(appName, appSegment) =>
           navigate(`/apps/${encodeURIComponent(appSegment ?? appName)}`)}
         openBuiltAppLabel={t('console.ai.openBuiltApp', { defaultValue: 'Open app' })}
+        // ADR-0080 D5 cold-start handoff — the PRIMARY action on a finished
+        // build: Studio is the built app's iteration home (direct edit + the
+        // same copilot conversation in the dock), so the flow's natural end
+        // is "step into Studio", not "leave for the published front-end".
+        // The package id is the canvas segment (one package = one app).
+        onDesignBuiltApp={(_appName, appSegment) => {
+          const pkg = appSegment ?? canvasApp?.segment;
+          if (!pkg) return;
+          navigate(`/studio/${encodeURIComponent(pkg)}/interfaces`);
+        }}
+        designBuiltAppLabel={t('console.ai.designBuiltApp', { defaultValue: 'Design in Studio' })}
+        // Artifact deep links: every artifact the agent built gets a one-click
+        // path to where it can be edited BY HAND (object → Data, flow →
+        // Automations, dashboard/page/view/app → Interfaces). Returns null for
+        // types with no direct-edit home (seed/dataset) → rendered as text.
+        getArtifactAction={(artifact, appSegment) => {
+          const path = artifactStudioPath(appSegment ?? canvasApp?.segment, artifact);
+          return path ? () => navigate(path) : null;
+        }}
         // Live lifecycle truth for draft cards: the server's pending count per
         // package, so reloaded conversations show Published/Publish honestly.
         fetchPendingDraftCount={fetchPendingDraftCount}
@@ -2089,8 +2110,17 @@ export function ChatPane({
             if (!res.ok || payload?.success === false) {
               throw new Error(payload?.error?.message || `HTTP ${res.status}`);
             }
-            const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
-            if (failed) throw new Error(String(failed));
+            const failedCount = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
+            if (failedCount) {
+              // framework 15.1+ (ADR-0067 D2): a failed batch is ALL-OR-NOTHING
+              // (rolled back, nothing landed); `failed[]` carries the causal
+              // item plus batch_aborted markers. Surface the reason — the old
+              // `String(failedCount)` produced a toast that read just "3".
+              const failedList = (payload?.data?.failed ?? payload?.failed ?? []) as PublishFailure[];
+              throw new Error(
+                failedList.length > 0 ? formatPublishFailures(failedList) : String(failedCount),
+              );
+            }
             // Surface a seed-load problem (reported under `seedApplied`, never
             // thrown) so "Published!" can't hide silently empty tables.
             const seedApplied = payload?.data?.seedApplied ?? payload?.seedApplied;
@@ -2138,6 +2168,9 @@ export function ChatPane({
         planApproveLabel={t('console.ai.planApprove', { defaultValue: 'Build it' })}
         planAdjustLabel={t('console.ai.planAdjust', { defaultValue: 'Adjust' })}
         planBuiltLabel={t('console.ai.planBuilt', { defaultValue: 'Built' })}
+        planBuildingLabel={
+          convZh ? '正在搭建…' : t('console.ai.planBuilding', { defaultValue: 'Building…' })
+        }
         planReadyLabel={t('console.ai.planReady', {
           defaultValue: 'The plan is ready. Build it now, or tell me what to adjust.',
         })}

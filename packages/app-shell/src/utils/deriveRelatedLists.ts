@@ -34,6 +34,12 @@
  *     ("Child Accounts"). Suppress with `relatedList: false` if unwanted.
  *   - Owned (`master_detail`) children are ordered before plain `lookup`
  *     children, preserving discovery order within each group.
+ *   - Object-level READ permission gates the whole list (objectui#2359): the
+ *     relationship graph says nothing about the CURRENT USER, so callers pass
+ *     a `canRead` predicate (wired from `usePermissions().can`) and children
+ *     the user cannot read are dropped — no header, no empty grid, no "New"
+ *     button that would 403 on save. Data access was always enforced
+ *     server-side; this closes the UI/DX gap.
  */
 
 /** Audit/ownership FKs that exist on nearly every object — never related lists. */
@@ -77,6 +83,17 @@ function fieldEntries(fields: ObjectLike['fields']): Array<[string, any]> {
   return Object.entries(fields);
 }
 
+export interface DeriveRelatedListsOptions {
+  /**
+   * Object-level READ gate for the current user (objectui#2359). Return
+   * `false` to drop every related list whose child object the user cannot
+   * read. Omit (or leave undefined) while permissions are still loading —
+   * the derivation then stays purely relationship-driven, so lists never
+   * flicker out during the fail-closed loading window.
+   */
+  canRead?: (objectName: string) => boolean;
+}
+
 /**
  * Derive the detail-page related lists for `objectDef` from the full object
  * registry. Returns owned (`master_detail`) children first, then `lookup`
@@ -85,6 +102,7 @@ function fieldEntries(fields: ObjectLike['fields']): Array<[string, any]> {
 export function deriveRelatedLists(
   objectDef: ObjectLike | null | undefined,
   objects: ObjectLike[] | null | undefined,
+  options?: DeriveRelatedListsOptions,
 ): DerivedRelatedList[] {
   if (!objectDef?.name || !Array.isArray(objects) || objects.length === 0) return [];
   const parentName = objectDef.name;
@@ -95,8 +113,14 @@ export function deriveRelatedLists(
   const owned: Working[] = [];
   const referenced: Working[] = [];
 
+  const canRead = options?.canRead;
+
   for (const child of objects) {
     if (!child?.name) continue;
+    // Permission gate: a related list surfaces the CHILD object's records, so
+    // it requires read access on the child — the FK's mere existence does not
+    // grant the current user anything (objectui#2359).
+    if (canRead && !canRead(child.name)) continue;
     for (const [fieldName, fieldDef] of fieldEntries(child.fields)) {
       if (!fieldDef) continue;
       const type = fieldDef.type;

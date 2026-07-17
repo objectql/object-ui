@@ -61,12 +61,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@object-ui/components';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@object-ui/components';
 import { useAdapter } from '@object-ui/react';
 import { CapabilityMultiSelectField, parseCapabilityNames } from '@object-ui/fields';
 import { PageShell } from './PageShell';
+import { HistoryPanel } from './ResourceHistoryPage';
 import { useMetadataClient, useMetadataTypes, type RichMetadataTypeEntry } from './useMetadata';
 import { resolveResourceConfig } from './registry';
-import { t as translate, detectLocale } from './i18n';
+import { t as translate, useMetadataLocale } from './i18n';
 import { PermissionAdvancedFacets } from './PermissionAdvancedFacets';
 import {
   mergePermissionSlice,
@@ -161,13 +169,39 @@ export interface PermissionMatrixEditPageProps {
    * badge stays a plain read-only chip.
    */
   onOpenOwd?: (objectName: string) => void;
+  /**
+   * Fires on every unsaved-edit transition (false → true → false). The Studio
+   * Access pillar keys this page per set (`key={name}`) and swaps it out for
+   * the OWD overview, so the HOST must know before a surface switch whether a
+   * remount would discard edits. Reset to `false` on unmount so a discarded
+   * editor never leaves the host thinking edits are still pending.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
+  /**
+   * Host-level read-only gate — set by the Studio Access pillar when the
+   * surrounding PACKAGE is read-only. Independent of the TYPE-level
+   * `allowOrgOverride` writability: either gate locks the matrix (checkboxes,
+   * bulk buttons, name/label, facets), hides Save, and shows the read-only
+   * badge — the badge hint names the package as the reason when this gate
+   * is the one that tripped.
+   */
+  readOnly?: boolean;
+  /**
+   * When true, the editor is hosted inside another surface (the Studio Access
+   * pillar) rather than the routed metadata admin. Relative navigation would
+   * resolve against the HOST's route (`/studio/:packageId/access/...`), where
+   * the metadata-admin routes don't exist — so History opens as an in-place
+   * sheet instead of navigating, and the PageShell breadcrumb loses its
+   * `/metadata` links (same rule as MetadataResourceEditPage's `embedded`).
+   */
+  embedded?: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────────── */
 /* Component                                                          */
 /* ────────────────────────────────────────────────────────────────── */
 
-export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce, onOpenOwd }: PermissionMatrixEditPageProps) {
+export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, publishNonce, onOpenOwd, onDirtyChange, readOnly = false, embedded = false }: PermissionMatrixEditPageProps) {
   const navigate = useNavigate();
   const client = useMetadataClient();
   // Data adapter (records) — the capability picker reads the live sys_capability
@@ -177,8 +211,12 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   const { entries } = useMetadataTypes(client);
   const entry: RichMetadataTypeEntry | undefined = entries.find((t) => t.type === type);
   const resolved = resolveResourceConfig(type, entry);
-  const writable = !!resolved.allowOrgOverride;
-  const locale = React.useMemo(() => detectLocale(), []);
+  // Two independent read-only gates: the metadata TYPE may forbid org
+  // overrides (allowOrgOverride), and the HOST may pass a package-level
+  // `readOnly` (read-only package in the Studio Access pillar). Either one
+  // must lock every authoring affordance below.
+  const writable = !!resolved.allowOrgOverride && !readOnly;
+  const locale = useMetadataLocale();
   const t = React.useCallback((k: string) => translate(k, locale), [locale]);
   const OBJECT_ACTIONS = React.useMemo(() => getObjectActions(locale), [locale]);
 
@@ -187,6 +225,18 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
     objects: {},
     fields: {},
   });
+  // Snapshot of the last loaded/saved draft — the anchor `isDirty` compares
+  // against. `null` until the first load lands (nothing to be dirty against).
+  const baselineRef = React.useRef<string | null>(null);
+  /** Set the draft AND re-anchor the dirty baseline to it (load + post-save). */
+  const resetDraftBaseline = React.useCallback((next: PermissionSetDraft) => {
+    try {
+      baselineRef.current = JSON.stringify(next);
+    } catch {
+      baselineRef.current = null;
+    }
+    setDraft(next);
+  }, []);
   const [objects, setObjects] = React.useState<ObjectSummary[]>([]);
   const [fieldsByObject, setFieldsByObject] = React.useState<Record<string, FieldSummary[]>>({});
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
@@ -198,6 +248,8 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   >(null);
   const [filter, setFilter] = React.useState('');
   const [showOnlyEnabled, setShowOnlyEnabled] = React.useState(false);
+  // Embedded-mode History sheet (see `embedded` prop doc).
+  const [historyOpen, setHistoryOpen] = React.useState(false);
   // All permission-set api-names — the admin-scope editor's assignable
   // allowlist picks from these (ADR-0056 P3).
   const [allSetNames, setAllSetNames] = React.useState<string[]>([]);
@@ -269,9 +321,9 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
         // Save from a fresh read (see doSave).
         if (packageId) {
           const sliced = scopePermissionSet(full, list.map((o) => o.name));
-          setDraft({ ...full, objects: sliced.objects, fields: sliced.fields });
+          resetDraftBaseline({ ...full, objects: sliced.objects, fields: sliced.fields });
         } else {
-          setDraft(full);
+          resetDraftBaseline(full);
         }
       } catch (err: any) {
         setError(err?.message ?? String(err));
@@ -282,7 +334,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
     return () => {
       cancelled = true;
     };
-  }, [client, type, name, packageId, publishNonce]);
+  }, [client, type, name, packageId, publishNonce, resetDraftBaseline]);
 
   /* ── Lazy-load fields when an object is expanded ─────────── */
   async function ensureFields(objectName: string) {
@@ -347,6 +399,51 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   // (objectui#2413): a malformed predicate silently mis-scopes rows, so we
   // don't let it persist.
   const [celErrorCount, setCelErrorCount] = React.useState(0);
+
+  // Dirty detection — cheap JSON snapshot comparison against the last
+  // loaded/saved baseline (same approach as ResourceEditPage). Every mutation
+  // funnels through setDraft (matrix checkboxes, header inputs, capabilities,
+  // advanced facets), so comparing the draft covers them all.
+  const isDirty = React.useMemo(() => {
+    const snap = baselineRef.current;
+    if (snap == null) return false;
+    try {
+      return JSON.stringify(draft) !== snap;
+    } catch {
+      return false;
+    }
+  }, [draft]);
+
+  // Report dirty transitions to the host (see onDirtyChange). Ref-stabilized
+  // so a non-memoized callback prop doesn't refire the effect; the unmount
+  // cleanup reports `false` so a deliberately-discarded editor clears the
+  // host's guard state.
+  const onDirtyChangeRef = React.useRef(onDirtyChange);
+  React.useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  });
+  React.useEffect(() => {
+    onDirtyChangeRef.current?.(isDirty);
+  }, [isDirty]);
+  React.useEffect(
+    () => () => {
+      onDirtyChangeRef.current?.(false);
+    },
+    [],
+  );
+
+  // Browser-native "leave site?" prompt on tab close / reload with unsaved
+  // matrix edits — same guard ResourceEditPage installs.
+  React.useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Required for Chrome to actually show the prompt.
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   function toggleExpand(objectName: string) {
     setExpanded((prev) => {
@@ -449,11 +546,11 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
       if (packageId) {
         // The draft is now the pending truth for display; the published baseline
         // hasn't moved. Show what we just staged and let the surface count it.
-        setDraft(toDisplayDraft(toSave));
+        resetDraftBaseline(toDisplayDraft(toSave));
         onDraftSaved?.();
       } else {
         const lay = await client.layered<PermissionSetDraft>(type, payload.name);
-        setDraft(toDisplayDraft((lay.effective ?? toSave) as PermissionSetDraft));
+        resetDraftBaseline(toDisplayDraft((lay.effective ?? toSave) as PermissionSetDraft));
       }
       setDestructive(null);
     } catch (err: any) {
@@ -497,7 +594,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
 
   if (loading) {
     return (
-      <PageShell entry={entry} itemName={name}>
+      <PageShell entry={entry} itemName={name} embedded={embedded}>
         <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
           <Loader2 className="h-4 w-4 animate-spin" /> {t('perm.loading').replace('{name}', name)}
         </div>
@@ -511,12 +608,17 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
       itemName={name}
       subtitle={t('perm.subtitle.set')}
       stats={stats}
+      embedded={embedded}
       actions={
         <>
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(`./history?type=${encodeURIComponent(type)}`)}
+            onClick={() =>
+              embedded
+                ? setHistoryOpen(true)
+                : navigate(`./history?type=${encodeURIComponent(type)}`)
+            }
           >
             <HistoryIcon className="h-4 w-4 mr-1" /> {t('engine.edit.history')}
           </Button>
@@ -587,8 +689,16 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             )}
           </div>
           {!writable && (
-            <Badge variant="secondary" className="ml-auto">
-              {t('perm.readOnly')}
+            // Same badge slot, two distinct reasons: a read-only PACKAGE
+            // (host gate — mirror the top-bar wording so the screen is not
+            // self-contradictory) vs. metadata writes disabled environment-
+            // wide (type gate).
+            <Badge
+              variant="secondary"
+              className="ml-auto"
+              title={readOnly ? t('engine.studio.pkg.readonlyHint') : undefined}
+            >
+              {readOnly ? t('engine.studio.pkg.readonly') : t('perm.readOnly')}
             </Badge>
           )}
         </div>
@@ -715,6 +825,27 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Embedded-mode History sheet — the routed history page doesn't exist
+          under the host's router scope (see `embedded` prop doc). No rollback
+          here: under a packageId the set is package METADATA whose truth moves
+          via draft + atomic Publish (ADR-0086 D6/D7); a rollback would write a
+          live overlay behind the draft flow's back. */}
+      {embedded && (
+        <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+          <SheetContent side="right" className="w-[92vw] sm:max-w-[720px] p-0 flex flex-col gap-0">
+            <SheetHeader className="px-4 py-3 border-b">
+              <SheetTitle className="text-base">{t('engine.edit.history')}</SheetTitle>
+              <SheetDescription className="text-xs">
+                {type} / {name}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 min-h-0 overflow-auto p-4">
+              {historyOpen && <HistoryPanel type={type} name={name} client={client} />}
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </PageShell>
   );
 }

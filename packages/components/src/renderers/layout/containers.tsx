@@ -19,10 +19,11 @@
 
 import React from 'react';
 import { ComponentRegistry, ExpressionEvaluator, getRecordDisplayName } from '@object-ui/core';
-import { useRecordContext, useAction, usePredicateScope, usePageVariables } from '@object-ui/react';
+import { useRecordContext, useAction, usePredicateScope, usePageVariables, useInlineEdit } from '@object-ui/react';
 import { renderChildren, cn } from '../../lib/utils';
 import { LazyIcon } from '../../lib/lazy-icon';
 import { RelatedCountStore, useRelatedCountVersion } from '../../hooks/related-count-store';
+import { useIsMobile } from '../../hooks/use-mobile';
 import {
   Tabs,
   TabsList,
@@ -744,9 +745,63 @@ export function cleanupTitleSeparators(s: string): string {
   return out;
 }
 
+/**
+ * One-time diagnostics for header-action `visible` / `hidden` predicates
+ * (#2358). Both warn-once per (action, predicate) pair so re-renders don't
+ * spam the console, mirroring ActionEngine's `warnHiddenPredicate` (#2183).
+ */
+const _warnedHeaderPredicates = new Set<string>();
+
+/** Warn when a predicate THREW — the action is fail-closed hidden. */
+function warnHeaderActionPredicate(name: unknown, source: string, err: unknown): void {
+  const key = `throw::${String(name)}::${source}`;
+  if (_warnedHeaderPredicates.has(key)) return;
+  _warnedHeaderPredicates.add(key);
+  const msg = err instanceof Error ? err.message : String(err);
+  console.warn(
+    `[page:header] action "${String(name)}" hidden: its predicate threw — ${msg}. ` +
+    `Predicate: ${source}. Header-action predicates evaluate against ` +
+    `{ record, user, os.user, ctx.user, app, features, <record fields> }.`,
+  );
+}
+
+/**
+ * Warn when a predicate references `record.<field>` keys that are absent from
+ * the loaded record payload (#2358 trap 3): the server strips `hidden: true`
+ * fields from detail payloads, so such a predicate silently resolves to
+ * `undefined` and fail-closed hides the action with no error to catch. A key
+ * that is present-but-null does NOT trigger this (legitimately empty field).
+ * Skipped while the record is empty/loading to avoid false positives.
+ */
+function warnMissingRecordFields(name: unknown, source: string, record: unknown): void {
+  if (!record || typeof record !== 'object' || Object.keys(record as object).length === 0) return;
+  const re = /\brecord\.([A-Za-z_][A-Za-z0-9_]*)/g;
+  const missing: string[] = [];
+  for (let m = re.exec(source); m; m = re.exec(source)) {
+    if (!(m[1] in (record as Record<string, unknown>)) && !missing.includes(m[1])) missing.push(m[1]);
+  }
+  if (missing.length === 0) return;
+  const key = `missing::${String(name)}::${source}`;
+  if (_warnedHeaderPredicates.has(key)) return;
+  _warnedHeaderPredicates.add(key);
+  console.warn(
+    `[page:header] action "${String(name)}" predicate references record field(s) ` +
+    `not present in the record payload: ${missing.join(', ')}. Predicate: ${source}. ` +
+    `Hidden (hidden: true) fields are stripped from detail payloads server-side, ` +
+    `so a predicate gating on one may evaluate to a hide-by-default verdict.`,
+  );
+}
+
 const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   const { designer } = splitDesignerProps(props);
   const ctx = useRecordContext();
+  // Record-level inline-edit session (objectui#2572 item 4): while a shared
+  // inline draft is active, header actions flagged `disableDuringInlineEdit`
+  // (the host's Edit CTA) grey out so the classic form-edit surface can't be
+  // stacked on top of the live draft — two competing edit sessions with no
+  // reconciliation. `useInlineEdit` is null outside an InlineEditProvider
+  // (non-record pages), which leaves everything enabled.
+  const inlineEditing = !!useInlineEdit()?.editing;
   // Ambient host scope (signed-in user / app / features), fed by app-shell's
   // ExpressionProvider. Needed so header-action `visible` CEL predicates can
   // gate on `ctx.user.*` (e.g. sys_environment "Change Plan (admin)" →
@@ -755,6 +810,7 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
   // action was silently filtered out.
   const predicateScope = usePredicateScope();
   const { execute } = useAction();
+  const isMobile = useIsMobile();
   const { objectLabel: tObjectLabel, actionLabel: tActionLabel } = useObjectLabel();
   const { fieldOptionLabel } = useSafeFieldLabel();
   const { language } = useObjectTranslation();
@@ -817,6 +873,10 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       record: recordData,
       data: recordData,
       user: scopeUser,
+      // Server-CEL-parity identity alias (#2358 trap 1): the spec's canonical
+      // CEL identity scope is `os.user.*`, so a predicate authored against the
+      // server dialect resolves here too instead of throwing (fail-closed).
+      os: (predicateScope as any)?.os ?? { user: scopeUser },
       ctx: {
         user: scopeUser,
         record: recordData,
@@ -826,19 +886,29 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       },
     };
     const evaluator = new ExpressionEvaluator(evalCtx);
-    const evalExpr = (src: string): any => {
+    // Fail-closed BUT diagnosable (#2358): a throwing `visible`/`hidden`
+    // predicate still hides the action, but now warns once (action name +
+    // predicate + reason) instead of silently swallowing the error — a
+    // predicate that throws is almost always an authoring bug (wrong scope
+    // variable, bare field reference), not a real precondition.
+    const evalExpr = (src: string, actionName: unknown): any => {
       try {
         return evaluator.evaluateExpression(src);
-      } catch {
+      } catch (err) {
+        warnHeaderActionPredicate(actionName, src, err);
         return undefined;
       }
     };
     const filterAction = (a: any): boolean => {
-      // Location filter — when `locations` is declared, require record_header.
-      // Missing/empty `locations` defaults to "show here" since the action
-      // is inlined on the header itself.
+      // Location filter — when `locations` is declared, require record_header
+      // or record_more (the latter renders in the header's ⋯ overflow menu —
+      // see renderHeaderActions; #2358 trap 2). Missing/empty `locations`
+      // defaults to "show here" since the action is inlined on the header
+      // itself.
       if (Array.isArray(a?.locations) && a.locations.length > 0) {
-        if (!a.locations.includes('record_header')) return false;
+        if (!a.locations.includes('record_header') && !a.locations.includes('record_more')) {
+          return false;
+        }
       }
       // Boolean / expression visibility — supports both `visible: false`,
       // `visible: 'record.status == "open"'` and the structured shape
@@ -855,7 +925,8 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 ? (v as any).source
                 : null;
           if (src) {
-            const result = evalExpr(src);
+            warnMissingRecordFields(a?.name, src, recordData);
+            const result = evalExpr(src, a?.name);
             // On evaluation error (undefined), hide the action rather than
             // risk surfacing a destructive button in the wrong state.
             if (!result) return false;
@@ -875,7 +946,8 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
                 ? (h as any).source
                 : null;
           if (src) {
-            const result = evalExpr(src);
+            warnMissingRecordFields(a?.name, src, recordData);
+            const result = evalExpr(src, a?.name);
             if (result) return false;
           }
         }
@@ -897,7 +969,24 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       if (key) seen.add(key);
       out.push(a);
     }
-    return out;
+    // Order the merged list before the inline/overflow split — the same rule
+    // action:bar applies (objectui#2339):
+    //   1. `order` ascending (unset = 0; lower = more prominent)
+    //   2. `variant === 'primary'` as a tie-break within equal order
+    //   3. original registration order (stable) for the remaining ties
+    // This is what lets metadata declare which actions claim the inline
+    // button slots vs. the `⋯` overflow menu (objectui#2361).
+    const needsOrdering = out.some(
+      (a) => a?.order !== undefined || a?.variant === 'primary',
+    );
+    if (!needsOrdering) return out;
+    return [...out].sort((a, b) => {
+      const byOrder = (a?.order ?? 0) - (b?.order ?? 0);
+      if (byOrder !== 0) return byOrder;
+      const ap = a?.variant === 'primary' ? 0 : 1;
+      const bp = b?.variant === 'primary' ? 0 : 1;
+      return ap - bp; // equal → stable sort preserves registration order
+    });
   }, [rawHeaderActions, hostSystemActions, ctx?.data, predicateScope]);
 
   const renderHeaderActions = () => {
@@ -911,24 +1000,68 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       if (!key) return fallback;
       return tActionLabel(ctx?.objectName, key, fallback);
     };
-    // Collapse secondary actions into a `⋯` overflow menu when more than 2
-    // actions are present. The first 1 action (typically the primary
-    // business action, e.g. "克隆商机") stays inline; everything else
-    // becomes a dropdown item. This keeps the header from drowning in 4–5
-    // buttons (Clone + Edit + Share + Delete + …) on every record page.
-    const INLINE_MAX = 1;
-    const useOverflow = headerActions.length > INLINE_MAX + 1;
-    const inlineActions = useOverflow ? headerActions.slice(0, INLINE_MAX) : headerActions;
-    const overflowActions = useOverflow ? headerActions.slice(INLINE_MAX) : [];
+    // Inline/overflow split (objectui#2361) — up to `maxVisible` actions
+    // render side-by-side as buttons; the rest collapse into a `⋯` overflow
+    // menu. Which actions stay inline is metadata-driven:
+    //   1. actions declaring ONLY `record_more` (not `record_header`) are the
+    //      spec's "overflow menu under the ⋯ button" location — they are
+    //      always routed into the overflow menu and never occupy an inline
+    //      slot, regardless of how few actions the header has (#2358 trap 2);
+    //   2. `component: 'action:menu'` forces an action into the `⋯` menu
+    //      regardless of the count (chrome actions like Share/Delete);
+    //   3. the remainder is pre-sorted by `order` / `variant: 'primary'`
+    //      (see the headerActions memo above), so the first `maxVisible`
+    //      claim the inline slots.
+    // `maxVisible` / `mobileMaxVisible` are overridable on the page:header
+    // schema and default to 3 / 1 — the same contract as action:bar. This
+    // still keeps the header from drowning in 4–5 buttons on every record
+    // page, while letting multi-action objects surface several primary
+    // buttons at once.
+    const readMax = (v: any): number | undefined =>
+      typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : undefined;
+    const maxVisible = isMobile
+      ? (readMax(schema?.mobileMaxVisible ?? schema?.properties?.mobileMaxVisible) ?? 1)
+      : (readMax(schema?.maxVisible ?? schema?.properties?.maxVisible) ?? 3);
+    const isMoreOnly = (a: any): boolean =>
+      Array.isArray(a?.locations) &&
+      a.locations.length > 0 &&
+      a.locations.includes('record_more') &&
+      !a.locations.includes('record_header');
+    const moreOnlyActions = headerActions.filter(isMoreOnly);
+    const menuOnly = headerActions.filter(
+      (a: any) => !isMoreOnly(a) && a?.component === 'action:menu',
+    );
+    const buttonable = headerActions.filter(
+      (a: any) => !isMoreOnly(a) && a?.component !== 'action:menu',
+    );
+    const inlineActions = buttonable.slice(0, maxVisible);
+    const overflowActions = [
+      ...buttonable.slice(maxVisible),
+      ...menuOnly,
+      ...moreOnlyActions,
+    ];
+    const useOverflow = overflowActions.length > 0;
     // Resolve a `disabled` predicate against the record. Mirrors the `visible`
     // evaluation above — a boolean OR a CEL expression (`'record.status == …'`
     // or the `{ dialect, source }` envelope). Without this a CEL `disabled`
     // silently did nothing (only boolean was honoured).
     const dRecord: any = ctx?.data;
+    const dScopeUser = (predicateScope as any)?.user;
     const dEvaluator = new ExpressionEvaluator({
       ...(dRecord && typeof dRecord === 'object' ? dRecord : {}),
       record: dRecord,
       data: dRecord,
+      // Same identity scope as the `visible` evaluation above so a
+      // user-gated `disabled` predicate resolves instead of faulting.
+      user: dScopeUser,
+      os: (predicateScope as any)?.os ?? { user: dScopeUser },
+      ctx: {
+        user: dScopeUser,
+        record: dRecord,
+        data: dRecord,
+        app: (predicateScope as any)?.app,
+        features: (predicateScope as any)?.features,
+      },
     });
     const resolveDisabled = (d: any): boolean => {
       if (d === undefined || d === null) return false;
@@ -939,11 +1072,19 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
       if (!src) return false;
       try { return !!dEvaluator.evaluateExpression(src); } catch { return false; }
     };
+    // A live inline-edit session disables actions the host flagged with
+    // `disableDuringInlineEdit` (objectui#2572 item 4) — see `inlineEditing`
+    // at the top of the renderer.
+    const isActionDisabled = (action: any): boolean =>
+      (inlineEditing && action?.disableDuringInlineEdit === true) ||
+      resolveDisabled(action?.disabled);
     const renderButton = (action: any, idx: number) => {
       const label = resolveLabel(action, idx);
-      const variant = action.variant || 'default';
+      // `variant: 'primary'` is valid ActionSchema but not a Shadcn Button
+      // variant — map it to `default` (same as action-button.tsx).
+      const variant = action.variant === 'primary' ? 'default' : (action.variant || 'default');
       const size = action.size || 'sm';
-      const disabled = resolveDisabled(action.disabled);
+      const disabled = isActionDisabled(action);
       const icon = typeof action.icon === 'string' ? action.icon : null;
       return (
         <Button
@@ -986,8 +1127,8 @@ const PageHeaderRenderer: React.FC<any> = ({ schema, className, ...props }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">
               {overflowActions.map((action, idx) => {
-                const label = resolveLabel(action, idx + INLINE_MAX);
-                const disabled = resolveDisabled(action.disabled);
+                const label = resolveLabel(action, idx + inlineActions.length);
+                const disabled = isActionDisabled(action);
                 const icon = typeof action.icon === 'string' ? action.icon : null;
                 const isDestructive =
                   action.variant === 'destructive' || action.name === 'sys_delete';

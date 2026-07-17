@@ -12,6 +12,9 @@ import {
   BooleanField,
   LookupField,
   UserField,
+  NumberField,
+  CurrencyField,
+  PercentField,
   CapabilityMultiSelectField,
   coerceToSafeValue,
 } from '@object-ui/fields';
@@ -68,9 +71,10 @@ export interface InlineFieldInputProps {
  * highlights strip (objectui#2407) — renders an identical editor. Covers every
  * widget the detail body handles: `SelectField`, `BooleanField`, `LookupField`,
  * `UserField`, `CapabilityMultiSelectField` (#2403), the `permission-facet-link`
- * read-only facet (#2403), and the plain number/date/text input (with ISO date
- * coercion + object-value guarding so an unexpanded reference never leaks
- * "[object Object]").
+ * read-only facet (#2403), the numeric widgets (`NumberField` /
+ * `CurrencyField` / `PercentField`, objectui#2572), and the plain date/text
+ * input (with ISO date coercion + object-value guarding so an unexpanded
+ * reference never leaks "[object Object]").
  *
  * Editability GATING (computed types, `readonly`, system fields, object
  * lifecycle) stays with the host — this component only renders the editor once
@@ -127,8 +131,13 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
   }
   // Reference fields (lookup / master_detail / tree / user / owner) store an id
   // but may arrive `$expand`-ed as a record object. A plain text input would
-  // stringify that to "[object Object]", so render the real picker and feed it
-  // the id extracted from the (possibly expanded) value.
+  // stringify that to "[object Object]", so render the real picker. The value
+  // is passed through UNCOLLAPSED (objectui#2572 item 1): `LookupField`
+  // resolves an expanded record object directly (display name included), so
+  // stripping it to a bare id here would force the picker's hydration effect
+  // to re-fetch the referenced record just to recover the name the record
+  // page's `populate=` already delivered. `extractLookupId` stays exported for
+  // write-side callers that need the bare id.
   const isUserRef = editType === 'user' || editType === 'owner';
   const isLookupRef =
     editType === 'lookup' ||
@@ -140,14 +149,29 @@ export const InlineFieldInput: React.FC<InlineFieldInputProps> = ({
     return (
       <RefWidget
         field={field as any}
-        value={extractLookupId(value)}
+        value={value}
         onChange={(v: any) => onChange(v)}
         dataSource={dataSource}
       />
     );
   }
+  // Numeric types → the SAME dedicated widgets the form uses (objectui#2572
+  // item 3), so inline edit gets a real number input (numeric keyboard,
+  // min/max/step from the field metadata) and currency/percent keep their
+  // symbol adornment + display conversion instead of a free-text input.
+  // (`decimal`/`integer` are not spec FieldTypes — metadata should declare
+  // `number` with `scale`, so they are deliberately not aliased here.)
+  if (editType === 'number') {
+    return <NumberField field={field as any} value={value} onChange={(v: any) => onChange(v)} autoFocus={autoFocus} />;
+  }
+  if (editType === 'currency') {
+    return <CurrencyField field={field as any} value={value} onChange={(v: any) => onChange(v)} autoFocus={autoFocus} />;
+  }
+  if (editType === 'percent') {
+    return <PercentField field={field as any} value={value} onChange={(v: any) => onChange(v)} autoFocus={autoFocus} />;
+  }
   const isDate = editType === 'date' || editType === 'datetime';
-  const inputType = editType === 'number' ? 'number' : isDate ? 'date' : 'text';
+  const inputType = isDate ? 'date' : 'text';
   // <input type="date"> needs a YYYY-MM-DD string; raw ISO timestamps
   // ("2026-02-14T14:46:20.862Z") leave the picker blank. Slice down to the date
   // portion so existing values round-trip correctly.

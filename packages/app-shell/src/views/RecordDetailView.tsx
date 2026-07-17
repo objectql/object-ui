@@ -10,9 +10,10 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions } from '@object-ui/plugin-detail';
+import { RecordChatterPanel, InlineEditSaveBar, buildDefaultPageSchema, deriveFieldGroupDetailSections, extractMentions, resolveTitleField } from '@object-ui/plugin-detail';
 import { Empty, EmptyTitle, EmptyDescription } from '@object-ui/components';
 import { useAuth, createAuthenticatedFetch } from '@object-ui/auth';
+import { usePermissions } from '@object-ui/permissions';
 import { ActionProvider, useObjectTranslation, useObjectLabel, usePageAssignment, RecordContextProvider, SchemaRenderer, DiscussionContextProvider, HighlightFieldsProvider, InlineEditProvider, useGlobalUndo, useDataInvalidation, notifyDataChanged } from '@object-ui/react';
 import { buildExpandFields } from '@object-ui/core';
 import { toast } from 'sonner';
@@ -796,6 +797,31 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   const approvalsRef = useRef(approvals);
   approvalsRef.current = approvals;
 
+  // Approval-lock preflight (objectui#2572 item 2): re-read the approval
+  // state whenever this record is invalidated on the bus — a saved edit can
+  // TRIGGER an approval flow (e.g. a budget change), and without this
+  // re-fetch the page kept the pre-save snapshot: the user could re-enter
+  // inline edit, fill a whole draft, and only learn about the lock when Save
+  // came back RECORD_LOCKED. Skips the initial mount (the hook fetches on
+  // mount itself); the ref keeps the effect off the approvals identity.
+  const skippedInitialApprovalsRefresh = useRef(false);
+  useEffect(() => {
+    if (!skippedInitialApprovalsRefresh.current) {
+      skippedInitialApprovalsRefresh.current = true;
+      return;
+    }
+    void approvalsRef.current.refresh();
+  }, [recordInvalidationNonce]);
+
+  // The shared lock signal for the inline-edit session: the record's own
+  // `approval_status` (what the DetailView lock band keys off) OR an open
+  // pending request from the approvals API — the latter catches backends
+  // that lock via the request record without materializing the field.
+  const approvalLocked =
+    (pageRecord as any)?.approval_status === 'pending' ||
+    (pageRecord as any)?.approval_status === 'in_approval' ||
+    !!approvals.pendingRequest;
+
   const approvalHandler = useCallback(async (action: ActionDef) => {
     const target = action.target || action.name;
     const params = (action.params && !Array.isArray(action.params))
@@ -833,9 +859,20 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // out via `relatedList: false`. `relatedListTitle` / `relatedListColumns`
   // on the FK override the derived title / columns. Audit FKs are skipped and
   // children deduped — see `deriveRelatedLists`.
+  // Object-level READ gate (objectui#2359): the relationship graph alone
+  // decides WHICH lists exist, but the current user's permissions decide
+  // which they may SEE. Children the user cannot read are dropped here, so
+  // neither the section nor its tab is ever rendered (previously they showed
+  // an empty grid + a "New" button that 403'd on save). While permissions
+  // are still loading (`isLoaded === false`, e.g. no PermissionProvider in a
+  // standalone embed) the gate stays open — fail-open is safe because the
+  // server enforces data access regardless; this is purely a UI/DX filter.
+  const { can: canOnObject, isLoaded: permissionsLoaded } = usePermissions();
   const childRelations = useMemo(
-    () => deriveRelatedLists(objectDef, objects),
-    [objectDef, objects],
+    () => deriveRelatedLists(objectDef, objects, {
+      canRead: permissionsLoaded ? (name) => canOnObject(name, 'read') : undefined,
+    }),
+    [objectDef, objects, canOnObject, permissionsLoaded],
   );
 
   // ── Audit history fetch ────────────────────────────────────────────
@@ -1424,11 +1461,15 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // drawer continues to hide them via `DEFAULT_SYSTEM_FIELDS` in
     // `@object-ui/plugin-detail/RecordDetailDrawer`.
 
-    // Filter actions for record_header location and deduplicate by name
+    // Filter actions for the record page header and deduplicate by name.
+    // Both header locations are included: `record_header` renders inline,
+    // `record_more` renders inside the header's ⋯ overflow menu (the spec's
+    // "overflow menu under the More/⋯ button" location — PageHeaderRenderer
+    // routes record_more-only actions into the overflow; #2358 trap 2).
     const recordHeaderActions = (() => {
       const seen = new Set<string>();
       const base = (objectDef.actions || []).filter((a: any) => {
-        if (!a.locations?.includes('record_header')) return false;
+        if (!a.locations?.includes('record_header') && !a.locations?.includes('record_more')) return false;
         if (!a.name) return true;
         if (seen.has(a.name)) return false;
         seen.add(a.name);
@@ -1501,9 +1542,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // to their name. Empty → undefined below, so the synthesizer
     // auto-derives instead.
     const rawHighlightFields = (objectDef as any).highlightFields ?? [];
+    // Drop the record's title field: it is the page H1 and repeating it as
+    // the first chip duplicated the name, truncated, right under the
+    // heading. Mirrors deriveHighlightFields' declared-list handling —
+    // this pre-computed list bypasses that derivation (#2548).
+    const titleField = resolveTitleField(objectDef as any);
     const highlightFields: string[] = (Array.isArray(rawHighlightFields) ? rawHighlightFields : [])
       .map((f: any) => (typeof f === 'string' ? f : f?.name))
-      .filter((n: any): n is string => typeof n === 'string' && n.length > 0);
+      .filter((n: any): n is string => typeof n === 'string' && n.length > 0 && n !== titleField);
 
     // Related child lists from reverse-reference relationships, in
     // `buildDefaultPageSchema`'s `related` shape. `relationshipField` is
@@ -1614,6 +1660,14 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // System actions (Edit / Share / Delete) — synthesized for every record
   // page so objects without authored record_header actions still surface
   // the basic affordances.
+  //
+  // Placement metadata (objectui#2361): the page header now renders up to
+  // `maxVisible` inline buttons sorted by `order` (lower = more prominent).
+  // Authored business actions default to `order: 0`, so giving the system
+  // set high orders (100+) keeps them behind every business action, and
+  // `component: 'action:menu'` pins Share/Delete inside the `⋯` overflow
+  // menu permanently — Delete must never surface as an inline red button
+  // just because an object has few actions.
   const synthSystemActions: ActionDef[] = (() => {
     const affordances = resolveCrudAffordances(objectDef as any);
     const items: ActionDef[] = [];
@@ -1629,6 +1683,12 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         type: 'script',
         locations: ['record_header'],
         variant: 'default',
+        order: 100,
+        // objectui#2572 item 4 — while a shared inline-edit draft is live,
+        // the page:header renderer greys this CTA out so the classic form
+        // can't be stacked on top of the draft (two competing edit sessions
+        // with no reconciliation).
+        disableDuringInlineEdit: true,
         onClick: () => onEdit({ id: pureRecordId }),
       } as any);
     }
@@ -1638,6 +1698,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       type: 'script',
       locations: ['record_header'],
       variant: 'outline',
+      order: 110,
+      component: 'action:menu',
       onClick: async () => {
         try {
           if ((navigator as any).share) {
@@ -1672,6 +1734,8 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         type: 'script',
         locations: ['record_header'],
         variant: 'destructive',
+        order: 120,
+        component: 'action:menu',
         onClick: async () => {
           const msg = t('detail.deleteConfirmation', {
             defaultValue: 'Are you sure you want to delete this record?',
@@ -1740,8 +1804,22 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         {/* objectui#2407 P2 — ONE record-level inline-edit session spanning
             the highlights strip AND the details body (both descend from this
             provider), committed together by the single <InlineEditSaveBar>
-            below. `canEdit` carries the object-lifecycle / permission gate. */}
-        <InlineEditProvider canEdit={resolveCrudAffordances(objectDef as any).edit}>
+            below. `canEdit` carries the object-lifecycle / permission gate
+            AND the approval lock (objectui#2572 item 2): a locked record
+            hides the pencil affordances and no-ops `enter()`, so users can't
+            type into a draft that Save would reject with RECORD_LOCKED.
+            `locked` surfaces the approval lock as its own signal so the
+            DetailView "Locked for approval" band renders from the SAME
+            dual-source `approvalLocked` that gated `canEdit` — engaging even
+            on backends that track the lock via approval requests only and
+            never materialize an `approval_status` field (objectui#2618). */}
+        <InlineEditProvider
+          canEdit={resolveCrudAffordances(objectDef as any).edit && !approvalLocked}
+          locked={approvalLocked}
+          lockedReason={t('detail.lockedTooltip', {
+            defaultValue: 'This record has a pending approval request; editing is locked',
+          })}
+        >
         <HighlightFieldsProvider>
         <DiscussionContextProvider
           items={feedItems as any}
@@ -1839,7 +1917,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
                 data={pageRecord}
                 refresh={notifyRecordChanged}
                 fieldLabelFor={(name: string) => (objectDef as any)?.fields?.[name]?.label || fieldLabel(objectName || '', name, name)}
-                locked={(pageRecord as any)?.approval_status === 'pending' || (pageRecord as any)?.approval_status === 'in_approval'}
+                locked={approvalLocked}
+                lockedHint={t('detail.lockedTooltip', {
+                  defaultValue: 'This record has a pending approval request; editing is locked',
+                })}
               />
             </div>
             <MetadataPanel

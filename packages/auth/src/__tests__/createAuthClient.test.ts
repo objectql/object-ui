@@ -397,15 +397,42 @@ describe('createAuthClient — signInWithProvider redirect contract (objectui#24
   // silently — the user clicked "Continue with …" and nothing happened. The
   // client must throw so the buttons can surface an inline error.
 
-  it('oidc: rejects when /sign-in/oauth2 returns no url', async () => {
+  it('oidc: signs in through /sign-in/social (better-auth ≥ 1.7 servers)', async () => {
     const { mockFn, calls } = createMockFetch({
-      '/sign-in/oauth2': { body: { redirect: false } },
+      '/sign-in/social': { body: { url: 'https://cloud.example.com/oauth2/authorize?x=1', redirect: true } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(
+      client.signInWithProvider('objectstack-cloud', { type: 'oidc', callbackURL: '/x' }),
+    ).resolves.toBeUndefined();
+    expect(calls.some((c) => c.url.includes('/sign-in/social') && c.method === 'POST')).toBe(true);
+    // The legacy route is only a fallback — it must NOT be hit when the
+    // social route succeeds.
+    expect(calls.some((c) => c.url.includes('/sign-in/oauth2'))).toBe(false);
+  });
+
+  it('oidc: falls back to /sign-in/oauth2 when /sign-in/social rejects (< 1.7 servers)', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/sign-in/social': { status: 404, body: { message: 'Not found' } },
+      '/sign-in/oauth2': { body: { url: 'https://cloud.example.com/oauth2/authorize?x=1', redirect: true } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    await expect(
+      client.signInWithProvider('objectstack-cloud', { type: 'oidc', callbackURL: '/x' }),
+    ).resolves.toBeUndefined();
+    expect(calls.some((c) => c.url.includes('/sign-in/social') && c.method === 'POST')).toBe(true);
+    expect(calls.some((c) => c.url.includes('/sign-in/oauth2') && c.method === 'POST')).toBe(true);
+  });
+
+  it('oidc: rejects when neither route returns a url', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/sign-in/social': { body: { redirect: false } },
     });
     const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
     await expect(
       client.signInWithProvider('objectstack-cloud', { type: 'oidc', callbackURL: '/x' }),
     ).rejects.toThrow(/did not return a redirect URL/);
-    expect(calls.some((c) => c.url.includes('/sign-in/oauth2') && c.method === 'POST')).toBe(true);
+    expect(calls.some((c) => c.url.includes('/sign-in/social') && c.method === 'POST')).toBe(true);
   });
 
   it('social: rejects when /sign-in/social returns no url', async () => {
@@ -418,13 +445,102 @@ describe('createAuthClient — signInWithProvider redirect contract (objectui#24
     ).rejects.toThrow(/did not return a redirect URL/);
   });
 
-  it('oidc: rejects with the server message when the endpoint errors', async () => {
+  it('oidc: surfaces the social-route error when the fallback also fails', async () => {
     const { mockFn } = createMockFetch({
-      '/sign-in/oauth2': { status: 400, body: { message: 'Provider not found' } },
+      '/sign-in/social': { status: 400, body: { message: 'Provider not found' } },
+      '/sign-in/oauth2': { status: 404, body: { message: 'Not found' } },
     });
     const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
     await expect(
       client.signInWithProvider('objectstack-cloud', { type: 'oidc' }),
     ).rejects.toThrow('Provider not found');
+  });
+});
+
+describe('createAuthClient — getConfig single-flight / cache / retry (#2625)', () => {
+  it('single-flights concurrent callers and caches the success', async () => {
+    const { mockFn, calls } = createMockFetch({
+      '/config': { body: { data: { features: { sso: true } } } },
+    });
+    const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+    const [a, b] = await Promise.all([client.getConfig(), client.getConfig()]);
+    const c = await client.getConfig();
+    expect(a.features?.sso).toBe(true);
+    expect(b).toBe(a);
+    expect(c).toBe(a);
+    // Three consumers, ONE request — the login page used to fire three.
+    expect(calls.filter((x) => x.url.includes('/config'))).toHaveLength(1);
+  });
+
+  it('retries a failing config fetch with backoff before resolving', async () => {
+    vi.useFakeTimers();
+    try {
+      let attempts = 0;
+      const mockFn = vi.fn(async () => {
+        attempts += 1;
+        if (attempts < 3) {
+          return new Response(JSON.stringify({ message: 'cold start' }), { status: 503 });
+        }
+        return new Response(JSON.stringify({ data: { features: { ssoEnforced: true } } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      });
+      const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+      const pending = client.getConfig();
+      // Backoff schedule is 500ms → 1500ms; advance past both.
+      await vi.advanceTimersByTimeAsync(500 + 1500 + 50);
+      const config = await pending;
+      expect(config.features?.ssoEnforced).toBe(true);
+      expect(attempts).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a final failure rejects but does not poison the cache', async () => {
+    vi.useFakeTimers();
+    try {
+      let attempts = 0;
+      const mockFn = vi.fn(async () => {
+        attempts += 1;
+        if (attempts <= 4) {
+          return new Response('down', { status: 503 });
+        }
+        return new Response(JSON.stringify({ data: { features: {} } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      });
+      const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+      const first = client.getConfig();
+      const firstAssertion = expect(first).rejects.toThrow(/Failed to load auth config/);
+      await vi.advanceTimersByTimeAsync(500 + 1500 + 3500 + 50);
+      await firstAssertion;
+      // Next caller starts a FRESH cycle (attempt 5 succeeds immediately).
+      const second = await client.getConfig();
+      expect(second.features).toBeDefined();
+      expect(attempts).toBe(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('createAuthClient — signInWithProvider watchdog (#2626)', () => {
+  it('rejects with a timeout error when the sign-in request never returns', async () => {
+    vi.useFakeTimers();
+    try {
+      // A fetch that hangs forever — the cold-start failure mode where the
+      // provider button used to spin until a page refresh.
+      const mockFn = vi.fn(() => new Promise<Response>(() => { /* never settles */ }));
+      const client = createAuthClient({ baseURL: 'http://localhost/api/auth', fetchFn: mockFn });
+      const pending = client.signInWithProvider('objectstack-cloud', { type: 'oidc' });
+      const assertion = expect(pending).rejects.toThrow(/timed out/);
+      await vi.advanceTimersByTimeAsync(20_000 + 50);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

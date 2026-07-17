@@ -284,6 +284,23 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(onSendMessage).toHaveBeenCalledWith('APPROVE_PLAIN');
   });
 
+  it('flips the clicked card to a "Building…" badge immediately (#2627)', () => {
+    const onSendMessage = vi.fn();
+    render(
+      <ChatbotEnhanced
+        messages={planMessage([])}
+        onSendMessage={onSendMessage}
+        planBuildingLabel="BUILDING_NOW"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('proposed-plan-approve'));
+    // The approval's chat-level effects land at the bottom of the thread —
+    // the card ITSELF must show the state change or the click reads as lost.
+    expect(screen.queryByTestId('proposed-plan-approve')).not.toBeInTheDocument();
+    expect(screen.getByTestId('proposed-plan-building')).toHaveTextContent('BUILDING_NOW');
+    expect(onSendMessage).toHaveBeenCalledTimes(1);
+  });
+
   it('falls back to the static hint (no action buttons) when message sending is not wired', () => {
     render(<ChatbotEnhanced messages={planMessage([])} planApproveHintLabel="HINT_TEXT" />);
     expect(screen.queryByTestId('proposed-plan-actions')).not.toBeInTheDocument();
@@ -1013,6 +1030,77 @@ describe('ChatbotEnhanced — streaming build preview (live build tree)', () => 
     const btn = screen.getByTestId('build-progress-open-app');
     fireEvent.click(btn);
     expect(onOpenBuiltApp).toHaveBeenCalledWith('crm');
+  });
+
+  // ADR-0080 D5 cold-start handoff — Studio is the built app's iteration home,
+  // so it takes the primary slot and "Open app" demotes to a secondary.
+  it('renders "Design in Studio" as the PRIMARY action and demotes Open app', () => {
+    const onDesignBuiltApp = vi.fn();
+    const onOpenBuiltApp = vi.fn();
+    const doneWithApp: ChatMessage = {
+      ...buildMsg('done'),
+      buildProgress: {
+        ...buildMsg('done').buildProgress!,
+        items: [...buildMsg('done').buildProgress!.items, { type: 'app', name: 'crm' }],
+      },
+    };
+    render(
+      <ChatbotEnhanced
+        messages={[doneWithApp]}
+        onDesignBuiltApp={onDesignBuiltApp}
+        onOpenBuiltApp={onOpenBuiltApp}
+      />,
+    );
+    const design = screen.getByTestId('build-progress-design-app');
+    expect(design.className).toContain('bg-primary');
+    expect(screen.getByTestId('build-progress-open-app').className).toContain('border');
+    fireEvent.click(design);
+    expect(onDesignBuiltApp).toHaveBeenCalledWith('crm', undefined);
+  });
+
+  it("passes the build's OWN package id (from its draft envelope) to the Studio CTA — history-safe", () => {
+    const onDesignBuiltApp = vi.fn();
+    const doneWithApp: ChatMessage = {
+      ...buildMsg('done'),
+      toolInvocations: [
+        {
+          toolCallId: 't1',
+          toolName: 'apply_blueprint',
+          draftReview: {
+            items: [{ type: 'app', name: 'crm' }],
+            packageId: 'app.crm',
+          },
+        },
+      ],
+      buildProgress: {
+        ...buildMsg('done').buildProgress!,
+        items: [...buildMsg('done').buildProgress!.items, { type: 'app', name: 'crm' }],
+      },
+    };
+    render(<ChatbotEnhanced messages={[doneWithApp]} onDesignBuiltApp={onDesignBuiltApp} />);
+    fireEvent.click(screen.getByTestId('build-progress-design-app'));
+    expect(onDesignBuiltApp).toHaveBeenCalledWith('crm', 'app.crm');
+  });
+
+  it('deep-links done-build artifacts via getArtifactAction; null renders plain text', () => {
+    const open = vi.fn();
+    const getArtifactAction = vi.fn(
+      (a: { type: string; name: string }) => (a.type === 'object' ? () => open(a) : null),
+    );
+    render(<ChatbotEnhanced messages={[buildMsg('done')]} getArtifactAction={getArtifactAction} />);
+    const link = screen.getByTestId('build-artifact-link-object-customer');
+    fireEvent.click(link);
+    expect(open).toHaveBeenCalledWith({ type: 'object', name: 'customer' });
+    // Seeds have no direct-edit home (host returned null) → plain text, no link.
+    expect(screen.queryByTestId('build-artifact-link-seed-customer_sample')).not.toBeInTheDocument();
+  });
+
+  it('keeps artifact rows plain while the build is still streaming', () => {
+    const getArtifactAction = vi.fn(() => () => {});
+    render(
+      <ChatbotEnhanced isLoading messages={[buildMsg('data')]} getArtifactAction={getArtifactAction} />,
+    );
+    expect(screen.queryByTestId('build-artifact-link-object-customer')).not.toBeInTheDocument();
   });
 
   it('shows no Open-app action while streaming or without an app artifact', () => {

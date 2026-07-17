@@ -31,7 +31,7 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import { X } from 'lucide-react';
 import { ReportDefaultInspector } from './metadata-admin/inspectors/ReportDefaultInspector';
 import { RuntimeDraftBar } from './RuntimeDraftBar';
-import { detectLocale } from './metadata-admin/i18n';
+import { useMetadataLocale } from './metadata-admin/i18n';
 
 /** Field option shape the host (ReportView) already computes. */
 interface AvailableField {
@@ -81,7 +81,7 @@ export function ReportConfigPanel({
   onAfterChange,
 }: ReportConfigPanelProps) {
   const { t } = useObjectTranslation();
-  const locale = useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   // Unsaved-edits flag — gates Publish (mirrors studio's "save first").
   const [dirty, setDirty] = useState(false);
 

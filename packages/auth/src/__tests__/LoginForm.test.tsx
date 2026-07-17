@@ -287,3 +287,29 @@ describe('LoginForm — SSO button pending state (objectui#2458 item 1)', () => 
     }
   });
 });
+
+describe('LoginForm — config-loading gate (#2625)', () => {
+  it('holds a loading state instead of painting the password form while config resolves', async () => {
+    let resolveConfig!: (c: AuthPublicConfig) => void;
+    const pending = new Promise<AuthPublicConfig>((resolve) => { resolveConfig = resolve; });
+    renderLogin(createMockClient({}, { getConfig: vi.fn().mockReturnValue(pending) }));
+
+    // While pending: spinner, NO password form (an SSO-only server must never
+    // flash a password wall at users who have no password).
+    expect(screen.getByTestId('login-config-loading')).toBeTruthy();
+    expect(screen.queryByLabelText('Email')).toBeNull();
+
+    resolveConfig({ features: { ssoEnforced: true } });
+    await waitFor(() => expect(screen.queryByTestId('login-config-loading')).toBeNull());
+    // Enforced mode honoured on FIRST paint after resolve: password form
+    // hidden, break-glass link offered.
+    expect(screen.queryByLabelText('Email')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Use a password instead' })).toBeTruthy();
+  });
+
+  it('falls back to the password form when config ultimately fails (break-glass beats lock-out)', async () => {
+    renderLogin(createMockClient({}, { getConfig: vi.fn().mockRejectedValue(new Error('config down')) }));
+    await screen.findByLabelText('Email');
+    expect(screen.queryByTestId('login-config-loading')).toBeNull();
+  });
+});

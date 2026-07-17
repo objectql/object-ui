@@ -128,6 +128,14 @@ const DATA_SOURCE_FIELD_TYPES = new Set([
   'object-ref', 'filter-condition', 'recipient-picker',
 ]);
 
+// Option fields (`select`/`radio`/`multiselect`) support per-option `visibleWhen`
+// cascading + `dependsOn` gating (#2284/#1583): the widget re-filters its OFFERED
+// set against the live form record (`record.country == 'cn'` …). They take no
+// `dataSource`, but they DO need the live `dependentValues` record — without it a
+// cascading select never sees its controlling field and stays permanently gated
+// on the "select the parent first" hint.
+const CASCADE_OPTION_FIELD_TYPES = new Set(['select', 'radio', 'multiselect']);
+
 function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
   const {
     dataSource: _dataSource,
@@ -200,6 +208,7 @@ function stripRegisteredFieldProps(type: string, props: RenderFieldProps): Rende
   return {
     ...fieldProps,
     ...(DATA_SOURCE_FIELD_TYPES.has(normalizedType) ? { dataSource, dependentValues } : {}),
+    ...(CASCADE_OPTION_FIELD_TYPES.has(normalizedType) ? { dependentValues } : {}),
   };
 }
 

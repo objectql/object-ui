@@ -80,6 +80,72 @@ describe('InlineFieldInput', () => {
     expect(arg).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
   });
 
+  it('passes an $expand-ed reference value through so the picker shows the name without re-fetching (objectui#2572)', async () => {
+    const findOne = vi.fn();
+    const find = vi.fn().mockResolvedValue({ data: [], total: 0 });
+    render(
+      <InlineFieldInput
+        field={{ name: 'account', type: 'lookup', reference_to: 'accounts' }}
+        value={{ id: 'a1', name: 'Northwind Traders' }}
+        onChange={vi.fn()}
+        dataSource={{ find, findOne }}
+      />,
+    );
+    // The expanded record already carries its display name — the chip must
+    // render it synchronously, with NO hydration fetch for the id.
+    expect(await screen.findByText('Northwind Traders')).toBeInTheDocument();
+    expect(findOne).not.toHaveBeenCalled();
+  });
+
+  it('renders currency as a numeric input honoring the metadata min (objectui#2572)', () => {
+    const onChange = vi.fn();
+    render(
+      <InlineFieldInput
+        field={{ name: 'budget', type: 'currency', min: 0 }}
+        value={5000}
+        onChange={onChange}
+      />,
+    );
+    const input = screen.getByRole('spinbutton');
+    expect(input).toHaveAttribute('type', 'number');
+    expect(input).toHaveAttribute('min', '0');
+    fireEvent.change(input, { target: { value: '6000' } });
+    // Numeric widgets emit real numbers (not free-typed strings).
+    expect(onChange).toHaveBeenCalledWith(6000);
+  });
+
+  it('renders number as a numeric input emitting numbers, honoring scale', () => {
+    const onChange = vi.fn();
+    render(
+      <InlineFieldInput
+        field={{ name: 'headcount', type: 'number', scale: 0 }}
+        value={12}
+        onChange={onChange}
+      />,
+    );
+    const input = screen.getByRole('spinbutton');
+    // `scale: 0` must step by 1 (whole numbers), not fall back to "any".
+    expect(input).toHaveAttribute('step', '1');
+    fireEvent.change(input, { target: { value: '15' } });
+    expect(onChange).toHaveBeenCalledWith(15);
+  });
+
+  it('renders percent with the display conversion (stored fraction ↔ shown %)', () => {
+    const onChange = vi.fn();
+    render(
+      <InlineFieldInput
+        field={{ name: 'completion', type: 'percent' }}
+        value={0.5}
+        onChange={onChange}
+      />,
+    );
+    // Stored 0.5 renders as "50" (%); typing 75 stores 0.75.
+    const input = screen.getByRole('spinbutton');
+    expect(input).toHaveValue(50);
+    fireEvent.change(input, { target: { value: '75' } });
+    expect(onChange).toHaveBeenCalledWith(0.75);
+  });
+
   it('auto-focuses the input when autoFocus is set', () => {
     render(
       <InlineFieldInput

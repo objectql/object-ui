@@ -81,6 +81,11 @@ export function CurrencyField({ value, onChange, field, readonly, errorMessage, 
         placeholder={currencyField?.placeholder || '0.00'}
         disabled={readonly || props.disabled}
         className={`${symbol ? 'pl-8' : ''} ${className || ''}`}
+        // Surface the field's declared range (e.g. `min: 0` on a budget) so the
+        // browser's spinner/keyboard affordances respect it (objectui#2572);
+        // server-side validation still owns enforcement.
+        min={typeof currencyField?.min === 'number' ? currencyField.min : undefined}
+        max={typeof currencyField?.max === 'number' ? currencyField.max : undefined}
         step={Math.pow(10, -precision).toFixed(precision)}
         aria-invalid={!!errorMessage}
       />

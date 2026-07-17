@@ -468,9 +468,14 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
     // off, so only an explicit `=== true` override unlocks. The server-side
     // write guard remains the real boundary; this is UX only.
     const managed = !!objectSchema?.managedBy && objectSchema.managedBy !== 'platform';
+    // `userActions.edit` may be the #2614 object form ({ enabled, ...CEL
+    // predicates }); only the explicit enabled boolean unlocks — predicates
+    // gate row action buttons, not the form's blanket lock.
+    const uaEdit = (objectSchema as any)?.userActions?.edit;
+    const editAffordanceOpen = uaEdit === true || (typeof uaEdit === 'object' && uaEdit !== null && uaEdit.enabled === true);
     const modeAffordanceOpen =
       schema.mode === 'edit'
-        ? (objectSchema as any)?.userActions?.edit === true
+        ? editAffordanceOpen
         : schema.mode === 'create'
           ? (objectSchema as any)?.userActions?.create === true
           : false;

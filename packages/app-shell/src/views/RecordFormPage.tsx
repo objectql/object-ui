@@ -159,8 +159,15 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
   const expressionUser = useMemo(
     () =>
       user
-        ? { name: user.name, email: user.email, role: user.role ?? 'user' }
-        : { name: 'Anonymous', email: '', role: 'guest' },
+        ? {
+            name: user.name,
+            email: user.email,
+            role: user.role ?? 'user',
+            // Server-parity actor shape for per-option `visibleWhen` gating
+            // (ADR-0058): the rule-validator binds `current_user.positions`.
+            positions: (user as any).positions ?? [],
+          }
+        : { name: 'Anonymous', email: '', role: 'guest', positions: [] },
     [user],
   );
 

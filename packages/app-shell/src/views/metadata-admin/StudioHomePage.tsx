@@ -57,7 +57,7 @@ import {
   translateMetadataDomain,
   t,
   tFormat,
-  detectLocale,
+  useMetadataLocale,
 } from './i18n';
 import { buildPackageScopeOptions } from './package-scope';
 
@@ -128,7 +128,7 @@ export function StudioHomePage() {
   const client = useMetadataClient();
   const { loading, entries } = useMetadataTypes(client);
   const { recentItems } = useRecentItems();
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [projectPackages, setProjectPackages] = React.useState<

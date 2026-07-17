@@ -54,6 +54,17 @@ export interface RowActionDef {
   [key: string]: any;
 }
 
+/** Per-record CEL predicates gating a built-in Edit/Delete row action
+ * (objectui#2614). Bare CEL string or `{ dialect, source }` envelope,
+ * evaluated per row via `useRowPredicate` — same machinery as custom
+ * actions' `visible` / `disabled`. */
+export interface BuiltinRowActionPredicates {
+  /** Evaluates false → the item is not rendered for this row. Fail-closed. */
+  visibleWhen?: unknown;
+  /** Evaluates true → the item renders disabled for this row. Fail-soft. */
+  disabledWhen?: unknown;
+}
+
 export interface RowActionMenuProps {
   /** The row data record */
   row: any;
@@ -65,6 +76,10 @@ export interface RowActionMenuProps {
   canEdit?: boolean;
   /** Whether delete operation is available */
   canDelete?: boolean;
+  /** Per-record predicates for the built-in Edit item (from `userActions.edit`). */
+  editPredicates?: BuiltinRowActionPredicates;
+  /** Per-record predicates for the built-in Delete item (from `userActions.delete`). */
+  deletePredicates?: BuiltinRowActionPredicates;
   /** Callback when edit is clicked */
   onEdit?: (row: any) => void;
   /** Callback when delete is clicked */
@@ -117,6 +132,54 @@ const RowActionMenuItem: React.FC<{
   );
 };
 
+/**
+ * A built-in Edit/Delete menu item gated by per-record CEL predicates
+ * (objectui#2614). Extracted into a component so `useRowPredicate` runs
+ * hook-safe, mirroring `RowActionMenuItem` for custom actions. Note the
+ * evaluation is naturally lazy: this only renders inside the (Radix)
+ * `DropdownMenuContent`, which mounts when the row's "⋮" menu opens — so
+ * declaring predicates costs nothing while the grid renders.
+ *
+ * Posture matches the spec contract (`RowCrudActionOverrideSchema`):
+ * `visibleWhen` fails CLOSED (a faulting predicate hides + warns once, so a
+ * broken predicate can't expose an affordance the author meant to gate);
+ * `disabledWhen` fails soft (button stays enabled — the server hook is the
+ * real enforcement).
+ */
+export const BuiltinRowActionItem: React.FC<{
+  name: 'edit' | 'delete';
+  predicates?: BuiltinRowActionPredicates;
+  row: any;
+  icon: React.ReactNode;
+  label: string;
+  className?: string;
+  onSelect: (row: any) => void;
+}> = ({ name, predicates, row, icon, label, className, onSelect }) => {
+  const isVisible = useRowPredicate(predicates?.visibleWhen, row, {
+    fallback: false,
+    warnOnError: true,
+    label: `builtin:${name}:visibleWhen`,
+  });
+  const isDisabled = useRowPredicate(predicates?.disabledWhen, row, {
+    fallback: false,
+    warnOnError: true,
+    label: `builtin:${name}:disabledWhen`,
+  });
+  if (predicates?.visibleWhen != null && !isVisible) return null;
+  const disabled = predicates?.disabledWhen != null && isDisabled;
+  return (
+    <DropdownMenuItem
+      disabled={disabled}
+      onClick={() => { if (!disabled) onSelect(row); }}
+      data-testid={`row-action-builtin-${name}`}
+      className={className}
+    >
+      {icon}
+      {label}
+    </DropdownMenuItem>
+  );
+};
+
 /** Map a schema action variant onto a Button variant. `primary` is the
  * accent ("default") button so the action reads as the row's main CTA. */
 function toButtonVariant(v: RowActionDef['variant']): 'default' | 'secondary' | 'destructive' | 'ghost' | 'link' {
@@ -161,6 +224,8 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
   rowActionDefs,
   canEdit,
   canDelete,
+  editPredicates,
+  deletePredicates,
   onEdit,
   onDelete,
   onAction,
@@ -211,16 +276,24 @@ export const RowActionMenu: React.FC<RowActionMenuProps> = ({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
             {canEdit && onEdit && (
-              <DropdownMenuItem onClick={() => onEdit(row)}>
-                <Edit className="mr-2 h-4 w-4" />
-                {t('grid.edit')}
-              </DropdownMenuItem>
+              <BuiltinRowActionItem
+                name="edit"
+                predicates={editPredicates}
+                row={row}
+                icon={<Edit className="mr-2 h-4 w-4" />}
+                label={t('grid.edit')}
+                onSelect={onEdit}
+              />
             )}
             {canDelete && onDelete && (
-              <DropdownMenuItem onClick={() => onDelete(row)}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                {t('grid.delete')}
-              </DropdownMenuItem>
+              <BuiltinRowActionItem
+                name="delete"
+                predicates={deletePredicates}
+                row={row}
+                icon={<Trash2 className="mr-2 h-4 w-4" />}
+                label={t('grid.delete')}
+                onSelect={onDelete}
+              />
             )}
             {menuDefs.map(def => (
               <RowActionMenuItem

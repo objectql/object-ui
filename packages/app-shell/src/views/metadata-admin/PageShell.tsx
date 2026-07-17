@@ -21,7 +21,7 @@ import { Badge } from '@object-ui/components';
 import { Button } from '@object-ui/components';
 import { ChevronRight } from 'lucide-react';
 import type { RichMetadataTypeEntry } from './useMetadata';
-import { detectLocale, t, translateMetadataType, translateMetadataDomain } from './i18n';
+import { useMetadataLocale, t, translateMetadataType, translateMetadataDomain } from './i18n';
 
 export interface PageShellProps {
   /** The type entry from `/meta/types` (or a synthesized stub). */
@@ -34,6 +34,15 @@ export interface PageShellProps {
   stats?: Array<{ label: string; value: React.ReactNode }>;
   /** Right-side action buttons. */
   actions?: React.ReactNode;
+  /**
+   * When true, the shell is hosted inside another surface (e.g. the Studio
+   * Access pillar) instead of the routed metadata admin. The breadcrumb
+   * renders as plain text: its links resolve to `/metadata` routes that do
+   * not exist under the host's router scope, so following them would yank
+   * the user out of the embedding surface (the host provides its own
+   * navigation).
+   */
+  embedded?: boolean;
   /** Page body. */
   children: React.ReactNode;
 }
@@ -44,10 +53,11 @@ export function PageShell({
   subtitle,
   stats,
   actions,
+  embedded = false,
   children,
 }: PageShellProps) {
   const type = entry?.type ?? '';
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   // Prefer locale-table translation over server's English label.
   const label = translateMetadataType(type, locale, entry?.label);
 
@@ -69,16 +79,22 @@ export function PageShell({
         // sit inline to free a full row of vertical chrome.
         <div className="px-6 py-2.5 border-b bg-background flex items-center gap-3 min-h-[44px]">
           <nav className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-            <Link to={metadataBase} className="hover:text-foreground shrink-0">
-              {t('engine.breadcrumb.allTypes', locale)}
-            </Link>
-            <ChevronRight className="h-3 w-3 shrink-0" />
-            <Link
-              to={`${metadataBase}/${encodeURIComponent(type)}`}
-              className="hover:text-foreground shrink-0"
-            >
-              {label}
-            </Link>
+            {embedded ? (
+              <span className="shrink-0">{label}</span>
+            ) : (
+              <>
+                <Link to={metadataBase} className="hover:text-foreground shrink-0">
+                  {t('engine.breadcrumb.allTypes', locale)}
+                </Link>
+                <ChevronRight className="h-3 w-3 shrink-0" />
+                <Link
+                  to={`${metadataBase}/${encodeURIComponent(type)}`}
+                  className="hover:text-foreground shrink-0"
+                >
+                  {label}
+                </Link>
+              </>
+            )}
             <ChevronRight className="h-3 w-3 shrink-0" />
             <span
               className="text-foreground font-medium font-mono truncate"
@@ -152,13 +168,15 @@ export function PageShell({
         // page identity here so we earn the vertical space.
         <div className="px-6 pt-5 pb-4 border-b bg-background">
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-            <Link to={metadataBase} className="hover:text-foreground">
-              {t('engine.breadcrumb.allTypes', locale)}
-            </Link>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground font-medium">{label}</span>
-          </nav>
+          {!embedded && (
+            <nav className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+              <Link to={metadataBase} className="hover:text-foreground">
+                {t('engine.breadcrumb.allTypes', locale)}
+              </Link>
+              <ChevronRight className="h-3 w-3" />
+              <span className="text-foreground font-medium">{label}</span>
+            </nav>
+          )}
 
           {/* Title row */}
           <div className="flex items-start justify-between gap-3 flex-wrap">

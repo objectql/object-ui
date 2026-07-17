@@ -320,14 +320,14 @@ type FieldWidgetProps<T = any> = {
 
 ```typescript
 // Register primary type
-ComponentRegistry.register('object-form', FormRenderer, {
+ComponentRegistry.register('object-form', ObjectFormRenderer, {
   namespace: 'plugin-form',
   label: 'Object Form',
   category: 'plugin',
 });
 
 // Register semantic alias
-ComponentRegistry.register('form', FormRenderer, {
+ComponentRegistry.register('form', ObjectFormRenderer, {
   namespace: 'view',
   skipFallback: true,  // Don't overwrite other 'form' registrations
 });

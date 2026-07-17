@@ -17,7 +17,7 @@
  * - Variant / size / className overrides from schema
  */
 
-import React, { forwardRef, useCallback, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { ComponentRegistry } from '@object-ui/core';
 import type { ActionSchema } from '@object-ui/types';
 import { useAction } from '@object-ui/react';
@@ -55,7 +55,10 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
     // `visible` fails CLOSED on a throwing predicate (mirrors ActionEngine's
     // getActionsForLocation) — a precondition that can't be evaluated should
     // hide the action, not silently show one whose guard is broken.
-    const isVisible = useCondition(toPredicateInput(schema.visible), recordData, { throwOnError: true });
+    const isVisible = useCondition(toPredicateInput(schema.visible), recordData, {
+      throwOnError: true,
+      label: `action "${schema.name ?? schema.label ?? 'action:button'}" (visible)`,
+    });
     // Spec field is `disabled` (boolean | CEL predicate — disabled when TRUE).
     // It previously had zero consumers (the renderer only read a non-spec
     // `enabled`), so a spec-authored `disabled` guard did nothing (#1885,
@@ -125,6 +128,23 @@ const ActionButtonRenderer = forwardRef<HTMLButtonElement, ActionButtonProps>(
         setLoading(false);
       }
     }, [schema, execute, loading, localContext]);
+
+    // Client-side auto-trigger (#844): a caller (e.g. a welcome-page CTA that
+    // deep-links into "create") can mark an action `autoTrigger: true` to run
+    // it once as soon as the button mounts — the exact same execute path as a
+    // click, so param dialogs / confirms / entitlement gates all still apply.
+    // NOT persisted metadata: the flag only exists on client-composed schemas.
+    // The ref guards re-fires across re-renders; the flag flipping true later
+    // (state-dependent toolbars) still triggers exactly once.
+    const autoTriggered = useRef(false);
+    const autoTrigger = (schema as any).autoTrigger === true;
+    useEffect(() => {
+      if (!autoTrigger || autoTriggered.current) return;
+      autoTriggered.current = true;
+      void handleClick();
+      // handleClick identity changes with schema/context churn; the ref makes
+      // this once-only regardless, so it's safe to depend on it.
+    }, [autoTrigger, handleClick]);
 
     if (schema.visible && !isVisible) return null;
 

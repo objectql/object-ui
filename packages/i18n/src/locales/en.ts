@@ -112,6 +112,9 @@ const en = {
     deleteSuccess: '{{object}} deleted successfully',
   },
   fields: {
+    relativeDate: {
+      overdue: 'Overdue {{count}}d',
+    },
     richText: {
       format: 'Format: {{format}}',
       basicEditorHint: 'Rich text editor (basic)',
@@ -614,9 +617,13 @@ const en = {
     // Activity feed actors
     systemActor: 'System',
     unknownUser: 'Unknown',
-    // Record meta footer (audit provenance)
+    // Record meta footer (audit provenance). `created`/`updated` are the
+    // actor-less variants — "Created by · 5m ago" dangles when created_by
+    // is null (system/seeded rows), so the footer falls back to these.
     createdBy: 'Created by',
     updatedBy: 'Updated by',
+    created: 'Created',
+    updated: 'Updated',
     // Attachments
     dropFilesToUpload: 'Drop files here or click to upload',
     attachmentCount: '{{count}} attachment',
@@ -910,6 +917,29 @@ const en = {
       vsLastYear: 'vs last year',
       vsYesterday: 'vs yesterday',
       vsPreviousPeriod: 'vs previous period',
+    },
+    filters: {
+      label: 'Dashboard filters',
+      dateRange: 'Date range',
+      allTime: 'All time',
+      custom: 'Custom…',
+      all: 'All',
+      reset: 'Reset',
+      range: {
+        today: 'Today',
+        yesterday: 'Yesterday',
+        this_week: 'This week',
+        last_week: 'Last week',
+        this_month: 'This month',
+        last_month: 'Last month',
+        this_quarter: 'This quarter',
+        last_quarter: 'Last quarter',
+        this_year: 'This year',
+        last_year: 'Last year',
+        last_7_days: 'Last 7 days',
+        last_30_days: 'Last 30 days',
+        last_90_days: 'Last 90 days',
+      },
     },
   },
   configPanel: {
@@ -1286,6 +1316,7 @@ const en = {
       publishOk: 'Published — objects are now live.',
       seedWarn: 'Published, but some sample data failed to load.',
       openBuiltApp: 'Open app',
+      designBuiltApp: 'Design in Studio',
       previewDraft: 'Preview',
       previewApp: 'Preview app',
       resizeSplit: 'Resize chat and preview',

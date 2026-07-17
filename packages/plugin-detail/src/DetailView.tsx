@@ -1000,12 +1000,21 @@ export const DetailView: React.FC<DetailViewProps> = ({
           bar itself now lives in the record-level <InlineEditSaveBar>
           (objectui#2407 P1); this band is lock-only. */}
       {inlineEdit && schema.showHeader === false && (() => {
-        // Detect approval lock on the live record. When `approval_status`
-        // is `pending`/`in_approval`, the backend will reject any update
-        // with RECORD_LOCKED — show the lock badge inline so users see
-        // a clear reason instead of editing and failing on save.
+        // Detect approval lock. Prefer the host-supplied signal
+        // (`inline.locked`) — the record-level session computes it from the
+        // record's `approval_status` field OR an open approvals request
+        // (objectui#2618), so the band engages even on backends that track
+        // the lock via approval requests only and never materialize an
+        // `approval_status` field on the record. Fall back to the record's
+        // own field for bare/legacy DetailView usage without a host that
+        // threads the lock. Either way a locked record's writes are rejected
+        // with RECORD_LOCKED, so surface the badge instead of editing and
+        // failing on save.
         const approvalStatus = data?.approval_status;
-        const isLocked = approvalStatus === 'pending' || approvalStatus === 'in_approval';
+        const isLocked =
+          (inline?.locked ?? false) ||
+          approvalStatus === 'pending' ||
+          approvalStatus === 'in_approval';
         // Nothing to surface (not locked, no approval-cancel error): no band.
         if (!isLocked && !saveError) return null;
         return (
@@ -1015,7 +1024,7 @@ export const DetailView: React.FC<DetailViewProps> = ({
               <span
                 role="status"
                 className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
-                title={t('detail.lockedTooltip')}
+                title={inline?.lockedReason ?? t('detail.lockedTooltip')}
               >
                 <Lock className="h-3 w-3" />
                 <span>{t('detail.lockedByApproval')}</span>

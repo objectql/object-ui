@@ -125,6 +125,107 @@ describe('InlineEditSaveBar — callback (drawer) mode', () => {
   });
 });
 
+describe('InlineEditSaveBar — keyboard shortcuts (objectui#2572)', () => {
+  it('Cmd/Ctrl+Enter commits the draft in one atomic update', async () => {
+    const update = vi.fn().mockResolvedValue({});
+    render(
+      <InlineEditProvider canEdit>
+        <Harness />
+        <InlineEditSaveBar
+          dataSource={{ update }}
+          objectName="proj"
+          recordId="p1"
+          data={{ updated_at: 'v1' }}
+          refresh={vi.fn()}
+        />
+      </InlineEditProvider>,
+    );
+
+    stageTwoFields();
+    fireEvent.keyDown(window, { key: 'Enter', metaKey: true });
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    expect(update).toHaveBeenCalledWith(
+      'proj',
+      'p1',
+      { status: 'active', budget: 100 },
+      { ifMatch: 'v1' },
+    );
+  });
+
+  it('Cmd/Ctrl+Enter is a no-op while locked', () => {
+    const update = vi.fn();
+    render(
+      <InlineEditProvider canEdit>
+        <Harness />
+        <InlineEditSaveBar dataSource={{ update }} objectName="proj" recordId="p1" data={{}} refresh={vi.fn()} locked />
+      </InlineEditProvider>,
+    );
+
+    stageTwoFields();
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+    expect(update).not.toHaveBeenCalled();
+    // Session stays live — the bar is still rendered.
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('Esc cancels the session without a write', () => {
+    const update = vi.fn();
+    render(
+      <InlineEditProvider canEdit>
+        <Harness />
+        <InlineEditSaveBar dataSource={{ update }} objectName="proj" recordId="p1" data={{}} refresh={vi.fn()} />
+      </InlineEditProvider>,
+    );
+
+    stageTwoFields();
+    fireEvent.keyDown(window, { key: 'Escape' });
+
+    expect(update).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+  });
+
+  it('Esc defers to an open floating layer (popover owns the key)', () => {
+    render(
+      <InlineEditProvider canEdit>
+        <Harness />
+        <InlineEditSaveBar dataSource={{ update: vi.fn() }} objectName="proj" recordId="p1" data={{}} refresh={vi.fn()} />
+      </InlineEditProvider>,
+    );
+
+    stageTwoFields();
+    // Simulate an open Radix layer (lookup/select popover) in the DOM.
+    const popper = document.createElement('div');
+    popper.setAttribute('data-radix-popper-content-wrapper', '');
+    document.body.appendChild(popper);
+    try {
+      fireEvent.keyDown(window, { key: 'Escape' });
+      // The session must survive — Esc belonged to the popover.
+      expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    } finally {
+      popper.remove();
+    }
+
+    // With the layer gone, Esc tears the session down.
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+  });
+
+  it('shortcuts are inert while not editing', () => {
+    const update = vi.fn();
+    render(
+      <InlineEditProvider canEdit>
+        <Harness />
+        <InlineEditSaveBar dataSource={{ update }} objectName="proj" recordId="p1" data={{}} refresh={vi.fn()} />
+      </InlineEditProvider>,
+    );
+
+    fireEvent.keyDown(window, { key: 'Enter', metaKey: true });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(update).not.toHaveBeenCalled();
+  });
+});
+
 describe('InlineEditSaveBar — Cancel', () => {
   it('discards the draft without any write', () => {
     const update = vi.fn();

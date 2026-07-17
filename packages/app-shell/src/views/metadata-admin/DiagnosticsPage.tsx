@@ -31,13 +31,13 @@ import {
   useGlobalDiagnostics,
   type MetadataDiagnosticsEntry,
 } from './useMetadata';
-import { t, tFormat, translateMetadataType, detectLocale } from './i18n';
+import { t, tFormat, translateMetadataType, useMetadataLocale } from './i18n';
 
 type Severity = 'error' | 'warning';
 
 export function MetadataDiagnosticsPage() {
   const client = useMetadataClient();
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const [severity, setSeverity] = React.useState<Severity>('error');
   const { loading, error, summary, reload } = useGlobalDiagnostics(client, severity);
   const { entries: typesEntries } = useMetadataTypes(client);

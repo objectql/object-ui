@@ -22,7 +22,7 @@
 import React from 'react';
 import { Skeleton } from '@object-ui/components';
 import * as jsonc from 'jsonc-parser';
-import { detectLocale, t } from './i18n';
+import { useMetadataLocale, t } from './i18n';
 import { useMonacoFallback } from './useMonacoFallback';
 
 // Lazy: Monaco's React wrapper itself pulls in the editor core
@@ -76,7 +76,7 @@ export function JsonSourceEditor({
   height = '60vh',
   fallbackDelayMs = 4000,
 }: JsonSourceEditorProps) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const [text, setText] = React.useState<string>(() => stringify(value));
   const [parseError, setParseError] = React.useState<string | null>(null);
   const lastCommittedRef = React.useRef<string>(text);

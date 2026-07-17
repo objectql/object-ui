@@ -15,12 +15,18 @@
  * sliver. Only the first `maxInlineActions` primaries now stay inline; the rest
  * fold into the "⋮" overflow menu.
  */
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React from 'react';
 import { PredicateScopeProvider } from '@object-ui/react';
-import { RowActionMenu } from '../RowActionMenu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@object-ui/components';
+import { Edit } from 'lucide-react';
+import { RowActionMenu, BuiltinRowActionItem } from '../RowActionMenu';
 
 const OPEN = { name: 'open', label: 'Open', variant: 'primary' as const };
 const UPGRADE = { name: 'upgrade', label: 'Upgrade Plan', variant: 'primary' as const };
@@ -92,5 +98,101 @@ describe('RowActionMenu CEL visible predicate (issue #1584)', () => {
       </PredicateScopeProvider>,
     );
     expect(screen.queryByTestId('row-action-inline-resume')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * objectui#2614 — the BUILT-IN Edit/Delete row actions honor per-record
+ * `visibleWhen` / `disabledWhen` CEL predicates from the object's
+ * `userActions.edit` / `delete` object form. Items are rendered inside a
+ * controlled-open dropdown (same pattern as the data-table's
+ * `DataTableRowActionItem` tests) because Radix mounts menu content only when
+ * open — which is also why predicate evaluation is lazy and free at grid
+ * render time.
+ */
+describe('BuiltinRowActionItem per-record CEL predicates (#2614)', () => {
+  // The downstream MES case: a task_version_check_item row is frozen once its
+  // parent version is published; the Edit button must grey out on frozen rows.
+  const FROZEN = { id: 'r1', name: 'Check item A', frozen: true };
+  const DRAFT = { id: 'r2', name: 'Check item B', frozen: false };
+
+  function renderItem(props: { predicates?: any; row: any; onSelect?: (row: any) => void }) {
+    return render(
+      <PredicateScopeProvider scope={{}}>
+        <DropdownMenu open modal={false}>
+          <DropdownMenuTrigger>menu</DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <BuiltinRowActionItem
+              name="edit"
+              icon={<Edit className="mr-2 h-4 w-4" />}
+              label="Edit"
+              onSelect={props.onSelect ?? (() => {})}
+              predicates={props.predicates}
+              row={props.row}
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </PredicateScopeProvider>,
+    );
+  }
+
+  it('renders enabled with no predicates (today’s behavior, zero regression)', () => {
+    renderItem({ row: FROZEN });
+    const item = screen.getByTestId('row-action-builtin-edit');
+    expect(item).toBeInTheDocument();
+    expect(item).not.toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('disabledWhen true → rendered but disabled, and clicks do not fire', () => {
+    const onSelect = vi.fn();
+    renderItem({ predicates: { disabledWhen: 'record.frozen == true' }, row: FROZEN, onSelect });
+    const item = screen.getByTestId('row-action-builtin-edit');
+    expect(item).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(item);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('disabledWhen false → enabled, and clicks fire with the row', () => {
+    const onSelect = vi.fn();
+    renderItem({ predicates: { disabledWhen: 'record.frozen == true' }, row: DRAFT, onSelect });
+    const item = screen.getByTestId('row-action-builtin-edit');
+    expect(item).not.toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(item);
+    expect(onSelect).toHaveBeenCalledWith(DRAFT);
+  });
+
+  it('visibleWhen false → the item is not rendered for that row', () => {
+    renderItem({ predicates: { visibleWhen: 'record.frozen != true' }, row: FROZEN });
+    expect(screen.queryByTestId('row-action-builtin-edit')).not.toBeInTheDocument();
+  });
+
+  it('visibleWhen true → the item renders', () => {
+    renderItem({ predicates: { visibleWhen: 'record.frozen != true' }, row: DRAFT });
+    expect(screen.getByTestId('row-action-builtin-edit')).toBeInTheDocument();
+  });
+
+  it('accepts the canonical { dialect, source } envelope', () => {
+    renderItem({
+      predicates: { visibleWhen: { dialect: 'cel', source: 'record.frozen != true' } },
+      row: FROZEN,
+    });
+    expect(screen.queryByTestId('row-action-builtin-edit')).not.toBeInTheDocument();
+  });
+
+  it('a faulting visibleWhen fails CLOSED (hidden), a faulting disabledWhen fails soft (enabled)', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      renderItem({ predicates: { visibleWhen: 'record.nonexistent.deep == 1' }, row: DRAFT });
+      expect(screen.queryByTestId('row-action-builtin-edit')).not.toBeInTheDocument();
+    } finally {
+      warn.mockRestore();
+    }
+    const warn2 = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      renderItem({ predicates: { disabledWhen: 'record.nonexistent.deep == 1' }, row: DRAFT });
+      expect(screen.getByTestId('row-action-builtin-edit')).not.toHaveAttribute('aria-disabled', 'true');
+    } finally {
+      warn2.mockRestore();
+    }
   });
 });

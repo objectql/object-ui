@@ -310,7 +310,7 @@ humans and AI author it correctly by pattern-matching:
   // role gating — same predicate, references current_user instead of a sibling:
   { "name": "tier", "type": "select", "options": [
     { "label": "Standard",   "value": "standard" },
-    { "label": "Admin only", "value": "admin_only", "visibleWhen": "'admin' in current_user.roles" }
+    { "label": "Admin only", "value": "admin_only", "visibleWhen": "'admin' in current_user.positions" }
   ]}
 ]}
 ```

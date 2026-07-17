@@ -619,8 +619,14 @@ export function AppContent({ extraRoutes, extraRoutesNoApp }: AppContentProps = 
         // name/email/role were forwarded → isPlatformAdmin-gated actions were
         // hidden even for platform admins.
         isPlatformAdmin: (user as any).isPlatformAdmin ?? false,
+        // Positions are what the SERVER binds as `current_user` for per-option
+        // `visibleWhen` authorization gating (ADR-0058; framework EvalUser —
+        // objectui#2284). Forwarding them lets a position-gated option
+        // (`'admin' in current_user.positions`) hide client-side too, instead
+        // of failing open as visible and only being rejected on submit.
+        positions: (user as any).positions ?? [],
       }
-    : { name: 'Anonymous', email: '', role: 'guest', isPlatformAdmin: false };
+    : { name: 'Anonymous', email: '', role: 'guest', isPlatformAdmin: false, positions: [] };
 
   return (
     <ExpressionProvider user={expressionUser} app={activeApp} data={{}} features={features}>

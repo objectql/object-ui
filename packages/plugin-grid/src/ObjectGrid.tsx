@@ -1456,7 +1456,7 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // (e.g. sys_environment ships a dedicated Rename + cascade-Delete instead).
   // This stops a generic "Delete" from duplicating the object's own Delete
   // action, and a generic "Edit" the object turned off from leaking back in.
-  const { canEdit, canDelete } = resolveRowCrudAffordances({
+  const { canEdit, canDelete, editPredicates, deletePredicates } = resolveRowCrudAffordances({
     operationsUpdate: operations?.update,
     operationsDelete: operations?.delete,
     wantEditAction,
@@ -1491,6 +1491,8 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
           maxInlineActions={(schema as any).maxInlineRowActions ?? 1}
           canEdit={canEdit}
           canDelete={canDelete}
+          editPredicates={editPredicates}
+          deletePredicates={deletePredicates}
           onEdit={onEdit}
           onDelete={onDelete}
           onAction={(action, r) => {

@@ -144,4 +144,24 @@ describe('attachInlineSubforms — relationship-level inlineEdit', () => {
     const plain = [{ name: 'a', fields: { x: { type: 'text' } } }];
     expect(attachInlineSubforms(plain)).toBe(plain);
   });
+
+  it('resolves the parent from a reference_to-keyed field (ObjectUI convention)', () => {
+    // Served schemas use `reference`; ObjectUI-authored / normalized defs use
+    // `reference_to` — the parent resolution must accept either key.
+    const out = attachInlineSubforms([
+      { name: 'order', fields: { number: { type: 'text' } } },
+      {
+        name: 'order_line',
+        fields: {
+          qty: { type: 'number' },
+          order: { type: 'master_detail', reference_to: 'order', inlineEdit: true },
+        },
+      },
+    ]);
+    const order = out.find((o) => o.name === 'order')!;
+    expect(order.form?.subforms?.[0]).toMatchObject({
+      childObject: 'order_line',
+      relationshipField: 'order',
+    });
+  });
 });

@@ -11,7 +11,7 @@
 
 import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 
 // Network-free catalogs.
 vi.mock('../previews/useDatasetCatalog', () => ({
@@ -104,5 +104,78 @@ describe('DashboardWidgetInspector — dataset binding', () => {
     const combos = screen.getAllByRole('combobox');
     expect(combos.length).toBeGreaterThan(0);
     combos.forEach((c) => expect(c).toBeDisabled());
+  });
+});
+
+describe('DashboardWidgetInspector — dashboard filter bindings (framework#2501)', () => {
+  const filteredDraft = (widgetExtra: Record<string, unknown> = {}) => ({
+    dateRange: { field: 'created_at', defaultRange: 'last_30_days' },
+    globalFilters: [
+      { name: 'region', field: 'region', label: 'Region', type: 'select', options: ['EMEA'] },
+    ],
+    widgets: [widget(widgetExtra)],
+  });
+
+  function renderFiltered(widgetExtra: Record<string, unknown> = {}, props: Record<string, unknown> = {}) {
+    return render(
+      <DashboardWidgetInspector
+        {...baseProps}
+        {...props}
+        draft={filteredDraft(widgetExtra)}
+        selection={{ kind: 'widget', id: 'w1' }}
+        onPatch={(props.onPatch as any) ?? vi.fn()}
+      />,
+    );
+  }
+
+  it('hides the section when the dashboard declares no filters', () => {
+    renderWidget();
+    expect(screen.queryByText('Dashboard filter bindings')).not.toBeInTheDocument();
+  });
+
+  it('renders one row per dashboard filter (dateRange + each globalFilter)', () => {
+    renderFiltered();
+    expect(screen.getByText('Dashboard filter bindings')).toBeInTheDocument();
+    expect(screen.getByTestId('widget-filter-binding-dateRange')).toBeInTheDocument();
+    const region = screen.getByTestId('widget-filter-binding-region');
+    expect(within(region).getByText('Region')).toBeInTheDocument();
+    // Default placeholder names the filter's own field.
+    expect(within(region).getByText('Default (region)')).toBeInTheDocument();
+  });
+
+  it('unticking Apply patches filterBindings[name] = false; re-ticking removes the entry', () => {
+    const onPatch = vi.fn();
+    renderFiltered({}, { onPatch });
+    const region = screen.getByTestId('widget-filter-binding-region');
+    fireEvent.click(within(region).getByRole('checkbox'));
+    expect(onPatch).toHaveBeenCalledWith({
+      widgets: [expect.objectContaining({ id: 'w1', filterBindings: { region: false } })],
+    });
+
+    cleanup();
+    const onPatch2 = vi.fn();
+    renderFiltered({ filterBindings: { region: false } }, { onPatch: onPatch2 });
+    const region2 = screen.getByTestId('widget-filter-binding-region');
+    const checkbox = within(region2).getByRole('checkbox');
+    expect(checkbox).not.toBeChecked();
+    // Opted out → the field picker is hidden for this row.
+    expect(within(region2).queryByRole('combobox')).not.toBeInTheDocument();
+    fireEvent.click(checkbox);
+    // Last remaining entry removed → filterBindings collapses to undefined.
+    expect(onPatch2).toHaveBeenCalledWith({
+      widgets: [expect.objectContaining({ id: 'w1', filterBindings: undefined })],
+    });
+  });
+
+  it('shows an existing field override and resets it back to the default binding', () => {
+    const onPatch = vi.fn();
+    renderFiltered({ filterBindings: { dateRange: 'signed_at', region: 'sales_region' } }, { onPatch });
+    const dateRow = screen.getByTestId('widget-filter-binding-dateRange');
+    expect(within(dateRow).getByText('signed_at')).toBeInTheDocument();
+    fireEvent.click(within(dateRow).getByRole('button', { name: 'Reset' }));
+    // Only the dateRange override is cleared; the region override survives.
+    expect(onPatch).toHaveBeenCalledWith({
+      widgets: [expect.objectContaining({ filterBindings: { region: 'sales_region' } })],
+    });
   });
 });

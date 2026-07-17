@@ -21,7 +21,7 @@ import {
   readRuntimeDraft,
   type RuntimeArtifactType,
 } from './runtime-metadata-persistence';
-import { detectLocale, t, tFormat } from './metadata-admin/i18n';
+import { useMetadataLocale, t, tFormat } from './metadata-admin/i18n';
 
 export interface RuntimeDraftBarProps {
   /** Artifact type — the `:type` in `/meta/:type/:name`. */
@@ -61,7 +61,7 @@ export function RuntimeDraftBar({
   onAfterChange,
   savedSignal,
 }: RuntimeDraftBarProps) {
-  const locale = detectLocale();
+  const locale = useMetadataLocale();
   const [hasDraft, setHasDraft] = useState(false);
   const [busy, setBusy] = useState(false);
   // Track the `name` we've already resumed so reopening the same item doesn't

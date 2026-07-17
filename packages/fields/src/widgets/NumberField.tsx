@@ -14,8 +14,16 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
 
   const numberField = (field || (props as any).schema) as NumberFieldMetadata;
   // Step follows `scale` (decimal places), not `precision` (total digit count):
-  // a decimal(10, 0) column has 0 decimal places, so the input should step by 1.
+  // a decimal(10, 0) column has 0 decimal places, so the input should step by 1
+  // (`scale: 0` is a valid declaration — hence the typeof check, not truthiness).
+  // An explicit `step` in the metadata wins over the derived one.
   const scale = numberField?.scale;
+  const step =
+    typeof numberField?.step === 'number'
+      ? numberField.step
+      : typeof scale === 'number'
+        ? Math.pow(10, -scale)
+        : 'any';
 
   // Filter out non-DOM props
   const { inputType, ...domProps } = props as any;
@@ -31,7 +39,11 @@ export function NumberField({ value, onChange, field, readonly, ...props }: Fiel
       }}
       placeholder={numberField?.placeholder}
       disabled={readonly || domProps.disabled}
-      step={scale ? Math.pow(10, -scale) : 'any'}
+      // Surface the field's declared range so the browser's spinner/keyboard
+      // affordances respect it (server-side validation still owns enforcement).
+      min={typeof numberField?.min === 'number' ? numberField.min : undefined}
+      max={typeof numberField?.max === 'number' ? numberField.max : undefined}
+      step={step}
     />
   );
 }

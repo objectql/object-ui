@@ -58,9 +58,26 @@ columns: [
   { name: 'price', label: 'Price', type: 'currency', currency: 'USD' },
   { name: 'date', label: 'Date', type: 'date' },
   { name: 'status', label: 'Status', type: 'select', options: [...] },
-  { name: 'active', label: 'Active', type: 'boolean' }
+  { name: 'active', label: 'Active', type: 'boolean' },
+  { name: 'receipt', label: 'Receipt', type: 'file', accept: ['image/*', '.pdf'] }
 ]
 ```
+
+### File / image columns
+
+A `file` column renders a real upload control inside the cell — a compact
+"Upload" button that opens the native file picker, with uploaded files shown
+as removable chips (image files show a thumbnail). This covers the common
+"attach a receipt per expense line" pattern without opening the per-row form.
+
+- `accept?: string[]` — restrict the picker (e.g. `['image/*', '.pdf']`).
+- `multiple?: boolean` — allow several files per cell.
+- Uploads go through the configured `UploadProvider` adapter, exactly like the
+  full-size file field.
+
+When grid columns are auto-derived from a child object's schema (master-detail
+subforms), `file` / `image` / `avatar` fields map to `file` columns
+automatically — image-flavoured fields default to `accept: ['image/*']`.
 
 ## Data Format
 

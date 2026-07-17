@@ -319,6 +319,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.widget.values': 'Values (measures)',
   'engine.inspector.widget.valuesPlaceholder': 'e.g. revenue, deal_count (comma-separated)',
   'engine.inspector.widget.valuesHint': 'Dataset measure names to show.',
+  // Dashboard filter bindings (framework#2501)
+  'engine.inspector.widget.filterBindingsSection': 'Dashboard filter bindings',
+  'engine.inspector.widget.filterBindingsHint':
+    'Map each dashboard-level filter to one of this widget’s own fields, or untick Apply to opt the widget out. Empty = the filter’s own field.',
+  'engine.inspector.widget.filterBindingApply': 'Apply',
+  'engine.inspector.widget.filterBindingDefault': 'Default ({field})',
+  'engine.inspector.widget.filterBindingReset': 'Reset',
   // Flow node inspector
   'engine.inspector.flowNode.kind': 'Node',
   'engine.inspector.flowNode.close': 'Close node',
@@ -432,6 +439,22 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.inspector.view.object': 'Object',
   'engine.inspector.view.objectPlaceholder': 'e.g. crm_lead',
   'engine.inspector.view.noSchema': 'Spec schema unavailable — basic properties only.',
+  // Conditional formatting editor (list/grid views)
+  'engine.inspector.view.cf.title': 'Conditional formatting',
+  'engine.inspector.view.cf.add': 'Add rule',
+  'engine.inspector.view.cf.empty': 'No rules. Add one to color rows by a CEL condition.',
+  'engine.inspector.view.cf.rule': 'Rule',
+  'engine.inspector.view.cf.when': 'When (CEL)',
+  'engine.inspector.view.cf.background': 'Background',
+  'engine.inspector.view.cf.text': 'Text',
+  'engine.inspector.view.cf.border': 'Border',
+  'engine.inspector.view.cf.preview': 'Preview',
+  'engine.inspector.view.cf.remove': 'Remove rule',
+  'engine.inspector.view.cf.moveUp': 'Move up',
+  'engine.inspector.view.cf.moveDown': 'Move down',
+  // ConditionBuilder raw-expression mode (CEL editor, #1582)
+  'engine.condition.celLabel': 'CEL expression',
+  'engine.condition.advancedHint': 'Advanced expression — Builder only supports simple AND/OR conditions.',
   'engine.inspector.view.type.grid': 'Table / List',
   'engine.inspector.view.type.kanban': 'Kanban',
   'engine.inspector.view.type.calendar': 'Calendar',
@@ -689,6 +712,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.packages.detail.nothingToPublish': 'Nothing to publish.',
   'engine.packages.detail.published': 'Package published.',
   'engine.packages.detail.publishDraftsPartial': 'Published {published}; {failed} failed.',
+  'engine.packages.detail.publishDraftsRolledBack': 'Nothing was published — the batch rolled back (all-or-nothing): {cause}',
   'engine.packages.detail.publishDraftsOk': 'App published — all drafts are now live.',
   'engine.packages.detail.reverted': 'Reverted to last published state.',
   'engine.packages.detail.discardDraftsPartial': 'Discarded {discarded}; {failed} failed.',
@@ -775,6 +799,14 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   // CEL authoring safety for RLS predicates (objectui#2413).
   'perm.cel.valid': 'Valid CEL',
   'perm.cel.suggestions': 'Field and scope suggestions',
+  'perm.cel.type': 'Result type:',
+  'perm.cel.type.number': 'Number',
+  'perm.cel.type.text': 'Text',
+  'perm.cel.type.boolean': 'Boolean',
+  'perm.cel.type.date': 'Date',
+  'perm.cel.type.unknown': 'Unknown',
+  'perm.cel.type.unknownHint':
+    'the engine cannot prove a single type. Wrap operands in double() / int() / string() to pin it — only proven-Number formulas are offered as dataset measures.',
   'perm.cel.saveBlocked': 'Fix the CEL syntax errors before saving.',
   'perm.cel.test.title': 'Test policy',
   'perm.cel.test.help':
@@ -915,6 +947,20 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.lookup.pageSize': 'Picker page size',
   'designer.field.lookup.allowCreate': 'Allow quick-create',
   'designer.field.formula': 'Formula (CEL)',
+  // Roll-up summary (summaryOperations)
+  'designer.field.summary.object': 'Child object',
+  'designer.field.summary.function': 'Aggregation',
+  'designer.field.summary.fn.count': 'Count — child records',
+  'designer.field.summary.fn.sum': 'Sum',
+  'designer.field.summary.fn.min': 'Min',
+  'designer.field.summary.fn.max': 'Max',
+  'designer.field.summary.fn.avg': 'Average',
+  'designer.field.summary.field': 'Child field to aggregate',
+  'designer.field.summary.relationshipField': 'Child relationship field (optional)',
+  'designer.field.summary.setObjectFirst': 'Set the child object first',
+  'designer.field.summary.countFieldHint': 'Ignored for count, but still required — pick any child field.',
+  'designer.field.summary.hint':
+    'Recomputed automatically when child records are created, updated, or deleted. The relationship field is auto-detected when the child has exactly one relation back to this object.',
   'designer.field.precision': 'Precision',
   'designer.field.scale': 'Scale',
   'designer.field.min': 'Min',
@@ -963,8 +1009,12 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.helpText': 'Help text',
   'designer.field.helpTextPlaceholder': 'Shown below the field on the form',
   'designer.field.minLength': 'Min length',
-  'designer.field.conditionalRequired': 'Required when (CEL)',
-  'designer.field.conditionalRequiredHint': 'Field becomes required when this predicate is true.',
+  'designer.field.conditionalRules': 'Conditional rules (CEL)',
+  'designer.field.visibleWhen': 'Visible when',
+  'designer.field.readonlyWhen': 'Read-only when',
+  'designer.field.requiredWhen': 'Required when',
+  'designer.field.conditionalRulesHint':
+    'While a predicate is true the field becomes visible / read-only / required. Reference the live record as record.<field>, the last saved values as previous.<field>, and (in master-detail line items) the header record as parent.<field>.',
   // Bulk multi-select (Tier 2)
   'designer.canvas.bulkSelected': '{n} selected',
   'designer.canvas.bulkMoveTo': 'Move to section',
@@ -1227,7 +1277,7 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'engine.studio.data.readOnlyPackage': 'This package is read-only — switch to or create a writable package to add objects',
   'engine.studio.data.firstObjectTitle': 'Start with your first object',
   'engine.studio.data.firstObjectHint':
-    'Objects are your app’s data foundation (e.g. “Orders”, “Customers”). Enter a display name and identifier at the bottom-left to create one; then design its fields, forms, and automations, and publish once at the end.',
+    'Objects are your app’s data foundation (e.g. “Orders”, “Customers”). Create one below; then design its fields, forms, and automations, and publish once at the end.',
   'engine.studio.data.tab.records': 'Records',
   'engine.studio.data.tab.form': 'Form',
   'engine.studio.data.tab.rules': 'Validations',
@@ -1630,6 +1680,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.widget.values': '值（度量）',
   'engine.inspector.widget.valuesPlaceholder': '例如：revenue, deal_count（逗号分隔）',
   'engine.inspector.widget.valuesHint': '要展示的数据集度量名。',
+  // Dashboard filter bindings (framework#2501)
+  'engine.inspector.widget.filterBindingsSection': '仪表盘过滤器绑定',
+  'engine.inspector.widget.filterBindingsHint':
+    '把每个仪表盘级过滤器映射到本组件自己的字段；取消勾选「应用」可让本组件不受该过滤器影响。留空表示使用过滤器自身的字段。',
+  'engine.inspector.widget.filterBindingApply': '应用',
+  'engine.inspector.widget.filterBindingDefault': '默认（{field}）',
+  'engine.inspector.widget.filterBindingReset': '恢复默认',
   // Flow node inspector
   'engine.inspector.flowNode.kind': '节点',
   'engine.inspector.flowNode.close': '关闭节点',
@@ -1742,6 +1799,22 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.inspector.view.object': '对象',
   'engine.inspector.view.objectPlaceholder': '例如：crm_lead',
   'engine.inspector.view.noSchema': 'spec 模式不可用 —— 仅显示基础属性。',
+  // 条件格式化编辑器（列表/表格视图）
+  'engine.inspector.view.cf.title': '条件格式化',
+  'engine.inspector.view.cf.add': '添加规则',
+  'engine.inspector.view.cf.empty': '暂无规则。添加一条以按 CEL 条件为行着色。',
+  'engine.inspector.view.cf.rule': '规则',
+  'engine.inspector.view.cf.when': '条件（CEL）',
+  'engine.inspector.view.cf.background': '背景色',
+  'engine.inspector.view.cf.text': '文字色',
+  'engine.inspector.view.cf.border': '边框色',
+  'engine.inspector.view.cf.preview': '预览',
+  'engine.inspector.view.cf.remove': '删除规则',
+  'engine.inspector.view.cf.moveUp': '上移',
+  'engine.inspector.view.cf.moveDown': '下移',
+  // ConditionBuilder 裸表达式模式（CEL 编辑器，#1582）
+  'engine.condition.celLabel': 'CEL 表达式',
+  'engine.condition.advancedHint': '高级表达式 —— 搭建器仅支持简单的 AND/OR 条件。',
   'engine.inspector.view.type.grid': '表格 / 列表',
   'engine.inspector.view.type.kanban': '看板',
   'engine.inspector.view.type.calendar': '日历',
@@ -1995,6 +2068,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.packages.detail.nothingToPublish': '没有可发布的内容。',
   'engine.packages.detail.published': '软件包已发布。',
   'engine.packages.detail.publishDraftsPartial': '已发布 {published} 项；{failed} 项失败。',
+  'engine.packages.detail.publishDraftsRolledBack': '发布未生效 — 批次已整体回滚（全有或全无）：{cause}',
   'engine.packages.detail.publishDraftsOk': '应用已发布，所有草稿均已生效。',
   'engine.packages.detail.reverted': '已还原到上次发布状态。',
   'engine.packages.detail.discardDraftsPartial': '已丢弃 {discarded} 项；{failed} 项失败。',
@@ -2081,6 +2155,14 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   // 行级安全 CEL 编写安全 (objectui#2413)。
   'perm.cel.valid': 'CEL 有效',
   'perm.cel.suggestions': '字段与作用域建议',
+  'perm.cel.type': '返回类型:',
+  'perm.cel.type.number': '数字',
+  'perm.cel.type.text': '文本',
+  'perm.cel.type.boolean': '布尔',
+  'perm.cel.type.date': '日期',
+  'perm.cel.type.unknown': '未知',
+  'perm.cel.type.unknownHint':
+    '引擎无法证明唯一类型。用 double() / int() / string() 包裹操作数以固定类型——只有可证明为数字的公式才能作为数据集度量。',
   'perm.cel.saveBlocked': '请先修复 CEL 语法错误再保存。',
   'perm.cel.test.title': '测试策略',
   'perm.cel.test.help': '用示例记录与操作用户对该条件进行试运行(与服务端同一 CEL 引擎),在保存前查看该行是允许还是拒绝。',
@@ -2218,6 +2300,20 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.lookup.pageSize': '选择器分页大小',
   'designer.field.lookup.allowCreate': '允许快速创建',
   'designer.field.formula': '公式 (CEL)',
+  // 汇总字段(summaryOperations)
+  'designer.field.summary.object': '子对象',
+  'designer.field.summary.function': '汇总方式',
+  'designer.field.summary.fn.count': '计数(子记录数)',
+  'designer.field.summary.fn.sum': '求和',
+  'designer.field.summary.fn.min': '最小值',
+  'designer.field.summary.fn.max': '最大值',
+  'designer.field.summary.fn.avg': '平均值',
+  'designer.field.summary.field': '汇总的子字段',
+  'designer.field.summary.relationshipField': '子关系字段(可选)',
+  'designer.field.summary.setObjectFirst': '请先选择子对象',
+  'designer.field.summary.countFieldHint': '计数时不参与计算,但规范要求必填——任选一个子字段即可。',
+  'designer.field.summary.hint':
+    '子记录新增、更新或删除时自动重新计算;子对象只有一个指向本对象的关系字段时可自动识别,无需填写。',
   'designer.field.precision': '精度',
   'designer.field.scale': '小数位',
   'designer.field.min': '最小值',
@@ -2266,8 +2362,12 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.helpText': '帮助文本',
   'designer.field.helpTextPlaceholder': '显示在表单字段下方',
   'designer.field.minLength': '最小长度',
-  'designer.field.conditionalRequired': '条件必填 (CEL)',
-  'designer.field.conditionalRequiredHint': '当此表达式为真时，该字段变为必填。',
+  'designer.field.conditionalRules': '条件规则 (CEL)',
+  'designer.field.visibleWhen': '可见条件',
+  'designer.field.readonlyWhen': '只读条件',
+  'designer.field.requiredWhen': '必填条件',
+  'designer.field.conditionalRulesHint':
+    '表达式为真时字段相应地变为可见 / 只读 / 必填。用 record.<字段> 引用当前记录，previous.<字段> 引用最近保存的值，parent.<字段>（主从明细行）引用表头记录。',
   // Bulk multi-select (Tier 2)
   'designer.canvas.bulkSelected': '已选 {n} 项',
   'designer.canvas.bulkMoveTo': '移至分组',
@@ -2529,7 +2629,7 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'engine.studio.data.readOnlyPackage': '此包为只读——请切换到或新建一个可写的包后再添加对象',
   'engine.studio.data.firstObjectTitle': '从第一个对象开始',
   'engine.studio.data.firstObjectHint':
-    '对象是应用的数据基座(如「订单」「客户」)。在左下角输入显示名与标识符即可创建;之后为它设计字段、表单与自动化,最后一次发布。',
+    '对象是应用的数据基座(如「订单」「客户」)。点击下方按钮创建一个;之后为它设计字段、表单与自动化,最后一次发布。',
   'engine.studio.data.tab.records': '记录',
   'engine.studio.data.tab.form': '表单',
   'engine.studio.data.tab.rules': '验证',
@@ -2841,7 +2941,14 @@ export function translateValidationMessage(
   return raw;
 }
 
-/** Returns the locale string most browsers report (matches navigator.language). */
+/**
+ * Returns the locale string most browsers report (matches navigator.language).
+ *
+ * ⚠️ Non-reactive and browser-only — it ignores the app language picked in
+ * the LocaleSwitcher. Component code should use {@link useMetadataLocale}
+ * instead, which follows the live i18next language (and re-renders on
+ * change); this stays only as a fallback for non-hook call sites.
+ */
 export function detectLocale(): SupportedLocale {
   if (typeof navigator !== 'undefined' && /^zh/i.test(navigator.language)) return 'zh-CN';
   return 'en-US';

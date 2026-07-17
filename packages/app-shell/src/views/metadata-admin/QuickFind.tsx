@@ -37,7 +37,7 @@ import {
   useMetadataTypes,
   type RichMetadataTypeEntry,
 } from './useMetadata';
-import { detectLocale, t as tr, translateMetadataType } from './i18n';
+import { useMetadataLocale, t as tr, translateMetadataType } from './i18n';
 
 type ItemResult = {
   kind: 'item';
@@ -73,7 +73,7 @@ export function MetadataQuickFind({ appSlug }: MetadataQuickFindProps = {}) {
   const [items, setItems] = React.useState<ItemResult[] | null>(null);
   const [itemsLoading, setItemsLoading] = React.useState(false);
   const [activeIdx, setActiveIdx] = React.useState(0);
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
 
   // Global Cmd+Shift+M listener (avoids clashing with the existing
   // CommandPalette which owns Cmd+K).

@@ -123,9 +123,13 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.minutesAgo': '{{count}}m ago',
   'detail.hoursAgo': '{{count}}h ago',
   'detail.daysAgo': '{{count}}d ago',
-  // Record meta footer (audit provenance)
+  // Record meta footer (audit provenance). created/updated are the
+  // actor-less variants used when created_by/updated_by is null (system or
+  // seeded rows) — "Created by · 5m ago" dangled without an actor.
   'detail.createdBy': 'Created by',
   'detail.updatedBy': 'Updated by',
+  'detail.created': 'Created',
+  'detail.updated': 'Updated',
   // Attachments
   'detail.dropFilesToUpload': 'Drop files here or click to upload',
   'detail.attachmentCount': '{{count}} attachment',
@@ -196,6 +200,14 @@ export const DETAIL_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'detail.concurrentUpdateReload': 'Reload latest',
   'detail.concurrentUpdateOverwrite': 'Overwrite anyway',
   'detail.concurrentUpdateCancel': 'Cancel',
+  // Approval lock band (objectui#2618)
+  'detail.lockedByApproval': 'Locked for approval',
+  'detail.lockedTooltip': 'This record has a pending approval request; editing is locked',
+  'detail.cancelApproval': 'Recall approval',
+  'detail.cancelApprovalInFlight': 'Recalling…',
+  'detail.cancelApprovalTooltip': 'Recall the pending approval request to unlock this record',
+  'detail.cancelApprovalFailed': 'Failed to recall approval',
+  'detail.cancelApprovalUnavailable': 'Recalling approvals is not supported on this data source',
 };
 
 /**

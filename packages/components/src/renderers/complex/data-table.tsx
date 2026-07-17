@@ -7,7 +7,7 @@
  */
 
 // Enterprise-level DataTable Component (Airtable-like)
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import { cn } from '../../lib/utils';
 import { resolveIcon } from '../action/resolve-icon';
 import { useGridFieldAuthoring } from '../../context/gridFieldAuthoring';
@@ -269,8 +269,56 @@ export const DataTableRowActionItem: React.FC<{
 };
 
 /**
+ * A built-in Edit/Delete item in the data-table's row overflow menu, gated by
+ * the per-record CEL predicates from the object's `userActions.edit` /
+ * `delete` object form (objectui#2614) — `schema.rowEditPredicates` /
+ * `rowDeletePredicates`. Mirrors `BuiltinRowActionItem` on the ObjectGrid
+ * path so BOTH row-menu renderers honor the predicates identically (the
+ * related-list case is where the master-detail scenario from the issue
+ * actually renders). Same posture: `visibleWhen` fails CLOSED, `disabledWhen`
+ * fails soft. Evaluation only happens when the menu is open (Radix mounts
+ * content lazily), so declared predicates cost nothing at table render time.
+ *
+ * Exported for unit tests — NOT part of the package's public API (the barrel
+ * only side-effect-imports this module; see `DataTableRowActionItem`).
+ */
+export const DataTableBuiltinRowActionItem: React.FC<{
+  name: 'edit' | 'delete';
+  predicates?: { visibleWhen?: unknown; disabledWhen?: unknown };
+  row: any;
+  icon: React.ReactNode;
+  label: string;
+  className?: string;
+  onSelect: (row: any) => void;
+}> = ({ name, predicates, row, icon, label, className, onSelect }) => {
+  const isVisible = useRowPredicate(predicates?.visibleWhen, row, {
+    fallback: false,
+    warnOnError: true,
+    label: `builtin:${name}:visibleWhen`,
+  });
+  const isDisabled = useRowPredicate(predicates?.disabledWhen, row, {
+    fallback: false,
+    warnOnError: true,
+    label: `builtin:${name}:disabledWhen`,
+  });
+  if (predicates?.visibleWhen != null && !isVisible) return null;
+  const disabled = predicates?.disabledWhen != null && isDisabled;
+  return (
+    <DropdownMenuItem
+      disabled={disabled}
+      onClick={() => { if (!disabled) onSelect(row); }}
+      data-testid={`row-action-builtin-${name}`}
+      className={className}
+    >
+      {icon}
+      {label}
+    </DropdownMenuItem>
+  );
+};
+
+/**
  * Enterprise-level data table component with Airtable-like features.
- * 
+ *
  * Provides comprehensive table functionality including:
  * - Multi-column sorting (ascending/descending/none)
  * - Real-time search across all columns
@@ -428,6 +476,52 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [columns, setColumns] = useState(initialColumns);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+
+  // Sticky-left offsets for the leading pinned cells (checkbox, row number,
+  // frozen data columns), measured from the REAL rendered header-cell widths.
+  // The table's auto layout does not guarantee the utility columns their
+  // declared `w-10`: the checkbox column can collapse to its ~28px min-content
+  // while the row-number column stretches past 40px. Hardcoded 40px offsets
+  // then leave an uncovered strip between pinned cells where horizontally
+  // scrolled content shows through (titanwind-ehr#418), so pin each cell at
+  // the cumulative measured width of the cells before it instead.
+  const headerRowRef = useRef<HTMLTableRowElement | null>(null);
+  const [measuredStickyLefts, setMeasuredStickyLefts] = useState<number[] | null>(null);
+  const stickyLeadingCount = frozenColumns > 0
+    ? (selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + Math.min(frozenColumns, columns.length)
+    : 0;
+
+  useLayoutEffect(() => {
+    const headerRow = headerRowRef.current;
+    if (stickyLeadingCount === 0 || !headerRow) {
+      setMeasuredStickyLefts(null);
+      return;
+    }
+    const measure = () => {
+      const cells = Array.from(headerRow.children).slice(0, stickyLeadingCount) as HTMLElement[];
+      let acc = 0;
+      const lefts = cells.map((cell) => {
+        const left = acc;
+        acc += cell.getBoundingClientRect().width;
+        return left;
+      });
+      setMeasuredStickyLefts((prev) =>
+        prev && prev.length === lefts.length && prev.every((v, i) => Math.abs(v - lefts[i]) < 0.5)
+          ? prev
+          : lefts
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    // Header-cell widths ARE the column widths, and they change outside React
+    // (column resize drag, density toggle, content growth), so re-measure on
+    // any of the observed cells resizing.
+    const observer = new ResizeObserver(measure);
+    Array.from(headerRow.children)
+      .slice(0, stickyLeadingCount)
+      .forEach((cell) => observer.observe(cell));
+    return () => observer.disconnect();
+  }, [stickyLeadingCount, columns]);
   const [draggedColumn, setDraggedColumn] = useState<number | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<number | null>(null);
   const [editingCell, setEditingCell] = useState<{ rowIndex: number; columnKey: string } | null>(null);
@@ -1214,7 +1308,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
         <Table containerClassName="overflow-visible">
           {caption && <TableCaption>{caption}</TableCaption>}
           <TableHeader className="sticky top-0 bg-background z-10">
-            <TableRow>
+            <TableRow ref={headerRowRef}>
               {selectable && (
                 <TableHead className={cn("w-10 bg-background px-3", frozenColumns > 0 && "sticky left-0 z-20")}>
                   <Checkbox
@@ -1224,7 +1318,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 </TableHead>
               )}
               {showRowNumbers && (
-                <TableHead className={cn("w-10 bg-background text-center px-3", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: selectable ? 40 : 0 } : undefined}>
+                <TableHead className={cn("w-10 bg-background text-center px-3", frozenColumns > 0 && "sticky z-20")} style={frozenColumns > 0 ? { left: measuredStickyLefts?.[selectable ? 1 : 0] ?? (selectable ? 40 : 0) } : undefined}>
                   <span className="text-xs text-muted-foreground">#</span>
                 </TableHead>
               )}
@@ -1240,7 +1334,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 const isDragOver = dragOverColumn === index;
                 const isFrozen = frozenColumns > 0 && index < frozenColumns;
                 const frozenOffset = isFrozen
-                  ? columns.slice(0, index).reduce((sum, c, i) => {
+                  ? measuredStickyLefts?.[(selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + index]
+                    ?? columns.slice(0, index).reduce((sum, c, i) => {
                       if (i < frozenColumns) {
                         const w = columnWidths[c.accessorKey] || c.width || autoSizedWidths[c.accessorKey];
                         return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
@@ -1440,7 +1535,7 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         </TableCell>
                       )}
                       {showRowNumbers && (
-                        <TableCell className={cn("text-center w-10 relative", cellClassName, frozenColumns > 0 && "sticky z-10 bg-background")} style={frozenColumns > 0 ? { left: selectable ? 40 : 0 } : undefined}>
+                        <TableCell className={cn("text-center w-10 relative", cellClassName, frozenColumns > 0 && "sticky z-10 bg-background")} style={frozenColumns > 0 ? { left: measuredStickyLefts?.[selectable ? 1 : 0] ?? (selectable ? 40 : 0) } : undefined}>
                           <span className={cn("text-xs text-muted-foreground tabular-nums select-none", !selectable && schema.onRowClick && "group-hover/row:invisible")}>
                             {globalIndex + 1}
                           </span>
@@ -1474,7 +1569,8 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                         const isEditable = editable && col.editable !== false;
                         const isFrozen = frozenColumns > 0 && colIndex < frozenColumns;
                         const frozenOffset = isFrozen
-                          ? columns.slice(0, colIndex).reduce((sum, c, i) => {
+                          ? measuredStickyLefts?.[(selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + colIndex]
+                            ?? columns.slice(0, colIndex).reduce((sum, c, i) => {
                               if (i < frozenColumns) {
                                 const w = columnWidths[c.accessorKey] || c.width || autoSizedWidths[c.accessorKey];
                                 return sum + (typeof w === 'number' ? w : w ? parseInt(String(w), 10) || 150 : 150);
@@ -1748,10 +1844,14 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                                     {schema.onRowEdit && (
-                                      <DropdownMenuItem onClick={() => schema.onRowEdit?.(row)}>
-                                        <Edit className="mr-2 h-4 w-4" />
-                                        {t('table.edit')}
-                                      </DropdownMenuItem>
+                                      <DataTableBuiltinRowActionItem
+                                        name="edit"
+                                        predicates={schema.rowEditPredicates}
+                                        row={row}
+                                        icon={<Edit className="mr-2 h-4 w-4" />}
+                                        label={t('table.edit')}
+                                        onSelect={(r) => schema.onRowEdit?.(r)}
+                                      />
                                     )}
                                     {/* Child-object custom actions (e.g. a related
                                         list surfacing the child's `list_item`
@@ -1767,13 +1867,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                                     ))}
                                     {schema.onRowDelete && (schema.onRowEdit || customActions.length > 0) && <DropdownMenuSeparator />}
                                     {schema.onRowDelete && (
-                                      <DropdownMenuItem
-                                        onClick={() => schema.onRowDelete?.(row)}
+                                      <DataTableBuiltinRowActionItem
+                                        name="delete"
+                                        predicates={schema.rowDeletePredicates}
+                                        row={row}
+                                        icon={<Trash2 className="mr-2 h-4 w-4" />}
+                                        label={t('table.delete')}
                                         className="text-destructive focus:text-destructive"
-                                      >
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        {t('table.delete')}
-                                      </DropdownMenuItem>
+                                        onSelect={(r) => schema.onRowDelete?.(r)}
+                                      />
                                     )}
                                   </DropdownMenuContent>
                                 </DropdownMenu>

@@ -60,7 +60,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@object-ui/components';
-import { detectLocale, t, tFormat } from './i18n';
+import { useMetadataLocale, t, tFormat } from './i18n';
 import { PackageFormDialog } from './PackageFormDialog';
 
 /* -------------------------------------------------------------------------- */
@@ -115,7 +115,7 @@ async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
 /* -------------------------------------------------------------------------- */
 
 function ScopeBadge({ scope }: { scope?: string }) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   // Writability semantics, aligned with the builder (studio-design/packages-io):
   // a SCOPE-LESS entry is a database base package (writable — authoring lives
   // there), while `project` marks a read-only code package. Defaulting the
@@ -142,7 +142,7 @@ function ScopeBadge({ scope }: { scope?: string }) {
 }
 
 function StatusBadge({ pkg }: { pkg: InstalledPackage }) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const enabled = pkg.enabled !== false && pkg.status !== 'disabled';
   return (
     <Badge variant={enabled ? ('default' as any) : ('outline' as any)}>
@@ -238,7 +238,7 @@ export function PackageDetailSheet({
   onOpenChange: (v: boolean) => void;
   onChanged: () => void;
 }) {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   // ADR-0033 — pending DRAFT items bound to this package. AI-authored metadata
@@ -323,7 +323,11 @@ export function PackageDetailSheet({
     run(
       'publish-drafts',
       () =>
-        apiJson<{ publishedCount?: number; failedCount?: number; failed?: Array<{ name?: string }> }>(
+        apiJson<{
+          publishedCount?: number;
+          failedCount?: number;
+          failed?: Array<{ type?: string; name?: string; error?: string; code?: string }>;
+        }>(
           `${API}/${encodeURIComponent(id)}/publish-drafts`,
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
         ).then(async (r) => {
@@ -336,6 +340,19 @@ export function PackageDetailSheet({
             setDrafts([]);
           }
           if (r?.failedCount) {
+            // framework 15.1+ (ADR-0067 D2): the batch is all-or-nothing — a
+            // failure means NOTHING landed and `failed[]` marks the rolled-back
+            // drafts `batch_aborted`, with the causal item carrying the real
+            // error. Say "rolled back because X", not "{n} failed" (which reads
+            // as a partial publish that no longer exists).
+            const failedList = Array.isArray(r.failed) ? r.failed : [];
+            const causal = failedList.find((f) => f?.code !== 'batch_aborted' && f?.error);
+            if (failedList.some((f) => f?.code === 'batch_aborted')) {
+              throw new Error(tFormat('engine.packages.detail.publishDraftsRolledBack', locale, {
+                cause: causal ? `${causal.type ?? '?'}/${causal.name ?? '?'}: ${causal.error}` : String(r.failedCount),
+              }));
+            }
+            // pre-15.1 server — genuine partial publish.
             throw new Error(tFormat('engine.packages.detail.publishDraftsPartial', locale, {
               published: r.publishedCount ?? 0,
               failed: r.failedCount,
@@ -672,7 +689,7 @@ export function PackageDetailSheet({
 /* -------------------------------------------------------------------------- */
 
 export function PackagesPage() {
-  const locale = React.useMemo(() => detectLocale(), []);
+  const locale = useMetadataLocale();
   const { pathname } = useLocation();
   // App base = path up to (and excluding) `/component/...`, so links to
   // `/apps/:app/metadata/...` work regardless of nesting.
