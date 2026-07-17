@@ -188,6 +188,13 @@ export function LoginForm({
   // state because SSO routing is a raw fetch, not the shared `signIn` (whose
   // `isLoading` drives the password submit button).
   const [ssoSubmitting, setSsoSubmitting] = useState(false);
+  // Config not resolved yet: render a spinner INSTEAD of the password-form
+  // defaults. Painting the defaults first showed an SSO-only deployment a
+  // password wall (no SSO button, no enforced collapse) whenever the config
+  // fetch was slow/failed on first load — and platform-SSO JIT users have no
+  // password at all (#2625). A FAILED fetch (after the client's retries)
+  // still falls back to the password form: break-glass beats lock-out.
+  const [configPending, setConfigPending] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -206,6 +213,9 @@ export function LoginForm({
       .catch(() => {
         // SSO is an enhancement, not required — leave the buttons/form hidden
         // or shown at their safe defaults.
+      })
+      .finally(() => {
+        if (!cancelled) setConfigPending(false);
       });
     return () => {
       cancelled = true;
@@ -349,6 +359,14 @@ export function LoginForm({
       />
 
       <div className="space-y-5">
+        {configPending ? (
+          /* Auth config still resolving — hold the layout instead of painting
+             the password-form defaults that may be wrong for this server. */
+          <div className="flex justify-center py-10" role="status" aria-live="polite" data-testid="login-config-loading">
+            <AuthSpinner />
+          </div>
+        ) : (
+        <>
         <SocialSignInButtons mode="sign-in" onProvidersResolved={(hasProviders) => setHasSocialProviders(hasProviders)} />
 
         {passwordFormVisible ? (
@@ -357,8 +375,9 @@ export function LoginForm({
            Server-side the number is guarded by a per-number cooldown +
            hourly cap — the resend button mirrors it with a countdown. */
         <form onSubmit={handleSubmit} className="space-y-4">
-          {hasSocialProviders && <AuthDivider label={l.orText} />}
-
+          {/* No divider here: SocialSignInButtons already renders its own
+              "or continue with email" divider under the provider buttons —
+              stacking a second "or" line read as a rendering glitch (#2625). */}
           {error && <AuthErrorBanner message={error} />}
 
           <div className="space-y-2">
@@ -428,8 +447,9 @@ export function LoginForm({
         </form>
         ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
-          {hasSocialProviders && <AuthDivider label={l.orText} />}
-
+          {/* No divider here: SocialSignInButtons already renders its own
+              "or continue with email" divider under the provider buttons —
+              stacking a second "or" line read as a rendering glitch (#2625). */}
           {error && <AuthErrorBanner message={error} />}
 
           <div className="space-y-2">
@@ -538,6 +558,8 @@ export function LoginForm({
               {l.usePasswordText}
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
 
