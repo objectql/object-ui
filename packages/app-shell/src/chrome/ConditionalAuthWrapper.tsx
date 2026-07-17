@@ -73,7 +73,11 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
           return body;
         } catch (e) {
           if ((e as Error).name === 'AbortError') {
-            throw new Error('timeout', { cause: e });
+            // Manual `cause` assignment — the two-arg Error constructor needs
+            // an ES2022 lib this package's tsconfig doesn't target.
+            const timeoutErr = new Error('timeout');
+            (timeoutErr as Error & { cause?: unknown }).cause = e;
+            throw timeoutErr;
           }
           throw e;
         } finally {
