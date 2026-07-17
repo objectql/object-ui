@@ -35,12 +35,69 @@ jobs:
       - name: Verify all packages are in changeset fixed group
         run: node scripts/check-changeset-fixed.mjs
 
+  # PRs run the suite split across 4 runners. The suite is dominated by fixed
+  # per-file cost rather than by the assertions: a PR run reported 495s wall
+  # clock of which only 178s was `tests` — the rest was `setup` (831s
+  # cumulative), `import` (199s) and `environment` (156s), each paid once per
+  # test file because `isolate: true` re-executes the module graph per file
+  # (vitest.config.mts explains why isolation has to stay on). That cost shards
+  # near-linearly, and the fixed overhead of an extra runner here is only ~30s
+  # (checkout + Node + a warm-pnpm-store install), so 4 shards cut wall clock
+  # ~3x for ~26% more runner minutes.
+  #
+  # Vitest shards by hashing each test file's path, so `unit` and `dom` files
+  # interleave across shards on their own — no manual balancing needed.
   test:
-    name: Test
+    name: Test (shard ${{ matrix.shard }}/4)
+    # Coverage instrumentation (v8 adds 40-100% overhead) is skipped on PRs;
+    # the `test-coverage` job below keeps Codecov current on push.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     # Bound the job so a stalled runner / non-exiting test worker fails fast and
-    # is retryable, instead of hanging up to GitHub's 6h default. PR runs can
-    # spend extra time rebuilding affected package graphs on cold caches.
+    # is retryable, instead of hanging up to GitHub's 6h default.
+    timeout-minutes: 20
+
+    strategy:
+      # Report every shard's failures, not just the first one to break.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Verify pnpm version
+        run: pnpm --version
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20.x'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Run the canonical root Vitest project once. Running `turbo run test`
+      # here starts one Vitest process per package; several package configs
+      # intentionally inherit the root monorepo project list, so CI ends up
+      # repeating large chunks of the suite and can starve slower plugin tests.
+      - name: Run tests (shard ${{ matrix.shard }}/4)
+        run: pnpm test --shard=${{ matrix.shard }}/4
+
+  # Push to main/develop: one unsharded run so Codecov still receives a single
+  # complete report. Nothing blocks on this job, so it isn't worth the blob
+  # report merge that sharding a coverage run would require.
+  test-coverage:
+    name: Test (coverage)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
     timeout-minutes: 40
 
     steps:
@@ -64,22 +121,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # PRs: skip coverage instrumentation (v8 adds 40-100% overhead) and
-      # run the canonical root Vitest project once. Running `turbo run test`
-      # here starts one Vitest process per package; several package configs
-      # intentionally inherit the root monorepo project list, so CI ends up
-      # repeating large chunks of the suite and can starve slower plugin tests.
-      - name: Run tests (PR — fast, no coverage)
-        if: github.event_name == 'pull_request'
-        run: pnpm test
-
-      # Push to main/develop: still run coverage so Codecov stays current.
-      - name: Run tests with coverage (push)
-        if: github.event_name == 'push'
+      - name: Run tests with coverage
         run: pnpm test:coverage --coverage.reporter=json --coverage.reporter=text
 
       - name: Upload coverage to Codecov
-        if: github.event_name == 'push'
         uses: codecov/codecov-action@v7
         with:
           fail_ci_if_error: false
