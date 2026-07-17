@@ -15,7 +15,6 @@ import {
   AUTH_INPUT_CLASS,
   AUTH_LINK_CLASS,
   AUTH_PRIMARY_BUTTON_CLASS,
-  AuthDivider,
   AuthErrorBanner,
   AuthFormHeader,
   AuthSpinner,
@@ -127,7 +126,6 @@ export function RegisterForm({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [hasSocialProviders, setHasSocialProviders] = useState(false);
 
   const l = {
     nameLabel: labels.nameLabel ?? 'Name',
@@ -185,11 +183,13 @@ export function RegisterForm({
       />
 
       <div className="space-y-5">
-        <SocialSignInButtons mode="sign-up" onProvidersResolved={(has) => setHasSocialProviders(has)} />
+        <SocialSignInButtons mode="sign-up" />
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {hasSocialProviders && <AuthDivider label={l.orText} />}
-
+          {/* No divider here: SocialSignInButtons already renders its own
+              "or continue with email" divider under the provider buttons —
+              stacking a second "or" line read as a rendering glitch (#2625,
+              matching the LoginForm fix). */}
           {error && <AuthErrorBanner message={error} />}
 
           <div className="space-y-2">
