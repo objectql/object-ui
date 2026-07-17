@@ -2158,6 +2158,9 @@ export function ChatPane({
         planApproveLabel={t('console.ai.planApprove', { defaultValue: 'Build it' })}
         planAdjustLabel={t('console.ai.planAdjust', { defaultValue: 'Adjust' })}
         planBuiltLabel={t('console.ai.planBuilt', { defaultValue: 'Built' })}
+        planBuildingLabel={
+          convZh ? '正在搭建…' : t('console.ai.planBuilding', { defaultValue: 'Building…' })
+        }
         planReadyLabel={t('console.ai.planReady', {
           defaultValue: 'The plan is ready. Build it now, or tell me what to adjust.',
         })}
