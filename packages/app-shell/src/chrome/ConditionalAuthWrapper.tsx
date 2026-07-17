@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, ReactNode } from 'react';
-import { getSharedDiscovery } from '@object-ui/data-objectstack';
+import { getSharedDiscovery, isServiceUsable } from '@object-ui/data-objectstack';
 import { AuthProvider } from '@object-ui/auth';
 import type { PreviewModeOptions } from '@object-ui/auth';
 import { LoadingScreen } from './LoadingScreen';
@@ -101,7 +101,13 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
         });
         setAuthEnabled(false);
       } else {
-        const isAuthEnabled = discovery?.services?.auth?.enabled ?? true;
+        // ADR-0076 D12 (framework#2462): gate the login requirement on a
+        // GENUINELY usable auth service — a stubbed/dev-fake auth entry
+        // (status 'stub', handlerReady false) must not force a login flow
+        // that cannot succeed. Missing discovery/auth entry stays fail-closed
+        // (assume auth exists).
+        const authSvc = discovery?.services?.auth;
+        const isAuthEnabled = authSvc ? isServiceUsable(authSvc) : true;
         setAuthEnabled(isAuthEnabled);
       }
       setIsLoading(false);

@@ -174,6 +174,46 @@ export function clearSharedDiscoveryCache(): void {
 }
 
 /**
+ * Per-service entry in the backend discovery document's `services` map.
+ * Mirrors the framework's `ServiceInfoSchema` (spec/api/discovery.zod.ts).
+ *
+ * Since ADR-0076 D12 (framework#2462) the backend reports honest statuses:
+ * stub / dev-fake services carry `status: 'stub'`, `handlerReady: false`;
+ * working-but-partial fallbacks carry `status: 'degraded'` (usually with
+ * `handlerReady: true` — they genuinely serve requests).
+ */
+export interface DiscoveryServiceInfo {
+  enabled: boolean;
+  /** Known values today; servers may introduce new statuses, so plain strings are accepted. */
+  status?: 'available' | 'registered' | 'unavailable' | 'degraded' | 'stub' | (string & {});
+  /**
+   * Whether the HTTP handler is confirmed mounted. Omitted = unknown;
+   * false = route declared but stubbed/missing (expect 501/404).
+   */
+  handlerReady?: boolean;
+  route?: string;
+  provider?: string;
+  message?: string;
+}
+
+/**
+ * The single capability predicate for discovery services (ADR-0076 D12):
+ * trust only what genuinely serves. `handlerReady` is authoritative when
+ * present; otherwise only `status: 'available'` counts. A `degraded`
+ * fallback with `handlerReady: true` (e.g. the built-in analytics fallback)
+ * IS usable; a dev stub (`status: 'stub'`, `handlerReady: false`) is NOT.
+ *
+ * Returns false for a missing entry — callers that need a different default
+ * for an absent service (e.g. the auth bootstrap's fail-closed "assume auth
+ * exists") should branch on presence before calling this.
+ */
+export function isServiceUsable(svc: DiscoveryServiceInfo | undefined | null): boolean {
+  if (!svc || svc.enabled !== true) return false;
+  if (typeof svc.handlerReady === 'boolean') return svc.handlerReady;
+  return svc.status === 'available';
+}
+
+/**
  * Detect "missing resource" errors regardless of where they originate.
  *
  * The ObjectStack client decorates thrown errors with `httpStatus` (and a

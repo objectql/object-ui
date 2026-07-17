@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useContext } from 'react';
 import { SchemaRendererContext } from '../context/SchemaRendererContext';
+import { isServiceUsable, type DiscoveryServiceInfo } from '@object-ui/data-objectstack';
 
 /**
  * Discovery service information structure.
@@ -31,31 +32,21 @@ export interface DiscoveryInfo {
     bannerMessage?: string;
   };
   
-  /** Service availability status */
+  /**
+   * Service availability status map. Entries mirror the framework's
+   * ServiceInfoSchema — since ADR-0076 D12 (framework#2462) stubs/fallbacks
+   * report `status: 'stub' | 'degraded'` and `handlerReady`; gate real
+   * functionality with `isServiceUsable(...)`, never on `enabled` alone.
+   */
   services?: {
     /** Authentication service status */
-    auth?: {
-      enabled: boolean;
-      status?: 'available' | 'unavailable';
-      message?: string;
-    };
+    auth?: DiscoveryServiceInfo;
     /** Data access service status */
-    data?: {
-      enabled: boolean;
-      status?: 'available' | 'unavailable';
-    };
+    data?: DiscoveryServiceInfo;
     /** Metadata service status */
-    metadata?: {
-      enabled: boolean;
-      status?: 'available' | 'unavailable';
-    };
+    metadata?: DiscoveryServiceInfo;
     /** AI service configuration */
-    ai?: {
-      enabled: boolean;
-      status?: 'available' | 'unavailable';
-      /** AI service endpoint route (e.g. '/api/v1/ai') */
-      route?: string;
-    };
+    ai?: DiscoveryServiceInfo;
     [key: string]: any;
   };
   
@@ -152,17 +143,19 @@ export function useDiscovery() {
     isLoading,
     error,
     /**
-     * Check if authentication is enabled on the server.
-     * Defaults to true if discovery data is not available.
+     * Check if authentication is genuinely usable on the server
+     * (ADR-0076 D12: a stubbed/dev-fake auth service does not count).
+     * Defaults to true (fail closed: assume auth exists) when discovery
+     * data or the auth entry is not available.
      */
-    isAuthEnabled: discovery?.services?.auth?.enabled ?? true,
+    isAuthEnabled: discovery?.services?.auth
+      ? isServiceUsable(discovery.services.auth)
+      : true,
     /**
-     * Check if AI service is enabled and available on the server.
+     * Check if the AI service is genuinely usable on the server.
      * Defaults to false if discovery data is not available.
      */
-    isAiEnabled:
-      discovery?.services?.ai?.enabled === true &&
-      discovery?.services?.ai?.status === 'available',
+    isAiEnabled: isServiceUsable(discovery?.services?.ai),
   };
 }
 

@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAdapter } from '@object-ui/app-shell';
+import { isServiceUsable } from '@object-ui/data-objectstack';
 
 export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
 
@@ -206,13 +207,16 @@ export function useApiDiscovery() {
         const serviceInfo = discoveredServices[serviceName] as
           | { enabled: boolean; status?: string; handlerReady?: boolean; route?: string }
           | undefined;
-        const isEnabled = serviceInfo?.enabled ?? false;
-        const hasHandler = serviceInfo?.handlerReady
-          ?? (serviceInfo?.status === 'available' || serviceInfo?.status === 'degraded');
+        // ADR-0076 D12 (framework#2462): trust only what genuinely serves —
+        // handlerReady is authoritative when present; otherwise only
+        // status 'available'. (A bare 'degraded' without handlerReady no
+        // longer counts: the backend marks serving fallbacks with
+        // handlerReady:true explicitly.)
+        const usable = isServiceUsable(serviceInfo);
         const routePrefix = serviceInfo?.route
           ?? discoveredRoutes[serviceName]
           ?? catalog.defaultRoute;
-        if (isEnabled && hasHandler) {
+        if (usable) {
           serviceEndpoints.push(...buildServiceEndpoints(serviceName, routePrefix));
         }
       }
