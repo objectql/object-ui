@@ -27,7 +27,9 @@ feat(types): derive `ListViewSchema` from `@objectstack/spec/ui` instead of a ha
 - Added a drift-guard test (`list-view-spec-parity.test.ts`) that fails if the spec grows a
   field objectui hasn't triaged, renames an aliased anchor (`type`/`columns`/`filter`), or
   an objectui-only field is added outside the sanctioned-local set.
-- Bumped the `@objectstack/spec` dependency `^14.6.0` → `^15.0.0` across the workspace.
+- Bumped the `@objectstack/spec` dependency `^14.6.0` → `^15.1.0` across the workspace
+  (15.1.0 carries the framework#3021 `lazySchema`/`z.toJSONSchema` identity fix that the
+  spec-derived Page/View inspectors depend on).
 
 Migrating the legacy vocabulary to the spec-canonical keys and adopting spec's narrower
 sub-shapes are deferred follow-ups (see #2231). No runtime behavior change.
