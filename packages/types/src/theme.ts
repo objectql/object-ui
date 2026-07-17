@@ -78,11 +78,9 @@ export type { ZIndex } from '@objectstack/spec/ui';
  */
 export type { ThemeMode } from '@objectstack/spec/ui';
 
-/**
- * Theme Mode Schema
- * Canonical Zod schema from @objectstack/spec/ui.
- */
-export type { ThemeModeSchema } from '@objectstack/spec/ui';
+// `ThemeModeSchema` (the zod value) is intentionally not re-exported — under
+// `export type` it was value-erased (#2561); import it from
+// `@objectstack/spec/ui` directly when the runtime validator is needed.
 
 // Import spec types for local use in interfaces below
 import type {

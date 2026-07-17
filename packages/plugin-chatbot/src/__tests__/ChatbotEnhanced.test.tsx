@@ -284,6 +284,23 @@ describe('ChatbotEnhanced (AI Elements composition)', () => {
     expect(onSendMessage).toHaveBeenCalledWith('APPROVE_PLAIN');
   });
 
+  it('flips the clicked card to a "Building…" badge immediately (#2627)', () => {
+    const onSendMessage = vi.fn();
+    render(
+      <ChatbotEnhanced
+        messages={planMessage([])}
+        onSendMessage={onSendMessage}
+        planBuildingLabel="BUILDING_NOW"
+      />,
+    );
+    fireEvent.click(screen.getByTestId('proposed-plan-approve'));
+    // The approval's chat-level effects land at the bottom of the thread —
+    // the card ITSELF must show the state change or the click reads as lost.
+    expect(screen.queryByTestId('proposed-plan-approve')).not.toBeInTheDocument();
+    expect(screen.getByTestId('proposed-plan-building')).toHaveTextContent('BUILDING_NOW');
+    expect(onSendMessage).toHaveBeenCalledTimes(1);
+  });
+
   it('falls back to the static hint (no action buttons) when message sending is not wired', () => {
     render(<ChatbotEnhanced messages={planMessage([])} planApproveHintLabel="HINT_TEXT" />);
     expect(screen.queryByTestId('proposed-plan-actions')).not.toBeInTheDocument();

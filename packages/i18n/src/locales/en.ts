@@ -1632,6 +1632,11 @@ const en = {
       signUpText: 'Sign up',
       signingIn: 'Signing you in…',
       ssoHandoff: 'Continue to {{target}}',
+      devAdminHint: {
+        title: 'Development instance',
+        body: 'Sign in with the seeded dev admin:',
+        dismiss: 'Dismiss',
+      },
       errors: {
         invalidCredentials: 'Invalid email or password. Please try again.',
         emailNotVerified: 'Please verify your email address before signing in.',

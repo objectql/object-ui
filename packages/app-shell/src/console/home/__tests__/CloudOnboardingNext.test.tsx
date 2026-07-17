@@ -53,7 +53,11 @@ describe('CloudOnboardingNext', () => {
     expect(screen.queryByText('Open Production')).toBeNull();
 
     fireEvent.click(create);
-    expect(navigateMock).toHaveBeenCalledWith('/apps/cloud_control/sys_environment');
+    // Deep-links into the create dialog (#844): the environments list consumes
+    // `runAction=create_environment` and auto-opens its create action.
+    expect(navigateMock).toHaveBeenCalledWith(
+      '/apps/cloud_control/sys_environment?runAction=create_environment',
+    );
   });
 
   it('shows "Open Production" once the org has a production env', async () => {

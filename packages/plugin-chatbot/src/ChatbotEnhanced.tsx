@@ -666,6 +666,8 @@ export interface ChatbotEnhancedProps extends React.HTMLAttributes<HTMLDivElemen
   planAdjustLabel?: string;
   /** Static badge shown in place of the "Build it" button once this plan's build has run, so it can't be re-triggered (default "Built"). */
   planBuiltLabel?: string;
+  /** Badge shown on a plan card right after its Build-it was clicked (#2627). */
+  planBuildingLabel?: string;
   /**
    * Body line of the FALLBACK confirm card shown when a propose_blueprint step
    * finished but produced no structured plan (so the rich card can't render).
@@ -1214,6 +1216,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       planApproveLabel = 'Build it',
       planAdjustLabel = 'Adjust',
       planBuiltLabel = 'Built',
+      planBuildingLabel = 'Building…',
       planReadyLabel = 'The plan is ready. Build it now, or tell me what to adjust.',
       planApproveMessage = 'Looks good — build it as proposed.',
       planApproveDefaultsMessage = 'Build it with your best assumptions; use sensible defaults for the open questions.',
@@ -1501,6 +1504,10 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
         // clears any prior send-failure restore guard.
         lastSubmittedRef.current = text;
         restoredErrorRef.current = null;
+        // A newer send supersedes any pending approve as "the last send" — an
+        // unsent failure of THIS message must not roll back a plan card whose
+        // approval already reached the server (#2627).
+        lastApprovedPlanIdRef.current = null;
         onSendMessage?.(text, files);
       },
       [onSendMessage]
@@ -1508,6 +1515,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
 
     const handleSuggestionClick = React.useCallback(
       (text: string) => {
+        lastApprovedPlanIdRef.current = null;
         onSendMessage?.(text);
       },
       [onSendMessage]
@@ -1519,8 +1527,28 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
     // approval explicitly authorizes sensible defaults so a click never silently
     // drops them.
     const promptInputWrapRef = React.useRef<HTMLDivElement>(null);
+    // Optimistic per-card feedback (#2627): the approval's visible effect (a
+    // new user bubble + a streaming turn) lands at the BOTTOM of the thread —
+    // outside the viewport when the plan card is scrolled into view — so the
+    // card itself looked untouched for the ~10s until apply_blueprint started
+    // and users clicked again. Flip the clicked card to a "Building…" badge
+    // immediately; the durable Built state still derives from the message
+    // stream (builtPlanIds). A send that never left the client (rate limit /
+    // offline) rolls the flip back so the buttons return.
+    const [approvedPlanIds, setApprovedPlanIds] = React.useState<ReadonlySet<string>>(
+      () => new Set<string>(),
+    );
+    const lastApprovedPlanIdRef = React.useRef<string | null>(null);
     const handlePlanApprove = React.useCallback(
-      (hasOpenQuestions: boolean) => {
+      (hasOpenQuestions: boolean, toolCallId?: string) => {
+        if (toolCallId) {
+          lastApprovedPlanIdRef.current = toolCallId;
+          setApprovedPlanIds((prev) => {
+            const next = new Set(prev);
+            next.add(toolCallId);
+            return next;
+          });
+        }
         onSendMessage?.(hasOpenQuestions ? planApproveDefaultsMessage : planApproveMessage);
       },
       [onSendMessage, planApproveMessage, planApproveDefaultsMessage]
@@ -1544,6 +1572,18 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
       if (!error || !isUnsentSendError(error)) return;
       if (restoredErrorRef.current === error) return;
       restoredErrorRef.current = error;
+      // The approval message never left the client — roll the optimistic
+      // "Building…" badge back so the Build-it button returns (#2627).
+      if (lastApprovedPlanIdRef.current) {
+        const failedId = lastApprovedPlanIdRef.current;
+        lastApprovedPlanIdRef.current = null;
+        setApprovedPlanIds((prev) => {
+          if (!prev.has(failedId)) return prev;
+          const next = new Set(prev);
+          next.delete(failedId);
+          return next;
+        });
+      }
       const text = lastSubmittedRef.current;
       if (!text) return;
       const textarea = promptInputWrapRef.current?.querySelector('textarea');
@@ -2149,6 +2189,16 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         {planBuiltLabel}
                       </span>
                     </div>
+                  ) : approvedPlanIds.has(tool.toolCallId) ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-plan-actions">
+                      <span
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border bg-muted/40 px-3 text-xs font-medium text-muted-foreground"
+                        data-testid="proposed-plan-building"
+                      >
+                        <Loader2 className="size-3.5 animate-spin" />
+                        {planBuildingLabel}
+                      </span>
+                    </div>
                   ) : (
                   <div
                     className="flex flex-wrap items-center gap-1.5 pt-0.5"
@@ -2157,7 +2207,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                     <button
                       type="button"
                       onClick={() =>
-                        handlePlanApprove(tool.proposedPlan!.questions.length > 0)
+                        handlePlanApprove(tool.proposedPlan!.questions.length > 0, tool.toolCallId)
                       }
                       className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                       data-testid="proposed-plan-approve"
@@ -2211,6 +2261,16 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                         {planBuiltLabel}
                       </span>
                     </div>
+                  ) : approvedPlanIds.has(tool.toolCallId) ? (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="proposed-plan-actions">
+                      <span
+                        className="inline-flex h-7 items-center gap-1.5 rounded-md border bg-muted/40 px-3 text-xs font-medium text-muted-foreground"
+                        data-testid="proposed-plan-building"
+                      >
+                        <Loader2 className="size-3.5 animate-spin" />
+                        {planBuildingLabel}
+                      </span>
+                    </div>
                   ) : (
                     <div
                       className="flex flex-wrap items-center gap-1.5 pt-0.5"
@@ -2219,7 +2279,7 @@ const ChatbotEnhanced = React.forwardRef<HTMLDivElement, ChatbotEnhancedProps>(
                       <button
                         type="button"
                         // No structured questions to default through → plain approve.
-                        onClick={() => handlePlanApprove(false)}
+                        onClick={() => handlePlanApprove(false, tool.toolCallId)}
                         className="inline-flex h-7 items-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90"
                         data-testid="proposed-plan-approve"
                       >

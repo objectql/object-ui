@@ -229,6 +229,64 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
     return payload ?? {};
   }
 
+  /**
+   * Fetch `GET {authUrl}/config` once, with a per-attempt timeout so a
+   * request that HANGS (a freshly provisioned environment whose kernel is
+   * still cold-starting) converts into a retryable failure instead of
+   * stalling the login page forever.
+   */
+  async function fetchConfigAttempt(timeoutMs: number): Promise<AuthPublicConfig> {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+    try {
+      const url = `${origin}${basePath}/config`;
+      const response = await bearerFetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load auth config (status ${response.status})`);
+      }
+      const body = (await response.json()) as
+        | { success?: boolean; data?: AuthPublicConfig; error?: { message?: string } }
+        | AuthPublicConfig;
+      // Server wraps the payload as `{ success, data }`; tolerate both shapes.
+      if (body && typeof body === 'object' && 'data' in body && body.data) {
+        return body.data as AuthPublicConfig;
+      }
+      return body as AuthPublicConfig;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  }
+
+  // Auth config is static per server boot: single-flight + cache the success
+  // so the login page's multiple consumers (LoginForm, SocialSignInButtons,
+  // RegisterForm) share ONE request instead of three. Failures RETRY with a
+  // short backoff before rejecting — a first-load failure used to render the
+  // page without its SSO buttons, which strands SSO-only users on a password
+  // wall they have no password for (#2625). A final failure clears the cache
+  // so the next caller starts a fresh cycle.
+  const CONFIG_RETRY_DELAYS_MS = [500, 1500, 3500];
+  const CONFIG_ATTEMPT_TIMEOUT_MS = 8_000;
+  let configPromise: Promise<AuthPublicConfig> | null = null;
+
+  async function loadConfigWithRetry(): Promise<AuthPublicConfig> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= CONFIG_RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        return await fetchConfigAttempt(CONFIG_ATTEMPT_TIMEOUT_MS);
+      } catch (err) {
+        lastError = err;
+        if (attempt < CONFIG_RETRY_DELAYS_MS.length) {
+          await new Promise((resolve) => setTimeout(resolve, CONFIG_RETRY_DELAYS_MS[attempt]));
+        }
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
   return {
     async signIn(credentials: SignInCredentials) {
       const { data, error } = await betterAuth.signIn.email({
@@ -549,36 +607,44 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
     },
 
     async getConfig(): Promise<AuthPublicConfig> {
-      const url = `${origin}${basePath}/config`;
-      const response = await bearerFetch(url, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to load auth config (status ${response.status})`);
+      if (!configPromise) {
+        configPromise = loadConfigWithRetry().catch((err) => {
+          configPromise = null;
+          throw err;
+        });
       }
-      const body = (await response.json()) as
-        | { success?: boolean; data?: AuthPublicConfig; error?: { message?: string } }
-        | AuthPublicConfig;
-      // Server wraps the payload as `{ success, data }`; tolerate both shapes.
-      if (body && typeof body === 'object' && 'data' in body && body.data) {
-        return body.data as AuthPublicConfig;
-      }
-      return body as AuthPublicConfig;
+      return configPromise;
     },
 
     async signInWithProvider(providerId: string, options: SignInWithProviderOptions = {}) {
       const { type = 'social', callbackURL, errorCallbackURL } = options;
+      // Watchdog (#2626): a sign-in request that HANGS (e.g. the environment
+      // kernel is cold-starting on first open) used to leave the provider
+      // button spinning forever — no error, no way to retry. Convert a
+      // no-response into a rejection so the button contract (#2458 pending +
+      // inline error) can recover it. The abandoned request may still land
+      // later; the user retrying just starts a fresh redirect, which is safe.
+      const SIGN_IN_TIMEOUT_MS = 20_000;
+      const withTimeout = <T,>(p: Promise<T>): Promise<T> => new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error('Sign-in timed out — the server did not respond. Please try again.')),
+          SIGN_IN_TIMEOUT_MS,
+        );
+        p.then(
+          (v) => { clearTimeout(timer); resolve(v); },
+          (e) => { clearTimeout(timer); reject(e); },
+        );
+      });
       // We pass `disableDefaultFetchPlugins: true` to better-auth above,
       // which also disables better-auth's `redirectPlugin` (the one that
       // navigates the browser to `data.url` when the server responds with
       // `{ url, redirect: true }`). The server still returns that payload
       // for OAuth/OIDC providers — we just have to honour it ourselves.
-      const signInSocial = async () => await betterAuth.signIn.social({
+      const signInSocial = async () => await withTimeout(betterAuth.signIn.social({
         provider: providerId as Parameters<typeof betterAuth.signIn.social>[0]['provider'],
         callbackURL,
         errorCallbackURL,
-      }) as { data: { url?: string; redirect?: boolean } | null; error: { message?: string; status: number } | null };
+      })) as { data: { url?: string; redirect?: boolean } | null; error: { message?: string; status: number } | null };
       let result: Awaited<ReturnType<typeof signInSocial>>;
       if (type === 'oidc') {
         // better-auth ≥ 1.7 registers generic OAuth/OIDC providers through
@@ -592,7 +658,9 @@ export function createAuthClient(config: AuthClientConfig): AuthClient {
           const oauth2 = (betterAuth as unknown as {
             signIn: { oauth2?: (args: Record<string, unknown>) => Promise<{ data: { url?: string; redirect?: boolean } | null; error: { message?: string; status: number } | null }> };
           }).signIn.oauth2;
-          const legacy = oauth2 ? await oauth2({ providerId, callbackURL, errorCallbackURL }) : null;
+          const legacy = oauth2
+            ? await withTimeout(oauth2({ providerId, callbackURL, errorCallbackURL })).catch(() => null)
+            : null;
           if (legacy && !legacy.error) {
             result = legacy;
           }

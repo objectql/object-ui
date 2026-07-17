@@ -954,22 +954,26 @@ export type {
   ObjectUICapabilities,
 } from '@objectstack/spec';
 
+// ----------------------------------------------------------------------------
+// NOTE (#2561): the `@objectstack/spec/ui` blocks below re-export the inferred
+// *types* only. The companion zod validators (`…Schema`) are deliberately NOT
+// re-exported: inside `export type { … }` they were value-erased, so importing
+// one as a value from `@object-ui/types` silently yielded `undefined` at
+// runtime. Consumers that need the runtime validators must import them from
+// `@objectstack/spec/ui` directly. Guardrail:
+// `src/__tests__/spec-ui-schema-reexports.test.ts`.
+// ----------------------------------------------------------------------------
+
 // ============================================================================
 // v2.0.7 Spec UI Types — Drag and Drop
 // ============================================================================
 export type {
   DndConfig,
-  DndConfigSchema,
   DragItem,
-  DragItemSchema,
   DropZone,
-  DropZoneSchema,
   DragConstraint,
-  DragConstraintSchema,
   DragHandle,
-  DragHandleSchema,
   DropEffect,
-  DropEffectSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -977,13 +981,9 @@ export type {
 // ============================================================================
 export type {
   FocusManagement,
-  FocusManagementSchema,
   FocusTrapConfig,
-  FocusTrapConfigSchema,
   KeyboardNavigationConfig,
-  KeyboardNavigationConfigSchema,
   KeyboardShortcut,
-  KeyboardShortcutSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -991,17 +991,11 @@ export type {
 // ============================================================================
 export type {
   ComponentAnimation,
-  ComponentAnimationSchema,
   AnimationTrigger,
-  AnimationTriggerSchema,
   MotionConfig,
-  MotionConfigSchema,
   TransitionConfig,
-  TransitionConfigSchema,
   TransitionPreset,
-  TransitionPresetSchema,
   EasingFunction,
-  EasingFunctionSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1009,17 +1003,11 @@ export type {
 // ============================================================================
 export type {
   Notification,
-  NotificationSchema,
   NotificationConfig,
-  NotificationConfigSchema,
   NotificationAction,
-  NotificationActionSchema,
   NotificationPosition,
-  NotificationPositionSchema,
   NotificationSeverity,
-  NotificationSeveritySchema,
   NotificationType,
-  NotificationTypeSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1027,21 +1015,13 @@ export type {
 // ============================================================================
 export type {
   GestureConfig as SpecGestureConfig,
-  GestureConfigSchema as SpecGestureConfigSchema,
   GestureType as SpecGestureType,
-  GestureTypeSchema as SpecGestureTypeSchema,
   SwipeGestureConfig,
-  SwipeGestureConfigSchema,
   SwipeDirection,
-  SwipeDirectionSchema,
   PinchGestureConfig,
-  PinchGestureConfigSchema,
   LongPressGestureConfig,
-  LongPressGestureConfigSchema,
   TouchInteraction,
-  TouchInteractionSchema,
   TouchTargetConfig,
-  TouchTargetConfigSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1049,19 +1029,12 @@ export type {
 // ============================================================================
 export type {
   OfflineConfig as SpecOfflineConfig,
-  OfflineConfigSchema as SpecOfflineConfigSchema,
   OfflineCacheConfig,
-  OfflineCacheConfigSchema,
   OfflineStrategy,
-  OfflineStrategySchema,
   SyncConfig,
-  SyncConfigSchema,
   ConflictResolution,
-  ConflictResolutionSchema,
   PersistStorage,
-  PersistStorageSchema,
   EvictionPolicy,
-  EvictionPolicySchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1069,23 +1042,14 @@ export type {
 // ============================================================================
 export type {
   ColumnSummary,
-  ColumnSummarySchema,
   GalleryConfig,
-  GalleryConfigSchema,
   GroupingConfig,
-  GroupingConfigSchema,
   RowColorConfig,
-  RowColorConfigSchema,
   RowHeight,
-  RowHeightSchema,
   DensityMode,
-  DensityModeSchema,
   TimelineConfig,
-  TimelineConfigSchema,
   NavigationConfig,
-  NavigationConfigSchema,
   ViewSharing,
-  ViewSharingSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1093,21 +1057,14 @@ export type {
 // ============================================================================
 export type {
   Dashboard as SpecDashboard,
-  DashboardSchema as SpecDashboardSchema,
   DashboardWidget as SpecDashboardWidget,
-  DashboardWidgetSchema as SpecDashboardWidgetSchema,
   DashboardHeader as SpecDashboardHeader,
-  DashboardHeaderSchema as SpecDashboardHeaderSchema,
   DashboardHeaderAction as SpecDashboardHeaderAction,
-  DashboardHeaderActionSchema as SpecDashboardHeaderActionSchema,
   GlobalFilter as SpecGlobalFilter,
-  GlobalFilterSchema as SpecGlobalFilterSchema,
   GlobalFilterOptionsFrom,
-  GlobalFilterOptionsFromSchema,
   // WidgetMeasure / WidgetMeasureSchema removed in @objectstack/spec 9.0
   // (ADR-0021 single-form cutover) — dashboard widgets are dataset-bound now.
   WidgetColorVariant,
-  WidgetColorVariantSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1115,9 +1072,7 @@ export type {
 // ============================================================================
 export type {
   SharingConfig,
-  SharingConfigSchema,
   EmbedConfig,
-  EmbedConfigSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1125,13 +1080,9 @@ export type {
 // ============================================================================
 export type {
   AddRecordConfig,
-  AddRecordConfigSchema,
   AppearanceConfig,
-  AppearanceConfigSchema,
   UserActionsConfig,
-  UserActionsConfigSchema,
   ViewTab,
-  ViewTabSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1139,7 +1090,6 @@ export type {
 // ============================================================================
 export type {
   ViewFilterRule,
-  ViewFilterRuleSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1147,11 +1097,8 @@ export type {
 // ============================================================================
 export type {
   FormView as SpecFormView,
-  FormViewSchema as SpecFormViewSchema,
   FormSection as SpecFormSection,
-  FormSectionSchema as SpecFormSectionSchema,
   FormField as SpecFormField,
-  FormFieldSchema as SpecFormFieldSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1159,9 +1106,7 @@ export type {
 // ============================================================================
 export type {
   ListView as SpecListView,
-  ListViewSchema as SpecListViewSchema,
   ListColumn as SpecListColumn,
-  ListColumnSchema as SpecListColumnSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1181,15 +1126,10 @@ export type {
 // ============================================================================
 export type {
   Page as SpecPage,
-  PageSchema as SpecPageSchema,
   PageComponent as SpecPageComponent,
-  PageComponentSchema as SpecPageComponentSchema,
   PageRegion as SpecPageRegion,
-  PageRegionSchema as SpecPageRegionSchema,
   PageType as SpecPageType,
-  PageTypeSchema as SpecPageTypeSchema,
   PageVariable as SpecPageVariable,
-  PageVariableSchema as SpecPageVariableSchema,
   // BlankPageLayout{,Schema,Item,ItemSchema} dropped — `blank` page type has no
   // renderer; removed from @objectstack/spec PageTypeSchema (framework#2265).
 } from '@objectstack/spec/ui';
@@ -1199,9 +1139,7 @@ export type {
 // ============================================================================
 export type {
   PerformanceConfig,
-  PerformanceConfigSchema,
   PageTransition,
-  PageTransitionSchema,
   PageComponentType,
 } from '@objectstack/spec/ui';
 
@@ -1210,9 +1148,7 @@ export type {
 // ============================================================================
 export type {
   AriaProps,
-  AriaPropsSchema,
   WcagContrastLevel,
-  WcagContrastLevelSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1220,17 +1156,11 @@ export type {
 // ============================================================================
 export type {
   I18nLabel,
-  I18nLabelSchema,
   I18nObject,
-  I18nObjectSchema,
   LocaleConfig,
-  LocaleConfigSchema,
   PluralRule,
-  PluralRuleSchema,
   DateFormat,
-  DateFormatSchema,
   NumberFormat,
-  NumberFormatSchema,
 } from '@objectstack/spec/ui';
 
 // ============================================================================
@@ -1238,10 +1168,10 @@ export type {
 // ============================================================================
 export type {
   ResponsiveConfig as SpecResponsiveConfig,
-  ResponsiveConfigSchema as SpecResponsiveConfigSchema,
-  BreakpointColumnMapSchema,
-  BreakpointOrderMapSchema,
   BreakpointName as SpecBreakpointName,
+  // BreakpointColumnMapSchema / BreakpointOrderMapSchema dropped without a
+  // replacement: they are zod values (value-erased here, #2561) and the spec
+  // exports no companion inferred type for them.
 } from '@objectstack/spec/ui';
 
 // ============================================================================

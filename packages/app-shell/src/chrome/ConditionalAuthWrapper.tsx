@@ -7,11 +7,11 @@
  */
 
 import { useState, useEffect, useCallback, ReactNode } from 'react';
-import { getSharedDiscovery, isServiceUsable } from '@object-ui/data-objectstack';
+import { getSharedDiscovery } from '@object-ui/data-objectstack';
 import { AuthProvider } from '@object-ui/auth';
 import type { PreviewModeOptions } from '@object-ui/auth';
 import { LoadingScreen } from './LoadingScreen';
-import type { DiscoveryInfo } from '@object-ui/react';
+import { isServiceUsable, type DiscoveryInfo } from '@object-ui/react';
 
 interface ConditionalAuthWrapperProps {
   children: ReactNode;
@@ -73,7 +73,11 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
           return body;
         } catch (e) {
           if ((e as Error).name === 'AbortError') {
-            throw new Error('timeout');
+            // Manual `cause` assignment — the two-arg Error constructor needs
+            // an ES2022 lib this package's tsconfig doesn't target.
+            const timeoutErr = new Error('timeout');
+            (timeoutErr as Error & { cause?: unknown }).cause = e;
+            throw timeoutErr;
           }
           throw e;
         } finally {
@@ -101,13 +105,15 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
         });
         setAuthEnabled(false);
       } else {
-        // ADR-0076 D12 (framework#2462): gate the login requirement on a
-        // GENUINELY usable auth service — a stubbed/dev-fake auth entry
-        // (status 'stub', handlerReady false) must not force a login flow
-        // that cannot succeed. Missing discovery/auth entry stays fail-closed
-        // (assume auth exists).
-        const authSvc = discovery?.services?.auth;
-        const isAuthEnabled = authSvc ? isServiceUsable(authSvc) : true;
+        // ADR-0076 D12 (honest capabilities): trust the 15.1+ signals when
+        // present — a `stub` or `handlerReady:false` auth service must NOT
+        // wrap the app in a real AuthProvider (login against a dev fake).
+        // Pre-15.1 servers carry none of these fields → historical default
+        // (enabled) is preserved by isServiceUsable.
+        const isAuthEnabled = isServiceUsable(discovery?.services?.auth);
+        if (discovery?.services?.auth?.status === 'degraded') {
+          console.warn('[ConditionalAuthWrapper] auth service reports degraded — keeping auth enabled (it still serves).');
+        }
         setAuthEnabled(isAuthEnabled);
       }
       setIsLoading(false);

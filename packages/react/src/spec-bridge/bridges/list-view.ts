@@ -8,74 +8,23 @@
 
 import type { SchemaNode } from '@object-ui/core';
 import type { BridgeContext, BridgeFn } from '../types';
-import type { ListViewGalleryConfig, ListViewTimelineConfig } from '@object-ui/types';
+import type { ListView, ListColumn } from '@objectstack/spec/ui';
 
-interface ListColumn {
-  field: string;
-  label?: string;
-  width?: number;
-  align?: string;
-  hidden?: boolean;
-  sortable?: boolean;
-  resizable?: boolean;
-  wrap?: boolean;
-  type?: string;
-  pinned?: string;
-  summary?: any;
-  link?: any;
-  action?: any;
-}
+/**
+ * Bridge input: the spec-canonical ListView (#2231 — the former hand-written
+ * `ListViewSpec`/`ListColumn` mirrors are retired; the shape now derives from
+ * `@objectstack/spec/ui` and can no longer drift). Relaxed to `Partial` because
+ * hosts routinely hand the bridge fragmentary view-configs (every field was
+ * optional in the old mirror too, including spec-required `columns`).
+ */
+type ListViewSpec = Partial<ListView>;
 
-interface ListViewSpec {
-  name?: string;
-  label?: string;
-  type?: string;
-  data?: any;
-  columns?: ListColumn[];
-  filter?: any;
-  sort?: any;
-  searchableFields?: string[];
-  filterableFields?: string[];
-  selection?: any;
-  pagination?: any;
-  rowHeight?: string;
-  resizable?: boolean;
-  striped?: boolean;
-  bordered?: boolean;
-  grouping?: any;
-  rowColor?: any;
-  navigation?: any;
-  kanban?: any;
-  calendar?: any;
-  gantt?: any;
-  gallery?: ListViewGalleryConfig;
-  timeline?: ListViewTimelineConfig;
-  // P1.1 additions
-  rowActions?: string[];
-  bulkActions?: string[];
-  bulkActionDefs?: any[];
-  virtualScroll?: boolean;
-  conditionalFormatting?: Array<{ condition: string; style: Record<string, string> }>;
-  inlineEdit?: boolean;
-  exportOptions?: any;
-  emptyState?: { title?: string; message?: string; icon?: string };
-  userActions?: any;
-  appearance?: any;
-  /** UX-only hint: collapse appearance/grouping cluster into a single popover. */
-  compactToolbar?: boolean;
-  tabs?: any[];
-  addRecord?: any;
-  showRecordCount?: boolean;
-  allowPrinting?: boolean;
-  // P1.6 i18n & ARIA
-  aria?: { ariaLabel?: string; ariaDescribedBy?: string; role?: string };
-  sharing?: any;
-  hiddenFields?: string[];
-  fieldOrder?: string[];
-  description?: string;
-}
+function mapColumn(col: ListColumn | string): Record<string, any> {
+  // Spec-legacy shorthand: a bare field name stands for a default column.
+  if (typeof col === 'string') {
+    return { accessorKey: col, header: col };
+  }
 
-function mapColumn(col: ListColumn): Record<string, any> {
   const mapped: Record<string, any> = {
     accessorKey: col.field,
     header: col.label ?? col.field,
