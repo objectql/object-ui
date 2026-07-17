@@ -30,8 +30,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.7.0(jiti@2.7.0))
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -265,8 +265,8 @@ importers:
         specifier: ^14.6.0
         version: 14.6.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.2
         version: 4.3.2
@@ -397,8 +397,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       fumadocs-core:
         specifier: 16.11.3
         version: 16.11.3(@mdx-js/mdx@3.1.1)(@tanstack/react-router@1.170.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.24.0(react@19.2.7))(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react-router@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(zod@4.4.3)
@@ -692,8 +692,8 @@ importers:
         specifier: ^14.6.0
         version: 14.6.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       '@sentry/react':
         specifier: ^10.65.0
         version: 10.65.0(react@19.2.7)
@@ -1075,8 +1075,8 @@ importers:
         specifier: ^14.6.0
         version: 14.6.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
@@ -1722,8 +1722,8 @@ importers:
         specifier: workspace:^
         version: link:../permissions
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -1838,8 +1838,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -1893,8 +1893,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -2131,8 +2131,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -2320,8 +2320,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2372,8 +2372,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -2436,8 +2436,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2501,8 +2501,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       react:
         specifier: 19.2.7
         version: 19.2.7
@@ -2607,8 +2607,8 @@ importers:
   packages/types:
     dependencies:
       '@objectstack/spec':
-        specifier: ^15.1.0
-        version: 15.1.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -3980,8 +3980,8 @@ packages:
       ai:
         optional: true
 
-  '@objectstack/spec@15.1.0':
-    resolution: {integrity: sha512-gL5toOEKTZ2whRJqQYfSa2G3D72jQJd4in3NtHlI02zR7olKzLx7z6+FbbcmI7cienYSxHMl3oDnRV/xFp2+aA==}
+  '@objectstack/spec@15.1.1':
+    resolution: {integrity: sha512-Eto1iLtzmnh3kSzIVGPUQF9DZGE1dY3YWFm+3qRpNBFB8iSvOilLwNYVSF64D5sTobp0CZSzB1/GalzFAR1icA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       ai: ^7.0.0
@@ -12145,7 +12145,7 @@ snapshots:
     optionalDependencies:
       ai: 7.0.22(zod@4.4.3)
 
-  '@objectstack/spec@15.1.0(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/spec@15.1.1(ai@7.0.22(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:

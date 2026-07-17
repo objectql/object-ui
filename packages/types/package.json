@@ -90,7 +90,7 @@
     "directory": "packages/types"
   },
   "dependencies": {
-    "@objectstack/spec": "^15.1.0",
+    "@objectstack/spec": "^15.1.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

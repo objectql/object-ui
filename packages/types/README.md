@@ -307,7 +307,7 @@ We follow these constraints for this package:
 
 - **Node.js:** ≥ 18
 - **TypeScript:** ≥ 5.0 (strict mode)
-- **`@objectstack/spec`:** ^15.0.0
+- **`@objectstack/spec`:** ^15.1.1
 - **`@objectstack/client`:** ^3.3.0
 - **Tailwind CSS:** ≥ 3.4 (for packages with UI)
 
