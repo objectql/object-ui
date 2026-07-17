@@ -161,7 +161,12 @@ export function CloudOnboardingNext({ properties }: CloudOnboardingNextProps) {
     <div className="flex flex-col items-center gap-3" data-onboarding={state.phase}>
       <div className="flex flex-wrap items-center justify-center gap-3">
         {showCreatePrimary ? (
-          <Button size="lg" onClick={() => navigate(envsRoute)}>
+          // Deep-link straight INTO the create dialog (#844): the environments
+          // list consumes `runAction=create_environment` and auto-opens its
+          // create action once entitlements resolve — "Create your environment"
+          // used to be a plain navigation that left the user hunting for a
+          // second create button on the list page.
+          <Button size="lg" onClick={() => navigate(`${envsRoute}?runAction=create_environment`)}>
             <Plus className="mr-2 h-4 w-4" />
             {pick({ en: 'Create your environment', zh: '创建你的环境' })}
           </Button>
