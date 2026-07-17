@@ -37,6 +37,15 @@ import type { FlowConfigField, FlowConfigColumn, FlowConfigFieldKind, FlowRefere
 interface JsonSchemaNode {
   type?: string | string[];
   enum?: unknown[];
+  /**
+   * Enum members that still parse but must not be offered for new authoring
+   * (`@objectstack/spec` `.meta({ xEnumDeprecated })`). We drop them from the
+   * select's options while leaving them valid: a stored value keeps rendering,
+   * the designer just stops handing authors the deprecated spelling. Without
+   * this, a backward-compatible alias in the spec enum reappears in every
+   * picker derived from it — e.g. the approver `role` trap (ADR-0090 D3).
+   */
+  xEnumDeprecated?: unknown[];
   const?: unknown;
   default?: unknown;
   description?: string;
@@ -59,7 +68,7 @@ const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>([
   'object',
   'object-field',
   'flow',
-  'role',
+  'org-membership-level',
   'position',
   'node',
   'user',
@@ -126,10 +135,15 @@ function schemaType(node: JsonSchemaNode): string | undefined {
   return undefined;
 }
 
-/** Build `{ value, label }` options from a string enum. */
-function enumOptions(values: unknown[]): Array<{ value: string; label: string }> {
+/**
+ * Build `{ value, label }` options from a string enum, minus any member the
+ * schema marks deprecated ({@link JsonSchemaNode.xEnumDeprecated}).
+ */
+function enumOptions(values: unknown[], deprecated?: unknown[]): Array<{ value: string; label: string }> {
+  const skip = new Set((deprecated ?? []).filter((v): v is string => typeof v === 'string'));
   return values
     .filter((v): v is string => typeof v === 'string')
+    .filter((v) => !skip.has(v))
     .map((v) => ({ value: v, label: humanizeKey(v) }));
 }
 
@@ -168,7 +182,7 @@ function columnsFor(item: JsonSchemaNode): FlowConfigColumn[] {
       kind = 'reference';
     } else if (Array.isArray(prop.enum)) {
       kind = 'select';
-      options = enumOptions(prop.enum);
+      options = enumOptions(prop.enum, prop.xEnumDeprecated);
     } else if (t === 'boolean') {
       kind = 'boolean';
     } else {
@@ -245,7 +259,7 @@ export function jsonSchemaToFlowFields(schema: unknown): FlowConfigField[] | nul
           // The gate adopts the parent group's label; siblings keep their own.
           ...(isGate ? { label: prop.title || humanizeKey(key), ...(prop.description ? { help: prop.description } : {}), ...(defaultString(sp) ? { defaultValue: defaultString(sp) } : {}) } : meta(sp, subKey)),
           ...(subRef ? { ref: subRef } : {}),
-          ...(kind === 'select' && Array.isArray(sp.enum) ? { options: enumOptions(sp.enum) } : {}),
+          ...(kind === 'select' && Array.isArray(sp.enum) ? { options: enumOptions(sp.enum, sp.xEnumDeprecated) } : {}),
           ...(hasEnabled && !isGate ? { showWhen: { field: `${key}.enabled`, equals: ['true'] } } : {}),
         };
         fields.push(field);
@@ -268,7 +282,7 @@ export function jsonSchemaToFlowFields(schema: unknown): FlowConfigField[] | nul
       path: ['config', key],
       kind,
       ...meta(prop, key),
-      ...(kind === 'select' && Array.isArray(prop.enum) ? { options: enumOptions(prop.enum) } : {}),
+      ...(kind === 'select' && Array.isArray(prop.enum) ? { options: enumOptions(prop.enum, prop.xEnumDeprecated) } : {}),
     });
   }
 

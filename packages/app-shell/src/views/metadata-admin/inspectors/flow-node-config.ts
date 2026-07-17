@@ -46,7 +46,12 @@ export type FlowConfigFieldKind =
  *   • `object-field`  → a field of some object; the object is resolved via
  *                       {@link FlowReferenceSpec.objectSource}
  *   • `flow`          → a flow, by name (`client.list('flow')`)
- *   • `role`          → a better-auth org-membership tier (`client.list('role')`)
+ *   • `org-membership-level`
+ *                     → a better-auth org-membership tier. A FIXED three-value
+ *                       enum (owner/admin/member), not a catalog: there is no
+ *                       `role` metadata type to list (ADR-0090 D3 renamed
+ *                       `sys_role` → `sys_position`), so this kind supplies its
+ *                       own options rather than calling `client.list`.
  *   • `position`      → a position / 岗位 by machine name (`client.list('position')`);
  *                       holders resolve via `sys_user_position` (ADR-0090 D3)
  *   • `node`          → another node in *this* flow, by id (read from the draft)
@@ -62,7 +67,7 @@ export type ReferenceKind =
   | 'object'
   | 'object-field'
   | 'flow'
-  | 'role'
+  | 'org-membership-level'
   | 'position'
   | 'node'
   | 'user'
@@ -416,10 +421,14 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
           key: 'type',
           label: 'Type',
           kind: 'select',
+          // `role` is deliberately absent: it is the deprecated spelling of
+          // `org_membership_level` (ADR-0090 D3) and reads as "the old name for
+          // position", which is the trap — a stored `role` row still renders
+          // and resolves, but the designer never authors a new one.
           options: [
             { value: 'user', label: 'User' },
-            { value: 'role', label: 'Role' },
             { value: 'position', label: 'Position' },
+            { value: 'org_membership_level', label: 'Organization membership (owner/admin/member)' },
             { value: 'team', label: 'Team' },
             { value: 'department', label: 'Department' },
             { value: 'manager', label: 'Manager' },
@@ -434,14 +443,19 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
           key: 'value',
           label: 'Value',
           kind: 'reference',
-          placeholder: 'user id / role / position / field — per type',
+          placeholder: 'user id / position / membership tier / field — per type',
           ref: {
             kindFrom: 'type',
             objectSource: '$trigger',
+            // `role` maps to the same picker as `org_membership_level`: the
+            // designer no longer offers it, but a flow authored on 15.x still
+            // has stored rows, and they must keep rendering for the length of
+            // the deprecation window.
             map: {
               user: 'user',
-              role: 'role',
               position: 'position',
+              org_membership_level: 'org-membership-level',
+              role: 'org-membership-level',
               team: 'team',
               department: 'department',
               field: 'object-field',

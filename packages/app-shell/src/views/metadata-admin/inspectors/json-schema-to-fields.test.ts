@@ -18,14 +18,23 @@ const APPROVAL_CONFIG_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          type: { type: 'string', enum: ['user', 'role', 'position', 'team', 'department', 'manager', 'field', 'queue'] },
+          type: {
+            type: 'string',
+            enum: ['user', 'org_membership_level', 'role', 'position', 'team', 'department', 'manager', 'field', 'queue'],
+            // `role` still parses (a 15.x flow must keep loading) but is not
+            // offered for new authoring — ADR-0090 D3.
+            xEnumDeprecated: ['role'],
+          },
           value: {
             description: 'User id / membership tier / position / team / department / field / queue — per `type`',
             type: 'string',
             xRef: {
               kindFrom: 'type',
               objectSource: '$trigger',
-              map: { user: 'user', role: 'role', position: 'position', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
+              // Mirrors @objectstack/spec approval.zod.ts: both the canonical
+              // spelling and its deprecated `role` alias point at the same
+              // picker kind (ADR-0090 D3).
+              map: { user: 'user', org_membership_level: 'org-membership-level', role: 'org-membership-level', position: 'position', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
             },
           },
         },
@@ -103,14 +112,21 @@ describe('jsonSchemaToFlowFields', () => {
     expect(colKeys).toEqual(['type', 'value']);
     const typeCol = approvers.columns!.find((c) => c.key === 'type')!;
     expect(typeCol.kind).toBe('select');
-    expect(typeCol.options!.map((o) => o.value)).toEqual(['user', 'role', 'position', 'team', 'department', 'manager', 'field', 'queue']);
+    // `role` is dropped from the OPTIONS (xEnumDeprecated) while staying in the
+    // enum: the designer must not hand an author the deprecated spelling, which
+    // reads as "the old name for position" and silently routes to nobody.
+    expect(typeCol.options!.map((o) => o.value)).toEqual(['user', 'org_membership_level', 'position', 'team', 'department', 'manager', 'field', 'queue']);
+    expect(typeCol.options!.map((o) => o.value)).not.toContain('role');
     const valueCol = approvers.columns!.find((c) => c.key === 'value')!;
-    // Polymorphic reference: the picker follows the row's `type`.
+    // Polymorphic reference: the picker follows the row's `type`. The
+    // deprecated `role` discriminator survives and resolves to the SAME picker
+    // kind as the canonical spelling — a flow authored on 15.x must keep
+    // rendering for the length of its deprecation window (ADR-0090 D3).
     expect(valueCol.kind).toBe('reference');
     expect(valueCol.ref).toEqual({
       kindFrom: 'type',
       objectSource: '$trigger',
-      map: { user: 'user', role: 'role', position: 'position', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
+      map: { user: 'user', org_membership_level: 'org-membership-level', role: 'org-membership-level', position: 'position', team: 'team', department: 'department', field: 'object-field', queue: 'queue' },
     });
     expect(valueCol.placeholder).toBe('User id / membership tier / position / team / department / field / queue — per `type`');
   });

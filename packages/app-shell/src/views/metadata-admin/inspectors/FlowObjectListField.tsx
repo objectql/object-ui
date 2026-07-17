@@ -13,7 +13,10 @@
 
 import * as React from 'react';
 import { Plus, X } from 'lucide-react';
-import { Button, Input, Label, Checkbox } from '@object-ui/components';
+import {
+  Button, Input, Label, Checkbox,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@object-ui/components';
 import { uniqueId } from './_shared';
 import type { FlowConfigColumn } from './flow-node-config';
 import { ReferenceCombobox, resolveRefKind, type FlowReferenceContext } from './FlowReferenceField';
@@ -192,6 +195,51 @@ export function FlowObjectListField({
                         showHint={false}
                       />
                     </div>
+                  ) : col.kind === 'select' ? (
+                    (() => {
+                      const current =
+                        typeof row.values[col.key] === 'string' ? (row.values[col.key] as string) : '';
+                      const opts = col.options ?? [];
+                      // A stored value dropped from the options (a deprecated
+                      // enum member, e.g. the `role` approver type per
+                      // ADR-0090 D3) must still render, or editing a legacy row
+                      // would silently blank it. Surface it as selectable but
+                      // flag it — it is not offered to fresh rows.
+                      const shown =
+                        current && !opts.some((o) => o.value === current)
+                          ? [...opts, { value: current, label: `${current} (deprecated)` }]
+                          : opts;
+                      return (
+                        <div className="flex-1">
+                          <Select
+                            value={current || undefined}
+                            onValueChange={(v) =>
+                              setRows((rs) => {
+                                const next = rs.map((r) =>
+                                  r.id === row.id
+                                    ? { ...r, values: { ...r.values, [col.key]: v } }
+                                    : r,
+                                );
+                                flush(next);
+                                return next;
+                              })
+                            }
+                            disabled={disabled}
+                          >
+                            <SelectTrigger className="h-8 w-full text-xs">
+                              <SelectValue placeholder={col.placeholder ?? '—'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {shown.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                  {o.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })()
                   ) : col.kind === 'expression' ? (
                     <div className="flex-1 space-y-1">
                       <VariableTextInput

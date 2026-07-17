@@ -54,7 +54,6 @@ interface Option {
 const KIND_TO_META_TYPE: Partial<Record<ReferenceKind, string>> = {
   object: 'object',
   flow: 'flow',
-  role: 'role',
   position: 'position',
   user: 'user',
   team: 'team',
@@ -63,6 +62,20 @@ const KIND_TO_META_TYPE: Partial<Record<ReferenceKind, string>> = {
   connector: 'connector',
   'email-template': 'email_template',
 };
+
+/**
+ * better-auth org-membership tiers. `org-membership-level` is intentionally NOT
+ * in {@link KIND_TO_META_TYPE}: it used to map to `client.list('role')`, but
+ * ADR-0090 D3 removed the `role` metadata type, so that call returned nothing
+ * and the picker silently degraded to a free-text box — which is how
+ * `sales_manager` got typed into a field that only ever accepts these three.
+ * The tier is a closed enum, so the options are supplied here instead.
+ */
+const ORG_MEMBERSHIP_LEVEL_OPTIONS: Option[] = [
+  { value: 'owner', label: 'Owner' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'member', label: 'Member' },
+];
 
 /** A concrete (non-polymorphic) reference resolution. */
 export interface ResolvedRef {
@@ -320,6 +333,7 @@ export function ReferenceCombobox({ resolved, value, onCommit, onBlur, disabled,
     }
     if (kind === 'connector-action') return connectorActionOptions;
     if (kind === 'connector') return connectorListOptions;
+    if (kind === 'org-membership-level') return ORG_MEMBERSHIP_LEVEL_OPTIONS;
     if (kind === 'node') {
       const nodes = Array.isArray(ctx.draft.nodes) ? (ctx.draft.nodes as Array<Record<string, unknown>>) : [];
       const currentId = typeof ctx.node?.id === 'string' ? ctx.node.id : undefined;
