@@ -11,7 +11,7 @@ import { getSharedDiscovery } from '@object-ui/data-objectstack';
 import { AuthProvider } from '@object-ui/auth';
 import type { PreviewModeOptions } from '@object-ui/auth';
 import { LoadingScreen } from './LoadingScreen';
-import type { DiscoveryInfo } from '@object-ui/react';
+import { isServiceUsable, type DiscoveryInfo } from '@object-ui/react';
 
 interface ConditionalAuthWrapperProps {
   children: ReactNode;
@@ -73,7 +73,7 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
           return body;
         } catch (e) {
           if ((e as Error).name === 'AbortError') {
-            throw new Error('timeout');
+            throw new Error('timeout', { cause: e });
           }
           throw e;
         } finally {
@@ -101,7 +101,15 @@ export function ConditionalAuthWrapper({ children, authUrl }: ConditionalAuthWra
         });
         setAuthEnabled(false);
       } else {
-        const isAuthEnabled = discovery?.services?.auth?.enabled ?? true;
+        // ADR-0076 D12 (honest capabilities): trust the 15.1+ signals when
+        // present — a `stub` or `handlerReady:false` auth service must NOT
+        // wrap the app in a real AuthProvider (login against a dev fake).
+        // Pre-15.1 servers carry none of these fields → historical default
+        // (enabled) is preserved by isServiceUsable.
+        const isAuthEnabled = isServiceUsable(discovery?.services?.auth);
+        if (discovery?.services?.auth?.status === 'degraded') {
+          console.warn('[ConditionalAuthWrapper] auth service reports degraded — keeping auth enabled (it still serves).');
+        }
         setAuthEnabled(isAuthEnabled);
       }
       setIsLoading(false);

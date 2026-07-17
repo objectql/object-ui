@@ -323,7 +323,11 @@ export function PackageDetailSheet({
     run(
       'publish-drafts',
       () =>
-        apiJson<{ publishedCount?: number; failedCount?: number; failed?: Array<{ name?: string }> }>(
+        apiJson<{
+          publishedCount?: number;
+          failedCount?: number;
+          failed?: Array<{ type?: string; name?: string; error?: string; code?: string }>;
+        }>(
           `${API}/${encodeURIComponent(id)}/publish-drafts`,
           { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
         ).then(async (r) => {
@@ -336,6 +340,19 @@ export function PackageDetailSheet({
             setDrafts([]);
           }
           if (r?.failedCount) {
+            // framework 15.1+ (ADR-0067 D2): the batch is all-or-nothing — a
+            // failure means NOTHING landed and `failed[]` marks the rolled-back
+            // drafts `batch_aborted`, with the causal item carrying the real
+            // error. Say "rolled back because X", not "{n} failed" (which reads
+            // as a partial publish that no longer exists).
+            const failedList = Array.isArray(r.failed) ? r.failed : [];
+            const causal = failedList.find((f) => f?.code !== 'batch_aborted' && f?.error);
+            if (failedList.some((f) => f?.code === 'batch_aborted')) {
+              throw new Error(tFormat('engine.packages.detail.publishDraftsRolledBack', locale, {
+                cause: causal ? `${causal.type ?? '?'}/${causal.name ?? '?'}: ${causal.error}` : String(r.failedCount),
+              }));
+            }
+            // pre-15.1 server — genuine partial publish.
             throw new Error(tFormat('engine.packages.detail.publishDraftsPartial', locale, {
               published: r.publishedCount ?? 0,
               failed: r.failedCount,

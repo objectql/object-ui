@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { Package as PackageIcon, Sparkles as SparklesIcon } from 'lucide-react';
 import { useAdapter } from '../../providers/AdapterProvider';
 import { useMetadata } from '../../providers/MetadataProvider';
+import { formatPublishFailures, type PublishFailure } from '../../views/studio-design/metadataError';
 import { resolveI18nLabel } from '../../utils';
 import { ExcelImportBar } from './ExcelImportBar';
 import {
@@ -2109,8 +2110,17 @@ export function ChatPane({
             if (!res.ok || payload?.success === false) {
               throw new Error(payload?.error?.message || `HTTP ${res.status}`);
             }
-            const failed = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
-            if (failed) throw new Error(String(failed));
+            const failedCount = payload?.data?.failedCount ?? payload?.failedCount ?? 0;
+            if (failedCount) {
+              // framework 15.1+ (ADR-0067 D2): a failed batch is ALL-OR-NOTHING
+              // (rolled back, nothing landed); `failed[]` carries the causal
+              // item plus batch_aborted markers. Surface the reason — the old
+              // `String(failedCount)` produced a toast that read just "3".
+              const failedList = (payload?.data?.failed ?? payload?.failed ?? []) as PublishFailure[];
+              throw new Error(
+                failedList.length > 0 ? formatPublishFailures(failedList) : String(failedCount),
+              );
+            }
             // Surface a seed-load problem (reported under `seedApplied`, never
             // thrown) so "Published!" can't hide silently empty tables.
             const seedApplied = payload?.data?.seedApplied ?? payload?.seedApplied;
