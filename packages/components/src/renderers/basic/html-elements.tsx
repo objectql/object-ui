@@ -21,9 +21,11 @@
  * neutralizes `javascript:`/`data:` URLs on `<a href>`.
  */
 
-import { ComponentRegistry } from '@object-ui/core';
+import { ComponentRegistry, type ActionResult } from '@object-ui/core';
+import { ActionCtxReact } from '@object-ui/react';
 import { renderChildren } from '../../lib/utils';
-import { createElement, forwardRef } from 'react';
+import { createElement, forwardRef, useContext } from 'react';
+import type { MouseEventHandler } from 'react';
 
 type AnyProps = { schema: any; className?: string; [key: string]: any };
 
@@ -70,6 +72,34 @@ function sanitizeHref(value: unknown): string | undefined {
   return v;
 }
 
+/**
+ * Resolve an authored href to an app-root-absolute path (`/apps/...`) when it
+ * is an internal SPA link, or null when the browser should handle it natively
+ * (scheme-qualified, protocol-relative, or in-page fragment links).
+ *
+ * Authored pages write app-root-relative hrefs (`apps/<app>/<object>`,
+ * `docs/<name>`). A raw `<a>` resolves those against `document.baseURI`,
+ * which only lands on the app root when the host injected a matching `<base>`
+ * tag — without one (root-mounted consoles, vite dev) the browser nests the
+ * path under the current page URL and 404s (objectui#2638). Routing internal
+ * links through the SPA's navigation handler makes them deployment-agnostic.
+ */
+function toInternalPath(href: unknown): string | null {
+  if (typeof href !== 'string' || href.trim().length === 0) return null;
+  const v = href.trim();
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return null; // http:, https:, mailto:, tel:, …
+  if (v.startsWith('//')) return null; // protocol-relative external
+  if (v.startsWith('#')) return null; // in-page fragment
+  try {
+    // Resolve ./ and ../ segments against a synthetic root so the result is
+    // app-root-absolute regardless of the current page path.
+    const u = new URL(v, 'https://internal.invalid/');
+    return u.pathname + u.search + u.hash;
+  } catch {
+    return null;
+  }
+}
+
 for (const tag of TAGS) {
   const isVoid = VOID_TAGS.has(tag);
   const Component = forwardRef<HTMLElement, AnyProps>(({ schema, className, ...props }, ref) => {
@@ -91,12 +121,41 @@ for (const tag of TAGS) {
     }
     if (tag === 'a' && 'href' in safe) safe.href = sanitizeHref(safe.href);
 
+    // Internal links navigate through the SPA router (via the url action's
+    // navigation handler) instead of a raw browser navigation, so they no
+    // longer depend on a host-injected <base> tag (objectui#2638). Modified
+    // clicks, new-tab targets, fragments, and external URLs keep native
+    // behavior; without an ActionProvider the anchor stays untouched.
+    const actionCtx = useContext(ActionCtxReact);
+    let onClick: MouseEventHandler | undefined;
+    if (tag === 'a' && actionCtx) {
+      const path = toInternalPath(safe.href);
+      const linkTarget = typeof safe.target === 'string' ? safe.target : '';
+      if (path && (!linkTarget || linkTarget === '_self')) {
+        onClick = (e) => {
+          if (e.defaultPrevented || e.button !== 0) return;
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          // The url action keeps SPA-vs-full-page semantics (`/api/` paths
+          // escape the router); with no navigation handler wired it reports
+          // the redirect back for us to follow. Success toasts are suppressed
+          // — following a link is not a feedback-worthy "action".
+          void actionCtx.runner
+            .execute({ type: 'url', target: path, toast: { showOnSuccess: false } })
+            .then((r: ActionResult) => {
+              if (r?.success && r.redirect) window.location.assign(r.redirect);
+            });
+        };
+      }
+    }
+
     return createElement(
       tag,
       {
         ref,
         className,
         ...safe,
+        ...(onClick ? { onClick } : {}),
         'data-obj-id': dataObjId,
         'data-obj-type': dataObjType,
         style,
