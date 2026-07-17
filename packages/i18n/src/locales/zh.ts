@@ -1705,6 +1705,11 @@ const zh = {
       signUpText: '注册',
       signingIn: '正在登录…',
       ssoHandoff: '继续前往 {{target}}',
+      devAdminHint: {
+        title: '开发实例',
+        body: '可使用内置的开发管理员登录：',
+        dismiss: '关闭',
+      },
       errors: {
         invalidCredentials: '邮箱或密码错误，请重试。',
         emailNotVerified: '请先验证您的邮箱后再登录。',

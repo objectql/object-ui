@@ -44,6 +44,8 @@ function withConsoleBase(path: string): string {
   return base + (path.startsWith('/') ? path : `/${path}`);
 }
 
+const DEV_HINT_DISMISSED_KEY = 'os.console.devAdminHintDismissed';
+
 function RouterLink(props: { href: string; className?: string; children: React.ReactNode }) {
   return (
     <Link to={props.href} className={props.className}>
@@ -67,6 +69,30 @@ export function LoginPage() {
   } = useAuth();
 
   const [signUpDisabled, setSignUpDisabled] = useState(false);
+  // Dev-only seeded-admin hint (15.1 third-party eval): the runtime seeds
+  // admin@objectos.ai on an empty dev DB, but nothing on this page said so —
+  // new users clicked "Sign up" and landed in an empty non-admin workspace.
+  // The server reports the credentials via /auth/config `devSeedAdmin` ONLY
+  // in development while the account still carries the default password, so
+  // production can never render this. Dismissal is remembered per browser.
+  const [devSeedAdmin, setDevSeedAdmin] = useState<{ email: string; password?: string } | null>(
+    null,
+  );
+  const [devHintDismissed, setDevHintDismissed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(DEV_HINT_DISMISSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const dismissDevHint = () => {
+    setDevHintDismissed(true);
+    try {
+      window.localStorage.setItem(DEV_HINT_DISMISSED_KEY, '1');
+    } catch {
+      /* private mode — hide for this session only */
+    }
+  };
   const [autoSelectingOrg, setAutoSelectingOrg] = useState(false);
   // The OAuth hand-off fetch must fire at most once even though the post-login
   // effect re-runs as org state settles (it navigates away on success).
@@ -111,16 +137,27 @@ export function LoginPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Read public auth config once to know whether sign-up is gated off.
+  // Read public auth config once to know whether sign-up is gated off and
+  // whether the dev-seeded admin credentials should be surfaced.
   useEffect(() => {
     let cancelled = false;
     getAuthConfig()
       .then((cfg) => {
         if (cancelled) return;
         setSignUpDisabled(cfg?.emailPassword?.disableSignUp === true);
+        const seed = (cfg as { devSeedAdmin?: { email?: unknown; password?: unknown } } | null)
+          ?.devSeedAdmin;
+        setDevSeedAdmin(
+          seed && typeof seed.email === 'string'
+            ? {
+                email: seed.email,
+                password: typeof seed.password === 'string' ? seed.password : undefined,
+              }
+            : null,
+        );
       })
       .catch(() => {
-        /* leave default (false) — server-side gate is the source of truth */
+        /* leave defaults — server-side gate is the source of truth */
       });
     return () => {
       cancelled = true;
@@ -225,6 +262,46 @@ export function LoginPage() {
                 defaultValue: `Continue to ${ssoTarget}`,
               })}
             </span>
+          </div>
+        ) : null}
+        {devSeedAdmin && !devHintDismissed ? (
+          <div
+            role="status"
+            data-testid="dev-admin-hint"
+            className="flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
+          >
+            <span className="mt-0.5 inline-block size-2 shrink-0 rounded-full bg-amber-500" />
+            <div className="flex-1">
+              <div className="font-medium">
+                {t('auth.login.devAdminHint.title', { defaultValue: 'Development instance' })}
+              </div>
+              <div className="text-muted-foreground">
+                {t('auth.login.devAdminHint.body', {
+                  defaultValue: 'Sign in with the seeded dev admin:',
+                })}{' '}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                  {devSeedAdmin.email}
+                </code>
+                {devSeedAdmin.password ? (
+                  <>
+                    {' / '}
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+                      {devSeedAdmin.password}
+                    </code>
+                  </>
+                ) : null}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissDevHint}
+              aria-label={t('auth.login.devAdminHint.dismiss', { defaultValue: 'Dismiss' })}
+              className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5 fill-current">
+                <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
+              </svg>
+            </button>
           </div>
         ) : null}
         <Card className="border-border/60 px-4 py-8 shadow-sm shadow-primary/5 backdrop-blur supports-[backdrop-filter]:bg-card/95">
