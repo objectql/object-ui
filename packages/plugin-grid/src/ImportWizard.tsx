@@ -166,6 +166,12 @@ const IMPORT_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'grid.import.required': 'Required',
   'grid.import.invalidType': 'Invalid {{type}}',
   'grid.import.legacyReferenceBlocked': 'Import blocked: {{fields}} are relation fields that need the server import route to resolve names into record IDs, and this connection doesn’t support it. Importing them as plain text would corrupt the data. Upgrade the backend/client, or unmap these columns and import them separately.',
+  // Shown in the mapping step when a required field has no column mapped — the
+  // reason the Next button is disabled. Field names are listed as `label (name)`.
+  'grid.import.missingRequiredHint': 'Can’t continue — required field(s) not mapped: {{fields}}. Add a matching column to your file, or go back and upload one that includes it.',
+  // Shown on the completion screen when the import ran via the legacy per-row
+  // fallback (server `/import` route unavailable) — no server-side coercion.
+  'grid.import.legacyFallbackNotice': 'Imported via a compatibility fallback: this connection doesn’t support the server import route, so values were saved as text without server-side type coercion. Upgrade the backend/client for full import support (type coercion and relation lookups).',
 };
 
 /** Apply `{{var}}` interpolation to a translation template. */
@@ -303,6 +309,11 @@ export interface ImportResult {
   resultsTruncated?: boolean;
   /** True when the user cancelled an in-flight async import job. */
   cancelled?: boolean;
+  /** True when the import ran via the legacy per-row `create` fallback because
+   *  the server `/import` route was unavailable — values are written as-is,
+   *  with no server-side type coercion or reference resolution. Surfaced on the
+   *  completion screen so a silent downgrade never passes for a full import. */
+  degraded?: boolean;
 }
 
 type WizardStep = 'upload' | 'mapping' | 'preview';
@@ -960,7 +971,10 @@ const StepMapping: React.FC<{
   activeMapping: SavedMapping | null;
   onSelectSavedMapping: (name: string) => void;
   onClearSavedMapping: () => void;
-}> = ({ headers, fields, mapping, onMappingChange, inferredTypes, suggestions, templates, selectedTemplateId, onSelectTemplate, onSaveTemplate, onDeleteTemplate, savedMappings, activeMapping, onSelectSavedMapping, onClearSavedMapping }) => {
+  /** Required fields with no column mapped — surfaced as an inline hint so the
+   *  disabled Next button always explains itself. */
+  missingRequired: ImportWizardProps['fields'];
+}> = ({ headers, fields, mapping, onMappingChange, inferredTypes, suggestions, templates, selectedTemplateId, onSelectTemplate, onSaveTemplate, onDeleteTemplate, savedMappings, activeMapping, onSelectSavedMapping, onClearSavedMapping, missingRequired }) => {
   const { t } = useImportTranslation();
   const usedFields = useMemo(() => new Set(Object.values(mapping)), [mapping]);
   const suggestionByCol = useMemo(() => {
@@ -1070,6 +1084,21 @@ const StepMapping: React.FC<{
         </TableBody>
       </Table>
       </div>
+      {missingRequired.length > 0 && (
+        <div
+          className="mt-3 flex items-start gap-2 rounded-md border border-amber-400/40 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+          data-testid="import-missing-required"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {t('grid.import.missingRequiredHint', {
+              fields: missingRequired
+                .map((f) => (f.label && f.label !== f.name ? `${f.label} (${f.name})` : f.name))
+                .join(', '),
+            })}
+          </span>
+        </div>
+      )}
       </>
       )}
     </div>
@@ -1756,7 +1785,10 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
       }
       setProgress(Math.round(((i + 1) / rows.length) * 100));
     }
-    const importResult: ImportResult = { totalRows: rows.length, importedRows, skippedRows, errors };
+    // `degraded`: this per-row path ran because the server `/import` route was
+    // unavailable — flag it so the completion screen tells the user the import
+    // was downgraded (no server-side coercion) instead of reporting a clean win.
+    const importResult: ImportResult = { totalRows: rows.length, importedRows, skippedRows, errors, degraded: true };
     setResult(importResult); setImporting(false); onComplete?.(importResult);
   }, [rows, mapping, fields, dataSource, objectName, onComplete, onErrorMode, corrections, t]);
 
@@ -2092,6 +2124,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
                 activeMapping={activeMapping}
                 onSelectSavedMapping={handleSelectSavedMapping}
                 onClearSavedMapping={handleClearSavedMapping}
+                missingRequired={missingRequired}
               />
             )}
             {step === 'preview' && (
@@ -2234,6 +2267,15 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
               )}
               {result.skippedRows > 0 && <Badge variant="destructive">{t('grid.import.skippedCount', { count: result.skippedRows })}</Badge>}
             </div>
+            {result.degraded && !result.cancelled && (
+              <div
+                className="flex w-full items-start gap-2 rounded-md border border-amber-400/40 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+                data-testid="import-degraded-notice"
+              >
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{t('grid.import.legacyFallbackNotice')}</span>
+              </div>
+            )}
             {renderResultExtra && (
               <div className="w-full" data-testid="import-result-extra">{renderResultExtra(result)}</div>
             )}

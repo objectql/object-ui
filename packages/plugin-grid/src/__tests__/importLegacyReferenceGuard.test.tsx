@@ -77,3 +77,21 @@ describe('ImportWizard legacy fallback: relation columns', () => {
     expect(onComplete.mock.calls[0][0].importedRows).toBe(1);
   });
 });
+
+describe('ImportWizard legacy fallback: downgrade is not silent (issue #2639)', () => {
+  it('flags the result degraded and shows a downgrade notice on the scalar path', async () => {
+    const create = vi.fn().mockResolvedValue({ id: '1' });
+    const onComplete = vi.fn();
+    // Scalar-only columns → the fallback runs (no importRecords) and succeeds,
+    // but the user must be told the server import route was unavailable.
+    await runWizardImport('Name\nAcme', { create }, onComplete);
+
+    await waitFor(() => expect(onComplete).toHaveBeenCalled());
+    expect(create).toHaveBeenCalledTimes(1);
+    // The result carries the downgrade flag...
+    expect(onComplete.mock.calls[0][0].degraded).toBe(true);
+    // ...and the completion screen surfaces it rather than reporting a clean win.
+    expect(screen.getByTestId('import-degraded-notice')).toBeInTheDocument();
+    expect(screen.getByText(/compatibility fallback/i)).toBeInTheDocument();
+  });
+});
