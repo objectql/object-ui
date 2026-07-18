@@ -513,6 +513,24 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
     });
   }
 
+  // objectui#2600 B4 — field-level bulk over the fields currently VISIBLE in the
+  // sub-table (i.e. after the field filter), mirroring the per-object row's
+  // read/all/none shortcuts. `readable` sets read-only, `writable` grants R+W,
+  // `clear` drops the explicit overrides so those fields fall back to default.
+  function bulkSetFields(objectName: string, action: 'readable' | 'writable' | 'clear', fieldNames: string[]) {
+    if (fieldNames.length === 0) return;
+    setDraft((prev) => {
+      const fields = { ...(prev.fields ?? {}) };
+      for (const fieldName of fieldNames) {
+        const key = `${objectName}.${fieldName}`;
+        if (action === 'clear') delete fields[key];
+        else if (action === 'readable') fields[key] = { readable: true, editable: false };
+        else fields[key] = { readable: true, editable: true };
+      }
+      return { ...prev, fields };
+    });
+  }
+
   /**
    * Re-narrow a freshly-read full permission set to this package's slice for
    * display. No-op at environment scope (no `packageId`).
@@ -815,6 +833,7 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             onObjectPerm={updateObjectPerm}
             onFieldPerm={updateFieldPerm}
             onBulkSet={bulkSetObject}
+            onFieldBulk={bulkSetFields}
             onOpenOwd={onOpenOwd}
           />
           {/* Advanced facets (ADR-0056 P3) — RLS / tab visibility / delegated
@@ -909,6 +928,8 @@ interface PermissionTableProps {
   onObjectPerm: (objectName: string, action: keyof ObjectPerm, value: boolean) => void;
   onFieldPerm: (objectName: string, fieldName: string, action: keyof FieldPerm, value: boolean) => void;
   onBulkSet: (objectName: string, action: 'all' | 'none' | 'crud' | 'read') => void;
+  /** objectui#2600 B4 — field-level bulk over the filtered field set. */
+  onFieldBulk: (objectName: string, action: 'readable' | 'writable' | 'clear', fieldNames: string[]) => void;
   /** objectui#2505 — when set, the OWD badge links to the package OWD overview. */
   onOpenOwd?: (objectName: string) => void;
 }
@@ -925,6 +946,7 @@ function PermissionTable({
   onObjectPerm,
   onFieldPerm,
   onBulkSet,
+  onFieldBulk,
   onOpenOwd,
 }: PermissionTableProps) {
   return (
@@ -1078,6 +1100,7 @@ function PermissionTable({
                       writable={writable}
                       t={t}
                       onFieldPerm={onFieldPerm}
+                      onFieldBulk={onFieldBulk}
                     />
                   </td>
                 </tr>
@@ -1097,6 +1120,7 @@ function FieldsSubTable({
   writable,
   t,
   onFieldPerm,
+  onFieldBulk,
 }: {
   objectName: string;
   fields: FieldSummary[] | undefined;
@@ -1104,7 +1128,11 @@ function FieldsSubTable({
   writable: boolean;
   t: (key: string) => string;
   onFieldPerm: (objectName: string, fieldName: string, action: keyof FieldPerm, value: boolean) => void;
+  onFieldBulk: (objectName: string, action: 'readable' | 'writable' | 'clear', fieldNames: string[]) => void;
 }) {
+  // objectui#2600 B4 — filter fields and bulk-apply over the visible set, so
+  // wide objects (dozens of fields) aren't two-checkboxes-at-a-time tedious.
+  const [fieldFilter, setFieldFilter] = React.useState('');
   if (!fields) {
     return (
       <div className="text-xs text-muted-foreground flex items-center gap-2">
@@ -1115,47 +1143,105 @@ function FieldsSubTable({
   if (fields.length === 0) {
     return <div className="text-xs text-muted-foreground">{t('perm.field.empty')}</div>;
   }
+  const q = fieldFilter.trim().toLowerCase();
+  const visible = q
+    ? fields.filter((f) => f.name.toLowerCase().includes(q) || (f.label ?? '').toLowerCase().includes(q))
+    : fields;
+  const visibleNames = visible.map((f) => f.name);
   return (
-    <table className="w-full text-xs">
-      <thead>
-        <tr className="text-muted-foreground">
-          <th className="text-left py-1 font-medium">{t('perm.field.col.name')}</th>
-          <th className="px-2 py-1 font-medium w-16 text-center" title={t('perm.field.read')}>{t('perm.field.read')}</th>
-          <th className="px-2 py-1 font-medium w-16 text-center" title={t('perm.field.edit')}>{t('perm.field.edit')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {fields.map((f) => {
-          const key = `${objectName}.${f.name}`;
-          const cur = fieldsState[key] ?? { readable: true, editable: false };
-          return (
-            <tr key={f.name} className="border-t border-muted">
-              <td className="py-1">
-                {f.label ?? f.name}
-                {f.label && (
-                  <span className="ml-1 text-muted-foreground">({f.name})</span>
-                )}
-              </td>
-              <td className="px-2 py-1 text-center">
-                <Checkbox
-                  checked={!!cur.readable}
-                  disabled={!writable}
-                  onCheckedChange={(v) => onFieldPerm(objectName, f.name, 'readable', !!v)}
-                  aria-label={`${objectName}.${f.name} readable`}
-                />
-              </td>
-              <td className="px-2 py-1 text-center">
-                <Checkbox
-                  checked={!!cur.editable}
-                  disabled={!writable}
-                  onCheckedChange={(v) => onFieldPerm(objectName, f.name, 'editable', !!v)}
-                  aria-label={`${objectName}.${f.name} editable`}
-                />
-              </td>
+    <div className="space-y-2">
+      {/* Field toolbar (B4): filter + bulk over the visible field set. The
+          filter only appears once one-by-one would actually hurt. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {fields.length > 6 && (
+          <Input
+            value={fieldFilter}
+            onChange={(e) => setFieldFilter(e.target.value)}
+            placeholder={t('perm.field.filter')}
+            aria-label={t('perm.field.filter')}
+            className="h-7 w-44 text-xs"
+          />
+        )}
+        {writable && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-xs"
+              disabled={visibleNames.length === 0}
+              onClick={() => onFieldBulk(objectName, 'readable', visibleNames)}
+            >
+              {t('perm.field.bulk.readable')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-xs"
+              disabled={visibleNames.length === 0}
+              onClick={() => onFieldBulk(objectName, 'writable', visibleNames)}
+            >
+              {t('perm.field.bulk.writable')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-xs"
+              disabled={visibleNames.length === 0}
+              onClick={() => onFieldBulk(objectName, 'clear', visibleNames)}
+            >
+              {t('perm.field.bulk.clear')}
+            </Button>
+          </div>
+        )}
+        <span className="ml-auto text-[11px] text-muted-foreground">
+          {visible.length} / {fields.length}
+        </span>
+      </div>
+      {visible.length === 0 ? (
+        <div className="text-xs text-muted-foreground">{t('perm.field.filterEmpty')}</div>
+      ) : (
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-muted-foreground">
+              <th className="text-left py-1 font-medium">{t('perm.field.col.name')}</th>
+              <th className="px-2 py-1 font-medium w-16 text-center" title={t('perm.field.read')}>{t('perm.field.read')}</th>
+              <th className="px-2 py-1 font-medium w-16 text-center" title={t('perm.field.edit')}>{t('perm.field.edit')}</th>
             </tr>
-          );
-        })}
-      </tbody>
-    </table>
+          </thead>
+          <tbody>
+            {visible.map((f) => {
+              const key = `${objectName}.${f.name}`;
+              const cur = fieldsState[key] ?? { readable: true, editable: false };
+              return (
+                <tr key={f.name} className="border-t border-muted">
+                  <td className="py-1">
+                    {f.label ?? f.name}
+                    {f.label && (
+                      <span className="ml-1 text-muted-foreground">({f.name})</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1 text-center">
+                    <Checkbox
+                      checked={!!cur.readable}
+                      disabled={!writable}
+                      onCheckedChange={(v) => onFieldPerm(objectName, f.name, 'readable', !!v)}
+                      aria-label={`${objectName}.${f.name} readable`}
+                    />
+                  </td>
+                  <td className="px-2 py-1 text-center">
+                    <Checkbox
+                      checked={!!cur.editable}
+                      disabled={!writable}
+                      onCheckedChange={(v) => onFieldPerm(objectName, f.name, 'editable', !!v)}
+                      aria-label={`${objectName}.${f.name} editable`}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
