@@ -169,7 +169,7 @@ export class ExpressionEvaluator {
       // Execute with context values
       return compiled.fn(...varValues);
     } catch (error) {
-      throw new Error(`Failed to evaluate expression "${expression}": ${(error as Error).message}`, { cause: error });
+      throw new Error(`Failed to evaluate expression "${expression}": ${(error as Error).message}`);
     }
   }
 
