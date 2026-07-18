@@ -1,4 +1,12 @@
 const de = {
+  // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
+  capability: {
+    group: {
+      platform: 'Plattform',
+      org: 'Organisation',
+      other: 'Andere',
+    },
+  },
   lookup: {
     recentlyUsed: 'Zuletzt verwendet',
     allResults: 'Alle Ergebnisse',

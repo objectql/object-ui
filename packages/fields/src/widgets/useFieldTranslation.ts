@@ -39,6 +39,10 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'lookup.nextPage': 'Next page',
   'lookup.jumpToPage': 'Jump to page',
   'lookup.retry': 'Retry',
+  // objectui#2600 B5 — capability picker scope group headers.
+  'capability.group.platform': 'Platform',
+  'capability.group.org': 'Organization',
+  'capability.group.other': 'Other',
 };
 
 export const useFieldTranslation = createSafeTranslation(

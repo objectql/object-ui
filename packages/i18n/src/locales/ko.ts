@@ -1,4 +1,12 @@
 const ko = {
+  // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
+  capability: {
+    group: {
+      platform: '플랫폼',
+      org: '조직',
+      other: '기타',
+    },
+  },
   lookup: {
     recentlyUsed: '최근 사용',
     allResults: '모든 결과',

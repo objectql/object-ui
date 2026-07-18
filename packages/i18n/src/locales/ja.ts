@@ -1,4 +1,12 @@
 const ja = {
+  // objectui#2600 B5 — capability picker scope group headers (labels come from the sys_capability registry).
+  capability: {
+    group: {
+      platform: 'プラットフォーム',
+      org: '組織',
+      other: 'その他',
+    },
+  },
   lookup: {
     recentlyUsed: '最近使用したもの',
     allResults: 'すべての結果',

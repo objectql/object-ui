@@ -2,6 +2,15 @@
  * English (en) - Default language pack for Object UI
  */
 const en = {
+  // objectui#2600 B5 — capability picker scope group headers (labels come from
+  // the sys_capability registry; only these group titles are UI strings).
+  capability: {
+    group: {
+      platform: 'Platform',
+      org: 'Organization',
+      other: 'Other',
+    },
+  },
   lookup: {
     recentlyUsed: 'Recently used',
     allResults: 'All results',

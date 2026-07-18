@@ -2,6 +2,15 @@
  * 中文 (zh) - Chinese language pack for Object UI
  */
 const zh = {
+  // objectui#2600 B5 — 能力选择器的作用域分组标题(能力标签本身来自
+  // sys_capability 注册表,这里只本地化分组标题这类 UI 字符串)。
+  capability: {
+    group: {
+      platform: '平台',
+      org: '组织',
+      other: '其他',
+    },
+  },
   lookup: {
     recentlyUsed: '最近使用',
     allResults: '全部结果',

@@ -3,6 +3,7 @@ import { Badge, EmptyValue, cn } from '@object-ui/components';
 import { SchemaRendererContext } from '@object-ui/react';
 import type { DataSource, QueryParams } from '@object-ui/types';
 import { FieldWidgetProps } from './types';
+import { useFieldTranslation } from './useFieldTranslation';
 
 /**
  * CapabilityMultiSelectField — structured picker for a permission set's
@@ -54,13 +55,13 @@ export function parseCapabilityNames(value: unknown): string[] {
   return [];
 }
 
-/** Scope → group header. Order is intentional (platform powers first). */
+/**
+ * Scope → group header order (platform powers first). The visible header is
+ * localized via `capability.group.<scope>` (objectui#2600 B5) — the capability
+ * *labels themselves* still come from the sys_capability registry, whose
+ * per-locale localization is tracked separately (framework).
+ */
 const SCOPE_ORDER = ['platform', 'org', 'other'] as const;
-const SCOPE_LABEL: Record<string, string> = {
-  platform: 'Platform',
-  org: 'Organization',
-  other: 'Other',
-};
 
 export function CapabilityMultiSelectField({
   value,
@@ -69,6 +70,7 @@ export function CapabilityMultiSelectField({
   className,
   ...props
 }: FieldWidgetProps<string | string[]>) {
+  const { t } = useFieldTranslation();
   const ctx = React.useContext(SchemaRendererContext);
   const dataSource: DataSource | null =
     (props as any).dataSource ?? (ctx as any)?.dataSource ?? null;
@@ -135,12 +137,12 @@ export function CapabilityMultiSelectField({
     }
     return SCOPE_ORDER.filter((s) => buckets.has(s)).map((s) => ({
       scope: s,
-      label: SCOPE_LABEL[s] ?? s,
+      label: t(`capability.group.${s}`),
       items: (buckets.get(s) ?? []).sort((a, b) =>
         (a.label || a.name).localeCompare(b.label || b.name),
       ),
     }));
-  }, [byName]);
+  }, [byName, t]);
 
   if (readonly) {
     if (selected.length === 0) return <EmptyValue />;
