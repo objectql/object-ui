@@ -251,8 +251,9 @@ describe('ObjectDefaultInspector — access section (ADR-0066 D2/D3/④/⑤)', (
     // Installed @objectstack/spec (≥ 12.7) exports
     // ObjectRequiredPermissionsSchema, so the feature-detect reveals the mode
     // toggle (progressive enhancement — hidden only when the bundled spec
-    // would reject the map shape). Let the async detect settle first.
-    await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByTestId('object-reqperms-perop')).not.toBeNull();
+    // would reject the map shape). The detect is async, so wait for the toggle
+    // to appear instead of racing a fixed timeout — a hardcoded 20ms sometimes
+    // fired before the detect settled under CI load, yielding a flaky null.
+    expect(await screen.findByTestId('object-reqperms-perop')).toBeInTheDocument();
   });
 });
