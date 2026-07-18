@@ -44,4 +44,37 @@ describe('FlowRunsPanel (render)', () => {
     // The string reason must now be in the DOM (pre-fix it was silently dropped).
     expect(await screen.findByText(/catch region failed/)).toBeTruthy();
   });
+
+  // #1505: a loop's body steps used to render as a flat, indistinguishable
+  // repeat of the same node ids. They must now nest under per-iteration headers.
+  it('nests loop body steps under per-iteration headers', async () => {
+    const LOOP_RUN = {
+      id: 'run_loop_01',
+      status: 'completed',
+      startedAt: '2026-07-04T13:51:13.000Z',
+      durationMs: 30,
+      trigger: { type: 'manual' },
+      steps: [
+        { nodeId: 'start', nodeType: 'start', status: 'success' },
+        { nodeId: 'each_order', nodeType: 'loop', status: 'success' },
+        { nodeId: 'charge', nodeType: 'http', status: 'success', parentNodeId: 'each_order', iteration: 0, regionKind: 'loop-body' },
+        { nodeId: 'charge', nodeType: 'http', status: 'success', parentNodeId: 'each_order', iteration: 1, regionKind: 'loop-body' },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ success: true, data: { runs: [LOOP_RUN] } }), { status: 200 })),
+    );
+
+    render(<FlowRunsPanel flowName="charge_orders" />);
+    fireEvent.click(await screen.findByRole('button', { expanded: false }));
+
+    // Each iteration gets its own header, so the two runs of the body are
+    // distinguishable rather than a flat repeat of `charge`.
+    expect(await screen.findByText('Iteration 1')).toBeTruthy();
+    expect(screen.getByText('Iteration 2')).toBeTruthy();
+    // The loop container renders once; its body step renders once per iteration.
+    expect(screen.getByText('each_order')).toBeTruthy();
+    expect(screen.getAllByText('charge')).toHaveLength(2);
+  });
 });

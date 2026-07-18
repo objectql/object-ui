@@ -1,7 +1,8 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchFlowRuns, errorText } from './FlowRunsPanel';
+import { fetchFlowRuns, errorText, buildStepTree, regionLabel } from './FlowRunsPanel';
+import type { StepTreeNode } from './FlowRunsPanel';
 
 const RUN = {
   id: 'run-1',
@@ -73,5 +74,93 @@ describe('errorText', () => {
     expect(errorText(null)).toBeUndefined();
     expect(errorText('')).toBeUndefined();
     expect(errorText({ code: 'E' })).toBeUndefined();
+  });
+});
+
+// ── #1505: structured-region (loop / parallel / try-catch) step grouping ──
+
+/** Compact a step tree to `nodeId(child,child…)` strings for legible asserts. */
+function outline(nodes: StepTreeNode[]): string[] {
+  return nodes.map((n) =>
+    n.children.length ? `${n.step.nodeId}(${outline(n.children).join(',')})` : n.step.nodeId,
+  );
+}
+
+describe('buildStepTree', () => {
+  it('keeps a flat top-level log flat (no regions)', () => {
+    const tree = buildStepTree([
+      { nodeId: 'start', status: 'success' },
+      { nodeId: 'notify', status: 'success' },
+    ]);
+    expect(outline(tree)).toEqual(['start', 'notify']);
+  });
+
+  it("nests a loop's body steps (across iterations) under the loop node", () => {
+    const tree = buildStepTree([
+      { nodeId: 'start', status: 'success' },
+      { nodeId: 'loop1', nodeType: 'loop', status: 'success' },
+      { nodeId: 'send', status: 'success', parentNodeId: 'loop1', iteration: 0, regionKind: 'loop-body' },
+      { nodeId: 'log', status: 'success', parentNodeId: 'loop1', iteration: 0, regionKind: 'loop-body' },
+      { nodeId: 'send', status: 'success', parentNodeId: 'loop1', iteration: 1, regionKind: 'loop-body' },
+      { nodeId: 'log', status: 'success', parentNodeId: 'loop1', iteration: 1, regionKind: 'loop-body' },
+    ]);
+    expect(outline(tree)).toEqual(['start', 'loop1(send,log,send,log)']);
+    // The per-iteration index is preserved on each child (drives the header split).
+    expect(tree[1].children.map((c) => c.step.iteration)).toEqual([0, 0, 1, 1]);
+  });
+
+  it('nests parallel branch steps under the parallel node', () => {
+    const tree = buildStepTree([
+      { nodeId: 'par', nodeType: 'parallel', status: 'success' },
+      { nodeId: 'a', status: 'success', parentNodeId: 'par', iteration: 0, regionKind: 'parallel-branch' },
+      { nodeId: 'b', status: 'success', parentNodeId: 'par', iteration: 1, regionKind: 'parallel-branch' },
+    ]);
+    expect(outline(tree)).toEqual(['par(a,b)']);
+  });
+
+  it('nests try and catch handler steps under the try_catch node', () => {
+    const tree = buildStepTree([
+      { nodeId: 'tc', nodeType: 'try_catch', status: 'success' },
+      { nodeId: 'risky', status: 'failure', parentNodeId: 'tc', regionKind: 'try' },
+      { nodeId: 'recover', status: 'success', parentNodeId: 'tc', regionKind: 'catch' },
+    ]);
+    expect(outline(tree)).toEqual(['tc(risky,recover)']);
+  });
+
+  it('reconstructs nested regions (a loop inside a loop)', () => {
+    const tree = buildStepTree([
+      { nodeId: 'outer', nodeType: 'loop', status: 'success' },
+      { nodeId: 'inner', nodeType: 'loop', status: 'success', parentNodeId: 'outer', iteration: 0, regionKind: 'loop-body' },
+      { nodeId: 'body', status: 'success', parentNodeId: 'inner', iteration: 0, regionKind: 'loop-body' },
+      { nodeId: 'inner', nodeType: 'loop', status: 'success', parentNodeId: 'outer', iteration: 1, regionKind: 'loop-body' },
+      { nodeId: 'body', status: 'success', parentNodeId: 'inner', iteration: 0, regionKind: 'loop-body' },
+    ]);
+    expect(outline(tree)).toEqual(['outer(inner(body),inner(body))']);
+  });
+
+  it('surfaces an orphaned body step (truncated history) at the top level', () => {
+    // The loop container step was dropped (e.g. by durable-history compaction);
+    // its body step must still show rather than vanish.
+    const tree = buildStepTree([
+      { nodeId: 'body', status: 'success', parentNodeId: 'gone', iteration: 3, regionKind: 'loop-body' },
+    ]);
+    expect(outline(tree)).toEqual(['body']);
+  });
+});
+
+describe('regionLabel', () => {
+  it('labels loop iterations 1-based', () => {
+    expect(regionLabel({ nodeId: 'x', status: 'success', regionKind: 'loop-body', iteration: 0 })).toBe('Iteration 1');
+    expect(regionLabel({ nodeId: 'x', status: 'success', regionKind: 'loop-body', iteration: 4 })).toBe('Iteration 5');
+  });
+  it('labels parallel branches 1-based', () => {
+    expect(regionLabel({ nodeId: 'x', status: 'success', regionKind: 'parallel-branch', iteration: 1 })).toBe('Branch 2');
+  });
+  it('labels try / catch handlers', () => {
+    expect(regionLabel({ nodeId: 'x', status: 'success', regionKind: 'try' })).toBe('Try');
+    expect(regionLabel({ nodeId: 'x', status: 'success', regionKind: 'catch' })).toBe('Catch');
+  });
+  it('is null for a top-level step (no region)', () => {
+    expect(regionLabel({ nodeId: 'x', status: 'success' })).toBeNull();
   });
 });
