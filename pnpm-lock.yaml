@@ -262,8 +262,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^14.6.0
-        version: 14.6.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^15.1.1
         version: 15.1.1(ai@7.0.22(zod@4.4.3))
@@ -686,11 +686,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^14.6.0
-        version: 14.6.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       '@objectstack/lint':
-        specifier: ^14.6.0
-        version: 14.6.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^15.1.1
         version: 15.1.1(ai@7.0.22(zod@4.4.3))
@@ -1072,8 +1072,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^14.6.0
-        version: 14.6.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
         specifier: ^15.1.1
         version: 15.1.1(ai@7.0.22(zod@4.4.3))
@@ -1134,8 +1134,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^14.6.0
-        version: 14.6.0(ai@7.0.22(zod@4.4.3))
+        specifier: ^15.1.1
+        version: 15.1.1(ai@7.0.22(zod@4.4.3))
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -3953,32 +3953,23 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@14.6.0':
-    resolution: {integrity: sha512-rBg6JuBB8mM38nT26sK4SqpSOFf+XD6T2GTj/p9nNnqVDb37X7OXU9jLdK4/6t3HoADGcZgUOuQTeDQEm+pwgw==}
+  '@objectstack/client@15.1.1':
+    resolution: {integrity: sha512-493dIHiYKLiXKBEVj7rKo7QDVjgJ1RQSDk6MCyCwZuofiSIYkwQbPRtpUpPpw9QOc9eWoUfVb2pDgyYp0nHV6Q==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/core@14.6.0':
-    resolution: {integrity: sha512-QqTAisn/SkSuz/BxhjEaX7MIf88Hh/kWJfc9qT/BGyTH7AWD0OSLD/3MJOPhfvYa2/YBeDu/cAzuEckmBuzHJQ==}
+  '@objectstack/core@15.1.1':
+    resolution: {integrity: sha512-S9kpn/BQ9Rj5ZjGjZBN4Gm3YL2UpC/07exdjOY2IKGwsQTZi1H9qbJeG6BqzRR7U1vu+ZwSya0jl62v1FRJVvQ==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/formula@14.6.0':
-    resolution: {integrity: sha512-gKycQFnytF4tRkXYQhv5WrSXslRerWqX9ckcB+uRoW4n4y1ixt8wjGsDTkkW7fkS9bDmqUQwqG9Obgbvm2WT0Q==}
+  '@objectstack/formula@15.1.1':
+    resolution: {integrity: sha512-IzEotJBuqYlnSkurczgZn3+HwV/p/FH6CYOB6XYkTRg+r/XIJB2MXxHbpzyTYtvJnP/sQDi4zHVnoNqGqmQbKQ==}
 
-  '@objectstack/lint@14.6.0':
-    resolution: {integrity: sha512-fJBV3sGxtgwARDsyEz0+/FYVCn0WxCjodnTFK8wRg4PJ9lsbjyQc3DhyofeZwp6obDYmwbD+PIM/nIRC7N9LUw==}
+  '@objectstack/lint@15.1.1':
+    resolution: {integrity: sha512-kpoJbmVvBGOIFbVH+QrCh+VcrQGjD88aTAXAt1FAJgLOvhyiEcY7wtTq/e6ui6UzsNMK7RlXDkLt2Gy0ZpaUpA==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/sdui-parser@14.6.0':
-    resolution: {integrity: sha512-TaSZ2zrlKTG7pIDdLcoHBgNRsbFGHYnZ62lOwhaYOyaIS6IQt8aULpNNMN7ykq3dLMZI4ISG70NtpPSKLlUulA==}
-
-  '@objectstack/spec@14.6.0':
-    resolution: {integrity: sha512-TW1mKomPtmTcr+dRqmkKmpJcT3MbzooF46Vil1JwSNUbjKBJSTTtG8HCsIHpQxKPUWj4uhuUVI7eX6kFF2H/xA==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      ai: ^7.0.0
-    peerDependenciesMeta:
-      ai:
-        optional: true
+  '@objectstack/sdui-parser@15.1.1':
+    resolution: {integrity: sha512-nGjhZXHcdMq8QS0IKHXZ6KFJ2SzHF6hsF1Oi8iBn7MQis+OTWwMZqXiGO0htx2YiGuB5CSvRB9dIG7rX/MKZeQ==}
 
   '@objectstack/spec@15.1.1':
     resolution: {integrity: sha512-Eto1iLtzmnh3kSzIVGPUQF9DZGE1dY3YWFm+3qRpNBFB8iSvOilLwNYVSF64D5sTobp0CZSzB1/GalzFAR1icA==}
@@ -12106,44 +12097,38 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@14.6.0(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/client@15.1.1(ai@7.0.22(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 14.6.0(ai@7.0.22(zod@4.4.3))
-      '@objectstack/spec': 14.6.0(ai@7.0.22(zod@4.4.3))
+      '@objectstack/core': 15.1.1(ai@7.0.22(zod@4.4.3))
+      '@objectstack/spec': 15.1.1(ai@7.0.22(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@14.6.0(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/core@15.1.1(ai@7.0.22(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 14.6.0(ai@7.0.22(zod@4.4.3))
+      '@objectstack/spec': 15.1.1(ai@7.0.22(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@14.6.0(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/formula@15.1.1(ai@7.0.22(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 8.0.0
-      '@objectstack/spec': 14.6.0(ai@7.0.22(zod@4.4.3))
+      '@objectstack/spec': 15.1.1(ai@7.0.22(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/lint@14.6.0(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/lint@15.1.1(ai@7.0.22(zod@4.4.3))':
     dependencies:
-      '@objectstack/formula': 14.6.0(ai@7.0.22(zod@4.4.3))
-      '@objectstack/sdui-parser': 14.6.0
-      '@objectstack/spec': 14.6.0(ai@7.0.22(zod@4.4.3))
+      '@objectstack/formula': 15.1.1(ai@7.0.22(zod@4.4.3))
+      '@objectstack/sdui-parser': 15.1.1
+      '@objectstack/spec': 15.1.1(ai@7.0.22(zod@4.4.3))
       sucrase: 3.35.1
       typescript: 6.0.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/sdui-parser@14.6.0': {}
-
-  '@objectstack/spec@14.6.0(ai@7.0.22(zod@4.4.3))':
-    dependencies:
-      zod: 4.4.3
-    optionalDependencies:
-      ai: 7.0.22(zod@4.4.3)
+  '@objectstack/sdui-parser@15.1.1': {}
 
   '@objectstack/spec@15.1.1(ai@7.0.22(zod@4.4.3))':
     dependencies:
