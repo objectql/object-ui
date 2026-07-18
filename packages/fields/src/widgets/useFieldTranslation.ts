@@ -43,6 +43,15 @@ const FIELD_DEFAULTS: Record<string, string> = {
   'capability.group.platform': 'Platform',
   'capability.group.org': 'Organization',
   'capability.group.other': 'Other',
+  // objectui#2600 B5 — curated platform capability labels (registry serves
+  // English; dots in the api-name become underscores in the key).
+  'capability.label.manage_users': 'Manage Users',
+  'capability.label.manage_org_users': 'Manage Organization Users',
+  'capability.label.manage_metadata': 'Manage Metadata',
+  'capability.label.manage_platform_settings': 'Manage Platform Settings',
+  'capability.label.setup_access': 'Setup Access',
+  'capability.label.setup_write': 'Write Settings',
+  'capability.label.studio_access': 'Studio Access',
 };
 
 export const useFieldTranslation = createSafeTranslation(

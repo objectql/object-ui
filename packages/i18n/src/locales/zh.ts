@@ -10,6 +10,16 @@ const zh = {
       org: '组织',
       other: '其他',
     },
+    // 精选平台能力标签(objectui#2600 B5)。注册表 label 为英文,这里本地化。
+    label: {
+      manage_users: '管理用户',
+      manage_org_users: '管理组织用户',
+      manage_metadata: '管理元数据',
+      manage_platform_settings: '管理平台设置',
+      setup_access: '访问 Setup',
+      setup_write: '保存设置',
+      studio_access: '访问 Studio',
+    },
   },
   lookup: {
     recentlyUsed: '最近使用',

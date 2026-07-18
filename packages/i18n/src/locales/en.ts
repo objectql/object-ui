@@ -10,6 +10,17 @@ const en = {
       org: 'Organization',
       other: 'Other',
     },
+    // Curated platform capability labels (objectui#2600 B5). Registry-served
+    // labels are English; these mirror them and give non-en locales a fallback.
+    label: {
+      manage_users: 'Manage Users',
+      manage_org_users: 'Manage Organization Users',
+      manage_metadata: 'Manage Metadata',
+      manage_platform_settings: 'Manage Platform Settings',
+      setup_access: 'Setup Access',
+      setup_write: 'Write Settings',
+      studio_access: 'Studio Access',
+    },
   },
   lookup: {
     recentlyUsed: 'Recently used',

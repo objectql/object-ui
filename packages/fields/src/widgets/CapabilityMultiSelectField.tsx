@@ -63,6 +63,23 @@ export function parseCapabilityNames(value: unknown): string[] {
  */
 const SCOPE_ORDER = ['platform', 'org', 'other'] as const;
 
+/**
+ * objectui#2600 B5 — the curated platform capabilities are a FIXED, known set
+ * whose labels the sys_capability registry serves in English. Localize just
+ * these client-side via `capability.label.<name>` (dots → underscores);
+ * package- and admin-authored capabilities keep their authored registry label.
+ * (Mirrors @objectstack/spec/security `PLATFORM_CAPABILITIES`.)
+ */
+const CURATED_CAPABILITY_LABELS = new Set([
+  'manage_users',
+  'manage_org_users',
+  'manage_metadata',
+  'manage_platform_settings',
+  'setup_access',
+  'setup_write',
+  'studio_access',
+]);
+
 export function CapabilityMultiSelectField({
   value,
   onChange,
@@ -121,7 +138,13 @@ export function CapabilityMultiSelectField({
     return map;
   }, [caps, selected]);
 
-  const labelFor = (name: string) => byName.get(name)?.label || name;
+  // Curated platform caps get a localized label (objectui#2600 B5); everything
+  // else keeps the registry-served label.
+  const labelFor = (name: string) => {
+    const norm = name.replace(/\./g, '_');
+    if (CURATED_CAPABILITY_LABELS.has(norm)) return t(`capability.label.${norm}`);
+    return byName.get(name)?.label || name;
+  };
 
   // Group options by scope for the editable grid. Computed BEFORE the readonly
   // early-return so the hook order stays stable regardless of `readonly`.
@@ -192,7 +215,7 @@ export function CapabilityMultiSelectField({
                       : 'border-input bg-background text-foreground hover:bg-accent',
                   )}
                 >
-                  {cap.label || cap.name}
+                  {labelFor(cap.name)}
                 </button>
               );
             })}

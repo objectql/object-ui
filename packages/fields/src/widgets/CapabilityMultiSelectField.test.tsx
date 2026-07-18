@@ -106,7 +106,11 @@ describe('CapabilityMultiSelectField', () => {
         dataSource={mockDataSource()}
       />,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Studio Access' }));
+    // Chip labels now resolve through the i18n bundle (objectui#2600 B5), so an
+    // async translation-settle can re-render the chips between findBy and the
+    // click — re-query at click time so we act on the live node, not a detached one.
+    await screen.findByRole('button', { name: 'Studio Access' });
+    fireEvent.click(screen.getByRole('button', { name: 'Studio Access' }));
     const emitted = onChange.mock.calls[0][0];
     expect(typeof emitted).toBe('string');
     expect(JSON.parse(emitted)).toEqual(['manage_users']);
@@ -139,5 +143,26 @@ describe('CapabilityMultiSelectField', () => {
     // No toggle buttons in readonly mode.
     expect(await screen.findByText('Studio Access')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Manage Users' })).not.toBeInTheDocument();
+  });
+
+  // objectui#2600 B5 — curated platform caps get a localized label; package/
+  // admin-authored caps keep whatever label the registry served.
+  it('localizes curated capability labels but preserves registry labels for others', async () => {
+    render(
+      <CapabilityMultiSelectField
+        value={'[]'}
+        onChange={vi.fn()}
+        field={{ name: 'system_permissions' } as any}
+        dataSource={mockDataSource([
+          // Registry sends a shorter label; the curated client map wins.
+          { name: 'manage_org_users', label: 'Manage Org Users', description: 'Org members', scope: 'org', active: true },
+          // Not a curated platform capability — its registry label is kept.
+          { name: 'export_data', label: 'Export Data', description: 'Export', scope: 'org', active: true },
+        ])}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: 'Manage Organization Users' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Manage Org Users' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export Data' })).toBeInTheDocument();
   });
 });
