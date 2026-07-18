@@ -78,7 +78,6 @@ function toObjectPayload(obj: ObjectDefinition, fields?: FieldMetadataPayload[])
     icon: obj.icon,
     group: obj.group,
     sortOrder: obj.sortOrder,
-    enabled: obj.enabled,
     fields,
     relationships: obj.relationships,
   };

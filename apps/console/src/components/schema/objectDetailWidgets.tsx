@@ -271,14 +271,6 @@ export function ObjectPropertiesWidget({ schema }: { schema: ObjectWidgetSchema 
         </h3>
         <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1.5">
-            <dt className="text-xs font-medium text-muted-foreground">状态</dt>
-            <dd>
-              <Badge variant={object.enabled !== false ? 'default' : 'secondary'} className="font-normal">
-                {object.enabled !== false ? '已启用' : '已禁用'}
-              </Badge>
-            </dd>
-          </div>
-          <div className="space-y-1.5">
             <dt className="text-xs font-medium text-muted-foreground">字段数量</dt>
             <dd className="text-sm font-medium">
               {(object.fieldCount ?? fields.length)} 个字段

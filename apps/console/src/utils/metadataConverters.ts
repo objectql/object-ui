@@ -82,7 +82,6 @@ export function toObjectDefinition(obj: MetadataObject, index: number): ObjectDe
     group: obj.name?.startsWith('sys_') ? 'System Objects' : 'Custom Objects',
     sortOrder: index,
     isSystem: obj.name?.startsWith('sys_') || false,
-    enabled: obj.enabled !== false,
     fieldCount: fields.length,
     relationships: Array.isArray(obj.relationships)
       ? obj.relationships.map((r) => ({
