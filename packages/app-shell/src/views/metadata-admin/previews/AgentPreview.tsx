@@ -5,7 +5,7 @@
  *
  * Shows the configuration an operator needs to sanity-check an agent
  * before saving:
- *   • Persona header (avatar, label, role, visibility, active flag).
+ *   • Persona header (avatar, label, role, active flag).
  *   • Model config (provider, model id, temperature, max tokens).
  *   • System prompt / instructions in a scrollable monospace block.
  *   • Skills + Tools as two collapsible chip lists.
@@ -62,7 +62,6 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
   const avatar = (d.avatar as string | undefined) || undefined;
   const instructions = String(d.instructions ?? '');
   const active = d.active !== false;
-  const visibility = String(d.visibility ?? 'organization');
   const model = (d.model ?? {}) as ModelConfig;
   const skills: string[] = Array.isArray(d.skills) ? (d.skills as string[]) : [];
   const tools: ToolRef[] = Array.isArray(d.tools) ? (d.tools as ToolRef[]) : [];
@@ -120,7 +119,6 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
                 {role && <div className="text-xs text-muted-foreground mt-0.5">{role}</div>}
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
                   <Pill icon={active ? Eye : EyeOff} label={active ? 'Active' : 'Disabled'} tone={active ? 'green' : 'gray'} />
-                  <Pill icon={Lock} label={visibility} />
                   {model.provider && <Pill icon={Sparkles} label={`${model.provider}${model.model ? ` · ${model.model}` : ''}`} mono />}
                   {model.temperature != null && <Pill icon={Gauge} label={`temp ${model.temperature}`} />}
                   {model.maxTokens != null && <Pill label={`max ${model.maxTokens}t`} />}
