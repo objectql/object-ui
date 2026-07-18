@@ -18,7 +18,7 @@ const catalog: DatasetCatalogEntry[] = [
       { name: 'close_quarter', type: 'date' },
     ],
     measures: [
-      { name: 'total_amount', aggregate: 'sum', certified: true },
+      { name: 'total_amount', aggregate: 'sum' },
       { name: 'deal_count', aggregate: 'count' },
     ],
   },

@@ -108,7 +108,6 @@ type Measure = {
   label?: string;
   aggregate?: string;
   field?: string;
-  certified?: boolean;
   format?: string;
   currency?: string;
   derived?: DerivedSpec;

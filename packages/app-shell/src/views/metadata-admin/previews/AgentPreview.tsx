@@ -173,7 +173,7 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
           <div className="border-l bg-muted/20 p-3 text-xs space-y-3">
             {planning && Object.keys(planning).length > 0 && (
               <RailBlock icon={BrainCircuit} title="Planning">
-                <KeyVals data={planning} keys={['strategy', 'maxIterations', 'allowReplan']} />
+                <KeyVals data={planning} keys={['maxIterations']} />
               </RailBlock>
             )}
             {memory && Object.keys(memory).length > 0 && (

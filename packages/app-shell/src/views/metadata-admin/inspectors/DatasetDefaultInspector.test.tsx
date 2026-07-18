@@ -25,7 +25,7 @@ const draft = {
   object: 'opportunity',
   include: ['account'],
   dimensions: [{ name: 'region', field: 'account.region', type: 'string' }],
-  measures: [{ name: 'revenue', aggregate: 'sum', field: 'amount', certified: true }],
+  measures: [{ name: 'revenue', aggregate: 'sum', field: 'amount' }],
 };
 
 describe('DatasetDefaultInspector', () => {
@@ -51,7 +51,6 @@ describe('DatasetDefaultInspector', () => {
     const patch = onPatch.mock.calls[0][0];
     expect(patch.measures).toHaveLength(2);
     expect(patch.measures[1]).toMatchObject({ aggregate: 'sum' });
-    expect(patch.measures[1]).not.toHaveProperty('certified');
   });
 
   it('adds a dimension via onPatch', () => {

@@ -31,8 +31,6 @@ export interface DatasetMeasureInfo {
   name: string;
   /** Aggregate function (sum / avg / count / …) — display hint only. */
   aggregate?: string;
-  /** Whether the dataset author certified this measure. */
-  certified?: boolean;
 }
 
 export interface DatasetCatalogEntry {
@@ -77,7 +75,6 @@ export function toCatalogEntry(doc: Record<string, unknown>): DatasetCatalogEntr
         .map((m) => ({
           name: m.name as string,
           aggregate: typeof m.aggregate === 'string' ? (m.aggregate as string) : undefined,
-          certified: m.certified === true,
         }))
     : [];
   return { name, label: resolveLabel(doc.label, name), dimensions, measures };
