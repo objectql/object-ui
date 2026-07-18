@@ -350,7 +350,6 @@ export const ListViewSchema = BaseSchema
     showSearch: z.boolean().optional().describe('Show search in toolbar'),
     showSort: z.boolean().optional().describe('Show sort controls in toolbar'),
     showFilters: z.boolean().optional().describe('Show filter controls in toolbar'),
-    showRefresh: z.boolean().optional().describe('Show refresh button in toolbar'),
     showHideFields: z.boolean().optional().describe('Show hide-fields button in toolbar'),
     showGroup: z.boolean().optional().describe('Show group button in toolbar'),
     showColor: z.boolean().optional().describe('Show color button in toolbar'),

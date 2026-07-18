@@ -12,8 +12,8 @@
  * Clicking it re-queries the DataSource while the filter/sort/search state
  * (held in component state) is preserved.
  *
- * The toggle is spec-canonical (`userActions.refresh`, @objectstack/spec) with
- * a legacy `showRefresh` fallback; both default to visible (opt-out).
+ * The toggle is spec-canonical (`userActions.refresh`, @objectstack/spec) and
+ * defaults to visible (opt-out via `userActions.refresh: false`).
  */
 import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, waitFor, screen, fireEvent } from '@testing-library/react';
@@ -81,14 +81,6 @@ describe('ListView — manual refresh button (#2634)', () => {
   it('hides the refresh button when userActions.refresh is false', async () => {
     const ds = makeDataSource();
     renderList({ userActions: { refresh: false } as any }, ds);
-
-    await waitFor(() => expect(ds.find).toHaveBeenCalled());
-    expect(screen.queryByTestId('refresh-button')).not.toBeInTheDocument();
-  });
-
-  it('hides the refresh button when the legacy showRefresh flag is false', async () => {
-    const ds = makeDataSource();
-    renderList({ showRefresh: false } as any, ds);
 
     await waitFor(() => expect(ds.find).toHaveBeenCalled());
     expect(screen.queryByTestId('refresh-button')).not.toBeInTheDocument();

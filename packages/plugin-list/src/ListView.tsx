@@ -392,14 +392,14 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
     const ua = schema.userActions;
     const addRecordEnabled = schema.addRecord?.enabled === true && ua?.addRecordForm !== false;
     // `refresh` is spec-canonical (`userActions.refresh`, @objectstack/spec). The
-    // installed spec type may predate it, so read defensively before falling back to
-    // the legacy `showRefresh` flag. Visible by default (opt-out, like the others).
+    // installed spec type may predate the field, so read it defensively. Visible by
+    // default (opt-out via `userActions.refresh: false`), like the other toggles.
     const uaRefresh = (ua as { refresh?: boolean } | undefined)?.refresh;
     return {
       showSearch: ua?.search !== undefined ? ua.search : schema.showSearch !== false,
       showSort: ua?.sort !== undefined ? ua.sort : schema.showSort !== false,
       showFilters: ua?.filter !== undefined ? ua.filter : schema.showFilters !== false,
-      showRefresh: uaRefresh !== undefined ? uaRefresh : schema.showRefresh !== false,
+      showRefresh: uaRefresh !== undefined ? uaRefresh : true,
       showDensity: ua?.rowHeight !== undefined ? ua.rowHeight : schema.showDensity !== false,
       showHideFields: schema.showHideFields === true,
       showGroup: schema.showGroup !== false,
@@ -408,7 +408,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       showAddRecord: addRecordEnabled,
       addRecordPosition: (schema.addRecord?.position === 'bottom' ? 'bottom' : 'top') as 'top' | 'bottom',
     };
-  }, [schema.userActions, schema.showSearch, schema.showSort, schema.showFilters, schema.showRefresh, schema.showDensity, schema.showHideFields, schema.showGroup, schema.showColor, schema.compactToolbar, schema.addRecord, schema.userActions?.addRecordForm]);
+  }, [schema.userActions, schema.showSearch, schema.showSort, schema.showFilters, schema.showDensity, schema.showHideFields, schema.showGroup, schema.showColor, schema.compactToolbar, schema.addRecord, schema.userActions?.addRecordForm]);
 
   const [currentView, setCurrentView] = React.useState<ViewType>(
     (schema.viewType as ViewType)
