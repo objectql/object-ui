@@ -33,6 +33,7 @@ export type FlowConfigFieldKind =
   | 'textarea'
   | 'keyValue'
   | 'stringList'
+  | 'numberList'
   | 'objectList'
   | 'reference';
 
@@ -218,6 +219,7 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
         { value: 'record-after-delete', label: 'Record deleted' },
         { value: 'record-change', label: 'Record changed (any)' },
         { value: 'schedule', label: 'Schedule (cron)' },
+        { value: 'time_relative', label: 'Time-relative (date sweep)' },
         { value: 'manual', label: 'Manual / autolaunched' },
         { value: 'webhook', label: 'Webhook / API' },
         { value: 'event', label: 'Platform event' },
@@ -231,14 +233,73 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     }),
     cfg('condition', 'Entry condition', 'expression', {
       placeholder: 'status == "qualifying" && previous.status != "qualifying"',
-      help: 'CEL predicate — the flow runs only when this is true. Leave empty to run on every event.',
-      showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'webhook', 'event'] },
+      help: 'CEL predicate — the flow runs only when this is true (for time-relative sweeps it gates each matched record). Leave empty to run on every event.',
+      showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'time_relative', 'webhook', 'event'] },
     }),
     cfg('cron', 'Cron schedule', 'text', {
       placeholder: '0 7 * * *',
       help: 'Cron expression for scheduled triggers.',
       showWhen: { field: 'triggerType', equals: ['schedule'] },
     }),
+    // Time-relative trigger (#1874) — a `config.timeRelative` descriptor sweeps an
+    // object on a schedule (daily by default) and launches the flow once per record
+    // whose date field falls in the window. All fields live under the nested
+    // `config.timeRelative` block (which the whole group "owns", so it never leaks
+    // to Advanced JSON — same pattern as the approval `escalation.*` block).
+    {
+      id: 'timeRelative.object',
+      path: ['config', 'timeRelative', 'object'],
+      label: 'Sweep object',
+      kind: 'reference',
+      ref: { kind: 'object' },
+      placeholder: 'contracts',
+      help: 'Object whose records are swept each run.',
+      showWhen: { field: 'triggerType', equals: ['time_relative'] },
+    },
+    {
+      id: 'timeRelative.dateField',
+      path: ['config', 'timeRelative', 'dateField'],
+      label: 'Date field',
+      kind: 'text',
+      placeholder: 'end_date',
+      help: 'The date / datetime field compared against today.',
+      showWhen: { field: 'triggerType', equals: ['time_relative'] },
+    },
+    {
+      id: 'timeRelative.withinDays',
+      path: ['config', 'timeRelative', 'withinDays'],
+      label: 'Within days',
+      kind: 'number',
+      placeholder: '30',
+      help: 'Range mode: fire while the date is within N days of today (negative = overdue lookback). Leave empty if using Offset days.',
+      showWhen: { field: 'triggerType', equals: ['time_relative'] },
+    },
+    {
+      id: 'timeRelative.offsetDays',
+      path: ['config', 'timeRelative', 'offsetDays'],
+      label: 'Offset days',
+      kind: 'numberList',
+      placeholder: '60',
+      help: 'Offset mode: fire when the date is exactly today + each offset (e.g. 60, 30, 7). Leave empty if using Within days.',
+      showWhen: { field: 'triggerType', equals: ['time_relative'] },
+    },
+    {
+      id: 'timeRelative.filter',
+      path: ['config', 'timeRelative', 'filter'],
+      label: 'Extra filter',
+      kind: 'keyValue',
+      help: 'Optional filter ANDed with the date window (e.g. status = active).',
+      showWhen: { field: 'triggerType', equals: ['time_relative'] },
+    },
+    {
+      id: 'timeRelative.maxRecords',
+      path: ['config', 'timeRelative', 'maxRecords'],
+      label: 'Max records / run',
+      kind: 'number',
+      placeholder: '1000',
+      help: 'Cap on records launched per sweep (default 1000).',
+      showWhen: { field: 'triggerType', equals: ['time_relative'] },
+    },
     // Legacy keys — rendered only when present so older metadata never falls
     // back to raw JSON. Prefer `condition` / `cron` above for new flows.
     cfg('criteria', 'Entry condition (legacy)', 'expression', {

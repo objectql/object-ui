@@ -1,7 +1,7 @@
 // Copyright (c) 2025 ObjectStack. Licensed under the Apache-2.0 license.
 
 import { describe, it, expect } from 'vitest';
-import { fieldsForNodeType, isFieldVisible, getFieldValue } from './flow-node-config';
+import { fieldsForNodeType, isFieldVisible, getFieldValue, configKeyOf } from './flow-node-config';
 
 describe('start node trigger-field gating (#5)', () => {
   const fields = fieldsForNodeType('start');
@@ -34,6 +34,48 @@ describe('start node trigger-field gating (#5)', () => {
   it('never hides a field that already holds a value (non-destructive)', () => {
     const node = { id: 'start', type: 'start', config: { objectName: 'crm_lead' } }; // no triggerType
     expect(isFieldVisible(objectName, node, fields)).toBe(true);
+  });
+});
+
+describe('time-relative trigger fields (#1874)', () => {
+  const fields = fieldsForNodeType('start');
+  const triggerType = fields.find((f) => f.id === 'triggerType')!;
+  const trFields = [
+    'timeRelative.object',
+    'timeRelative.dateField',
+    'timeRelative.withinDays',
+    'timeRelative.offsetDays',
+    'timeRelative.filter',
+    'timeRelative.maxRecords',
+  ].map((id) => fields.find((f) => f.id === id)!);
+
+  it('offers a time_relative option on the trigger select', () => {
+    expect(triggerType.options?.some((o) => o.value === 'time_relative')).toBe(true);
+  });
+
+  it('maps each descriptor field to the right kind under the nested config.timeRelative block', () => {
+    const byId = Object.fromEntries(trFields.map((f) => [f.id, f]));
+    expect(byId['timeRelative.object'].kind).toBe('reference');
+    expect(byId['timeRelative.dateField'].kind).toBe('text');
+    expect(byId['timeRelative.withinDays'].kind).toBe('number');
+    // Offset days is a number[] — a numberList so the designer emits numbers, not
+    // strings (the backend schema is strict `z.array(z.number())`).
+    expect(byId['timeRelative.offsetDays'].kind).toBe('numberList');
+    expect(byId['timeRelative.filter'].kind).toBe('keyValue');
+    expect(byId['timeRelative.maxRecords'].kind).toBe('number');
+  });
+
+  it('shows the descriptor fields only for a time_relative trigger', () => {
+    const trNode = { id: 'start', type: 'start', config: { triggerType: 'time_relative' } };
+    const schedNode = { id: 'start', type: 'start', config: { triggerType: 'schedule' } };
+    for (const f of trFields) {
+      expect(isFieldVisible(f, trNode, fields)).toBe(true);
+      expect(isFieldVisible(f, schedNode, fields)).toBe(false);
+    }
+  });
+
+  it('claims the whole config.timeRelative block so it never leaks to Advanced JSON', () => {
+    for (const f of trFields) expect(configKeyOf(f)).toBe('timeRelative');
   });
 });
 

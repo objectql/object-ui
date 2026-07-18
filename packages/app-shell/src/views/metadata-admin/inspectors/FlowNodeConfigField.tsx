@@ -79,6 +79,27 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
             emptyLabel={t('engine.inspector.flowNode.list.empty', locale)}
           />
         );
+      case 'numberList':
+        return (
+          <FlowStringListField
+            label={field.label}
+            // Stored as number[]; the list editor works in strings, so show each
+            // number as text and coerce back to number[] on commit (dropping
+            // blanks / non-numbers). Keeps the backend contract strict (number[])
+            // rather than persisting string values the schema would reject.
+            value={Array.isArray(value) ? (value as unknown[]).map((n) => String(n)) : value}
+            onCommit={(v) => {
+              if (v == null) return onCommit(undefined);
+              const nums = v.map((s) => Number(String(s).trim())).filter((n) => Number.isFinite(n));
+              onCommit(nums.length ? nums : undefined);
+            }}
+            disabled={disabled}
+            addLabel={t('engine.inspector.flowNode.list.add', locale)}
+            itemLabel={t('engine.inspector.flowNode.list.item', locale)}
+            removeLabel={t('engine.inspector.flowNode.list.remove', locale)}
+            emptyLabel={t('engine.inspector.flowNode.list.empty', locale)}
+          />
+        );
       case 'objectList':
         return (
           <FlowObjectListField
