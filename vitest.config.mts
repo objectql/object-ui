@@ -126,6 +126,15 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
+          // The unit project is node-env pure logic with no ComponentRegistry
+          // or DOM state to leak across files, so it can share a module graph
+          // per worker instead of re-executing it per file. Measured 3.2x
+          // faster (38s -> 12s for the project) with zero failures, holding
+          // green across repeated and shuffled runs. The `dom`/`dom-heavy`
+          // projects keep `isolate: true` — they DO leak (registry overrides,
+          // happy-dom nodes); relaxing them needs the hermeticity fixes tracked
+          // separately.
+          isolate: false,
           setupFiles: [path.resolve(__dirname, 'vitest.setup.base.ts')],
           include: ['packages/**/*.test.ts', 'examples/**/*.test.ts'],
           exclude: [...sharedExclude, ...domTsTests],
