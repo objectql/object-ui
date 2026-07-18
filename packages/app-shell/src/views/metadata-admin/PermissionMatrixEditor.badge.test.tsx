@@ -47,8 +47,9 @@ async function renderWith(extra: Record<string, unknown>) {
       <PermissionMatrixEditPage type="permission" name="sales_perms" />
     </MemoryRouter>,
   );
-  // Wait for the load to settle (the label input renders after the fetch).
-  await screen.findByDisplayValue('Sales');
+  // Wait for the load to settle. The identity strip is collapsed by default
+  // (objectui#2600 B1), so the label shows as summary text, not an input.
+  await screen.findByText('Sales');
 }
 
 describe('PermissionMatrixEditPage — provenance tri-state badge (A4 framework#2920)', () => {

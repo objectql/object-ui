@@ -71,7 +71,9 @@ async function renderMatrix(embedded: boolean) {
       />
     </MemoryRouter>,
   );
-  await screen.findByDisplayValue('Sales');
+  // Identity strip is collapsed by default (objectui#2600 B1) — the label is
+  // summary text, not an input, until the strip is expanded.
+  await screen.findByText('Sales');
 }
 
 describe('PermissionMatrixEditPage — embedded mode (Studio Access pillar)', () => {

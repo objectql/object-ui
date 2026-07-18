@@ -140,8 +140,9 @@ async function renderPillarOnSetA() {
       <AccessPillar packageId="app.a" />
     </MemoryRouter>,
   );
-  // First set is auto-selected; its matrix header carries the set name.
-  await screen.findByDisplayValue('set_a');
+  // First set auto-selects; wait for its matrix row so the whole editor (not
+  // just the breadcrumb) has loaded before a test flips a cell.
+  await screen.findByText('a_account');
 }
 
 /** Flip a cell in the open matrix so the editor reports dirty. */
@@ -161,7 +162,7 @@ describe('AccessPillar — unsaved matrix edits guard', () => {
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     // Still on set A, and the edit survived (row "None" left Read unchecked —
     // a remount would have reloaded allowRead: true).
-    expect(screen.getByDisplayValue('set_a')).toBeInTheDocument();
+    expect(screen.getByText('set_a')).toBeInTheDocument();
     const row = screen.getByText('a_account').closest('tr')!;
     expect(within(row).getByRole('checkbox', { name: 'a_account Read' })).not.toBeChecked();
 
@@ -169,7 +170,7 @@ describe('AccessPillar — unsaved matrix edits guard', () => {
     confirmSpy.mockReturnValueOnce(true);
     fireEvent.click(screen.getByRole('button', { name: 'Set B' }));
     expect(confirmSpy).toHaveBeenCalledTimes(2);
-    await screen.findByDisplayValue('set_b');
+    await screen.findByText('set_b');
   });
 
   it('switches sets without prompting when the matrix is clean', async () => {
@@ -178,7 +179,7 @@ describe('AccessPillar — unsaved matrix edits guard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Set B' }));
 
     expect(confirmSpy).not.toHaveBeenCalled();
-    await screen.findByDisplayValue('set_b');
+    await screen.findByText('set_b');
   });
 
   it('gates the OWD overview swap too, and a confirmed discard clears the guard', async () => {
@@ -199,7 +200,7 @@ describe('AccessPillar — unsaved matrix edits guard', () => {
     // Back to a set: the discarded editor must NOT have left the guard armed.
     fireEvent.click(screen.getByRole('button', { name: 'Set A' }));
     expect(confirmSpy).toHaveBeenCalledTimes(2);
-    await screen.findByDisplayValue('set_a');
+    await screen.findByText('set_a');
   });
 
   it('never prompts when re-clicking the already-open set (nothing remounts)', async () => {
@@ -242,7 +243,7 @@ describe('AccessPillar — unsaved OWD overview edits guard (#2600)', () => {
     confirmSpy.mockReturnValueOnce(true);
     fireEvent.click(screen.getByRole('button', { name: 'Set A' }));
     expect(confirmSpy).toHaveBeenCalledTimes(2);
-    await screen.findByDisplayValue('set_a');
+    await screen.findByText('set_a');
 
     // The discarded panel reset the guard on unmount — swapping back to the
     // overview must NOT prompt, and it reloads the untouched baseline.
@@ -284,7 +285,7 @@ describe('AccessPillar — unsaved OWD overview edits guard (#2600)', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
 
-    await screen.findByDisplayValue('set_c');
+    await screen.findByText('set_c');
     expect(screen.queryByTestId('owd-overview')).not.toBeInTheDocument();
   });
 });

@@ -248,6 +248,12 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
   >(null);
   const [filter, setFilter] = React.useState('');
   const [showOnlyEnabled, setShowOnlyEnabled] = React.useState(false);
+  // objectui#2600 B1 — the pillar is called "Permission Matrix", so the matrix
+  // must reach the first screen. Name/label change rarely and the capability
+  // picker floods the top with option chips even at zero grants, so both start
+  // collapsed to a one-line summary and the user opts in to edit them.
+  const [basicsOpen, setBasicsOpen] = React.useState(false);
+  const [capsOpen, setCapsOpen] = React.useState(false);
   // Embedded-mode History sheet (see `embedded` prop doc).
   const [historyOpen, setHistoryOpen] = React.useState(false);
   // All permission-set api-names — the admin-scope editor's assignable
@@ -648,36 +654,27 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
           </div>
         )}
 
-        {/* Header strip — name / label / provenance + default badges */}
-        <div className="px-6 py-3 border-b bg-muted/30 flex flex-wrap items-end gap-4">
-          <div className="space-y-1">
-            <Label htmlFor="perm-name" className="text-xs">{t('perm.field.name')}</Label>
-            <Input
-              id="perm-name"
-              value={draft.name}
-              disabled={!writable}
-              onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))}
-              className="h-8 w-56"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="perm-label" className="text-xs">{t('perm.field.label')}</Label>
-            <Input
-              id="perm-label"
-              value={draft.label ?? ''}
-              disabled={!writable}
-              onChange={(e) => setDraft((p) => ({ ...p, label: e.target.value }))}
-              className="h-8 w-72"
-            />
-          </div>
-          {/* ADR-0090 D2: the profile toggle is gone. What matters instead is
-              WHO OWNS the set (provenance, ADR-0086 D3) and whether it is the
-              package's suggested default (ADR-0090 D5). */}
-          <div className="flex items-center gap-1.5 pb-1">
+        {/* Identity summary — collapsible (objectui#2600 B1). Name/label change
+            rarely, so the strip collapses to a one-line summary and the matrix
+            reaches the first screen; the row toggles the editable inputs open. */}
+        <div className="border-b bg-muted/30">
+          <button
+            type="button"
+            onClick={() => setBasicsOpen((o) => !o)}
+            aria-expanded={basicsOpen}
+            className="w-full px-6 py-2.5 flex items-center gap-2 text-left hover:bg-muted/50 transition-colors"
+          >
+            {basicsOpen ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            )}
+            {/* The api-name already sits in the PageShell breadcrumb (font-mono),
+                so the summary carries the human label — no need to repeat it. */}
+            <span className="font-medium truncate">{draft.label || draft.name}</span>
             {/* [A4 framework#2920] Provenance tri-state — platform / package /
-                admin(custom) — mirrors the unified sys_* `managed_by` vocab so
-                the Studio matrix and the Setup record page read the same. */}
-            <Badge variant="outline" className="text-[10px]">
+                admin(custom) — mirrors the unified sys_* `managed_by` vocab. */}
+            <Badge variant="outline" className="text-[10px] shrink-0">
               {draft.managedBy === 'platform'
                 ? t('perm.badge.platform')
                 : draft.managedBy === 'package' || packageId
@@ -685,21 +682,48 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
                   : t('perm.badge.custom')}
             </Badge>
             {!!draft.isDefault && (
-              <Badge variant="secondary" className="text-[10px]">{t('perm.badge.default')}</Badge>
+              <Badge variant="secondary" className="text-[10px] shrink-0">{t('perm.badge.default')}</Badge>
             )}
-          </div>
-          {!writable && (
-            // Same badge slot, two distinct reasons: a read-only PACKAGE
-            // (host gate — mirror the top-bar wording so the screen is not
-            // self-contradictory) vs. metadata writes disabled environment-
-            // wide (type gate).
-            <Badge
-              variant="secondary"
-              className="ml-auto"
-              title={readOnly ? t('engine.studio.pkg.readonlyHint') : undefined}
-            >
-              {readOnly ? t('engine.studio.pkg.readonly') : t('perm.readOnly')}
-            </Badge>
+            {writable && (
+              <span className="text-xs text-muted-foreground shrink-0">{t('perm.basics.editHint')}</span>
+            )}
+            {!writable && (
+              // Same badge slot, two distinct reasons: a read-only PACKAGE
+              // (host gate — mirror the top-bar wording so the screen is not
+              // self-contradictory) vs. metadata writes disabled environment-
+              // wide (type gate).
+              <Badge
+                variant="secondary"
+                className="ml-auto shrink-0"
+                title={readOnly ? t('engine.studio.pkg.readonlyHint') : undefined}
+              >
+                {readOnly ? t('engine.studio.pkg.readonly') : t('perm.readOnly')}
+              </Badge>
+            )}
+          </button>
+          {basicsOpen && (
+            <div className="px-6 pb-3 flex flex-wrap items-end gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="perm-name" className="text-xs">{t('perm.field.name')}</Label>
+                <Input
+                  id="perm-name"
+                  value={draft.name}
+                  disabled={!writable}
+                  onChange={(e) => setDraft((p) => ({ ...p, name: e.target.value }))}
+                  className="h-8 w-56"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="perm-label" className="text-xs">{t('perm.field.label')}</Label>
+                <Input
+                  id="perm-label"
+                  value={draft.label ?? ''}
+                  disabled={!writable}
+                  onChange={(e) => setDraft((p) => ({ ...p, label: e.target.value }))}
+                  className="h-8 w-72"
+                />
+              </div>
+            </div>
           )}
         </div>
 
@@ -709,21 +733,40 @@ export function PermissionMatrixEditPage({ type, name, packageId, onDraftSaved, 
             as PermissionSetDraft.systemPermissions (string[]); the picker
             round-trips via a JSON string, so parse back into the array the
             draft model uses. Persisted by the whole-record Save at env scope. */}
-        <div className="px-6 py-3 border-b">
-          <Label className="text-xs">{t('perm.field.systemCapabilities')}</Label>
-          <p className="text-xs text-muted-foreground mt-0.5 mb-2">
-            {t('perm.field.systemCapabilitiesHelp')}
-          </p>
-          <CapabilityMultiSelectField
-            value={JSON.stringify(draft.systemPermissions ?? [])}
-            onChange={(v: unknown) =>
-              setDraft((p) => ({ ...p, systemPermissions: parseCapabilityNames(v) }))
-            }
-            field={{ name: 'system_permissions' } as any}
-            dataSource={adapter as any}
-            readonly={!writable}
-          />
-        </div>
+        {writable && (draft.systemPermissions ?? []).length === 0 && !capsOpen ? (
+          // objectui#2600 B1 — zero-grant writable sets used to render the full
+          // picker's option chips, which read as already-owned capabilities.
+          // Collapse to an explicit "none granted · add" affordance instead.
+          <div className="px-6 py-2.5 border-b flex items-center gap-2 text-xs">
+            <Label className="text-xs text-muted-foreground">{t('perm.field.systemCapabilities')}</Label>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">{t('perm.cap.none')}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => setCapsOpen(true)}
+            >
+              + {t('perm.cap.add')}
+            </Button>
+          </div>
+        ) : (
+          <div className="px-6 py-3 border-b">
+            <Label className="text-xs">{t('perm.field.systemCapabilities')}</Label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+              {t('perm.field.systemCapabilitiesHelp')}
+            </p>
+            <CapabilityMultiSelectField
+              value={JSON.stringify(draft.systemPermissions ?? [])}
+              onChange={(v: unknown) =>
+                setDraft((p) => ({ ...p, systemPermissions: parseCapabilityNames(v) }))
+              }
+              field={{ name: 'system_permissions' } as any}
+              dataSource={adapter as any}
+              readonly={!writable}
+            />
+          </div>
+        )}
 
         {/* Filter bar */}
         <div className="px-6 py-3 border-b flex items-center gap-3">

@@ -175,8 +175,9 @@ async function renderSurfaceOnAccess() {
       </Routes>
     </MemoryRouter>,
   );
-  // First set is auto-selected; its matrix header carries the set name.
-  await screen.findByDisplayValue('set_a');
+  // First set auto-selects; wait for its matrix row so the whole editor (not
+  // just the breadcrumb) has loaded before a test flips a cell.
+  await screen.findByText('a_account');
 }
 
 /** Flip a cell in the open matrix so the editor reports dirty. */
@@ -200,7 +201,7 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Interfaces' }));
 
     expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(screen.getByDisplayValue('set_a')).toBeInTheDocument();
+    expect(screen.getByText('set_a')).toBeInTheDocument();
     matrixEditSurvived();
 
     // Confirming the same switch discards and lands on the Interfaces pillar.
@@ -208,13 +209,13 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Interfaces' }));
     expect(confirmSpy).toHaveBeenCalledTimes(2);
     await screen.findByText('This package has no app yet');
-    expect(screen.queryByDisplayValue('set_a')).not.toBeInTheDocument();
+    expect(screen.queryByText('set_a')).not.toBeInTheDocument();
 
     // The discarded pillar reset the guard on unmount — walking back to
     // Access must NOT prompt again.
     fireEvent.click(screen.getByRole('link', { name: 'Access' }));
     expect(confirmSpy).toHaveBeenCalledTimes(2);
-    await screen.findByDisplayValue('set_a');
+    await screen.findByText('set_a');
   });
 
   it('gates a pillar switch on dirty OWD overview rows (#2600 follow-up)', async () => {
@@ -240,7 +241,7 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Access' }));
     expect(confirmSpy).toHaveBeenCalledTimes(2);
-    await screen.findByDisplayValue('set_a');
+    await screen.findByText('set_a');
   });
 
   it('switches pillars without prompting when clean', async () => {
@@ -259,7 +260,7 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Access' }));
 
     expect(confirmSpy).not.toHaveBeenCalled();
-    expect(screen.getByDisplayValue('set_a')).toBeInTheDocument();
+    expect(screen.getByText('set_a')).toBeInTheDocument();
     matrixEditSurvived();
   });
 
@@ -270,7 +271,7 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
     confirmSpy.mockReturnValueOnce(false);
     fireEvent.click(screen.getByTitle('Back to home'));
     expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(screen.getByDisplayValue('set_a')).toBeInTheDocument();
+    expect(screen.getByText('set_a')).toBeInTheDocument();
     matrixEditSurvived();
 
     confirmSpy.mockReturnValueOnce(true);
@@ -289,7 +290,7 @@ describe('Studio header — unsaved pillar edits guard (#2600)', () => {
     confirmSpy.mockReturnValueOnce(false);
     fireEvent.click(other);
     expect(confirmSpy).toHaveBeenCalledTimes(1);
-    expect(screen.getByDisplayValue('set_a')).toBeInTheDocument();
+    expect(screen.getByText('set_a')).toBeInTheDocument();
     matrixEditSurvived();
 
     // Confirming jumps to the other package (header re-labels; matrix reloads).

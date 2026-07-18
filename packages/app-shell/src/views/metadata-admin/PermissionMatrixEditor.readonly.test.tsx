@@ -114,7 +114,10 @@ describe('PermissionMatrixEditPage — read-only package gate (host readOnly)', 
       expect(within(row).getByRole('button', { name })).toBeDisabled();
     }
 
-    // Identity inputs are locked too.
+    // Identity inputs collapse by default (objectui#2600 B1) — expand the
+    // strip (summary shows the label "Sales"), then confirm they are locked
+    // too in a read-only package.
+    fireEvent.click(screen.getByRole('button', { name: /Sales/ }));
     expect(screen.getByDisplayValue('sales_perms')).toBeDisabled();
     expect(screen.getByDisplayValue('Sales')).toBeDisabled();
 
