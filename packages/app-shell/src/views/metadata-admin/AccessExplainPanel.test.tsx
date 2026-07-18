@@ -12,15 +12,21 @@
 
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 
 const fetchSpy = vi.fn();
+// objectui#2600 B2 — package object list backing the object dropdown; a
+// `mock`-prefixed name so vitest allows the hoisted factory to close over it.
+let mockObjectList: Array<Record<string, unknown>> = [];
 
 vi.mock('@object-ui/auth', () => ({
   createAuthenticatedFetch: () => fetchSpy,
 }));
 vi.mock('@object-ui/react', () => ({
   useAdapter: () => ({ find: vi.fn(async () => []) }),
+}));
+vi.mock('./useMetadata', () => ({
+  useMetadataClient: () => ({ list: async () => mockObjectList }),
 }));
 // The user picker has its own coverage; a stub keeps this suite focused on
 // the explain round-trip.
@@ -33,6 +39,7 @@ import { AccessExplainPanel, type ExplainDecision } from './AccessExplainPanel';
 afterEach(() => {
   cleanup();
   fetchSpy.mockReset();
+  mockObjectList = [];
 });
 
 const DECISION: ExplainDecision = {
@@ -180,5 +187,37 @@ describe('AccessExplainPanel (ADR-0090 D6)', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     expect(screen.getByRole('alert').textContent).toMatch(/manage_users|delegated admin scope/i);
     expect(screen.queryByTestId('explain-verdict')).not.toBeInTheDocument();
+  });
+
+  // objectui#2600 B2 — with a package scope, the object field becomes a
+  // dropdown of the package's objects instead of a free-text api-name input.
+  it('renders a package-scoped object dropdown when packageId is set', async () => {
+    mockObjectList = [
+      { item: { name: 'showcase_account', label: 'Account' } },
+      { item: { name: 'showcase_task' } },
+    ];
+    render(<AccessExplainPanel open onOpenChange={() => {}} packageId="com.example.showcase" />);
+
+    // The object field swaps from a free-text input to a <select> once loaded.
+    await waitFor(() => expect(screen.getByLabelText('Object').tagName).toBe('SELECT'));
+    const objectField = screen.getByLabelText('Object');
+    expect(within(objectField).getByRole('option', { name: 'Account (showcase_account)' })).toBeInTheDocument();
+    expect(within(objectField).getByRole('option', { name: 'showcase_task' })).toBeInTheDocument();
+    // The misleading free-text placeholder example is gone.
+    expect(screen.queryByPlaceholderText(/crm_lead/)).toBeNull();
+
+    // Selecting an object and explaining posts that object.
+    fetchSpy.mockResolvedValue(jsonResponse(200, DECISION));
+    fireEvent.change(objectField, { target: { value: 'showcase_account' } });
+    fireEvent.click(screen.getByRole('button', { name: /explain$/i }));
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    const body = JSON.parse(String((fetchSpy.mock.calls[0]?.[1] as any)?.body ?? '{}'));
+    expect(body.object).toBe('showcase_account');
+  });
+
+  // Unscoped (no packageId) keeps the free-text input as a fallback.
+  it('falls back to a free-text object input without a package scope', async () => {
+    renderPanel();
+    expect(screen.getByLabelText('Object').tagName).toBe('INPUT');
   });
 });

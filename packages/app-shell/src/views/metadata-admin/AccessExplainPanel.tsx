@@ -51,6 +51,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { t, tFormat, useMetadataLocale } from './i18n';
+import { useMetadataClient } from './useMetadata';
 
 /** Mirrors `ExplainOperationSchema` in `@objectstack/spec/security`. */
 const OPERATIONS = ['read', 'create', 'update', 'delete', 'transfer', 'restore', 'purge'] as const;
@@ -159,12 +160,49 @@ export interface AccessExplainPanelProps {
   onOpenChange: (open: boolean) => void;
   /** Optional prefill for the object input (e.g. from the matrix). */
   defaultObject?: string;
+  /**
+   * objectui#2600 B2 — the package this panel is scoped to. When set, the
+   * object field becomes a dropdown of the package's objects (only ~20 exist)
+   * instead of a free-text api-name input whose example never resolves.
+   */
+  packageId?: string;
 }
 
-export function AccessExplainPanel({ open, onOpenChange, defaultObject }: AccessExplainPanelProps): React.ReactElement {
+export function AccessExplainPanel({ open, onOpenChange, defaultObject, packageId }: AccessExplainPanelProps): React.ReactElement {
   const locale = useMetadataLocale();
   const adapter = useAdapter() as any;
+  const client = useMetadataClient();
   const authFetch = React.useMemo(() => createAuthenticatedFetch(), []);
+
+  // objectui#2600 B2 — package object list backing the object dropdown. `null`
+  // until loaded (or when unscoped / load fails), which keeps the free-text
+  // input as a graceful fallback.
+  const [objectOptions, setObjectOptions] = React.useState<Array<{ name: string; label?: string }> | null>(null);
+  React.useEffect(() => {
+    if (!open || !packageId) {
+      setObjectOptions(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = (await client.list<any>('object', { packageId })) as any[];
+        const opts = (rows ?? [])
+          .map((row) => {
+            const item = row?.item ?? row;
+            return { name: String(item?.name ?? ''), label: item?.label as string | undefined };
+          })
+          .filter((o) => !!o.name)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        if (!cancelled) setObjectOptions(opts);
+      } catch {
+        if (!cancelled) setObjectOptions(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, packageId, client]);
 
   const [objectName, setObjectName] = React.useState(defaultObject ?? '');
   const [operation, setOperation] = React.useState<ExplainOperation>('read');
@@ -281,13 +319,32 @@ export function AccessExplainPanel({ open, onOpenChange, defaultObject }: Access
               <label htmlFor="explain-object" className="text-xs font-medium text-muted-foreground">
                 {t('engine.studio.access.explain.object', locale)}
               </label>
-              <Input
-                id="explain-object"
-                value={objectName}
-                onChange={(e) => setObjectName(e.target.value)}
-                placeholder={t('engine.studio.access.explain.objectPlaceholder', locale)}
-                className="h-8 text-xs"
-              />
+              {objectOptions && objectOptions.length > 0 ? (
+                // objectui#2600 B2 — package-scoped dropdown: the object must be
+                // one of this package's ~20 objects, so free-text (with an
+                // example that isn't even in the package) only invites typos.
+                <select
+                  id="explain-object"
+                  value={objectName}
+                  onChange={(e) => setObjectName(e.target.value)}
+                  className="h-8 w-full rounded-md border bg-background px-2 text-xs outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">{t('engine.studio.access.explain.objectSelect', locale)}</option>
+                  {objectOptions.map((o) => (
+                    <option key={o.name} value={o.name}>
+                      {o.label && o.label !== o.name ? `${o.label} (${o.name})` : o.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Input
+                  id="explain-object"
+                  value={objectName}
+                  onChange={(e) => setObjectName(e.target.value)}
+                  placeholder={t('engine.studio.access.explain.objectPlaceholder', locale)}
+                  className="h-8 text-xs"
+                />
+              )}
             </div>
             <div className="w-32 shrink-0 space-y-1">
               <label htmlFor="explain-operation" className="text-xs font-medium text-muted-foreground">

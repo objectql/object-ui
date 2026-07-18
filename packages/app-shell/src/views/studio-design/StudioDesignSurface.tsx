@@ -3583,7 +3583,7 @@ export function AccessPillar({
         </main>
       </div>
 
-      <AccessExplainPanel open={explainOpen} onOpenChange={setExplainOpen} />
+      <AccessExplainPanel open={explainOpen} onOpenChange={setExplainOpen} packageId={packageId} />
 
       <CreateItemDialog
         open={creating}
