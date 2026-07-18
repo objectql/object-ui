@@ -950,7 +950,10 @@ function PermissionTable({
   onOpenOwd,
 }: PermissionTableProps) {
   return (
-    <table className="w-full text-sm">
+    // objectui#2600 B3 — the fixed columns (object + 9 CRUD + bulk) need ~960px;
+    // a min-width makes the enclosing overflow-auto container scroll instead of
+    // squishing the CRUD grid and clipping the Bulk column off the right edge.
+    <table className="w-full min-w-[960px] text-sm">
       <thead className="sticky top-0 bg-background border-b z-10">
         <tr>
           <th className="text-left px-4 py-2 font-medium w-72">{t('perm.col.object')}</th>
