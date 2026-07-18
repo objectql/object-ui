@@ -20,6 +20,8 @@ vi.mock('../previews/useObjectFields', () => ({
       ? [
           { name: 'name', label: 'Name', type: 'text', hidden: false },
           { name: 'status', label: 'Status', type: 'select', hidden: false },
+          { name: 'amount', label: 'Amount', type: 'currency', hidden: false },
+          { name: 'billable', label: 'Billable', type: 'boolean', hidden: false },
         ]
       : [],
     loading: false,
@@ -566,5 +568,63 @@ describe('ObjectFieldInspector — summary roll-up editor', () => {
     expect(screen.getByText('Child field to aggregate')).toBeInTheDocument();
     expect(screen.getByText(/ignored for count/i)).toBeInTheDocument();
     expect(screen.getByText('Child relationship field (optional)')).toBeInTheDocument();
+  });
+
+  /* ── filter editor (framework#1868): summaryOperations.filter ── */
+
+  it('renders the filter section for a summary field', () => {
+    renderField(
+      { total: { type: 'summary', summaryOperations: { object: 'crm_order', function: 'sum', field: 'amount' } } },
+      'total',
+    );
+    expect(screen.getByText('Filter (rows to aggregate)')).toBeInTheDocument();
+    expect(screen.getByText('No filter — every child row is aggregated.')).toBeInTheDocument();
+  });
+
+  it('adds a condition, defaulting the field to the first child field', () => {
+    const { onPatch } = renderField(
+      { total: { type: 'summary', summaryOperations: { object: 'crm_order', function: 'sum', field: 'amount' } } },
+      'total',
+    );
+    fireEvent.click(screen.getByText('Add condition'));
+    expect(onPatch.mock.calls.at(-1)![0].fields.total.summaryOperations.filter).toEqual({ name: '' });
+  });
+
+  it('reads an existing filter into a row', () => {
+    renderField(
+      { total: { type: 'summary', summaryOperations: { object: 'crm_order', function: 'sum', field: 'amount', filter: { status: 'approved' } } } },
+      'total',
+    );
+    expect(screen.getByText('Filter 1')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('approved')).toBeInTheDocument();
+  });
+
+  it('coerces a boolean child field value to a real boolean in the emitted FilterCondition', () => {
+    const { onPatch } = renderField(
+      { total: { type: 'summary', summaryOperations: { object: 'crm_order', function: 'sum', field: 'amount', filter: { billable: '' } } } },
+      'total',
+    );
+    fireEvent.change(controlFor('Value'), { target: { value: 'true' } });
+    fireEvent.blur(controlFor('Value'));
+    expect(onPatch.mock.calls.at(-1)![0].fields.total.summaryOperations.filter).toEqual({ billable: true });
+  });
+
+  it('coerces a numeric operator value to a number (amount >= 500)', () => {
+    const { onPatch } = renderField(
+      { total: { type: 'summary', summaryOperations: { object: 'crm_order', function: 'count', field: 'amount', filter: { amount: { $gte: 0 } } } } },
+      'total',
+    );
+    fireEvent.change(controlFor('Value'), { target: { value: '500' } });
+    fireEvent.blur(controlFor('Value'));
+    expect(onPatch.mock.calls.at(-1)![0].fields.total.summaryOperations.filter).toEqual({ amount: { $gte: 500 } });
+  });
+
+  it('shows a read-only note for an advanced ($or) filter instead of clobbering it', () => {
+    renderField(
+      { total: { type: 'summary', summaryOperations: { object: 'crm_order', function: 'sum', field: 'amount', filter: { $or: [{ status: 'approved' }, { status: 'submitted' }] } } } },
+      'total',
+    );
+    expect(screen.getByText(/advanced shape/i)).toBeInTheDocument();
+    expect(screen.queryByText('Filter 1')).not.toBeInTheDocument();
   });
 });

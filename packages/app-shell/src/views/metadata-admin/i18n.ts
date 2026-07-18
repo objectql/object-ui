@@ -967,6 +967,13 @@ const ENGINE_STRINGS_EN: Record<string, string> = {
   'designer.field.summary.relationshipField': 'Child relationship field (optional)',
   'designer.field.summary.setObjectFirst': 'Set the child object first',
   'designer.field.summary.countFieldHint': 'Ignored for count, but still required — pick any child field.',
+  'designer.field.summary.filterSection': 'Filter (rows to aggregate)',
+  'designer.field.summary.addFilter': 'Add condition',
+  'designer.field.summary.noFilter': 'No filter — every child row is aggregated.',
+  'designer.field.summary.filterHint':
+    'Only child rows matching ALL conditions are aggregated — this is how one child object can feed several different totals (e.g. an approved-only sum vs the grand total).',
+  'designer.field.summary.filterAdvanced':
+    'This filter uses an advanced shape (OR / nested logic) that the row editor can’t show. Edit it as raw metadata to preserve it.',
   'designer.field.summary.hint':
     'Recomputed automatically when child records are created, updated, or deleted. The relationship field is auto-detected when the child has exactly one relation back to this object.',
   'designer.field.precision': 'Precision',
@@ -2329,6 +2336,13 @@ const ENGINE_STRINGS_ZH: Record<string, string> = {
   'designer.field.summary.relationshipField': '子关系字段(可选)',
   'designer.field.summary.setObjectFirst': '请先选择子对象',
   'designer.field.summary.countFieldHint': '计数时不参与计算,但规范要求必填——任选一个子字段即可。',
+  'designer.field.summary.filterSection': '筛选(参与汇总的子记录)',
+  'designer.field.summary.addFilter': '添加条件',
+  'designer.field.summary.noFilter': '未设筛选 — 所有子记录都参与汇总。',
+  'designer.field.summary.filterHint':
+    '仅满足全部条件的子记录参与汇总——这样同一个子对象就能生成多个不同的汇总值(例如“仅已批准金额”与“总金额”)。',
+  'designer.field.summary.filterAdvanced':
+    '该筛选使用了行编辑器无法展示的高级结构(OR / 嵌套逻辑)。请直接编辑元数据以保留它。',
   'designer.field.summary.hint':
     '子记录新增、更新或删除时自动重新计算;子对象只有一个指向本对象的关系字段时可自动识别,无需填写。',
   'designer.field.precision': '精度',

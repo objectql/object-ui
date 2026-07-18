@@ -1187,12 +1187,105 @@ interface SummaryOps {
   field?: string;
   function?: string;
   relationshipField?: string;
+  /** FilterCondition (query `where` object) restricting which child rows aggregate. */
+  filter?: Record<string, unknown>;
 }
 
 function readSummaryOps(def: Record<string, unknown>): SummaryOps {
   const raw = def.summaryOperations;
   return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as SummaryOps) : {};
 }
+
+/* ─── summary `filter` ⇆ structured rows ───────────────────────────────────
+ * The spec models `summaryOperations.filter` as a FilterCondition OBJECT
+ * (`{ status: 'approved' }`, `{ amount: { $gte: 500 } }`). The inspector edits
+ * it as field/operator/value rows (the same shape as lookupFilters), converting
+ * both ways. A filter using logic the rows can't represent ($or/$not/nested) is
+ * flagged `advanced` so the editor shows it read-only instead of clobbering it. */
+type SummaryFilterRow = { field: string; operator: string; value: unknown };
+
+const SUMMARY_OP_TO_FC: Record<string, string> = {
+  ne: '$ne', gt: '$gt', lt: '$lt', gte: '$gte', lte: '$lte',
+  contains: '$contains', in: '$in', notIn: '$nin',
+};
+const FC_TO_SUMMARY_OP: Record<string, string> = {
+  $eq: 'eq', $ne: 'ne', $gt: 'gt', $lt: 'lt', $gte: 'gte', $lte: 'lte',
+  $contains: 'contains', $in: 'in', $nin: 'notIn',
+};
+const SUMMARY_NUMERIC_TYPES = new Set(['number', 'currency', 'percent', 'rating', 'slider', 'autonumber']);
+
+/** Coerce an editor string to the type the child field stores, so the emitted
+ *  FilterCondition matches on the real column (a boolean, not the text "true"). */
+function coerceSummaryValue(raw: unknown, fieldType: string | undefined, isList: boolean): unknown {
+  const one = (s: unknown): unknown => {
+    if (typeof s !== 'string') return s; // already typed (round-tripped from an existing filter)
+    const t = s.trim();
+    if (fieldType === 'boolean' || fieldType === 'toggle') return t === 'true' || t === '1';
+    if (fieldType && SUMMARY_NUMERIC_TYPES.has(fieldType)) {
+      const n = Number(t);
+      return t !== '' && Number.isFinite(n) ? n : s;
+    }
+    return s;
+  };
+  if (isList) {
+    const arr = Array.isArray(raw) ? raw : String(raw ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    return arr.map(one);
+  }
+  return one(raw);
+}
+
+/** FilterCondition object → editor rows. Understands the flat form and a
+ *  top-level `$and` of flat conditions; anything else sets `advanced`. */
+function summaryFilterToRows(filter: unknown): { rows: SummaryFilterRow[]; advanced: boolean } {
+  if (!filter || typeof filter !== 'object' || Array.isArray(filter)) return { rows: [], advanced: false };
+  const rows: SummaryFilterRow[] = [];
+  let advanced = false;
+  const consume = (obj: Record<string, unknown>) => {
+    for (const [key, v] of Object.entries(obj)) {
+      if (key === '$and' && Array.isArray(v)) {
+        for (const c of v) {
+          if (c && typeof c === 'object' && !Array.isArray(c)) consume(c as Record<string, unknown>);
+          else advanced = true;
+        }
+        continue;
+      }
+      if (key.startsWith('$')) { advanced = true; continue; } // $or / $not / unknown
+      if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+        const entries = Object.entries(v as Record<string, unknown>);
+        if (entries.length === 0) { advanced = true; continue; }
+        for (const [op, val] of entries) {
+          const sop = FC_TO_SUMMARY_OP[op];
+          if (sop) rows.push({ field: key, operator: sop, value: val });
+          else advanced = true;
+        }
+      } else {
+        rows.push({ field: key, operator: 'eq', value: v }); // scalar/array ⇒ implicit equality
+      }
+    }
+  };
+  consume(filter as Record<string, unknown>);
+  return { rows, advanced };
+}
+
+/** Editor rows → FilterCondition object. Drops field-less rows; merges into a
+ *  flat object when field keys are distinct, else wraps in `$and`. */
+function summaryRowsToFilter(
+  rows: SummaryFilterRow[],
+  typeOf: (field: string) => string | undefined,
+): Record<string, unknown> | undefined {
+  const valid = rows.filter((r) => r.field);
+  if (valid.length === 0) return undefined;
+  const conds = valid.map((r) => {
+    const isList = r.operator === 'in' || r.operator === 'notIn';
+    const cv = coerceSummaryValue(r.value, typeOf(r.field), isList);
+    return r.operator === 'eq' ? { [r.field]: cv } : { [r.field]: { [SUMMARY_OP_TO_FC[r.operator] ?? '$eq']: cv } };
+  });
+  if (conds.length === 1) return conds[0];
+  const keys = conds.map((c) => Object.keys(c)[0]);
+  return new Set(keys).size === keys.length ? Object.assign({}, ...conds) : { $and: conds };
+}
+
+const summaryValueToText = (v: unknown): string => (Array.isArray(v) ? v.join(', ') : v == null ? '' : String(v));
 
 /**
  * Structured editor for a `summary` field's roll-up definition. A summary
@@ -1245,6 +1338,20 @@ function SummaryConfigFields({
     ? tr('designer.field.lookup.selectField')
     : tr('designer.field.summary.setObjectFirst');
 
+  // Filter editor: derive rows from the FilterCondition each render, edit, and
+  // serialize back. `typeOf` coerces values to the child field's stored type.
+  const typeOf = React.useCallback(
+    (name: string) => childFields.find((f) => f.name === name)?.type,
+    [childFields],
+  );
+  const { rows: filterRows, advanced: filterAdvanced } = summaryFilterToRows(ops.filter);
+  const commitFilterRows = (rows: SummaryFilterRow[]) => patchOps({ filter: summaryRowsToFilter(rows, typeOf) });
+  const patchFilterRow = (i: number, patch: Partial<SummaryFilterRow>) =>
+    commitFilterRows(filterRows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  const addFilterRow = () =>
+    commitFilterRows([...filterRows, { field: aggregateOptions[0]?.value ?? '', operator: 'eq', value: '' }]);
+  const removeFilterRow = (i: number) => commitFilterRows(filterRows.filter((_, idx) => idx !== i));
+
   return (
     <div className="space-y-2">
       <ObjectPicker
@@ -1295,6 +1402,76 @@ function SummaryConfigFields({
         disabled={readOnly}
         mono
       />
+
+      {/* Optional filter — only child rows matching these conditions aggregate
+          (framework#1868). Reads/writes summaryOperations.filter as a
+          FilterCondition; rows mirror the lookupFilters editor. */}
+      <div className="space-y-1.5 border-t pt-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs text-muted-foreground">{tr('designer.field.summary.filterSection')}</Label>
+            {!filterAdvanced && <Badge variant="outline" className="text-[10px]">{filterRows.length}</Badge>}
+          </div>
+          {!readOnly && !filterAdvanced && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 gap-1 px-1.5 text-[11px]"
+              onClick={addFilterRow}
+              disabled={aggregateOptions.length === 0}
+            >
+              <Plus className="h-3 w-3" /> {tr('designer.field.summary.addFilter')}
+            </Button>
+          )}
+        </div>
+        {filterAdvanced ? (
+          <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
+            {tr('designer.field.summary.filterAdvanced')}
+          </p>
+        ) : filterRows.length === 0 ? (
+          <p className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-center text-[11px] text-muted-foreground">
+            {tr('designer.field.summary.noFilter')}
+          </p>
+        ) : (
+          filterRows.map((f, i) => (
+            <div key={i} className="rounded-md border p-2 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-muted-foreground">{tFormat('designer.field.lookup.filterN', locale, { n: i + 1 })}</span>
+                {!readOnly && (
+                  <Button type="button" variant="ghost" size="sm" aria-label={tr('designer.field.lookup.removeFilter')} className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={() => removeFilterRow(i)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+              <InspectorComboField
+                label={tr('designer.field.lookup.filterField')}
+                value={f.field ?? ''}
+                onCommit={(v) => patchFilterRow(i, { field: v })}
+                options={aggregateOptions}
+                loading={loading}
+                placeholder={fieldPlaceholder}
+                searchPlaceholder={tr('designer.field.lookup.searchFields')}
+                disabled={readOnly}
+                mono
+              />
+              <InspectorSelectField label={tr('designer.field.lookup.filterOperator')} value={f.operator ?? 'eq'} options={LOOKUP_OPERATORS} onCommit={(v) => patchFilterRow(i, { operator: v })} disabled={readOnly} />
+              <InspectorTextField
+                label={tr('designer.field.lookup.filterValue')}
+                value={summaryValueToText(f.value)}
+                onCommit={(v) => patchFilterRow(i, { value: v })}
+                placeholder={f.operator === 'in' || f.operator === 'notIn' ? 'comma,separated,values' : 'value'}
+                disabled={readOnly}
+                mono
+              />
+            </div>
+          ))
+        )}
+        <p className="text-[11px] text-muted-foreground/80 px-0.5 leading-snug">
+          {tr('designer.field.summary.filterHint')}
+        </p>
+      </div>
+
       <p className="text-[11px] text-muted-foreground/80 px-0.5 leading-snug">
         {tr('designer.field.summary.hint')}
       </p>
