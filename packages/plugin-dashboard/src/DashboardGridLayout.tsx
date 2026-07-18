@@ -306,7 +306,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
     <div ref={containerRef} className={cn("w-full", className)} data-testid="grid-layout">
       {hasDndProvider && <DndEditModeBridge editMode={editMode} />}
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-2xl font-bold">{schema.title || 'Dashboard'}</h2>
+        <h2 className="text-2xl font-bold">{schema.title || schema.label || 'Dashboard'}</h2>
         <div className="flex gap-2">
           {editMode ? (
             <>

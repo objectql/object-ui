@@ -159,6 +159,35 @@ const SCHEMAS: Record<string, Record<string, unknown>> = {
       ...headerProps,
       instructions: { type: 'string', title: 'Instructions', format: 'multiline' },
       tools: { type: 'array', title: 'Tools', items: { type: 'string' } },
+      surface: {
+        type: 'string',
+        title: 'Surface',
+        description: "Agent surface this skill binds to (ADR-0063).",
+        enum: ['ask', 'build', 'both'],
+      },
+      triggerPhrases: {
+        type: 'array',
+        title: 'Trigger Phrases',
+        description: 'Natural-language phrases that activate this skill.',
+        items: { type: 'string' },
+      },
+      triggerConditions: {
+        type: 'array',
+        title: 'Trigger Conditions',
+        description: 'Programmatic activation conditions (context field / operator / value). The activation-critical field — previously only hand-editable (#1878/#1895).',
+        items: {
+          type: 'object',
+          properties: {
+            field: { type: 'string', title: 'Field' },
+            operator: {
+              type: 'string',
+              title: 'Operator',
+              enum: ['eq', 'neq', 'in', 'not_in', 'contains'],
+            },
+            value: { type: 'string', title: 'Value' },
+          },
+        },
+      },
     },
   },
 
