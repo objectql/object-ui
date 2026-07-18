@@ -344,6 +344,7 @@ const en = {
       },
     },
     showAll: 'Show all',
+    refresh: 'Refresh',
     pullToRefresh: 'Pull to refresh',
     refreshing: 'Refreshing…',
     share: 'Share',

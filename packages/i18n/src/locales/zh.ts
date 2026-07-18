@@ -421,6 +421,7 @@ const zh = {
       },
     },
     showAll: '显示全部',
+    refresh: '刷新',
     pullToRefresh: '下拉刷新',
     refreshing: '刷新中…',
     share: '分享',

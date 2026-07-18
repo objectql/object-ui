@@ -245,6 +245,7 @@ const LIST_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'list.hideFields': 'Hide fields',
   'list.showAll': 'Show all',
   'list.pullToRefresh': 'Pull to refresh',
+  'list.refresh': 'Refresh',
   'list.refreshing': 'Refreshing…',
   'list.dataLimitReached': 'Showing first {{limit}} records. More data may be available.',
   'list.addRecord': 'Add record',
@@ -390,10 +391,15 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
   const toolbarFlags = React.useMemo(() => {
     const ua = schema.userActions;
     const addRecordEnabled = schema.addRecord?.enabled === true && ua?.addRecordForm !== false;
+    // `refresh` is spec-canonical (`userActions.refresh`, @objectstack/spec). The
+    // installed spec type may predate it, so read defensively before falling back to
+    // the legacy `showRefresh` flag. Visible by default (opt-out, like the others).
+    const uaRefresh = (ua as { refresh?: boolean } | undefined)?.refresh;
     return {
       showSearch: ua?.search !== undefined ? ua.search : schema.showSearch !== false,
       showSort: ua?.sort !== undefined ? ua.sort : schema.showSort !== false,
       showFilters: ua?.filter !== undefined ? ua.filter : schema.showFilters !== false,
+      showRefresh: uaRefresh !== undefined ? uaRefresh : schema.showRefresh !== false,
       showDensity: ua?.rowHeight !== undefined ? ua.rowHeight : schema.showDensity !== false,
       showHideFields: schema.showHideFields === true,
       showGroup: schema.showGroup !== false,
@@ -402,7 +408,7 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
       showAddRecord: addRecordEnabled,
       addRecordPosition: (schema.addRecord?.position === 'bottom' ? 'bottom' : 'top') as 'top' | 'bottom',
     };
-  }, [schema.userActions, schema.showSearch, schema.showSort, schema.showFilters, schema.showDensity, schema.showHideFields, schema.showGroup, schema.showColor, schema.compactToolbar, schema.addRecord, schema.userActions?.addRecordForm]);
+  }, [schema.userActions, schema.showSearch, schema.showSort, schema.showFilters, schema.showRefresh, schema.showDensity, schema.showHideFields, schema.showGroup, schema.showColor, schema.compactToolbar, schema.addRecord, schema.userActions?.addRecordForm]);
 
   const [currentView, setCurrentView] = React.useState<ViewType>(
     (schema.viewType as ViewType)
@@ -2145,6 +2151,25 @@ export const ListView = React.forwardRef<ListViewHandle, ListViewProps>(({
           {/* --- Separator: Appearance | Export --- */}
           {(toolbarFlags.showColor || toolbarFlags.showDensity || toolbarFlags.compactToolbar) && resolvedExportOptions && exportPermitted && (
             <div className="h-5 w-px bg-border/50 mx-1 shrink-0" />
+          )}
+
+          {/* Refresh — re-fetch the current view from the backend without a full page
+              reload. Filters / sort / pagination / search all live in component state,
+              so bumping refreshKey re-queries while preserving the view. Always visible
+              (mobile + desktop) since reloading data is a primary list action. */}
+          {toolbarFlags.showRefresh && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-primary transition-colors duration-150"
+              onClick={() => setRefreshKey(k => k + 1)}
+              disabled={loading}
+              title={t('list.refresh')}
+              aria-label={t('list.refresh')}
+              data-testid="refresh-button"
+            >
+              <RotateCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+            </Button>
           )}
 
           {/* Export */}
