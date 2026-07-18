@@ -142,7 +142,6 @@ const DESIGNER_DEFAULT_TRANSLATIONS: Record<string, string> = {
   'appDesigner.objectManager.group': 'Group',
   'appDesigner.objectManager.noGroup': 'No Group',
   'appDesigner.objectManager.sortOrder': 'Sort Order',
-  'appDesigner.objectManager.enabled': 'Enabled',
   'appDesigner.objectManager.relationships': 'Relationships',
   'appDesigner.objectManager.systemBadge': 'System',
   'appDesigner.objectManager.fieldCount': '{{count}} fields',

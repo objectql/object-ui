@@ -26,7 +26,6 @@ const MOCK_OBJECTS: ObjectDefinition[] = [
     group: 'Custom Objects',
     sortOrder: 1,
     isSystem: false,
-    enabled: true,
     fieldCount: 12,
     relationships: [
       { relatedObject: 'contacts', type: 'one-to-many', label: 'Contacts' },
@@ -39,7 +38,6 @@ const MOCK_OBJECTS: ObjectDefinition[] = [
     group: 'Custom Objects',
     sortOrder: 2,
     isSystem: false,
-    enabled: true,
     fieldCount: 8,
   },
   {
@@ -48,7 +46,6 @@ const MOCK_OBJECTS: ObjectDefinition[] = [
     label: 'Users',
     group: 'System Objects',
     isSystem: true,
-    enabled: true,
     fieldCount: 5,
   },
 ];

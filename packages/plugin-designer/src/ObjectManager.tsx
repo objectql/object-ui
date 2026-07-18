@@ -108,7 +108,6 @@ export function ObjectManager({
     { field: 'label', label: t('appDesigner.objectManager.objectLabel'), width: 160 },
     { field: 'group', label: t('appDesigner.objectManager.group'), width: 130 },
     { field: 'fieldCount', label: 'Fields', width: 80 },
-    { field: 'enabled', label: t('appDesigner.objectManager.enabled'), width: 80 },
   ], [t]);
 
   const gridSchema = useMemo<ObjectGridSchema>(() => ({
@@ -165,7 +164,6 @@ export function ObjectManager({
         icon: data.icon ? String(data.icon) : undefined,
         group: data.group ? String(data.group) : undefined,
         sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : undefined,
-        enabled: data.enabled !== false,
       };
       onObjectsChange?.(objects.map((o) => (o.id === editingObject.id ? updated : o)));
     } else {
@@ -180,7 +178,6 @@ export function ObjectManager({
         group: data.group ? String(data.group) : undefined,
         sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : undefined,
         isSystem: false,
-        enabled: data.enabled !== false,
         fieldCount: 0,
       };
       onObjectsChange?.([...objects, newObj]);
@@ -216,7 +213,6 @@ export function ObjectManager({
       { name: 'icon', label: t('appDesigner.objectManager.icon'), type: 'select', options: ICON_OPTIONS.map((i) => ({ label: i, value: i })), disabled: readOnly },
       { name: 'group', label: t('appDesigner.objectManager.group'), type: 'select', options: OBJECT_GROUPS.map((g) => ({ label: g, value: g })), disabled: readOnly },
       { name: 'sortOrder', label: t('appDesigner.objectManager.sortOrder'), type: 'number', disabled: readOnly },
-      { name: 'enabled', label: t('appDesigner.objectManager.enabled'), type: 'boolean', disabled: readOnly },
     ],
     initialValues: editingObject
       ? {
@@ -227,9 +223,8 @@ export function ObjectManager({
           icon: editingObject.icon || '',
           group: editingObject.group || '',
           sortOrder: editingObject.sortOrder ?? 0,
-          enabled: editingObject.enabled !== false,
         }
-      : { enabled: true },
+      : {},
     onSuccess: handleFormSuccess,
     onCancel: () => handleFormClose(false),
     readOnly,

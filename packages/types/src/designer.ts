@@ -656,8 +656,6 @@ export interface ObjectDefinition {
   sortOrder?: number;
   /** Whether this is a system object (non-deletable) */
   isSystem?: boolean;
-  /** Whether this object is enabled/active */
-  enabled?: boolean;
   /** Field count (read-only, for display) */
   fieldCount?: number;
   /** Relationships to other objects */

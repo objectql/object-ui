@@ -47,7 +47,6 @@ interface ServerObjectSchema {
   icon?: string;
   group?: string;
   isSystem?: boolean;
-  active?: boolean;
   fields?: Record<string, unknown>;
   [key: string]: unknown;
 }
@@ -90,7 +89,6 @@ function toObjectDefinition(raw: ServerObjectSchema): ObjectDefinition {
     icon: raw.icon,
     group: raw.group,
     isSystem: raw.isSystem ?? false,
-    enabled: raw.active !== false,
     fieldCount,
   };
 }
@@ -195,7 +193,6 @@ export function MetadataObjectsPage({
         icon: updated.icon,
         group: updated.group,
         isSystem: updated.isSystem,
-        active: updated.enabled !== false,
       };
       // Don't issue redundant saves if nothing visible changed.
       if (
@@ -205,7 +202,6 @@ export function MetadataObjectsPage({
         && prev[updated.name].description === merged.description
         && prev[updated.name].icon === merged.icon
         && prev[updated.name].group === merged.group
-        && (prev[updated.name].active ?? true) === merged.active
       ) {
         continue;
       }
