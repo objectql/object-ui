@@ -1,9 +1,0 @@
----
-'@object-ui/types': major
----
-
-Adopt `@objectstack/spec` 15 across the workspace and drop the value-erased `…Schema` re-exports from `@object-ui/types` (#2561).
-
-**Removed exports.** `packages/types` re-exported the `@objectstack/spec/ui` surface inside `export type { … }` blocks, and those blocks included the zod validators (`DndConfigSchema`, `SpecFormViewSchema`, `ThemeModeSchema`, … 84 names in total). Under `export type` a zod value is erased, so importing any of them as a value from `@object-ui/types` silently yielded `undefined` at runtime. Per the #2561 decision (option a) the schema names are removed from the public surface instead of being converted to value re-exports — consumers that need the runtime validators import them from `@objectstack/spec/ui` directly. The inferred types (`DndConfig`, `SpecFormView`, …) are unchanged, and the genuine value re-exports (`defineStack`, `ObjectStackSchema`, `SpecReportSchema`, …) keep working. `BreakpointColumnMapSchema` / `BreakpointOrderMapSchema` are dropped without a type replacement (the spec exports no companion inferred type). A guardrail test (`spec-ui-schema-reexports.test.ts`) pins the contract.
-
-**Spec 15.** Every workspace package now depends on `@objectstack/spec` ^15.1.1. The `/ui` export-name set is identical to 14.6; the spec-level breaking change is ADR-0089 D3a — `FormFieldSchema` / `FormSectionSchema` / `PageComponentSchema` are `.strict()` and reject undeclared keys, which the workspace test suite passes under. The floor is 15.1.1 (not 15.0.0) because D3a's `.strict().transform(…)` pipes crashed `z.toJSONSchema` over spec's lazySchema proxies (`Cannot set properties of undefined (setting 'ref')`), breaking Studio's spec-derived Page/View inspector schemas; fixed upstream in framework#3021, which shipped in spec 15.1.1. New `view-schema.test.ts` pins the View-inspector derivation (previously untested — it degraded silently).

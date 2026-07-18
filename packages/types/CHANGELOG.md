@@ -1,5 +1,82 @@
 # @object-ui/types
 
+## 16.0.0
+
+### Major Changes
+
+- 9b8f978: Adopt `@objectstack/spec` 15 across the workspace and drop the value-erased `…Schema` re-exports from `@object-ui/types` (#2561).
+
+  **Removed exports.** `packages/types` re-exported the `@objectstack/spec/ui` surface inside `export type { … }` blocks, and those blocks included the zod validators (`DndConfigSchema`, `SpecFormViewSchema`, `ThemeModeSchema`, … 84 names in total). Under `export type` a zod value is erased, so importing any of them as a value from `@object-ui/types` silently yielded `undefined` at runtime. Per the #2561 decision (option a) the schema names are removed from the public surface instead of being converted to value re-exports — consumers that need the runtime validators import them from `@objectstack/spec/ui` directly. The inferred types (`DndConfig`, `SpecFormView`, …) are unchanged, and the genuine value re-exports (`defineStack`, `ObjectStackSchema`, `SpecReportSchema`, …) keep working. `BreakpointColumnMapSchema` / `BreakpointOrderMapSchema` are dropped without a type replacement (the spec exports no companion inferred type). A guardrail test (`spec-ui-schema-reexports.test.ts`) pins the contract.
+
+  **Spec 15.** Every workspace package now depends on `@objectstack/spec` ^15.1.1. The `/ui` export-name set is identical to 14.6; the spec-level breaking change is ADR-0089 D3a — `FormFieldSchema` / `FormSectionSchema` / `PageComponentSchema` are `.strict()` and reject undeclared keys, which the workspace test suite passes under. The floor is 15.1.1 (not 15.0.0) because D3a's `.strict().transform(…)` pipes crashed `z.toJSONSchema` over spec's lazySchema proxies (`Cannot set properties of undefined (setting 'ref')`), breaking Studio's spec-derived Page/View inspector schemas; fixed upstream in framework#3021, which shipped in spec 15.1.1. New `view-schema.test.ts` pins the View-inspector derivation (previously untested — it degraded silently).
+
+### Minor Changes
+
+- b4ef588: feat(types): derive `ListViewSchema` from `@objectstack/spec/ui` instead of a hand-written copy (#2231)
+
+  `@object-ui/types` shipped a hand-written mirror of the spec's UI ListView zod
+  (`packages/types/src/zod/objectql.zod.ts`) plus a parallel hand-written TS `interface`
+  (`objectql.ts`). Both had drifted from the authoritative `@objectstack/spec/ui`
+  `ListViewSchema`, with nothing enforcing they stay in sync.
+
+  - The zod `ListViewSchema` now **derives** from the spec's `ListViewSchema`: spec-owned
+    fields (`filter`, `sort`, `selection`, `navigation`, `pagination`, `grouping`,
+    `rowColor`, `userActions`, `appearance`, `tabs`, `addRecord`, `rowHeight`, `sharing`,
+    `chart`/`tree` configs, `responsive`, `performance`, …) flow in **by reference** instead
+    of being re-typed. The component envelope (`type: 'list-view'` discriminator +
+    `objectName`) and the legacy objectui vocabulary (`viewType`, `fields`, `filters`, the
+    `show*` toolbar flags, `densityMode`, `color`, …) plus the configs whose objectui shape
+    is intentionally broader than spec's (`userFilters`, `sharing`, `aria`,
+    `conditionalFormatting`, `exportOptions`, `kanban`/`calendar`/`gantt`/`gallery`/
+    `timeline`) remain as sanctioned local `.extend()`s. Existing payloads keep validating;
+    spec-canonical payloads (`columns`/`filter`/`userActions`) now validate too.
+  - The hand-written TS `interface ListViewSchema` is replaced by
+    `z.infer<typeof ListViewSchema> & ListViewRuntimeProps`, so the type can no longer drift
+    from the schema. Non-serializable runtime-only props (`onNavigate`, `onDensityChange`,
+    `refreshTrigger`) live in `ListViewRuntimeProps`.
+  - Added a drift-guard test (`list-view-spec-parity.test.ts`) that fails if the spec grows a
+    field objectui hasn't triaged, renames an aliased anchor (`type`/`columns`/`filter`), or
+    an objectui-only field is added outside the sanctioned-local set.
+  - Bumped the `@objectstack/spec` dependency `^14.6.0` → `^15.1.0` across the workspace
+    (15.1.0 carries the framework#3021 `lazySchema`/`z.toJSONSchema` identity fix that the
+    spec-derived Page/View inspectors depend on).
+
+  Migrating the legacy vocabulary to the spec-canonical keys and adopting spec's narrower
+  sub-shapes are deferred follow-ups (see #2231). No runtime behavior change.
+
+- 5534535: feat(grid): built-in row Edit/Delete honor per-record CEL predicates (#2614)
+
+  The object's `userActions.edit` / `userActions.delete` now also accept an
+  object form `{ enabled?, visibleWhen?, disabledWhen? }`. The predicates are
+  evaluated per row on the canonical CEL engine (`useRowPredicate`, the same
+  machinery custom row actions use): `visibleWhen` false → the built-in
+  Edit/Delete item is not rendered for that row (fail-closed); `disabledWhen`
+  true → rendered disabled (fail-soft). Wired through ObjectGrid's
+  RowActionMenu and the data-table's row overflow menu (the related-list
+  path), with the app-shell `crudAffordances` mirror kept in lockstep.
+  Omitting the predicates (or using plain booleans) keeps today's behavior
+  bit-for-bit; declared predicates evaluate only when a row's menu opens, so
+  grid rendering cost is unchanged.
+
+### Patch Changes
+
+- 210806a: chore(designer): drop the inert object "Enabled" toggle (framework#2377)
+
+  The object designer showed an **Enabled** column (`ObjectManager` grid) and an
+  editable **Enabled** boolean (add/edit object form), backed solely by the object
+  `active` metadata property. `active` had no runtime consumer and was removed from
+  `@objectstack/spec` (framework#3199, ADR-0049 enforce-or-remove) — so the toggle
+  never disabled anything. Toggling it "off" left the object fully queryable and
+  usable: a false affordance.
+
+  Removed the column, the form field, the `active`↔`enabled` mapping/write-back in
+  `MetadataObjectsPage`, the `enabled?` field on the designer `ObjectDefinition`
+  type, and the now-unused `appDesigner.objectManager.enabled` string. Non-breaking:
+  the metadata write path registers objects via `ObjectSchema.parse()`, which already
+  strips unknown keys, and `ObjectDefinition.enabled` was designer-only.
+
+  `isSystem` is unchanged (it stays a live spec property).
+
 ## 15.0.0
 
 ## 14.1.0

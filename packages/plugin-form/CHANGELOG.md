@@ -1,5 +1,61 @@
 # @object-ui/plugin-form
 
+## 16.0.0
+
+### Minor Changes
+
+- 9d4a429: fix(form+detail): keep single-file children as inline grids; drop non-spec `attachment` handling
+
+  Two follow-ups to the upload-in-grid work (objectui#2360):
+
+  - **#2654** — Now that `file`/`image`/`avatar` fields render a compact upload
+    cell in the line-item grid, a child object with a _single_ such field no
+    longer flips the smart `inlineEdit` default to a per-row form. `resolveInlineMode`
+    splits the old `FORM_ONLY_TYPES`: truly form-only types (textarea / richtext /
+    html / markdown / json / location / address) still tip to `form` on their own,
+    while file-family types only tip when several rich fields pile up
+    (`RICH_FIELD_FORM_THRESHOLD`, default 2). An explicit `inlineEdit` always wins.
+
+  - **#2655** — `attachment` is not a `@objectstack/spec` field type (the spec
+    media types are file/image/avatar/video/audio), so the renderer no longer
+    models it: removed from `fieldTypeToColumnType`, the inline-mode heuristic, and
+    `RelatedList`'s auto-column `SKIP_TYPES`. Contract-first cleanup — the renderer
+    stops fossilizing a phantom type (AGENTS.md #0.1).
+
+### Patch Changes
+
+- 5534535: feat(grid): built-in row Edit/Delete honor per-record CEL predicates (#2614)
+
+  The object's `userActions.edit` / `userActions.delete` now also accept an
+  object form `{ enabled?, visibleWhen?, disabledWhen? }`. The predicates are
+  evaluated per row on the canonical CEL engine (`useRowPredicate`, the same
+  machinery custom row actions use): `visibleWhen` false → the built-in
+  Edit/Delete item is not rendered for that row (fail-closed); `disabledWhen`
+  true → rendered disabled (fail-soft). Wired through ObjectGrid's
+  RowActionMenu and the data-table's row overflow menu (the related-list
+  path), with the app-shell `crudAffordances` mirror kept in lockstep.
+  Omitting the predicates (or using plain booleans) keeps today's behavior
+  bit-for-bit; declared predicates evaluate only when a row's menu opens, so
+  grid rendering cost is unchanged.
+
+- Updated dependencies [d3e19ed]
+- Updated dependencies [59d4fa9]
+- Updated dependencies [4c7c47f]
+- Updated dependencies [210806a]
+- Updated dependencies [b4ef588]
+- Updated dependencies [ca0f5f0]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+- Updated dependencies [195a651]
+- Updated dependencies [33b4995]
+  - @object-ui/react@16.0.0
+  - @object-ui/components@16.0.0
+  - @object-ui/types@16.0.0
+  - @object-ui/i18n@16.0.0
+  - @object-ui/fields@16.0.0
+  - @object-ui/core@16.0.0
+  - @object-ui/permissions@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

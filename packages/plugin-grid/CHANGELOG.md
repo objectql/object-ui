@@ -1,5 +1,48 @@
 # @object-ui/plugin-grid
 
+## 16.0.0
+
+### Minor Changes
+
+- 5534535: feat(grid): built-in row Edit/Delete honor per-record CEL predicates (#2614)
+
+  The object's `userActions.edit` / `userActions.delete` now also accept an
+  object form `{ enabled?, visibleWhen?, disabledWhen? }`. The predicates are
+  evaluated per row on the canonical CEL engine (`useRowPredicate`, the same
+  machinery custom row actions use): `visibleWhen` false → the built-in
+  Edit/Delete item is not rendered for that row (fail-closed); `disabledWhen`
+  true → rendered disabled (fail-soft). Wired through ObjectGrid's
+  RowActionMenu and the data-table's row overflow menu (the related-list
+  path), with the app-shell `crudAffordances` mirror kept in lockstep.
+  Omitting the predicates (or using plain booleans) keeps today's behavior
+  bit-for-bit; declared predicates evaluate only when a row's menu opens, so
+  grid rendering cost is unchanged.
+
+### Patch Changes
+
+- 80977d0: Import wizard: stop leaving the user at two silent dead-ends (surfaced during framework batch-write testing).
+
+  - #2640 — the mapping step now renders an inline hint listing every required field that has no column mapped (as `label (name)`), so a disabled **Next** button always explains itself. The hint updates live with the mapping and clears once the columns are supplied; the disable logic itself is unchanged.
+  - #2639 — when the server `/import` route is unavailable and the wizard downgrades to the legacy per-row `create` loop, the completion screen now shows a "compatibility fallback" notice (values written as-is, without server-side coercion) via a new optional `ImportResult.degraded` flag — the downgrade is no longer silent. The pre-existing guard that refuses the fallback when relation columns are mapped (which would otherwise write raw natural keys into FK columns) is retained.
+
+- Updated dependencies [d3e19ed]
+- Updated dependencies [59d4fa9]
+- Updated dependencies [4c7c47f]
+- Updated dependencies [210806a]
+- Updated dependencies [b4ef588]
+- Updated dependencies [ca0f5f0]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+- Updated dependencies [195a651]
+- Updated dependencies [33b4995]
+  - @object-ui/react@16.0.0
+  - @object-ui/components@16.0.0
+  - @object-ui/types@16.0.0
+  - @object-ui/i18n@16.0.0
+  - @object-ui/fields@16.0.0
+  - @object-ui/core@16.0.0
+  - @object-ui/mobile@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

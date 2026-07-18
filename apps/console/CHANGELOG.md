@@ -1,5 +1,13 @@
 # @object-ui/console
 
+## 16.0.0
+
+### Patch Changes
+
+- ca0f5f0: Login page surfaces the dev-seeded admin credentials. The framework runtime seeds `admin@objectos.ai` on an empty development database, but nothing on the login page said so — new users clicked "Sign up" and landed in an empty non-admin workspace (15.1 third-party eval). When `GET /api/v1/auth/config` reports `devSeedAdmin` (dev-only; the server omits the field in production and once the default password is changed), the page renders a dismissible amber banner with the credentials. Dismissal persists per browser via localStorage.
+  - @object-ui/react-runtime@16.0.0
+  - @object-ui/sdui-parser@16.0.0
+
 ## 15.0.0
 
 ### Major Changes

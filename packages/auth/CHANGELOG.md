@@ -1,5 +1,49 @@
 # @object-ui/auth
 
+## 16.0.0
+
+### Patch Changes
+
+- 45c6fb4: Login-page auth-config hardening (#2625, #2626):
+
+  - `createAuthClient.getConfig` now single-flights + caches the `/auth/config`
+    fetch (the login page's three consumers used to fire three requests) and
+    retries failures with backoff (500ms/1.5s/3.5s, 8s per-attempt abort) before
+    rejecting. A cold-starting environment kernel no longer strands the page
+    without its SSO buttons; a final failure clears the cache so later callers
+    retry.
+  - `LoginForm` holds a spinner instead of painting the password-form defaults
+    while config resolves — an SSO-only deployment must never flash a password
+    wall at JIT users who have no password. A failed config still falls back to
+    the password form (break-glass beats lock-out).
+  - `signInWithProvider` gains a 20s watchdog: a sign-in request that hangs now
+    rejects with a clear timeout error so the provider button recovers instead
+    of spinning forever.
+  - Removed LoginForm's duplicate "or" divider — SocialSignInButtons already
+    renders its own, and the stacked pair read as a rendering glitch.
+
+- 077e45b: `signInWithProvider` with `type: 'oidc'` now signs in through better-auth's
+  core social route (`POST /sign-in/social`) and only falls back to the legacy
+  `POST /sign-in/oauth2` endpoint when the social route rejects the provider.
+
+  better-auth ≥ 1.7 restructured the `genericOAuth` plugin: generic OAuth/OIDC
+  providers are injected into the core social sign-in flow and the dedicated
+  `/sign-in/oauth2` endpoint no longer exists. The old client therefore 404'd on
+  every "Continue with ObjectStack" click (platform SSO broken end-to-end on
+  current framework). The fallback keeps the button working against older
+  (< 1.7) servers during the coordinated rollout; when both routes fail, the
+  social-route error is surfaced since on a ≥ 1.7 server it is the real failure.
+
+- 022735f: RegisterForm: drop the duplicate "or" divider (matching the LoginForm fix in
+  #2629). SocialSignInButtons already renders its own "or continue with email"
+  divider under the provider buttons; RegisterForm stacked a second "OR" line on
+  top, which read as a rendering glitch on the sign-up page.
+- Updated dependencies [210806a]
+- Updated dependencies [b4ef588]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+  - @object-ui/types@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

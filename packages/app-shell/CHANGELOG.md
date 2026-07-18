@@ -1,5 +1,135 @@
 # @object-ui/app-shell — Changelog
 
+## 16.0.0
+
+### Minor Changes
+
+- d3e19ed: Adapt to framework 15.1: (1) ADR-0067 D2 all-or-nothing publishes — `formatPublishFailures` renders a rolled-back batch as ONE banner anchored on the causal item (`batch_aborted` entries are summarized, not listed as parallel errors); PackagesPage says "rolled back because X" instead of "{n} failed"; the AI chat publish toast surfaces the real reason instead of a bare count. Pre-15.1 partial-publish responses keep their per-item rendering. (2) ADR-0076 D12 honest discovery — `DiscoveryServiceStatus` gains `handlerReady` + `degraded`/`stub` statuses, new backward-tolerant `isServiceUsable()` helper (absent fields keep the pre-15.1 default; `stub`/`handlerReady:false` gate off; `degraded` stays usable), consumed by `isAuthEnabled`/`isAiEnabled` and `ConditionalAuthWrapper`.
+- 5534535: feat(grid): built-in row Edit/Delete honor per-record CEL predicates (#2614)
+
+  The object's `userActions.edit` / `userActions.delete` now also accept an
+  object form `{ enabled?, visibleWhen?, disabledWhen? }`. The predicates are
+  evaluated per row on the canonical CEL engine (`useRowPredicate`, the same
+  machinery custom row actions use): `visibleWhen` false → the built-in
+  Edit/Delete item is not rendered for that row (fail-closed); `disabledWhen`
+  true → rendered disabled (fail-soft). Wired through ObjectGrid's
+  RowActionMenu and the data-table's row overflow menu (the related-list
+  path), with the app-shell `crudAffordances` mirror kept in lockstep.
+  Omitting the predicates (or using plain booleans) keeps today's behavior
+  bit-for-bit; declared predicates evaluate only when a row's menu opens, so
+  grid rendering cost is unchanged.
+
+### Patch Changes
+
+- c0bd483: Plan-card approval gives immediate in-card feedback (#2627): clicking
+  "Build it" flips the clicked card to a spinning "Building…" badge right away
+  (the approval's chat-level effects land at the bottom of the thread, outside
+  the viewport, so the card looked untouched for ~10s and users double-clicked).
+  The durable Built state still derives from the message stream; an approval
+  that never left the client (rate limit / offline) rolls the badge back so the
+  button returns. New `planBuildingLabel` prop (AiChatPage passes zh).
+- 59d4fa9: fix(detail): show the "Locked for approval" band on request-tracked backends (objectui#2618)
+
+  The DetailView approval-lock band keyed only off the record's own
+  `approval_status` field, so it never rendered on backends that track the lock
+  via an open approval request and never materialize that field — even though
+  the lock was real (writes rejected with `RECORD_LOCKED`). The record-level
+  `InlineEditContext` now carries the host's `locked`/`lockedReason` signal
+  (the same dual-source `approvalLocked` that already gates `canEdit` in
+  `RecordDetailView`), and the band renders from it while keeping `DetailView`
+  DataSource-agnostic. Also backfills the approval-lock strings into the detail
+  translation defaults so a bare DetailView shows the label, not the raw i18n key.
+
+- 6c53960: fix(studio): approver Type is a real dropdown that drops the deprecated `role` spelling (framework #3133)
+
+  The flow designer's approver `Type` control silently rendered as free text:
+  `FlowObjectListField` had no `select` branch, so an objectList column of kind
+  `select` (which the approver type is, derived from the spec enum) fell through
+  to a plain `<Input>` and its computed options were never shown. Added the
+  missing branch — it renders a real dropdown from the column's `options`, and
+  keeps a **stored** value that is no longer offered (a deprecated enum member)
+  visible-but-flagged so editing a legacy row can't silently blank it.
+
+  With the dropdown live, it honors framework's new `xEnumDeprecated` schema
+  annotation (ADR-0090 D3): the deprecated `role` approver type is dropped from
+  the options while `org_membership_level` is offered, so Studio no longer walks
+  authors into the trap of picking `role` (which resolves against the better-auth
+  membership tier and silently matches nobody).
+
+  Also: the `org-membership-level` reference picker is a fixed three-value enum
+  (owner/admin/member) instead of the dead `client.list('role')` — the `role`
+  metadata type was removed by ADR-0090 D3, so that call returned nothing and the
+  Value box degraded to free text.
+
+- 6a8ebb7: chore(metadata-admin): stop surfacing metadata fields the spec dropped (framework#2377)
+
+  `@objectstack/spec` removes a batch of dead, unenforced author-facing metadata
+  properties (ADR-0049 enforce-or-remove, framework PR #3176). Two of them were
+  still _displayed_ — never enforced, but shown — in the Studio metadata-admin,
+  which is the same false affordance on the UI side. Both were read defensively
+  off raw documents, so this is a display-only cleanup with no runtime impact:
+
+  - **`dataset` measure `certified`** — `useDatasetCatalog` populated a
+    `DatasetMeasureInfo.certified` flag (and `DatasetDefaultInspector` carried it
+    in its local `Measure` type) that nothing ever rendered. Dropped both; the
+    measure picker/inspector is unchanged otherwise.
+  - **`agent.planning.strategy` / `allowReplan`** — `AgentPreview`'s Planning rail
+    listed both alongside the one live knob. Narrowed the `KeyVals` keys to
+    `['maxIterations']` (the only planning field the runtime reads).
+
+  Test fixtures that set `certified` were updated. No public component API change.
+
+- 33b4995: Welcome-page "Create your environment" deep-links straight into the create
+  dialog (#844): `action:button` gains a client-side `autoTrigger` flag (runs
+  the action once on mount — same execute path as a click, so param dialogs /
+  confirms / entitlement gates still apply), and the environments list consumes
+  `?runAction=create_environment` to mark its create action once entitlements
+  resolve (upgrade-locked orgs get the upgrade prompt instead; the param is
+  stripped after consumption so refresh/back don't re-open). Also localizes the
+  EnvironmentListToolbar's state-aware label overrides ({en,zh}) — they were
+  hard-coded English inside a zh console.
+- Updated dependencies [d3e19ed]
+- Updated dependencies [c0bd483]
+- Updated dependencies [59d4fa9]
+- Updated dependencies [4c7c47f]
+- Updated dependencies [210806a]
+- Updated dependencies [80977d0]
+- Updated dependencies [9d4a429]
+- Updated dependencies [b4ef588]
+- Updated dependencies [45c6fb4]
+- Updated dependencies [ca0f5f0]
+- Updated dependencies [077e45b]
+- Updated dependencies [022735f]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+- Updated dependencies [195a651]
+- Updated dependencies [33b4995]
+  - @object-ui/react@16.0.0
+  - @object-ui/plugin-chatbot@16.0.0
+  - @object-ui/plugin-detail@16.0.0
+  - @object-ui/components@16.0.0
+  - @object-ui/plugin-designer@16.0.0
+  - @object-ui/types@16.0.0
+  - @object-ui/plugin-grid@16.0.0
+  - @object-ui/plugin-form@16.0.0
+  - @object-ui/auth@16.0.0
+  - @object-ui/i18n@16.0.0
+  - @object-ui/fields@16.0.0
+  - @object-ui/layout@16.0.0
+  - @object-ui/plugin-calendar@16.0.0
+  - @object-ui/plugin-charts@16.0.0
+  - @object-ui/plugin-dashboard@16.0.0
+  - @object-ui/plugin-editor@16.0.0
+  - @object-ui/plugin-kanban@16.0.0
+  - @object-ui/plugin-list@16.0.0
+  - @object-ui/plugin-report@16.0.0
+  - @object-ui/plugin-view@16.0.0
+  - @object-ui/collaboration@16.0.0
+  - @object-ui/core@16.0.0
+  - @object-ui/data-objectstack@16.0.0
+  - @object-ui/permissions@16.0.0
+  - @object-ui/providers@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

@@ -1,5 +1,48 @@
 # @object-ui/plugin-designer
 
+## 16.0.0
+
+### Patch Changes
+
+- 210806a: chore(designer): drop the inert object "Enabled" toggle (framework#2377)
+
+  The object designer showed an **Enabled** column (`ObjectManager` grid) and an
+  editable **Enabled** boolean (add/edit object form), backed solely by the object
+  `active` metadata property. `active` had no runtime consumer and was removed from
+  `@objectstack/spec` (framework#3199, ADR-0049 enforce-or-remove) — so the toggle
+  never disabled anything. Toggling it "off" left the object fully queryable and
+  usable: a false affordance.
+
+  Removed the column, the form field, the `active`↔`enabled` mapping/write-back in
+  `MetadataObjectsPage`, the `enabled?` field on the designer `ObjectDefinition`
+  type, and the now-unused `appDesigner.objectManager.enabled` string. Non-breaking:
+  the metadata write path registers objects via `ObjectSchema.parse()`, which already
+  strips unknown keys, and `ObjectDefinition.enabled` was designer-only.
+
+  `isSystem` is unchanged (it stays a live spec property).
+
+- Updated dependencies [d3e19ed]
+- Updated dependencies [59d4fa9]
+- Updated dependencies [4c7c47f]
+- Updated dependencies [210806a]
+- Updated dependencies [80977d0]
+- Updated dependencies [9d4a429]
+- Updated dependencies [b4ef588]
+- Updated dependencies [ca0f5f0]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+- Updated dependencies [195a651]
+- Updated dependencies [33b4995]
+  - @object-ui/react@16.0.0
+  - @object-ui/components@16.0.0
+  - @object-ui/types@16.0.0
+  - @object-ui/plugin-grid@16.0.0
+  - @object-ui/plugin-form@16.0.0
+  - @object-ui/i18n@16.0.0
+  - @object-ui/fields@16.0.0
+  - @object-ui/core@16.0.0
+  - @object-ui/data-objectstack@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

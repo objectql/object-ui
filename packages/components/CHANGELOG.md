@@ -1,5 +1,69 @@
 # @object-ui/components
 
+## 16.0.0
+
+### Minor Changes
+
+- 5534535: feat(grid): built-in row Edit/Delete honor per-record CEL predicates (#2614)
+
+  The object's `userActions.edit` / `userActions.delete` now also accept an
+  object form `{ enabled?, visibleWhen?, disabledWhen? }`. The predicates are
+  evaluated per row on the canonical CEL engine (`useRowPredicate`, the same
+  machinery custom row actions use): `visibleWhen` false → the built-in
+  Edit/Delete item is not rendered for that row (fail-closed); `disabledWhen`
+  true → rendered disabled (fail-soft). Wired through ObjectGrid's
+  RowActionMenu and the data-table's row overflow menu (the related-list
+  path), with the app-shell `crudAffordances` mirror kept in lockstep.
+  Omitting the predicates (or using plain booleans) keeps today's behavior
+  bit-for-bit; declared predicates evaluate only when a row's menu opens, so
+  grid rendering cost is unchanged.
+
+### Patch Changes
+
+- 4c7c47f: fix(form): thread live `dependentValues` to cascading option fields (#2284/#1583)
+
+  The form renderer only injected the live form record into data-source widgets
+  (`lookup`/`master_detail`/… — the `DATA_SOURCE_FIELD_TYPES` set). Registered
+  option widgets (`field:select`/`field:radio`/`field:multiselect`) that carry
+  per-option `visibleWhen` + `dependsOn` cascading were **excluded**, so
+  `stripRegisteredFieldProps` dropped `dependentValues` before it reached
+  `SelectField`. With no live record and no `formValues` context fallback, a
+  cascading `select` never saw its controlling field: in a create form the
+  dependent field stayed permanently gated on the "Select the parent first" hint
+  even after the parent was chosen (reproduced on the showcase `showcase_cascade`
+  B3 fixture — country → province never unlocked).
+
+  Option field types now receive `dependentValues` too, so the widget's
+  `dependsOn` gate lifts and its `visibleWhen` set re-filters live as the parent
+  changes — the same channel the lookup fix (#2215/#2216) already used. Regression
+  guard added in `form-dependent-values.test.tsx` (drives the registered
+  `field:select` path, not just the builtin `case 'select'` fallback the prior
+  cascading-select test covered).
+
+- 33b4995: Welcome-page "Create your environment" deep-links straight into the create
+  dialog (#844): `action:button` gains a client-side `autoTrigger` flag (runs
+  the action once on mount — same execute path as a click, so param dialogs /
+  confirms / entitlement gates still apply), and the environments list consumes
+  `?runAction=create_environment` to mark its create action once entitlements
+  resolve (upgrade-locked orgs get the upgrade prompt instead; the param is
+  stripped after consumption so refresh/back don't re-open). Also localizes the
+  EnvironmentListToolbar's state-aware label overrides ({en,zh}) — they were
+  hard-coded English inside a zh console.
+- Updated dependencies [d3e19ed]
+- Updated dependencies [59d4fa9]
+- Updated dependencies [210806a]
+- Updated dependencies [b4ef588]
+- Updated dependencies [ca0f5f0]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+- Updated dependencies [195a651]
+  - @object-ui/react@16.0.0
+  - @object-ui/types@16.0.0
+  - @object-ui/i18n@16.0.0
+  - @object-ui/core@16.0.0
+  - @object-ui/react-runtime@16.0.0
+  - @object-ui/sdui-parser@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

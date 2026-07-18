@@ -1,5 +1,47 @@
 # @object-ui/react
 
+## 16.0.0
+
+### Minor Changes
+
+- d3e19ed: Adapt to framework 15.1: (1) ADR-0067 D2 all-or-nothing publishes — `formatPublishFailures` renders a rolled-back batch as ONE banner anchored on the causal item (`batch_aborted` entries are summarized, not listed as parallel errors); PackagesPage says "rolled back because X" instead of "{n} failed"; the AI chat publish toast surfaces the real reason instead of a bare count. Pre-15.1 partial-publish responses keep their per-item rendering. (2) ADR-0076 D12 honest discovery — `DiscoveryServiceStatus` gains `handlerReady` + `degraded`/`stub` statuses, new backward-tolerant `isServiceUsable()` helper (absent fields keep the pre-15.1 default; `stub`/`handlerReady:false` gate off; `degraded` stays usable), consumed by `isAuthEnabled`/`isAiEnabled` and `ConditionalAuthWrapper`.
+
+### Patch Changes
+
+- 59d4fa9: fix(detail): show the "Locked for approval" band on request-tracked backends (objectui#2618)
+
+  The DetailView approval-lock band keyed only off the record's own
+  `approval_status` field, so it never rendered on backends that track the lock
+  via an open approval request and never materialize that field — even though
+  the lock was real (writes rejected with `RECORD_LOCKED`). The record-level
+  `InlineEditContext` now carries the host's `locked`/`lockedReason` signal
+  (the same dual-source `approvalLocked` that already gates `canEdit` in
+  `RecordDetailView`), and the band renders from it while keeping `DetailView`
+  DataSource-agnostic. Also backfills the approval-lock strings into the detail
+  translation defaults so a bare DetailView shows the label, not the raw i18n key.
+
+- 195a651: refactor(spec-bridge): retire the hand-written `ListViewSpec`/`ListColumn` mirrors in the list-view bridge (#2231 follow-up)
+
+  The SpecBridge's list-view bridge kept a third hand-written copy of the ListView shape
+  (after the zod schema and the TS interface unified in the previous #2231 PR). It now
+  derives its input type from `@objectstack/spec/ui` (`Partial<ListView>`, spec `ListColumn`),
+  so the bridge can no longer drift from the protocol.
+
+  Behavior fix surfaced by the real types: spec `columns` is `string[] | ListColumn[]`, but
+  the old local interface only admitted `ListColumn[]` — a bare field-name column would have
+  produced a broken `{ accessorKey: undefined }` mapping. String columns now map to a default
+  column (`{ accessorKey: field, header: field }`).
+
+- Updated dependencies [210806a]
+- Updated dependencies [b4ef588]
+- Updated dependencies [ca0f5f0]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+  - @object-ui/types@16.0.0
+  - @object-ui/i18n@16.0.0
+  - @object-ui/core@16.0.0
+  - @object-ui/data-objectstack@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

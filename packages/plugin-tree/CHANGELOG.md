@@ -1,5 +1,23 @@
 # @object-ui/plugin-tree
 
+## 16.0.0
+
+### Patch Changes
+
+- Updated dependencies [d3e19ed]
+- Updated dependencies [59d4fa9]
+- Updated dependencies [4c7c47f]
+- Updated dependencies [210806a]
+- Updated dependencies [b4ef588]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+- Updated dependencies [195a651]
+- Updated dependencies [33b4995]
+  - @object-ui/react@16.0.0
+  - @object-ui/components@16.0.0
+  - @object-ui/types@16.0.0
+  - @object-ui/core@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

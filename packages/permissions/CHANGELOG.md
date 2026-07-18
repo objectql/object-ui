@@ -1,5 +1,15 @@
 # @object-ui/permissions
 
+## 16.0.0
+
+### Patch Changes
+
+- Updated dependencies [210806a]
+- Updated dependencies [b4ef588]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+  - @object-ui/types@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes

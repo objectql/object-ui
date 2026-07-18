@@ -1,5 +1,28 @@
 # @object-ui/plugin-report
 
+## 16.0.0
+
+### Patch Changes
+
+- Updated dependencies [d3e19ed]
+- Updated dependencies [59d4fa9]
+- Updated dependencies [4c7c47f]
+- Updated dependencies [210806a]
+- Updated dependencies [80977d0]
+- Updated dependencies [b4ef588]
+- Updated dependencies [ca0f5f0]
+- Updated dependencies [5534535]
+- Updated dependencies [9b8f978]
+- Updated dependencies [195a651]
+- Updated dependencies [33b4995]
+  - @object-ui/react@16.0.0
+  - @object-ui/components@16.0.0
+  - @object-ui/types@16.0.0
+  - @object-ui/plugin-grid@16.0.0
+  - @object-ui/i18n@16.0.0
+  - @object-ui/fields@16.0.0
+  - @object-ui/core@16.0.0
+
 ## 15.0.0
 
 ### Patch Changes
