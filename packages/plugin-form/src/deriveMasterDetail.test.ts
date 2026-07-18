@@ -26,6 +26,19 @@ describe('fieldTypeToColumnType', () => {
     expect(fieldTypeToColumnType('master_detail')).toBe('lookup');
     expect(fieldTypeToColumnType('email')).toBe('text');
   });
+
+  it('maps the spec file-family media types to a file column', () => {
+    expect(fieldTypeToColumnType('file')).toBe('file');
+    expect(fieldTypeToColumnType('image')).toBe('file');
+    expect(fieldTypeToColumnType('avatar')).toBe('file');
+  });
+
+  // #2655: `attachment` is not a `@objectstack/spec` field type (media types are
+  // file/image/avatar/video/audio), so the renderer does not model it — it falls
+  // through to the plain-text default rather than being special-cased to file.
+  it('does not special-case the non-spec `attachment` type', () => {
+    expect(fieldTypeToColumnType('attachment')).toBe('text');
+  });
 });
 
 describe('findRelationshipField', () => {
@@ -316,6 +329,25 @@ describe('resolveInlineMode (grid vs form)', () => {
 
   it('smart default: many business fields → form', () => {
     expect(resolveInlineMode(wide, true, { relationshipField: 'parent' })).toBe('form'); // 9 fields > 8
+  });
+
+  // #2654: file-family fields render a compact upload cell in the grid now, so a
+  // LONE one no longer forces the per-row form ("attach a receipt per line").
+  it('smart default: a single file/image field stays a grid', () => {
+    const oneFile = { fields: { name: { type: 'text' }, receipt: { type: 'file' }, parent: { type: 'master_detail', reference: 'p' } } };
+    const oneImage = { fields: { name: { type: 'text' }, photo: { type: 'image' }, parent: { type: 'master_detail', reference: 'p' } } };
+    expect(resolveInlineMode(oneFile, true, { relationshipField: 'parent' })).toBe('grid');
+    expect(resolveInlineMode(oneImage, true, { relationshipField: 'parent' })).toBe('grid');
+  });
+
+  it('smart default: several rich file fields (≥2) tip to form', () => {
+    const twoFiles = { fields: { receipt: { type: 'file' }, photo: { type: 'image' }, parent: { type: 'master_detail', reference: 'p' } } };
+    expect(resolveInlineMode(twoFiles, true, { relationshipField: 'parent' })).toBe('form');
+  });
+
+  it('smart default: a file field alongside a truly form-only field → form', () => {
+    const mixed = { fields: { receipt: { type: 'file' }, notes: { type: 'textarea' }, parent: { type: 'master_detail', reference: 'p' } } };
+    expect(resolveInlineMode(mixed, true, { relationshipField: 'parent' })).toBe('form');
   });
 });
 

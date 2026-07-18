@@ -68,7 +68,6 @@ export function fieldTypeToColumnType(type: string | undefined): GridColumn['typ
     case 'file':
     case 'image':
     case 'avatar':
-    case 'attachment':
       return 'file';
     default:
       return 'text';
@@ -310,22 +309,36 @@ export function deriveFormFields(
 /** Inline-edit form factor. */
 export type InlineMode = 'grid' | 'form';
 
-/** Rich / form-only field types that read poorly in a narrow grid cell — their
- *  presence on a child tips the smart default toward the per-row `form`. */
+/** Field types that read poorly in ANY grid cell — a SINGLE one on the child
+ *  tips the smart default toward the per-row `form`. (`attachment` is absent by
+ *  design: it is not a `@objectstack/spec` field type — the spec media types are
+ *  file/image/avatar/video/audio — so the renderer does not model it, #2655.) */
 const FORM_ONLY_TYPES = new Set([
   'textarea', 'richtext', 'html', 'markdown', 'rich-text',
-  'file', 'image', 'avatar', 'attachment', 'json', 'location', 'address',
+  'json', 'location', 'address',
 ]);
+
+/** File-family types that now render a compact upload cell in the grid (#2360).
+ *  A LONE one no longer forces a per-row form — "attach a receipt per line"
+ *  stays a grid. They still count toward the rich-field tally, so several piling
+ *  up (a cramped row) tips to `form` via {@link RICH_FIELD_FORM_THRESHOLD}. */
+const GRID_CAPABLE_RICH_TYPES = new Set(['file', 'image', 'avatar']);
 
 /** Above this many editable business fields, the grid gets cramped → `form`. */
 export const SMART_FORM_FIELD_THRESHOLD = 8;
+
+/** When a child has at least this many rich fields (form-only + grid-capable
+ *  file-family combined), the row is too busy for a grid → `form`. Set to 2 so a
+ *  single file/image column stays a grid but a pile of them prefers the form. */
+export const RICH_FIELD_FORM_THRESHOLD = 2;
 
 /**
  * Resolve the inline-edit form factor for a child collection.
  *   - explicit `'grid'` / `'form'` win;
  *   - otherwise (`true` / undefined) pick by the child's shape: a `form` when it
- *     has rich/form-only fields or more than {@link SMART_FORM_FIELD_THRESHOLD}
- *     editable business fields, else a `grid`.
+ *     has a truly form-only field, several rich fields
+ *     ({@link RICH_FIELD_FORM_THRESHOLD}), or more than
+ *     {@link SMART_FORM_FIELD_THRESHOLD} editable business fields; else a `grid`.
  */
 export function resolveInlineMode(
   childSchema: ObjectSchemaLike | undefined,
@@ -335,8 +348,13 @@ export function resolveInlineMode(
   if (inlineEdit === 'grid' || inlineEdit === 'form') return inlineEdit;
   const fields = (childSchema?.fields ?? {}) as Record<string, any>;
   const names = deriveFormFields(childSchema, { relationshipField: opts.relationshipField });
-  const hasRich = names.some((n) => FORM_ONLY_TYPES.has(fields[n]?.type));
-  if (hasRich) return 'form';
+  // A single truly-form-only field (textarea/richtext/json/…) tips to form.
+  const hasFormOnly = names.some((n) => FORM_ONLY_TYPES.has(fields[n]?.type));
+  if (hasFormOnly) return 'form';
+  // File-family fields render in-grid now, so a lone one stays a grid; only a
+  // cluster of rich fields (≥ RICH_FIELD_FORM_THRESHOLD) tips to form (#2654).
+  const richCount = names.filter((n) => GRID_CAPABLE_RICH_TYPES.has(fields[n]?.type)).length;
+  if (richCount >= RICH_FIELD_FORM_THRESHOLD) return 'form';
   if (names.length > SMART_FORM_FIELD_THRESHOLD) return 'form';
   return 'grid';
 }

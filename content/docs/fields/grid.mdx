@@ -79,6 +79,13 @@ When grid columns are auto-derived from a child object's schema (master-detail
 subforms), `file` / `image` / `avatar` fields map to `file` columns
 automatically — image-flavoured fields default to `accept: ['image/*']`.
 
+Because file/image/avatar now render in-grid, a child object with a *single*
+such field keeps the inline **grid** form factor by default (the smart
+`inlineEdit` heuristic no longer forces a per-row form for one attachment
+column). Only a truly form-only field (textarea / rich text / JSON / location)
+or **several** rich fields tips the default to the per-row form; an explicit
+`inlineEdit: 'grid' | 'form'` always wins.
+
 ## Data Format
 
 Grid data is stored as an array of objects:
