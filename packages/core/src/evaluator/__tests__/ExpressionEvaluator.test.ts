@@ -94,9 +94,71 @@ describe('ExpressionEvaluator', () => {
 
     it('should handle boolean values directly', () => {
       const evaluator = new ExpressionEvaluator({});
-      
+
       expect(evaluator.evaluateCondition(true)).toBe(true);
       expect(evaluator.evaluateCondition(false)).toBe(false);
+    });
+  });
+
+  // #2661 — a `{ dialect: 'cel' }` predicate must route to the canonical
+  // @objectstack/formula engine (like fieldRules / list conditionals), NOT the
+  // legacy JS evaluator, so component/action `visible`/`disabled` verdicts match
+  // the server. Bare strings and `${…}` templates stay on the legacy path.
+  describe('evaluateCondition — CEL dialect routing (#2661)', () => {
+    const cel = (source: string) => ({ dialect: 'cel' as const, source });
+
+    it('evaluates a CEL envelope on the canonical engine (CEL `in`, not JS `in`)', () => {
+      // CEL: `x in list` is list membership → true. Legacy JS `in` checks object
+      // keys/array indices → false. The divergence proves the canonical route.
+      const evaluator = new ExpressionEvaluator({ record: { roles: ['admin'] } });
+      expect(evaluator.evaluateCondition(cel("'admin' in record.roles"))).toBe(true);
+      expect(evaluator.evaluateCondition(cel("'editor' in record.roles"))).toBe(false);
+    });
+
+    it('binds record.* and the host scope (features.*) for a CEL envelope', () => {
+      const evaluator = new ExpressionEvaluator({
+        record: { status: 'open' },
+        features: { beta: true },
+      });
+      expect(evaluator.evaluateCondition(cel('record.status == "open" && features.beta'))).toBe(true);
+      expect(evaluator.evaluateCondition(cel('record.status == "closed"'))).toBe(false);
+    });
+
+    it('resolves an ISO date field against today() with an ordering comparison', () => {
+      // today() is a canonical stdlib fn absent from the legacy evaluator; the
+      // string date field hydrates on the CEL ordering path (framework #1530).
+      const iso = new Date().toISOString().slice(0, 10);
+      const evaluator = new ExpressionEvaluator({ record: { due: iso } });
+      expect(evaluator.evaluateCondition(cel('record.due <= today()'))).toBe(true);
+      expect(evaluator.evaluateCondition(cel('record.due >= today()'))).toBe(true);
+    });
+
+    it('fails soft to visible/enabled on a faulting CEL predicate (legacy parity)', () => {
+      const evaluator = new ExpressionEvaluator({ record: {} });
+      // `record.nope.deep` faults; default (no throwOnError) → true.
+      expect(evaluator.evaluateCondition(cel('record.nope.deep == 1'))).toBe(true);
+    });
+
+    it('throws on a faulting CEL predicate when throwOnError is set (fail-closed)', () => {
+      const evaluator = new ExpressionEvaluator({ record: { x: 2 } });
+      // Missing-key deep access faults in CEL → throws under throwOnError.
+      expect(() => evaluator.evaluateCondition(cel('record.a.b.c == 1'), { throwOnError: true })).toThrow();
+      // A genuine `false` (field present, predicate simply false) must NOT throw.
+      expect(evaluator.evaluateCondition(cel('record.x == 1'), { throwOnError: true })).toBe(false);
+    });
+
+    it('an empty CEL source is "no predicate" → visible/enabled', () => {
+      const evaluator = new ExpressionEvaluator({ record: { x: 1 } });
+      expect(evaluator.evaluateCondition(cel('   '))).toBe(true);
+    });
+
+    it('leaves bare strings and `${…}` templates on the legacy JS path (back-compat)', () => {
+      const evaluator = new ExpressionEvaluator({ data: { age: 25 }, record: { roles: ['admin'] } });
+      // `${…}` template — legacy JS.
+      expect(evaluator.evaluateCondition('${data.age >= 18}')).toBe(true);
+      // A `{ dialect: 'template' }` envelope is NOT rerouted — unwrapped to source
+      // and run on the legacy path (here a bare non-`${}` string → its own value).
+      expect(evaluator.evaluateCondition({ dialect: 'template', source: '${data.age < 18}' })).toBe(false);
     });
   });
 });

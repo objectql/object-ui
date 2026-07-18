@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { createElement } from 'react';
-import { useExpression, useCondition, useRowPredicate, PredicateScopeProvider } from '../useExpression';
+import { useExpression, useCondition, useRowPredicate, toPredicateInput, PredicateScopeProvider } from '../useExpression';
 
 describe('useExpression', () => {
   it('returns string value directly for non-expression strings', () => {
@@ -175,5 +175,46 @@ describe('useRowPredicate (canonical CEL row predicate — issue #1584)', () => 
     expect(result.current).toBe(false);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+// #2661 — a CEL-dialect action/component predicate must reach the canonical
+// engine through `toPredicateInput` → `useCondition`, not collapse to a legacy
+// `${…}` string.
+describe('toPredicateInput — CEL envelope preservation (#2661)', () => {
+  it('preserves a { dialect: "cel" } envelope (does not wrap as ${…})', () => {
+    expect(toPredicateInput({ dialect: 'cel', source: 'record.x == 1' }))
+      .toEqual({ dialect: 'cel', source: 'record.x == 1' });
+  });
+
+  it('still wraps bare strings and non-cel envelopes as legacy ${…}', () => {
+    expect(toPredicateInput('data.age >= 18')).toBe('${data.age >= 18}');
+    expect(toPredicateInput({ dialect: 'template', source: 'data.age >= 18' })).toBe('${data.age >= 18}');
+  });
+
+  it('passes booleans / empties through', () => {
+    expect(toPredicateInput(true)).toBe(true);
+    expect(toPredicateInput('')).toBeUndefined();
+    expect(toPredicateInput({ dialect: 'cel', source: '' })).toBeUndefined();
+  });
+});
+
+describe('useCondition — CEL envelope routes to the canonical engine (#2661)', () => {
+  it('evaluates a cel envelope from toPredicateInput on the CEL engine (CEL `in`)', () => {
+    const { result } = renderHook(() =>
+      useCondition(toPredicateInput({ dialect: 'cel', source: "'admin' in record.roles" }), {
+        record: { roles: ['admin'] },
+      }),
+    );
+    expect(result.current).toBe(true);
+  });
+
+  it('a cel envelope predicate that is false hides/disables (not defaulted true)', () => {
+    const { result } = renderHook(() =>
+      useCondition(toPredicateInput({ dialect: 'cel', source: 'record.status == "open"' }), {
+        record: { status: 'closed' },
+      }),
+    );
+    expect(result.current).toBe(false);
   });
 });

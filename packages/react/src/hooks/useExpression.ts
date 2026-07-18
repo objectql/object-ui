@@ -67,13 +67,19 @@ export function usePredicateScope(): Record<string, any> {
  */
 export function toPredicateInput(
   value: unknown,
-): string | boolean | undefined {
+): string | boolean | { dialect: 'cel'; source: string } | undefined {
   if (value === null || value === undefined || value === '') return undefined;
   if (typeof value === 'boolean') return value;
   if (typeof value === 'string') return `\${${value}}`;
   if (typeof value === 'object' && typeof (value as any).source === 'string') {
     const src = (value as any).source as string;
-    return src ? `\${${src}}` : undefined;
+    if (!src) return undefined;
+    // #2661 — preserve a CEL-dialect envelope so `useCondition` routes it to the
+    // canonical `@objectstack/formula` engine (identical verdict to the server),
+    // instead of collapsing it to a `${source}` string on the legacy JS path.
+    // Every other dialect (template / unset) keeps the legacy `${…}` behavior.
+    if ((value as any).dialect === 'cel') return { dialect: 'cel', source: src };
+    return `\${${src}}`;
   }
   return undefined;
 }
@@ -117,7 +123,7 @@ export function useExpression(
 const _warnedConditions = new Set<string>();
 
 export function useCondition(
-  condition: string | boolean | undefined,
+  condition: string | boolean | undefined | { dialect?: string; source?: string },
   context: Record<string, any> = {},
   options?: { throwOnError?: boolean; label?: string }
 ): boolean {

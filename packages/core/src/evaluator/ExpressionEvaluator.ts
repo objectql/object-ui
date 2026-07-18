@@ -19,6 +19,7 @@
 import { ExpressionContext } from './ExpressionContext.js';
 import { ExpressionCache } from './ExpressionCache.js';
 import { FormulaFunctions } from './FormulaFunctions.js';
+import { evalFieldPredicate } from './fieldRules.js';
 
 /**
  * Options for expression evaluation
@@ -168,7 +169,7 @@ export class ExpressionEvaluator {
       // Execute with context values
       return compiled.fn(...varValues);
     } catch (error) {
-      throw new Error(`Failed to evaluate expression "${expression}": ${(error as Error).message}`);
+      throw new Error(`Failed to evaluate expression "${expression}": ${(error as Error).message}`, { cause: error });
     }
   }
 
@@ -206,6 +207,21 @@ export class ExpressionEvaluator {
   evaluateCondition(condition: string | boolean | undefined | { dialect?: string; source?: string }, options: EvaluationOptions = {}): boolean {
     if (typeof condition === 'boolean') {
       return condition;
+    }
+
+    // #2661 — a CEL-dialect envelope routes to the canonical `@objectstack/formula`
+    // engine (the one `fieldRules` / list conditionals already use), NOT the legacy
+    // JS evaluator below. This makes a component / action `visible` / `disabled`
+    // predicate reach the SAME verdict as server enforcement — including CEL-only
+    // behavior like `record.due_date == today()` (framework#3205). Bare strings and
+    // `${…}` templates stay on the legacy path (back-compat deprecation window);
+    // only an explicit `{ dialect: 'cel' }` envelope is rerouted.
+    if (
+      condition && typeof condition === 'object'
+      && (condition as { dialect?: string }).dialect === 'cel'
+      && typeof (condition as { source?: string }).source === 'string'
+    ) {
+      return this.evaluateCelCondition((condition as { source: string }).source, options);
     }
 
     // Unwrap Expression envelope (see `evaluate` for rationale).
@@ -248,6 +264,37 @@ export class ExpressionEvaluator {
       }
       return true;
     }
+  }
+
+  /**
+   * Evaluate a `{ dialect: 'cel' }` predicate on the canonical `@objectstack/formula`
+   * engine (via `evalFieldPredicate`), binding this evaluator's context: the
+   * `record` key as the `record` namespace and the whole context bag as top-level
+   * scope so `record.*`, `features.*`, `user.*`, `app.*` all resolve. Fail-soft to
+   * `true` (visible/enabled — the legacy default) unless the caller opted into
+   * `throwOnError`, in which case a *faulting* predicate (bad field / non-CEL
+   * syntax) throws; a genuine `false` never throws.
+   */
+  private evaluateCelCondition(source: string, options: EvaluationOptions): boolean {
+    if (!source.trim()) return true; // no predicate → visible/enabled
+    const bag = this.context.toObject();
+    const rec = bag.record;
+    const record = (rec && typeof rec === 'object' && !Array.isArray(rec))
+      ? (rec as Record<string, unknown>)
+      : (bag as Record<string, unknown>);
+    if (!options.throwOnError) {
+      // Fast path: one evaluation, fail-soft to visible/enabled (legacy parity).
+      return evalFieldPredicate(source, record, true, undefined, bag);
+    }
+    // Fail-closed callers need to tell a genuine `false` from a fault. The
+    // canonical helper fails soft to the fallback, so a value that tracks the
+    // fallback in BOTH runs means the predicate faulted — then we throw.
+    const asTrue = evalFieldPredicate(source, record, true, undefined, bag);
+    const asFalse = evalFieldPredicate(source, record, false, undefined, bag);
+    if (asTrue !== asFalse) {
+      throw new Error(`CEL predicate failed to evaluate: ${source}`);
+    }
+    return asTrue;
   }
 
   /**
