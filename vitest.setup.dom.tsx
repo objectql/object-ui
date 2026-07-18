@@ -1,14 +1,16 @@
 /**
- * ObjectUI — DOM test setup
+ * ObjectUI — heavy DOM test setup (the `dom-heavy` project + apps/console)
  *
- * Heavy setup for tests that render React components. Registers ObjectUI
+ * For tests that render through the ComponentRegistry. Registers ObjectUI
  * component widgets (text, email, password, textarea, image, html, avatar,
  * select, slider, grid) and pulls in @object-ui/components, @object-ui/fields,
  * @object-ui/plugin-dashboard, @object-ui/plugin-grid for their side-effect
  * registrations.
  *
- * Pure-logic unit tests should use `vitest.setup.base.ts` instead to avoid
- * paying this boot cost.
+ * This graph is expensive (~3.3s/file under `isolate: true`), so it is NOT the
+ * default. Most `dom` tests use the trimmed `vitest.setup.dom-light.tsx`; only
+ * the files listed in `heavyDomTests` (vitest.config.mts) run here. Pure-logic
+ * unit tests use `vitest.setup.base.ts`.
  */
 
 import './vitest.setup.base';
