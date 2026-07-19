@@ -840,8 +840,24 @@ function nodeSummary(node: FlowNode): string | undefined {
     return b && typeof b === 'object' ? str((b as Record<string, unknown>)[inner]) : undefined;
   };
   const pick = (k: string) => (c ? str(c[k]) : undefined);
+  // A string inside a nested config object (e.g. config.schedule.expression), so an
+  // object-shaped descriptor summarizes as its value, not "[object Object]".
+  const cfgBlock = (key: string, inner: string) => {
+    const b = c?.[key];
+    return b && typeof b === 'object' && !Array.isArray(b) ? str((b as Record<string, unknown>)[inner]) : undefined;
+  };
   if (node.type === 'start') {
-    return pick('condition') || pick('criteria') || pick('objectName') || pick('cron') || pick('schedule') || pick('triggerType');
+    return (
+      pick('condition') ||
+      pick('criteria') ||
+      pick('objectName') ||
+      cfgBlock('schedule', 'expression') ||
+      cfgBlock('schedule', 'cron') ||
+      pick('cron') ||
+      pick('schedule') ||
+      cfgBlock('timeRelative', 'object') ||
+      pick('triggerType')
+    );
   }
   if (node.type === 'decision') {
     const conds = c?.conditions;

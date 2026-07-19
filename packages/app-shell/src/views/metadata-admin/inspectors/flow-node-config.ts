@@ -236,11 +236,24 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       help: 'CEL predicate — the flow runs only when this is true (for time-relative sweeps it gates each matched record). Leave empty to run on every event.',
       showWhen: { field: 'triggerType', equals: ['record-after-create', 'record-after-update', 'record-before-update', 'record-after-delete', 'record-change', 'schedule', 'time_relative', 'webhook', 'event'] },
     }),
-    cfg('cron', 'Cron schedule', 'text', {
+    // Schedule descriptor — author the canonical nested `config.schedule` object
+    // the runtime actually reads (resolveTriggerBinding → normalizeSchedule). This
+    // field used to write a FLAT `config.cron`, which the backend never reads — so
+    // designer-authored scheduled flows silently never bound. `fallbackPath`
+    // migrates an existing flat `config.cron` to `config.schedule.expression` on
+    // first edit; reading `.expression` also renders an object-shaped schedule as
+    // its cron string instead of "[object Object]". Any sibling keys the runtime
+    // set (`type`, `timezone`) are preserved through edits (setAtPath merges).
+    {
+      id: 'schedule.expression',
+      path: ['config', 'schedule', 'expression'],
+      fallbackPath: ['config', 'cron'],
+      label: 'Cron schedule',
+      kind: 'text',
       placeholder: '0 7 * * *',
-      help: 'Cron expression for scheduled triggers.',
-      showWhen: { field: 'triggerType', equals: ['schedule'] },
-    }),
+      help: 'Cron expression — when the flow runs. A time-relative sweep defaults to daily if left empty.',
+      showWhen: { field: 'triggerType', equals: ['schedule', 'time_relative'] },
+    },
     // Time-relative trigger (#1874) — a `config.timeRelative` descriptor sweeps an
     // object on a schedule (daily by default) and launches the flow once per record
     // whose date field falls in the window. All fields live under the nested
@@ -300,16 +313,15 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
       help: 'Cap on records launched per sweep (default 1000).',
       showWhen: { field: 'triggerType', equals: ['time_relative'] },
     },
-    // Legacy keys — rendered only when present so older metadata never falls
-    // back to raw JSON. Prefer `condition` / `cron` above for new flows.
+    // Legacy `criteria` key — rendered only when present so older metadata never
+    // falls back to raw JSON. Prefer `condition` above for new flows. (There is no
+    // legacy `schedule` text field: the `schedule.expression` field above owns the
+    // whole `config.schedule` block and reads its `.expression`, so a bare-string
+    // or object-shaped schedule renders through it — a raw text field on
+    // `config.schedule` would print "[object Object]" for the object shape.)
     cfg('criteria', 'Entry condition (legacy)', 'expression', {
       placeholder: 'status == "active"',
       help: 'Legacy key — prefer "Entry condition" (condition).',
-      showWhen: { field: '__legacy__', equals: [] },
-    }),
-    cfg('schedule', 'Cron schedule (legacy)', 'text', {
-      placeholder: '0 9 * * *',
-      help: 'Legacy key — prefer "Cron schedule" (cron).',
       showWhen: { field: '__legacy__', equals: [] },
     }),
   ],

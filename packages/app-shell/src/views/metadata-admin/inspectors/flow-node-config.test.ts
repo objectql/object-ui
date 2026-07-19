@@ -37,6 +37,48 @@ describe('start node trigger-field gating (#5)', () => {
   });
 });
 
+describe('scheduled trigger — canonical config.schedule (not flat config.cron)', () => {
+  const fields = fieldsForNodeType('start');
+  const expr = fields.find((f) => f.id === 'schedule.expression')!;
+
+  it('replaces the dead flat `config.cron` field with a `config.schedule.expression` field', () => {
+    // The old "Cron schedule" field wrote config.cron, which resolveTriggerBinding /
+    // normalizeSchedule never read — so those scheduled flows silently never bound.
+    expect(fields.find((f) => f.id === 'cron')).toBeUndefined();
+    expect(expr).toBeDefined();
+    expect(expr.path).toEqual(['config', 'schedule', 'expression']);
+    expect(configKeyOf(expr)).toBe('schedule'); // owns the whole block (kept out of Advanced JSON)
+  });
+
+  it('reads the cron out of an object-shaped config.schedule (no "[object Object]")', () => {
+    const node = {
+      id: 'start',
+      type: 'start',
+      config: { triggerType: 'schedule', schedule: { type: 'cron', expression: '0 8 * * *' } },
+    };
+    expect(getFieldValue(node, expr)).toBe('0 8 * * *');
+  });
+
+  it('surfaces a legacy flat config.cron via fallbackPath (so it migrates on edit)', () => {
+    const node = { id: 'start', type: 'start', config: { triggerType: 'schedule', cron: '0 7 * * *' } };
+    expect(expr.fallbackPath).toEqual(['config', 'cron']);
+    expect(getFieldValue(node, expr)).toBe('0 7 * * *');
+  });
+
+  it('shows for schedule and time_relative triggers, hides for record triggers', () => {
+    const at = (tt: string) => ({ id: 'start', type: 'start', config: { triggerType: tt } });
+    expect(isFieldVisible(expr, at('schedule'), fields)).toBe(true);
+    expect(isFieldVisible(expr, at('time_relative'), fields)).toBe(true);
+    expect(isFieldVisible(expr, at('record-after-update'), fields)).toBe(false);
+  });
+
+  it('drops the raw text field on config.schedule (which rendered an object as "[object Object]")', () => {
+    expect(
+      fields.find((f) => f.path.length === 2 && f.path[0] === 'config' && f.path[1] === 'schedule'),
+    ).toBeUndefined();
+  });
+});
+
 describe('time-relative trigger fields (#1874)', () => {
   const fields = fieldsForNodeType('start');
   const triggerType = fields.find((f) => f.id === 'triggerType')!;
