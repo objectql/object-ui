@@ -320,3 +320,30 @@ config — so the standard derived form picks it up automatically.
 Showcase: `showcase_invoice` + `showcase_invoice_line` + `showcase_product`
 exercise the whole set. See the objectstack-ui / objectstack-data skills for the
 data-model recipe.
+
+---
+
+## Addendum (2026-07, #2679): persistence unified behind `DataSource.batchTransaction`
+
+The original design above persisted the parent and its children with a
+**client-orchestrated** write plus **best-effort cleanup** on partial failure
+(create the parent, then the children, and if a child fails delete the
+just-created parent). That cleanup was an atomicity anti-pattern — racy, unable
+to undo side effects (hooks/rollups/webhooks already fired), and a second
+behavior to maintain alongside the server's real transaction.
+
+Superseded in part by #2679 (tracking framework #1604 / framework ADR-0034
+item 4):
+
+- `batchTransaction` is now a first-class (optional) method on the `DataSource`
+  contract (`@object-ui/types`), typed via `BatchTransactionOperation`.
+- `MasterDetailForm` and `LineItemsPanel` always build one ordered operation
+  list and hand it to `runBatchTransaction(dataSource, ops)` — no
+  master-detail-specific orchestration or compensation remains in the form.
+- The non-atomic fallback is isolated to a single, tested helper
+  (`emulateBatchTransaction` in `@object-ui/core`): sequential writes with
+  `$ref` resolution and best-effort compensation. `ObjectStackAdapter` uses the
+  server's atomic `POST /api/v1/batch` and only falls back to emulation when the
+  endpoint is absent (404/405) or the runtime can't do transactions (501).
+- Hard removal of the emulation is gated on the server advertising a batch
+  capability via discovery (not yet advertised), so the fallback stays for now.

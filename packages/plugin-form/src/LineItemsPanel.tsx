@@ -28,7 +28,8 @@ import {
 } from '@object-ui/components';
 import { LineItemsField, type GridColumn } from '@object-ui/fields';
 import { useSchemaContext, useRecordContext } from '@object-ui/react';
-import { applyDetail } from './masterDetailTx';
+import { buildMasterDetailEditBatch, sumRows } from './masterDetailTx';
+import { runBatchTransaction } from '@object-ui/core';
 
 export interface LineItemsPanelSchema {
   type?: 'record:line_items';
@@ -117,17 +118,30 @@ export const LineItemsPanel: React.FC<{ schema: LineItemsPanelSchema }> = ({ sch
     setSaving(true);
     setError(null);
     try {
-      await applyDetail(dataSource, parentObject || schema.childObject, parentId, {
-        childObject: schema.childObject,
-        relationshipField: schema.relationshipField,
-        rows,
-        original,
-        amountField: schema.amountField,
-        // only roll up when we know the parent object to write the total onto
-        totalField: parentObject ? schema.totalField : undefined,
-        // Strip computed / read-only columns from each child row payload.
-        childSchema,
-      });
+      // Only roll the line total up onto the parent when we know the parent
+      // object AND a target field — same gate as before. When we do, the parent
+      // update rides in the SAME batch as the child writes, so the rollup is now
+      // atomic with them (on an adapter that supports it) instead of a separate
+      // trailing update.
+      const canRollup = !!(parentObject && schema.totalField);
+      const parentPatch = canRollup
+        ? { [schema.totalField!]: sumRows(rows, schema.amountField || 'amount') }
+        : {};
+      let ops = buildMasterDetailEditBatch(parentObject ?? '', parentId, parentPatch, [
+        {
+          childObject: schema.childObject,
+          relationshipField: schema.relationshipField,
+          rows,
+          original,
+          // Strip computed / read-only columns from each child row payload.
+          childSchema,
+        },
+      ]);
+      // With no parent object / rollup to write, there is nothing to update on
+      // the parent — drop op 0. Safe: edit-batch children carry the parentId
+      // directly (no $ref), so slicing off the parent op shifts no references.
+      if (!canRollup) ops = ops.slice(1);
+      if (ops.length) await runBatchTransaction(dataSource, ops);
       await load();
     } catch (e: any) {
       setError(e?.message || 'Failed to save line items');

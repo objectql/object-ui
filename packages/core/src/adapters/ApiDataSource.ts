@@ -11,6 +11,7 @@
 
 import type {
   DataSource,
+  BatchTransactionOperation,
   QueryParams,
   QueryResult,
   HttpRequest,
@@ -18,6 +19,7 @@ import type {
   AggregateParams,
   AggregateResult,
 } from '@object-ui/types';
+import { emulateBatchTransaction } from './batchTransaction.js';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -298,6 +300,19 @@ export class ApiDataSource<T = any> implements DataSource<T> {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Client-side (non-atomic) cross-object batch — a generic REST endpoint has
+   * no transactional batch primitive, so this delegates to the shared
+   * emulation (sequential writes + `$ref` resolution + best-effort
+   * compensation). Adapters fronting a server that DOES offer an atomic batch
+   * should override this to issue a single request.
+   */
+  batchTransaction(
+    operations: BatchTransactionOperation[],
+  ): Promise<{ results: any[] }> {
+    return emulateBatchTransaction(this, operations);
   }
 
   async getObjectSchema(_objectName: string): Promise<any> {

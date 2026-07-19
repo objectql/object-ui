@@ -11,12 +11,14 @@
 
 import type {
   DataSource,
+  BatchTransactionOperation,
   MutationEvent,
   QueryParams,
   QueryResult,
   AggregateParams,
   AggregateResult,
 } from '@object-ui/types';
+import { emulateBatchTransaction } from './batchTransaction.js';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -377,6 +379,17 @@ export class ValueDataSource<T = any> implements DataSource<T> {
       }
     }
     return results;
+  }
+
+  /**
+   * Client-side (non-atomic) cross-object batch — this in-memory adapter has
+   * no server transaction, so it delegates to the shared emulation. Per-op
+   * MutationEvents come from the `create`/`update`/`delete` primitives above.
+   */
+  batchTransaction(
+    operations: BatchTransactionOperation[],
+  ): Promise<{ results: any[] }> {
+    return emulateBatchTransaction(this, operations);
   }
 
   async getObjectSchema(_objectName: string): Promise<any> {

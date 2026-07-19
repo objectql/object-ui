@@ -144,6 +144,77 @@ describe('MasterDetailForm — submit feedback (never silent)', () => {
   });
 });
 
+describe('MasterDetailForm — non-atomic fallback (emulation via runBatchTransaction)', () => {
+  // A DataSource WITHOUT a batchTransaction method: runBatchTransaction falls
+  // back to emulateBatchTransaction, which drives create/update/delete in order
+  // and compensates on failure. This is the "adapter has no server atomicity"
+  // path — the form code is identical, only the adapter differs.
+  beforeEach(() => {
+    toastSuccess.mockClear();
+    toastError.mockClear();
+  });
+
+  const detailSchema = {
+    objectName: 'po',
+    mode: 'create',
+    fields: ['ref'],
+    details: [
+      { childObject: 'po_line', relationshipField: 'po', columns: [{ field: 'qty', label: 'Qty', type: 'number' }] },
+    ],
+  } as any;
+
+  async function fillHeaderAndLine(container: HTMLElement) {
+    const input = await waitFor(() => {
+      const el = container.querySelector('input[name="ref"]') as HTMLInputElement | null;
+      if (!el) throw new Error('parent form not ready');
+      return el;
+    });
+    fireEvent.change(input, { target: { value: 'PO-1' } });
+    // Fill the first (ghost) line so it persists as a real child row.
+    const qty = await waitFor(() => screen.getAllByLabelText('Qty')[0] as HTMLInputElement);
+    fireEvent.change(qty, { target: { value: '5' } });
+  }
+
+  it('create: emulation creates the parent then the child with $ref resolved to the parent id', async () => {
+    const create = vi.fn(async (object: string, data: any) => ({
+      id: object === 'po' ? 'po1' : 'line1',
+      ...data,
+    }));
+    const ds = makeDataSource({ create }); // NO batchTransaction
+
+    const { container } = render(<MasterDetailForm schema={detailSchema} dataSource={ds} />);
+    await fillHeaderAndLine(container);
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+
+    await waitFor(() => expect(create).toHaveBeenCalledWith('po', expect.objectContaining({ ref: 'PO-1' })));
+    // The child's { $ref: 0 } was resolved to the parent's minted id ('po1').
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith('po_line', expect.objectContaining({ po: 'po1' })),
+    );
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it('create: a failing child create compensates by deleting the just-created parent + error toast', async () => {
+    const create = vi.fn(async (object: string, data: any) => {
+      if (object === 'po_line') throw new Error('child create failed');
+      return { id: 'po1', ...data };
+    });
+    const del = vi.fn(async () => true);
+    const ds = makeDataSource({ create, delete: del }); // NO batchTransaction
+
+    const { container } = render(<MasterDetailForm schema={detailSchema} dataSource={ds} />);
+    await fillHeaderAndLine(container);
+    fireEvent.click(screen.getByRole('button', { name: /create/i }));
+
+    // Best-effort compensation removes the orphan parent that was created before
+    // the child failed — the non-atomic path's stand-in for a rollback.
+    await waitFor(() => expect(del).toHaveBeenCalledWith('po', 'po1'));
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+});
+
 describe('MasterDetailForm — parent-scoped line rules ("paid invoice → lock lines", #1581)', () => {
   // Parent header carries a `status` text field (a real <select> can't be driven
   // by synthetic events in jsdom — that path is covered by the live e2e spec).

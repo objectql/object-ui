@@ -29,6 +29,14 @@ export interface DataSource<T = unknown> {
     opts?: { ifMatch?: string },
   ): Promise<boolean>;
 
+  // Optional: atomically persist an ordered set of cross-object operations
+  // (master-detail save). `{ $ref: <op index> }` links a child to a parent
+  // created earlier in the same batch. Adapters without server-side atomicity
+  // may emulate it — see below.
+  batchTransaction?(
+    operations: BatchTransactionOperation[],
+  ): Promise<{ results: any[] }>;
+
   getObjectSchema(objectName: string): Promise<unknown>;
 }
 ```
@@ -162,4 +170,19 @@ await dataSource.find('users', {
 });
 ```
 
-Data-aware plugins may also use optional methods such as `bulkUpdate`, `bulkDelete`, `getView`, or `listViewOverrides` when an adapter supports them. Keep the required CRUD methods implemented first, then add optional capabilities as your UI needs them.
+Data-aware plugins may also use optional methods such as `batchTransaction`, `bulkUpdate`, `bulkDelete`, `getView`, or `listViewOverrides` when an adapter supports them. Keep the required CRUD methods implemented first, then add optional capabilities as your UI needs them.
+
+### Cross-object atomic writes (`batchTransaction`)
+
+Master-detail saves (a parent record plus its child line items) go through
+`dataSource.batchTransaction(operations)` — one ordered list of cross-object
+create/update/delete operations, where a child's foreign key can be
+`{ $ref: <parent op index> }` to point at a parent created in the same batch.
+The `@object-ui/data-objectstack` adapter maps this to the server's atomic
+`POST /api/v1/batch` endpoint (commit-all-or-roll-back-all). Adapters without a
+transactional endpoint don't need to hand-write orchestration: call
+`emulateBatchTransaction(dataSource, operations)` from `@object-ui/core`, which
+executes the operations sequentially (resolving `$ref`s) with best-effort
+compensation on failure. UI components never branch on atomicity — they call
+`runBatchTransaction(dataSource, operations)` (also from `@object-ui/core`),
+which uses the adapter's method when present and emulates otherwise.

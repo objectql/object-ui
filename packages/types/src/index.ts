@@ -269,6 +269,8 @@ export type {
   QueryParams,
   QueryResult,
   DataSource,
+  BatchRef,
+  BatchTransactionOperation,
   DataScope,
   DataContext,
   DataBinding,

@@ -9,6 +9,7 @@
 import { ObjectStackClient, type QueryOptions as ObjectStackQueryOptions } from '@objectstack/client';
 import type {
   DataSource,
+  BatchTransactionOperation,
   MutationEvent,
   QueryParams,
   QueryResult,
@@ -23,7 +24,11 @@ import type {
   ImportJobUndoResult,
   ListImportJobsOptions,
 } from '@object-ui/types';
-import { convertFiltersToAST, normalizeSchemaReferenceKeys } from '@object-ui/core';
+import {
+  convertFiltersToAST,
+  emulateBatchTransaction,
+  normalizeSchemaReferenceKeys,
+} from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
 import {
   ObjectStackError,
@@ -404,6 +409,12 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // so optional collections like sys_presence don't hammer the server with
   // failing requests on every record open / panel render.
   private missingResources = new Set<string>();
+  // Set once the server has told us it can't do a cross-object transactional
+  // batch (POST /api/v1/batch answered 404/405/501). After that, batchTransaction
+  // stops probing the endpoint and serves every call via the client-side
+  // emulation — the non-atomic fallback lives HERE, isolated to the one adapter
+  // that has to cope with a backend lacking server atomicity (#2679).
+  private batchUnsupported = false;
   // Subscribers registered via onMutation(). Emitted after each successful
   // create/update/delete so data-bound views (ListView, ObjectView, kanban,
   // calendar) auto-refresh — the interface ListView relies on to reflect
@@ -927,14 +938,47 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * @returns Promise resolving to array of results
    */
   /**
-   * Cross-object transactional batch (ObjectStack #1604). Runs the operations
-   * in ONE server transaction — commit all or roll back all. A field value of
-   * `{ $ref: <earlier op index> }` resolves to that op's created id, so a child
-   * can reference its parent created earlier in the same batch (master-detail).
+   * Cross-object transactional batch (ObjectStack #1604 / ADR-0034 item 4).
+   * Runs the operations in ONE server transaction — commit all or roll back
+   * all. A field value of `{ $ref: <earlier op index> }` resolves to that op's
+   * created id, so a child can reference its parent created earlier in the same
+   * batch (master-detail).
+   *
+   * Transport preference: the published `@objectstack/client` SDK method when
+   * available (framework #3271), else a raw `POST /api/v1/batch`. Either way,
+   * if the backend has no such endpoint (404/405) or a runtime that can't do
+   * transactions (501), we degrade to a client-side, NON-atomic emulation via
+   * {@link emulateBatchTransaction} so a save is still possible — this is the
+   * isolated home of the non-atomic fallback. Hard removal of the emulation is
+   * gated on the server advertising a batch capability via discovery (the
+   * current discovery payload does not), so the fallback stays for now.
    */
   async batchTransaction(
-    operations: Array<{ object: string; action?: 'create' | 'update' | 'delete'; data?: any; id?: string }>,
+    operations: BatchTransactionOperation[],
   ): Promise<{ results: any[] }> {
+    // Already known-unsupported on this backend — skip the probe entirely.
+    if (this.batchUnsupported) {
+      return emulateBatchTransaction(this, operations);
+    }
+
+    // Prefer the typed SDK method when the installed client exposes it
+    // (feature-detect, same pattern as updateMany/import). Older clients that
+    // predate it fall through to the raw-fetch mainline below.
+    const sdkBatch = (this.client.data as any).batchTransaction;
+    if (typeof sdkBatch === 'function') {
+      await this.connect();
+      try {
+        const payload: { results: any[] } = await sdkBatch.call(this.client.data, operations);
+        this.emitBatchMutations(operations, payload?.results);
+        return payload;
+      } catch (err) {
+        if (this.batchStatusUnsupported(this.errorStatusOf(err))) {
+          return this.fallbackToEmulation(operations, this.errorStatusOf(err));
+        }
+        throw err;
+      }
+    }
+
     const url = `${this.baseUrl}/api/v1/batch`;
     const response = await this.fetchImpl(url, {
       method: 'POST',
@@ -947,6 +991,14 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       body: JSON.stringify({ operations }),
     });
     if (!response.ok) {
+      // Endpoint missing (404/405) or runtime can't do transactions (the
+      // framework rest-server answers 501 "Transactional batch not supported
+      // by this runtime") → degrade to the non-atomic client emulation. Every
+      // other status (400 validation, 401/403 auth, 409 conflict, 500 fault)
+      // is a real error the caller must see — never silently retried.
+      if (this.batchStatusUnsupported(response.status)) {
+        return this.fallbackToEmulation(operations, response.status);
+      }
       const error = await response.json().catch(() => ({ message: response.statusText }));
       throw new ObjectStackError(
         error.error || error.message || `Batch failed with status ${response.status}`,
@@ -955,14 +1007,55 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       );
     }
     const payload: { results: any[] } = await response.json();
-    // The whole transaction committed — emit one MutationEvent per operation so
-    // the invalidation bus (#2269) sees writes that went through /batch exactly
-    // like single create/update/delete calls (master-detail ModalForm saves
-    // otherwise leave related lists and count badges stale, #2582). `results`
-    // is index-aligned with `operations`; creates take id/record from the
-    // server echo. A failed batch rolled back entirely and throws above, so
-    // nothing is emitted for it.
-    const results = Array.isArray(payload?.results) ? payload.results : [];
+    this.emitBatchMutations(operations, payload?.results);
+    return payload;
+  }
+
+  /** True for statuses that mean "this backend can't do a transactional batch". */
+  private batchStatusUnsupported(status: number | undefined): boolean {
+    return status === 404 || status === 405 || status === 501;
+  }
+
+  /** Best-effort HTTP status extraction from a thrown SDK/client error. */
+  private errorStatusOf(err: unknown): number | undefined {
+    if (!err || typeof err !== 'object') return undefined;
+    const e = err as Record<string, unknown>;
+    const s = e.httpStatus ?? e.status ?? e.statusCode;
+    return typeof s === 'number' ? s : undefined;
+  }
+
+  /** Mark the endpoint unsupported (warn once) and serve via emulation. */
+  private fallbackToEmulation(
+    operations: BatchTransactionOperation[],
+    status: number | undefined,
+  ): Promise<{ results: any[] }> {
+    if (!this.batchUnsupported) {
+      this.batchUnsupported = true;
+      console.warn(
+        `ObjectStackAdapter: POST /api/v1/batch unavailable (HTTP ${status ?? '?'}) — ` +
+          'falling back to non-atomic client-side batch emulation. Cross-object ' +
+          'saves on this backend are best-effort, not transactional.',
+      );
+    }
+    return emulateBatchTransaction(this, operations);
+  }
+
+  /**
+   * Emit one MutationEvent per committed operation so the invalidation bus
+   * (#2269) sees writes that went through /batch exactly like single
+   * create/update/delete calls — master-detail ModalForm saves otherwise leave
+   * related lists and count badges stale (#2582). `results` is index-aligned
+   * with `operations`; creates take id/record from the server echo.
+   *
+   * Only called on the server-committed paths. The emulation branch drives the
+   * adapter's own create/update/delete primitives, which already emit — so it
+   * must NOT be routed through here, or events would double-fire.
+   */
+  private emitBatchMutations(
+    operations: BatchTransactionOperation[],
+    rawResults: unknown,
+  ): void {
+    const results = Array.isArray(rawResults) ? rawResults : [];
     operations.forEach((op, i) => {
       const action = op.action ?? 'create';
       const echo = results[i];
@@ -974,7 +1067,6 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         this.emitMutation({ type: 'delete', resource: op.object, id: op.id });
       }
     });
-    return payload;
   }
 
   async bulk(resource: string, operation: 'create' | 'update' | 'delete', data: Partial<T>[]): Promise<T[]> {

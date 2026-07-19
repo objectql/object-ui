@@ -12,24 +12,31 @@
  * transaction (see ADR-0001).
  *
  * The parent fields are rendered by the existing <ObjectForm>; the child
- * collection(s) by <LineItemsField>. On submit we:
- *   1. create/update the parent (ObjectForm owns this, via its `onSuccess`),
- *   2. set the relationship FK on each line and bulk-create them,
- *   3. (optional) roll the line total up onto a parent field,
- *   4. on child failure, best-effort delete the just-created parent and rethrow
- *      so the form surfaces the error with the user's input intact.
+ * collection(s) by <LineItemsField>. On submit we build ONE ordered
+ * cross-object operation list — parent create/update as op 0, each child a
+ * create/update/delete linked to it (via `{ $ref: 0 }` on create, or the
+ * known parent id on edit) — and hand it to `dataSource.batchTransaction`
+ * through {@link runBatchTransaction}. Client-side rollups are folded into the
+ * parent payload so they commit in the same batch.
+ *
+ * The form is deliberately ignorant of atomicity: a server with the
+ * transactional `/api/v1/batch` endpoint commits all-or-nothing, while an
+ * adapter without one emulates the batch internally (sequential writes with
+ * best-effort compensation, see `emulateBatchTransaction` in `@object-ui/core`).
+ * Either way there is no master-detail-specific cleanup code here (ObjectStack
+ * objectui #2679 / framework ADR-0034 item 4).
  *
  * No `@objectstack/spec` change: the relationship is a `master_detail` (or
- * `lookup`) FK on the child object; there is no server batch endpoint, so the
- * multi-object write is orchestrated here.
+ * `lookup`) FK on the child object.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DataSource } from '@object-ui/types';
+import { runBatchTransaction } from '@object-ui/core';
 import { LineItemsField, type GridColumn } from '@object-ui/fields';
 import { Button, Card, CardContent, CardHeader, CardTitle, cn, toast } from '@object-ui/components';
 import { ObjectForm } from './ObjectForm';
-import { applyDetail, idOf, buildMasterDetailBatch, buildMasterDetailEditBatch, sumRows } from './masterDetailTx';
+import { buildMasterDetailBatch, buildMasterDetailEditBatch, sumRows } from './masterDetailTx';
 import { deriveDetail, hydrateColumns, type InlineMode } from './deriveMasterDetail';
 
 export interface MasterDetailDetailConfig {
@@ -528,69 +535,16 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
     [schema, releaseSave],
   );
 
-  /** Persist all child collections for a known parent id. Returns created ids
-   *  (create mode) so the caller can clean up on a later failure. */
-  const persistDetails = useCallback(
-    async (parentId: string) => {
-      const createdIds: Array<{ object: string; id: string }> = [];
-      for (let i = 0; i < details.length; i++) {
-        const d = details[i];
-        const { rows, original } = stateRef.current[i];
-        if (!d.relationshipField) continue; // unresolved — skip (save is gated)
-        const { created } = await applyDetail(dataSource!, schema.objectName, parentId, {
-          childObject: d.childObject,
-          relationshipField: d.relationshipField,
-          rows,
-          // edit mode diffs against the loaded snapshot; create mode creates all.
-          original: isEdit ? original : undefined,
-          amountField: d.amountField,
-          totalField: d.totalField,
-          // Strip computed / read-only columns from each child row payload.
-          childSchema: childSchemasRef.current[d.childObject],
-        });
-        createdIds.push(...created);
-      }
-      return createdIds;
-    },
-    [details, isEdit, dataSource, schema.objectName],
-  );
-
-  /** Chained after the parent ObjectForm create/update succeeds. */
-  const handleParentSaved = useCallback(
-    async (parent: any) => {
-      const parentId = idOf(parent) ?? schema.recordId;
-      if (!parentId) throw new Error('MasterDetailForm: parent record has no id after save');
-      if (!dataSource) throw new Error('MasterDetailForm: dataSource is required');
-
-      let created: Array<{ object: string; id: string }> = [];
-      try {
-        created = await persistDetails(parentId);
-      } catch (err) {
-        // Best-effort cleanup so we don't leave an orphan parent on create.
-        if (!isEdit) {
-          await Promise.allSettled([
-            ...created.map((c) => dataSource.delete(c.object, c.id)),
-            dataSource.delete(schema.objectName, parentId),
-          ]);
-        }
-        throw err;
-      }
-      await handleSaved(parent);
-    },
-    [dataSource, isEdit, persistDetails, schema, handleSaved],
-  );
-
-  // When the server exposes the transactional batch endpoint, the parent + its
-  // children are persisted in ONE atomic transaction (commit all or roll back
-  // all) — no client-side best-effort cleanup. This now covers BOTH create
-  // (parent + child creates via `$ref`) and edit (parent update + child
-  // create/update/delete diffs). Otherwise fall back to the client-orchestrated
-  // path (handleParentSaved).
-  const canBatch = typeof (dataSource as any)?.batchTransaction === 'function';
-
+  // Persistence ALWAYS goes through dataSource.batchTransaction: the parent and
+  // all child collections are expressed as one ordered operation list and
+  // handed to runBatchTransaction, which uses the adapter's atomic endpoint
+  // when present and emulates it (sequential + best-effort compensation)
+  // otherwise. This covers BOTH create (parent + child creates via `$ref`) and
+  // edit (parent update + child create/update/delete diffs). There is no
+  // separate client-orchestrated / cleanup path anymore (#2679).
   const submitViaBatch = useCallback(
     async (parentValues: Record<string, any>) => {
-      const ds: any = dataSource;
+      if (!dataSource) throw new Error('MasterDetailForm: dataSource is required');
       const parentData: Record<string, any> = { ...parentValues };
       // Client-side rollups merged into the parent payload (hooks can't do
       // nested writes — see ADR-0001).
@@ -620,7 +574,7 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
               childSchema: childSchemasRef.current[d.childObject],
             })),
           );
-      const res = await ds.batchTransaction(ops);
+      const res = await runBatchTransaction(dataSource, ops);
       // create → parent is op 0; edit → echo the parent values back.
       return res?.results?.[0] ?? { ...parentData, id: schema.recordId };
     },
@@ -646,14 +600,14 @@ export const MasterDetailForm: React.FC<MasterDetailFormProps> = ({
       title: schema.title,
       showSubmit: false,
       showCancel: false,
-      // Atomic path: ObjectForm validates + hands values to submitViaBatch
-      // (which persists parent+children in one transaction), then handleSaved
-      // (toast + reset + page onSuccess). The non-atomic path persists children
-      // in handleParentSaved, which also ends in handleSaved.
-      ...(canBatch ? { submitHandler: submitViaBatch, onSuccess: handleSaved } : { onSuccess: handleParentSaved }),
+      // ObjectForm validates + hands the parent values to submitViaBatch (which
+      // persists parent + children as one batch via dataSource.batchTransaction),
+      // then handleSaved (toast + reset + page onSuccess).
+      submitHandler: submitViaBatch,
+      onSuccess: handleSaved,
       onError: handleError,
     }),
-    [schema, handleParentSaved, canBatch, submitViaBatch, handleSaved, handleError],
+    [schema, submitViaBatch, handleSaved, handleError],
   );
 
   const formHostRef = useRef<HTMLDivElement>(null);

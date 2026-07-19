@@ -233,6 +233,87 @@ describe('ObjectStackAdapter.batchTransaction mutation events', () => {
 });
 
 /**
+ * #2679: when POST /api/v1/batch is unavailable (endpoint missing → 404/405, or
+ * a runtime without transactions → 501), the adapter degrades to a client-side,
+ * NON-atomic emulation instead of failing the save. This is the isolated home of
+ * the non-atomic fallback — the form no longer carries it. Real errors (4xx/5xx
+ * other than those three) must still surface, never be silently downgraded.
+ */
+describe('ObjectStackAdapter.batchTransaction fallback (no server atomicity)', () => {
+  function makeFallbackDS(opts: { batchStatus: number; clientData: Record<string, any> }) {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ error: 'nope' }), {
+        status: opts.batchStatus,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    const ds: any = new ObjectStackAdapter({ baseUrl: 'http://test.local', fetch: fetchMock });
+    ds.connected = true;
+    ds.connectionState = 'connected';
+    ds.client = { data: opts.clientData };
+    return { ds, fetchMock };
+  }
+
+  it('404 → warns once, saves via the create primitive, and caches the detection', async () => {
+    const create = vi.fn(async (_o: string, d: any) => ({ record: { id: 'p1', ...d } }));
+    const { ds, fetchMock } = makeFallbackDS({ batchStatus: 404, clientData: { create } });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const events: MutationEvent[] = [];
+    ds.onMutation((e: MutationEvent) => events.push(e));
+
+    const res = await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'A' } }]);
+
+    expect(res.results[0]).toMatchObject({ id: 'p1', name: 'A' });
+    expect(create).toHaveBeenCalledWith('proj', { name: 'A' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    // Events come from the create primitive ONCE — not also re-emitted by the
+    // committed-batch path (no double emission).
+    expect(events).toEqual([{ type: 'create', resource: 'proj', record: { id: 'p1', name: 'A' } }]);
+
+    const probes = fetchMock.mock.calls.length;
+    // A second batch short-circuits: the endpoint is known-unsupported, so we
+    // never probe POST /api/v1/batch again.
+    await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'B' } }]);
+    expect(fetchMock.mock.calls.length).toBe(probes);
+    warn.mockRestore();
+  });
+
+  it('501 (runtime without transactions) also degrades to emulation', async () => {
+    const create = vi.fn(async (_o: string, d: any) => ({ record: { id: 'p1', ...d } }));
+    const { ds } = makeFallbackDS({ batchStatus: 501, clientData: { create } });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'A' } }]);
+    expect(create).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('a real error (400) surfaces as ObjectStackError — never downgraded to emulation', async () => {
+    const create = vi.fn();
+    const { ds } = makeFallbackDS({ batchStatus: 400, clientData: { create } });
+    await expect(
+      ds.batchTransaction([{ object: 'proj', action: 'create', data: {} }]),
+    ).rejects.toThrow(/nope/);
+    // No client-side writes happened — the batch was rejected, not retried.
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('prefers the SDK client.data.batchTransaction when present (no raw fetch)', async () => {
+    const sdkBatch = vi.fn(async () => ({ results: [{ id: 'p1', name: 'A' }] }));
+    const { ds, fetchMock } = makeFallbackDS({ batchStatus: 500, clientData: { batchTransaction: sdkBatch } });
+    const events: MutationEvent[] = [];
+    ds.onMutation((e: MutationEvent) => events.push(e));
+
+    const res = await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'A' } }]);
+
+    expect(sdkBatch).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled(); // raw /api/v1/batch not used
+    expect(res.results[0]).toMatchObject({ id: 'p1' });
+    // Committed via the SDK → one event per op (emitted once).
+    expect(events).toEqual([{ type: 'create', resource: 'proj', record: { id: 'p1', name: 'A' } }]);
+  });
+});
+
+/**
  * Regression for #2582 (fallback path): when the server lacks the transactional
  * batch endpoint, MasterDetailForm persists child rows via `bulk(child,
  * 'create', rows)` (applyDetail → createMany). `bulk` only emitted progress

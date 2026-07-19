@@ -7,13 +7,15 @@
  */
 
 /**
- * Pure helpers for the master-detail (parent + line items) client-orchestrated
- * write. Kept free of React so the transaction logic is unit-testable in
- * isolation (see ADR-0001). Both <MasterDetailForm> and <LineItemsPanel>
- * delegate their child persistence here.
+ * Pure helpers that turn a master-detail (parent + line items) edit into a flat
+ * list of cross-object batch operations. Kept free of React so the build logic
+ * is unit-testable in isolation (see ADR-0001). Both <MasterDetailForm> and
+ * <LineItemsPanel> build ops here and hand them to `dataSource.batchTransaction`
+ * (via `runBatchTransaction`) — the persistence itself lives in the adapter,
+ * not here (ObjectStack objectui #2679).
  */
 
-import type { DataSource } from '@object-ui/types';
+import type { BatchTransactionOperation } from '@object-ui/types';
 import { sanitizeFormData } from './sanitize';
 
 export const idOf = (rec: any): string | undefined =>
@@ -63,14 +65,13 @@ export interface BatchEditDetailInput extends BatchDetailInput {
   original: Record<string, any>[];
 }
 
-export interface BatchOp {
-  object: string;
-  action: 'create' | 'update' | 'delete';
-  /** Present for create/update. */
-  data?: Record<string, any>;
-  /** Present for update/delete. */
-  id?: string;
-}
+/**
+ * @deprecated Use {@link BatchTransactionOperation} from `@object-ui/types`.
+ * Retained as a structural alias so existing imports keep compiling. The
+ * builders below always set `action`, so the widened (optional-action) alias
+ * is a superset that costs nothing at the call sites.
+ */
+export type BatchOp = BatchTransactionOperation;
 
 const ID_KEYS = new Set(['id', '_id', 'recordId']);
 
@@ -170,94 +171,3 @@ export function sumRows(rows: Record<string, any>[], field: string): number {
   }, 0);
 }
 
-/**
- * Normalize whatever a create/bulk call resolves to into an array of records.
- * Adapters vary: some return `T[]`, others `{ records: [...] }` / `{ data: [...] }`
- * or a single record. We only use the result to collect ids for cleanup, so a
- * best-effort coercion keeps the happy path from throwing on an odd shape.
- */
-function toRecordArray(res: any): any[] {
-  if (Array.isArray(res)) return res;
-  if (res && Array.isArray(res.records)) return res.records;
-  if (res && Array.isArray(res.data)) return res.data;
-  if (res && (res.id || res._id)) return [res];
-  return [];
-}
-
-/** Create child rows, preferring a single bulk call when the adapter has one. */
-async function createMany(
-  dataSource: DataSource,
-  childObject: string,
-  rows: Record<string, any>[],
-): Promise<any[]> {
-  if (rows.length === 0) return [];
-  if (typeof dataSource.bulk === 'function') {
-    return toRecordArray(await dataSource.bulk(childObject, 'create', rows));
-  }
-  const created = await Promise.all(rows.map((r) => dataSource.create(childObject, r)));
-  return toRecordArray(created);
-}
-
-export interface ApplyDetailOptions {
-  childObject: string;
-  relationshipField: string;
-  rows: Record<string, any>[];
-  /** Loaded snapshot — when present we diff (edit mode); otherwise create-all. */
-  original?: Record<string, any>[];
-  /** Numeric child column to sum. */
-  amountField?: string;
-  /** Parent field to receive the rolled-up sum. */
-  totalField?: string;
-  /** When supplied, child write payloads are sanitized against it (drops
-   *  computed / read-only / unknown fields). Omit to persist rows as-is. */
-  childSchema?: ChildSchema;
-}
-
-export interface ApplyDetailResult {
-  /** Child object + id pairs created in this call (for cleanup on failure). */
-  created: Array<{ object: string; id: string }>;
-}
-
-/**
- * Persist one child collection for a known parent id. Sets the relationship FK
- * on every row, then creates / updates / deletes, then (optionally) rolls the
- * line total up onto the parent. Hooks can't do nested writes, so the rollup
- * happens here on the client.
- */
-export async function applyDetail(
-  dataSource: DataSource,
-  parentObject: string,
-  parentId: string,
-  opts: ApplyDetailOptions,
-): Promise<ApplyDetailResult> {
-  const created: Array<{ object: string; id: string }> = [];
-  const withFk = opts.rows
-    // Drop blank/ghost lines that were never filled in (keep existing rows).
-    .filter((r) => idOf(r) || !isBlankRow(r, opts.relationshipField))
-    .map((r) => ({ ...r, [opts.relationshipField]: parentId }));
-
-  if (opts.original !== undefined) {
-    const { toCreate, toUpdate, toDelete } = diffRows(opts.original, withFk);
-    const newRecords = await createMany(dataSource, opts.childObject, toCreate.map((r) => toWritable(r, opts.childSchema)));
-    for (const rec of newRecords) {
-      const id = idOf(rec);
-      if (id) created.push({ object: opts.childObject, id });
-    }
-    // idOf(r) is read BEFORE sanitize so update routing survives dropping the id.
-    await Promise.all(toUpdate.map((r) => dataSource.update(opts.childObject, idOf(r)!, toWritable(r, opts.childSchema))));
-    await Promise.all(toDelete.map((id) => dataSource.delete(opts.childObject, id)));
-  } else {
-    const newRecords = await createMany(dataSource, opts.childObject, withFk.map((r) => toWritable(r, opts.childSchema)));
-    for (const rec of newRecords) {
-      const id = idOf(rec);
-      if (id) created.push({ object: opts.childObject, id });
-    }
-  }
-
-  if (opts.totalField) {
-    const total = sumRows(opts.rows, opts.amountField || 'amount');
-    await dataSource.update(parentObject, parentId, { [opts.totalField]: total });
-  }
-
-  return { created };
-}

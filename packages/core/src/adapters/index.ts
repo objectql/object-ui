@@ -13,3 +13,4 @@
 export { ApiDataSource, type ApiDataSourceConfig } from './ApiDataSource.js';
 export { ValueDataSource, type ValueDataSourceConfig } from './ValueDataSource.js';
 export { resolveDataSource, type ResolveDataSourceOptions } from './resolveDataSource.js';
+export { emulateBatchTransaction, runBatchTransaction } from './batchTransaction.js';

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { diffRows, sumRows, applyDetail, idOf, isBlankRow, buildMasterDetailBatch, buildMasterDetailEditBatch } from './masterDetailTx';
+import { describe, it, expect } from 'vitest';
+import { diffRows, sumRows, idOf, isBlankRow, buildMasterDetailBatch, buildMasterDetailEditBatch } from './masterDetailTx';
 
 describe('buildMasterDetailBatch — atomic master-detail ops', () => {
   it('puts the parent first and references it via $ref:0 on each child FK', () => {
@@ -78,6 +78,20 @@ describe('buildMasterDetailEditBatch — atomic master-detail edit ops', () => {
     expect(ops.filter((o) => o.action === 'delete')).toHaveLength(0);
     expect(ops.filter((o) => o.action === 'create')).toHaveLength(0);
   });
+
+  it('folds a caller-computed rollup into op 0 so it commits in the same batch (#2679)', () => {
+    // Acceptance criterion: the rollup total is no longer a separate trailing
+    // parent update — the caller sums the lines and passes it as a parent field,
+    // and it rides in op 0 (the parent update) inside the same transaction.
+    const rows = [{ id: 'l1', amount: 15 }, { amount: 30 }];
+    const total = sumRows(rows, 'amount');
+    const ops = buildMasterDetailEditBatch('po', 'p1', { total_amount: total }, [
+      { childObject: 'po_line', relationshipField: 'po', rows, original: [{ id: 'l1', amount: 10 }] },
+    ]);
+    expect(ops[0]).toEqual({ object: 'po', action: 'update', id: 'p1', data: { total_amount: 45 } });
+    // No separate parent update anywhere else in the batch.
+    expect(ops.filter((o) => o.object === 'po')).toHaveLength(1);
+  });
 });
 
 describe('masterDetailTx — pure helpers', () => {
@@ -102,109 +116,6 @@ describe('masterDetailTx — pure helpers', () => {
     expect(d.toUpdate).toEqual([{ id: 'l1', amount: 15 }]);
     expect(d.toCreate).toEqual([{ amount: 30 }]);
     expect(d.toDelete).toEqual(['l2']);
-  });
-});
-
-function mockDataSource(overrides: any = {}) {
-  return {
-    create: vi.fn(async (_obj: string, data: any) => ({ id: 'new-' + Math.random().toString(36).slice(2, 7), ...data })),
-    update: vi.fn(async (_obj: string, id: string, data: any) => ({ id, ...data })),
-    delete: vi.fn(async () => true),
-    bulk: vi.fn(async (_obj: string, _op: string, rows: any[]) => rows.map((r, i) => ({ id: 'b' + i, ...r }))),
-    ...overrides,
-  } as any;
-}
-
-describe('applyDetail — client-orchestrated child write', () => {
-  it('create mode: sets FK, bulk-creates children, rolls up the total', async () => {
-    const ds = mockDataSource();
-    const res = await applyDetail(ds, 'expense_claim', 'claim_1', {
-      childObject: 'expense_line',
-      relationshipField: 'expense_claim',
-      rows: [{ amount: 10 }, { amount: 32.5 }],
-      amountField: 'amount',
-      totalField: 'total_amount',
-    });
-
-    // FK injected on every row, single bulk call
-    expect(ds.bulk).toHaveBeenCalledTimes(1);
-    expect(ds.bulk).toHaveBeenCalledWith('expense_line', 'create', [
-      { amount: 10, expense_claim: 'claim_1' },
-      { amount: 32.5, expense_claim: 'claim_1' },
-    ]);
-    // rollup written onto the parent
-    expect(ds.update).toHaveBeenCalledWith('expense_claim', 'claim_1', { total_amount: 42.5 });
-    // created ids surfaced for cleanup
-    expect(res.created).toEqual([
-      { object: 'expense_line', id: 'b0' },
-      { object: 'expense_line', id: 'b1' },
-    ]);
-  });
-
-  it('tolerates a bulk() that returns {records:[...]} instead of an array', async () => {
-    // Mirrors the real ObjectStack adapter, whose createMany can resolve to a
-    // wrapped shape rather than a bare array (regression: "newRecords is not iterable").
-    const ds = mockDataSource({
-      bulk: vi.fn(async (_o: string, _op: string, rows: any[]) => ({
-        records: rows.map((r, i) => ({ id: 'w' + i, ...r })),
-      })),
-    });
-    const res = await applyDetail(ds, 'expense_claim', 'claim_1', {
-      childObject: 'expense_line',
-      relationshipField: 'expense_claim',
-      rows: [{ amount: 10 }, { amount: 5 }],
-      amountField: 'amount',
-      totalField: 'total_amount',
-    });
-    expect(res.created).toEqual([
-      { object: 'expense_line', id: 'w0' },
-      { object: 'expense_line', id: 'w1' },
-    ]);
-    expect(ds.update).toHaveBeenCalledWith('expense_claim', 'claim_1', { total_amount: 15 });
-  });
-
-  it('create mode without bulk falls back to per-row create', async () => {
-    const ds = mockDataSource({ bulk: undefined });
-    await applyDetail(ds, 'po', 'po_1', {
-      childObject: 'po_line',
-      relationshipField: 'po',
-      rows: [{ qty: 1 }, { qty: 2 }],
-    });
-    expect(ds.create).toHaveBeenCalledTimes(2);
-    expect(ds.create).toHaveBeenCalledWith('po_line', { qty: 1, po: 'po_1' });
-    expect(ds.create).toHaveBeenCalledWith('po_line', { qty: 2, po: 'po_1' });
-  });
-
-  it('edit mode: creates new, updates changed, deletes removed', async () => {
-    const ds = mockDataSource();
-    await applyDetail(ds, 'expense_claim', 'claim_1', {
-      childObject: 'expense_line',
-      relationshipField: 'expense_claim',
-      original: [{ id: 'l1', amount: 10 }, { id: 'l2', amount: 20 }],
-      rows: [{ id: 'l1', amount: 15 }, { amount: 30 }], // edit l1, drop l2, add one
-      amountField: 'amount',
-      totalField: 'total_amount',
-    });
-
-    // new row created (with FK)
-    expect(ds.bulk).toHaveBeenCalledWith('expense_line', 'create', [{ amount: 30, expense_claim: 'claim_1' }]);
-    // changed row updated (with FK)
-    expect(ds.update).toHaveBeenCalledWith('expense_line', 'l1', { id: 'l1', amount: 15, expense_claim: 'claim_1' });
-    // removed row deleted
-    expect(ds.delete).toHaveBeenCalledWith('expense_line', 'l2');
-    // rollup reflects the current rows (15 + 30 = 45)
-    expect(ds.update).toHaveBeenCalledWith('expense_claim', 'claim_1', { total_amount: 45 });
-  });
-
-  it('skips rollup when no totalField is configured', async () => {
-    const ds = mockDataSource();
-    await applyDetail(ds, 'expense_claim', 'claim_1', {
-      childObject: 'expense_line',
-      relationshipField: 'expense_claim',
-      rows: [{ amount: 10 }],
-    });
-    // only the bulk create — no parent update
-    expect(ds.update).not.toHaveBeenCalled();
   });
 });
 
@@ -259,24 +170,6 @@ describe('child payload sanitize (childSchema supplied)', () => {
     const cre = ops.find((o) => o.object === 'inv_line' && o.action === 'create');
     expect(cre!.data).toEqual({ product: 'New', quantity: 2, unit_price: 10, amount: 5, invoice: 'inv1' });
     expect(cre!.data).not.toHaveProperty('note_calc');
-  });
-
-  it('applyDetail sanitizes create and update child payloads', async () => {
-    const ds = mockDataSource();
-    await applyDetail(ds, 'invoice', 'inv1', {
-      childObject: 'inv_line', relationshipField: 'invoice',
-      original: [{ id: 'l1', product: 'Widget', quantity: 1, unit_price: 10, amount: 10 }],
-      rows: [dirtyRow({ id: 'l1', amount: 25 }), dirtyRow({ product: 'New', amount: 5 })],
-      childSchema: LINE_SCHEMA,
-    });
-    // Update: computed/id stripped, stored amount + FK kept.
-    expect(ds.update).toHaveBeenCalledWith('inv_line', 'l1', {
-      product: 'Widget', quantity: 2, unit_price: 10, amount: 25, invoice: 'inv1',
-    });
-    // Create (via bulk): computed dropped, amount kept.
-    expect(ds.bulk).toHaveBeenCalledWith('inv_line', 'create', [
-      { product: 'New', quantity: 2, unit_price: 10, amount: 5, invoice: 'inv1' },
-    ]);
   });
 
   it('leaves rows untouched when no childSchema is supplied (backward compatible)', () => {

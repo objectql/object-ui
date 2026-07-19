@@ -143,6 +143,39 @@ export interface FileUploadResult {
 }
 
 /**
+ * A `{ $ref: n }` placeholder inside a {@link BatchTransactionOperation}'s
+ * `data`. Resolves to the id created by operation `n` (which must appear
+ * earlier in the same batch) — used to link a child to a parent created in
+ * the same transaction (master-detail create).
+ */
+export interface BatchRef {
+  $ref: number;
+}
+
+/**
+ * One operation in a cross-object transactional batch. Field names match the
+ * server contract of `POST /api/v1/batch` (ObjectStack framework #1604 /
+ * ADR-0034 item 4).
+ *
+ * Distinct from the driver-level `BatchOperation` in `data-protocol.ts`
+ * (which speaks `type`/`table`) — this is the DataSource-level, object-aware
+ * shape consumed by {@link DataSource.batchTransaction}.
+ */
+export interface BatchTransactionOperation {
+  /** Target object/table name. */
+  object: string;
+  /** Operation to perform — defaults to `'create'` when omitted. */
+  action?: 'create' | 'update' | 'delete';
+  /** Target record id — required for `update` and `delete`. */
+  id?: string;
+  /**
+   * Write payload for `create`/`update`. A value may be a
+   * `{ $ref: <earlier op index> }` placeholder (see {@link BatchRef}).
+   */
+  data?: Record<string, any>;
+}
+
+/**
  * Universal data source interface.
  * This is the core abstraction that makes Object UI backend-agnostic.
  * 
@@ -287,6 +320,30 @@ export interface DataSource<T = any> {
     resource: string,
     ids: ReadonlyArray<string | number>,
   ): Promise<number>;
+
+  /**
+   * Atomically persist an ordered set of cross-object operations (optional).
+   *
+   * Contract: **either every operation commits or none do**. `results` is
+   * index-aligned with `operations` — a create/update echoes the written
+   * record, a delete echoes `true`. A field value inside an op's `data` may
+   * be a `{ $ref: <earlier op index> }` placeholder (see {@link BatchRef})
+   * that resolves to the id produced by that earlier operation, so a child
+   * row can reference a parent created in the SAME batch (master-detail).
+   *
+   * Backends with a transactional batch endpoint should issue one server
+   * call (true atomicity). Adapters WITHOUT server-side atomicity must still
+   * implement this method by emulating it client-side with best-effort
+   * compensation — see `emulateBatchTransaction` in `@object-ui/core`.
+   * Callers may therefore assume this method always saves, but only a
+   * server-backed implementation is genuinely atomic.
+   *
+   * @param operations - Ordered cross-object operations
+   * @returns `{ results }` index-aligned with `operations`
+   */
+  batchTransaction?(
+    operations: BatchTransactionOperation[],
+  ): Promise<{ results: any[] }>;
 
   /**
    * Cancel (recall) the active pending approval request for a record.

@@ -17,8 +17,16 @@ import type { DataSource, QueryParams, QueryResult } from '../src/index';
 
 /**
  * REST API Data Source Implementation
- * 
+ *
  * A generic REST API adapter that works with any REST backend.
+ *
+ * Note: the optional `batchTransaction(operations)` method (used by
+ * master-detail saves) is omitted here. If your backend has no atomic
+ * cross-object endpoint, you don't need to hand-write orchestration —
+ * implement it as `emulateBatchTransaction(this, operations)` from
+ * `@object-ui/core` (sequential writes + `{ $ref }` resolution + best-effort
+ * compensation). Omit it entirely and callers fall back to the same emulation
+ * automatically via `runBatchTransaction`.
  */
 export class RestDataSource<T = any> implements DataSource<T> {
   constructor(private baseUrl: string) {}

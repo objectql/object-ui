@@ -6,7 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { DataSource } from '@object-ui/core';
+import type { DataSource, BatchTransactionOperation } from '@object-ui/core';
+import { emulateBatchTransaction } from '@object-ui/core';
 
 /**
  * 模拟数据源 (Mock Adapter)
@@ -38,6 +39,12 @@ export class MockDataSource implements DataSource {
 
   async delete(resource: string, id: string): Promise<any> {
     return true;
+  }
+
+  batchTransaction(
+    operations: BatchTransactionOperation[],
+  ): Promise<{ results: any[] }> {
+    return emulateBatchTransaction(this, operations);
   }
 
   async getObjectSchema(objectName: string): Promise<any> {
