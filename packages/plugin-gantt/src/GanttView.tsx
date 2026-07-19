@@ -2856,6 +2856,22 @@ export function GanttView({
     });
     parts.push(`</g>`);
 
+    // Fit a bar label into `w` px: per-char width estimate (CJK ≈ 9px, latin
+    // ≈ 5.5px at font-size 9) with an ellipsis; empty when nothing fits.
+    const fitText = (s: string, w: number): string => {
+      const budget = w - 12;
+      if (budget <= 9) return '';
+      let used = 0;
+      let out = '';
+      for (const ch of s) {
+        const cw = ch.charCodeAt(0) > 255 ? 9 : 5.5;
+        if (used + cw > budget) return out.length < s.length ? `${out.slice(0, -1)}…` : out;
+        used += cw;
+        out += ch;
+      }
+      return out;
+    };
+
     // Timeline: bars / milestones / links / today line.
     parts.push(`<g transform="translate(${nameW},${headerH})" font-family="sans-serif" font-size="9">`);
     rows.forEach((row, i) => {
@@ -2882,12 +2898,22 @@ export function GanttView({
         parts.push(`<rect x="${left.toFixed(1)}" y="${(y + summaryBarTop).toFixed(1)}" width="${width.toFixed(1)}" height="${summaryBarHeight}" rx="3" fill="${fill}"${stroke}/>`);
         const pw = (width * Math.min(100, Math.max(0, row.progress))) / 100;
         parts.push(`<rect x="${left.toFixed(1)}" y="${(y + summaryBarTop).toFixed(1)}" width="${pw.toFixed(1)}" height="${summaryBarHeight}" rx="3" fill="rgba(0,0,0,0.2)"/>`);
+        // In-bar title (条上标题), matching the live summary bar.
+        const label = fitText(row.task.title, width);
+        if (label) {
+          parts.push(`<text x="${(left + 6).toFixed(1)}" y="${(y + rowHeight / 2 + 3).toFixed(1)}" fill="#ffffff" font-weight="500">${esc(label)}</text>`);
+        }
       } else {
         const fill = row.task.color || '#3b82f6';
         parts.push(`<rect x="${left.toFixed(1)}" y="${(y + barTop).toFixed(1)}" width="${width.toFixed(1)}" height="${barHeight}" rx="3" fill="${fill}"${stroke}/>`);
         const pw = (width * Math.min(100, Math.max(0, row.progress))) / 100;
         parts.push(`<rect x="${left.toFixed(1)}" y="${(y + barTop).toFixed(1)}" width="${pw.toFixed(1)}" height="${barHeight}" rx="3" fill="rgba(0,0,0,0.18)"/>`);
-        if (width >= 24) {
+        // In-bar title like the live leaf bar (bar_label, e.g. the executor);
+        // narrow bars fall back to the bare progress number when it fits.
+        const label = fitText(row.task.title, width);
+        if (label) {
+          parts.push(`<text x="${(left + 6).toFixed(1)}" y="${(y + rowHeight / 2 + 3).toFixed(1)}" fill="#ffffff" font-weight="500">${esc(label)}</text>`);
+        } else if (width >= 24) {
           parts.push(`<text x="${(left + width / 2).toFixed(1)}" y="${(y + rowHeight / 2 + 3).toFixed(1)}" text-anchor="middle" fill="#ffffff">${Math.round(row.progress)}%</text>`);
         }
       }
