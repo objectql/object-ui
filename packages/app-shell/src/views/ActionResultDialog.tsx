@@ -10,7 +10,10 @@
  *   - `spec.fields[]` selects what to render. Each entry has a dot `path`
  *     into `data` and an optional `format` (qrcode/code-list/secret/
  *     text/json). When `fields` is omitted, the dialog renders the whole
- *     payload as JSON.
+ *     payload as JSON. Entries whose `path` does not resolve in the payload
+ *     are skipped — the response shape varies per request (e.g. no
+ *     `temporaryPassword` when the admin typed one), and a labelled
+ *     `undefined` row would be noise.
  *   - The dialog has NO close button — the user must click acknowledge.
  *     This is the whole point: a toast would let them dismiss the value
  *     before reading it.
@@ -59,11 +62,22 @@ export function ActionResultDialog({ state, onAcknowledge }: ActionResultDialogP
   const { spec, data } = state;
 
   // Synthesise a single-field render plan when the action did not declare
-  // explicit fields — keeps the dialog body uniform.
-  const fields = useMemo<ResultDialogFieldSpec[]>(() => {
-    if (spec?.fields && spec.fields.length > 0) return spec.fields;
-    return [{ path: '', label: undefined, format: spec?.format ?? 'json' }];
-  }, [spec]);
+  // explicit fields — keeps the dialog body uniform. Declared fields whose
+  // path does not resolve in the payload are dropped: the value is
+  // response-shape dependent (e.g. `temporaryPassword` only exists when the
+  // server generated one), and a labelled `undefined` row helps nobody.
+  const fields = useMemo<Array<{ field: ResultDialogFieldSpec; value: unknown }>>(() => {
+    const declared: ResultDialogFieldSpec[] =
+      spec?.fields && spec.fields.length > 0
+        ? spec.fields
+        : [{ path: '', label: undefined, format: spec?.format ?? 'json' }];
+    return declared
+      .map((field) => ({
+        field,
+        value: field.path === '' ? data : readPath(data, field.path),
+      }))
+      .filter(({ field, value }) => field.path === '' || value !== undefined);
+  }, [spec, data]);
 
   return (
     <Dialog
@@ -87,11 +101,11 @@ export function ActionResultDialog({ state, onAcknowledge }: ActionResultDialogP
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {fields.map((field, idx) => (
+          {fields.map(({ field, value }, idx) => (
             <ResultField
               key={`${field.path}-${idx}`}
               field={field}
-              value={field.path === '' ? data : readPath(data, field.path)}
+              value={value}
               defaultFormat={spec?.format}
             />
           ))}
