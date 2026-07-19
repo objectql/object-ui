@@ -114,6 +114,18 @@ Renders custom page schemas.
 />
 ```
 
+### ActionParamDialog
+
+Collects user input for a declared action's `params` before execution. Every
+param renders through the shared form field-widget renderer from
+`@object-ui/fields` (`getLazyFieldWidget`), so a param of any form-supported
+field type — `select`, `lookup`, `date`, `file`, `image`, `richtext`, `color`,
+… — gets its real widget instead of a text-input fallback (ADR-0059). The pure
+`paramToField()` adapter owns the param → field translation, and a drift test
+pins param support ⊇ form support. `required` validation and `visible` CEL
+gating are applied by the dialog; file/image uploads use the ambient
+`UploadProvider`, lookup/user pickers the surrounding `SchemaRendererContext`.
+
 ## Metadata designers
 
 The metadata-admin engine (`src/views/metadata-admin`) renders an in-app editor

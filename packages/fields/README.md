@@ -55,6 +55,23 @@ Supported types out of the box:
 - **Media**: `file`, `image`
 - **System**: `formula`, `summary`, `auto_number`
 
+### Rendering form field widgets outside the form
+
+The full widget surface is exported for consumers that render field widgets
+outside a record form (ADR-0059):
+
+- `FORM_FIELD_TYPES` — the frozen list of every type the form can render.
+- `resolveFormWidgetType(type)` — resolves any field-type spelling to its
+  widget key (spec aliases like `toggle`/`json`/`secret` included; unknown
+  types fall back to `text`, mirroring the form).
+- `getLazyFieldWidget(type)` — the widget wrapped in `React.lazy` (cached per
+  type; render inside `<Suspense>`), sharing the same loaders `registerField`
+  uses so nothing is bundled eagerly.
+
+The app-shell `ActionParamDialog` uses these to render declared action params
+through the exact same widgets as the object form — with a drift test pinning
+param support ⊇ form support.
+
 ### File uploads in line-item grids
 
 `GridField` (the master-detail line-items grid) supports `type: 'file'` columns:

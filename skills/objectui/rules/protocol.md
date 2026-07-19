@@ -119,6 +119,38 @@ Events must be defined as arrays of action definitions:
 
 **❌ DO NOT** use function references or inline callbacks in JSON schemas.
 
+## Rule: Action Params Use Field Types (Shared Widget Renderer)
+
+An action that needs user input declares `params` (spec `ActionParamSchema`).
+Each param's `type` is a spec `FieldType`, and the param dialog renders it
+through the **same field-widget renderer the object form uses** — so any
+form-supported type (`select`, `lookup`, `date`, `file`, `image`, `richtext`,
+`color`, …) gets its real widget, never a text-box fallback (ADR-0059):
+
+```json
+{
+  "name": "approve",
+  "params": [
+    { "name": "comment", "type": "textarea", "required": true },
+    { "name": "attachments", "type": "file", "multiple": true, "accept": ["application/pdf"] },
+    { "name": "assignee", "field": "owner_id" }
+  ]
+}
+```
+
+- Inline params: `name` + `type` + widget config (`options`, `multiple`,
+  `accept`, `maxSize`, `defaultValue`, `placeholder`, `helpText`).
+- Field-backed params: `field` (+ `objectOverride`) inherits label, type,
+  options, lookup config, `multiple`/`accept`/`maxSize` from the object field;
+  inline properties override.
+- `required` blocks submit; `visible` is a CEL predicate
+  (`features` / `current_user` / `app` / `data`) that hides the param.
+
+**❌ DO NOT** invent param-only type spellings — use spec `FieldType` values.
+**❌ DO NOT** add bespoke per-type render branches to `ActionParamDialog`;
+extend `fieldWidgetMap` in `@object-ui/fields` instead (the drift test pins
+param support ⊇ form support).
+
 ## Rule: Layout Responsiveness
 
 Layout components must support responsive properties:

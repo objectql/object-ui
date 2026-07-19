@@ -16,12 +16,11 @@
 import type { ActionParamDef } from '@object-ui/core';
 
 /**
- * `ActionParamDialog` switches on raw `FieldType` values
- * (`text` / `email` / `select` / `textarea` / `number` / `url` / `date` / …),
- * matching the `FieldType` enum in `@objectstack/spec`. **Do not** route
- * through `mapFieldTypeToFormType()` here — that helper translates into the
- * FormField widget vocabulary (`field:select`, …) which the dialog does not
- * understand.
+ * Resolved params keep raw `FieldType` values (`text` / `email` / `select` /
+ * `file` / …), matching the `FieldType` enum in `@objectstack/spec`. **Do
+ * not** translate into the FormField widget vocabulary (`field:select`, …)
+ * here — `ActionParamDialog` owns that translation via its `paramToField()`
+ * adapter (ADR-0059).
  */
 
 /** Raw param as authored on a schema action (post-zod). */
@@ -38,6 +37,12 @@ export interface RawActionParam {
   defaultValue?: unknown;
   /** When true, seed defaultValue from the row record using the field name. */
   defaultFromRow?: boolean;
+  /** Allow multiple values (file/image/lookup/user params → array value). */
+  multiple?: boolean;
+  /** Accepted upload types (MIME types / extensions) for `file`/`image` params. */
+  accept?: string[];
+  /** Max upload size in bytes for `file`/`image` params. */
+  maxSize?: number;
   /**
    * Visibility predicate (CEL) — mirrors the spec `ActionParamSchema.visible`.
    * The server serialises it through `ExpressionInputSchema` as an
@@ -60,6 +65,9 @@ interface RuntimeField {
   options?: Array<{ label: string; value: string } | string>;
   multiple?: boolean;
   defaultValue?: unknown;
+  // ── Upload widget config (file/image fields) ──
+  accept?: string[];
+  maxSize?: number;
   // ── Lookup-specific metadata (preserved when resolving lookup params) ──
   reference_to?: string;
   reference?: string;
@@ -161,6 +169,9 @@ export function resolveActionParam(
       helpText: param.helpText,
       defaultValue: rowDefault ?? param.defaultValue,
       visible: normaliseVisible(param.visible),
+      multiple: param.multiple,
+      accept: param.accept,
+      maxSize: param.maxSize,
     };
   }
 
@@ -182,6 +193,9 @@ export function resolveActionParam(
       helpText: param.helpText,
       defaultValue: rowDefault ?? param.defaultValue,
       visible: normaliseVisible(param.visible),
+      multiple: param.multiple,
+      accept: param.accept,
+      maxSize: param.maxSize,
     };
   }
 
@@ -201,7 +215,6 @@ export function resolveActionParam(
         displayField: field.display_field ?? field.reference_field,
         idField: field.id_field,
         descriptionField: field.description_field,
-        multiple: field.multiple,
         titleFormat: field.title_format,
         lookupColumns: field.lookup_columns,
         lookupFilters: field.lookup_filters,
@@ -220,6 +233,11 @@ export function resolveActionParam(
     helpText: param.helpText ?? field.help ?? field.description,
     defaultValue: rowDefault ?? param.defaultValue ?? field.defaultValue,
     visible: normaliseVisible(param.visible),
+    // Widget config inherited from the field for every type (not just
+    // lookup): multi-value shape and upload constraints (ADR-0059).
+    multiple: param.multiple ?? field.multiple,
+    accept: param.accept ?? field.accept,
+    maxSize: param.maxSize ?? field.maxSize,
     ...lookupExtras,
   };
 }

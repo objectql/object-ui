@@ -131,6 +131,44 @@ const dialogAction: ActionSchema = {
 };
 ```
 
+## Action Params (input collection)
+
+An action may declare `params` (spec `ActionParamSchema`) to collect user input
+in a dialog before it runs. Each param renders through the **same field-widget
+renderer the object form uses**, so a param of *any* form-supported field type —
+`select`, `lookup`, `date`, `file`, `image`, `richtext`, `color`, `address`, … —
+gets its real widget, not a text box (ADR-0059):
+
+```json
+{
+  "name": "approve",
+  "label": "Approve",
+  "params": [
+    { "name": "comment", "type": "textarea", "label": "Comment", "required": true },
+    { "name": "attachments", "type": "file", "multiple": true, "accept": ["application/pdf"] },
+    { "name": "assignee", "field": "owner_id" },
+    { "name": "notify", "type": "boolean", "label": "Notify the requester", "defaultValue": true }
+  ]
+}
+```
+
+- **Inline params** declare `name` + `type` (any spec `FieldType`), plus widget
+  config: `options`, `multiple`, `accept`, `maxSize`, `placeholder`,
+  `helpText`, `defaultValue`.
+- **Field-backed params** declare `field` (+ optional `objectOverride`) and
+  inherit label, type, options, lookup picker config, `multiple`, `accept`,
+  and `maxSize` from the object's field definition; inline properties override.
+- `required` blocks submit while the value is empty; `visible` (a CEL
+  predicate over `features` / `current_user` / `app` / `data`) hides a param
+  entirely — e.g. gate a param on an opt-in server capability.
+- Values are passed through to the action exactly as the widget emits them
+  (`number` → number, `date` → `YYYY-MM-DD`, lookup → record id(s), `file` →
+  uploaded file descriptor(s); arrays when `multiple`).
+
+File/image params upload through the ambient `UploadProvider`; lookup/user
+params query through the surrounding `SchemaRendererContext` data source — no
+extra wiring per action.
+
 ## Action Chaining
 
 Execute multiple actions in sequence or parallel:

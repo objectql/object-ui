@@ -67,3 +67,66 @@ describe('resolveActionParams — visible propagation', () => {
     expect(out[1].visible).toBeUndefined();
   });
 });
+
+describe('resolveActionParams — widget config (ADR-0059)', () => {
+  const fileCtx = () =>
+    ctx({
+      objects: [
+        {
+          name: 'sys_user',
+          fields: {
+            avatar_file: {
+              type: 'file',
+              label: 'Avatar',
+              multiple: true,
+              accept: ['image/*'],
+              maxSize: 1024,
+            },
+            phone_number: { type: 'text', label: 'Phone' },
+          },
+        },
+      ],
+    });
+
+  it('carries multiple/accept/maxSize on an inline param', () => {
+    const params: RawActionParam[] = [
+      { name: 'attachments', type: 'file', multiple: true, accept: ['application/pdf'], maxSize: 2048 },
+    ];
+    expect(resolveActionParams(params, ctx())[0]).toMatchObject({
+      type: 'file',
+      multiple: true,
+      accept: ['application/pdf'],
+      maxSize: 2048,
+    });
+  });
+
+  it('inherits multiple/accept/maxSize from the referenced field (any type, not just lookup)', () => {
+    const params: RawActionParam[] = [{ field: 'avatar_file' }];
+    expect(resolveActionParams(params, fileCtx())[0]).toMatchObject({
+      type: 'file',
+      multiple: true,
+      accept: ['image/*'],
+      maxSize: 1024,
+    });
+  });
+
+  it('inline overrides win over the field metadata', () => {
+    const params: RawActionParam[] = [{ field: 'avatar_file', multiple: false, maxSize: 4096 }];
+    expect(resolveActionParams(params, fileCtx())[0]).toMatchObject({
+      multiple: false,
+      accept: ['image/*'],
+      maxSize: 4096,
+    });
+  });
+
+  it('carries multiple/accept/maxSize on the missing-field fallback branch', () => {
+    const params: RawActionParam[] = [
+      { field: 'does_not_exist', type: 'file', multiple: true, accept: ['.csv'], maxSize: 99 },
+    ];
+    expect(resolveActionParams(params, ctx())[0]).toMatchObject({
+      multiple: true,
+      accept: ['.csv'],
+      maxSize: 99,
+    });
+  });
+});

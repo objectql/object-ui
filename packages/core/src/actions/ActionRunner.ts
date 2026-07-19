@@ -270,6 +270,17 @@ export interface ActionParamDef {
    */
   visible?: string;
 
+  // ── Widget config (shared form field-widget renderer) ─────────────
+  // `ActionParamDialog` renders every param through the same field widgets
+  // the object form uses (ADR-0059), so params carry the widget-relevant
+  // config for their type. Mirrors `ActionParamSchema` in @objectstack/spec.
+  /** Accepted upload types (MIME types / extensions) for `file`/`image` params. */
+  accept?: string[];
+  /** Max upload size in bytes for `file`/`image` params. */
+  maxSize?: number;
+  /** Allow multiple values (file/image/lookup/user params → array value). */
+  multiple?: boolean;
+
   // ── Lookup-/reference-type metadata ───────────────────────────────
   // Populated by `resolveActionParams()` when a field-backed param resolves
   // to a `lookup` or `reference` field. Forwarded to `<LookupField>` inside
@@ -283,8 +294,6 @@ export interface ActionParamDef {
   idField?: string;
   /** Optional secondary line shown under the label in the picker. */
   descriptionField?: string;
-  /** Allow multi-select (renders chip list). */
-  multiple?: boolean;
   /** Template (e.g. `{first_name} {last_name}`) used to build the label. */
   titleFormat?: string;
   /** Column definitions surfaced in the enterprise `RecordPickerDialog`. */

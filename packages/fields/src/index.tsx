@@ -2223,6 +2223,44 @@ const fieldWidgetMap: Record<string, () => Promise<{ default: React.ComponentTyp
 export const FORM_FIELD_TYPES: readonly string[] = Object.freeze(Object.keys(fieldWidgetMap));
 
 /**
+ * Resolve an arbitrary field-type spelling to the widget key the form uses.
+ * A key already present in the widget map resolves to itself; spec aliases
+ * (`toggle`, `json`, `repeater`, `secret`, …) resolve through
+ * {@link mapFieldTypeToFormType}; anything unknown falls back to `text` —
+ * the same fallback the form renderer applies.
+ *
+ * Consumers that render field widgets outside the form (e.g. the app-shell
+ * `ActionParamDialog`) use this + {@link getLazyFieldWidget} so their type
+ * support can never drift behind the form surface (ADR-0059).
+ */
+export function resolveFormWidgetType(fieldType: string): string {
+  if (fieldWidgetMap[fieldType]) return fieldType;
+  const mapped = mapFieldTypeToFormType(fieldType).replace(/^field:/, '');
+  return fieldWidgetMap[mapped] ? mapped : 'text';
+}
+
+/** Cache so each widget type creates one lazy component (and one chunk request). */
+const lazyFieldWidgets = new Map<string, React.ComponentType<any>>();
+
+/**
+ * Lazily-loaded form field widget for a field type. Shares the exact loaders
+ * of {@link fieldWidgetMap} (the same components `registerField` registers for
+ * forms), wrapped in `React.lazy` and cached per type — so a consumer can
+ * render any form-supported field type without eagerly bundling every widget.
+ * Render inside a `<Suspense>` boundary. Unknown types resolve to the `text`
+ * widget via {@link resolveFormWidgetType}.
+ */
+export function getLazyFieldWidget(fieldType: string): React.ComponentType<any> {
+  const key = resolveFormWidgetType(fieldType);
+  let Widget = lazyFieldWidgets.get(key);
+  if (!Widget) {
+    Widget = React.lazy(fieldWidgetMap[key]);
+    lazyFieldWidgets.set(key, Widget);
+  }
+  return Widget;
+}
+
+/**
  * Register a specific field type lazily
  * @param fieldType - The field type to register (e.g., 'text', 'number')
  * 
