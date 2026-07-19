@@ -27,6 +27,7 @@ type MockResult = {
   object?: string;
   dimensionFields?: Record<string, string>;
   drillRawRows?: MockRows;
+  drillRanges?: Array<Record<string, { field: string; gte: unknown; lt: unknown }>>;
   totals?: Array<{ dimensions: string[]; rows: MockRows }>;
 };
 
@@ -44,6 +45,7 @@ function makeSource(byDataset: Record<string, MockRows | MockResult>) {
         ...(entry?.object ? { object: entry.object } : {}),
         ...(entry?.dimensionFields ? { dimensionFields: entry.dimensionFields } : {}),
         ...(entry?.drillRawRows ? { drillRawRows: entry.drillRawRows } : {}),
+        ...(entry?.drillRanges ? { drillRanges: entry.drillRanges } : {}),
         ...(entry?.totals ? { totals: entry.totals } : {}),
       };
     }),
@@ -499,6 +501,33 @@ describe('DatasetReportRenderer', () => {
       groupKey: { status: 'In Progress' },
       // raw stored value, mapped to the underlying object field, ANDed with scope
       objectFilter: { owner: 'me', status: 'in_progress' },
+    }));
+  });
+
+  it('#1752 drill: a date-bucketed row emits a half-open RANGE objectFilter (not equality)', async () => {
+    const src = makeSource({
+      pipe_by_quarter: {
+        rows: [{ close_date: '2026-Q2', revenue: 1000 }],
+        object: 'opportunity',
+        // A date bucket isn't equality-drillable → no dimensionFields; a range sidecar instead.
+        drillRanges: [{ close_date: { field: 'close_date', gte: '2026-04-01', lt: '2026-07-01' } }],
+      },
+    });
+    const onDrill = vi.fn();
+    render(
+      <DatasetReportRenderer
+        report={{ name: 'r', type: 'summary', dataset: 'pipe_by_quarter', rows: ['close_date'], values: ['revenue'] }}
+        dataSource={src}
+        onDrill={onDrill}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('dataset-drill-row')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('dataset-drill-row'));
+    expect(onDrill).toHaveBeenCalledWith(expect.objectContaining({
+      dataset: 'pipe_by_quarter',
+      object: 'opportunity',
+      // the clicked quarter scopes the drilled list to [2026-04-01, 2026-07-01)
+      objectFilter: { close_date: { $gte: '2026-04-01', $lt: '2026-07-01' } },
     }));
   });
 

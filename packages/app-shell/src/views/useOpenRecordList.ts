@@ -8,15 +8,17 @@
 
 import { useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { serializeDrillFilterParams } from './drillUrlFilters';
 
 /**
  * `useOpenRecordList` — the console's implementation of the drill "escape
  * hatch" (`DrillNavigationContext.openRecordList`).
  *
- * Navigates to an object's full list page, scoped by a record filter, using the
- * console's `/apps/:appName/:object?filter[field]=value` route shape (the same
- * format `ReportView`'s drill navigation uses). Wire it into a
- * `DrillNavigationProvider` so the dashboard/report drill drawers can offer
+ * Navigates to the object's ADR-0055 bare data surface, scoped by a record
+ * filter, using the console's `/apps/:appName/:object/data?filter[...]` route
+ * shape. Equality dims serialize to `filter[field]=value`; a date-bucket drill's
+ * range serializes to `filter[field][gte]=…&filter[field][lt]=…` (#1752). Wire it
+ * into a `DrillNavigationProvider` so the dashboard/report drill drawers can offer
  * "Open in list →" and honor `drillDown.target: 'navigate'`.
  */
 export function useOpenRecordList(): (objectName: string, filter?: Record<string, unknown>) => void {
@@ -25,16 +27,16 @@ export function useOpenRecordList(): (objectName: string, filter?: Record<string
 
   return useCallback(
     (objectName: string, filter?: Record<string, unknown>) => {
-      const params = new URLSearchParams();
-      if (filter) {
-        for (const [field, value] of Object.entries(filter)) {
-          if (value == null) continue;
-          params.set(`filter[${field}]`, String(value));
-        }
-      }
-      const qs = params.toString();
+      // A date-bucket drill carries an ObjectQL range operator object
+      // (`{ $gte, $lt }`); the shared serializer emits it as `filter[field][gte|lt]`
+      // (never "[object Object]"). Equality dims stay `filter[field]=value` (#1752).
+      const qs = serializeDrillFilterParams(filter).toString();
       const base = appName ? `/apps/${appName}` : '';
-      navigate(`${base}/${objectName}${qs ? `?${qs}` : ''}`);
+      // ADR-0055 bare data surface (`/:object/data`): "the URL is the view" — no
+      // saved-view filter is baked in, so the drill scope is exactly these
+      // conditions. (The object route stacks URL filters ON TOP of the default
+      // view's own filter, which can silently over-narrow a drill.)
+      navigate(`${base}/${objectName}/data${qs ? `?${qs}` : ''}`);
     },
     [navigate, appName],
   );

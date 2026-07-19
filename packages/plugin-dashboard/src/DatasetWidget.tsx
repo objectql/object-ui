@@ -39,6 +39,7 @@ import {
   buildDatasetFieldHelpers,
   buildDatasetDrillFilter,
   type DatasetResultField,
+  type DatasetDrillRange,
 } from '@object-ui/core';
 import { cn, Skeleton, ChartSkeleton, GridSkeleton } from '@object-ui/components';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
@@ -48,7 +49,7 @@ import { DrillDownDrawer } from './DrillDownDrawer';
 
 type Row = Record<string, unknown>;
 interface DatasetTotals { dimensions: string[]; rows: Row[] }
-interface DatasetResult { rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Row[]; totals?: DatasetTotals[] }
+interface DatasetResult { rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Row[]; drillRanges?: Array<Record<string, DatasetDrillRange>>; totals?: DatasetTotals[] }
 interface DatasetCapableSource {
   queryDataset?: (dataset: string, selection: unknown) => Promise<DatasetResult>;
 }
@@ -193,7 +194,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
     [rawFilter],
   );
 
-  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
+  const [state, setState] = useState<{ status: 'idle' | 'loading' | 'ok' | 'error'; rows: Row[]; fields?: DatasetResultField[]; object?: string; dimensionFields?: Record<string, string>; drillRawRows?: Array<Record<string, unknown>>; drillRanges?: Array<Record<string, DatasetDrillRange>>; totals?: DatasetTotals[]; error?: string }>({ status: 'idle', rows: [] });
   // Drill-through (ADR-0021 D2): the clicked bucket's record-list filter + title.
   const [drill, setDrill] = useState<{ filter: Record<string, unknown>; title: string } | null>(null);
   // Per-category colors: when the chart's first dimension is a select/lookup
@@ -228,7 +229,7 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
       ...(compareTo ? { compareTo } : {}),
       ...(totalsGroupings ? { totals: { groupings: totalsGroupings } } : {}),
     })
-      .then((res) => { if (!cancelled) setState({ status: 'ok', rows: Array.isArray(res?.rows) ? res.rows : [], fields: Array.isArray(res?.fields) ? res.fields : [], object: res?.object, dimensionFields: res?.dimensionFields, drillRawRows: Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined, totals: Array.isArray(res?.totals) ? res.totals : undefined }); })
+      .then((res) => { if (!cancelled) setState({ status: 'ok', rows: Array.isArray(res?.rows) ? res.rows : [], fields: Array.isArray(res?.fields) ? res.fields : [], object: res?.object, dimensionFields: res?.dimensionFields, drillRawRows: Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined, drillRanges: Array.isArray(res?.drillRanges) ? res.drillRanges : undefined, totals: Array.isArray(res?.totals) ? res.totals : undefined }); })
       .catch((e) => { if (!cancelled) setState({ status: 'error', rows: [], error: String((e as Error)?.message ?? e) }); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -325,12 +326,14 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   // Available when the server returned the dataset's base object + at least one
   // drillable dimension this widget groups by. Tables/pivots drill by row index;
   // charts map a clicked segment back to its dataset row (see handleChartDrill).
-  const { object: drillObject, dimensionFields, drillRawRows } = state;
+  const { object: drillObject, dimensionFields, drillRawRows, drillRanges } = state;
   const drillDims = dimensionFields ? dimensions.filter((d) => d in dimensionFields) : [];
-  const canDrill = !!drillObject && drillDims.length > 0;
+  // #1752: a date-only widget has no equality drill dim but still drills by the
+  // server's per-row date RANGE, so the presence of ranges makes it drillable too.
+  const canDrill = !!drillObject && (drillDims.length > 0 || !!drillRanges?.length);
   const openDrill = (index: number, title: string) => {
-    if (!drillObject || !dimensionFields) return;
-    const merged = buildDrillFilter(drillRawRows?.[index], drillDims, dimensionFields, runtimeFilter);
+    if (!drillObject) return;
+    const merged = buildDrillFilter(drillRawRows?.[index], drillDims, dimensionFields ?? {}, runtimeFilter, drillRanges?.[index]);
     setDrill({ filter: merged, title: title || String(widget?.title ?? '') });
   };
   const drillDrawer = drill && drillObject ? (

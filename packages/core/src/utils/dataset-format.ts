@@ -131,6 +131,17 @@ export function buildDatasetFieldHelpers(
 }
 
 /**
+ * A half-open date-range drill scope for one time-bucketed dimension (#1752):
+ * the object FIELD to filter and its inclusive `gte` / exclusive `lt` bounds
+ * (the server's `drillRanges` sidecar entry).
+ */
+export interface DatasetDrillRange {
+  field: string;
+  gte: unknown;
+  lt: unknown;
+}
+
+/**
  * Build the record-list filter for a drilled dataset bucket (ADR-0021 D2).
  *
  * Each drillable dimension maps to its underlying object field, filtered by the
@@ -140,6 +151,13 @@ export function buildDatasetFieldHelpers(
  * "is empty" filter). The render-time `runtimeFilter` is ANDed in so the drilled
  * list stays within the same slice the aggregate was computed over.
  *
+ * A time-bucketed date dimension (#1752) drills by RANGE, not equality — a
+ * humanized bucket ("2026-Q2") can't be exact-matched, so the server sends a
+ * half-open `[gte, lt)` per date dim in `rawRanges` instead of a raw value.
+ * Each becomes an ObjectQL range operator object (`{ $gte, $lt }`) so the drill
+ * scopes the list to the clicked time bucket instead of every bucket (which the
+ * old date-dim skip degraded to — a superset).
+ *
  * Shared by the dashboard `DatasetWidget` and the report renderer so a drill
  * filters identically (and correctly, including lookups) on both surfaces.
  */
@@ -148,11 +166,17 @@ export function buildDatasetDrillFilter(
   drillDims: string[],
   dimensionFields: Record<string, string>,
   runtimeFilter?: Record<string, unknown>,
+  rawRanges?: Record<string, DatasetDrillRange>,
 ): Record<string, unknown> {
   const drillFilter: Record<string, unknown> = {};
   for (const d of drillDims) {
     const raw = rawRow?.[d];
     drillFilter[dimensionFields[d]] = raw === '' || raw === undefined ? null : raw;
+  }
+  if (rawRanges) {
+    for (const r of Object.values(rawRanges)) {
+      if (r && r.field) drillFilter[r.field] = { $gte: r.gte, $lt: r.lt };
+    }
   }
   return runtimeFilter ? { ...runtimeFilter, ...drillFilter } : drillFilter;
 }

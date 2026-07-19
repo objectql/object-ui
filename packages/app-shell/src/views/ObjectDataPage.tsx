@@ -43,6 +43,12 @@ import { usePermissions, useFieldPermissions } from '@object-ui/permissions';
 import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import {
+  parseUrlFilterTriples,
+  groupFilterChips,
+  deleteFieldFilterParams,
+  type FilterTriple,
+} from './drillUrlFilters';
+import {
   defaultColumnsFromObject,
   defaultKanbanFromObject,
   defaultCalendarFromObject,
@@ -54,19 +60,6 @@ import { getIcon } from '../utils/getIcon';
 import { useMetadataClient } from './metadata-admin/useMetadata';
 import { createRuntimeMetadata } from './runtime-metadata-persistence';
 import { CreateViewDialog } from './CreateViewDialog';
-
-/** Filter triple shape shared with view metadata: [field, operator, value]. */
-type FilterTriple = [string, string, unknown];
-
-/** Parse `filter[<field>]=<value>` search params into equality triples. */
-function parseUrlFilterTriples(searchParams: URLSearchParams): FilterTriple[] {
-  const out: FilterTriple[] = [];
-  searchParams.forEach((value, key) => {
-    const m = /^filter\[(.+)\]$/.exec(key);
-    if (m && m[1] && value !== '') out.push([m[1], '=', value]);
-  });
-  return out;
-}
 
 /** Field types the auto-derived user-filter bar offers as dropdowns. */
 const USER_FILTER_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean']);
@@ -126,13 +119,14 @@ export function ObjectDataPage({ dataSource, objects }: any) {
     ) as FilterTriple[];
   }, [filterParamsKey, canRead, user?.id]);
 
+  // One display chip per field — a date-bucket drill's two range triples
+  // (>= start, < end) collapse into a single "start → end" chip (#1752).
+  const filterChips = React.useMemo(() => groupFilterChips(urlFilters), [urlFilters]);
+
   const removeUrlFilter = React.useCallback(
     (field: string) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete(`filter[${field}]`);
-        return next;
-      });
+      // Clears the equality param AND both range-bound operator params for the field.
+      setSearchParams((prev) => deleteFieldFilterParams(new URLSearchParams(prev), field));
     },
     [setSearchParams],
   );
@@ -345,13 +339,13 @@ export function ObjectDataPage({ dataSource, objects }: any) {
           <span className="text-xs text-muted-foreground">
             {t('console.objectData.filteredBy', { defaultValue: 'Filtered by' })}
           </span>
-          {urlFilters.map(([field, , value]) => (
+          {filterChips.map(({ field, text }) => (
             <span
               key={field}
               className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs"
             >
               <span className="font-medium">{fieldLabel(objectDef.name, field, field)}</span>
-              <span className="text-muted-foreground">= {String(value)}</span>
+              <span className="text-muted-foreground">{text}</span>
               <button
                 type="button"
                 onClick={() => removeUrlFilter(field)}

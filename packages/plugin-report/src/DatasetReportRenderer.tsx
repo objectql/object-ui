@@ -49,6 +49,7 @@ import {
   buildDatasetFieldHelpers,
   buildDatasetDrillFilter,
   type DatasetResultField,
+  type DatasetDrillRange,
 } from '@object-ui/core';
 import { useSafeFieldLabel, useSafeTranslate } from '@object-ui/i18n';
 import { mergeFilters } from './mergeFilters';
@@ -71,6 +72,7 @@ interface DatasetCapableSource {
     object?: string;
     dimensionFields?: Record<string, string>;
     drillRawRows?: Row[];
+    drillRanges?: Array<Record<string, DatasetDrillRange>>;
     totals?: DatasetTotals[];
   }>;
 }
@@ -167,6 +169,7 @@ function useDatasetRows(
     object?: string;
     dimensionFields?: Record<string, string>;
     drillRawRows?: Row[];
+    drillRanges?: Array<Record<string, DatasetDrillRange>>;
     totals?: DatasetTotals[];
     error?: string;
   }>({
@@ -205,6 +208,7 @@ function useDatasetRows(
             object: res?.object,
             dimensionFields: res?.dimensionFields,
             drillRawRows: Array.isArray(res?.drillRawRows) ? res.drillRawRows : undefined,
+            drillRanges: Array.isArray(res?.drillRanges) ? res.drillRanges : undefined,
             totals: Array.isArray(res?.totals) ? res.totals : undefined,
           });
         }
@@ -290,9 +294,14 @@ function DatasetReportTable({
     // emit an exact field→raw filter (correct for select/lookup dims, which a
     // display-label groupKey would mis-filter); the host then filters with no
     // extra metadata round-trip. Older server → groupKey-only fallback.
+    // #1752: a time-bucketed date dim contributes a RANGE (not an equality dim),
+    // so the fast path also fires when the server sent a range for this row —
+    // covering a date-ONLY report that has no equality drill dim at all.
+    const rowRanges = state.drillRanges?.[index];
+    const hasRange = !!rowRanges && Object.keys(rowRanges).length > 0;
     const objectFilter =
-      state.object && state.dimensionFields && drillDims.length > 0
-        ? buildDatasetDrillFilter(state.drillRawRows?.[index], drillDims, state.dimensionFields, runtimeFilter)
+      state.object && (drillDims.length > 0 || hasRange)
+        ? buildDatasetDrillFilter(state.drillRawRows?.[index], drillDims, state.dimensionFields ?? {}, runtimeFilter, rowRanges)
         : undefined;
     onDrill!({ dataset, groupKey, runtimeFilter, object: state.object, objectFilter });
   };
@@ -547,9 +556,13 @@ function DatasetMatrixTable({
     ? [...rows, ...columnsAcross].filter((d) => d in state.dimensionFields!)
     : [];
   const drillCell = (rowKey: Row, colKey: Row, index: number) => {
+    // #1752: include the date-bucket range sidecar so an "X by time" cell scopes
+    // to the clicked time bucket, not every bucket in that row/column.
+    const cellRanges = state.drillRanges?.[index];
+    const hasRange = !!cellRanges && Object.keys(cellRanges).length > 0;
     const objectFilter =
-      state.object && state.dimensionFields && drillDims.length > 0
-        ? buildDatasetDrillFilter(state.drillRawRows?.[index], drillDims, state.dimensionFields, runtimeFilter)
+      state.object && (drillDims.length > 0 || hasRange)
+        ? buildDatasetDrillFilter(state.drillRawRows?.[index], drillDims, state.dimensionFields ?? {}, runtimeFilter, cellRanges)
         : undefined;
     onDrill!({ dataset, groupKey: { ...rowKey, ...colKey }, runtimeFilter, object: state.object, objectFilter });
   };

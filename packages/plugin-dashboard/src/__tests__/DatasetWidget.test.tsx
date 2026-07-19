@@ -219,6 +219,18 @@ describe('DatasetWidget', () => {
     expect(await screen.findByTestId('dataset-drill-row')).toBeInTheDocument();
   });
 
+  it('#1752 marks a date-ONLY pivot drillable via the server range sidecar (no equality dim)', async () => {
+    const src = { queryDataset: vi.fn(async () => ({
+      rows: [{ close_date: '2026-Q2', task_count: 5 }],
+      fields: [{ name: 'close_date', type: 'date', label: 'Close Date' }, { name: 'task_count', type: 'number', label: 'Tasks' }],
+      object: 'showcase_task',
+      // No dimensionFields — a date bucket isn't equality-drillable; only a range sidecar.
+      drillRanges: [{ close_date: { field: 'close_date', gte: '2026-04-01', lt: '2026-07-01' } }],
+    })) };
+    render(<DatasetWidget widget={{ type: 'pivot', dataset: 'tasks', dimensions: ['close_date'], values: ['task_count'] }} dataSource={src} />);
+    expect(await screen.findByTestId('dataset-drill-row')).toBeInTheDocument();
+  });
+
   it('buildDrillFilter filters by the RAW stored value, not the display label', () => {
     // The raw-values row carries the stored value "open"; the display label
     // "Open" never reaches the filter.
@@ -238,6 +250,31 @@ describe('DatasetWidget', () => {
   it('buildDrillFilter normalizes a missing/empty raw value to null', () => {
     expect(buildDrillFilter({ status: '' }, ['status'], { status: 'status' })).toEqual({ status: null });
     expect(buildDrillFilter(undefined, ['status'], { status: 'status' })).toEqual({ status: null });
+  });
+
+  // ── #1752 date-bucket RANGE drill ────────────────────────────────────────
+  it('buildDrillFilter emits a half-open range for a date bucket (not equality)', () => {
+    expect(
+      buildDrillFilter(undefined, [], {}, undefined, {
+        close_date: { field: 'close_date', gte: '2026-04-01', lt: '2026-07-01' },
+      }),
+    ).toEqual({ close_date: { $gte: '2026-04-01', $lt: '2026-07-01' } });
+  });
+
+  it('buildDrillFilter ANDs an equality dim, a date range, and the runtime filter together', () => {
+    expect(
+      buildDrillFilter(
+        { stage: 'qualification' },
+        ['stage'],
+        { stage: 'stage' },
+        { archived: false },
+        { close_date: { field: 'close_date', gte: '2026-06-01', lt: '2026-07-01' } },
+      ),
+    ).toEqual({
+      archived: false,
+      stage: 'qualification',
+      close_date: { $gte: '2026-06-01', $lt: '2026-07-01' },
+    });
   });
 
   // ── pivot cross-tab ──────────────────────────────────────────────────────
