@@ -3654,7 +3654,10 @@ export function GanttView({
                      // persist to.
                      const summaryOwnsDates =
                        summaryExtent === 'self' && task.hasOwnDates !== false;
-                     const summaryMovable = !!onTaskUpdate && ixMove;
+                     // Locked summaries were already unmovable (beginDrag rejects
+                     // them) — folding the lock in here also fixes the cursor:
+                     // 仅查看 rows now show not-allowed (🚫) instead of grab.
+                     const summaryMovable = !!onTaskUpdate && ixMove && !isLocked;
                      const summaryResizable = !!onTaskUpdate && ixResize && summaryOwnsDates && !isLocked;
                      return (
                       <div
