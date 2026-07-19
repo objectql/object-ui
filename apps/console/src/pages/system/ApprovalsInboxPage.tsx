@@ -25,6 +25,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { CommentAttachment, type Attachment } from '@object-ui/plugin-detail';
+import { DeclaredActionsBar } from '@object-ui/app-shell';
 import { createObjectStackUploadAdapter } from '@object-ui/providers';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import {
@@ -2054,6 +2055,24 @@ export function ApprovalsInboxPage() {
                             })}
                       </div>
                     )}
+                    {/* SERVER-DECLARED actions (objectui#2678 P2-4). Additive to the
+                        rich composer above: renders whatever `sys_approval_request`
+                        actions the backend declares at `record_section`
+                        (approval_approve / approval_reject / approval_reassign),
+                        executed through the shared console action runtime with ZERO
+                        inbox-specific per-action code — a follow-up retires the
+                        hardcoded buttons above. The record is the selected request
+                        row, so a `type:'api'` target like
+                        `/api/v1/approvals/requests/{id}/…` resolves `{id}` from it.
+                        Renders nothing (incl. its divider/label) when the object
+                        declares no such actions. */}
+                    <DeclaredActionsBar
+                      objectName="sys_approval_request"
+                      record={selected}
+                      location="record_section"
+                      label={tr('declaredActions', 'Actions')}
+                      onDone={() => { void refreshThread(selected.id); void load(); }}
+                    />
                   </div>
                 </>
               )}

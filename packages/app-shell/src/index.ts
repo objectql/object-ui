@@ -133,8 +133,9 @@ export {
   ReportView,
   SearchResultsPage,
   ViewConfigPanel,
+  DeclaredActionsBar,
 } from './views';
-export type { RecordFormPageProps } from './views';
+export type { RecordFormPageProps, DeclaredActionsBarProps } from './views';
 
 // Hooks
 export {

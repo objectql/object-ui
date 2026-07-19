@@ -12,3 +12,4 @@ export { ActionResultDialog, type ResultDialogState } from './ActionResultDialog
 export { MetadataToggle, MetadataPanel } from './MetadataInspector';
 export { ViewConfigPanel } from './ViewConfigPanel';
 export { CreateViewDialog } from './CreateViewDialog';
+export { DeclaredActionsBar, type DeclaredActionsBarProps } from './DeclaredActionsBar';
