@@ -98,3 +98,69 @@ describe('FlowCanvas — inline cycle/error surfacing', () => {
     expect(container.querySelectorAll('[data-invalid="true"]').length).toBe(0);
   });
 });
+
+describe('FlowCanvas — nested container regions (#2670)', () => {
+  it('reveals a loop body region in a popover when the container control is opened', async () => {
+    const nodes = [
+      { id: 'start', type: 'start' },
+      {
+        id: 'each',
+        type: 'loop',
+        label: 'For each order',
+        config: { body: { nodes: [{ id: 'charge', type: 'http', label: 'Charge card' }], edges: [] } },
+      },
+    ];
+    render(
+      <FlowCanvas
+        nodes={nodes}
+        edges={[{ source: 'start', target: 'each' }]}
+        editable={false}
+        designMode={false}
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+    // Closed by default: the body step is not rendered, but a "show regions" control is.
+    expect(screen.queryByText('Charge card')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /show nested regions/i }));
+    // Open: the loop body node now renders nested in the popover.
+    expect(await screen.findByText('Charge card')).toBeInTheDocument();
+  });
+
+  it('labels parallel branches and try/catch handlers when opened', async () => {
+    const nodes = [
+      {
+        id: 'p',
+        type: 'parallel',
+        label: 'Fan out',
+        config: {
+          branches: [
+            { name: 'Slack', nodes: [{ id: 'a', type: 'http', label: 'Notify Slack' }], edges: [] },
+            { nodes: [{ id: 'b', type: 'http', label: 'Notify CRM' }], edges: [] },
+          ],
+        },
+      },
+    ];
+    render(
+      <FlowCanvas nodes={nodes} edges={[]} editable={false} designMode={false} selectedId={null} onSelect={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /show nested regions/i }));
+    expect(await screen.findByText('Slack')).toBeInTheDocument(); // named branch
+    expect(screen.getByText('Branch 2')).toBeInTheDocument(); // unnamed → indexed
+    expect(screen.getByText('Notify CRM')).toBeInTheDocument();
+  });
+
+  it('does not add a region control to a legacy flat loop (no config.body)', () => {
+    render(
+      <FlowCanvas
+        nodes={[{ id: 'l', type: 'loop', label: 'Legacy loop', config: { collection: '{items}' } }]}
+        edges={[]}
+        editable={false}
+        designMode={false}
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /nested regions/i })).not.toBeInTheDocument();
+  });
+});

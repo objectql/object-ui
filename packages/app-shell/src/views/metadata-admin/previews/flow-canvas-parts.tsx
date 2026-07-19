@@ -10,6 +10,7 @@ import * as React from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  ChevronRight,
   Code,
   CircleDot,
   CircleStop,
@@ -48,7 +49,8 @@ import {
   CommandList,
 } from '@object-ui/components';
 import { t as tr } from '../i18n';
-import { NODE_W, NODE_H, type Point } from './flow-canvas-layout';
+import { NODE_W, NODE_H, type Point, type LabeledRegion } from './flow-canvas-layout';
+import { FlowRegionView } from './flow-region-view';
 import { useFlowPaletteRecents } from '../../../context/FlowPaletteRecentsProvider';
 
 export function nodeIcon(type: string): LucideIcon {
@@ -412,6 +414,13 @@ export interface NodeCardProps {
    * `revise` and declared `back` edges in a single gesture.
    */
   onAddReviseLoop?: () => void;
+  /**
+   * #2670: structured-region sub-graphs this node contains (`loop.body`,
+   * `parallel.branches`, `try_catch.try`/`catch`). When present, the card gains
+   * an expand toggle that renders them read-only, nested beneath the header.
+   * Empty / absent for ordinary nodes and legacy flat loops → a plain card.
+   */
+  regions?: LabeledRegion[];
 }
 
 /**
@@ -434,8 +443,10 @@ export function NodeCard({
   onSelect,
   onAppend,
   onAddReviseLoop,
+  regions,
 }: NodeCardProps) {
   const tone = nodeTone(type);
+  const hasRegions = !!regions && regions.length > 0;
   return (
     <div
       // `group` so the hover-revealed affordances (append "+", revise loop)
@@ -503,6 +514,38 @@ export function NodeCard({
           </div>
         </div>
       </div>
+      {hasRegions && (
+        // #2670: the container's nested regions render read-only in a Popover
+        // anchored to the card — floating (portaled) so it never overlaps the
+        // canvas's other nodes and needs no change to the layout / edge routing.
+        // (Inline, push-down nesting on the canvas is the next increment.)
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label="Show nested regions"
+              title="Show nested regions"
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-1.5 top-1.5 z-20 inline-flex h-5 w-5 items-center justify-center rounded-md border bg-background/90 text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            side="right"
+            sideOffset={8}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="max-h-[60vh] w-[280px] overflow-auto p-2"
+          >
+            <div className="pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {type === 'loop' ? 'Loop body' : type === 'parallel' ? 'Parallel branches' : 'Try / Catch'}
+            </div>
+            <FlowRegionView regions={regions!} maxWidth={244} />
+          </PopoverContent>
+        </Popover>
+      )}
       {badge && (
         <span
           title={badge.title}

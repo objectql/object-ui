@@ -41,6 +41,7 @@ import {
   isBackEdge,
   edgeKey,
   conditionText,
+  extractRegions,
   type FlowNode,
   type FlowEdge,
   type Point,
@@ -822,6 +823,7 @@ export function FlowCanvas({
                 }
                 invalid={invalidNodeSet.has(node.id)}
                 badge={nodeBadges.get(node.id)}
+                regions={extractRegions(node)}
               />
             );
           })}

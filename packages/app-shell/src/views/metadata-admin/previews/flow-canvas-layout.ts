@@ -61,6 +61,66 @@ export function hasManualPosition(node: FlowNode): boolean {
 }
 
 /**
+ * A structured-region sub-graph carried in a container node's config (ADR-0031),
+ * tagged with a header label for the designer.
+ */
+export interface LabeledRegion {
+  /** Stable key within the container (`body` / `branch-N` / `try` / `catch`). */
+  key: string;
+  /** Header shown above the region — `undefined` for a loop body (no header). */
+  label?: string;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+/** Coerce a config value to a region iff it is a non-empty `{ nodes, edges }`. */
+function asRegion(v: unknown): { nodes: FlowNode[]; edges: FlowEdge[] } | null {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as { nodes?: unknown; edges?: unknown };
+  if (!Array.isArray(r.nodes) || r.nodes.length === 0) return null;
+  return { nodes: r.nodes as FlowNode[], edges: Array.isArray(r.edges) ? (r.edges as FlowEdge[]) : [] };
+}
+
+/**
+ * The nested regions a structured control-flow container carries in its config
+ * (ADR-0031): `loop.body`, `parallel.branches[]`, `try_catch.try`/`catch`.
+ *
+ * Returns `[]` for ordinary nodes AND for a **legacy flat `loop`** (a `loop`
+ * with no `config.body`) — the constructs are additive, so those stay plain
+ * cards. The designer renders the returned regions read-only, nested under the
+ * container.
+ */
+export function extractRegions(node: FlowNode): LabeledRegion[] {
+  const cfg = (node.config ?? {}) as Record<string, unknown>;
+  switch (node.type) {
+    case 'loop': {
+      const body = asRegion(cfg.body);
+      return body ? [{ key: 'body', label: undefined, ...body }] : [];
+    }
+    case 'parallel': {
+      const out: LabeledRegion[] = [];
+      (Array.isArray(cfg.branches) ? cfg.branches : []).forEach((b, i) => {
+        const region = asRegion(b);
+        if (!region) return;
+        const name = (b as { name?: unknown }).name;
+        out.push({ key: `branch-${i}`, label: typeof name === 'string' && name ? name : `Branch ${i + 1}`, ...region });
+      });
+      return out;
+    }
+    case 'try_catch': {
+      const out: LabeledRegion[] = [];
+      const tryR = asRegion(cfg.try);
+      if (tryR) out.push({ key: 'try', label: 'Try', ...tryR });
+      const catchR = asRegion(cfg.catch);
+      if (catchR) out.push({ key: 'catch', label: 'Catch', ...catchR });
+      return out;
+    }
+    default:
+      return [];
+  }
+}
+
+/**
  * Compute a deterministic layered (top-to-bottom) layout.
  *
  * - Edges with a dangling endpoint are ignored for layering.
