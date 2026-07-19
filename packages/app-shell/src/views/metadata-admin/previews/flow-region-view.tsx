@@ -31,6 +31,7 @@ import {
   type LabeledRegion,
 } from './flow-canvas-layout';
 import { NodeTypeIcon, nodeTone } from './flow-canvas-parts';
+import { REGION_BLOCK_PAD, REGION_GAP, REGION_LABEL_H } from './flow-region-metrics';
 
 /** Read-only node box inside a region — a compact echo of `NodeCard`. */
 function RegionNode({ node, x, y }: { node: FlowNode; x: number; y: number }) {
@@ -97,12 +98,22 @@ function RegionCanvas({ region, maxWidth }: { region: LabeledRegion; maxWidth: n
  * header per region (`Branch N` / `Try` / `Catch`; a loop body has no header).
  */
 export function FlowRegionView({ regions, maxWidth }: { regions: LabeledRegion[]; maxWidth: number }) {
+  // #2670: every dimension in this height stack is an explicit px from
+  // flow-region-metrics so the layout height PREDICTOR matches the DOM exactly
+  // (rem-based Tailwind spacing and font-metric line-heights would drift).
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col" style={{ gap: REGION_GAP }}>
       {regions.map((region) => (
-        <div key={region.key} className="rounded-md border border-dashed border-border/60 bg-muted/20 p-1.5">
+        <div
+          key={region.key}
+          className="rounded-md border border-dashed border-border/60 bg-muted/20"
+          style={{ padding: REGION_BLOCK_PAD }}
+        >
           {region.label && (
-            <div className="pb-1 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+            <div
+              className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/80"
+              style={{ height: REGION_LABEL_H, lineHeight: '12px', paddingBottom: 4 }}
+            >
               {region.label}
             </div>
           )}
