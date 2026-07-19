@@ -50,16 +50,24 @@ const GROUP_LABELS: Record<ScopeGroupId, string> = {
  * the whole flow draft; `nodeId` the node being edited (for an edge, pass its
  * source node id — references available on an edge are those in scope at its
  * source).
+ *
+ * `extraRefs` are merged in before de-dup / grouping — used for a NESTED node,
+ * whose scope anchor is its container (ADR-0031 outer scope): the container's
+ * own outputs are excluded from the graph walk at its id, so a loop's
+ * `iteratorVariable` must be injected explicitly for a body node to see it. Pass
+ * a memoized array (a fresh one every render would thrash the memo).
  */
 export function useFlowScope(
   draft: Record<string, unknown> | undefined,
   nodeId: string | undefined,
+  extraRefs?: ReadonlyArray<ScopeRef>,
 ): UseFlowScopeResult {
   const scope = React.useMemo(() => resolveFlowScope(draft ?? {}, nodeId), [draft, nodeId]);
   const { fields, loading } = useObjectFields(scope.trigger?.objectName);
 
   return React.useMemo(() => {
     const all: ScopeRef[] = [...scope.refs];
+    if (extraRefs && extraRefs.length) all.push(...extraRefs);
     if (scope.trigger) all.push(...triggerFieldRefs(scope.trigger, fields));
     // Global de-dup by token (a declared var also written upstream shows once).
     const seen = new Set<string>();
@@ -70,5 +78,5 @@ export function useFlowScope(
       refs: refs.filter((r) => r.group === id),
     })).filter((g) => g.refs.length > 0);
     return { groups, refs, loading: !!scope.trigger && loading, isEmpty: refs.length === 0 };
-  }, [scope, fields, loading]);
+  }, [scope, fields, loading, extraRefs]);
 }

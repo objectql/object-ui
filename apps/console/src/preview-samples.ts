@@ -118,6 +118,25 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     nodes: [
       { id: 'start', type: 'start', label: 'Schedule (daily)', config: { triggerType: 'schedule', objectName: 'contract', condition: 'status == "active"', cron: '0 9 * * *' } },
       { id: 'find', type: 'get_record', label: 'Find expiring contracts', config: { objectName: 'contract', filter: { status: 'active' }, outputVariable: 'contracts' } },
+      // ADR-0031 structured container: a loop whose `config.body` region is a
+      // nested sub-graph. On the designer canvas it expands inline (#2680) and
+      // its body nodes are selectable + editable through the same schema-driven
+      // inspector as top-level nodes (#2670 Phase 3).
+      {
+        id: 'each_contract',
+        type: 'loop',
+        label: 'For each expiring contract',
+        config: {
+          collection: '{contracts}',
+          iteratorVariable: 'contract',
+          body: {
+            nodes: [
+              { id: 'charge_fee', type: 'http_request', label: 'Charge renewal fee', config: { method: 'POST', url: 'https://api.example.com/billing/charge', outputVariable: 'charge' } },
+            ],
+            edges: [],
+          },
+        },
+      },
       { id: 'check', type: 'decision', label: 'Within reminder window?', config: { conditions: [ { label: 'Within window', expression: 'daysToExpiry <= daysBefore' }, { label: 'Else', expression: 'true' } ] } },
       { id: 'email', type: 'connector_action', label: 'Send renewal email', connectorConfig: { connectorId: 'email', actionId: 'send', input: { to: 'owner.email', template: 'renewal_reminder' } } },
       { id: 'wait', type: 'wait', label: 'Wait 3 days', waitEventConfig: { eventType: 'timer', timerDuration: 'P3D', onTimeout: 'continue' } },
@@ -130,7 +149,8 @@ export const SAMPLES: Record<string, Record<string, unknown>> = {
     ],
     edges: [
       { source: 'start', target: 'find' },
-      { source: 'find', target: 'check' },
+      { source: 'find', target: 'each_contract' },
+      { source: 'each_contract', target: 'check' },
       { source: 'check', target: 'email', condition: 'daysToExpiry <= daysBefore' },
       { source: 'check', target: 'skip', isDefault: true },
       { source: 'email', target: 'wait' },

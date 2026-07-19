@@ -3,13 +3,20 @@
 /**
  * FlowNodeInspector — scoped editor for the selected flow node.
  *
- * Selection shape:  { kind: 'node', id: <nodeId> }
- * Patches:           draft.nodes[i] = {...node, ...updates}
+ * Selection shape:  { kind: 'node', id: <nodeId> }         — a top-level node
+ *                   { kind: 'nested-node', id: <path> }    — a node inside a
+ *                     container region (loop/parallel/try_catch, #2670)
+ * Patches:          via `locateFlowNode(...).write` — top-level nodes splice
+ *                   `draft.nodes[i]`; nested nodes rebuild the container's
+ *                   `config.<region>.nodes[i]` with explicit spreads.
  *
- * Beyond id / label / type / description, each node type exposes a set of
- * typed form fields (see `flow-node-config`) that edit scalar keys on
- * `node.config`. Any remaining config keys (objects, arrays, bespoke flags)
- * are surfaced in an "Advanced (JSON)" block so authors are never locked out.
+ * Both share the SAME schema-driven form. Beyond id / label / type /
+ * description, each node type exposes a set of typed form fields (see
+ * `flow-node-config`, or the engine-published configSchema) that edit scalar
+ * keys on `node.config`; remaining keys go to an "Advanced (JSON)" block so
+ * authors are never locked out. A nested node is edit-only this phase: its id is
+ * read-only, it has no delete, and (for a nested decision) the virtual Target
+ * column is dropped — region-internal routing is not managed here.
  */
 
 import * as React from 'react';
@@ -22,7 +29,6 @@ import {
   InspectorSelectField,
   InspectorRemoveButton,
   InspectorEmptyState,
-  spliceArray,
 } from './_shared';
 import {
   fieldsForNodeType,
@@ -37,6 +43,8 @@ import { applyDecisionBranches, syncDecisionEdgesByOrder, withBranchTargets } fr
 import { useActionConfigSchemas } from '../previews/useFlowNodePalette';
 import { FlowNodeConfigField } from './FlowNodeConfigField';
 import { useFlowScope } from './useFlowScope';
+import { nodeOutputRefs, type ScopeRef } from './flow-scope';
+import { NESTED_NODE_KIND, parseNestedNodeId, locateFlowNode } from './flow-nested-selection';
 import { ScreenPreview } from '../previews/ScreenPreview';
 
 interface FlowNode {
@@ -101,9 +109,16 @@ function setAtPath(obj: Record<string, unknown>, path: string[], value: unknown)
 }
 
 export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection, locale, readOnly }: MetadataInspectorProps) {
-  const nodes = Array.isArray((draft as any).nodes) ? ((draft as any).nodes as FlowNode[]) : [];
-  const index = nodes.findIndex((n) => n?.id === selection.id);
-  const node = index >= 0 ? nodes[index] : null;
+  // Resolve the selection to a node + how to write it back — a top-level draft
+  // node, or a node nested inside a container region (#2670). Every edit goes
+  // through loc.write, so the inspector never branches on where the node lives.
+  // Memoized on (draft, selection) so its `write` closure and identity stay
+  // stable between edits (keeps the nested-scope memo below from thrashing).
+  const loc = React.useMemo(
+    () => locateFlowNode(draft as Record<string, unknown>, selection),
+    [draft, selection],
+  );
+  const node = loc?.node ?? null;
 
   // Server-driven property form: when the running engine publishes a config
   // JSON Schema for this node type (ADR-0018 §configSchema — e.g. the ADR-0019
@@ -111,8 +126,15 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   // with the backend. Falls back to the hardcoded field group when no schema is
   // published (offline / plugin absent / older backend).
   const configSchemas = useActionConfigSchemas();
+  // A nested node anchors its scope on the container (ADR-0031 outer scope). The
+  // container's own outputs — a loop's iteratorVariable — are excluded from the
+  // graph walk at its id, so inject the loop group explicitly for a body node.
+  const nestedLoopRefs = React.useMemo<ScopeRef[]>(
+    () => (loc?.nested && loc.container ? nodeOutputRefs(loc.container).filter((r) => r.group === 'loop') : []),
+    [loc],
+  );
   // In-scope variable references for this node, for the data-picker (#1934).
-  const { groups: scopeGroups } = useFlowScope(draft as Record<string, unknown>, node?.id);
+  const { groups: scopeGroups } = useFlowScope(draft as Record<string, unknown>, loc?.scopeAnchorId, nestedLoopRefs);
   const fields = React.useMemo(() => {
     const schema = node?.type ? configSchemas[node.type] : undefined;
     const serverFields = schema !== undefined ? jsonSchemaToFlowFields(schema) : null;
@@ -163,15 +185,21 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   }, [extraJson]);
 
   if (!node) {
+    // Stale selection (deleted node, or a deep link the draft has moved past).
+    // For a nested path, show the node's own id — not the encoded
+    // container::region::node string — as the empty-state identity.
+    const nestedPath = selection.kind === NESTED_NODE_KIND ? parseNestedNodeId(selection.id) : null;
+    const emptyId = nestedPath?.nodeId ?? selection.id;
     return (
-      <InspectorShell kindLabel={t('engine.inspector.flowNode.kind', locale)} title={selection.label ?? selection.id} onClose={onClearSelection} closeLabel={t('engine.inspector.flowNode.close', locale)}>
-        <InspectorEmptyState message={selection.id} />
+      <InspectorShell kindLabel={t('engine.inspector.flowNode.kind', locale)} title={selection.label ?? emptyId} onClose={onClearSelection} closeLabel={t('engine.inspector.flowNode.close', locale)}>
+        <InspectorEmptyState message={emptyId} />
       </InspectorShell>
     );
   }
 
   const patchNode = (updates: Partial<FlowNode>) => {
-    onPatch({ nodes: spliceArray(nodes, index, { ...node, ...updates }) });
+    const patch = loc?.write({ ...node, ...updates });
+    if (patch) onPatch(patch);
   };
 
   const hasExtras = extraJson.trim() !== '';
@@ -180,32 +208,37 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
   const isScreen = node.type === 'screen' || node.type === 'user_task';
 
   const setField = (field: FlowConfigField, value: unknown) => {
+    if (!loc) return;
     const path = field.path;
-    const draftEdges = Array.isArray((draft as { edges?: unknown }).edges)
-      ? ((draft as { edges: FlowEdge[] }).edges)
-      : [];
-    // Decision branches drive routing — mirror them onto the node's outgoing
-    // edges so the engine/simulator can actually branch (they read
-    // edge.condition, not node.config.conditions). The Branches editor's
-    // Target column (#1942) additionally wires each branch to its downstream
-    // node: applyDecisionBranches strips the virtual `target` cells from the
-    // stored conditions and creates / updates / detaches the matching edges.
     let stored = value;
     let nextEdges: FlowEdge[] | undefined;
-    if (isBranchTargetField(field)) {
-      const applied = applyDecisionBranches(node.id, value, draftEdges);
-      stored = applied.conditions.length ? applied.conditions : undefined;
-      nextEdges = applied.edges;
-    } else if (node.type === 'decision' && path.length === 2 && path[0] === 'config' && path[1] === 'conditions') {
-      // A decision branch list without a Target column (engine-published
-      // configSchema form) keeps the legacy by-order mirror.
-      nextEdges = syncDecisionEdgesByOrder(node.id, value, draftEdges);
+    // Decision→edge mirroring is TOP-LEVEL only. A top-level decision drives
+    // routing via its out-edges (the engine/simulator read edge.condition, not
+    // node.config.conditions), and the Branches editor's Target column (#1942)
+    // wires each branch to its downstream node. A NESTED decision routes within
+    // its region sub-graph, not on draft.edges — mirroring there would forge
+    // phantom top-level edges pointing at nested ids, so it is skipped entirely
+    // (the virtual Target column is also stripped from nested fields below).
+    if (!loc.nested) {
+      const draftEdges = Array.isArray((draft as { edges?: unknown }).edges)
+        ? ((draft as { edges: FlowEdge[] }).edges)
+        : [];
+      if (isBranchTargetField(field)) {
+        const applied = applyDecisionBranches(node.id, value, draftEdges);
+        stored = applied.conditions.length ? applied.conditions : undefined;
+        nextEdges = applied.edges;
+      } else if (node.type === 'decision' && path.length === 2 && path[0] === 'config' && path[1] === 'conditions') {
+        // A decision branch list without a Target column (engine-published
+        // configSchema form) keeps the legacy by-order mirror.
+        nextEdges = syncDecisionEdgesByOrder(node.id, value, draftEdges);
+      }
     }
     let nextNode = setAtPath(node, path, stored);
     // Migrate-on-edit: writing the canonical path drops any looser fallback
     // location, so the node never carries a stale duplicate (engine + designer agree).
     if (field.fallbackPath) nextNode = setAtPath(nextNode, field.fallbackPath, undefined);
-    const patch: Record<string, unknown> = { nodes: spliceArray(nodes, index, nextNode) };
+    const patch = loc.write(nextNode);
+    if (!patch) return;
     if (nextEdges) patch.edges = nextEdges;
     onPatch(patch);
   };
@@ -222,17 +255,19 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
       );
       const merged = { ...knownPart, ...extrasPart };
       setAdvError(null);
-      const nextNode = { ...node };
-      if (Object.keys(merged).length === 0) delete (nextNode as FlowNode).config;
-      else (nextNode as FlowNode).config = merged;
-      onPatch({ nodes: spliceArray(nodes, index, nextNode) });
+      const nextNode: Record<string, unknown> = { ...node };
+      if (Object.keys(merged).length === 0) delete nextNode.config;
+      else nextNode.config = merged;
+      const patch = loc?.write(nextNode);
+      if (patch) onPatch(patch);
     } catch (e) {
       setAdvError(String((e as Error).message));
     }
   };
 
   const remove = () => {
-    onPatch({ nodes: spliceArray(nodes, index, null) });
+    const patch = loc?.write(null);
+    if (patch) onPatch(patch);
     onClearSelection();
   };
 
@@ -240,15 +275,31 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
     ? [...FLOW_NODE_TYPE_OPTIONS]
     : [...FLOW_NODE_TYPE_OPTIONS, node.type ?? ''].filter(Boolean);
 
+  // A nested node has no structural editing this phase (no delete, id is
+  // read-only — those live on the container's Advanced JSON).
+  const nested = !!loc?.nested;
+
   return (
     <InspectorShell
       kindLabel={t('engine.inspector.flowNode.kind', locale)}
       title={node.label || node.id}
       onClose={onClearSelection}
       closeLabel={t('engine.inspector.flowNode.close', locale)}
-      footer={<InspectorRemoveButton label={t('engine.inspector.flowNode.remove', locale)} onClick={remove} disabled={readOnly} />}
+      footer={nested ? undefined : <InspectorRemoveButton label={t('engine.inspector.flowNode.remove', locale)} onClick={remove} disabled={readOnly} />}
     >
-      <InspectorTextField label={t('engine.inspector.flowNode.id', locale)} value={node.id} onCommit={(v) => patchNode({ id: v })} disabled={readOnly} mono />
+      {nested && (
+        <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground" aria-label="nested node location">
+          <span className="max-w-[45%] truncate font-medium">{loc?.container?.label || loc?.container?.id}</span>
+          <span aria-hidden>›</span>
+          <span className="truncate">{loc?.regionLabel}</span>
+          <span aria-hidden>›</span>
+          <span className="max-w-[45%] truncate font-medium text-foreground">{node.label || node.id}</span>
+        </div>
+      )}
+      <InspectorTextField label={t('engine.inspector.flowNode.id', locale)} value={node.id} onCommit={(v) => patchNode({ id: v })} disabled={readOnly || nested} mono />
+      {nested && (
+        <p className="-mt-1 text-[11px] leading-snug text-muted-foreground">{t('engine.inspector.flowNode.nestedIdHint', locale)}</p>
+      )}
       <InspectorTextField label={t('engine.inspector.flowNode.label', locale)} value={node.label ?? ''} onCommit={(v) => patchNode({ label: v })} disabled={readOnly} />
       <InspectorSelectField
         label={t('engine.inspector.flowNode.type', locale)}
@@ -279,28 +330,38 @@ export function FlowNodeInspector({ selection, draft, onPatch, onClearSelection,
         )
       )}
 
-      {visibleFields.map((field) => (
-        <FlowNodeConfigField
-          key={field.id}
-          field={field}
-          // The Branches editor's Target column (#1942) is virtual: derived
-          // from the node's out-edges, never stored on the branch rows.
-          value={
-            isBranchTargetField(field)
-              ? withBranchTargets(
-                  node.id,
-                  getFieldValue(node, field),
-                  Array.isArray((draft as { edges?: unknown }).edges) ? ((draft as { edges: FlowEdge[] }).edges) : [],
-                )
-              : getFieldValue(node, field)
-          }
-          onCommit={(v) => setField(field, v)}
-          disabled={readOnly}
-          locale={locale}
-          context={{ draft, node }}
-          scopeGroups={scopeGroups}
-        />
-      ))}
+      {visibleFields.map((field) => {
+        const branchTarget = isBranchTargetField(field);
+        // A NESTED node can't wire top-level edges, so drop the virtual Target
+        // column from its Branches editor and skip the withBranchTargets augment
+        // (its region routing is out of scope this phase).
+        const effField =
+          nested && branchTarget
+            ? { ...field, columns: (field.columns ?? []).filter((c) => c.key !== 'target') }
+            : field;
+        // The Branches editor's Target column (#1942) is virtual: derived from the
+        // node's out-edges, never stored on the branch rows (top-level only).
+        const value =
+          branchTarget && !nested
+            ? withBranchTargets(
+                node.id,
+                getFieldValue(node, field),
+                Array.isArray((draft as { edges?: unknown }).edges) ? ((draft as { edges: FlowEdge[] }).edges) : [],
+              )
+            : getFieldValue(node, effField);
+        return (
+          <FlowNodeConfigField
+            key={field.id}
+            field={effField}
+            value={value}
+            onCommit={(v) => setField(field, v)}
+            disabled={readOnly}
+            locale={locale}
+            context={{ draft, node }}
+            scopeGroups={scopeGroups}
+          />
+        );
+      })}
 
       {isScreen && <ScreenPreview node={node} variables={screenVars} className="mt-1" />}
 
