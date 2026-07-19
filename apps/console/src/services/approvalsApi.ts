@@ -60,6 +60,17 @@ export interface ApprovalRequestRow {
   sla_due_at?: string;
   /** Owning flow's approval steps for progress display (single reads only). */
   flow_steps?: Array<{ id: string; label: string; state: 'done' | 'current' | 'upcoming' }>;
+  /**
+   * Server-computed aggregation progress (#3266) for pending multi-approver
+   * requests: unanimous/quorum = approvals got/need; per_group = satisfied
+   * groups got/need plus per-group detail. Absent for first_response.
+   */
+  decision_progress?: {
+    behavior: 'unanimous' | 'quorum' | 'per_group';
+    got: number;
+    need: number;
+    groups?: Array<{ group: string; got: number; need: number; satisfied: boolean }>;
+  };
   /** ADR-0044 revision round on this (run, node): absent/1 = first round. */
   round?: number;
 }

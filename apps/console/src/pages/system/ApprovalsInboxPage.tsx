@@ -23,7 +23,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { CommentAttachment, type Attachment } from '@object-ui/plugin-detail';
 import { createObjectStackUploadAdapter } from '@object-ui/providers';
 import { createAuthenticatedFetch } from '@object-ui/auth';
@@ -258,6 +258,10 @@ export function ApprovalsInboxPage() {
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
   const { appName } = useParams<{ appName?: string }>();
+  // Deep link (#2678 P1.5): notifications carry `/system/approvals?request=<id>`
+  // so landing here opens that request's drawer directly. Consumed once, then
+  // stripped from the URL so refresh/back doesn't re-open a dismissed drawer.
+  const [searchParams, setSearchParams] = useSearchParams();
   const identities = useMemo(() => buildApproverIdentities(user as any), [user]);
 
   const tr = useCallback(
@@ -371,6 +375,34 @@ export function ApprovalsInboxPage() {
   const handleAttachmentRemove = useCallback((attachmentId: string) => {
     setPendingAttachments(prev => prev.filter(a => a.id !== attachmentId));
   }, []);
+  // Resolve attachment fileIds → sys_file display names for the timeline chips
+  // (#2678 P1.5). Best-effort, cached per id; unresolved ids fall back to a
+  // generic "Attachment" label.
+  const [attachmentNames, setAttachmentNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const ids = new Set<string>();
+    for (const a of actions) for (const id of (a.attachments ?? [])) {
+      if (id && attachmentNames[id] === undefined) ids.add(id);
+    }
+    if (!ids.size) return;
+    const base = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');
+    let cancelled = false;
+    void (async () => {
+      const resolved: Record<string, string> = {};
+      await Promise.all(Array.from(ids).map(async (id) => {
+        try {
+          const res = await authFetch(`${base}/api/v1/data/sys_file/${encodeURIComponent(id)}`);
+          if (!res.ok) { resolved[id] = ''; return; }
+          const body = await res.json().catch(() => null);
+          resolved[id] = String(body?.record?.name ?? body?.data?.name ?? body?.name ?? '');
+        } catch { resolved[id] = ''; }
+      }));
+      if (!cancelled) setAttachmentNames(prev => ({ ...prev, ...resolved }));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed off actions; attachmentNames is the cache being filled
+  }, [actions, authFetch]);
+
   /** Open an action's attachment via a short-lived signed URL (Bearer-authed fetch). */
   const openAttachment = useCallback(async (fileId: string) => {
     try {
@@ -534,6 +566,15 @@ export function ApprovalsInboxPage() {
     setPendingAttachments([]);
     setAttachmentError(null);
   };
+
+  // Consume the notification deep link once (see useSearchParams above).
+  useEffect(() => {
+    const target = searchParams.get('request');
+    if (!target) return;
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('request'); return next; }, { replace: true });
+    void openDrawer(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per deep link, not per openDrawer identity
+  }, [searchParams]);
 
   /**
    * Pick the actor id to send with approve/reject.
@@ -1643,6 +1684,41 @@ export function ApprovalsInboxPage() {
                       ))}
                     </div>
                   )}
+                  {/* Aggregation progress (#3266): server-computed — "2 of 3
+                      approved" for quorum/unanimous, per-group ticks for 会签. */}
+                  {selected.decision_progress && (
+                    <div className="border-t pt-3">
+                      <div className="text-[11px] text-muted-foreground mb-1">
+                        {selected.decision_progress.behavior === 'per_group'
+                          ? tr('progressGroups', 'Sign-off progress — {{got}} of {{need}} groups', {
+                              got: selected.decision_progress.got, need: selected.decision_progress.need,
+                            })
+                          : tr('progressApprovals', 'Approvals — {{got}} of {{need}}', {
+                              got: selected.decision_progress.got, need: selected.decision_progress.need,
+                            })}
+                      </div>
+                      {selected.decision_progress.groups && (
+                        <div className="flex flex-wrap gap-1">
+                          {selected.decision_progress.groups.map((g) => (
+                            <Badge
+                              key={g.group}
+                              variant="outline"
+                              className={cn(
+                                'text-[11px] gap-1',
+                                g.satisfied
+                                  ? 'border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400'
+                                  : 'text-muted-foreground',
+                              )}
+                              title={`${g.got}/${g.need}`}
+                            >
+                              {g.satisfied ? <Check className="h-3 w-3" /> : null}
+                              {g.group} {g.got}/{g.need}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {selected.status === 'pending' && (selected.pending_approvers || []).length > 0 && (
                     <div className="border-t pt-3">
                       <div className="text-[11px] text-muted-foreground mb-1">
@@ -1751,7 +1827,8 @@ export function ApprovalsInboxPage() {
                                   title={fileId}
                                 >
                                   <Paperclip className="h-3 w-3" />
-                                  {tr('attachmentChip', 'Attachment')} {a.attachments!.length > 1 ? i + 1 : ''}
+                                  {attachmentNames[fileId]
+                                    || `${tr('attachmentChip', 'Attachment')}${a.attachments!.length > 1 ? ` ${i + 1}` : ''}`}
                                 </button>
                               ))}
                             </div>
