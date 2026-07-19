@@ -66,6 +66,10 @@ const EMPTY_DRAFT: Record<string, any> = {};
  *      unified `@object-ui/core#getRecordDisplayName` (ADR-0079) — so the detail
  *      header matches gallery / calendar / lookup / search.
  *   4. `schema.title` (caller-provided override, typically the object label).
+ *   4b. Record-key probe (`name`/`title`/`*_name`/…) — last resort before the
+ *      floor, for records whose name lives in a field the type-aware derivation
+ *      skips (e.g. an `autonumber` `name`) and whose caller set no title
+ *      (objectui#2688).
  *   5. `Record #<id>` floor, else the translated "Details" fallback.
  */
 function resolveDisplayTitle(
@@ -106,6 +110,19 @@ function resolveDisplayTitle(
   }
   // 4. Caller-provided title override (object label).
   if (schema.title) return schema.title;
+  // 4b. Record-key probe as the LAST resort before the id floor (objectui#2688).
+  //     Only reached when the caller provided no title, so the "guessed key must
+  //     not outrank schema.title" rule above still holds — but a name-ish value
+  //     sitting right on the record (e.g. `name` typed `autonumber`, which the
+  //     type-aware derivation deliberately skips) beats a bare `Record #<id>`.
+  if (data && typeof data === 'object') {
+    const id = (data as any).id ?? (data as any)._id;
+    const guessed = getRecordDisplayName(objectSchema, data);
+    const guessedIsFloor =
+      guessed === 'Untitled' ||
+      (id !== null && id !== undefined && guessed === `Record #${id}`);
+    if (!guessedIsFloor) return guessed;
+  }
   // 5. `Record #<id>` floor, else the translated "Details" fallback.
   if (data && typeof data === 'object') {
     const id = (data as any).id ?? (data as any)._id;

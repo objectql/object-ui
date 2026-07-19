@@ -84,11 +84,15 @@ interface UserRefProps {
 const UserRef: React.FC<UserRefProps> = ({ value, objectSchema, fieldName }) => {
   if (value === null || value === undefined || value === '') return null;
   const fieldDef = objectSchema?.fields?.[fieldName];
-  const refTarget = fieldDef?.reference_to || fieldDef?.reference;
+  // created_by / updated_by are ALWAYS user references on ObjectStack, but many
+  // fetched schemas omit the audit system fields from `fields`. Without a
+  // fallback the field degrades to `type: 'text'` and the footer prints the raw
+  // user id (objectui#2688) — so default the reference target to `sys_user`.
+  const refTarget = fieldDef?.reference_to || fieldDef?.reference || 'sys_user';
   const enrichedField: Record<string, any> = {
     name: fieldName,
-    type: fieldDef?.type || (refTarget ? 'lookup' : 'text'),
-    ...(refTarget && { reference_to: refTarget }),
+    type: fieldDef?.type || 'lookup',
+    reference_to: refTarget,
     ...(fieldDef?.reference_field && { reference_field: fieldDef.reference_field }),
   };
   const resolvedType = resolveCellRendererType(enrichedField as { type?: string }) || enrichedField.type;
