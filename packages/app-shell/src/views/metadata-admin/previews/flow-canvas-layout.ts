@@ -120,6 +120,15 @@ export function extractRegions(node: FlowNode): LabeledRegion[] {
   }
 }
 
+/** Full geometry of a laid-out flow: positions, per-node heights, canvas size. */
+export interface FlowLayoutGeometry {
+  positions: Map<string, Point>;
+  /** Rendered height of every node (`heightOf(node)`; {@link NODE_H} default). */
+  heights: Map<string, number>;
+  /** Bounding box of the diagram incl. node extents + {@link PADDING}. */
+  size: { width: number; height: number };
+}
+
 /**
  * Compute a deterministic layered (top-to-bottom) layout.
  *
@@ -132,10 +141,25 @@ export function extractRegions(node: FlowNode): LabeledRegion[] {
  * - Within a layer, nodes keep their original `nodes[]` order (stable).
  * - A node with a persisted `ui` position overrides its computed slot, but is
  *   still included in the returned map so callers can size the canvas.
+ *
+ * #2670: cards are no longer necessarily {@link NODE_H} tall — an expanded
+ * `loop`/`parallel`/`try_catch` container grows to embed its region(s), so
+ * layer spacing is **cumulative**: each layer starts below the tallest
+ * (auto-laid) card of the previous one. With the default constant `heightOf`
+ * the output is IDENTICAL to the historical fixed-pitch layout (pinned by
+ * tests). Manual-`ui` nodes are excluded from a row's height (they don't render
+ * in their computed slot; counting them would open phantom gaps) — so a pinned
+ * node sitting at/below an expanded container can overlap it. Accepted
+ * limitation: the author can drag it clear.
  */
-export function computeLayout(nodes: FlowNode[], edges: FlowEdge[]): Map<string, Point> {
+export function computeLayoutWithGeometry(
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  heightOf: (node: FlowNode) => number = () => NODE_H,
+): FlowLayoutGeometry {
   const positions = new Map<string, Point>();
-  if (nodes.length === 0) return positions;
+  const heights = new Map<string, number>(nodes.map((n) => [n.id, heightOf(n)]));
+  if (nodes.length === 0) return { positions, heights, size: { width: PADDING, height: PADDING } };
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
@@ -204,17 +228,33 @@ export function computeLayout(nodes: FlowNode[], edges: FlowEdge[]): Map<string,
     ids.sort((a, b) => (indexOf.get(a) ?? 0) - (indexOf.get(b) ?? 0));
   }
 
+  // Place layers top-to-bottom with CUMULATIVE y: each layer starts below the
+  // tallest auto-laid card of the previous occupied layer. Empty layer indices
+  // (possible only in degenerate cyclic graphs) keep their historical
+  // fixed-pitch gap so the constant-height output matches the old
+  // `l * (NODE_H + V_GAP)` formula exactly.
   const sortedLayers = [...byLayer.keys()].sort((a, b) => a - b);
+  let y = 0;
+  let prevLayer: number | undefined;
   for (const l of sortedLayers) {
+    if (prevLayer !== undefined) {
+      y += (l - prevLayer - 1) * (NODE_H + V_GAP);
+    }
     const ids = byLayer.get(l)!;
     const rowWidth = ids.length * NODE_W + (ids.length - 1) * H_GAP;
     const startX = -rowWidth / 2;
+    let rowMaxHeight = NODE_H;
     ids.forEach((id, i) => {
-      positions.set(id, {
-        x: startX + i * (NODE_W + H_GAP),
-        y: l * (NODE_H + V_GAP),
-      });
+      positions.set(id, { x: startX + i * (NODE_W + H_GAP), y });
+      const n = byId.get(id);
+      // Manual-`ui` nodes don't render in this slot — exclude from the row
+      // height so they can't open phantom gaps (see JSDoc caveat).
+      if (n && !hasManualPosition(n)) {
+        rowMaxHeight = Math.max(rowMaxHeight, heights.get(id) ?? NODE_H);
+      }
     });
+    y += rowMaxHeight + V_GAP;
+    prevLayer = l;
   }
 
   // Normalize the auto-computed slots so the diagram starts at
@@ -240,7 +280,22 @@ export function computeLayout(nodes: FlowNode[], edges: FlowEdge[]): Map<string,
     }
   }
 
-  return positions;
+  // Bounding box with true per-node heights (manual nodes included).
+  let maxX = 0;
+  let maxY = 0;
+  for (const [id, p] of positions) {
+    maxX = Math.max(maxX, p.x + NODE_W);
+    maxY = Math.max(maxY, p.y + (heights.get(id) ?? NODE_H));
+  }
+  return { positions, heights, size: { width: maxX + PADDING, height: maxY + PADDING } };
+}
+
+/**
+ * Back-compat positions-only view of {@link computeLayoutWithGeometry} with
+ * every card at the constant {@link NODE_H} — exactly the historical layout.
+ */
+export function computeLayout(nodes: FlowNode[], edges: FlowEdge[]): Map<string, Point> {
+  return computeLayoutWithGeometry(nodes, edges).positions;
 }
 
 /** Bounding box of the laid-out diagram, including node extents + padding. */
@@ -254,9 +309,13 @@ export function diagramSize(positions: Map<string, Point>): { width: number; hei
   return { width: maxX + PADDING, height: maxY + PADDING };
 }
 
-/** Bottom-center anchor of a node — where its outgoing edges originate. */
-export function bottomAnchor(p: Point): Point {
-  return { x: p.x + NODE_W / 2, y: p.y + NODE_H };
+/**
+ * Bottom-center anchor of a node — where its outgoing edges originate.
+ * #2670: pass the node's rendered height for an expanded container so the edge
+ * leaves from its true bottom; defaults to {@link NODE_H} (plain cards).
+ */
+export function bottomAnchor(p: Point, height: number = NODE_H): Point {
+  return { x: p.x + NODE_W / 2, y: p.y + height };
 }
 
 /** Top-center anchor of a node — where its incoming edges terminate. */

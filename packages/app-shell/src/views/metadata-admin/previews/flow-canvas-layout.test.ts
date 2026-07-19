@@ -3,6 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeLayout,
+  computeLayoutWithGeometry,
+  diagramSize,
   isBackEdge,
   rightAnchor,
   backEdgePath,
@@ -11,6 +13,8 @@ import {
   extractRegions,
   NODE_W,
   NODE_H,
+  V_GAP,
+  PADDING,
   type FlowNode,
   type FlowEdge,
 } from './flow-canvas-layout';
@@ -129,5 +133,135 @@ describe('extractRegions (#2670 structured containers)', () => {
     expect(out.map((r) => r.label)).toEqual(['Try', 'Catch']);
     // catch is optional — a try-only container yields just the try region.
     expect(extractRegions({ id: 't', type: 'try_catch', config: { try: region('risky') } }).map((r) => r.label)).toEqual(['Try']);
+  });
+});
+
+// ── #2670 Phase 2: geometry-aware layered layout ─────────────────────────────
+
+/** heightOf making exactly one node tall — the expanded-container shape. */
+const tallOnly = (id: string, h: number) => (n: FlowNode) => (n.id === id ? h : NODE_H);
+
+describe('computeLayoutWithGeometry — constant-height invariance (the regression lock)', () => {
+  const GRAPHS: { name: string; nodes: FlowNode[]; edges: FlowEdge[] }[] = [
+    {
+      name: 'linear chain',
+      nodes: [{ id: 's', type: 'start' }, { id: 'a', type: 'script' }, { id: 'e', type: 'end' }],
+      edges: [{ source: 's', target: 'a' }, { source: 'a', target: 'e' }],
+    },
+    {
+      name: 'diamond branch + join',
+      nodes: [
+        { id: 's', type: 'start' },
+        { id: 'l', type: 'script' },
+        { id: 'r', type: 'script' },
+        { id: 'j', type: 'end' },
+      ],
+      edges: [
+        { source: 's', target: 'l' },
+        { source: 's', target: 'r' },
+        { source: 'l', target: 'j' },
+        { source: 'r', target: 'j' },
+      ],
+    },
+    {
+      name: 'declared back-edge (ADR-0044)',
+      nodes: [{ id: 's', type: 'start' }, { id: 'a', type: 'approval' }, { id: 'w', type: 'wait' }],
+      edges: [
+        { source: 's', target: 'a' },
+        { source: 'a', target: 'w', label: 'revise' },
+        { source: 'w', target: 'a', label: 'resubmit', type: 'back' },
+      ],
+    },
+    {
+      name: 'unreached cycle island (trailing layers)',
+      nodes: [
+        { id: 's', type: 'start' },
+        { id: 'a', type: 'script' },
+        { id: 'c1', type: 'script' },
+        { id: 'c2', type: 'script' },
+      ],
+      edges: [
+        { source: 's', target: 'a' },
+        { source: 'c1', target: 'c2' },
+        { source: 'c2', target: 'c1' },
+      ],
+    },
+    {
+      name: 'manual ui position',
+      nodes: [
+        { id: 's', type: 'start' },
+        { id: 'pin', type: 'script', ui: { x: 400, y: 10 } },
+        { id: 'e', type: 'end' },
+      ],
+      edges: [{ source: 's', target: 'pin' }, { source: 'pin', target: 'e' }],
+    },
+  ];
+
+  for (const g of GRAPHS) {
+    it(`matches computeLayout + diagramSize on: ${g.name}`, () => {
+      const geo = computeLayoutWithGeometry(g.nodes, g.edges);
+      expect(geo.positions).toEqual(computeLayout(g.nodes, g.edges));
+      expect(geo.size).toEqual(diagramSize(geo.positions));
+      for (const n of g.nodes) expect(geo.heights.get(n.id)).toBe(NODE_H);
+    });
+  }
+});
+
+describe('computeLayoutWithGeometry — cumulative variable-height offsets (#2670)', () => {
+  const chain: { nodes: FlowNode[]; edges: FlowEdge[] } = {
+    nodes: [{ id: 's', type: 'start' }, { id: 'c', type: 'loop' }, { id: 'b', type: 'end' }],
+    edges: [{ source: 's', target: 'c' }, { source: 'c', target: 'b' }],
+  };
+
+  it('pushes the layer below a tall card down by its full height', () => {
+    const geo = computeLayoutWithGeometry(chain.nodes, chain.edges, tallOnly('c', 200));
+    const s = geo.positions.get('s')!;
+    const c = geo.positions.get('c')!;
+    const b = geo.positions.get('b')!;
+    expect(c.y - s.y).toBe(NODE_H + V_GAP); // layer above the tall card: unchanged pitch
+    expect(b.y - c.y).toBe(200 + V_GAP); // layer below: pushed by the tall card
+  });
+
+  it('same-layer siblings share y; the row is as tall as its tallest card', () => {
+    const nodes: FlowNode[] = [
+      { id: 's', type: 'start' },
+      { id: 'l', type: 'loop' },
+      { id: 'r', type: 'script' },
+      { id: 'j', type: 'end' },
+    ];
+    const edges: FlowEdge[] = [
+      { source: 's', target: 'l' },
+      { source: 's', target: 'r' },
+      { source: 'l', target: 'j' },
+      { source: 'r', target: 'j' },
+    ];
+    const geo = computeLayoutWithGeometry(nodes, edges, tallOnly('l', 200));
+    expect(geo.positions.get('l')!.y).toBe(geo.positions.get('r')!.y);
+    expect(geo.positions.get('j')!.y - geo.positions.get('l')!.y).toBe(200 + V_GAP);
+  });
+
+  it('size.height accounts for a tall bottom card', () => {
+    const geo = computeLayoutWithGeometry(chain.nodes, chain.edges, tallOnly('b', 200));
+    expect(geo.size.height).toBe(geo.positions.get('b')!.y + 200 + PADDING);
+  });
+
+  it('a manually-pinned tall node does not push auto rows (accepted-overlap rule)', () => {
+    const nodes: FlowNode[] = [
+      { id: 's', type: 'start' },
+      { id: 'pin', type: 'loop', ui: { x: 400, y: 10 } },
+      { id: 'e', type: 'end' },
+    ];
+    const edges: FlowEdge[] = [{ source: 's', target: 'pin' }, { source: 'pin', target: 'e' }];
+    const tall = computeLayoutWithGeometry(nodes, edges, tallOnly('pin', 300));
+    const constant = computeLayoutWithGeometry(nodes, edges);
+    expect(tall.positions.get('s')).toEqual(constant.positions.get('s'));
+    expect(tall.positions.get('e')).toEqual(constant.positions.get('e'));
+    expect(tall.heights.get('pin')).toBe(300); // still reported for rendering/size
+  });
+});
+
+describe('bottomAnchor with explicit height (#2670)', () => {
+  it('anchors at the true bottom of a tall card', () => {
+    expect(bottomAnchor({ x: 10, y: 20 }, 200)).toEqual({ x: 10 + NODE_W / 2, y: 220 });
   });
 });
