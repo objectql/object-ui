@@ -113,6 +113,17 @@ export interface SchedulableTask {
   dependencies?: Array<string | number | { id: string | number; type?: string }>;
   parent?: string | number | null;
   type?: string;
+  /**
+   * Row-level lock (仅查看). A locked task is never moved by the reschedule;
+   * when it VIOLATES a link it is reported in `skippedLocked` instead.
+   */
+  locked?: boolean;
+  /**
+   * Whether the task's own start/end are real data (mirrors
+   * GanttTask.hasOwnDates). Only consulted for summaries under
+   * `summaryExtent: 'self'` — a date-less grouping level still never moves.
+   */
+  hasOwnDates?: boolean;
 }
 
 interface Edge {
@@ -302,29 +313,79 @@ export interface RescheduleChange {
   end: Date;
 }
 
+export interface RescheduleOptions {
+  /**
+   * How summary (parent) tasks participate. `'children'` (default): their
+   * dates are derived rollups — they constrain successors but are never
+   * moved. `'self'`: a summary whose dates are its OWN (`hasOwnDates !==
+   * false`, not locked) shifts like a task, and its unlocked descendants
+   * ride along by the same delta (the group-drag semantics).
+   */
+  summaryExtent?: 'children' | 'self';
+  /**
+   * Snap a computed start instant onto a grid — e.g. shift-band boundaries
+   * (班次边界), so a pushed task never starts mid-band. Must return an
+   * instant `>=` the input (this is 顺延; snapping may only push later).
+   * Applied only to tasks that actually move, and only in non-calendar mode
+   * (a WorkingCalendar already owns the day-granularity snapping).
+   */
+  snapStart?: (ms: number) => number;
+}
+
+export interface RescheduleResult {
+  changes: RescheduleChange[];
+  /**
+   * Tasks that VIOLATE a link but stayed put because they are locked
+   * (仅查看). Lets the UI report "N skipped" honestly instead of implying
+   * the schedule is fully repaired.
+   */
+  skippedLocked: string[];
+}
+
 /**
  * Dependency-driven forward reschedule. Walks the graph in topological order
  * and pushes each task as late as its predecessors require, preserving its
- * duration and never moving it earlier than its current start. Summary tasks
- * (parents) are treated as fixed rollup nodes — they constrain successors but
- * are not themselves moved. Returns only the tasks whose dates change.
+ * duration and never moving it earlier than its current start.
+ *
+ * Summary handling follows {@link RescheduleOptions.summaryExtent}: rollup
+ * summaries are fixed predecessor nodes; self-dated summaries move and carry
+ * their unlocked subtree (a descendant already pushed further by its own
+ * links keeps the later position — 顺延 only, so max wins). The cascade is a
+ * single forward pass: carried positions don't re-propagate through links,
+ * matching the function's minimal-repair pragmatism (no constraint solver).
  *
  * When a {@link WorkingCalendar} is supplied, each task's duration is measured
  * in working days and rescheduled tasks are snapped to start (and finish) on
  * working days only — weekends/holidays are stepped over rather than consumed.
  *
- * Returns an empty array when the graph has a cycle (ambiguous ordering).
+ * Returns empty results when the graph has a cycle (ambiguous ordering).
  */
-export function computeProjectReschedule(tasks: SchedulableTask[], cal?: WorkingCalendar): RescheduleChange[] {
-  if (!tasks.length) return [];
+export function computeProjectRescheduleDetailed(
+  tasks: SchedulableTask[],
+  cal?: WorkingCalendar,
+  opts?: RescheduleOptions,
+): RescheduleResult {
+  if (!tasks.length) return { changes: [], skippedLocked: [] };
   const edges = buildEdges(tasks);
   const allIds = tasks.map((t) => key(t.id));
   const { order, hasCycle } = topoOrder(allIds, edges);
-  if (hasCycle) return [];
+  if (hasCycle) return { changes: [], skippedLocked: [] };
 
   const summaries = parentIds(tasks);
   const byId = new Map<string, SchedulableTask>();
   for (const t of tasks) byId.set(key(t.id), t);
+  const byParent = new Map<string, SchedulableTask[]>();
+  for (const t of tasks) {
+    if (t.parent == null || t.parent === '') continue;
+    const pid = key(t.parent);
+    const arr = byParent.get(pid) ?? [];
+    arr.push(t);
+    byParent.set(pid, arr);
+  }
+
+  const selfExtent = opts?.summaryExtent === 'self';
+  const movableSummary = (t: SchedulableTask) =>
+    selfExtent && t.hasOwnDates !== false && !t.locked;
 
   const preds = new Map<string, Edge[]>();
   for (const id of allIds) preds.set(id, []);
@@ -337,6 +398,8 @@ export function computeProjectReschedule(tasks: SchedulableTask[], cal?: Working
     startMs.set(key(t.id), t.start.getTime());
     endMs.set(key(t.id), t.end.getTime());
   }
+
+  const skippedLocked: string[] = [];
 
   for (const id of order) {
     const t = byId.get(id);
@@ -371,9 +434,18 @@ export function computeProjectReschedule(tasks: SchedulableTask[], cal?: Working
       }
       if (candidate > reqStart) reqStart = candidate;
     }
-    // Summaries are derived rollups: keep them where they are, only let them
-    // act as predecessors. Everything else shifts to satisfy its links.
-    if (summaries.has(id)) continue;
+    const wantsMove = reqStart > origStart;
+    // Rollup summaries stay fixed predecessors; self-dated summaries fall
+    // through and shift like tasks.
+    if (summaries.has(id) && !movableSummary(t)) continue;
+    // A locked task never moves — but a violated one is worth reporting.
+    if (t.locked) {
+      if (wantsMove) skippedLocked.push(id);
+      continue;
+    }
+    if (wantsMove && !cal && opts?.snapStart) {
+      reqStart = Math.max(reqStart, opts.snapStart(reqStart));
+    }
     if (cal) {
       const s = nextWorkingDay(reqStart, cal);
       startMs.set(id, s);
@@ -384,19 +456,51 @@ export function computeProjectReschedule(tasks: SchedulableTask[], cal?: Working
     }
   }
 
+  // Cascade: a shifted self-dated summary carries its subtree along — the
+  // same semantics as dragging its bar — skipping locked descendants. A
+  // descendant already pushed further by its OWN links keeps the later
+  // position (max wins; this stays 顺延-only).
+  if (selfExtent) {
+    for (const t of tasks) {
+      const id = key(t.id);
+      if (!summaries.has(id) || !movableSummary(t)) continue;
+      const delta = startMs.get(id)! - t.start.getTime();
+      if (delta <= 0) continue;
+      const stack = [...(byParent.get(id) ?? [])];
+      while (stack.length) {
+        const d = stack.pop()!;
+        const did = key(d.id);
+        stack.push(...(byParent.get(did) ?? []));
+        if (d.locked) continue;
+        const candStart = d.start.getTime() + delta;
+        if (candStart > startMs.get(did)!) {
+          const dur = endMs.get(did)! - startMs.get(did)!;
+          startMs.set(did, candStart);
+          endMs.set(did, candStart + dur);
+        }
+      }
+    }
+  }
+
   const changes: RescheduleChange[] = [];
   for (const t of tasks) {
     const id = key(t.id);
-    if (summaries.has(id)) continue;
     const ns = startMs.get(id)!;
     const ne = endMs.get(id)!;
-    // In calendar mode a task can keep its start yet have its finish snapped off
-    // a weekend, so report end-only moves too.
+    // Untouched categories (locked rows, rollup summaries) keep their seeded
+    // values and drop out here naturally. In calendar mode a task can keep
+    // its start yet have its finish snapped off a weekend, so end-only moves
+    // are reported too.
     if (ns !== t.start.getTime() || ne !== t.end.getTime()) {
       changes.push({ id, start: new Date(ns), end: new Date(ne) });
     }
   }
-  return changes;
+  return { changes, skippedLocked };
+}
+
+/** Back-compat wrapper: changes only, default (rollup-summary) semantics. */
+export function computeProjectReschedule(tasks: SchedulableTask[], cal?: WorkingCalendar): RescheduleChange[] {
+  return computeProjectRescheduleDetailed(tasks, cal).changes;
 }
 
 // ---------------------------------------------------------------------------

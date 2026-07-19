@@ -509,6 +509,14 @@ const en = {
       confirm: 'Auto-reschedule',
       cancel: 'Keep as is',
     },
+    autoScheduleDlg: {
+      title: 'Auto-schedule',
+      body: 'Shift {count} task(s) later to satisfy dependency links?',
+      skipped: '{count} locked task(s) also violate links and were skipped.',
+      confirm: 'Apply',
+      cancel: 'Cancel',
+      none: 'All dependencies satisfied — nothing to reschedule.',
+    },
     resource: {
       header: 'Resource',
       peak: 'Peak',
