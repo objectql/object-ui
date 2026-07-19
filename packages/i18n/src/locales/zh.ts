@@ -2211,6 +2211,7 @@ const zh = {
     lookupHelpText: '请输入引用记录的 ID。可视化选择器即将上线。',
     cancel: '取消',
     confirm: '确认',
+    uploading: '上传中…',
     defaultActionTitle: '操作',
     ok: '确定',
   },

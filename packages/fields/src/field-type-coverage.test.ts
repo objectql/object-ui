@@ -27,7 +27,9 @@ const FORM_WIDGET_TYPES = [
   'file', 'image', 'avatar', 'video', 'audio', 'signature',
   'location', 'geolocation', 'address', 'color', 'code', 'json', 'qrcode', 'vector',
   'object', 'composite', 'record', 'repeater',
-  'formula', 'summary', 'auto_number',
+  // `autonumber` is the spec `FieldType` spelling; `auto_number` is the widget
+  // map key. Both must resolve to the AutoNumber widget, not text.
+  'formula', 'summary', 'auto_number', 'autonumber',
 ];
 
 /**

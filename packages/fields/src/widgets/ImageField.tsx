@@ -3,6 +3,7 @@ import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
 import { Upload, X, Image as ImageIcon, Crop as CropIcon, Loader2 } from 'lucide-react';
 import { FieldWidgetProps } from './types';
+import { useUploadingSignal } from './useUploadingSignal';
 
 // Lazy-load the cropper so the dialog (canvas + crop logic) is not in the initial
 // ImageField bundle. Consumers that never crop pay zero cost.
@@ -14,7 +15,7 @@ const ImageCropperDialog = lazy(() =>
  * ImageField - Image upload widget with preview thumbnails
  * Supports single and multiple image uploads with drag-and-drop and preview display
  */
-export function ImageField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
+export function ImageField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const imageField = (field || (props as any).schema) as any;
   const multiple = imageField?.multiple || false;
@@ -26,6 +27,7 @@ export function ImageField({ value, onChange, field, readonly, ...props }: Field
   const [cropTarget, setCropTarget] = useState<{ index: number; src: string; name: string } | null>(null);
   const { upload } = useUpload();
   const [uploading, setUploading] = useState(false);
+  useUploadingSignal(uploading, onUploadingChange);
 
   if (readonly) {
     if (!value) return <EmptyValue />;

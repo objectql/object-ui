@@ -1494,6 +1494,7 @@ const ko = {
     requiredError: "{{label}}은(는) 필수입니다",
     cancel: "취소",
     confirm: "확인",
+    uploading: "업로드 중…",
     defaultActionTitle: "작업",
     ok: "확인",
     lookupPlaceholder: "{{label}}의 레코드 ID(UUID) 붙여넣기",

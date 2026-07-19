@@ -1492,6 +1492,7 @@ const ru = {
     requiredError: "{{label}} обязательно",
     cancel: "Отмена",
     confirm: "Подтвердить",
+    uploading: "Загрузка…",
     defaultActionTitle: "Действие",
     ok: "ОК",
     lookupPlaceholder: "Вставить ID записи (UUID) для {{label}}",

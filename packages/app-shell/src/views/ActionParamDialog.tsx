@@ -82,6 +82,11 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
   const { t, language } = useObjectTranslation();
   const [values, setValues] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
+  // Params whose upload widget (file/image) is mid-upload. Confirm stays
+  // disabled while any is in flight so a param can't be submitted before its
+  // fileId resolves (the value is only the fileId once the upload settles).
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const anyUploading = Object.values(uploading).some(Boolean);
 
   // A param may carry a `visible` predicate (CEL) gating it on the same scope as
   // action visibility (features / user / app / data) — e.g. `create_user`'s
@@ -102,6 +107,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
       }
       setValues(defaults);
       setErrors({});
+      setUploading({});
     }
   }, [state.open, visibleParams]);
 
@@ -115,6 +121,9 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
   };
 
   const handleSubmit = () => {
+    // An upload is still in flight — the param value isn't its fileId yet, so
+    // block the submit (Confirm is also disabled; this guards keyboard submit).
+    if (anyUploading) return;
     // Validate required fields
     const newErrors: Record<string, boolean> = {};
     for (const param of visibleParams) {
@@ -162,6 +171,12 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
             };
             const field = paramToField(param);
             const Widget = getLazyFieldWidget(field.type);
+            // Only upload widgets emit upload-in-progress; wiring the callback
+            // to non-upload widgets would spread an unknown prop toward the DOM.
+            const isUploadWidget = field.type === 'file' || field.type === 'image';
+            const uploadProps = isUploadWidget
+              ? { onUploadingChange: (u: boolean) => setUploading((prev) => ({ ...prev, [param.name]: u })) }
+              : {};
             // A lookup-typed param that fell back to text (no referenceTo)
             // keeps the "paste an ID" placeholder/help hints.
             const isLookupParam = param.type === 'lookup' || param.type === 'reference';
@@ -215,6 +230,7 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
                   onChange={(v: unknown) => updateValue(param.name, v)}
                   field={field}
                   className={errors[param.name] ? 'border-destructive' : ''}
+                  {...uploadProps}
                 />
               </Suspense>
 
@@ -236,7 +252,9 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
 
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>{t('actionDialog.cancel')}</Button>
-          <Button onClick={handleSubmit}>{t('actionDialog.confirm')}</Button>
+          <Button onClick={handleSubmit} disabled={anyUploading}>
+            {anyUploading ? t('actionDialog.uploading') : t('actionDialog.confirm')}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

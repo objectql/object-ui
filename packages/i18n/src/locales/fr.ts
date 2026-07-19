@@ -1492,6 +1492,7 @@ const fr = {
     requiredError: "{{label}} est obligatoire",
     cancel: "Annuler",
     confirm: "Confirmer",
+    uploading: "Téléversement…",
     defaultActionTitle: "Action",
     ok: "OK",
     lookupPlaceholder: "Coller l'ID d'enregistrement (UUID) pour {{label}}",

@@ -110,3 +110,17 @@ with the shape their route expects, same as record forms.
   dialog work.
 - Bundle stays lazy: opening a param dialog loads only the widget chunks its
   params actually use.
+
+## Follow-ups (post-merge)
+
+- **Upload-in-progress guard.** A `file`/`image` param's value only becomes its
+  fileId once the presigned upload settles, so submitting mid-upload would
+  send an empty/stale value. The upload widgets now surface their in-progress
+  state via an optional `onUploadingChange` prop (shared
+  `useUploadingSignal` hook, ignored by non-upload widgets); the dialog wires
+  it for `file`/`image` params only and disables Confirm (label → "Uploading…")
+  and blocks submit while any upload is in flight.
+- **`autonumber` spelling.** `@objectstack/spec` spells the type `autonumber`
+  while the widget-map key is `auto_number`; `mapFieldTypeToFormType` now folds
+  both so a spec-typed `autonumber` field/param resolves to the AutoNumber
+  widget instead of the text fallback (fixes the form path too, not just params).

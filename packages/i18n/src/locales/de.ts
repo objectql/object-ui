@@ -1494,6 +1494,7 @@ const de = {
     requiredError: "{{label}} ist erforderlich",
     cancel: "Abbrechen",
     confirm: "Bestätigen",
+    uploading: "Wird hochgeladen…",
     defaultActionTitle: "Aktion",
     ok: "OK",
     lookupPlaceholder: "Datensatz-ID (UUID) für {{label}} einfügen",

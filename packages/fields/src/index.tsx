@@ -1907,6 +1907,10 @@ export function mapFieldTypeToFormType(fieldType: string): string {
     // Auto-generated/computed fields (typically read-only)
     formula: 'field:formula',
     summary: 'field:summary',
+    // `@objectstack/spec` spells this `autonumber`; the widget map key is
+    // `auto_number`. Map both spellings so a spec-typed field/param doesn't
+    // fall through to the plain text input.
+    autonumber: 'field:auto_number',
     auto_number: 'field:auto_number',
   };
 

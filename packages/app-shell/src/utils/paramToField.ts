@@ -25,8 +25,9 @@ const PARAM_TYPE_ALIASES: Record<string, string> = {
   checkbox: 'boolean',
   reference: 'lookup',
   'datetime-local': 'datetime',
-  // Spec `FieldType` spells it `autonumber`; the widget map key is `auto_number`.
-  autonumber: 'auto_number',
+  // NOTE: spec's `autonumber` (vs the widget-map key `auto_number`) is folded
+  // in the shared `mapFieldTypeToFormType`, so `resolveFormWidgetType` already
+  // handles it — no param-only alias needed here.
 };
 
 /**

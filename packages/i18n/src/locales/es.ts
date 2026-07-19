@@ -1494,6 +1494,7 @@ const es = {
     requiredError: "{{label}} es obligatorio",
     cancel: "Cancelar",
     confirm: "Confirmar",
+    uploading: "Subiendo…",
     defaultActionTitle: "Acción",
     ok: "Aceptar",
     lookupPlaceholder: "Pegar ID de registro (UUID) para {{label}}",

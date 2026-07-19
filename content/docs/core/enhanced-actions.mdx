@@ -167,7 +167,9 @@ gets its real widget, not a text box (ADR-0059):
 
 File/image params upload through the ambient `UploadProvider`; lookup/user
 params query through the surrounding `SchemaRendererContext` data source — no
-extra wiring per action.
+extra wiring per action. While a file/image upload is in flight the dialog's
+**Confirm** button is disabled (labelled "Uploading…"), so a param can't be
+submitted before its uploaded fileId is ready.
 
 ## Action Chaining
 

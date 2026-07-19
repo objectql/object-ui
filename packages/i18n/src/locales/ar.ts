@@ -1492,6 +1492,7 @@ const ar = {
     requiredError: "{{label}} مطلوب",
     cancel: "إلغاء",
     confirm: "تأكيد",
+    uploading: "جارٍ الرفع…",
     defaultActionTitle: "إجراء",
     ok: "موافق",
     lookupPlaceholder: "لصق معرف السجل (UUID) لـ {{label}}",

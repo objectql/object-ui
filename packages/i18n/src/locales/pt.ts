@@ -1492,6 +1492,7 @@ const pt = {
     requiredError: "{{label}} é obrigatório",
     cancel: "Cancelar",
     confirm: "Confirmar",
+    uploading: "Enviando…",
     defaultActionTitle: "Ação",
     ok: "OK",
     lookupPlaceholder: "Colar ID do registro (UUID) para {{label}}",

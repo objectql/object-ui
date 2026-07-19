@@ -2131,6 +2131,7 @@ const en = {
     lookupHelpText: 'Enter the record id of the referenced object. A picker is coming soon.',
     cancel: 'Cancel',
     confirm: 'Confirm',
+    uploading: 'Uploading…',
     defaultActionTitle: 'Action',
     ok: 'OK',
   },

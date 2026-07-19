@@ -1494,6 +1494,7 @@ const ja = {
     requiredError: "{{label}} は必須です",
     cancel: "キャンセル",
     confirm: "確認",
+    uploading: "アップロード中…",
     defaultActionTitle: "アクション",
     ok: "OK",
     lookupPlaceholder: "{{label}} のレコードID（UUID）を貼り付け",

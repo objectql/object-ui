@@ -3,6 +3,7 @@ import { Button, EmptyValue } from '@object-ui/components';
 import { useUpload } from '@object-ui/providers';
 import { Upload, X, File as FileIcon, ImageIcon, Camera, Loader2 } from 'lucide-react';
 import { FieldWidgetProps } from './types';
+import { useUploadingSignal } from './useUploadingSignal';
 
 /**
  * Shared upload pipeline for the file widgets: validates size, uploads through
@@ -84,7 +85,7 @@ function useFileUploads(opts: {
  * Supports single and multiple file uploads with configurable accepted file types.
  * L2: File size validation, per-file progress indicators, error messages.
  */
-export function FileField({ value, onChange, field, readonly, ...props }: FieldWidgetProps<any>) {
+export function FileField({ value, onChange, field, readonly, onUploadingChange, ...props }: FieldWidgetProps<any>) {
   const inputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileField = (field || (props as any).schema) as any;
@@ -111,6 +112,7 @@ export function FileField({ value, onChange, field, readonly, ...props }: FieldW
   const { processFiles, errors, uploading, uploadProgress } = useFileUploads({
     files, multiple, maxSize, onChange,
   });
+  useUploadingSignal(uploading, onUploadingChange);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
