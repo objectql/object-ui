@@ -41,7 +41,7 @@ import {
   Separator,
   useResizeObserver,
 } from "@object-ui/components"
-import { computeCriticalPath, computeProjectReschedule, wouldCreateDependencyCycle, type WorkingCalendar, type RescheduleChange } from "./scheduling"
+import { computeCriticalPath, computeProjectRescheduleDetailed, wouldCreateDependencyCycle, type WorkingCalendar, type RescheduleChange, type RescheduleOptions } from "./scheduling"
 import { shiftDayStart, type NormShiftSegments } from "./shifts"
 import { useGanttTranslation } from "./useGanttTranslation"
 
@@ -987,6 +987,38 @@ export function GanttView({
   // from what the drag itself applied — that delta is the conflict we surface.
   const [pendingConflict, setPendingConflict] = React.useState<RescheduleChange[] | null>(null);
 
+  // Snap a rescheduled start onto the next shift-band boundary (班次边界) so
+  // a pushed task never starts mid-band — the reschedule twin of the drag
+  // snapping. Only meaningful when shift segments are configured.
+  const snapToBandStart = React.useCallback(
+    (ms: number): number => {
+      if (!shiftSegments) return ms;
+      const base = new Date(ms);
+      base.setHours(0, 0, 0, 0);
+      // Walk band boundaries from the previous calendar day (a cross-midnight
+      // band's shift-day starts the day before) until one lands at/after ms.
+      for (let dayOff = -1; dayOff <= 1; dayOff++) {
+        let t = base.getTime() + dayOff * MS_PER_DAY + shiftSegments.dayStartMin * 60000;
+        for (const b of shiftSegments.bands) {
+          if (t >= ms) return t;
+          t += b.durMs;
+        }
+      }
+      return ms;
+    },
+    [shiftSegments],
+  );
+  // Reschedule semantics shared by BOTH cascade paths (toolbar auto-schedule
+  // and the post-drag conflict dialog): self-dated summaries participate, and
+  // pushed starts snap to shift bands.
+  const reschedOpts = React.useMemo<RescheduleOptions>(
+    () => ({
+      summaryExtent,
+      snapStart: shiftSegments ? snapToBandStart : undefined,
+    }),
+    [summaryExtent, shiftSegments, snapToBandStart],
+  );
+
   const maybeFlagConflict = React.useCallback(
     (applied: Array<{ task: GanttTask; changes: { start?: Date; end?: Date } }>) => {
       if (!rescheduleOnConflict) return;
@@ -1001,7 +1033,7 @@ export function GanttView({
         const o = overrides.get(String(t.id));
         return o ? { ...t, start: o.start, end: o.end } : t;
       });
-      const changes = computeProjectReschedule(candidate, workingCalendar);
+      const { changes } = computeProjectRescheduleDetailed(candidate, workingCalendar, reschedOpts);
       // A change that merely restates the drag override is not a conflict.
       const conflict = changes.filter((c) => {
         const o = overrides.get(c.id);
@@ -1009,7 +1041,7 @@ export function GanttView({
       });
       if (conflict.length) setPendingConflict(conflict);
     },
-    [rescheduleOnConflict, workingCalendar],
+    [rescheduleOnConflict, workingCalendar, reschedOpts],
   );
 
   const applyReschedule = React.useCallback(() => {
@@ -2726,16 +2758,41 @@ export function GanttView({
   // One-shot dependency-driven reschedule (顺延): push successors later until
   // their link constraints hold, preserving durations, then persist each
   // changed task through onTaskUpdate (as one undoable batch).
+  // Toolbar auto-schedule is a bulk server write, so it CONFIRMS first (the
+  // same contract as the post-drag conflict dialog): compute → show "shift N
+  // tasks? (M locked skipped)" → apply only on confirm. A clean graph gets a
+  // transient "nothing to reschedule" notice instead of a silent no-op.
+  const [pendingAutoSchedule, setPendingAutoSchedule] = React.useState<{
+    changes: RescheduleChange[];
+    skipped: number;
+  } | null>(null);
+  const [autoScheduleClean, setAutoScheduleClean] = React.useState(false);
+  React.useEffect(() => {
+    if (!autoScheduleClean) return;
+    const timer = setTimeout(() => setAutoScheduleClean(false), 2500);
+    return () => clearTimeout(timer);
+  }, [autoScheduleClean]);
+
   const runAutoSchedule = React.useCallback(() => {
     if (!onTaskUpdate) return;
-    const changes = computeProjectReschedule(tasks, workingCalendar);
+    const { changes, skippedLocked } = computeProjectRescheduleDetailed(tasks, workingCalendar, reschedOpts);
+    if (!changes.length) {
+      setAutoScheduleClean(true);
+      return;
+    }
+    setPendingAutoSchedule({ changes, skipped: skippedLocked.length });
+  }, [tasks, onTaskUpdate, workingCalendar, reschedOpts]);
+
+  const applyAutoSchedule = React.useCallback(() => {
+    if (!pendingAutoSchedule) return;
     const updates: Array<{ task: GanttTask; changes: Partial<Pick<GanttTask, 'start' | 'end'>> }> = [];
-    for (const c of changes) {
+    for (const c of pendingAutoSchedule.changes) {
       const task = tasks.find((tk) => String(tk.id) === c.id);
       if (task) updates.push({ task, changes: { start: c.start, end: c.end } });
     }
-    commitTaskUpdates(updates);
-  }, [tasks, onTaskUpdate, workingCalendar, commitTaskUpdates]);
+    if (updates.length) commitTaskUpdates(updates);
+    setPendingAutoSchedule(null);
+  }, [pendingAutoSchedule, tasks, commitTaskUpdates]);
 
   // --- Export PNG (Phase 6) ---------------------------------------------
   // Self-contained: re-draw the WHOLE chart (every row, unaffected by row
@@ -4788,6 +4845,68 @@ export function GanttView({
       {/* 拖拽冲突 → 顺延确认 (Group 2). A centered modal lists how many tasks
           would shift and offers to auto-reschedule (自动顺延) or keep the manual
           placement (取消保留). */}
+      {/* 自动排程确认 — the toolbar wand computes first, then asks before the
+          bulk write; mirrors the conflict dialog's interaction contract. */}
+      {pendingAutoSchedule && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30"
+          data-testid="gantt-autoschedule-overlay"
+          onClick={() => setPendingAutoSchedule(null)}
+        >
+          <div
+            className="min-w-[280px] max-w-[360px] rounded-lg border bg-popover text-popover-foreground shadow-lg p-4"
+            role="alertdialog"
+            aria-modal="true"
+            data-testid="gantt-autoschedule-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-sm font-semibold mb-1" data-testid="gantt-autoschedule-title">
+              {t('gantt.autoScheduleDlg.title')}
+            </div>
+            <div className="text-sm text-muted-foreground mb-3">
+              {t('gantt.autoScheduleDlg.body').replace('{count}', String(pendingAutoSchedule.changes.length))}
+              {pendingAutoSchedule.skipped > 0 && (
+                <>
+                  {' '}
+                  <span data-testid="gantt-autoschedule-skipped">
+                    {t('gantt.autoScheduleDlg.skipped').replace('{count}', String(pendingAutoSchedule.skipped))}
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm rounded-md border hover:bg-accent outline-none"
+                data-testid="gantt-autoschedule-cancel"
+                onClick={() => setPendingAutoSchedule(null)}
+              >
+                {t('gantt.autoScheduleDlg.cancel')}
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:opacity-90 outline-none"
+                data-testid="gantt-autoschedule-confirm"
+                onClick={applyAutoSchedule}
+              >
+                {t('gantt.autoScheduleDlg.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 无需排程 transient notice — every link already holds. */}
+      {autoScheduleClean && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] rounded-md border bg-popover text-popover-foreground px-3 py-1.5 text-sm shadow-md"
+          role="status"
+          data-testid="gantt-autoschedule-clean"
+        >
+          {t('gantt.autoScheduleDlg.none')}
+        </div>
+      )}
+
       {pendingConflict && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30"
