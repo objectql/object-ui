@@ -21,6 +21,12 @@ import { DashboardWithConfig } from './DashboardWithConfig';
 import { DrillDownDrawer } from './DrillDownDrawer';
 
 export { DashboardRenderer, DashboardGridLayout, MetricWidget, MetricCard, ObjectMetricWidget, PivotTable, ObjectPivotTable, ObjectDataTable, DashboardConfigPanel, WidgetConfigPanel, DashboardWithConfig, DrillDownDrawer };
+export type { WidgetConfigPanelProps } from './WidgetConfigPanel';
+export type {
+  WidgetDatasetCatalogEntry,
+  WidgetDatasetDimension,
+  WidgetDatasetMeasure,
+} from './dataset-catalog';
 
 // Register dashboard component
 ComponentRegistry.register(

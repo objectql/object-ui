@@ -685,41 +685,60 @@ export interface DashboardWidgetSchema {
   /** Action icon name */
   actionIcon?: string;
   /**
-   * Data binding: Object name for data source.
-   * Aligned with @objectstack/spec DashboardWidgetSchema.object.
+   * ADR-0021 — the semantic-layer `dataset` this widget binds to. The widget
+   * selects the dataset's dimensions/measures BY NAME; the dataset owns the
+   * base object, allowed joins, intrinsic filter, dimensions, and measures, so
+   * numbers stay consistent across every surface. This is the single
+   * author-facing analytics shape and the only one Studio emits.
+   * Aligned with @objectstack/spec DashboardWidgetSchema.dataset.
    */
-  object?: string;
+  dataset?: string;
+  /**
+   * Dimension names (from the bound `dataset`) for X / group / split.
+   * Aligned with @objectstack/spec DashboardWidgetSchema.dimensions.
+   */
+  dimensions?: string[];
+  /**
+   * Measure names (from the bound `dataset`) for the value axis (≥1).
+   * Aligned with @objectstack/spec DashboardWidgetSchema.values.
+   */
+  values?: string[];
   /**
    * Data binding: Filter conditions.
    * Aligned with @objectstack/spec DashboardWidgetSchema.filter.
    */
   filter?: any;
   /**
-   * Data binding: Category field for grouping.
-   * Aligned with @objectstack/spec DashboardWidgetSchema.categoryField.
+   * @deprecated Pre-ADR-0021 inline single-object query. Removed from the
+   * authorable spec at @objectstack/spec 9.0.0 and no longer emitted by any
+   * Studio surface — bind a `dataset` instead. Retained here only so the
+   * renderer can still read legacy/static widget metadata during the
+   * transition; will be removed once renderer legacy branches are retired.
+   */
+  object?: string;
+  /**
+   * @deprecated Pre-ADR-0021 inline analytics key — use `dataset` +
+   * `dimensions`. See `object`.
    */
   categoryField?: string;
   /**
-   * Date bucket granularity for `categoryField` when it points at a
-   * date/datetime field. Aligned with @objectstack/spec
-   * DashboardWidgetSchema.categoryGranularity. Without this, time-series
-   * charts group by raw timestamp and typically render flat (1 record per
-   * bucket).
+   * @deprecated Pre-ADR-0021 inline analytics key — the bound dataset's
+   * dimension declares its own `dateGranularity`. See `object`.
    */
   categoryGranularity?: 'day' | 'week' | 'month' | 'quarter' | 'year';
   /**
-   * Data binding: Value field for aggregation.
-   * Aligned with @objectstack/spec DashboardWidgetSchema.valueField.
+   * @deprecated Pre-ADR-0021 inline analytics key — use `dataset` + `values`.
+   * See `object`.
    */
   valueField?: string;
   /**
-   * Aggregation function.
-   * Aligned with @objectstack/spec DashboardWidgetSchema.aggregate.
+   * @deprecated Pre-ADR-0021 inline analytics key — the bound dataset's
+   * measure declares its own `aggregate`. See `object`.
    */
   aggregate?: string;
   /**
-   * Multiple measures for pivot/matrix display.
-   * Aligned with @objectstack/spec WidgetMeasureSchema.
+   * @deprecated Pre-ADR-0021 inline pivot measures — use `dataset` + `values`.
+   * See `object`.
    */
   measures?: Array<{
     valueField: string;

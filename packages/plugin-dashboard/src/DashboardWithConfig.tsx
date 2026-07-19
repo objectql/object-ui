@@ -15,6 +15,7 @@ import type { DashboardSchema, DashboardWidgetSchema } from '@object-ui/types';
 import { DashboardRenderer } from './DashboardRenderer';
 import { DashboardConfigPanel } from './DashboardConfigPanel';
 import { WidgetConfigPanel } from './WidgetConfigPanel';
+import type { WidgetDatasetCatalogEntry } from './dataset-catalog';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -37,6 +38,15 @@ export interface DashboardWithConfigProps {
   defaultConfigOpen?: boolean;
   /** Additional CSS class name for the container */
   className?: string;
+  /**
+   * Analytics dataset catalog (ADR-0021), forwarded to the widget config
+   * panel so its dataset / dimensions / values pickers bind to the live
+   * schema. Hosts resolve it (e.g. via the metadata client's
+   * `list('dataset')`); absent → free-text authoring still works.
+   */
+  datasets?: WidgetDatasetCatalogEntry[];
+  /** Whether the dataset catalog is still loading. */
+  datasetsLoading?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +73,8 @@ export function DashboardWithConfig({
   recordCount,
   defaultConfigOpen = false,
   className,
+  datasets,
+  datasetsLoading,
 }: DashboardWithConfigProps) {
   const [configOpen, setConfigOpen] = useState(defaultConfigOpen);
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
@@ -86,40 +98,20 @@ export function DashboardWithConfig({
       (w) => (w.id || w.title) === selectedWidgetId,
     );
     if (!widget) return null;
-    // Spread widget.options first so explicit top-level widget keys win on
-    // collision. This surfaces type-specific fields (pivot rowField/columnField,
-    // table searchable/pagination, chart xAxis/yAxis, etc.) that are stored
-    // under `options` in the persisted metadata.
-    const options = (widget.options || {}) as Record<string, any>;
+    // ADR-0021 dataset shape — the only authoring shape the panel edits.
+    // `dataset`/`dimensions`/`values` are read through casts: the bundled
+    // `@object-ui/types` gains them once objectui bumps `@objectstack/spec`.
+    const w = widget as any;
     return {
-      ...options,
       id: widget.id ?? '',
       title: widget.title ?? '',
       description: widget.description ?? '',
       type: widget.type ?? '',
-      object: widget.object ?? '',
-      categoryField: widget.categoryField ?? options.categoryField ?? '',
-      valueField: widget.valueField ?? options.valueField ?? '',
-      aggregate: widget.aggregate ?? options.aggregate ?? '',
-      colorVariant: widget.colorVariant ?? options.colorVariant ?? 'default',
-      actionUrl: widget.actionUrl ?? options.actionUrl ?? '',
-      // Drill-down lives under options.drillDown — flatten so the panel
-      // can edit it as plain top-level switches. Default ON for object-
-      // backed pivot widgets and for object-backed drillable chart types
-      // (mirrors DashboardRenderer policy).
-      drillDownEnabled: options.drillDown?.enabled
-        ?? (!!widget.object && (
-          widget.type === 'pivot' ||
-          widget.type === 'metric' ||
-          widget.type === 'bar' ||
-          widget.type === 'horizontal-bar' ||
-          widget.type === 'line' ||
-          widget.type === 'area' ||
-          widget.type === 'pie' ||
-          widget.type === 'donut' ||
-          widget.type === 'funnel'
-        ) ? true : false),
-      drillDownTarget: options.drillDown?.target ?? 'drawer',
+      dataset: typeof w.dataset === 'string' ? w.dataset : '',
+      dimensions: Array.isArray(w.dimensions) ? w.dimensions : [],
+      values: Array.isArray(w.values) ? w.values : [],
+      colorVariant: widget.colorVariant ?? 'default',
+      actionUrl: widget.actionUrl ?? '',
       layoutW: widget.layout?.w ?? 1,
       layoutH: widget.layout?.h ?? 1,
     };
@@ -154,16 +146,6 @@ export function DashboardWithConfig({
             if (field === 'layoutH') {
               return { ...w, layout: { ...(w.layout || {}), h: value } as DashboardWidgetSchema['layout'] };
             }
-            // Drill-down toggles map into options.drillDown.{enabled,target}
-            // so the renderer (which reads options.drillDown) picks them up.
-            if (field === 'drillDownEnabled' || field === 'drillDownTarget') {
-              const prevDrill = (w.options as any)?.drillDown ?? {};
-              const nextDrill =
-                field === 'drillDownEnabled'
-                  ? { ...prevDrill, enabled: !!value }
-                  : { ...prevDrill, target: value };
-              return { ...w, options: { ...(w.options || {}), drillDown: nextDrill } } as DashboardWidgetSchema;
-            }
             return { ...w, [field]: value };
           }),
         };
@@ -175,21 +157,10 @@ export function DashboardWithConfig({
   const handleWidgetSave = useCallback(
     (widgetConfig: Record<string, any>) => {
       if (selectedWidgetId && onWidgetSave) {
-        // Re-nest drill-down flat keys back under options.drillDown so
-        // persistence callers receive the canonical widget shape.
-        const { drillDownEnabled, drillDownTarget, ...rest } = widgetConfig;
-        const persisted: Record<string, any> = { ...rest };
-        if (drillDownEnabled || drillDownTarget) {
-          persisted.options = {
-            ...(rest.options || {}),
-            drillDown: {
-              ...((rest.options as any)?.drillDown || {}),
-              ...(drillDownEnabled !== undefined ? { enabled: !!drillDownEnabled } : {}),
-              ...(drillDownTarget !== undefined ? { target: drillDownTarget } : {}),
-            },
-          };
-        }
-        onWidgetSave(selectedWidgetId, persisted);
+        // WidgetConfigPanel already emits the canonical ADR-0021 shape
+        // (dataset / dimensions / values) with legacy keys scrubbed, so the
+        // config is persisted verbatim.
+        onWidgetSave(selectedWidgetId, widgetConfig);
       }
       setSelectedWidgetId(null);
       setConfigVersion((v) => v + 1);
@@ -242,6 +213,8 @@ export function DashboardWithConfig({
               config={selectedWidgetConfig}
               onSave={handleWidgetSave}
               onFieldChange={handleWidgetFieldChange}
+              datasets={datasets}
+              datasetsLoading={datasetsLoading}
             />
           ) : (
             <DashboardConfigPanel

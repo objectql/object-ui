@@ -2,18 +2,20 @@
 
 /**
  * DashboardWidgetInspector — dataset binding (ADR-0021). The widget inspector
- * binds a governed dataset and picks its dimensions/measures from the bound
- * dataset's semantic layer (the same control the Report inspector uses), and
- * the inline object query picks object/fields from the live schema — instead
- * of free-text the author has to recall. These tests stub the catalog hooks so
- * the pickers render network-free.
+ * authors the single semantic-layer shape: it binds a governed `dataset` and
+ * picks its dimensions/measures from the bound dataset's semantic layer (the
+ * same control the Report inspector uses) — instead of free-text the author has
+ * to recall. The pre-ADR-0021 inline object query (object/valueField/
+ * categoryField/aggregate) was removed (framework#3251), so no Studio surface
+ * can author the dead shape. These tests stub the catalog hook so the pickers
+ * render network-free.
  */
 
 import * as React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 
-// Network-free catalogs.
+// Network-free catalog.
 vi.mock('../previews/useDatasetCatalog', () => ({
   useDatasetCatalog: () => ({
     datasets: [{ name: 'sales_pipeline', label: 'Sales Pipeline', dimensions: [], measures: [] }],
@@ -26,12 +28,6 @@ vi.mock('../previews/useDatasetCatalog', () => ({
     loading: false,
     error: null,
   }),
-}));
-vi.mock('./useDatasetFields', () => ({
-  useObjectOptions: () => ({ options: [{ name: 'crm_opportunity', label: 'Opportunity' }], loading: false }),
-}));
-vi.mock('../previews/useObjectFields', () => ({
-  useObjectFields: () => ({ fields: [{ name: 'amount', label: 'Amount', type: 'currency', hidden: false }], loading: false, error: null }),
 }));
 
 import { DashboardWidgetInspector } from './DashboardWidgetInspector';
@@ -84,13 +80,13 @@ describe('DashboardWidgetInspector — dataset binding', () => {
     expect(screen.getByText('revenue')).toBeInTheDocument();
   });
 
-  it('renders object + field bindings as pickers (inline single-object query)', () => {
-    renderWidget({ object: 'crm_opportunity', valueField: 'amount' });
-    expect(screen.getByText('Data Source (Object)')).toBeInTheDocument();
-    expect(screen.getByText('Value Field')).toBeInTheDocument();
-    // The bound object/field resolve to their catalog labels on the combo triggers.
-    expect(screen.getAllByText('Opportunity').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Amount').length).toBeGreaterThan(0);
+  it('no longer renders the removed inline object query fields', () => {
+    // Legacy inline analytics fields were removed (framework#3251) — the
+    // inspector authors only the dataset shape now.
+    renderWidget({ dataset: 'sales_pipeline' });
+    expect(screen.queryByText('Data Source (Object)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Value Field')).not.toBeInTheDocument();
+    expect(screen.queryByText('Category Field')).not.toBeInTheDocument();
   });
 
   it('renders Chinese labels under zh-CN', () => {

@@ -12,13 +12,11 @@ import {
   AreaChart,
   BarChart,
   BarChart2,
-  Code2,
   Database,
   Donut,
   Filter,
   Hash,
   LineChart,
-  List,
   PieChart,
   ScatterChart,
   Table2,
@@ -26,7 +24,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-export type WidgetCategory = 'kpi' | 'chart' | 'data' | 'custom';
+export type WidgetCategory = 'kpi' | 'chart' | 'data';
 
 export interface WidgetTypeMeta {
   id: string;
@@ -54,19 +52,20 @@ export const WIDGET_TYPE_META: Record<string, WidgetTypeMeta> = {
   funnel: { id: 'funnel', label: 'Funnel', category: 'chart', icon: TrendingDown },
   table: { id: 'table', label: 'Data table', category: 'data', icon: Table2 },
   pivot: { id: 'pivot', label: 'Pivot table', category: 'data', icon: Database },
-  list: { id: 'list', label: 'Record list', category: 'data', icon: List },
-  custom: { id: 'custom', label: 'Custom widget', category: 'custom', icon: Code2 },
+  // NOTE: `list` and `custom` are intentionally absent — they are not members
+  // of @objectstack/spec ChartTypeSchema, so a widget authored with them can
+  // never publish (framework#3251). Keep this catalog in lockstep with the spec
+  // enum so the "Add widget" picker only offers publishable types.
 };
 
 export const WIDGET_CATEGORY_LABEL: Record<WidgetCategory, string> = {
   kpi: 'Single value',
   chart: 'Charts',
   data: 'Tabular',
-  custom: 'Custom',
 };
 
 export const WIDGETS_BY_CATEGORY: Array<{ category: WidgetCategory; types: WidgetTypeMeta[] }> = (
-  ['kpi', 'chart', 'data', 'custom'] as WidgetCategory[]
+  ['kpi', 'chart', 'data'] as WidgetCategory[]
 ).map((category) => ({
   category,
   types: Object.values(WIDGET_TYPE_META).filter((m) => m.category === category),

@@ -284,6 +284,10 @@ export const DashboardWidgetSchema = z.object({
   layout: DashboardWidgetLayoutSchema.optional().describe('Widget Layout'),
   type: z.string().optional().describe('Widget visualization type (spec shorthand)'),
   options: z.unknown().optional().describe('Widget specific configuration (spec shorthand)'),
+  // ADR-0021 semantic-layer binding — the single author-facing analytics shape.
+  dataset: z.string().optional().describe('Dataset name to bind (ADR-0021)'),
+  dimensions: z.array(z.string()).optional().describe('Dimension names — X/group/split'),
+  values: z.array(z.string()).optional().describe('Measure names — Y (≥1 when dataset-bound)'),
   filterBindings: z.record(z.string(), z.union([z.string(), z.literal(false)])).optional()
     .describe('Per-widget dashboard-filter bindings: filter name → this widget\'s field, or false to opt out'),
 });

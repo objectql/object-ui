@@ -4,11 +4,19 @@ Server-driven dashboard renderer. Consumes `DashboardSchema` (from
 `@objectstack/spec`) and renders a grid of widgets (metric, gauge, chart,
 table, pivot, etc.) with drag/resize, drill-down, and async data binding.
 
+> **Authoring shape (ADR-0021).** Dashboard widgets bind a semantic-layer
+> `dataset` and select its `dimensions` + `values` by name — that is the only
+> author-facing analytics shape. The pre-ADR-0021 inline query
+> (`object` + `categoryField` + `valueField` + `aggregate`, pivot
+> `rowField`/`columnField`) was removed at `@objectstack/spec` 9.0.0 and is a
+> hard error under `DashboardWidgetSchema.strict()` (framework#3251). Examples
+> below use the dataset shape.
+
 ## Period-over-period comparison (`compareTo`)
 
-Any widget that binds to an `object` (metric / gauge / chart) can opt into a
+Any dataset-bound widget (metric / gauge / chart) can opt into a
 period-over-period comparison by adding a `compareTo` field. The renderer
-issues a second aggregate against the comparison-period filter and:
+issues a second dataset query against the comparison-period filter and:
 
 - For **metric** & **gauge** widgets, computes a delta percentage and surfaces
   it as a `trend` indicator (overrides any static `trend` prop).
@@ -46,24 +54,22 @@ without per-card configuration:
 {
   "id": "revenue",
   "type": "metric",
-  "object": "Order",
-  "aggregate": "sum",
-  "valueField": "amount",
+  "dataset": "order_metrics",
+  "values": ["revenue"],
   "filter": {
     "created_at": {
       "$gte": "{current_quarter_start}",
       "$lte": "{current_quarter_end}"
     }
   },
-  "compareTo": "previousPeriod",
-  "label": "Revenue (Q2 2026)",
-  "format": "currency",
-  "currency": "USD"
+  "compareTo": "previousPeriod"
 }
 ```
 
 Renders a KPI card showing this quarter's revenue with a `↑ 12.5% vs last quarter`
-delta sourced from the same aggregate run against Q1 2026.
+delta sourced from the same dataset query run against Q1 2026. (The `revenue`
+measure — its aggregate, field, format, and currency — is declared once on the
+`order_metrics` dataset, not inline on the widget.)
 
 ### Chart example (year-over-year line)
 
@@ -71,10 +77,9 @@ delta sourced from the same aggregate run against Q1 2026.
 {
   "id": "orders-trend",
   "type": "line",
-  "object": "Order",
-  "aggregate": "count",
-  "valueField": "id",
-  "categoryField": "created_at",
+  "dataset": "order_metrics",
+  "dimensions": ["created_at"],
+  "values": ["order_count"],
   "filter": {
     "created_at": {
       "$gte": "{current_year_start}",

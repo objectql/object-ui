@@ -37,19 +37,25 @@ import { InspectorCheckboxField, InspectorReorderButtons, moveArray } from './_s
 import { InspectorComboField, type InspectorComboOption } from './InspectorComboField';
 import { DatasetNamesEditor } from './ReportDefaultInspector';
 import { useDatasetCatalog, useDatasetSemantics } from '../previews/useDatasetCatalog';
-import { useObjectFields, type ObjectFieldInfo } from '../previews/useObjectFields';
-import { useObjectOptions } from './useDatasetFields';
+import type { ObjectFieldInfo } from '../previews/useObjectFields';
 
+// ADR-0021: dashboard widgets author the semantic-layer dataset shape only
+// (dataset + dimensions + values). The pre-ADR-0021 inline single-object query
+// (object / valueField / categoryField / aggregate) was removed from the spec
+// at @objectstack/spec 9.0.0 and is no longer authored here — its fields are
+// gone so no Studio surface can emit the dead shape (framework#3251).
 const WIDGET_TYPES = [
   { value: 'metric', label: 'KPI Metric' },
   { value: 'bar', label: 'Bar Chart' },
+  { value: 'horizontal-bar', label: 'Horizontal Bar' },
   { value: 'line', label: 'Line Chart' },
+  { value: 'area', label: 'Area Chart' },
   { value: 'pie', label: 'Pie Chart' },
+  { value: 'donut', label: 'Donut Chart' },
+  { value: 'funnel', label: 'Funnel' },
   { value: 'table', label: 'Table' },
-  { value: 'grid', label: 'Grid' },
+  { value: 'pivot', label: 'Pivot Table' },
 ];
-
-const AGGREGATES = ['count', 'sum', 'avg', 'min', 'max'];
 
 const COLORS = [
   'default',
@@ -95,7 +101,6 @@ export function DashboardWidgetInspector({
   // objectui bumps `@objectstack/spec`. Same accessor pattern as DatasetWidget.
   const w = (hit?.widget ?? {}) as any;
   const datasetName = typeof w.dataset === 'string' ? (w.dataset as string) : '';
-  const objectName = typeof w.object === 'string' ? (w.object as string) : '';
   const dimensions: string[] = Array.isArray(w.dimensions)
     ? (w.dimensions as unknown[]).filter((x): x is string => typeof x === 'string')
     : [];
@@ -103,13 +108,11 @@ export function DashboardWidgetInspector({
     ? (w.values as unknown[]).filter((x): x is string => typeof x === 'string')
     : [];
 
-  // Catalogs — called unconditionally (stable hook order) BEFORE any early
-  // return, so the dataset/object/field pickers below bind to the live schema
-  // instead of free-text the author has to recall.
+  // Catalog — called unconditionally (stable hook order) BEFORE any early
+  // return, so the dataset / dimensions / values pickers below bind to the
+  // live schema instead of free-text the author has to recall.
   const catalog = useDatasetCatalog();
   const semantics = useDatasetSemantics(datasetName || undefined, catalog);
-  const { options: objectOptions, loading: objectsLoading } = useObjectOptions();
-  const { fields: objectFields } = useObjectFields(objectName || undefined);
 
   const datasetComboOptions: InspectorComboOption[] = React.useMemo(() => {
     const opts = catalog.datasets.map((d) => ({
@@ -121,20 +124,19 @@ export function DashboardWidgetInspector({
     }
     return opts;
   }, [catalog.datasets, datasetName]);
-  const objectComboOptions: InspectorComboOption[] = React.useMemo(
-    () => objectOptions.map((o) => ({ value: o.name, label: o.label })),
-    [objectOptions],
-  );
-  const fieldComboOptions: InspectorComboOption[] = React.useMemo(
-    () => objectFields.map((f) => ({ value: f.name, label: f.label, hint: f.type })),
-    [objectFields],
-  );
   const measureOptions: ObjectFieldInfo[] = React.useMemo(
     () => semantics.measures.map((m) => ({ name: m.name, label: m.aggregate ? `${m.name} · ${m.aggregate}` : m.name, type: 'number', hidden: false })),
     [semantics.measures],
   );
   const dimensionOptions: ObjectFieldInfo[] = React.useMemo(
     () => semantics.dimensions.map((d) => ({ name: d.name, label: d.name, type: d.type ?? 'text', hidden: false })),
+    [semantics.dimensions],
+  );
+  // Filter-binding field picker options come from the bound dataset's
+  // dimensions (the fields a widget filter can target), replacing the removed
+  // object-field source.
+  const fieldComboOptions: InspectorComboOption[] = React.useMemo(
+    () => semantics.dimensions.map((d) => ({ value: d.name, label: d.name, hint: d.type })),
     [semantics.dimensions],
   );
 
@@ -247,14 +249,12 @@ export function DashboardWidgetInspector({
         </Select>
       </Field>
 
-      {/* Dataset binding (ADR-0021) — governed cross-object semantic layer.
-          When `dataset` is set, DashboardRenderer renders this widget via
-          <DatasetWidget> (consistent numbers, cross-object, RLS-enforced),
-          taking precedence over the inline single-object query below. The
-          inline fields are kept visible so existing widgets stay editable
-          (additive dual-form, mirroring report's dataset binding). */}
-      <div className="space-y-3 rounded-md border border-dashed border-primary/40 bg-primary/5 p-3">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-primary/80">
+      {/* Dataset binding (ADR-0021) — the single author-facing analytics
+          shape. The widget binds a governed cross-object `dataset` and selects
+          its dimensions/measures by name; DashboardRenderer renders it via
+          <DatasetWidget> (consistent numbers, cross-object, RLS-enforced). */}
+      <div className="space-y-3 rounded-md border p-3">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           {t('engine.inspector.widget.datasetSection', locale)}
         </div>
         <Field id="widget-dataset" label={t('engine.inspector.widget.dataset', locale)}>
@@ -300,62 +300,6 @@ export function DashboardWidgetInspector({
           </>
         )}
       </div>
-
-      <Field id="widget-object" label={t('engine.inspector.widget.object', locale)}>
-        <InspectorComboField
-          value={widget.object ?? ''}
-          onCommit={(v) => patchWidget({ object: v || undefined })}
-          options={objectComboOptions}
-          loading={objectsLoading}
-          placeholder="Select an object…"
-          searchPlaceholder="Search objects…"
-          disabled={readOnly}
-          mono
-        />
-      </Field>
-
-      <Field id="widget-value-field" label={t('engine.inspector.widget.valueField', locale)}>
-        <InspectorComboField
-          value={widget.valueField ?? ''}
-          onCommit={(v) => patchWidget({ valueField: v || undefined })}
-          options={fieldComboOptions}
-          placeholder={widget.object ? 'Select a field…' : 'e.g. amount'}
-          searchPlaceholder="Search fields…"
-          disabled={readOnly}
-          mono
-        />
-      </Field>
-
-      <Field id="widget-category-field" label={t('engine.inspector.widget.categoryField', locale)}>
-        <InspectorComboField
-          value={widget.categoryField ?? ''}
-          onCommit={(v) => patchWidget({ categoryField: v || undefined })}
-          options={fieldComboOptions}
-          placeholder={widget.object ? 'Select a field…' : 'e.g. status'}
-          searchPlaceholder="Search fields…"
-          disabled={readOnly}
-          mono
-        />
-      </Field>
-
-      <Field id="widget-aggregate" label={t('engine.inspector.widget.aggregate', locale)}>
-        <Select
-          value={widget.aggregate ?? 'count'}
-          onValueChange={(v) => patchWidget({ aggregate: v })}
-          disabled={readOnly}
-        >
-          <SelectTrigger id="widget-aggregate">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {AGGREGATES.map((a) => (
-              <SelectItem key={a} value={a}>
-                {a}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
 
       {/* Dashboard filter bindings (framework#2501) — one row per dashboard
           filter: an Apply toggle (unchecked writes `false` = opt out) and a
