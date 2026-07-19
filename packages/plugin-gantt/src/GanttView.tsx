@@ -3428,6 +3428,18 @@ export function GanttView({
                 <div className="w-16 gantt-sm-w20 text-right">{t('gantt.column.end')}</div>
               </>
             )}
+            {/* Mirror of the data rows' 「→」 open-details slot (w-6 + 4px gap).
+                Every row reserves it whenever onTaskClick is live, so the
+                header must too — otherwise the 开始/结束 labels sit 28px to the
+                right of the values they caption. */}
+            {onTaskClick && (
+              <div
+                className="w-6 shrink-0 hidden sm:block"
+                style={{ marginLeft: 4 }}
+                aria-hidden="true"
+                data-testid="gantt-header-open-spacer"
+              />
+            )}
           </div>
           
           {/* Timeline Header — two scale rows: group (month/year) over units */}
