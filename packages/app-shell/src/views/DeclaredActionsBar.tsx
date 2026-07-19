@@ -65,6 +65,13 @@ export interface DeclaredActionsBarProps {
    * round-trip (and lets a host that already holds the object def reuse it).
    */
   actions?: ActionDef[];
+  /**
+   * Action names to drop from the rendered set. Use when the host renders a few
+   * of the object's declared actions itself (e.g. the approvals inbox keeps
+   * approve/reject in a richer composer with an attachment field) but wants the
+   * bar to cover the rest — so the two never render duplicate buttons.
+   */
+  exclude?: string[];
   /** Extra classes for the toolbar wrapper. */
   className?: string;
   /**
@@ -158,6 +165,7 @@ export function DeclaredActionsBar({
   location,
   onDone,
   actions: actionsProp,
+  exclude,
   className,
   label,
 }: DeclaredActionsBarProps) {
@@ -172,8 +180,16 @@ export function DeclaredActionsBar({
   );
 
   const located = useMemo(
-    () => allActions.filter((a: any) => Array.isArray(a?.locations) && a.locations.includes(location)),
-    [allActions, location],
+    () => {
+      const drop = exclude && exclude.length ? new Set(exclude) : null;
+      return allActions.filter(
+        (a: any) =>
+          Array.isArray(a?.locations) &&
+          a.locations.includes(location) &&
+          !(drop && drop.has(a?.name)),
+      );
+    },
+    [allActions, location, exclude],
   );
 
   // Mount the shared console action runtime — confirm/param/result dialogs, the

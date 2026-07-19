@@ -90,6 +90,36 @@ describe('DeclaredActionsBar', () => {
     expect(screen.queryByTestId('declared-action-approval_bulk')).toBeNull();
   });
 
+  it('drops `exclude`d actions so a host can keep some in its own UI', () => {
+    render(
+      <DeclaredActionsBar
+        objectName="sys_approval_request"
+        record={REQUEST}
+        location="record_section"
+        actions={ACTIONS as any}
+        exclude={['approval_approve']}
+      />,
+    );
+    // Excluded by name — the host renders approve itself.
+    expect(screen.queryByTestId('declared-action-approval_approve')).toBeNull();
+    // The rest still render.
+    expect(screen.getByTestId('declared-action-approval_reassign')).toBeInTheDocument();
+  });
+
+  it('renders nothing (no chrome) when `exclude` empties the located set', () => {
+    const { container } = render(
+      <DeclaredActionsBar
+        objectName="sys_approval_request"
+        record={REQUEST}
+        location="record_section"
+        label="Actions"
+        actions={[ACTIONS[0]] as any}
+        exclude={['approval_approve']}
+      />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
   it('renders nothing when no declared action matches the location', () => {
     const { container } = render(
       <DeclaredActionsBar

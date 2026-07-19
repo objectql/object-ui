@@ -81,7 +81,6 @@ import { useObjectTranslation } from '@object-ui/i18n';
 import {
   CheckCircle2,
   XCircle,
-  Undo2,
   Clock,
   RefreshCw,
   AlertCircle,
@@ -93,12 +92,8 @@ import {
   User as UserIcon,
   ChevronLeft,
   ChevronRight,
-  ArrowRightLeft,
-  BellRing,
-  HelpCircle,
   Send,
   Check,
-  CornerUpLeft,
   Paperclip,
 } from 'lucide-react';
 import {
@@ -435,18 +430,14 @@ export function ApprovalsInboxPage() {
   const [rejectTarget, setRejectTarget] = useState<ApprovalRequestRow | null>(null);
   const [inlineActing, setInlineActing] = useState<string | null>(null);
 
-  // Thread interactions (reassign / request-info / reply / remind)
-  const [reassignOpen, setReassignOpen] = useState(false);
-  const [reassignTo, setReassignTo] = useState('');
-  const [requestInfoOpen, setRequestInfoOpen] = useState(false);
-  const [requestInfoText, setRequestInfoText] = useState('');
-  // Send back for revision (ADR-0044) — a flow movement, unlike request-info.
-  const [sendBackOpen, setSendBackOpen] = useState(false);
-  const [sendBackText, setSendBackText] = useState('');
-  const [resubmitting, setResubmitting] = useState(false);
+  // Thread reply. The secondary decision levers (reassign / request-info /
+  // send-back / remind / recall / resubmit) are no longer hand-wired here —
+  // they ship as the object's server-declared actions and render through
+  // DeclaredActionsBar (objectui#2678 P2-4 + framework#3300). The rich
+  // approve/reject composer below stays, because it collects file attachments
+  // the generic param dialog can't yet.
   const [reply, setReply] = useState('');
   const [threadBusy, setThreadBusy] = useState(false);
-  const [userOptions, setUserOptions] = useState<Array<{ name: string; email: string }>>([]);
 
   // Keyboard row focus
   const [focusIndex, setFocusIndex] = useState<number>(-1);
@@ -667,106 +658,6 @@ export function ApprovalsInboxPage() {
     void load();
   }, [load]);
 
-  const doReassign = useCallback(async () => {
-    if (!selected || !reassignTo.trim()) return;
-    setThreadBusy(true);
-    try {
-      await approvalsApi.reassign(selected.id, {
-        actor_id: resolveActor(selected), to: reassignTo.trim(), comment: comment.trim() || undefined,
-      });
-      toast.success(tr('reassignSuccess', 'Handed to {{to}}', { to: reassignTo.trim() }));
-      setReassignOpen(false);
-      setReassignTo('');
-      setComment('');
-      await refreshThread(selected.id);
-      refreshBadge();
-    } catch (err: any) {
-      toast.error(humanizeError(err, tr('actionFailed', 'Action failed')));
-    } finally {
-      setThreadBusy(false);
-    }
-  }, [selected, reassignTo, comment, resolveActor, refreshThread, refreshBadge, humanizeError, tr]);
-
-  const doRemind = useCallback(async () => {
-    if (!selected) return;
-    setThreadBusy(true);
-    try {
-      const res = await approvalsApi.remind(selected.id, { actor_id: user?.id });
-      toast.success(tr('remindSuccess', 'Reminder sent to {{count}} approver(s)', { count: res.notified }));
-      await refreshThread(selected.id);
-    } catch (err: any) {
-      toast.error(humanizeError(err, tr('actionFailed', 'Action failed')));
-    } finally {
-      setThreadBusy(false);
-    }
-  }, [selected, user?.id, refreshThread, humanizeError, tr]);
-
-  const doRequestInfo = useCallback(async () => {
-    if (!selected || !requestInfoText.trim()) return;
-    setThreadBusy(true);
-    try {
-      await approvalsApi.requestInfo(selected.id, {
-        actor_id: resolveActor(selected), comment: requestInfoText.trim(),
-      });
-      toast.success(tr('requestInfoSent', 'Sent back to the requester for more information'));
-      setRequestInfoOpen(false);
-      setRequestInfoText('');
-      await refreshThread(selected.id);
-    } catch (err: any) {
-      toast.error(humanizeError(err, tr('actionFailed', 'Action failed')));
-    } finally {
-      setThreadBusy(false);
-    }
-  }, [selected, requestInfoText, resolveActor, refreshThread, humanizeError, tr]);
-
-  /**
-   * Send back for revision (ADR-0044): finalizes this round as `returned`,
-   * unlocks the record, and parks the flow until the submitter resubmits.
-   * Past the node's revision budget the server auto-rejects instead.
-   */
-  const doSendBack = useCallback(async () => {
-    if (!selected) return;
-    setThreadBusy(true);
-    try {
-      const res = await approvalsApi.sendBack(selected.id, {
-        actor_id: resolveActor(selected), comment: sendBackText.trim() || undefined,
-      });
-      toast.success(res.autoRejected
-        ? tr('sendBackAutoRejected', 'Revision limit reached — the request was auto-rejected')
-        : tr('sendBackSuccess', 'Sent back for revision — the requester can now edit and resubmit'));
-      setSendBackOpen(false);
-      setSendBackText('');
-      await refreshThread(selected.id);
-      refreshBadge();
-    } catch (err: any) {
-      toast.error(humanizeError(err, tr('actionFailed', 'Action failed')));
-    } finally {
-      setThreadBusy(false);
-    }
-  }, [selected, sendBackText, resolveActor, refreshThread, refreshBadge, humanizeError, tr]);
-
-  /**
-   * Resubmit after rework (ADR-0044, submitter): the flow re-enters the
-   * approval node and opens the next round's request.
-   */
-  const doResubmit = useCallback(async () => {
-    if (!selected) return;
-    setResubmitting(true);
-    try {
-      await approvalsApi.resubmit(selected.id, {
-        actor_id: user?.id, comment: comment.trim() || undefined,
-      });
-      toast.success(tr('resubmitSuccess', 'Resubmitted — a new approval round has opened'));
-      setComment('');
-      await refreshThread(selected.id);
-      refreshBadge();
-    } catch (err: any) {
-      toast.error(humanizeError(err, tr('actionFailed', 'Action failed')));
-    } finally {
-      setResubmitting(false);
-    }
-  }, [selected, comment, user?.id, refreshThread, refreshBadge, humanizeError, tr]);
-
   const doReply = useCallback(async () => {
     if (!selected || !reply.trim()) return;
     setThreadBusy(true);
@@ -780,19 +671,6 @@ export function ApprovalsInboxPage() {
       setThreadBusy(false);
     }
   }, [selected, reply, user?.id, refreshThread, humanizeError, tr]);
-
-  /** Lazy user directory for the reassign picker (name + email datalist). */
-  const loadUserOptions = useCallback(async () => {
-    if (userOptions.length) return;
-    try {
-      const base = (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, '');
-      const res = await fetch(`${base}/api/v1/data/sys_user?limit=100`, { credentials: 'include' });
-      const j = await res.json();
-      setUserOptions(((j.records || []) as any[])
-        .filter(u => u.email && u.name && u.id !== user?.id)
-        .map(u => ({ name: String(u.name), email: String(u.email) })));
-    } catch { /* picker degrades to free text */ }
-  }, [userOptions.length, user?.id]);
 
   const canApproveReject = useMemo(() => {
     if (!selected || selected.status !== 'pending') return false;
@@ -1477,88 +1355,6 @@ export function ApprovalsInboxPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Reassign dialog */}
-      <AlertDialog open={reassignOpen} onOpenChange={(open) => { if (!open) { setReassignOpen(false); setReassignTo(''); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{tr('reassignTitle', 'Hand this approval to someone else?')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {tr('reassignBody', 'Your approver slot moves to the person you pick — they are notified and can act immediately.')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div>
-            <Label htmlFor="reassign-to" className="text-xs">{tr('reassignTo', 'New approver')}</Label>
-            <Input
-              id="reassign-to"
-              list="reassign-user-options"
-              value={reassignTo}
-              onChange={(e) => setReassignTo(e.target.value)}
-              placeholder={tr('reassignToPlaceholder', 'Pick a user or type an email / role:<name>')}
-              className="mt-1"
-            />
-            <datalist id="reassign-user-options">
-              {userOptions.map(u => (
-                <option key={u.email} value={u.email}>{u.name}</option>
-              ))}
-            </datalist>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{tr('cancel', 'Cancel')}</AlertDialogCancel>
-            <AlertDialogAction disabled={!reassignTo.trim() || threadBusy} onClick={() => void doReassign()}>
-              {tr('reassignBtn', 'Reassign')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Request-info dialog */}
-      <AlertDialog open={requestInfoOpen} onOpenChange={(open) => { if (!open) { setRequestInfoOpen(false); setRequestInfoText(''); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{tr('requestInfoTitle', 'Ask the requester for more information?')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {tr('requestInfoBody', 'The request stays pending; the requester is notified and can reply on the thread.')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <Textarea
-            value={requestInfoText}
-            onChange={(e) => setRequestInfoText(e.target.value)}
-            rows={3}
-            placeholder={tr('requestInfoPlaceholder', 'What do you need from the requester?')}
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel>{tr('cancel', 'Cancel')}</AlertDialogCancel>
-            <AlertDialogAction disabled={!requestInfoText.trim() || threadBusy} onClick={() => void doRequestInfo()}>
-              {tr('requestInfoBtn', 'Request info')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Send back for revision dialog (ADR-0044) */}
-      <AlertDialog open={sendBackOpen} onOpenChange={(open) => { if (!open) { setSendBackOpen(false); setSendBackText(''); } }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{tr('sendBackTitle', 'Send this request back for revision?')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {tr('sendBackBody', 'This round ends and the record unlocks so the requester can fix the data. When they resubmit, a fresh approval round opens for all approvers.')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <Textarea
-            value={sendBackText}
-            onChange={(e) => setSendBackText(e.target.value)}
-            rows={3}
-            placeholder={tr('sendBackPlaceholder', 'What needs to be fixed before this can be approved?')}
-          />
-          <AlertDialogFooter>
-            <AlertDialogCancel>{tr('cancel', 'Cancel')}</AlertDialogCancel>
-            <AlertDialogAction disabled={threadBusy} onClick={() => void doSendBack()}>
-              {tr('sendBackBtn', 'Send back')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       {/* Shared inline-reject confirmation */}
       <AlertDialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
         <AlertDialogContent>
@@ -1988,63 +1784,6 @@ export function ApprovalsInboxPage() {
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
-                      {canApproveReject && (
-                        <>
-                          <Button
-                            size="sm" variant="outline" disabled={submitting !== null || threadBusy}
-                            className="border-violet-300 text-violet-700 hover:bg-violet-50 dark:text-violet-400"
-                            onClick={() => setSendBackOpen(true)}
-                          >
-                            <CornerUpLeft className="h-4 w-4 mr-1" />
-                            {tr('sendBackBtn', 'Send back')}
-                          </Button>
-                          <Button
-                            size="sm" variant="outline" disabled={submitting !== null || threadBusy}
-                            className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-400"
-                            onClick={() => setRequestInfoOpen(true)}
-                          >
-                            <HelpCircle className="h-4 w-4 mr-1" />
-                            {tr('requestInfoBtn', 'Request info')}
-                          </Button>
-                          <Button
-                            size="sm" variant="outline" disabled={submitting !== null || threadBusy}
-                            onClick={() => { void loadUserOptions(); setReassignOpen(true); }}
-                          >
-                            <ArrowRightLeft className="h-4 w-4 mr-1" />
-                            {tr('reassignBtn', 'Reassign')}
-                          </Button>
-                        </>
-                      )}
-                      {canRecall && (
-                        <Button size="sm" variant="outline" disabled={threadBusy} onClick={() => void doRemind()}>
-                          <BellRing className="h-4 w-4 mr-1" />
-                          {tr('remindBtn', 'Send reminder')}
-                        </Button>
-                      )}
-                      {canRecall && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="outline" disabled={submitting !== null}>
-                              <Undo2 className="h-4 w-4 mr-1" />
-                              {submitting === 'recall' ? tr('recalling', 'Recalling…') : tr('recall', 'Recall')}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>{tr('recallTitle', 'Recall this request?')}</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                {tr('recallBody', 'This withdraws your request. Approvers can no longer act on it, and the record is unlocked.')}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>{tr('cancel', 'Cancel')}</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => doAction('recall')}>
-                                {tr('recall', 'Recall')}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      )}
                     </div>
                     {!canApproveReject && (
                       <div className="text-xs text-muted-foreground">
@@ -2055,22 +1794,23 @@ export function ApprovalsInboxPage() {
                             })}
                       </div>
                     )}
-                    {/* SERVER-DECLARED actions (objectui#2678 P2-4). Additive to the
-                        rich composer above: renders whatever `sys_approval_request`
-                        actions the backend declares at `record_section`
-                        (approval_approve / approval_reject / approval_reassign),
-                        executed through the shared console action runtime with ZERO
-                        inbox-specific per-action code — a follow-up retires the
-                        hardcoded buttons above. The record is the selected request
-                        row, so a `type:'api'` target like
-                        `/api/v1/approvals/requests/{id}/…` resolves `{id}` from it.
-                        Renders nothing (incl. its divider/label) when the object
-                        declares no such actions. */}
+                    {/* SERVER-DECLARED secondary actions (objectui#2678 P2-4 +
+                        framework#3300). The inbox no longer hand-wires send-back /
+                        request-info / reassign / remind / recall — they ship as the
+                        object's declared actions and render + execute here through
+                        the shared console action runtime with ZERO per-action code.
+                        Each action's `visible` CEL gates it (submitter levers on
+                        `submitter_id == ctx.user.id`; approver levers on
+                        `status == pending`), and its `{id}`-interpolated `type:'api'`
+                        target resolves from the selected row. approve/reject are
+                        `exclude`d because the composer above keeps them — it collects
+                        file attachments the generic param dialog can't yet. */}
                     <DeclaredActionsBar
                       objectName="sys_approval_request"
                       record={selected}
                       location="record_section"
-                      label={tr('declaredActions', 'Actions')}
+                      exclude={['approval_approve', 'approval_reject']}
+                      label={tr('declaredActions', 'More actions')}
                       onDone={() => { void refreshThread(selected.id); void load(); }}
                     />
                   </div>
@@ -2087,50 +1827,24 @@ export function ApprovalsInboxPage() {
                     <div className="text-xs text-muted-foreground">
                       {tr('returnedHint', 'An approver sent this back to you. The record is unlocked — fix the data, then resubmit to start a new approval round.')}
                     </div>
-                    <div>
-                      <Label htmlFor="resubmit-comment" className="text-xs">{tr('comment', 'Comment (optional)')}</Label>
-                      <Textarea
-                        id="resubmit-comment"
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        rows={2}
-                        className="mt-1"
-                        placeholder={tr('resubmitPlaceholder', 'What did you change?')}
-                      />
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className="flex gap-2 flex-wrap items-center">
                       <Button asChild size="sm" variant="outline">
                         <Link to={recordHref(selected)}>
                           <ExternalLink className="h-4 w-4 mr-1" />
                           {tr('editRecordBtn', 'Edit record')}
                         </Link>
                       </Button>
-                      <Button size="sm" disabled={resubmitting} onClick={() => void doResubmit()}>
-                        <RefreshCw className={cn('h-4 w-4 mr-1', resubmitting && 'animate-spin')} />
-                        {resubmitting ? tr('resubmitting', 'Resubmitting…') : tr('resubmitBtn', 'Resubmit')}
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button size="sm" variant="outline" disabled={resubmitting}>
-                            <Undo2 className="h-4 w-4 mr-1" />
-                            {tr('recall', 'Recall')}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>{tr('abandonTitle', 'Abandon this revision?')}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {tr('abandonBody', 'This withdraws the request instead of resubmitting it. The approval ends here.')}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>{tr('cancel', 'Cancel')}</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => doAction('recall')}>
-                              {tr('recall', 'Recall')}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      {/* Resubmit / recall-abandon ship as the object's declared
+                          actions (gated to the submitter on a `returned` request)
+                          and render + execute here — the resubmit dialog collects
+                          the "what changed?" comment. */}
+                      <DeclaredActionsBar
+                        objectName="sys_approval_request"
+                        record={selected}
+                        location="record_section"
+                        exclude={['approval_approve', 'approval_reject']}
+                        onDone={() => { void refreshThread(selected.id); void load(); }}
+                      />
                     </div>
                   </div>
                 </>
