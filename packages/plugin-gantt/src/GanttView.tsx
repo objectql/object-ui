@@ -479,6 +479,14 @@ export interface GanttViewProps {
   /** Disables the refresh button while a host-driven reload is in flight. */
   refreshing?: boolean
   /**
+   * Whether the data source can persist dependency LINK TYPES (fs/ss/ff/sf).
+   * Default true. Set false when dependencies are stored as bare predecessor
+   * ids (仅存紧前 id,无类型位) — the link context menu then hides the type
+   * switcher (a switch would be silently reverted on refetch) and drag-created
+   * links are always FS regardless of which endpoints were connected.
+   */
+  dependencyTypes?: boolean
+  /**
    * Business time zone for rendering (业务时区), an IANA name like
    * 'Asia/Shanghai'. The chart's calendar math — shift bands, day columns,
    * drag snapping, the today line, start/end labels — renders this zone's
@@ -686,6 +694,7 @@ export function GanttView({
   onLayoutChange,
   onRefresh,
   refreshing = false,
+  dependencyTypes = true,
   timeZone,
   exportFileName,
   interactions,
@@ -1396,7 +1405,11 @@ export function GanttView({
         // Finish (end) vs Start (start), the target endpoint picks the second
         // letter. end→start = FS, end→end = FF, start→start = SS, start→end = SF.
         const targetEnd = cur.targetEnd ?? 'start';
-        const type: GanttLinkType = `${cur.sourceEnd === 'end' ? 'f' : 's'}${targetEnd === 'end' ? 'f' : 's'}` as GanttLinkType;
+        // Data sources without a type slot (dependencyTypes:false) always
+        // create FS — any other type would be silently lost on persist.
+        const type: GanttLinkType = dependencyTypes
+          ? (`${cur.sourceEnd === 'end' ? 'f' : 's'}${targetEnd === 'end' ? 'f' : 's'}` as GanttLinkType)
+          : 'fs';
         if (
           source && target &&
           canReceiveLink(cur.sourceId, target) &&
@@ -1417,7 +1430,7 @@ export function GanttView({
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
     };
-  }, [linkDrag, tasks, onDependencyCreate, onBeforeDependencyCreate, canReceiveLink]);
+  }, [linkDrag, tasks, onDependencyCreate, onBeforeDependencyCreate, canReceiveLink, dependencyTypes]);
 
   // --- Context menu ---------------------------------------------------------
   const [ctxMenu, setCtxMenu] = React.useState<{ x: number; y: number; taskId: string | number } | null>(null);
@@ -4873,7 +4886,7 @@ export function GanttView({
                 🚫 {t('gantt.lockedHint')}
               </div>
             )}
-            {onDependencyCreate && LINK_TYPES.map((lt) => (
+            {onDependencyCreate && dependencyTypes && LINK_TYPES.map((lt) => (
               <button
                 key={lt}
                 type="button"

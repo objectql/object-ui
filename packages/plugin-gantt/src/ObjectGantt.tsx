@@ -170,6 +170,14 @@ type GanttConfigEx = GanttConfig & {
    */
   autoZoomToFilter?: boolean;
   /**
+   * Whether the backing store persists dependency link TYPES (fs/ss/ff/sf).
+   * Default true. Set false when dependencies are bare predecessor ids
+   * (仅存紧前 id) — the link menu hides the type switcher (a switch would be
+   * silently reverted on refetch) and drag-created links are always FS.
+   * Forwarded to {@link GanttView}.
+   */
+  dependencyTypes?: boolean;
+  /**
    * Business time zone (业务时区), IANA name like 'Asia/Shanghai'. Renders the
    * chart's calendar — shift bands, day columns, snapping, today line, date
    * labels — in this zone's wall time for every viewer, instead of the
@@ -386,6 +394,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           interactions: schema.interactions,
           exportFileName: schema.exportFileName,
           timeZone: schema.timeZone,
+          dependencyTypes: schema.dependencyTypes,
       };
       return config;
   }
@@ -1439,6 +1448,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           defaultCollapsedDepth={ganttConfig?.defaultCollapsedDepth}
           summaryExtent={ganttConfig?.summaryExtent}
           interactions={ganttConfig?.interactions}
+          dependencyTypes={ganttConfig?.dependencyTypes}
           timeZone={ganttConfig?.timeZone}
           onBeforeTaskUpdate={onBeforeTaskUpdate}
           exportFileName={
