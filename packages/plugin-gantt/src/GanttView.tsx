@@ -432,6 +432,13 @@ export interface GanttViewProps {
   /** Disables the refresh button while a host-driven reload is in flight. */
   refreshing?: boolean
   /**
+   * Base name for exported files (导出文件名), e.g. the view or object label —
+   * "排班计划甘特图" exports as `排班计划甘特图-20260719-1530.png`. Falls back
+   * to "gantt". The timestamp suffix keeps repeated exports from silently
+   * overwriting each other in the Downloads folder.
+   */
+  exportFileName?: string
+  /**
    * Per-interaction switches (交互开关). Omit for all-on. See
    * {@link GanttInteractions}: e.g. `{ resize: false }` keeps bars movable and
    * links drawable but pins every duration; `{ link: false }` removes the
@@ -622,6 +629,7 @@ export function GanttView({
   onLayoutChange,
   onRefresh,
   refreshing = false,
+  exportFileName,
   interactions,
   onBeforeTaskUpdate,
 }: GanttViewProps) {
@@ -2851,6 +2859,9 @@ export function GanttView({
     // Timeline: bars / milestones / links / today line.
     parts.push(`<g transform="translate(${nameW},${headerH})" font-family="sans-serif" font-size="9">`);
     rows.forEach((row, i) => {
+      // 分组层级 (项目/产品): a pure tree header — the live chart draws NO
+      // bar for these rows, so the export must not invent a rollup one.
+      if (row.task.type === 'group') return;
       const y = i * rowHeight;
       const { left, width } = styleFor(row.start, row.end);
       const crit = isCriticalTask(row.task.id);
@@ -2910,13 +2921,25 @@ export function GanttView({
     return { svg, W, H };
   }, [tasks, rows, links, linkPath, styleFor, isCriticalTask, critical, timeColumns, colOffsets, totalWidth, taskListWidth, rowHeight, barTop, barHeight, summaryBarTop, summaryBarHeight, milestoneSize, todayLeftPx, viewMode, showBaselines, baselineTop, baselineHeight, BASELINE_FILL, BASELINE_BORDER, resolvedMarkers, headerGroups]);
 
+  // 导出文件名: `<view/object label>-<yyyyMMdd-HHmm>.<ext>` — carries the
+  // business context instead of an opaque `gantt-week`, and the timestamp
+  // keeps repeated exports from overwriting each other. Filesystem-hostile
+  // characters are stripped from the label.
+  const exportFileBase = React.useCallback(() => {
+    const base = (exportFileName ?? '').replace(/[\\/:*?"<>|\s]+/g, ' ').trim() || 'gantt';
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    const ts = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+    return `${base}-${ts}`;
+  }, [exportFileName]);
+
   const exportPng = React.useCallback(async () => {
     const built = buildExportSvg();
     if (!built) return;
     const canvas = await rasterizeSvg(built.svg, built.W, built.H);
     if (!canvas) return;
-    canvas.toBlob((png) => { if (png) downloadBlob(png, `gantt-${viewMode}.png`); }, 'image/png');
-  }, [buildExportSvg, viewMode]);
+    canvas.toBlob((png) => { if (png) downloadBlob(png, `${exportFileBase()}.png`); }, 'image/png');
+  }, [buildExportSvg, exportFileBase]);
 
   const exportPdf = React.useCallback(async () => {
     const built = buildExportSvg();
@@ -2926,8 +2949,8 @@ export function GanttView({
     // JPEG keeps the embedded image small and embeds directly via DCTDecode.
     const jpeg = dataUrlToBytes(canvas.toDataURL('image/jpeg', 0.92));
     const pdf = buildJpegPdf(jpeg, canvas.width, canvas.height);
-    downloadBlob(pdf, `gantt-${viewMode}.pdf`);
-  }, [buildExportSvg, viewMode]);
+    downloadBlob(pdf, `${exportFileBase()}.pdf`);
+  }, [buildExportSvg, exportFileBase]);
 
   // Snapshot the current layout (granularity + zoom + list state), persist it
   // under persistLayoutKey, and notify onLayoutChange. The persisted columnWidth
