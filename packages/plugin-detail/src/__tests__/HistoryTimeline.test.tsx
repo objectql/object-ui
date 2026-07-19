@@ -42,6 +42,20 @@ describe('HistoryTimeline', () => {
     expect(screen.queryByText('abc123XYZopaque')).toBeNull();
   });
 
+  it('uses the localized unknownUserText when provided', () => {
+    const entries: HistoryEntry[] = [
+      {
+        id: 5,
+        action: 'update',
+        user_id: 'abc123XYZopaque',
+        created_at: new Date().toISOString(),
+      },
+    ];
+    render(<HistoryTimeline entries={entries} unknownUserText="未知用户" />);
+    expect(screen.getByText('未知用户')).toBeTruthy();
+    expect(screen.queryByText('Unknown user')).toBeNull();
+  });
+
   it('renders per-field diff (old → new) with friendly labels', () => {
     const entries: HistoryEntry[] = [
       {

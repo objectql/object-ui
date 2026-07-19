@@ -40,6 +40,7 @@ import { useRecordApprovals } from '../hooks/useRecordApprovals';
 import { RecordAttachmentsPanel } from './RecordAttachmentsPanel';
 import { RecordPermissionAssignmentsRenderer } from './metadata-admin/RecordPermissionAssignmentsRenderer';
 import { getRecordDisplayName } from '../utils';
+import { parseAuditValue, collectAuditChanges, collectLookupIds, formatAuditValue } from '../utils/auditHistoryDisplay';
 import { useFavorites } from '../hooks/useFavorites';
 import { useActionModal } from '../hooks/useActionModal';
 import { useRecentItems } from '../hooks/useRecentItems';
@@ -156,7 +157,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
       label: parent.t || `#${shortId}`,
     };
   }, [originFromState, location.search, appName]);
-  const { t } = useObjectTranslation();
+  const { t, language } = useObjectTranslation();
   const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, actionDescription, fieldLabel, fieldOptionLabel } = useObjectLabel();
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
   const { addRecentItem } = useRecentItems();
@@ -924,12 +925,18 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     // ("Industry: finance → healthcare") instead of just the action verb.
     // The backend already authorises sys_audit_log row access; column-level
     // redaction would need to happen server-side, not by omitting columns here.
+    // `actor` (service/automation principal, ADR-0014 D2) is a newer column —
+    // only select it when the registered sys_audit_log schema declares it, so
+    // the whole query doesn't fail against older deployments.
+    const auditLogDef = objects.find((o: any) => o.name === 'sys_audit_log');
+    const hasActorColumn = !!auditLogDef?.fields?.actor;
+
     dataSource
       .find('sys_audit_log', {
         $filter: { record_id: pureRecordId, object_name: objectDef.name },
         $orderby: { created_at: 'desc' },
         $top: 50,
-        $select: ['id', 'created_at', 'action', 'user_id', 'old_value', 'new_value'],
+        $select: ['id', 'created_at', 'action', 'user_id', ...(hasActorColumn ? ['actor'] : []), 'old_value', 'new_value'],
       })
       .then(async (res: any) => {
         if (cancelled) return;
@@ -968,31 +975,62 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
           if (def?.label) fieldLabels[name] = def.label;
         }
 
-        const parseJson = (v: any): Record<string, unknown> | null => {
-          if (!v) return null;
-          if (typeof v === 'object') return v as Record<string, unknown>;
-          if (typeof v === 'string') {
-            try { return JSON.parse(v); } catch { return null; }
-          }
-          return null;
-        };
+        // 3) Compute display-worthy diffs (drops computed/hidden/system
+        //    fields and empty↔empty no-ops — see auditHistoryDisplay).
+        const rawChangesPerItem = items.map((it) =>
+          collectAuditChanges(parseAuditValue(it?.old_value), parseAuditValue(it?.new_value), objectDef.fields),
+        );
 
-        const enriched = items.map((it) => {
+        // 4) Batch-resolve lookup ids → record display labels (one query per
+        //    referenced object) so diffs show "紧前计划: 任务A" instead of a
+        //    raw id. Best-effort: a failed lookup keeps the raw id.
+        const lookupIdsByTarget = collectLookupIds(rawChangesPerItem.flat(), objectDef.fields);
+        const lookupLabels = new Map<string, Map<string, string>>();
+        await Promise.all(
+          Array.from(lookupIdsByTarget.entries()).map(async ([target, ids]) => {
+            const targetDef = objects.find((o: any) => o.name === target);
+            const titleField = resolveTitleField(targetDef) ?? 'name';
+            try {
+              const refRes = await dataSource.find(target, {
+                $filter: { id: { $in: Array.from(ids) } },
+                $top: ids.size,
+                $select: ['id', titleField],
+              });
+              const rows: any[] = Array.isArray(refRes) ? refRes : refRes?.data || [];
+              lookupLabels.set(
+                target,
+                new Map(
+                  rows
+                    .filter((r) => r?.id != null && typeof r?.[titleField] === 'string' && r[titleField])
+                    .map((r) => [String(r.id), r[titleField] as string]),
+                ),
+              );
+            } catch (err) {
+              console.warn(`[RecordDetailView] Failed to resolve audit lookup labels for ${target}:`, err);
+            }
+          }),
+        );
+        if (cancelled) return;
+
+        const fmtCtx = { t, locale: language, lookupLabels };
+        const enriched = items.map((it, idx) => {
           const u = it?.user_id ? userMap.get(it.user_id) : undefined;
-          const oldObj = parseJson(it?.old_value) || {};
-          const newObj = parseJson(it?.new_value) || {};
-          const fields = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
-          const changes = Array.from(fields)
-            .filter((f) => JSON.stringify(oldObj[f]) !== JSON.stringify(newObj[f]))
-            .map((f) => ({
-              field: f,
-              label: fieldLabels[f] || f,
-              from: oldObj[f],
-              to: newObj[f],
-            }));
+          // Attribution fallback chain: resolved user name → service/automation
+          // principal from the `actor` column (e.g. "svc:scheduler") → null
+          // (the timeline then shows its localized unknown-user text).
+          const actorLabel =
+            typeof it?.actor === 'string' && it.actor.trim() && it.actor !== it?.user_id
+              ? it.actor.trim()
+              : null;
+          const changes = rawChangesPerItem[idx].map((c) => ({
+            field: c.field,
+            label: fieldLabels[c.field] || c.field,
+            from: formatAuditValue(objectDef.fields?.[c.field], c.from, fmtCtx),
+            to: formatAuditValue(objectDef.fields?.[c.field], c.to, fmtCtx),
+          }));
           return {
             ...it,
-            user_name: u?.name ?? null,
+            user_name: u?.name ?? actorLabel,
             user_avatar: u?.image ?? null,
             changes: changes.length > 0 ? changes : undefined,
           };
@@ -1009,7 +1047,10 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         if (!cancelled) setHistoryLoading(false);
       });
     return () => { cancelled = true; };
-  }, [dataSource, pureRecordId, objectDef, historyEnabled]);
+    // `t` is identity-stable per language; `language` already refires the
+    // effect on locale switches so formatted diff values re-localize.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataSource, pureRecordId, objectDef, historyEnabled, objects, language]);
 
   // Fetch a directory of active users once per dataSource mount and expose
   // them as @-mention suggestions to the DiscussionContext. Capped at 50 to
@@ -1365,7 +1406,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         highlightFields?: string[];
         headerActions?: ActionDef[];
         related?: Array<{ title?: string; objectName: string; relationshipField: string; columns?: any[]; icon?: string; isPrimary?: boolean }>;
-        history?: { entries: any[]; loading: boolean };
+        history?: { entries: any[]; loading: boolean; unknownUserText?: string };
       };
     }
 
@@ -1595,6 +1636,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         history: {
           entries: historyEntries ?? [],
           loading: historyLoading && historyEntries === null,
+          unknownUserText: t('detail.unknownUser', { defaultValue: 'Unknown user' }),
         },
       }),
     };

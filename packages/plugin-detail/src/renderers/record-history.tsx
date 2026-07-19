@@ -32,6 +32,7 @@ export interface RecordHistoryRendererProps {
     entries?: HistoryEntry[];
     loading?: boolean;
     emptyText?: string;
+    unknownUserText?: string;
     limit?: number;
     properties?: Record<string, any>;
     [k: string]: any;
@@ -61,6 +62,7 @@ export const RecordHistoryRenderer: React.FC<RecordHistoryRendererProps> = ({
       : undefined;
   const hostLoading = schema.loading ?? schema.properties?.loading;
   const emptyText = schema.emptyText ?? schema.properties?.emptyText;
+  const unknownUserText = schema.unknownUserText ?? schema.properties?.unknownUserText;
   const limit: number = Number(schema.limit ?? schema.properties?.limit ?? 50) || 50;
 
   // Self-fetch only when the host did not supply entries.
@@ -112,7 +114,7 @@ export const RecordHistoryRenderer: React.FC<RecordHistoryRendererProps> = ({
 
   return (
     <div className={className} {...designer}>
-      <HistoryTimeline entries={entries} loading={loading} emptyText={emptyText} />
+      <HistoryTimeline entries={entries} loading={loading} emptyText={emptyText} unknownUserText={unknownUserText} />
     </div>
   );
 };

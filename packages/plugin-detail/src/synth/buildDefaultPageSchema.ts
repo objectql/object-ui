@@ -175,7 +175,7 @@ export interface BuildPageOptions {
    * renderer. The host supplies the audit-log `entries` and `loading`
    * flag because the data fetch logic lives in RecordDetailView.
    */
-  history?: { entries: any[]; loading?: boolean; emptyText?: string };
+  history?: { entries: any[]; loading?: boolean; emptyText?: string; unknownUserText?: string };
   /**
    * Slot override map. When a slot is provided, the synthesizer emits
    * the override verbatim at the slot's position instead of computing
@@ -606,6 +606,7 @@ export function buildDefaultTabs(
           entries: options.history.entries,
           loading: options.history.loading,
           emptyText: options.history.emptyText,
+          unknownUserText: options.history.unknownUserText,
         },
       ],
     });

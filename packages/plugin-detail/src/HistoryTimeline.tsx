@@ -54,6 +54,8 @@ export interface HistoryTimelineProps {
   entries: HistoryEntry[];
   loading?: boolean;
   emptyText?: string;
+  /** Localized fallback for entries with no resolved actor name. Defaults to "Unknown user". */
+  unknownUserText?: string;
   className?: string;
   /** Locale used for relative time formatting. Defaults to browser locale. */
   locale?: string;
@@ -139,6 +141,7 @@ export function HistoryTimeline({
   entries,
   loading,
   emptyText,
+  unknownUserText,
   className,
   locale,
 }: HistoryTimelineProps) {
@@ -178,7 +181,9 @@ export function HistoryTimeline({
           const action = (entry.action ?? '').toLowerCase();
           const variant = ACTION_VARIANT[action] ?? 'outline';
           const displayName =
-            (typeof entry.user_name === 'string' && entry.user_name.trim()) || 'Unknown user';
+            (typeof entry.user_name === 'string' && entry.user_name.trim()) ||
+            unknownUserText ||
+            'Unknown user';
           const absoluteWhen = formatAbsolute(entry.created_at);
           const relativeWhen = formatRelative(entry.created_at, locale);
           const avatarUrl = typeof entry.user_avatar === 'string' ? entry.user_avatar : undefined;
