@@ -660,7 +660,8 @@ export function GanttView({
   endDate: endDateProp,
   markers: markersProp,
   onTaskClick,
-  taskUrl,
+  // TODO(qr-menu): re-enable together with the 移动端二维码 context-menu item below.
+  // taskUrl,
   onTaskUpdate: onTaskUpdateProp,
   onTaskDelete: onTaskDeleteProp,
   onViewChange,
@@ -1535,11 +1536,14 @@ export function GanttView({
     e.preventDefault();
     e.stopPropagation();
     setSelectedTaskId(task.id);
-    // 移动端二维码 alone justifies a menu — but only when this row actually
-    // yields a URL (synthetic group rows return null), so no empty menu opens.
-    if (!hasTaskMenuActions && !(taskUrl && taskUrl(task))) return;
+    // TODO(qr-menu): the 移动端二维码 menu item is temporarily disabled (see the
+    // commented-out block in the context menu below). While it is off, taskUrl
+    // alone must NOT justify opening the menu — it would render an empty
+    // popover. Restore the `taskUrl && taskUrl(task)` escape hatch together
+    // with the menu item.
+    if (!hasTaskMenuActions) return;
     setCtxMenu({ x: e.clientX, y: e.clientY, taskId: task.id });
-  }, [hasTaskMenuActions, taskUrl]);
+  }, [hasTaskMenuActions]);
 
   const openLinkContextMenu = React.useCallback(
     (sourceId: string | number, targetId: string | number, type: GanttLinkType, e: React.MouseEvent) => {
@@ -4708,6 +4712,11 @@ export function GanttView({
                 {t('gantt.menu.view')}
               </button>
             )}
+            {/* TODO(qr-menu): 移动端二维码 menu item temporarily disabled. To restore,
+                uncomment this block, re-enable the `taskUrl` prop destructuring above,
+                and put the `taskUrl && taskUrl(task)` escape hatch back into
+                openContextMenu (plus un-skip the QR tests in
+                GanttView.enhancements.test.tsx).
             {taskUrl && (() => {
               const url = taskUrl(task);
               if (!url) return null;
@@ -4723,6 +4732,7 @@ export function GanttView({
                 </button>
               );
             })()}
+            */}
             {inlineEdit && onTaskUpdate && row && !row.isSummary && !task.locked && (
               <button
                 type="button"

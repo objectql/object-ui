@@ -201,7 +201,30 @@ describe('GanttView locked-row tooltip hint (无编辑权限)', () => {
   });
 });
 
-describe('GanttView 移动端二维码 (context-menu QR share)', () => {
+// TODO(qr-menu): the 移动端二维码 context-menu item is temporarily disabled in
+// GanttView.tsx (commented out). While it is off, the QR item must never render
+// and taskUrl alone must not open the menu — asserted by the active describe
+// below. Un-skip this block (and delete the "disabled" one) when restoring.
+describe('GanttView 移动端二维码 (temporarily disabled)', () => {
+  const URL_A = 'https://app.example.com/app/x/rec/record/a';
+  const ctxMenu = () => document.querySelector('[data-testid="gantt-context-menu"]');
+  const qrItem = () => document.querySelector('[data-testid="gantt-context-menu-qrcode"]');
+
+  it('renders no QR item even when taskUrl yields a URL', () => {
+    const { container } = renderView([A()], { taskUrl: () => URL_A, onTaskClick: vi.fn() });
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
+    expect(ctxMenu()).toBeTruthy();
+    expect(qrItem()).toBeNull();
+  });
+
+  it('opens no menu at all when taskUrl is the only would-be action', () => {
+    const { container } = renderView([A()], { taskUrl: () => URL_A });
+    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
+    expect(ctxMenu()).toBeNull();
+  });
+});
+
+describe.skip('GanttView 移动端二维码 (context-menu QR share)', () => {
   const URL_A = 'https://app.example.com/app/x/rec/record/a';
   const ctxMenu = () => document.querySelector('[data-testid="gantt-context-menu"]');
   const qrItem = () => document.querySelector('[data-testid="gantt-context-menu-qrcode"]');
