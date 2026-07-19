@@ -264,3 +264,106 @@ describe('jsonSchemaToFlowFields', () => {
     expect(escalateTo.showWhen).toEqual({ field: 'escalation.enabled', equals: ['true'] });
   });
 });
+
+describe('jsonSchemaToFlowFields — xExpression authoring-mode marker', () => {
+  const field = (schema: unknown, id: string) => jsonSchemaToFlowFields(schema)!.find((f) => f.id === id)!;
+
+  it("maps xExpression:'expression' to a CEL expression field (predicate-validated, no refMode)", () => {
+    const f = field(
+      { type: 'object', properties: { condition: { type: 'string', xExpression: 'expression' } } },
+      'condition',
+    );
+    expect(f.kind).toBe('expression');
+    expect(f.refMode).toBeUndefined();
+  });
+
+  it("maps xExpression:'template' to an expression field flagged refMode:'template'", () => {
+    const f = field(
+      { type: 'object', properties: { collection: { type: 'string', xExpression: 'template' } } },
+      'collection',
+    );
+    // mono expression styling + data-picker, but `{var}` mode and no CEL brace-trap.
+    expect(f.kind).toBe('expression');
+    expect(f.refMode).toBe('template');
+  });
+
+  it("maps a multiline xExpression:'expression' to a textarea in bare-ref (script-body) mode", () => {
+    const f = field(
+      { type: 'object', properties: { script: { type: 'string', format: 'multiline', xExpression: 'expression' } } },
+      'script',
+    );
+    expect(f.kind).toBe('textarea');
+    expect(f.refMode).toBe('expression');
+  });
+
+  it("maps a multiline xExpression:'template' to a textarea in template mode", () => {
+    const f = field(
+      { type: 'object', properties: { body: { type: 'string', format: 'multiline', xExpression: 'template' } } },
+      'body',
+    );
+    expect(f.kind).toBe('textarea');
+    expect(f.refMode).toBe('template');
+  });
+
+  it('degrades an unknown xExpression value to plain text (no refMode)', () => {
+    const f = field(
+      { type: 'object', properties: { note: { type: 'string', xExpression: 'bogus' } } },
+      'note',
+    );
+    expect(f.kind).toBe('text');
+    expect(f.refMode).toBeUndefined();
+  });
+
+  it('gives precedence to xRef and enum over xExpression', () => {
+    // enum wins → select (a marked string that is also an enum is still a picker).
+    const withEnum = field(
+      { type: 'object', properties: { mode: { type: 'string', enum: ['a', 'b'], xExpression: 'expression' } } },
+      'mode',
+    );
+    expect(withEnum.kind).toBe('select');
+    expect(withEnum.refMode).toBeUndefined();
+    // xRef wins → reference.
+    const withRef = field(
+      { type: 'object', properties: { obj: { type: 'string', xRef: { kind: 'object' }, xExpression: 'expression' } } },
+      'obj',
+    );
+    expect(withRef.kind).toBe('reference');
+    expect(withRef.refMode).toBeUndefined();
+  });
+
+  it('flattens a nested xExpression string, carrying its refMode', () => {
+    const f = field(
+      {
+        type: 'object',
+        properties: {
+          group: { type: 'object', properties: { where: { type: 'string', xExpression: 'template' } } },
+        },
+      },
+      'group.where',
+    );
+    expect(f.kind).toBe('expression');
+    expect(f.refMode).toBe('template');
+  });
+
+  it('maps xExpression columns: expression → CEL column, template → text (columns carry no refMode)', () => {
+    const cols = jsonSchemaToFlowFields({
+      type: 'object',
+      properties: {
+        rows: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              guard: { type: 'string', xExpression: 'expression' },
+              label: { type: 'string', xExpression: 'template' },
+              plain: { type: 'string' },
+            },
+          },
+        },
+      },
+    })!.find((f) => f.id === 'rows')!.columns!;
+    expect(cols.find((c) => c.key === 'guard')!.kind).toBe('expression');
+    expect(cols.find((c) => c.key === 'label')!.kind).toBe('text');
+    expect(cols.find((c) => c.key === 'plain')!.kind).toBe('text');
+  });
+});

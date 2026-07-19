@@ -160,3 +160,30 @@ describe('wait node loose-config fallback (ADR-0044 showcase parity)', () => {
     expect(getFieldValue(node, eventType)).toBe('timer');
   });
 });
+
+describe('loop / map collection is a template, not a CEL predicate', () => {
+  // The collection placeholders (`{leadList}` / `{items}`) are single-brace
+  // interpolate() templates, not bare CEL — so the field is flagged
+  // refMode:'template' to keep the mono expression editor + data-picker while
+  // suppressing the CEL brace-trap that would otherwise flag `{leadList}`.
+  it('flags loop.collection as an expression field in template mode', () => {
+    const collection = fieldsForNodeType('loop').find((f) => f.id === 'collection')!;
+    expect(collection.kind).toBe('expression');
+    expect(collection.refMode).toBe('template');
+  });
+
+  it('flags map.collection as an expression field in template mode', () => {
+    const collection = fieldsForNodeType('map').find((f) => f.id === 'collection')!;
+    expect(collection.kind).toBe('expression');
+    expect(collection.refMode).toBe('template');
+  });
+
+  it('leaves genuine CEL predicates (start / decision condition) in bare-expression mode', () => {
+    const startCond = fieldsForNodeType('start').find((f) => f.id === 'condition')!;
+    expect(startCond.kind).toBe('expression');
+    expect(startCond.refMode).toBeUndefined();
+    const decisionCond = fieldsForNodeType('decision').find((f) => f.id === 'condition')!;
+    expect(decisionCond.kind).toBe('expression');
+    expect(decisionCond.refMode).toBeUndefined();
+  });
+});

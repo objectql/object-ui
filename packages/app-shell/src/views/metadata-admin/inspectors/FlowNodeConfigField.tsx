@@ -182,17 +182,24 @@ export function FlowNodeConfigField({ field, value, onCommit, disabled, locale, 
 
   // ADR-0032 — surface a malformed condition (e.g. the `{record.x}` brace-in-CEL
   // mistake) inline, with the same corrective message the build/agent emit. Only
-  // for expression fields (a genuine template uses single-brace `{var}` legally).
+  // for expression fields in a *predicate* mode — an expression field flagged
+  // `refMode: 'template'` (e.g. a loop/map collection authored as `{leadList}`)
+  // is an `interpolate()` single-brace template where `{var}` is legal, so the
+  // CEL brace-trap must be gated off or it false-positives on every `{…}`.
+  const isTemplate = refMode === 'template';
   const exprIssue =
-    field.kind === 'expression' ? validateExpressionClient('predicate', value) : null;
+    field.kind === 'expression' && !isTemplate ? validateExpressionClient('predicate', value) : null;
 
   // #1934 — pair the picker with a gentle, scope-aware "unknown reference"
-  // warning: CEL for expression fields, `{…}` holes for template fields. Skipped
-  // for free-form code (refMode 'expression' on a textarea, e.g. a script body)
-  // and when scope is unknown. The brace error above takes precedence.
+  // warning: CEL for predicate expression fields, `{…}` holes for template
+  // fields (including an expression field in template mode). Skipped for
+  // free-form code (refMode 'expression' on a textarea, e.g. a script body) and
+  // when scope is unknown. The brace error above takes precedence.
   const scopeRole: 'predicate' | 'template' | null =
     field.kind === 'expression'
-      ? 'predicate'
+      ? isTemplate
+        ? 'template'
+        : 'predicate'
       : refMode === 'template' && (field.kind === 'text' || field.kind === 'textarea')
         ? 'template'
         : null;

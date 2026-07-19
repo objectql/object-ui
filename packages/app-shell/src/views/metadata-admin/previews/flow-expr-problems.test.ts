@@ -80,4 +80,38 @@ describe('flowExpressionProblems', () => {
     };
     expect(flowExpressionProblems(draft)).toEqual([]);
   });
+
+  it('does NOT flag a loop collection `{leadList}` — it is a template surface, not a CEL predicate', () => {
+    // The collection field is refMode:'template', so its single-brace `{var}`
+    // template is legal and must not trip the CEL brace-trap (the pre-fix bug).
+    const draft = {
+      variables: [{ name: 'leadList' }],
+      nodes: [
+        startUpdate,
+        { id: 'each', type: 'loop', config: { collection: '{leadList}', iteratorVariable: 'lead' } },
+      ],
+      edges: [{ source: 'start', target: 'each' }],
+    };
+    expect(flowExpressionProblems(draft)).toEqual([]);
+  });
+
+  it('still flags a genuine CEL predicate on the same flow (decision condition)', () => {
+    // Guards against over-broadening the template skip: real predicate fields
+    // keep their brace-trap.
+    const draft = {
+      variables: [],
+      nodes: [
+        startUpdate,
+        { id: 'each', type: 'loop', config: { collection: '{leadList}' } },
+        { id: 'd', type: 'decision', config: { condition: '{record.amount} > 10' } },
+      ],
+      edges: [
+        { source: 'start', target: 'each' },
+        { source: 'each', target: 'd' },
+      ],
+    };
+    const ps = flowExpressionProblems(draft);
+    expect(ps).toHaveLength(1);
+    expect(ps[0]).toMatchObject({ level: 'error', target: { kind: 'node', nodeId: 'd' } });
+  });
 });

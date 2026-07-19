@@ -166,9 +166,14 @@ export interface FlowConfigField {
   ref?: FlowReferenceSpec;
   /**
    * Data-picker brace mode override (#1934). Defaults by kind (`expression` →
-   * bare CEL, `text` / `textarea` → `{var}` template). Set `'expression'` on a
-   * code field (e.g. a script body) so the picker inserts bare references, not
-   * `{var}` — `{x}` is a syntax error in a JS/TS script.
+   * bare CEL, `text` / `textarea` → `{var}` template). Two overrides:
+   *   • `'expression'` on a code field (e.g. a script body) so the picker inserts
+   *     bare references, not `{var}` — `{x}` is a syntax error in a JS/TS script.
+   *   • `'template'` on an *expression* field (e.g. a loop/map `collection`) whose
+   *     value is really an `interpolate()` single-brace template — it keeps the
+   *     mono expression styling and the data-picker, but the picker inserts
+   *     `{var}` and the CEL predicate brace-trap is suppressed (`{leadList}` is a
+   *     legal template here, not a malformed condition).
    */
   refMode?: 'expression' | 'template';
 }
@@ -352,13 +357,13 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     }),
   ],
   loop: [
-    cfg('collection', 'Collection', 'expression', { placeholder: '{leadList}', help: 'Expression resolving to the items to iterate.' }),
+    cfg('collection', 'Collection', 'expression', { placeholder: '{leadList}', refMode: 'template', help: 'Expression resolving to the items to iterate.' }),
     cfg('iteratorVariable', 'Item variable', 'text', { placeholder: 'currentItem' }),
   ],
   // Sequential multi-instance (ADR-0037 A2): a per-item subflow, one at a time;
   // each item may durably pause (e.g. a per-item approval).
   map: [
-    cfg('collection', 'Collection', 'expression', { placeholder: '{items}', help: 'Expression resolving to the array to process, one item at a time.' }),
+    cfg('collection', 'Collection', 'expression', { placeholder: '{items}', refMode: 'template', help: 'Expression resolving to the array to process, one item at a time.' }),
     cfg('flowName', 'Per-item flow', 'reference', { ref: { kind: 'flow' }, placeholder: 'one_task_signoff', help: 'Subflow run for each item — it may pause (e.g. an approval).' }),
     cfg('iteratorVariable', 'Item variable', 'text', { placeholder: 'item' }),
     cfg('itemObject', 'Item object', 'reference', { ref: { kind: 'object' }, placeholder: 'showcase_task', help: 'When items are records, the object they belong to (exposes each item as the child’s record).' }),

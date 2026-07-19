@@ -15,7 +15,9 @@
  *     inline inspector check, which does fetch, still covers it.
  *
  * Only CEL (`expression`) surfaces are scanned — template (`{var}`) values use
- * single braces legally and are left to the inline check.
+ * single braces legally and are left to the inline check. An `expression` field
+ * flagged `refMode: 'template'` (e.g. a loop/map collection like `{leadList}`) is
+ * such a template surface and is likewise skipped here.
  */
 
 import { fieldsForNodeType, getFieldValue } from '../inspectors/flow-node-config';
@@ -71,7 +73,7 @@ export function flowExpressionProblems(draft: Record<string, unknown>): ExprProb
     const roots = nodeId === startId ? null : scopeRoots(resolveFlowScope(draft, nodeId).refs);
 
     for (const field of fieldsForNodeType(type)) {
-      if (field.kind === 'expression') {
+      if (field.kind === 'expression' && field.refMode !== 'template') {
         const hit = checkCel(getFieldValue(node, field), roots);
         if (hit) out.push({ target: { kind: 'node', nodeId }, level: hit.level, message: hit.message });
       } else if (field.kind === 'objectList' && field.columns) {

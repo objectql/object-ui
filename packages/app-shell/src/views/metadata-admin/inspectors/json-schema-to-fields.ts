@@ -21,7 +21,8 @@
  * block, so authors are never locked out.
  *
  * Scope mirrors what `z.toJSONSchema` emits for real node configs:
- *   • string                      → text  (enum → select)
+ *   • string                      → text  (enum → select; an `xExpression` marker
+ *                                   makes it a CEL expression or `{var}` template)
  *   • number / integer            → number
  *   • boolean                     → boolean
  *   • array of string             → stringList
@@ -62,6 +63,16 @@ interface JsonSchemaNode {
    * sibling field/column value (e.g. an approver's `value` follows its `type`).
    */
   xRef?: { kind?: string; objectSource?: string; kindFrom?: string; map?: Record<string, string> };
+  /**
+   * Authoring-semantics marker carried from the executor's Zod
+   * `.meta({ xExpression })` (ADR-0018), on a string property. Declares whether
+   * the string is a bare-CEL `'expression'` (a predicate / value expression) or
+   * an `interpolate()` single-brace `'template'` — so the designer renders the
+   * right editor (mono styling, data-picker brace mode, whether the CEL
+   * brace-trap applies) instead of guessing from the field name. An unknown
+   * value degrades to a plain text box.
+   */
+  xExpression?: unknown;
 }
 
 const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>([
@@ -156,13 +167,51 @@ function defaultString(node: JsonSchemaNode): string | undefined {
   return undefined;
 }
 
-/** Scalar (non-object, non-array) → field kind. */
-function scalarKind(node: JsonSchemaNode): FlowConfigFieldKind | undefined {
-  if (Array.isArray(node.enum)) return 'select';
+/**
+ * Read a valid `xExpression` marker off a schema node, or undefined. The engine
+ * publishes this on a string property (Zod `.meta({ xExpression })`, ADR-0018)
+ * to declare its authoring semantics:
+ *   • `'expression'` → bare CEL (a predicate / value expression)
+ *   • `'template'`   → an `interpolate()` single-brace `{var}` template
+ * Any other value degrades to undefined, so the string renders as a plain text
+ * box rather than a mis-moded editor.
+ */
+function exprModeOf(node: JsonSchemaNode): 'expression' | 'template' | undefined {
+  return node.xExpression === 'expression' || node.xExpression === 'template'
+    ? node.xExpression
+    : undefined;
+}
+
+/**
+ * Scalar (non-object, non-array) → field kind, plus an optional data-picker
+ * `refMode` when the schema marks the string as an expression / template surface
+ * ({@link exprModeOf}). Enum still wins (→ select). String mapping:
+ *   • xExpression 'expression'  → expression (bare CEL, predicate-validated);
+ *                                 multiline → textarea + refMode 'expression'
+ *                                 (script-body mode — bare refs, no predicate check)
+ *   • xExpression 'template'    → expression + refMode 'template' (mono, `{var}`
+ *                                 picker, no predicate check); multiline → textarea
+ *                                 + refMode 'template'
+ *   • plain string              → text; multiline → textarea (unchanged)
+ */
+function scalarField(
+  node: JsonSchemaNode,
+): { kind: FlowConfigFieldKind; refMode?: 'expression' | 'template' } | undefined {
+  if (Array.isArray(node.enum)) return { kind: 'select' };
   const t = schemaType(node);
-  if (t === 'boolean') return 'boolean';
-  if (t === 'number' || t === 'integer') return 'number';
-  if (t === 'string') return node.format === 'multiline' ? 'textarea' : 'text';
+  if (t === 'boolean') return { kind: 'boolean' };
+  if (t === 'number' || t === 'integer') return { kind: 'number' };
+  if (t === 'string') {
+    const multiline = node.format === 'multiline';
+    const mode = exprModeOf(node);
+    if (mode === 'expression') {
+      return multiline ? { kind: 'textarea', refMode: 'expression' } : { kind: 'expression' };
+    }
+    if (mode === 'template') {
+      return multiline ? { kind: 'textarea', refMode: 'template' } : { kind: 'expression', refMode: 'template' };
+    }
+    return { kind: multiline ? 'textarea' : 'text' };
+  }
   return undefined;
 }
 
@@ -186,7 +235,11 @@ function columnsFor(item: JsonSchemaNode): FlowConfigColumn[] {
     } else if (t === 'boolean') {
       kind = 'boolean';
     } else {
-      kind = 'text';
+      // A string column marked xExpression:'expression' becomes a CEL column
+      // (mono, predicate-checked by flow-expr-problems). 'template' and plain
+      // strings stay text — a text column already treats `{var}` as a template,
+      // and objectList columns carry no refMode to distinguish the two.
+      kind = exprModeOf(prop) === 'expression' ? 'expression' : 'text';
     }
     cols.push({
       key,
@@ -248,7 +301,8 @@ export function jsonSchemaToFlowFields(schema: unknown): FlowConfigField[] | nul
       for (const [subKey, subProp] of subProps) {
         const sp = subProp as JsonSchemaNode;
         const subRef = refOf(sp);
-        const kind = subRef ? 'reference' : scalarKind(sp);
+        const scalar = subRef ? undefined : scalarField(sp);
+        const kind = subRef ? 'reference' : scalar?.kind;
         if (!kind) continue; // deeper nesting / unsupported → Advanced block
         const id = `${key}.${subKey}`;
         const isGate = hasEnabled && subKey === 'enabled';
@@ -259,6 +313,7 @@ export function jsonSchemaToFlowFields(schema: unknown): FlowConfigField[] | nul
           // The gate adopts the parent group's label; siblings keep their own.
           ...(isGate ? { label: prop.title || humanizeKey(key), ...(prop.description ? { help: prop.description } : {}), ...(defaultString(sp) ? { defaultValue: defaultString(sp) } : {}) } : meta(sp, subKey)),
           ...(subRef ? { ref: subRef } : {}),
+          ...(scalar?.refMode ? { refMode: scalar.refMode } : {}),
           ...(kind === 'select' && Array.isArray(sp.enum) ? { options: enumOptions(sp.enum, sp.xEnumDeprecated) } : {}),
           ...(hasEnabled && !isGate ? { showWhen: { field: `${key}.enabled`, equals: ['true'] } } : {}),
         };
@@ -275,14 +330,15 @@ export function jsonSchemaToFlowFields(schema: unknown): FlowConfigField[] | nul
       fields.push({ id: key, path: ['config', key], kind: 'reference', ref, ...meta(prop, key) });
       continue;
     }
-    const kind = scalarKind(prop);
-    if (!kind) continue; // unrepresentable → Advanced block
+    const scalar = scalarField(prop);
+    if (!scalar) continue; // unrepresentable → Advanced block
     fields.push({
       id: key,
       path: ['config', key],
-      kind,
+      kind: scalar.kind,
       ...meta(prop, key),
-      ...(kind === 'select' && Array.isArray(prop.enum) ? { options: enumOptions(prop.enum, prop.xEnumDeprecated) } : {}),
+      ...(scalar.refMode ? { refMode: scalar.refMode } : {}),
+      ...(scalar.kind === 'select' && Array.isArray(prop.enum) ? { options: enumOptions(prop.enum, prop.xEnumDeprecated) } : {}),
     });
   }
 
