@@ -76,9 +76,14 @@ describe('validateMetadataDraft — object field conditional rules (real engine)
   });
 
   it('skips non-CEL dialect envelopes (the engine owns that error, not the CEL lint)', async () => {
+    // A well-typed NON-CEL dialect whose garbage `source` the CEL lint must
+    // leave alone (`predicateSource` only extracts `dialect: undefined | 'cel'`).
+    // Must stay a non-CEL dialect: `dialect: 'cel'` would make the lint OWN
+    // `'!!!'` and flag it, flipping this assertion. `template` survives the
+    // spec's `ExpressionDialect` narrowing (framework#3278 retired `js`).
     const res = await validateMetadataDraft(
       'object',
-      draftWith({ status: { type: 'text', visibleWhen: { dialect: 'js', source: '!!!' } } }),
+      draftWith({ status: { type: 'text', visibleWhen: { dialect: 'template', source: '!!!' } } }),
     );
     expect(res.issues.filter((i) => RULE_PATH.test(i.path))).toEqual([]);
   });
