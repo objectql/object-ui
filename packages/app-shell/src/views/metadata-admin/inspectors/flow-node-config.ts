@@ -536,15 +536,30 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
             },
           },
         },
+        {
+          // Group label for `per_group` sign-off (#3266): approvers sharing a
+          // label form one group; the node advances when EACH group reaches
+          // `minApprovals`. Ignored by other behaviors.
+          key: 'group',
+          label: 'Group',
+          kind: 'text',
+          placeholder: 'legal / finance — for per-group sign-off',
+        },
       ],
     }),
     cfg('behavior', 'Behavior', 'select', {
       options: [
         { value: 'first_response', label: 'First response wins' },
         { value: 'unanimous', label: 'Unanimous (all approve)' },
+        { value: 'quorum', label: 'Quorum (M of N approve)' },
+        { value: 'per_group', label: 'Per group (each group signs off)' },
       ],
       defaultValue: 'first_response',
-      help: 'How multiple approvers combine.',
+      help: 'How multiple approvers combine. Any rejection is a veto in every mode.',
+    }),
+    cfg('minApprovals', 'Min approvals', 'number', {
+      placeholder: '1',
+      help: 'Approvals required — total for quorum, per group for per_group. Clamped server-side so it can never deadlock.',
     }),
     cfg('lockRecord', 'Lock record', 'boolean', {
       help: 'Lock the triggering record from edits while this node is pending.',

@@ -72,6 +72,8 @@ export interface ApprovalActionRow {
   actor_id?: string | null;
   action: 'submit' | 'approve' | 'reject' | 'recall' | string;
   comment?: string | null;
+  /** File references attached to this action (decision attachments, #3266). */
+  attachments?: string[] | null;
   created_at?: string;
   /** Display name of the actor, resolved server-side. */
   actor_name?: string;
@@ -156,7 +158,7 @@ export const approvalsApi = {
     );
   },
 
-  async approve(id: string, body: { actorId?: string; actor_id?: string; comment?: string }) {
+  async approve(id: string, body: { actorId?: string; actor_id?: string; comment?: string; attachments?: string[] }) {
     // Server returns `{request, finalized}`. Normalize to `{data, finalized}`.
     const out = await call<{ request: ApprovalRequestRow; finalized: boolean }>(
       `/approvals/requests/${encodeURIComponent(id)}/approve`,
@@ -165,7 +167,7 @@ export const approvalsApi = {
     return { data: out.request, finalized: out.finalized };
   },
 
-  async reject(id: string, body: { actorId?: string; actor_id?: string; comment?: string }) {
+  async reject(id: string, body: { actorId?: string; actor_id?: string; comment?: string; attachments?: string[] }) {
     const out = await call<{ request: ApprovalRequestRow; finalized: boolean }>(
       `/approvals/requests/${encodeURIComponent(id)}/reject`,
       { method: 'POST', body: JSON.stringify(body) },
@@ -236,7 +238,7 @@ export const approvalsApi = {
   },
 
   /** Free-form reply on the request thread (submitter or pending approver). */
-  async comment(id: string, body: { actor_id?: string; comment: string }) {
+  async comment(id: string, body: { actor_id?: string; comment: string; attachments?: string[] }) {
     const out = await call<{ request: ApprovalRequestRow }>(
       `/approvals/requests/${encodeURIComponent(id)}/comment`,
       { method: 'POST', body: JSON.stringify(body) },
