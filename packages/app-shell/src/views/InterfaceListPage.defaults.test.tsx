@@ -2,6 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  defaultColumnsFromObject,
   defaultKanbanFromObject,
   defaultCalendarFromObject,
   defaultGalleryFromObject,
@@ -50,5 +51,57 @@ describe('InterfaceListPage default viz bindings', () => {
   it('ignores hidden and system fields', () => {
     const obj = { fields: { created_at: { type: 'datetime' }, hidden_sel: { type: 'select', hidden: true }, real_sel: { type: 'select' } } };
     expect(defaultKanbanFromObject(obj)).toEqual({ groupField: 'real_sel', groupByField: 'real_sel' });
+  });
+});
+
+describe('defaultColumnsFromObject', () => {
+  // Mirrors how the framework's `applySystemFields` presents an object to the
+  // console: injected system fields (owner_id, audit columns) are spread to the
+  // FRONT of the field map and carry `system: true`; owner_id is deliberately
+  // non-hidden / non-readonly because ownership is reassignable.
+  const fieldZooLike = {
+    fields: {
+      owner_id: { type: 'lookup', label: 'Owner', system: true },
+      created_at: { type: 'datetime', system: true, readonly: true },
+      created_by: { type: 'lookup', system: true, readonly: true },
+      organization_id: { type: 'lookup', system: true, hidden: true },
+      name: { type: 'text' },
+      f_email: { type: 'email' },
+      f_number: { type: 'number' },
+    },
+  };
+
+  it('does NOT lead with the injected owner_id — business fields come first', () => {
+    const cols = defaultColumnsFromObject(fieldZooLike);
+    expect(cols[0]).toBe('name');
+    expect(cols).not.toContain('owner_id');
+    expect(cols).not.toContain('created_at');
+    expect(cols).not.toContain('organization_id');
+    expect(cols).toEqual(['name', 'f_email', 'f_number']);
+  });
+
+  it('excludes owner_id even when it arrives without the system flag (name fallback)', () => {
+    const cols = defaultColumnsFromObject({
+      fields: { owner_id: { type: 'lookup' }, title: { type: 'text' } },
+    });
+    expect(cols).toEqual(['title']);
+  });
+
+  it('honors highlightFields as the curated override', () => {
+    const cols = defaultColumnsFromObject({
+      highlightFields: ['name', 'owner_id'],
+      fields: fieldZooLike.fields,
+    });
+    // Curated list wins verbatim (only dropping names with no field def).
+    expect(cols).toEqual(['name', 'owner_id']);
+  });
+
+  it('caps the auto-derived business columns at six', () => {
+    const fields: Record<string, any> = { owner_id: { type: 'lookup', system: true } };
+    for (let i = 0; i < 10; i++) fields[`b_${i}`] = { type: 'text' };
+    const cols = defaultColumnsFromObject({ fields });
+    expect(cols).toHaveLength(6);
+    expect(cols).not.toContain('owner_id');
+    expect(cols[0]).toBe('b_0');
   });
 });

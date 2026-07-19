@@ -22,6 +22,7 @@ import { useAdapter, SchemaRenderer, useNavigationOverlay } from '@object-ui/rea
 import { Empty, EmptyTitle, EmptyDescription, NavigationOverlay } from '@object-ui/components';
 import { Database } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { isSystemManagedField } from '@object-ui/types';
 import { useMetadata } from '../providers/MetadataProvider';
 import { parseUserFilterParams, applyUserFilterParams } from './userFilterUrlState';
 import { RecordDetailView } from './RecordDetailView';
@@ -70,14 +71,10 @@ function resolveSourceView(objectDef: any, sourceView?: string): any | undefined
  * Default column set when the resolved view carries none — mirrors
  * ObjectView's data-mode fallback so an interface page never renders a
  * column-less grid. Priority: the `highlightFields` semantic role
- * (ADR-0085), else the first business fields (system/audit columns
- * excluded).
+ * (ADR-0085), else the first business fields — framework-managed
+ * system/audit/ownership columns (including the injected, editable `owner_id`)
+ * are excluded via the shared `isSystemManagedField` classifier.
  */
-const SYSTEM_FIELDS = new Set([
-  'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
-  'deleted_at', 'deletedAt', 'created_by', 'createdBy',
-  'updated_by', 'updatedBy', '_version', '_rev',
-]);
 export function defaultColumnsFromObject(objectDef: any): string[] {
   const curated = objectDef?.highlightFields;
   if (Array.isArray(curated) && curated.length > 0) {
@@ -86,7 +83,7 @@ export function defaultColumnsFromObject(objectDef: any): string[] {
   const fields = objectDef?.fields;
   if (fields && typeof fields === 'object') {
     return Object.entries(fields)
-      .filter(([name, f]: [string, any]) => f && !f.hidden && !SYSTEM_FIELDS.has(name))
+      .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
       .map(([name]) => name)
       .slice(0, 6);
   }
@@ -111,7 +108,7 @@ function firstFieldMatching(
   const fields = objectDef?.fields;
   if (!fields || typeof fields !== 'object') return undefined;
   const hit = Object.entries(fields).find(
-    ([name, f]: [string, any]) => f && !f.hidden && !SYSTEM_FIELDS.has(name) && pred(name, f),
+    ([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f) && pred(name, f),
   );
   return hit?.[0];
 }

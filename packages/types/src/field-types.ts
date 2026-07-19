@@ -55,7 +55,16 @@ export interface BaseFieldMetadata {
    * Whether field is read-only
    */
   readonly?: boolean;
-  
+
+  /**
+   * Auto-injected system/audit/ownership field (e.g. `created_at`,
+   * `updated_by`, `organization_id`, `owner_id`), stamped by the framework's
+   * `applySystemFields`. Surfaces that separate framework-managed bookkeeping
+   * from author-declared business fields (e.g. default list-column derivation)
+   * branch on this flag. Mirrors the spec `Field.system` property.
+   */
+  system?: boolean;
+
   /**
    * Placeholder text
    */

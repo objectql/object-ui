@@ -23,6 +23,7 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import type { ObjectGridSchema, DataSource, ListColumn, ViewData } from '@object-ui/types';
+import { isSystemManagedField } from '@object-ui/types';
 import type { I18nLabel } from '@objectstack/spec/ui';
 import { SchemaRenderer, useDataScope, useNavigationOverlay, useAction, useObjectTranslation, useSafeFieldLabel, usePredicateScope } from '@object-ui/react';
 import { getCellRenderer, resolveCellRendererType, formatCurrency, formatCompactCurrency, formatDate, formatPercent, humanizeLabel, getBadgeColorClasses, FieldEditWidget, hasFieldEditWidget, DISCRETE_EDIT_TYPES, coerceToSafeValue } from '@object-ui/fields';
@@ -1185,11 +1186,12 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     // marked `hidden: true`/`readonly: true` so default list views show only
     // the business fields users actually care about. Callers can still opt-in
     // to system columns by passing an explicit `fields` / `columns` prop.
-    const SYSTEM_FIELDS = new Set([
-      'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
-      'deleted_at', 'deletedAt', 'created_by', 'createdBy',
-      'updated_by', 'updatedBy', '_version', '_rev',
-    ]);
+    //
+    // "System-managed" is decided by `isSystemManagedField`, which branches on
+    // the framework's `field.system` flag (single source of truth stamped by
+    // `applySystemFields`) — this is what keeps the injected, non-readonly
+    // `owner_id` from leading the auto-derived columns, and covers any future
+    // injected field without editing a name list here.
     const highlightFields: string[] | undefined = (objectSchema as any)?.highlightFields;
     const allFieldNames = Object.keys(objectSchema.fields || {});
     let fieldsToShow: string[];
@@ -1198,19 +1200,20 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
     } else if (highlightFields?.length) {
       fieldsToShow = highlightFields.filter((n) => objectSchema.fields?.[n]);
     } else {
-      // Drop hidden + readonly system-managed fields, then push remaining
-      // system identifier/audit fields to the end as a fallback.
+      // Drop hidden + readonly system-managed fields, then push the remaining
+      // system/audit/ownership columns (e.g. the injected, editable `owner_id`)
+      // to the end as a fallback so business fields lead.
       const visibleFields = allFieldNames.filter((n) => {
         const f = objectSchema.fields?.[n];
         if (!f) return false;
         if (f.hidden) return false;
-        // Drop readonly fields when their name matches a system identifier/audit column.
-        if (f.readonly && SYSTEM_FIELDS.has(n)) return false;
+        // Drop readonly bookkeeping columns (created_at/by, updated_at/by, …).
+        if (f.readonly && isSystemManagedField(n, f)) return false;
         return true;
       });
       fieldsToShow = [
-        ...visibleFields.filter((n) => !SYSTEM_FIELDS.has(n)),
-        ...visibleFields.filter((n) => SYSTEM_FIELDS.has(n)),
+        ...visibleFields.filter((n) => !isSystemManagedField(n, objectSchema.fields?.[n])),
+        ...visibleFields.filter((n) => isSystemManagedField(n, objectSchema.fields?.[n])),
       ];
     }
 

@@ -430,6 +430,11 @@ export type {
   ObjectRelationship,
 } from './field-types';
 
+// System / audit / ownership field classification — runtime helper + name set,
+// used by default list-column derivation to keep framework-injected fields
+// (notably `owner_id`) out of the leading business columns.
+export { SYSTEM_MANAGED_FIELD_NAMES, isSystemManagedField } from './system-fields';
+
 // ============================================================================
 // Phase 3: Data Protocol Advanced Types
 // ============================================================================
