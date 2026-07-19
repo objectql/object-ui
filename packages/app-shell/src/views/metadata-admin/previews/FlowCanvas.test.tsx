@@ -3,6 +3,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { FlowCanvas } from './FlowCanvas';
+import { extractRegions, NODE_H } from './flow-canvas-layout';
+import { predictExpandedNodeHeight } from './flow-region-metrics';
 import type { FlowProblem } from './flow-problems';
 
 afterEach(cleanup);
@@ -99,53 +101,96 @@ describe('FlowCanvas — inline cycle/error surfacing', () => {
   });
 });
 
-describe('FlowCanvas — nested container regions (#2670)', () => {
-  it('reveals a loop body region in a popover when the container control is opened', async () => {
-    const nodes = [
-      { id: 'start', type: 'start' },
-      {
-        id: 'each',
-        type: 'loop',
-        label: 'For each order',
-        config: { body: { nodes: [{ id: 'charge', type: 'http', label: 'Charge card' }], edges: [] } },
-      },
-    ];
-    render(
+describe('FlowCanvas — inline nested container regions (#2670 Phase 2)', () => {
+  const LOOP_NODES = [
+    { id: 'start', type: 'start' },
+    {
+      id: 'each',
+      type: 'loop',
+      label: 'For each order',
+      config: { body: { nodes: [{ id: 'charge', type: 'http', label: 'Charge card' }], edges: [] } },
+    },
+    { id: 'after', type: 'end', label: 'After' },
+  ];
+  const LOOP_EDGES = [
+    { source: 'start', target: 'each' },
+    { source: 'each', target: 'after' },
+  ];
+
+  it('expands a loop body INLINE inside the container card, and collapses back', () => {
+    const { container } = render(
       <FlowCanvas
-        nodes={nodes}
-        edges={[{ source: 'start', target: 'each' }]}
+        nodes={LOOP_NODES}
+        edges={LOOP_EDGES}
         editable={false}
         designMode={false}
         selectedId={null}
         onSelect={() => {}}
       />,
     );
-    // Closed by default: the body step is not rendered, but a "show regions" control is.
+    // Collapsed by default: no body step, an expand control with aria-expanded=false.
     expect(screen.queryByText('Charge card')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /show nested regions/i }));
-    // Open: the loop body node now renders nested in the popover.
-    expect(await screen.findByText('Charge card')).toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: 'Expand nested regions' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    // Expanded: the body node renders INLINE inside the container card (not portaled).
+    const card = container.querySelector('[data-node-id="each"]') as HTMLElement;
+    expect(card).not.toBeNull();
+    expect(card.textContent).toContain('Charge card');
+    const collapse = screen.getByRole('button', { name: 'Collapse nested regions' });
+    expect(collapse).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(collapse);
+    expect(screen.queryByText('Charge card')).not.toBeInTheDocument();
   });
 
-  it('labels parallel branches and try/catch handlers when opened', async () => {
-    const nodes = [
-      {
-        id: 'p',
-        type: 'parallel',
-        label: 'Fan out',
-        config: {
-          branches: [
-            { name: 'Slack', nodes: [{ id: 'a', type: 'http', label: 'Notify Slack' }], edges: [] },
-            { nodes: [{ id: 'b', type: 'http', label: 'Notify CRM' }], edges: [] },
-          ],
-        },
-      },
-    ];
-    render(
-      <FlowCanvas nodes={nodes} edges={[]} editable={false} designMode={false} selectedId={null} onSelect={() => {}} />,
+  it('pushes the layer below down by exactly the predicted height delta', () => {
+    const { container } = render(
+      <FlowCanvas
+        nodes={LOOP_NODES}
+        edges={LOOP_EDGES}
+        editable={false}
+        designMode={false}
+        selectedId={null}
+        onSelect={() => {}}
+      />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /show nested regions/i }));
-    expect(await screen.findByText('Slack')).toBeInTheDocument(); // named branch
+    const topOfAfter = () =>
+      parseFloat((container.querySelector('[data-node-id="after"]') as HTMLElement).style.top);
+    const before = topOfAfter();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nested regions' }));
+    const predicted = predictExpandedNodeHeight(extractRegions(LOOP_NODES[1] as never));
+    // The card renders at the predicted height, and the node below moved down
+    // by exactly (predicted − NODE_H) — DOM and layout share one number.
+    const card = container.querySelector('[data-node-id="each"]') as HTMLElement;
+    expect(parseFloat(card.style.height)).toBeCloseTo(predicted, 3);
+    expect(topOfAfter() - before).toBeCloseTo(predicted - NODE_H, 3);
+  });
+
+  it('labels parallel branches when expanded inline', () => {
+    render(
+      <FlowCanvas
+        nodes={[
+          {
+            id: 'p',
+            type: 'parallel',
+            label: 'Fan out',
+            config: {
+              branches: [
+                { name: 'Slack', nodes: [{ id: 'a', type: 'http', label: 'Notify Slack' }], edges: [] },
+                { nodes: [{ id: 'b', type: 'http', label: 'Notify CRM' }], edges: [] },
+              ],
+            },
+          },
+        ]}
+        edges={[]}
+        editable={false}
+        designMode={false}
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nested regions' }));
+    expect(screen.getByText('Slack')).toBeInTheDocument(); // named branch
     expect(screen.getByText('Branch 2')).toBeInTheDocument(); // unnamed → indexed
     expect(screen.getByText('Notify CRM')).toBeInTheDocument();
   });

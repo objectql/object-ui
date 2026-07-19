@@ -27,8 +27,7 @@ import { cn } from '@object-ui/components';
 import { uniqueId, appendArray, spliceArray } from '../inspectors/_shared';
 import { t as tr } from '../i18n';
 import {
-  computeLayout,
-  diagramSize,
+  computeLayoutWithGeometry,
   NODE_W,
   NODE_H,
   bottomAnchor,
@@ -45,7 +44,9 @@ import {
   type FlowNode,
   type FlowEdge,
   type Point,
+  type LabeledRegion,
 } from './flow-canvas-layout';
+import { predictExpandedNodeHeight } from './flow-region-metrics';
 import { NodeCard, NodePalette, defaultNodeLabel, defaultNodeExtras } from './flow-canvas-parts';
 import { useFlowNodePalette } from './useFlowNodePalette';
 import { indexProblemBadges, edgeProblemKey, type FlowProblem } from './flow-problems';
@@ -148,8 +149,41 @@ export function FlowCanvas({
   const dragRef = React.useRef<DragState | null>(null);
   const panRef = React.useRef<PanState | null>(null);
 
-  const layout = React.useMemo(() => computeLayout(nodes, edges), [nodes, edges]);
-  const size = React.useMemo(() => diagramSize(layout), [layout]);
+  // #2670: structured-region containers. Which nodes carry regions (memoized so
+  // NodeCard props keep a stable identity), which are expanded (session-only
+  // view state — never written to the draft), and the per-node height feeding
+  // the geometry-aware layout (expanded container = predicted card height;
+  // everything else = NODE_H, keeping the historical layout byte-identical).
+  const [expandedIds, setExpandedIds] = React.useState<ReadonlySet<string>>(() => new Set());
+  const toggleExpanded = React.useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const regionsByNode = React.useMemo(() => {
+    const map = new Map<string, LabeledRegion[]>();
+    for (const n of nodes) {
+      const regions = extractRegions(n);
+      if (regions.length > 0) map.set(n.id, regions);
+    }
+    return map;
+  }, [nodes]);
+  const nodeHeights = React.useMemo(() => {
+    const map = new Map<string, number>();
+    for (const n of nodes) {
+      const regions = expandedIds.has(n.id) ? regionsByNode.get(n.id) : undefined;
+      map.set(n.id, regions ? predictExpandedNodeHeight(regions) : NODE_H);
+    }
+    return map;
+  }, [nodes, regionsByNode, expandedIds]);
+
+  const { positions: layout, heights, size } = React.useMemo(
+    () => computeLayoutWithGeometry(nodes, edges, (n) => nodeHeights.get(n.id) ?? NODE_H),
+    [nodes, edges, nodeHeights],
+  );
 
   // Simulation overlay sets (display-only; never drives engine behavior).
   const visitedSet = React.useMemo(() => new Set(visitedNodeIds ?? []), [visitedNodeIds]);
@@ -449,11 +483,13 @@ export function FlowCanvas({
     let pt: Point | null = null;
     if (t.kind === 'node') {
       const p = layout.get(t.nodeId);
-      if (p) pt = { x: p.x + NODE_W / 2, y: p.y + NODE_H / 2 };
+      // #2670: center on the card's true (possibly expanded) height.
+      if (p) pt = { x: p.x + NODE_W / 2, y: p.y + (heights.get(t.nodeId) ?? NODE_H) / 2 };
     } else if (t.kind === 'edge') {
       const s = layout.get(t.source);
       const d = layout.get(t.target);
-      if (s && d) pt = { x: (s.x + d.x) / 2 + NODE_W / 2, y: (s.y + d.y) / 2 + NODE_H / 2 };
+      // Midpoint of the edge as actually drawn (source bottom → target top).
+      if (s && d) pt = edgeMidpoint(bottomAnchor(s, heights.get(t.source) ?? NODE_H), topAnchor(d));
     }
     if (pt) setPan({ x: vp.clientWidth / 2 - pt.x * zoom, y: vp.clientHeight / 2 - pt.y * zoom });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -661,7 +697,10 @@ export function FlowCanvas({
               const invalid = !back && !!invalidEdges?.has(`${edge.source}->${edge.target}`);
               const sPos = dragPos?.id === edge.source ? positionOf(edge.source) : sp;
               const tPos = dragPos?.id === edge.target ? positionOf(edge.target) : tp;
-              const from = back ? rightAnchor(sPos) : bottomAnchor(sPos);
+              // #2670: an expanded container's outgoing edge leaves from its
+              // TRUE bottom (heights map; drag-independent). Back-edges stay on
+              // the header band via rightAnchor, so toggling never swings arcs.
+              const from = back ? rightAnchor(sPos) : bottomAnchor(sPos, heights.get(edge.source) ?? NODE_H);
               const to = back ? rightAnchor(tPos) : topAnchor(tPos);
               const labelPos = back ? backEdgeLabelAnchor(from, to) : edgeMidpoint(from, to);
               const cond = conditionText(edge.condition);
@@ -823,7 +862,10 @@ export function FlowCanvas({
                 }
                 invalid={invalidNodeSet.has(node.id)}
                 badge={nodeBadges.get(node.id)}
-                regions={extractRegions(node)}
+                regions={regionsByNode.get(node.id)}
+                expanded={expandedIds.has(node.id)}
+                onToggleExpand={regionsByNode.has(node.id) ? () => toggleExpanded(node.id) : undefined}
+                height={heights.get(node.id)}
               />
             );
           })}

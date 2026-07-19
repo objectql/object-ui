@@ -51,6 +51,7 @@ import {
 import { t as tr } from '../i18n';
 import { NODE_W, NODE_H, type Point, type LabeledRegion } from './flow-canvas-layout';
 import { FlowRegionView } from './flow-region-view';
+import { EXPANDED_REGION_MAX_W, NODE_REGION_GAP, REGION_PANEL_PAD } from './flow-region-metrics';
 import { useFlowPaletteRecents } from '../../../context/FlowPaletteRecentsProvider';
 
 export function nodeIcon(type: string): LucideIcon {
@@ -417,10 +418,21 @@ export interface NodeCardProps {
   /**
    * #2670: structured-region sub-graphs this node contains (`loop.body`,
    * `parallel.branches`, `try_catch.try`/`catch`). When present, the card gains
-   * an expand toggle that renders them read-only, nested beneath the header.
-   * Empty / absent for ordinary nodes and legacy flat loops → a plain card.
+   * an expand toggle that renders them read-only, INLINE beneath the header —
+   * the card grows and the canvas pushes lower layers down. Empty / absent for
+   * ordinary nodes and legacy flat loops → a plain card.
    */
   regions?: LabeledRegion[];
+  /** #2670: whether the region tray is expanded (controlled by FlowCanvas). */
+  expanded?: boolean;
+  /** #2670: toggle the region tray. Absent → no expand affordance. */
+  onToggleExpand?: () => void;
+  /**
+   * #2670: the card's rendered height from the layout geometry — the SAME
+   * number that positioned every card below this one, so the DOM can never
+   * disagree with the layout. `NODE_H` (or absent) when collapsed/plain.
+   */
+  height?: number;
 }
 
 /**
@@ -429,6 +441,7 @@ export interface NodeCardProps {
  * (edit mode only) appends a connected child without ambiguity.
  */
 export function NodeCard({
+  id,
   type,
   label,
   summary,
@@ -444,6 +457,9 @@ export function NodeCard({
   onAppend,
   onAddReviseLoop,
   regions,
+  expanded,
+  onToggleExpand,
+  height,
 }: NodeCardProps) {
   const tone = nodeTone(type);
   const hasRegions = !!regions && regions.length > 0;
@@ -454,7 +470,8 @@ export function NodeCard({
       // tiny button itself.
       className="group absolute transition-opacity duration-200"
       data-invalid={invalid || undefined}
-      style={{ left: position.x, top: position.y, width: NODE_W, height: NODE_H, opacity: dimmed ? 0.35 : 1 }}
+      data-node-id={id}
+      style={{ left: position.x, top: position.y, width: NODE_W, height: height ?? NODE_H, opacity: dimmed ? 0.35 : 1 }}
     >
       <div
         role="button"
@@ -471,8 +488,11 @@ export function NodeCard({
             onSelect?.();
           }
         }}
+        // #2670: the header band stays exactly one node tall even when the card
+        // grows to hold its expanded region tray below.
+        style={{ height: NODE_H }}
         className={cn(
-          'group flex h-full w-full items-center gap-3 rounded-xl border bg-card px-2.5 py-2 text-left shadow-sm outline-none',
+          'group flex w-full items-center gap-3 rounded-xl border bg-card px-2.5 py-2 text-left shadow-sm outline-none',
           'transition-[transform,box-shadow,border-color] duration-150 ease-out will-change-transform',
           'hover:-translate-y-0.5 hover:shadow-lg hover:shadow-foreground/[0.06] focus-visible:ring-2 focus-visible:ring-primary/40',
           editable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
@@ -514,37 +534,37 @@ export function NodeCard({
           </div>
         </div>
       </div>
-      {hasRegions && (
-        // #2670: the container's nested regions render read-only in a Popover
-        // anchored to the card — floating (portaled) so it never overlaps the
-        // canvas's other nodes and needs no change to the layout / edge routing.
-        // (Inline, push-down nesting on the canvas is the next increment.)
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-label="Show nested regions"
-              title="Show nested regions"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              className="absolute right-1.5 top-1.5 z-20 inline-flex h-5 w-5 items-center justify-center rounded-md border bg-background/90 text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            side="right"
-            sideOffset={8}
-            onPointerDown={(e) => e.stopPropagation()}
-            className="max-h-[60vh] w-[280px] overflow-auto p-2"
-          >
-            <div className="pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {type === 'loop' ? 'Loop body' : type === 'parallel' ? 'Parallel branches' : 'Try / Catch'}
-            </div>
-            <FlowRegionView regions={regions!} maxWidth={244} />
-          </PopoverContent>
-        </Popover>
+      {hasRegions && onToggleExpand && (
+        // #2670 Phase 2: the container's regions render INLINE — the card grows
+        // and the geometry-aware layout pushes lower layers down (replaces the
+        // Phase-1 read-only popover). The chevron toggles view-only state owned
+        // by FlowCanvas; height comes in via the `height` prop so DOM and
+        // layout can never disagree.
+        <button
+          type="button"
+          aria-label={expanded ? 'Collapse nested regions' : 'Expand nested regions'}
+          title={expanded ? 'Collapse nested regions' : 'Expand nested regions'}
+          aria-expanded={!!expanded}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          className="absolute right-1.5 top-1.5 z-20 inline-flex h-5 w-5 items-center justify-center rounded-md border bg-background/90 text-muted-foreground shadow-sm transition-colors hover:border-primary hover:text-primary"
+        >
+          <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', expanded && 'rotate-90')} />
+        </button>
+      )}
+      {hasRegions && expanded && (
+        <div
+          className="rounded-lg border bg-card shadow-sm"
+          style={{ marginTop: NODE_REGION_GAP, padding: REGION_PANEL_PAD }}
+          // Read-only tray: interacting with it must never start a card drag.
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <FlowRegionView regions={regions!} maxWidth={EXPANDED_REGION_MAX_W} />
+        </div>
       )}
       {badge && (
         <span
