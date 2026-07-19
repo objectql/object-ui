@@ -50,6 +50,19 @@ describe('deriveLookupColumns', () => {
     expect(deriveLookupColumns(accountSchema, { displayField: 'name', max: 2 })).toHaveLength(2);
   });
 
+  it('skips fields flagged `system: true` even when the name is not a known audit column', () => {
+    const schema = {
+      fields: {
+        name: { type: 'text', label: 'Name' },
+        // Non-canonical name, but stamped system by the framework — must be skipped.
+        custom_ref: { type: 'lookup', label: 'Custom Ref', system: true } as any,
+        code: { type: 'text', label: 'Code' },
+      },
+    };
+    const cols = deriveLookupColumns(schema, { displayField: 'name', max: 10 });
+    expect(cols.map((c) => c.field)).toEqual(['name', 'code']);
+  });
+
   it('honours an object-level displayFields list, with the display field first', () => {
     const schema = {
       fields: {

@@ -1,17 +1,5 @@
 import type { LookupColumnDef } from '@object-ui/types';
-
-/**
- * System / audit fields that carry no disambiguating value in a record picker.
- * Excluded from auto-derived columns so the picker shows business data, not
- * bookkeeping.
- */
-const SYSTEM_FIELDS = new Set<string>([
-  'id', '_id',
-  'created', 'modified', 'created_at', 'updated_at',
-  'created_by', 'updated_by', 'modified_by',
-  'owner_id', 'organization_id', 'space', 'company_id',
-  'instance_state', 'locked', 'is_deleted', 'deleted',
-]);
+import { isSystemManagedField } from '@object-ui/types';
 
 /**
  * Field types that don't render usefully as a compact picker column (large
@@ -31,7 +19,7 @@ export interface DeriveColumnsOptions {
 }
 
 interface ObjectSchemaLike {
-  fields?: Record<string, { type?: string; label?: string; hidden?: boolean }>;
+  fields?: Record<string, { type?: string; label?: string; hidden?: boolean; system?: boolean }>;
   /**
    * ADR-0085 semantic role: the object's most important fields. The single
    * source for "how to list this object" — shared with the detail-page related
@@ -106,8 +94,10 @@ export function deriveLookupColumns(
   // 3. Derive from the field set in declaration order.
   const candidates = Object.keys(fields).filter((name) => {
     if (name === displayField) return false;
-    if (SYSTEM_FIELDS.has(name)) return false;
     const f = fieldDef(name);
+    // Skip framework-managed system/audit/ownership columns (incl. owner_id) —
+    // they carry no disambiguating value in a record picker.
+    if (isSystemManagedField(name, f)) return false;
     if (f.hidden) return false;
     if (f.type && NON_TABULAR_TYPES.has(f.type)) return false;
     return true;

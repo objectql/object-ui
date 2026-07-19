@@ -28,6 +28,7 @@ import {
   SheetTitle,
 } from '@object-ui/components';
 import type { DataSource } from '@object-ui/types';
+import { SYSTEM_MANAGED_FIELD_NAMES } from '@object-ui/types';
 import { InlineEditProvider } from '@object-ui/react';
 import { DetailView } from './DetailView';
 import { InlineEditSaveBar } from './InlineEditSaveBar';
@@ -42,15 +43,12 @@ import { useDetailTranslation } from './useDetailTranslation';
  * `<RecordMetaFooter>` (single-line, muted) rather than a heavy panel, so
  * users can still see who/when created or last touched a record.
  *
- * Keep this in sync with the audit fields auto-injected by the
- * framework's `applySystemFields` (created_at/created_by/updated_at/
- * updated_by) plus the legacy/tenant identifiers.
+ * Derived from the shared `SYSTEM_MANAGED_FIELD_NAMES` — the same set the grid's
+ * default-column derivation uses — so it stays in lockstep with the fields
+ * `applySystemFields` injects (audit `*_at`/`*_by`, the ownership/tenant FKs,
+ * soft-delete bookkeeping). Callers can still override via the `systemFields` prop.
  */
-const DEFAULT_SYSTEM_FIELDS = new Set([
-  'id', '_id', '__v', 'created_at', 'updated_at', 'createdAt', 'updatedAt',
-  'created_by', 'updated_by', 'organization_id', 'tenant_id', 'owner_id',
-  'deleted_at', 'is_deleted',
-]);
+const DEFAULT_SYSTEM_FIELDS = new Set(SYSTEM_MANAGED_FIELD_NAMES);
 
 export interface RecordDetailDrawerProps {
   /** Whether the drawer is currently open. */

@@ -1956,14 +1956,18 @@ export const ObjectGrid: React.FC<ObjectGridProps> = ({
   // this same type-aware renderer instead of the card view falling back to
   // a raw `String(value)` dump (which showed "[object Object]" for lookups).
   const renderRecordDetail = (record: any) => {
-    const systemFields = ['_id', 'id', 'created_at', 'updated_at', 'created_by', 'updated_by'];
     const entries = Object.entries(record);
     // Honor `hidden: true` on the schema field def — internal/system fields
     // (e.g. database_url, environment_id, is_system) shouldn't leak into the
     // grid's record-detail drawer just because they're in the record payload.
     const isHidden = (key: string) => objectSchema?.fields?.[key]?.hidden === true;
-    const regularFields = entries.filter(([key]) => !systemFields.includes(key) && !isHidden(key));
-    const metaFields = entries.filter(([key]) => systemFields.includes(key) && key !== '_id' && key !== 'id');
+    // Split business fields from framework-managed system/audit/ownership
+    // columns via the shared classifier (branches on `field.system`), so the
+    // injected `owner_id` and friends land in the muted meta section rather than
+    // the business body — consistent with the grid's default-column derivation.
+    const isSystem = (key: string) => isSystemManagedField(key, objectSchema?.fields?.[key]);
+    const regularFields = entries.filter(([key]) => !isSystem(key) && !isHidden(key));
+    const metaFields = entries.filter(([key]) => isSystem(key) && key !== '_id' && key !== 'id' && !isHidden(key));
 
     const formatFieldLabel = (key: string): string =>
       key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
