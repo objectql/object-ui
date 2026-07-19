@@ -2308,22 +2308,47 @@ export function GanttView({
   const hTrackRef = React.useRef<HTMLDivElement>(null);
   const hThumbRef = React.useRef<HTMLDivElement>(null);
   const hDragRef = React.useRef<{ startX: number; startLeft: number } | null>(null);
+  const vBarRef = React.useRef<HTMLDivElement>(null);
+  const vTrackRef = React.useRef<HTMLDivElement>(null);
+  const vThumbRef = React.useRef<HTMLDivElement>(null);
+  const vDragRef = React.useRef<{ startY: number; startTop: number } | null>(null);
   const syncHScrollbar = React.useCallback(() => {
     const tl = timelineRef.current;
     const bar = hBarRef.current;
     const track = hTrackRef.current;
     const thumb = hThumbRef.current;
-    if (!tl || !bar || !track || !thumb) return;
-    const needed = tl.scrollWidth > tl.clientWidth + 1;
-    bar.style.display = needed ? 'block' : 'none';
-    if (!needed) return;
-    const trackW = track.clientWidth;
-    if (trackW <= 0) return;
-    const thumbW = Math.min(trackW, Math.max(40, (tl.clientWidth / tl.scrollWidth) * trackW));
-    const maxScroll = tl.scrollWidth - tl.clientWidth;
-    const left = maxScroll > 0 ? (tl.scrollLeft / maxScroll) * (trackW - thumbW) : 0;
-    thumb.style.width = `${thumbW}px`;
-    thumb.style.transform = `translateX(${left}px)`;
+    if (tl && bar && track && thumb) {
+      const needed = tl.scrollWidth > tl.clientWidth + 1;
+      bar.style.display = needed ? 'block' : 'none';
+      if (needed) {
+        const trackW = track.clientWidth;
+        if (trackW > 0) {
+          const thumbW = Math.min(trackW, Math.max(40, (tl.clientWidth / tl.scrollWidth) * trackW));
+          const maxScroll = tl.scrollWidth - tl.clientWidth;
+          const left = maxScroll > 0 ? (tl.scrollLeft / maxScroll) * (trackW - thumbW) : 0;
+          thumb.style.width = `${thumbW}px`;
+          thumb.style.transform = `translateX(${left}px)`;
+        }
+      }
+    }
+    // Vertical twin — same math on the other axis.
+    const vBar = vBarRef.current;
+    const vTrack = vTrackRef.current;
+    const vThumb = vThumbRef.current;
+    if (tl && vBar && vTrack && vThumb) {
+      const needed = tl.scrollHeight > tl.clientHeight + 1;
+      vBar.style.display = needed ? 'block' : 'none';
+      if (needed) {
+        const trackH = vTrack.clientHeight;
+        if (trackH > 0) {
+          const thumbH = Math.min(trackH, Math.max(40, (tl.clientHeight / tl.scrollHeight) * trackH));
+          const maxScroll = tl.scrollHeight - tl.clientHeight;
+          const top = maxScroll > 0 ? (tl.scrollTop / maxScroll) * (trackH - thumbH) : 0;
+          vThumb.style.height = `${thumbH}px`;
+          vThumb.style.transform = `translateY(${top}px)`;
+        }
+      }
+    }
   }, []);
   // Re-measure after every render: cheap (a couple of style writes) and it
   // tracks every input that moves the geometry — zoom, view mode, container
@@ -2372,6 +2397,48 @@ export function GanttView({
     if (usable <= 0) return;
     const targetLeft = Math.min(Math.max(e.clientX - r.x - thumbW / 2, 0), usable);
     tl.scrollLeft = (targetLeft / usable) * maxScroll;
+  };
+  const onVThumbPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const tl = timelineRef.current;
+    const track = vTrackRef.current;
+    const thumb = vThumbRef.current;
+    if (!tl || !track || !thumb) return;
+    vDragRef.current = { startY: e.clientY, startTop: tl.scrollTop };
+    const trackH = track.clientHeight;
+    const thumbH = thumb.getBoundingClientRect().height;
+    const maxScroll = tl.scrollHeight - tl.clientHeight;
+    const pxRatio = trackH - thumbH > 0 ? maxScroll / (trackH - thumbH) : 0;
+    const onMove = (ev: PointerEvent) => {
+      const cur = vDragRef.current;
+      if (!cur) return;
+      tl.scrollTop = cur.startTop + (ev.clientY - cur.startY) * pxRatio;
+    };
+    const onUp = () => {
+      vDragRef.current = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+  const onVTrackPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || e.target !== e.currentTarget) return;
+    const tl = timelineRef.current;
+    const track = vTrackRef.current;
+    const thumb = vThumbRef.current;
+    if (!tl || !track || !thumb) return;
+    const r = track.getBoundingClientRect();
+    const thumbH = thumb.getBoundingClientRect().height;
+    const maxScroll = tl.scrollHeight - tl.clientHeight;
+    const usable = r.height - thumbH;
+    if (usable <= 0) return;
+    const targetTop = Math.min(Math.max(e.clientY - r.y - thumbH / 2, 0), usable);
+    tl.scrollTop = (targetTop / usable) * maxScroll;
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -2871,48 +2938,16 @@ export function GanttView({
           .gantt-sm-w20 { width: 80px; }
           .gantt-sm-hidden { display: none; }
         }
-        /* Persistent, grabbable timeline scrollbars. macOS (and iOS) default to
-           overlay scrollbars that collapse to 0px and auto-hide, so the
-           timeline's vertical scrollbar was nearly impossible to find. Defining
-           ::-webkit-scrollbar opts this pane into a classic, always-visible bar
-           regardless of the OS overlay preference. The thumb gets a min size so
-           that with thousands of virtualized rows (scrollHeight in the hundreds
-           of thousands of px) it never shrinks to an un-grabbable sliver. Scoped
-           to the gantt pane so the host app's own scrollbars are untouched, and
-           themed with neutral rgba (not theme utilities, which don't always
-           reach a consuming app) so it's visible on any background. */
-        /* Firefox (and any engine without ::-webkit-scrollbar) only: the
-           standard props. We must NOT set these unconditionally — modern Chrome
-           now honors scrollbar-width and, when it's present, IGNORES the
-           ::-webkit-scrollbar rule below, falling back to the 0px auto-hiding
-           overlay bar we're trying to replace. */
-        @supports not selector(::-webkit-scrollbar) {
-          [data-testid="gantt-timeline"] {
-            scrollbar-width: thin;
-            scrollbar-color: rgba(130,130,130,0.55) transparent;
-          }
-        }
-        [data-testid="gantt-timeline"]::-webkit-scrollbar {
-          width: 14px;
-          height: 14px;
-        }
-        [data-testid="gantt-timeline"]::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        [data-testid="gantt-timeline"]::-webkit-scrollbar-thumb {
-          background-color: rgba(130,130,130,0.55);
-          border-radius: 8px;
-          border: 3px solid transparent;
-          background-clip: padding-box;
-          min-height: 40px;
-          min-width: 40px;
-        }
-        [data-testid="gantt-timeline"]::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(110,110,110,0.85);
-        }
-        [data-testid="gantt-timeline"]::-webkit-scrollbar-corner {
-          background: transparent;
-        }
+        /* The timeline's NATIVE scrollbars are fully hidden — both axes are
+           replaced by the self-drawn bars (水平底部 / 垂直右侧). Styling the
+           native bar is a dead end: overlay-scrollbar engines (macOS "show
+           while scrolling", embedded Chromium) ignore ::-webkit-scrollbar
+           theming yet still flash their own auto-hiding bar on scroll, which
+           doubled up with the self-drawn one (双滚动条). scrollbar-width:none
+           is honored by overlay engines too; the ::-webkit rule covers older
+           WebKit. Wheel/trackpad/programmatic scrolling is unaffected. */
+        [data-testid="gantt-timeline"] { scrollbar-width: none; }
+        [data-testid="gantt-timeline"]::-webkit-scrollbar { display: none; width: 0; height: 0; }
         /* The task-list pane scrolls in lockstep with the timeline, so its own
            vertical scrollbar (butted against the divider) was a confusing second
            bar. Hide it — the pane stays wheel/drag-scrollable and synced. */
@@ -4370,6 +4405,40 @@ export function GanttView({
                 })()}
 
               </div>
+            </div>
+          </div>
+
+          {/* Self-drawn vertical scrollbar (自绘垂直滚动条) — the native bars
+              are fully hidden (see the style block), so this is the one
+              vertical affordance; synced with the timeline's scrollTop. */}
+          <div
+            ref={vBarRef}
+            className="shrink-0 border-l bg-card/95 select-none"
+            style={{ width: 14, display: 'none' }}
+            data-testid="gantt-vscrollbar"
+          >
+            <div
+              ref={vTrackRef}
+              className="relative h-full"
+              onPointerDown={onVTrackPointerDown}
+              role="scrollbar"
+              aria-controls="gantt-timeline"
+              aria-orientation="vertical"
+            >
+              <div
+                ref={vThumbRef}
+                className="absolute rounded-full"
+                style={{
+                  left: 2,
+                  right: 2,
+                  top: 0,
+                  height: 0,
+                  backgroundColor: 'rgba(130,130,130,0.55)',
+                  cursor: 'grab',
+                }}
+                data-testid="gantt-vscrollbar-thumb"
+                onPointerDown={onVThumbPointerDown}
+              />
             </div>
           </div>
         </div>
