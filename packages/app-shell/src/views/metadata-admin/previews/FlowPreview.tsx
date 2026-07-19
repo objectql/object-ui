@@ -37,6 +37,7 @@ import { uniqueId, appendArray } from '../inspectors/_shared';
 import { t as tr } from '../i18n';
 import { FlowCanvas } from './FlowCanvas';
 import { edgeKey } from './flow-canvas-layout';
+import { NESTED_NODE_KIND, parseNestedNodeId, encodeNestedNodeId } from '../inspectors/flow-nested-selection';
 import { FlowSimulatorPanel } from './FlowSimulatorPanel';
 import { FlowRunsPanel } from './FlowRunsPanel';
 import { ProblemsPanel } from './ProblemsPanel';
@@ -82,6 +83,13 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
   const canEdit = designMode && !!onPatch;
   const selectedId = selection && selection.kind === 'node' ? selection.id : null;
   const selectedEdgeId = selection && selection.kind === 'edge' ? selection.id : null;
+  // #2670 Phase 3: a nested-node selection carries an encoded container path in
+  // the flat selection id. Decode it HERE — FlowPreview is the only place that
+  // speaks the codec; the canvas only ever handles the structured path.
+  const selectedNestedPath = React.useMemo(
+    () => (selection && selection.kind === NESTED_NODE_KIND ? parseNestedNodeId(selection.id) : null),
+    [selection],
+  );
 
   const [showDebug, setShowDebug] = React.useState(false);
   // Variables panel is opt-in: opening a flow should show the full-width canvas,
@@ -291,6 +299,16 @@ export function FlowPreview({ draft, editing, selection, onSelectionChange, onPa
                 onSelectEdge={(e, key) =>
                   e
                     ? onSelectionChange?.({ kind: 'edge', id: key, label: `${e.source} → ${e.target}` })
+                    : onSelectionChange?.(null)
+                }
+                selectedNestedPath={selectedNestedPath}
+                onSelectNested={(path, node) =>
+                  path
+                    ? onSelectionChange?.({
+                        kind: NESTED_NODE_KIND,
+                        id: encodeNestedNodeId(path),
+                        label: node?.label || path.nodeId,
+                      })
                     : onSelectionChange?.(null)
                 }
                 onPatch={onPatch}

@@ -33,12 +33,58 @@ import {
 import { NodeTypeIcon, nodeTone } from './flow-canvas-parts';
 import { REGION_BLOCK_PAD, REGION_GAP, REGION_LABEL_H } from './flow-region-metrics';
 
-/** Read-only node box inside a region — a compact echo of `NodeCard`. */
-function RegionNode({ node, x, y }: { node: FlowNode; x: number; y: number }) {
+/**
+ * Node box inside a region — a compact echo of `NodeCard`. Read-only by default
+ * (identical to Phase 1/2); when `onSelect` is supplied it becomes a selectable
+ * control (button role, keyboard, selection ring) so a nested node can be routed
+ * to the shared inspector (#2670 Phase 3). The `data-region-node-id` hook is
+ * always emitted for test / deep-link targeting.
+ */
+function RegionNode({
+  node,
+  x,
+  y,
+  selected,
+  onSelect,
+}: {
+  node: FlowNode;
+  x: number;
+  y: number;
+  selected?: boolean;
+  onSelect?: () => void;
+}) {
   const tone = nodeTone(node.type);
+  const interactive = !!onSelect;
   return (
     <div
-      className="absolute flex items-center gap-2 rounded-lg border border-border/70 bg-card px-2 py-1.5 shadow-sm"
+      data-region-node-id={node.id}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-pressed={interactive ? !!selected : undefined}
+      onClick={
+        interactive
+          ? (e) => {
+              e.stopPropagation();
+              onSelect();
+            }
+          : undefined
+      }
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelect();
+              }
+            }
+          : undefined
+      }
+      className={cn(
+        'absolute flex items-center gap-2 rounded-lg border bg-card px-2 py-1.5 shadow-sm',
+        interactive && 'cursor-pointer',
+        selected ? 'border-primary ring-2 ring-primary/30' : 'border-border/70',
+      )}
       style={{ left: x, top: y, width: NODE_W, height: NODE_H }}
     >
       <div className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', tone.chip)}>
@@ -55,7 +101,17 @@ function RegionNode({ node, x, y }: { node: FlowNode; x: number; y: number }) {
 }
 
 /** One region laid out with the shared engine, then scaled to fit `maxWidth`. */
-function RegionCanvas({ region, maxWidth }: { region: LabeledRegion; maxWidth: number }) {
+function RegionCanvas({
+  region,
+  maxWidth,
+  selectedNodeId,
+  onSelectNode,
+}: {
+  region: LabeledRegion;
+  maxWidth: number;
+  selectedNodeId?: string | null;
+  onSelectNode?: (node: FlowNode) => void;
+}) {
   const layout = React.useMemo(() => computeLayout(region.nodes, region.edges), [region.nodes, region.edges]);
   const { width, height } = React.useMemo(() => diagramSize(layout), [layout]);
   const scale = Math.min(1, maxWidth / Math.max(width, 1));
@@ -86,7 +142,16 @@ function RegionCanvas({ region, maxWidth }: { region: LabeledRegion; maxWidth: n
         </svg>
         {region.nodes.map((n) => {
           const p = layout.get(n.id);
-          return p ? <RegionNode key={n.id} node={n} x={p.x} y={p.y} /> : null;
+          return p ? (
+            <RegionNode
+              key={n.id}
+              node={n}
+              x={p.x}
+              y={p.y}
+              selected={selectedNodeId === n.id}
+              onSelect={onSelectNode ? () => onSelectNode(n) : undefined}
+            />
+          ) : null;
         })}
       </div>
     </div>
@@ -97,7 +162,19 @@ function RegionCanvas({ region, maxWidth }: { region: LabeledRegion; maxWidth: n
  * Render a container's nested regions read-only, each fit to `maxWidth`, with a
  * header per region (`Branch N` / `Try` / `Catch`; a loop body has no header).
  */
-export function FlowRegionView({ regions, maxWidth }: { regions: LabeledRegion[]; maxWidth: number }) {
+export function FlowRegionView({
+  regions,
+  maxWidth,
+  selected,
+  onSelectNode,
+}: {
+  regions: LabeledRegion[];
+  maxWidth: number;
+  /** The selected nested node, scoped to its region — highlighted with a ring. */
+  selected?: { regionKey: string; nodeId: string } | null;
+  /** Selecting a nested node, tagged with its region key (for the container path). */
+  onSelectNode?: (regionKey: string, node: FlowNode) => void;
+}) {
   // #2670: every dimension in this height stack is an explicit px from
   // flow-region-metrics so the layout height PREDICTOR matches the DOM exactly
   // (rem-based Tailwind spacing and font-metric line-heights would drift).
@@ -117,7 +194,12 @@ export function FlowRegionView({ regions, maxWidth }: { regions: LabeledRegion[]
               {region.label}
             </div>
           )}
-          <RegionCanvas region={region} maxWidth={maxWidth} />
+          <RegionCanvas
+            region={region}
+            maxWidth={maxWidth}
+            selectedNodeId={selected && selected.regionKey === region.key ? selected.nodeId : null}
+            onSelectNode={onSelectNode ? (node) => onSelectNode(region.key, node) : undefined}
+          />
         </div>
       ))}
     </div>

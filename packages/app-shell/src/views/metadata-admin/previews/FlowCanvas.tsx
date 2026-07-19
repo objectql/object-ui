@@ -50,6 +50,7 @@ import { predictExpandedNodeHeight } from './flow-region-metrics';
 import { NodeCard, NodePalette, defaultNodeLabel, defaultNodeExtras } from './flow-canvas-parts';
 import { useFlowNodePalette } from './useFlowNodePalette';
 import { indexProblemBadges, edgeProblemKey, type FlowProblem } from './flow-problems';
+import type { NestedNodePath } from '../inspectors/flow-nested-selection';
 
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 1.6;
@@ -110,6 +111,18 @@ export interface FlowCanvasProps {
   onSelect: (node: FlowNode | null) => void;
   /** Select an edge (its `edgeKey`), or clear selection with `null`. */
   onSelectEdge?: (edge: FlowEdge | null, key: string) => void;
+  /**
+   * #2670 Phase 3: the selected NESTED node (inside an expanded container's
+   * region), or null. Drives the selection ring on the matching container's
+   * tray node.
+   */
+  selectedNestedPath?: NestedNodePath | null;
+  /**
+   * #2670 Phase 3: select a nested node (pass its full path + the node), or
+   * clear the nested selection with `null`. Absent → the region trays stay
+   * read-only (Phase 2 behavior).
+   */
+  onSelectNested?: (path: NestedNodePath | null, node?: FlowNode) => void;
   onPatch?: (partial: Record<string, unknown>) => void;
 }
 
@@ -131,6 +144,8 @@ export function FlowCanvas({
   revealSignal,
   onSelect,
   onSelectEdge,
+  selectedNestedPath,
+  onSelectNested,
   onPatch,
 }: FlowCanvasProps) {
   const viewportRef = React.useRef<HTMLDivElement>(null);
@@ -155,14 +170,23 @@ export function FlowCanvas({
   // the geometry-aware layout (expanded container = predicted card height;
   // everything else = NODE_H, keeping the historical layout byte-identical).
   const [expandedIds, setExpandedIds] = React.useState<ReadonlySet<string>>(() => new Set());
-  const toggleExpanded = React.useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggleExpanded = React.useCallback(
+    (id: string) => {
+      // Read the current expand state OUTSIDE the updater so we can clear a
+      // now-hidden nested selection on collapse (D6) — a plain effect keyed on
+      // expandedIds would also fire when the canvas remounts (expandedIds resets
+      // to empty) and wrongly clear a still-valid selection.
+      const collapsing = expandedIds.has(id);
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      if (collapsing && selectedNestedPath?.containerId === id) onSelectNested?.(null);
+    },
+    [expandedIds, selectedNestedPath, onSelectNested],
+  );
   const regionsByNode = React.useMemo(() => {
     const map = new Map<string, LabeledRegion[]>();
     for (const n of nodes) {
@@ -866,6 +890,17 @@ export function FlowCanvas({
                 expanded={expandedIds.has(node.id)}
                 onToggleExpand={regionsByNode.has(node.id) ? () => toggleExpanded(node.id) : undefined}
                 height={heights.get(node.id)}
+                selectedNestedNode={
+                  selectedNestedPath?.containerId === node.id
+                    ? { regionKey: selectedNestedPath.regionKey, nodeId: selectedNestedPath.nodeId }
+                    : null
+                }
+                onSelectNestedNode={
+                  designMode && onSelectNested
+                    ? (regionKey, nested) =>
+                        onSelectNested({ containerId: node.id, regionKey, nodeId: nested.id }, nested)
+                    : undefined
+                }
               />
             );
           })}

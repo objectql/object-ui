@@ -209,3 +209,138 @@ describe('FlowCanvas — inline nested container regions (#2670 Phase 2)', () =>
     expect(screen.queryByRole('button', { name: /nested regions/i })).not.toBeInTheDocument();
   });
 });
+
+describe('FlowCanvas — nested-node selection on the inline canvas (#2670 Phase 3)', () => {
+  const LOOP_NODES = [
+    { id: 'start', type: 'start' },
+    {
+      id: 'each',
+      type: 'loop',
+      label: 'For each order',
+      config: { body: { nodes: [{ id: 'charge', type: 'http', label: 'Charge card' }], edges: [] } },
+    },
+    { id: 'after', type: 'end', label: 'After' },
+  ];
+  const LOOP_EDGES = [
+    { source: 'start', target: 'each' },
+    { source: 'each', target: 'after' },
+  ];
+
+  it('emits a structured nested path (not the container) when a body node is clicked', () => {
+    const onSelect = vi.fn();
+    const onSelectNested = vi.fn();
+    render(
+      <FlowCanvas
+        nodes={LOOP_NODES}
+        edges={LOOP_EDGES}
+        editable
+        designMode
+        selectedId={null}
+        onSelect={onSelect}
+        onSelectNested={onSelectNested}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nested regions' }));
+    onSelect.mockClear(); // the expand toggle itself must not have selected anything
+    fireEvent.click(screen.getByText('Charge card'));
+    // The nested node routes to onSelectNested with its full path + node…
+    expect(onSelectNested).toHaveBeenCalledTimes(1);
+    const [path, node] = onSelectNested.mock.calls[0];
+    expect(path).toEqual({ containerId: 'each', regionKey: 'body', nodeId: 'charge' });
+    expect(node.id).toBe('charge');
+    // …and the click never bubbles up to select the container node.
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('paints the selection ring (aria-pressed) on the matching nested node', () => {
+    const { container } = render(
+      <FlowCanvas
+        nodes={LOOP_NODES}
+        edges={LOOP_EDGES}
+        editable
+        designMode
+        selectedId={null}
+        onSelect={() => {}}
+        onSelectNested={() => {}}
+        selectedNestedPath={{ containerId: 'each', regionKey: 'body', nodeId: 'charge' }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nested regions' }));
+    const nested = container.querySelector('[data-region-node-id="charge"]') as HTMLElement;
+    expect(nested).not.toBeNull();
+    expect(nested.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('clears the nested selection when its container is collapsed', () => {
+    const onSelectNested = vi.fn();
+    render(
+      <FlowCanvas
+        nodes={LOOP_NODES}
+        edges={LOOP_EDGES}
+        editable
+        designMode
+        selectedId={null}
+        onSelect={() => {}}
+        onSelectNested={onSelectNested}
+        selectedNestedPath={{ containerId: 'each', regionKey: 'body', nodeId: 'charge' }}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nested regions' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse nested regions' }));
+    expect(onSelectNested).toHaveBeenCalledWith(null);
+  });
+
+  it('tags a parallel branch node with its indexed region key', () => {
+    const onSelectNested = vi.fn();
+    render(
+      <FlowCanvas
+        nodes={[
+          {
+            id: 'fan',
+            type: 'parallel',
+            label: 'Fan out',
+            config: {
+              branches: [
+                { name: 'Slack', nodes: [{ id: 'a', type: 'http', label: 'Notify Slack' }], edges: [] },
+                { nodes: [{ id: 'b', type: 'http', label: 'Notify CRM' }], edges: [] },
+              ],
+            },
+          },
+        ]}
+        edges={[]}
+        editable
+        designMode
+        selectedId={null}
+        onSelect={() => {}}
+        onSelectNested={onSelectNested}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nested regions' }));
+    fireEvent.click(screen.getByText('Notify CRM'));
+    expect(onSelectNested).toHaveBeenCalledTimes(1);
+    const [path] = onSelectNested.mock.calls[0];
+    expect(path).toEqual({ containerId: 'fan', regionKey: 'branch-1', nodeId: 'b' });
+  });
+
+  it('keeps the tray read-only (no nested selection) outside design mode', () => {
+    const onSelectNested = vi.fn();
+    const { container } = render(
+      <FlowCanvas
+        nodes={LOOP_NODES}
+        edges={LOOP_EDGES}
+        editable={false}
+        designMode={false}
+        selectedId={null}
+        onSelect={() => {}}
+        onSelectNested={onSelectNested}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Expand nested regions' }));
+    const nested = container.querySelector('[data-region-node-id="charge"]') as HTMLElement;
+    // The hook is always present, but read-only → not a button, no click routing.
+    expect(nested).not.toBeNull();
+    expect(nested.getAttribute('role')).toBeNull();
+    fireEvent.click(screen.getByText('Charge card'));
+    expect(onSelectNested).not.toHaveBeenCalled();
+  });
+});
