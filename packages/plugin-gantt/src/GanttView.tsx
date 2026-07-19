@@ -2296,6 +2296,84 @@ export function GanttView({
     [scrollToDate],
   );
 
+  // --- Always-visible horizontal scrollbar (自绘水平滚动条) ----------------
+  // The native bar can't be relied on here: overlay-scrollbar engines (macOS
+  // "show while scrolling", embedded Chromium) silently ignore the
+  // ::-webkit-scrollbar styling injected above, and in tall host layouts the
+  // pane's bottom edge sits below the viewport so even a rendered bar is out
+  // of sight. So we draw our own track + thumb, stickied to the visible
+  // bottom, synced 1:1 with the timeline's scrollLeft. Everything is
+  // DOM-ref-driven — no per-frame React state.
+  const hBarRef = React.useRef<HTMLDivElement>(null);
+  const hTrackRef = React.useRef<HTMLDivElement>(null);
+  const hThumbRef = React.useRef<HTMLDivElement>(null);
+  const hDragRef = React.useRef<{ startX: number; startLeft: number } | null>(null);
+  const syncHScrollbar = React.useCallback(() => {
+    const tl = timelineRef.current;
+    const bar = hBarRef.current;
+    const track = hTrackRef.current;
+    const thumb = hThumbRef.current;
+    if (!tl || !bar || !track || !thumb) return;
+    const needed = tl.scrollWidth > tl.clientWidth + 1;
+    bar.style.display = needed ? 'block' : 'none';
+    if (!needed) return;
+    const trackW = track.clientWidth;
+    if (trackW <= 0) return;
+    const thumbW = Math.min(trackW, Math.max(40, (tl.clientWidth / tl.scrollWidth) * trackW));
+    const maxScroll = tl.scrollWidth - tl.clientWidth;
+    const left = maxScroll > 0 ? (tl.scrollLeft / maxScroll) * (trackW - thumbW) : 0;
+    thumb.style.width = `${thumbW}px`;
+    thumb.style.transform = `translateX(${left}px)`;
+  }, []);
+  // Re-measure after every render: cheap (a couple of style writes) and it
+  // tracks every input that moves the geometry — zoom, view mode, container
+  // resize, task-list drag — without enumerating them as deps.
+  React.useEffect(() => { syncHScrollbar(); });
+  const onHThumbPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const tl = timelineRef.current;
+    const track = hTrackRef.current;
+    const thumb = hThumbRef.current;
+    if (!tl || !track || !thumb) return;
+    hDragRef.current = { startX: e.clientX, startLeft: tl.scrollLeft };
+    const trackW = track.clientWidth;
+    const thumbW = thumb.getBoundingClientRect().width;
+    const maxScroll = tl.scrollWidth - tl.clientWidth;
+    const pxRatio = trackW - thumbW > 0 ? maxScroll / (trackW - thumbW) : 0;
+    const onMove = (ev: PointerEvent) => {
+      const cur = hDragRef.current;
+      if (!cur) return;
+      tl.scrollLeft = cur.startLeft + (ev.clientX - cur.startX) * pxRatio;
+    };
+    const onUp = () => {
+      hDragRef.current = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+  const onHTrackPointerDown = (e: React.PointerEvent) => {
+    // Clicking the empty track jumps the view; hits on the thumb itself are
+    // handled (and stopped) by the thumb's own pointerdown.
+    if (e.button !== 0 || e.target !== e.currentTarget) return;
+    const tl = timelineRef.current;
+    const track = hTrackRef.current;
+    const thumb = hThumbRef.current;
+    if (!tl || !track || !thumb) return;
+    const r = track.getBoundingClientRect();
+    const thumbW = thumb.getBoundingClientRect().width;
+    const maxScroll = tl.scrollWidth - tl.clientWidth;
+    const usable = r.width - thumbW;
+    if (usable <= 0) return;
+    const targetLeft = Math.min(Math.max(e.clientX - r.x - thumbW / 2, 0), usable);
+    tl.scrollLeft = (targetLeft / usable) * maxScroll;
+  };
+
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     // Track the left-edge date as the user's anchor intent — but only for
@@ -2310,6 +2388,8 @@ export function GanttView({
     if (headerRef.current) {
         headerRef.current.scrollLeft = el.scrollLeft;
     }
+    // Sync the self-drawn horizontal scrollbar thumb.
+    syncHScrollbar();
     // Sync vertical scroll to task list. Assign only when it differs so the
     // browser fires no scroll event on the list (a no-op assignment is silent),
     // which is what keeps the two-way sync below from looping.
@@ -4291,6 +4371,42 @@ export function GanttView({
 
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Always-visible horizontal scrollbar (自绘水平滚动条): sticky to the
+            visible bottom so it stays reachable even when the pane's bottom
+            edge extends past the viewport. Hidden by syncHScrollbar when the
+            timeline fits. */}
+        <div
+          ref={hBarRef}
+          className="shrink-0 border-t bg-card/95 select-none"
+          style={{ position: 'sticky', bottom: 0, zIndex: 30, display: 'none' }}
+          data-testid="gantt-hscrollbar"
+        >
+          <div
+            ref={hTrackRef}
+            className="relative"
+            style={{ marginLeft: taskListWidth, height: 14 }}
+            onPointerDown={onHTrackPointerDown}
+            role="scrollbar"
+            aria-controls="gantt-timeline"
+            aria-orientation="horizontal"
+          >
+            <div
+              ref={hThumbRef}
+              className="absolute rounded-full"
+              style={{
+                top: 2,
+                bottom: 2,
+                left: 0,
+                width: 0,
+                backgroundColor: 'rgba(130,130,130,0.55)',
+                cursor: 'grab',
+              }}
+              data-testid="gantt-hscrollbar-thumb"
+              onPointerDown={onHThumbPointerDown}
+            />
           </div>
         </div>
       </div>

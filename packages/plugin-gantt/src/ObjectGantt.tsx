@@ -38,6 +38,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  cn,
 } from '@object-ui/components';
 import { extractRecords, buildExpandFields, getRecordDisplayName, resolveDataSource } from '@object-ui/core';
 import {
@@ -1348,7 +1349,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   }
 
   return (
-    <div className={className}>
+    <div className={cn('flex h-full min-h-0 flex-col', className)}>
       {resolvedQuickFilters.length > 0 && (
         <QuickFilterBar
           filters={resolvedQuickFilters}
@@ -1365,7 +1366,13 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           }}
         />
       )}
-      <div className="h-[calc(100vh-200px)] min-h-[600px]">
+      {/* Fill the host's flex cell instead of guessing with a viewport calc:
+          `100vh - 200px` overshoots whenever the chrome above (tabs, toolbar,
+          quick filters) exceeds 200px, and the overflow-hidden host then CLIPS
+          the pane's bottom edge — swallowing the horizontal scrollbar
+          (水平滚动条被裁掉). flex-1/min-h-0 tracks the real available height;
+          the min-h keeps standalone embeds (no sized parent) usable. */}
+      <div className="flex-1 min-h-[420px]">
         {ganttConfig?.resourceView && assigneeAccessor ? (
           <ResourceWorkload
             tasks={displayTasks}
