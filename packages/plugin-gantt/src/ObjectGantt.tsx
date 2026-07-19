@@ -50,7 +50,7 @@ import {
   formatPercent,
   formatCurrency,
 } from '@object-ui/fields';
-import { GanttView, type GanttTask, type GanttDependency, type GanttLinkType, type GanttTaskType, type GanttViewMode } from './GanttView';
+import { GanttView, type GanttTask, type GanttDependency, type GanttInteractions, type GanttLinkType, type GanttTaskType, type GanttViewMode } from './GanttView';
 import { ResourceWorkload } from './ResourceWorkload';
 import { QuickFilterBar, type QuickFilterField, type QuickFilterOption } from './QuickFilterBar';
 import type { WorkingCalendar } from './scheduling';
@@ -169,6 +169,14 @@ type GanttConfigEx = GanttConfig & {
    */
   autoZoomToFilter?: boolean;
   /**
+   * Per-interaction switches (交互开关): `move` / `resize` / `progress` / `link`,
+   * each defaulting to true. Metadata-drivable so a view can e.g. allow bar
+   * moves but pin durations (`{ resize: false }`) or keep the dependency UI
+   * read-only (`{ link: false }`). They only narrow what `readOnly` / row locks
+   * already allow. Forwarded to {@link GanttView}.
+   */
+  interactions?: GanttInteractions;
+  /**
    * Shift segmentation (班次/排班分段). When set, the day-mode timeline splits each
    * 排班日 (shift-day, starting at `dayStart`) into the configured bands (白班 |
    * 夜班…): a two-tier header (date over band), per-band column tints, and
@@ -240,6 +248,16 @@ export interface ObjectGanttProps {
   onRowClick?: (record: any) => void;
   onEdit?: (record: any) => void;
   onDelete?: (record: any) => void;
+  /**
+   * Veto hook for task edits, forwarded to {@link GanttView}. Called with the
+   * gantt task and the pending changes on every commit path (drag, resize,
+   * group move, progress, inline edit, auto-reschedule); return false (sync or
+   * async) to cancel that task's update before it reaches the data source.
+   */
+  onBeforeTaskUpdate?: (
+    task: GanttTask,
+    changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>,
+  ) => boolean | Promise<boolean>;
 }
 
 /**
@@ -349,6 +367,7 @@ function getGanttConfig(schema: ObjectGridSchema | any): GanttConfigEx | null {
           quickFilters: schema.quickFilters,
           autoZoomToFilter: schema.autoZoomToFilter,
           timeSegments: schema.timeSegments,
+          interactions: schema.interactions,
       };
       return config;
   }
@@ -375,6 +394,7 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   className,
   onTaskClick,
   onRowClick,
+  onBeforeTaskUpdate,
   ...rest
 }) => {
   const [data, setData] = useState<any[]>([]);
@@ -1394,6 +1414,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
           groupBy={groupByAccessor}
           defaultCollapsedDepth={ganttConfig?.defaultCollapsedDepth}
           summaryExtent={ganttConfig?.summaryExtent}
+          interactions={ganttConfig?.interactions}
+          onBeforeTaskUpdate={onBeforeTaskUpdate}
           inlineEdit
           onRefresh={
             // Only meaningful when there's a live source to re-read (object or

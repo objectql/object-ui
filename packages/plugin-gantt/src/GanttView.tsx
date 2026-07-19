@@ -259,6 +259,24 @@ export interface GanttMarker {
   color?: string
 }
 
+/**
+ * Per-interaction switches (交互开关) — the DHTMLX `drag_move` / `drag_resize` /
+ * `drag_progress` / `drag_links` model. Each defaults to true; flipping one off
+ * hides that affordance everywhere while the others keep working. They only
+ * NARROW what the write callbacks / `readOnly` / row locks already allow —
+ * never widen.
+ */
+export interface GanttInteractions {
+  /** Bar / subtree dragging (move along the timeline). */
+  move?: boolean
+  /** Edge resize grips (change duration). */
+  resize?: boolean
+  /** The progress drag handle. */
+  progress?: boolean
+  /** Dependency UI: drag-to-link dots AND the create/delete menu entries. */
+  link?: boolean
+}
+
 export interface GanttViewProps {
   tasks: GanttTask[]
   /** Initial timeline granularity (also switchable from the toolbar). */
@@ -413,6 +431,27 @@ export interface GanttViewProps {
   onRefresh?: () => void | Promise<void>
   /** Disables the refresh button while a host-driven reload is in flight. */
   refreshing?: boolean
+  /**
+   * Per-interaction switches (交互开关). Omit for all-on. See
+   * {@link GanttInteractions}: e.g. `{ resize: false }` keeps bars movable and
+   * links drawable but pins every duration; `{ link: false }` removes the
+   * dependency drag-dots and the create/delete menu entries. Subject to
+   * `readOnly` and per-row locks — these switches only narrow.
+   */
+  interactions?: GanttInteractions
+  /**
+   * Veto hook for task edits (the MS-Project/Bryntum `beforeTaskDrag` /
+   * `beforeTaskEdit` pattern). Runs on the central commit path — bar drag,
+   * edge resize, group move, progress drag, inline edit, conflict
+   * auto-reschedule — AFTER the built-in guards (locked rows never reach it).
+   * Return false (sync or async) to cancel that task's update; other tasks in
+   * the same batch still apply. Undo/redo bypasses it: restoring a previous
+   * state must not be vetoable.
+   */
+  onBeforeTaskUpdate?: (
+    task: GanttTask,
+    changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>,
+  ) => boolean | Promise<boolean>
 }
 
 /** Persisted layout snapshot written by the "保存布局" toolbar button. */
@@ -583,6 +622,8 @@ export function GanttView({
   onLayoutChange,
   onRefresh,
   refreshing = false,
+  interactions,
+  onBeforeTaskUpdate,
 }: GanttViewProps) {
   const { t, language } = useGanttTranslation();
   // Locale for every user-facing date label. Falls back to the runtime default
@@ -601,10 +642,18 @@ export function GanttView({
   // get a read-only thumbnail (移动端只读缩略). `onTaskClick` / `onViewChange`
   // stay live: they don't mutate.
   const effectiveReadOnly = readOnly || (mobileReadOnly && isNarrow);
+  // Interaction switches (default all on). `link` folds into the dependency
+  // handlers right here so every downstream consumer — drag-dots, context-menu
+  // create/delete entries, link menus — inherits it; move/resize/progress are
+  // enforced at their interaction sites (they share onTaskUpdate).
+  const ixMove = interactions?.move !== false;
+  const ixResize = interactions?.resize !== false;
+  const ixProgress = interactions?.progress !== false;
+  const ixLink = interactions?.link !== false;
   const onTaskUpdate = effectiveReadOnly ? undefined : onTaskUpdateProp;
   const onTaskDelete = effectiveReadOnly ? undefined : onTaskDeleteProp;
-  const onDependencyCreate = effectiveReadOnly ? undefined : onDependencyCreateProp;
-  const onDependencyDelete = effectiveReadOnly ? undefined : onDependencyDeleteProp;
+  const onDependencyCreate = effectiveReadOnly || !ixLink ? undefined : onDependencyCreateProp;
+  const onDependencyDelete = effectiveReadOnly || !ixLink ? undefined : onDependencyDeleteProp;
   const onTaskReorder = effectiveReadOnly ? undefined : onTaskReorderProp;
   const inlineEdit = effectiveReadOnly ? false : inlineEditProp;
   const autoSchedule = effectiveReadOnly ? false : autoScheduleProp;
@@ -880,34 +929,54 @@ export function GanttView({
   const commitTaskUpdates = React.useCallback(
     (updates: Array<{ task: GanttTask; changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>> }>) => {
       if (!onTaskUpdate) return;
-      const batch: HistoryItem[] = [];
       // Central belt: a locked row (仅查看) is never committed, whatever the
       // path — group shift, conflict reschedule, or a future caller.
-      for (const { task, changes } of updates.filter((u) => !u.task.locked)) {
-        const before: Partial<GanttTask> = {};
-        const after: Partial<GanttTask> = {};
-        let dirty = false;
-        for (const k of Object.keys(changes) as Array<keyof GanttTask>) {
-          const next = (changes as Record<string, unknown>)[k as string];
-          const prev = (task as unknown as Record<string, unknown>)[k as string];
-          const same =
-            next instanceof Date && prev instanceof Date
-              ? next.getTime() === prev.getTime()
-              : next === prev;
-          (before as Record<string, unknown>)[k as string] = prev;
-          (after as Record<string, unknown>)[k as string] = next;
-          if (!same) dirty = true;
+      const candidates = updates.filter((u) => !u.task.locked);
+      // The host veto (onBeforeTaskUpdate) may be async, so the whole commit
+      // is — callers stay fire-and-forget. A veto (false return or a throw)
+      // drops that task's update; the rest of the batch still applies.
+      void (async () => {
+        let approved = candidates;
+        if (onBeforeTaskUpdate) {
+          const kept: typeof candidates = [];
+          for (const u of candidates) {
+            let ok = true;
+            try {
+              ok = (await onBeforeTaskUpdate(u.task, u.changes)) !== false;
+            } catch {
+              ok = false;
+            }
+            if (ok) kept.push(u);
+          }
+          approved = kept;
         }
-        onTaskUpdate(task, changes);
-        if (dirty) batch.push({ taskId: String(task.id), before, after });
-      }
-      if (batch.length) {
-        undoStackRef.current.push(batch);
-        redoStackRef.current = [];
-        setHistoryVersion((v) => v + 1);
-      }
+        const batch: HistoryItem[] = [];
+        for (const { task, changes } of approved) {
+          const before: Partial<GanttTask> = {};
+          const after: Partial<GanttTask> = {};
+          let dirty = false;
+          for (const k of Object.keys(changes) as Array<keyof GanttTask>) {
+            const next = (changes as Record<string, unknown>)[k as string];
+            const prev = (task as unknown as Record<string, unknown>)[k as string];
+            const same =
+              next instanceof Date && prev instanceof Date
+                ? next.getTime() === prev.getTime()
+                : next === prev;
+            (before as Record<string, unknown>)[k as string] = prev;
+            (after as Record<string, unknown>)[k as string] = next;
+            if (!same) dirty = true;
+          }
+          onTaskUpdate(task, changes);
+          if (dirty) batch.push({ taskId: String(task.id), before, after });
+        }
+        if (batch.length) {
+          undoStackRef.current.push(batch);
+          redoStackRef.current = [];
+          setHistoryVersion((v) => v + 1);
+        }
+      })();
     },
-    [onTaskUpdate],
+    [onTaskUpdate, onBeforeTaskUpdate],
   );
 
   // --- 拖拽冲突校验 + 顺延确认 (Group 2) ---
@@ -2335,7 +2404,10 @@ export function GanttView({
           new Date(row.end.getTime() + deltaMs)
         );
       }
-      if (!row.isSummary && dragState.taskId === row.task.id) {
+      // The dragged bar itself under a NON-group drag: a leaf move/resize, or a
+      // self-extent summary resizing its own dates. Group moves are handled
+      // above via dragGroupIds (which already includes the dragged summary).
+      if (dragState.taskId === row.task.id && !dragState.group) {
         const previewed = computeDragChanges(dragState);
         return styleFor(previewed.start, previewed.end);
       }
@@ -3450,7 +3522,14 @@ export function GanttView({
                    // Per-node lock (仅查看): treat like read-only for this row —
                    // no move/resize/progress/link, but onTaskClick still fires.
                    const isLocked = !!task.locked;
-                   const canDrag = !!onTaskUpdate && !row.isSummary && !isLocked;
+                   // Per-interaction gates: the row must be editable at all
+                   // (handler, not summary, not locked) AND the corresponding
+                   // interaction switch must be on.
+                   const editableRow = !!onTaskUpdate && !row.isSummary && !isLocked;
+                   const canMove = editableRow && ixMove;
+                   const canResize = editableRow && ixResize;
+                   const canProgress = editableRow && ixProgress;
+                   const canDrag = canMove || canResize;
                    // A bar that is explicitly non-editable — the whole view is
                    // read-only, or this row is locked (仅查看) — gets a not-allowed
                    // cursor so hovering signals "can't drag/resize here". A plain
@@ -3544,8 +3623,18 @@ export function GanttView({
                      // Summary bar: a solid row-centered bar (slightly slimmer
                      // than task bars) with the title and a darker progress
                      // fill, like svar/MS-Project group bars. Children drive
-                     // its range; dragging it moves the whole subtree.
+                     // its range; dragging its middle moves the whole subtree.
                      const summaryColor = task.color || '#0d9488';
+                     // A summary whose OWN dates are authoritative (summaryExtent
+                     // 'self' + it carries real dates) edits like a task bar: the
+                     // end zones resize its own start/end and it grows link
+                     // connectors. A rollup summary (children define the span)
+                     // stays move-only — resizing derived dates has no field to
+                     // persist to.
+                     const summaryOwnsDates =
+                       summaryExtent === 'self' && task.hasOwnDates !== false;
+                     const summaryMovable = !!onTaskUpdate && ixMove;
+                     const summaryResizable = !!onTaskUpdate && ixResize && summaryOwnsDates && !isLocked;
                      return (
                       <div
                         key={task.id}
@@ -3556,9 +3645,10 @@ export function GanttView({
                         {baselineEl}
                         <div
                           className={cn(
-                            'gantt-bar-hover absolute rounded-sm border shadow-sm flex items-center px-2 select-none',
-                            onTaskUpdate && 'cursor-grab active:cursor-grabbing',
+                            'gantt-bar-hover absolute rounded-sm border shadow-sm flex items-center px-2 select-none group',
+                            summaryMovable && 'cursor-grab active:cursor-grabbing',
                             isDragging && 'ring-2 ring-primary z-10',
+                            isLinkTarget && 'ring-2 ring-primary',
                             flashTaskId === task.id && 'gantt-flash z-10'
                           )}
                           /* Explicit colors: alpha utilities aren't emitted in
@@ -3571,7 +3661,7 @@ export function GanttView({
                             // Inline not-allowed: the cursor-not-allowed utility isn't
                             // emitted in the prebuilt components CSS, so drive the
                             // read-only cursor from style rather than a class.
-                            cursor: onTaskUpdate ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
+                            cursor: summaryMovable || summaryResizable ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                             backgroundColor: summaryColor,
                             borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
                             boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
@@ -3581,9 +3671,24 @@ export function GanttView({
                           data-progress={Math.round(row.progress)}
                           onMouseEnter={() => setHoveredTaskId(task.id)}
                           onMouseLeave={() => setHoveredTaskId((cur) => (cur === task.id ? null : cur))}
+                          onPointerMove={captureLinkTarget}
                           onPointerDown={(e) => {
                             if (e.button !== 0) return;
-                            // Group move: the summary bar drags the whole subtree.
+                            // Self-dated summary: the end zones resize its own
+                            // start/end (non-group, persists to this record); the
+                            // middle still group-moves the whole subtree. Corner
+                            // grips below handle a direct edge hit, but a click
+                            // aimed at the edge often lands just inside, so resolve
+                            // from the pointer offset here too. Rollup summaries
+                            // stay move-only.
+                            if (summaryResizable) {
+                              const mode = resolveBarDragMode(e.clientX, e.currentTarget.getBoundingClientRect());
+                              if (mode !== 'move') {
+                                beginDrag(task, mode, e);
+                                return;
+                              }
+                            }
+                            if (!summaryMovable) return;
                             beginDrag(task, 'move', e, { group: true, originStart: row.start, originEnd: row.end });
                           }}
                           onClick={() => {
@@ -3601,9 +3706,90 @@ export function GanttView({
                             className="absolute left-0 top-0 bottom-0 pointer-events-none"
                             style={{ width: `${Math.round(row.progress)}%`, backgroundColor: 'rgba(0, 0, 0, 0.2)', borderTopLeftRadius: 'var(--radius-sm)', borderBottomLeftRadius: 'var(--radius-sm)' }}
                           />
+                          {/* Resize grips — only for a self-dated summary wide
+                              enough to host them (mirrors the leaf task bar). */}
+                          {summaryResizable && liveStyle.width >= 14 && (
+                            <>
+                              <div
+                                className="gantt-resize-handle absolute left-0 top-0"
+                                style={{ width: RESIZE_EDGE_PX, height: resizeHandleHeight, cursor: 'ew-resize' }}
+                                data-testid={`gantt-task-resize-left-${task.id}`}
+                                onPointerDown={(e) => {
+                                  if (e.button !== 0) return;
+                                  beginDrag(task, 'resize-left', e);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <div
+                                className="gantt-resize-handle absolute right-0 top-0"
+                                style={{ width: RESIZE_EDGE_PX, height: resizeHandleHeight, cursor: 'ew-resize' }}
+                                data-testid={`gantt-task-resize-right-${task.id}`}
+                                onPointerDown={(e) => {
+                                  if (e.button !== 0) return;
+                                  beginDrag(task, 'resize-right', e);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </>
+                          )}
                           <span className="relative text-[10px] text-white font-medium truncate pointer-events-none">
                             {task.title}
                           </span>
+                          {/* Connector dots — same drag-to-link affordance as leaf
+                              bars, so dependencies (3.4.5) can be drawn between
+                              summary plans, not only via the right-click menu. */}
+                          {onDependencyCreate && !isLocked && (['start', 'end'] as const).map((end) => {
+                            const isSource =
+                              linkDrag != null &&
+                              String(linkDrag.sourceId) === String(task.id) &&
+                              linkDrag.sourceEnd === end;
+                            const visible = isSource || hoveredTaskId === task.id;
+                            const grabbable = visible && linkDrag == null;
+                            return (
+                              <div
+                                key={end}
+                                className="absolute top-1/2 -translate-y-1/2 z-20 flex items-center transition-opacity"
+                                style={{
+                                  [end === 'start' ? 'left' : 'right']: -28,
+                                  height: 24,
+                                  width: 30,
+                                  cursor: 'crosshair',
+                                  opacity: visible ? 1 : 0,
+                                  pointerEvents: grabbable ? 'auto' : 'none',
+                                  justifyContent: end === 'start' ? 'flex-start' : 'flex-end',
+                                  paddingLeft: end === 'start' ? 4 : 0,
+                                  paddingRight: end === 'end' ? 4 : 0,
+                                }}
+                                data-testid={`gantt-link-dot-${end}-${task.id}`}
+                                onPointerDown={(e) => {
+                                  if (e.button !== 0) return;
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  const rect = contentRef.current?.getBoundingClientRect();
+                                  setLinkDrag({
+                                    sourceId: task.id,
+                                    sourceEnd: end,
+                                    x: rect ? e.clientX - rect.left : 0,
+                                    y: rect ? e.clientY - rect.top : 0,
+                                    targetId: null,
+                                    targetEnd: null,
+                                  });
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div
+                                  className="rounded-full"
+                                  style={{
+                                    height: 12,
+                                    width: 12,
+                                    backgroundColor: 'hsl(var(--background))',
+                                    border: '2px solid hsl(var(--primary))',
+                                    boxShadow: isSource ? '0 0 0 3px hsl(var(--primary) / 0.25)' : '0 1px 2px rgba(0,0,0,0.25)',
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
                         </div>
                         {isDragging && dragState && (
                           <div
@@ -3634,7 +3820,7 @@ export function GanttView({
                         <div
                           className={cn(
                             "gantt-bar-hover absolute rotate-45 rounded-[2px] border shadow-sm select-none",
-                            canDrag && "cursor-grab active:cursor-grabbing",
+                            canMove && "cursor-grab active:cursor-grabbing",
                             isDragging && "ring-2 ring-primary z-10",
                             isLinkTarget && "ring-2 ring-primary",
                             flashTaskId === task.id && "gantt-flash z-10"
@@ -3647,7 +3833,7 @@ export function GanttView({
                             // Inline not-allowed: the cursor-not-allowed utility isn't
                             // emitted in the prebuilt components CSS, so drive the
                             // read-only cursor from style rather than a class.
-                            cursor: canDrag ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
+                            cursor: canMove ? undefined : barReadOnly ? 'not-allowed' : 'pointer',
                             backgroundColor: isCrit ? CRIT_COLOR : task.color || '#3b82f6',
                             borderColor: isCrit ? CRIT_COLOR : task.borderColor || 'hsl(var(--primary-foreground) / 0.2)',
                             boxShadow: isCrit ? `0 0 0 2px ${CRIT_COLOR}` : task.borderColor ? `0 0 0 2px ${task.borderColor}` : undefined,
@@ -3666,7 +3852,7 @@ export function GanttView({
                           }}
                           onContextMenu={(e) => openContextMenu(task, e)}
                           onPointerMove={captureLinkTarget}
-                          onPointerDown={canDrag ? (e) => {
+                          onPointerDown={canMove ? (e) => {
                             if (e.button !== 0) return;
                             beginDrag(task, 'move', e);
                           } : undefined}
@@ -3746,14 +3932,17 @@ export function GanttView({
                           // so a direct hit still wins. But a click aimed at the edge often
                           // lands just inside the bar (headless coordinate quantization), so
                           // resolve the mode from the pointer's offset here too: the end
-                          // bands resize, the middle moves (edge-zone drag).
+                          // bands resize, the middle moves (edge-zone drag). Each zone only
+                          // engages when its interaction switch allows; a resize zone with
+                          // resize off falls back to a plain move (DHTMLX parity).
                           if (e.button !== 0) return;
-                          const mode = resolveBarDragMode(e.clientX, e.currentTarget.getBoundingClientRect());
-                          beginDrag(task, mode, e);
+                          const zone = resolveBarDragMode(e.clientX, e.currentTarget.getBoundingClientRect());
+                          const mode = zone !== 'move' && canResize ? zone : canMove ? 'move' : null;
+                          if (mode) beginDrag(task, mode, e);
                         } : undefined}
                       >
                         {/* Resize handles — only when bar is wide enough to host them */}
-                        {canDrag && liveStyle.width >= 14 && (
+                        {canResize && liveStyle.width >= 14 && (
                           <>
                             <div
                               className="gantt-resize-handle absolute left-0 top-0"
@@ -3793,7 +3982,7 @@ export function GanttView({
                             shows on hover / while dragging, and its hit area lives
                             in the bottom half so grabbing it never competes with a
                             bar move (top) or a link drag (the centred end dots). */}
-                        {canDrag && liveStyle.width >= 30 && (
+                        {canProgress && liveStyle.width >= 30 && (
                           <div
                             className={cn(
                               "absolute bottom-0 h-1/2 w-4 -translate-x-1/2 cursor-col-resize flex items-end justify-center pb-px",
