@@ -1829,7 +1829,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
         {recordPresence.length > 0 && (
           <PresenceAvatars users={recordPresence} size="sm" maxVisible={3} showStatus />
         )}
-        <ManagedByBadge managedBy={(objectDef as any)?.managedBy} />
+        <ManagedByBadge managedBy={(objectDef as any)?.managedBy} userActions={(objectDef as any)?.userActions} />
       </div>
 
       <RecordContextProvider

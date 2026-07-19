@@ -1389,7 +1389,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                     viewDef.name || viewDef.id || '',
                     viewDef.emptyState
                         ?? listSchema.emptyState
-                        ?? resolveManagedByEmptyState((objectDef as any)?.managedBy, t, objectDef.name),
+                        ?? resolveManagedByEmptyState((objectDef as any)?.managedBy, t, objectDef.name, (objectDef as any)?.userActions),
                 ),
             aria: viewDef.aria ?? listSchema.aria,
             // Propagate filter/sort as default filters/sort for data flow
@@ -1617,7 +1617,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                  title={
                    <span className="inline-flex items-center gap-2">
                      <span className="truncate">{objectLabel(objectDef)}</span>
-                     <ManagedByBadge managedBy={(objectDef as any)?.managedBy} />
+                     <ManagedByBadge managedBy={(objectDef as any)?.managedBy} userActions={(objectDef as any)?.userActions} />
                    </span>
                  }
                  description={objectDef.description ? objectDesc(objectDef) : undefined}

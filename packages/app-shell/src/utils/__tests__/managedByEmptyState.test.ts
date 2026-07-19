@@ -20,6 +20,19 @@ describe('resolveManagedByEmptyState', () => {
     expect(resolveManagedByEmptyState('append-only', t)?.title).toBe('No events recorded');
   });
 
+  // ADR-0103 — a `system` object that opened creation (writable set: Notification
+  // Preferences, delegated RBAC assignments, …) is admin/user-writable data. The
+  // "entries appear automatically" copy would be wrong, so the helper returns
+  // undefined and the caller falls back to the generic empty state (New button).
+  it('returns undefined for a system object whose userActions opened creation', () => {
+    expect(resolveManagedByEmptyState('system', t, 'sys_notification_preference', { create: true })).toBeUndefined();
+    // A system object that did NOT open creation stays engine-owned.
+    expect(resolveManagedByEmptyState('system', t, 'sys_automation_run', {})?.title).toBe('Nothing here yet');
+    expect(resolveManagedByEmptyState('system', t, 'sys_automation_run', undefined)?.title).toBe('Nothing here yet');
+    // append-only is unaffected by userActions.create (audit logs stay locked).
+    expect(resolveManagedByEmptyState('append-only', t, 'sys_audit_log', { create: true })?.title).toBe('No events recorded');
+  });
+
   it('gives sys_user an actionable empty state (org invite + SSO JIT, end-users)', () => {
     const es = resolveManagedByEmptyState('better-auth', t, 'sys_user');
     expect(es?.title).toBe('No users yet');

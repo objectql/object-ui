@@ -293,6 +293,7 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
                 buckets via ObjectForm's own readOnly resolution. */}
             <ManagedByBadge
               managedBy={(objectDef as any)?.managedBy}
+              userActions={(objectDef as any)?.userActions}
               className="ml-1"
             />
           </nav>

@@ -23,11 +23,14 @@ import { useObjectTranslation } from '@object-ui/i18n';
  *     engine", "audit / monitoring surface") to every end user and repeated
  *     itself on three pages (list + detail + form) for the same record.
  *
- * The badge follows the same five-bucket taxonomy declared by
+ * The badge follows the same taxonomy declared by
  * `@objectstack/spec/data/object.zod.ts` → `ObjectSchemaBase.managedBy`:
  *   - `platform`     — User-owned business data. **Renders nothing.**
  *   - `config`       — Admin-authored configuration.
- *   - `system`       — Engine-managed runtime rows.
+ *   - `system`       — Engine-managed runtime rows (default) — but a `system`
+ *                      object that opens writes via `userActions` (ADR-0103) is
+ *                      platform-defined, admin/user-writable DATA and gets the
+ *                      distinct writable-system copy instead.
  *   - `append-only`  — Immutable audit log.
  *   - `better-auth`  — Identity tables owned by better-auth driver.
  *
@@ -42,9 +45,31 @@ import { useObjectTranslation } from '@object-ui/i18n';
 
 type Bucket = 'platform' | 'config' | 'system' | 'append-only' | 'better-auth';
 
+/**
+ * Subset of `userActions` (ADR-0103) the badge needs to tell an engine-owned
+ * `system` object apart from an admin/user-writable one. Mirrors the server's
+ * `resolveCrudAffordances` inputs; `edit`/`delete` accept the #2614 object form.
+ */
+export interface ManagedByUserActions {
+  create?: boolean;
+  edit?: boolean | { enabled?: boolean };
+  delete?: boolean | { enabled?: boolean };
+}
+
+/** True only when a userActions flag (bare boolean or object form) opts the write in. */
+function isWriteOptedIn(v: boolean | { enabled?: boolean } | undefined | null): boolean {
+  return v === true || (typeof v === 'object' && v !== null && v.enabled === true);
+}
+
 export interface ManagedByBadgeProps {
   /** The `managedBy` flag from the object schema. */
   managedBy?: string;
+  /**
+   * The object's `userActions` (ADR-0103). When a `system`-bucket object opens
+   * any write here, the badge switches from the engine-owned "read-only
+   * monitoring surface" copy to the admin/user-writable variant.
+   */
+  userActions?: ManagedByUserActions | null;
   /** Optional override for the human-readable system name shown in the tooltip. */
   label?: string;
   /** Optional extra classes. */
@@ -63,7 +88,10 @@ interface Variant {
   tone: string;
 }
 
-const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
+/** Variant keys: the non-platform buckets plus the ADR-0103 writable-system split. */
+type VariantKey = Exclude<Bucket, 'platform'> | 'system-writable';
+
+const VARIANTS: Record<VariantKey, Variant> = {
   config: {
     icon: Settings2,
     i18nKey: 'config',
@@ -80,6 +108,20 @@ const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
     title: 'Managed by the platform',
     body: () =>
       'Rows here are created automatically when actions run on the source record. The list below is a read-only monitoring surface — row-level actions (Approve, Recall, Resend, …) live on each row.',
+    tone: 'border-slate-300/60 bg-slate-50 text-slate-900 hover:bg-slate-100 dark:border-slate-500/40 dark:bg-slate-950/40 dark:text-slate-100',
+  },
+  // ADR-0103 — a `system`-bucket object that opened writes via `userActions`:
+  // platform-defined schema, but admin/user-writable DATA (e.g. Notification
+  // Preferences, delegated RBAC assignments). Resolved in the component when the
+  // bucket is `system` and any write is opted in, so the copy no longer claims a
+  // "read-only monitoring surface".
+  'system-writable': {
+    icon: Settings2,
+    i18nKey: 'systemWritable',
+    short: 'Platform schema',
+    title: 'Platform-defined, admin-writable',
+    body: () =>
+      "This object's schema is defined by the platform, but its rows are yours to create and edit here. Who may write is governed by delegated administration and record-level security, not by this badge.",
     tone: 'border-slate-300/60 bg-slate-50 text-slate-900 hover:bg-slate-100 dark:border-slate-500/40 dark:bg-slate-950/40 dark:text-slate-100',
   },
   'append-only': {
@@ -102,10 +144,17 @@ const VARIANTS: Record<Exclude<Bucket, 'platform'>, Variant> = {
   },
 };
 
-export function ManagedByBadge({ managedBy, label, className }: ManagedByBadgeProps) {
+export function ManagedByBadge({ managedBy, userActions, label, className }: ManagedByBadgeProps) {
   const { t } = useObjectTranslation();
   if (!managedBy || managedBy === 'platform') return null;
-  const variant = VARIANTS[managedBy as Exclude<Bucket, 'platform'>];
+  // ADR-0103 — a `system` object that opened any write is admin/user-writable
+  // data, not an engine-owned monitoring surface: pick the writable variant/copy.
+  const ua = userActions ?? undefined;
+  const systemWritable =
+    managedBy === 'system' &&
+    (ua?.create === true || isWriteOptedIn(ua?.edit) || isWriteOptedIn(ua?.delete));
+  const variantKey: VariantKey = systemWritable ? 'system-writable' : (managedBy as VariantKey);
+  const variant = VARIANTS[variantKey];
   if (!variant) return null;
   const Icon = variant.icon;
   const display = label ?? 'better-auth';

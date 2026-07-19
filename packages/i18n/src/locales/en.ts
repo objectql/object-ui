@@ -391,6 +391,11 @@ const en = {
       title: 'Managed by the platform',
       body: 'Rows here are created automatically when actions run on the source record. The list below is a read-only monitoring surface — row-level actions (Approve, Recall, Resend, …) live on each row.',
     },
+    systemWritable: {
+      short: 'Platform schema',
+      title: 'Platform-defined, admin-writable',
+      body: "This object's schema is defined by the platform, but its rows are yours to create and edit here. Who may write is governed by delegated administration and record-level security, not by this badge.",
+    },
     appendOnly: {
       short: 'Read-only · Audit log',
       title: 'Read-only historical record',
