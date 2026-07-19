@@ -20,17 +20,21 @@ import {
 } from './identityImport';
 
 const POLICY_FALLBACKS: Record<IdentityPasswordPolicy, { label: string; hint: string }> = {
-  none: {
-    label: 'No password (recommended)',
-    hint: 'Users first sign in with a phone OTP, magic link, or password-reset link, then set their own password.',
+  auto: {
+    label: 'Automatic (recommended)',
+    hint: 'Reachable users get an invitation (email or SMS); anyone we can\'t reach gets a one-time password, shown ONCE on the result screen. Works with or without an email/SMS service.',
   },
   invite: {
     label: 'Send invitations',
-    hint: 'Each created user gets a set-your-password email (or an invitation SMS for phone-only rows). Requires a configured email/SMS service.',
+    hint: 'Every created user gets a set-your-password email (or an invitation SMS for phone-only rows). Requires a configured email/SMS service — unreachable rows fail.',
   },
   temporary: {
     label: 'Temporary passwords',
-    hint: 'For deployments without email/SMS: each created user gets a one-time password, shown ONCE on the result screen. First sign-in forces a change.',
+    hint: 'For deployments without email/SMS: every created user gets a one-time password, shown ONCE on the result screen. First sign-in forces a change.',
+  },
+  none: {
+    label: 'No password (identity only)',
+    hint: 'Users first sign in with a phone OTP, magic link, or password-reset link, then set their own password.',
   },
 };
 

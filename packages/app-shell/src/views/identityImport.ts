@@ -14,12 +14,15 @@
 // policy. The endpoint is idempotent on upsert (matched by email/phone), so
 // re-running a failed batch is safe.
 //
-// Password policies (framework#2820): `none` (default — identity only, users
-// first sign in via phone OTP / magic link / reset link and set a password
-// afterwards), `invite` (adds a set-your-password email / invitation SMS per
-// created row), `temporary` (per-row one-time passwords returned ONLY in the
+// Password policies: `auto` (default, framework#3236 — per row: deliverable
+// rows get an invitation, unreachable rows fall back to a one-time password),
+// `invite` (force an invitation — set-your-password email / SMS — for every
+// row; unreachable rows fail), `temporary` (force a per-row one-time password
+// for every row), `none` (identity only — users first sign in via phone OTP /
+// magic link / reset link and set a password afterwards). One-time passwords
+// (`auto` fallback rows and all of `temporary`) are returned ONLY in the
 // response — the result step must surface them immediately; they are never
-// persisted anywhere, client or server).
+// persisted anywhere, client or server.
 
 import type { ImportRecordsResult, ImportRequestOptions, ImportRowResult } from '@object-ui/types';
 
@@ -28,7 +31,7 @@ export const IDENTITY_IMPORT_OBJECT = 'sys_user';
 /** Server-side hard cap on rows per identity import request. */
 export const IDENTITY_IMPORT_BATCH_SIZE = 500;
 
-export type IdentityPasswordPolicy = 'none' | 'invite' | 'temporary';
+export type IdentityPasswordPolicy = 'auto' | 'none' | 'invite' | 'temporary';
 
 /** Row results from the identity endpoint may carry a one-time password. */
 export type IdentityImportRowResult = ImportRowResult & {

@@ -388,8 +388,8 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     const { features } = useExpressionContext();
     const isIdentityImport = objectDef.name === IDENTITY_IMPORT_OBJECT;
     const identityImportEnabled = isIdentityImport && features?.admin === true && isAdmin;
-    const [identityPasswordPolicy, setIdentityPasswordPolicy] = useState<IdentityPasswordPolicy>('none');
-    const identityPolicyRef = useRef<IdentityPasswordPolicy>('none');
+    const [identityPasswordPolicy, setIdentityPasswordPolicy] = useState<IdentityPasswordPolicy>('auto');
+    const identityPolicyRef = useRef<IdentityPasswordPolicy>('auto');
     identityPolicyRef.current = identityPasswordPolicy;
     const identityDataSource = useMemo(
       () => (identityImportEnabled

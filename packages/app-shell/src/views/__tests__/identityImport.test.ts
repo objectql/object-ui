@@ -89,7 +89,7 @@ describe('mergeIdentityBatchResults', () => {
 });
 
 describe('createIdentityImportDataSource', () => {
-  const makeAdapter = (fetchImpl: ReturnType<typeof vi.fn>, policy: 'none' | 'invite' | 'temporary' = 'none') =>
+  const makeAdapter = (fetchImpl: ReturnType<typeof vi.fn>, policy: 'auto' | 'none' | 'invite' | 'temporary' = 'auto') =>
     createIdentityImportDataSource({
       base: { find: 'passthrough-marker', createImportJob: () => {}, undoImportJob: () => {} },
       authFetch: fetchImpl as any,
@@ -116,6 +116,13 @@ describe('createIdentityImportDataSource', () => {
     expect(res.total).toBe(501);
     expect(res.results.length).toBe(501);
     expect(res.results[500].row).toBe(501); // renumbered across batches
+  });
+
+  it('sends the default `auto` policy (framework#3236) when the admin leaves the selector untouched', async () => {
+    const fetchImpl = vi.fn(async (_url: string, init: any) => okResponse(JSON.parse(init.body).rows) as any);
+    const ds = makeAdapter(fetchImpl); // default policy
+    await ds.importRecords('sys_user', { format: 'json', rows: [{ email: 'a@x.co' }] });
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).passwordPolicy).toBe('auto');
   });
 
   it('passes dryRun and upsert options through', async () => {

@@ -1415,14 +1415,16 @@ const en = {
     identityImport: {
       policyTitle: 'Sign-in setup for imported users',
       policy: {
-        none: 'No password (recommended)',
+        auto: 'Automatic (recommended)',
         invite: 'Send invitations',
         temporary: 'Temporary passwords',
+        none: 'No password (identity only)',
       },
       policyHint: {
+        auto: 'Reachable users get an invitation (email or SMS); anyone we can\'t reach gets a one-time password, shown ONCE on the result screen. Works with or without an email/SMS service.',
+        invite: 'Every created user gets a set-your-password email (or an invitation SMS for phone-only rows). Requires a configured email/SMS service — unreachable rows fail.',
+        temporary: 'For deployments without email/SMS: every created user gets a one-time password, shown ONCE on the result screen. First sign-in forces a change.',
         none: 'Users first sign in with a phone OTP, magic link, or password-reset link, then set their own password.',
-        invite: 'Each created user gets a set-your-password email (or an invitation SMS for phone-only rows). Requires a configured email/SMS service.',
-        temporary: 'For deployments without email/SMS: each created user gets a one-time password, shown ONCE on the result screen. First sign-in forces a change.',
       },
       passwordsNote: 'Temporary passwords — shown once, never stored. Save them now; each user must change theirs at first sign-in.',
       passwordsMore: 'More entries omitted — use the download.',
