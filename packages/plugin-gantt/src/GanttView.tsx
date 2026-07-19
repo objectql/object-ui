@@ -30,11 +30,7 @@ import {
   Lock,
   RefreshCw,
   ArrowRight,
-  QrCode,
-  Copy,
-  Check,
 } from "lucide-react"
-import { toDataURL as qrToDataURL } from "qrcode"
 import {
   cn,
   Button,
@@ -333,13 +329,6 @@ export interface GanttViewProps {
   /** Extra vertical marker lines rendered like the Today marker. */
   markers?: GanttMarker[]
   onTaskClick?: (task: GanttTask) => void
-  /**
-   * Absolute detail-page URL for a task, used by the context menu's
-   * 「移动端二维码」 item (QR + copy link for opening on a phone). Return
-   * null/undefined for rows without a detail page (synthetic group rows) to
-   * hide the item.
-   */
-  taskUrl?: (task: GanttTask) => string | null | undefined
   onTaskUpdate?: (task: GanttTask, changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>) => void
   onTaskDelete?: (task: GanttTask) => void
   /** Notified when the user switches granularity from the toolbar. */
@@ -660,8 +649,6 @@ export function GanttView({
   endDate: endDateProp,
   markers: markersProp,
   onTaskClick,
-  // TODO(qr-menu): re-enable together with the 移动端二维码 context-menu item below.
-  // taskUrl,
   onTaskUpdate: onTaskUpdateProp,
   onTaskDelete: onTaskDeleteProp,
   onViewChange,
@@ -1438,36 +1425,6 @@ export function GanttView({
     };
   }, [ctxMenu]);
 
-  // --- 移动端二维码 (share-to-mobile QR) -------------------------------------
-  // Context-menu item: encode the row's absolute detail URL as a QR so the
-  // record opens on a phone by scanning, plus a copy-link button. The data URL
-  // is generated async when the dialog opens; null while pending/failed.
-  const [qrShare, setQrShare] = React.useState<{ task: GanttTask; url: string } | null>(null);
-  const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
-  const [qrCopied, setQrCopied] = React.useState(false);
-  React.useEffect(() => {
-    if (!qrShare) { setQrDataUrl(null); setQrCopied(false); return; }
-    let cancelled = false;
-    qrToDataURL(qrShare.url, { width: 220, margin: 1 })
-      .then((d) => { if (!cancelled) setQrDataUrl(d); })
-      .catch(() => { if (!cancelled) setQrDataUrl(null); });
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setQrShare(null); };
-    window.addEventListener('keydown', onKey);
-    return () => { cancelled = true; window.removeEventListener('keydown', onKey); };
-  }, [qrShare]);
-  const copyQrLink = React.useCallback(() => {
-    if (!qrShare) return;
-    const done = () => {
-      setQrCopied(true);
-      window.setTimeout(() => setQrCopied(false), 1500);
-    };
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(qrShare.url).then(done).catch(() => {
-        /* clipboard denied — the URL stays visible/selectable in the dialog */
-      });
-    }
-  }, [qrShare]);
-
   // --- Dependency link context menu (依赖增删 + 类型选择) ---------------------
   // Right-clicking a dependency link opens a small menu to switch its type
   // (FS/SS/FF/SF) or remove it. Closing mirrors the task context menu.
@@ -1536,11 +1493,6 @@ export function GanttView({
     e.preventDefault();
     e.stopPropagation();
     setSelectedTaskId(task.id);
-    // TODO(qr-menu): the 移动端二维码 menu item is temporarily disabled (see the
-    // commented-out block in the context menu below). While it is off, taskUrl
-    // alone must NOT justify opening the menu — it would render an empty
-    // popover. Restore the `taskUrl && taskUrl(task)` escape hatch together
-    // with the menu item.
     if (!hasTaskMenuActions) return;
     setCtxMenu({ x: e.clientX, y: e.clientY, taskId: task.id });
   }, [hasTaskMenuActions]);
@@ -4712,27 +4664,6 @@ export function GanttView({
                 {t('gantt.menu.view')}
               </button>
             )}
-            {/* TODO(qr-menu): 移动端二维码 menu item temporarily disabled. To restore,
-                uncomment this block, re-enable the `taskUrl` prop destructuring above,
-                and put the `taskUrl && taskUrl(task)` escape hatch back into
-                openContextMenu (plus un-skip the QR tests in
-                GanttView.enhancements.test.tsx).
-            {taskUrl && (() => {
-              const url = taskUrl(task);
-              if (!url) return null;
-              return (
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={itemCls}
-                  data-testid="gantt-context-menu-qrcode"
-                  onClick={() => { setCtxMenu(null); setQrShare({ task, url }); }}
-                >
-                  {t('gantt.menu.qrcode')}
-                </button>
-              );
-            })()}
-            */}
             {inlineEdit && onTaskUpdate && row && !row.isSummary && !task.locked && (
               <button
                 type="button"
@@ -4799,62 +4730,6 @@ export function GanttView({
           </div>
         );
       })()}
-
-      {/* 移动端二维码 dialog — scan to open the record's detail page on a phone. */}
-      {qrShare && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          data-testid="gantt-qr-dialog"
-          onClick={() => setQrShare(null)}
-        >
-          <div
-            role="dialog"
-            aria-label={t('gantt.qr.title')}
-            className="w-[280px] rounded-lg border bg-popover text-popover-foreground p-4 shadow-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-1 flex items-center gap-2 text-sm font-medium">
-              <QrCode className="h-4 w-4 shrink-0" />
-              <span className="truncate">{qrShare.task.title}</span>
-            </div>
-            <div className="mb-2 text-xs text-muted-foreground">{t('gantt.qr.hint')}</div>
-            {qrDataUrl ? (
-              <img
-                src={qrDataUrl}
-                alt={t('gantt.qr.title')}
-                data-testid="gantt-qr-image"
-                className="mx-auto block h-[220px] w-[220px] rounded bg-white"
-              />
-            ) : (
-              <div className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">
-                …
-              </div>
-            )}
-            <div className="mt-2 break-all text-[11px] text-muted-foreground" data-testid="gantt-qr-url">
-              {qrShare.url}
-            </div>
-            <div className="mt-3 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid="gantt-qr-copy"
-                onClick={copyQrLink}
-              >
-                {qrCopied ? <Check className="mr-1 h-3 w-3" /> : <Copy className="mr-1 h-3 w-3" />}
-                {qrCopied ? t('gantt.qr.copied') : t('gantt.qr.copy')}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                data-testid="gantt-qr-close"
-                onClick={() => setQrShare(null)}
-              >
-                {t('gantt.qr.close')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Dependency link context menu (类型选择 + 移除) — fixed-position. */}
       {linkCtxMenu && (() => {

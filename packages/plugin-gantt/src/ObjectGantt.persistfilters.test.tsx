@@ -1,8 +1,7 @@
 /**
  * ObjectGantt-side tests for the #2460 batch: quick-filter persistence riding
  * on 保存布局 (sibling localStorage key + restore on mount), per-level tooltip
- * fields skipping empty values (悬浮分层字段), and the taskUrl passed down for
- * the 移动端二维码 item (null for synthetic rows without an objectField value).
+ * fields skipping empty values (悬浮分层字段).
  *
  * GanttView is mocked to a thin shell exposing what ObjectGantt feeds it.
  */
@@ -12,14 +11,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ObjectGantt } from './ObjectGantt';
 
 vi.mock('./GanttView', () => ({
-  GanttView: ({ tasks, onLayoutChange, taskUrl }: any) => (
+  GanttView: ({ tasks, onLayoutChange }: any) => (
     <div data-testid="gantt-view" data-count={tasks.length} data-ids={tasks.map((t: any) => t.id).join(',')}>
       {tasks.map((t: any) => (
         <div key={t.id} data-testid={`gv-task-${t.id}`}>
           <span data-testid={`gv-fields-${t.id}`}>
             {(t.fields ?? []).map((f: any) => `${f.label}=${f.value}`).join('|')}
           </span>
-          <span data-testid={`gv-url-${t.id}`}>{taskUrl ? String(taskUrl(t)) : 'no-fn'}</span>
         </div>
       ))}
       {onLayoutChange && (
@@ -110,15 +108,3 @@ describe('ObjectGantt tooltip fields skip empty values (悬浮分层字段)', ()
   });
 });
 
-describe('ObjectGantt taskUrl for 移动端二维码', () => {
-  it('returns null for synthetic rows when objectField is configured but empty', async () => {
-    const items = [
-      { id: 'grp', name: '项目组', start: '2024-01-01', end: '2024-02-10', object_name: '' },
-      { id: 'r1', name: '计划', start: '2024-01-01', end: '2024-01-05', object_name: 'plan_obj' },
-    ];
-    const s = schema({ data: { provider: 'value', items }, quickFilters: undefined, objectField: 'object_name' });
-    const { container, getByTestId } = render(<ObjectGantt schema={s} />);
-    await waitFor(() => expect(gv(container).getAttribute('data-count')).toBe('2'));
-    expect(getByTestId('gv-url-grp').textContent).toBe('null');
-  });
-});

@@ -1019,11 +1019,10 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // row opened under the bound object's route otherwise builds a 404 URL.
   // deriveRecordPageHref needs the routed object's segment in the current path
   // (a foreign row object never appears there), so derive from the routed
-  // object and swap the segment. Shared by the drawer's 整页 link and the
-  // context menu's 移动端二维码.
+  // object and swap the segment. Used by the drawer's 整页 link.
   // With objectField configured, a row without a value is a synthetic group
   // header composed by the endpoint (its id isn't a real record id) — no
-  // detail page, drawer or QR link exists for it.
+  // detail page or drawer exists for it.
   const isSyntheticRow = useCallback(
     (rec: Record<string, any> | undefined): boolean =>
       !!ganttConfig?.objectField && !String(rec?.[ganttConfig.objectField] ?? '').trim(),
@@ -1410,15 +1409,6 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
               navigation.handleClick(task.data);
             }
             onTaskClick?.(task.data);
-          }}
-          taskUrl={(task) => {
-            const rec = task.data as Record<string, any> | undefined;
-            if (!rec || isSyntheticRow(rec)) return null;
-            const href = recordDetailHref(rec)?.href;
-            if (!href) return null;
-            // Absolute URL: the QR is scanned on another device, so a
-            // path-relative href would be useless there.
-            return typeof window === 'undefined' ? href : new URL(href, window.location.href).toString();
           }}
           onTaskUpdate={handleTaskUpdateDefault}
           onTaskDelete={requestDelete}

@@ -554,14 +554,6 @@ const zh = {
       removeDependency: '移除依赖',
       noCandidates: '无可用任务',
       searchTasks: '搜索任务…',
-      qrcode: '移动端二维码',
-    },
-    qr: {
-      title: '在手机上打开',
-      hint: '用手机扫码打开详情页',
-      copy: '复制链接',
-      copied: '已复制',
-      close: '关闭',
     },
     delete: {
       title: '删除此任务？',

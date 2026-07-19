@@ -1,21 +1,16 @@
 /**
  * Tests for the #2460 interaction batch: row click model (单击=Focus 定位,
  * 双击/「→」=详情), day-snap dragging in coarse granularities (周/月拖拽按日吸附),
- * collapse-state persistence in 保存布局, the locked-row tooltip hint
- * (无编辑权限), and the 移动端二维码 context-menu flow.
+ * collapse-state persistence in 保存布局, and the locked-row tooltip hint
+ * (无编辑权限).
  *
  * Conventions match the other suites: innerWidth=1280 → columnWidth 110,
  * rowHeight 40; window pointer events dispatched inside act().
  */
 import React from 'react';
-import { render, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { GanttView, type GanttTask, type GanttLayout } from './GanttView';
-
-// jsdom/happy-dom has no canvas; stub the encoder so the dialog resolves a src.
-vi.mock('qrcode', () => ({
-  toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,STUB'),
-}));
 
 beforeEach(() => {
   Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
@@ -198,102 +193,5 @@ describe('GanttView locked-row tooltip hint (无编辑权限)', () => {
 
     fireEvent.mouseEnter(container.querySelector('[data-testid="gantt-task-bar-b"]')!);
     expect(container.querySelector('[data-testid="gantt-tooltip-locked-b"]')).toBeNull();
-  });
-});
-
-// TODO(qr-menu): the 移动端二维码 context-menu item is temporarily disabled in
-// GanttView.tsx (commented out). While it is off, the QR item must never render
-// and taskUrl alone must not open the menu — asserted by the active describe
-// below. Un-skip this block (and delete the "disabled" one) when restoring.
-describe('GanttView 移动端二维码 (temporarily disabled)', () => {
-  const URL_A = 'https://app.example.com/app/x/rec/record/a';
-  const ctxMenu = () => document.querySelector('[data-testid="gantt-context-menu"]');
-  const qrItem = () => document.querySelector('[data-testid="gantt-context-menu-qrcode"]');
-
-  it('renders no QR item even when taskUrl yields a URL', () => {
-    const { container } = renderView([A()], { taskUrl: () => URL_A, onTaskClick: vi.fn() });
-    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    expect(ctxMenu()).toBeTruthy();
-    expect(qrItem()).toBeNull();
-  });
-
-  it('opens no menu at all when taskUrl is the only would-be action', () => {
-    const { container } = renderView([A()], { taskUrl: () => URL_A });
-    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    expect(ctxMenu()).toBeNull();
-  });
-});
-
-describe.skip('GanttView 移动端二维码 (context-menu QR share)', () => {
-  const URL_A = 'https://app.example.com/app/x/rec/record/a';
-  const ctxMenu = () => document.querySelector('[data-testid="gantt-context-menu"]');
-  const qrItem = () => document.querySelector('[data-testid="gantt-context-menu-qrcode"]');
-  const dialog = () => document.querySelector('[data-testid="gantt-qr-dialog"]');
-
-  it('offers the QR item only when taskUrl yields a URL', () => {
-    // taskUrl → null with other actions present: menu opens, QR item hidden.
-    const { container, unmount } = renderView([A()], { taskUrl: () => null, onTaskClick: vi.fn() });
-    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    expect(ctxMenu()).toBeTruthy();
-    expect(qrItem()).toBeNull();
-    unmount();
-
-    // No taskUrl at all: no QR item.
-    const { container: c2, unmount: u2 } = renderView([A()], { onTaskClick: vi.fn() });
-    fireEvent.contextMenu(c2.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    expect(qrItem()).toBeNull();
-    u2();
-
-    // taskUrl alone (read-only view) still opens the menu with the QR item.
-    const { container: c3 } = renderView([A()], { taskUrl: () => URL_A });
-    fireEvent.contextMenu(c3.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    expect(qrItem()).toBeTruthy();
-  });
-
-  it('opens no empty menu when taskUrl is the only action and yields null', () => {
-    const { container } = renderView([A()], { taskUrl: () => null });
-    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    expect(ctxMenu()).toBeNull();
-  });
-
-  it('opens the QR dialog with the encoded image and the link, closes cleanly', async () => {
-    const { container } = renderView([A()], { taskUrl: (t) => `https://app.example.com/rec/${t.id}` });
-    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    fireEvent.click(qrItem()!);
-
-    // Menu closes, dialog opens with the target URL and (async) the stub PNG.
-    expect(ctxMenu()).toBeNull();
-    expect(dialog()).toBeTruthy();
-    expect(document.querySelector('[data-testid="gantt-qr-url"]')!.textContent).toBe('https://app.example.com/rec/a');
-    await waitFor(() => {
-      const img = document.querySelector('[data-testid="gantt-qr-image"]') as HTMLImageElement;
-      expect(img?.getAttribute('src')).toBe('data:image/png;base64,STUB');
-    });
-
-    fireEvent.click(document.querySelector('[data-testid="gantt-qr-close"]')!);
-    expect(dialog()).toBeNull();
-  });
-
-  it('closes the QR dialog on Escape', () => {
-    const { container } = renderView([A()], { taskUrl: () => URL_A });
-    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    fireEvent.click(qrItem()!);
-    expect(dialog()).toBeTruthy();
-    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
-    expect(dialog()).toBeNull();
-  });
-
-  it('copies the link via the copy button', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
-    const { container } = renderView([A()], { taskUrl: () => URL_A });
-    fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
-    fireEvent.click(qrItem()!);
-    fireEvent.click(document.querySelector('[data-testid="gantt-qr-copy"]')!);
-    expect(writeText).toHaveBeenCalledWith(URL_A);
-    // Feedback flips to the copied state.
-    await waitFor(() => {
-      expect(document.querySelector('[data-testid="gantt-qr-copy"]')!.textContent).toContain('Copied');
-    });
   });
 });

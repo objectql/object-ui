@@ -1,11 +1,15 @@
 ---
 "@object-ui/plugin-gantt": patch
+"@object-ui/i18n": patch
 ---
 
-fix(plugin-gantt): temporarily disable the 移动端二维码 (mobile QR share) context-menu item
+feat(plugin-gantt)!: remove the 移动端二维码 (mobile QR share) context-menu item
 
-The QR item in the gantt row context menu is commented out for now: right-click
-no longer offers "Mobile QR code", and `taskUrl` alone no longer opens a menu
-(it would be empty without the QR item). The `taskUrl` prop, the QR dialog code,
-and the original tests are kept in place (commented / skipped) so the feature
-can be restored by uncommenting the marked TODO(qr-menu) blocks.
+The QR-share feature is removed outright: the context-menu item, the QR dialog,
+the `taskUrl` prop on `GanttView`, the URL wiring in `ObjectGantt`, the
+`gantt.menu.qrcode` / `gantt.qr.*` i18n keys (en/zh) and the `qrcode`
+dependency are all deleted. It baked one consumer's app-specific requirement
+(scan-to-open on mobile) into the generic gantt renderer, and what it encoded —
+the desktop console record URL — was not even the right target for that
+requirement. Apps that need scan-to-mobile flows should implement them
+app-side against their own mobile surface.
