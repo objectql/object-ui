@@ -205,6 +205,53 @@ export const NOMINAL_DAYS: Record<GanttViewMode, number> = {
 
 export const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
+/** Offset (ms east of UTC) of an IANA time zone at a given instant. */
+function tzOffsetMs(timeZone: string, at: Date): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const get = (type: string) => Number(dtf.formatToParts(at).find((p) => p.type === type)?.value ?? 0);
+  const asUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+  return asUTC - Math.floor(at.getTime() / 1000) * 1000;
+}
+
+/**
+ * "Shifted clock" for business-time-zone rendering (业务时区渲染): translate
+ * real instants into a display space where the browser's local clock reads
+ * the CONFIGURED zone's wall time. All existing local-clock logic — shift
+ * bands, day columns, snapping, the today line, date labels — then renders
+ * that zone correctly for every viewer; writes translate back so persisted
+ * data stays real instants. Per-instant offsets keep DST zones close;
+ * fixed-offset zones (Asia/Shanghai) are exact.
+ */
+export function makeTzShift(timeZone?: string): {
+  delta: number;
+  to: (d: Date) => Date;
+  from: (d: Date) => Date;
+  now: () => Date;
+} {
+  const identity = { delta: 0, to: (d: Date) => d, from: (d: Date) => d, now: () => new Date() };
+  if (!timeZone) return identity;
+  try {
+    tzOffsetMs(timeZone, new Date()); // validate the IANA name early
+  } catch {
+    console.warn(`[GanttView] invalid timeZone "${timeZone}" — falling back to the browser zone`);
+    return identity;
+  }
+  const deltaAt = (d: Date) => tzOffsetMs(timeZone, d) - -d.getTimezoneOffset() * 60000;
+  const probe = deltaAt(new Date());
+  if (probe === 0) return identity;
+  return {
+    delta: probe,
+    to: (d: Date) => new Date(d.getTime() + deltaAt(d)),
+    from: (d: Date) => new Date(d.getTime() - deltaAt(d)),
+    now: () => new Date(Date.now() + deltaAt(new Date())),
+  };
+}
+
 /** Floor a date to the start of its column unit (Monday for weeks). */
 export function startOfUnit(date: Date, mode: GanttViewMode): Date {
   const d = new Date(date);
@@ -432,6 +479,16 @@ export interface GanttViewProps {
   /** Disables the refresh button while a host-driven reload is in flight. */
   refreshing?: boolean
   /**
+   * Business time zone for rendering (业务时区), an IANA name like
+   * 'Asia/Shanghai'. The chart's calendar math — shift bands, day columns,
+   * drag snapping, the today line, start/end labels — renders this zone's
+   * wall time for EVERY viewer instead of the browser's; without it, a
+   * viewer in another zone sees bands and dates shifted (班次错位). Writes
+   * still persist real instants. Note: dates handed to `onBeforeTaskUpdate`
+   * are in this display space (durations/deltas are unaffected).
+   */
+  timeZone?: string
+  /**
    * Base name for exported files (导出文件名), e.g. the view or object label —
    * "排班计划甘特图" exports as `排班计划甘特图-20260719-1530.png`. Falls back
    * to "gantt". The timestamp suffix keeps repeated exports from silently
@@ -597,11 +654,11 @@ function writeSavedLayout(key: string, layout: GanttLayout): void {
 }
 
 export function GanttView({
-  tasks,
+  tasks: tasksProp,
   viewMode: viewModeProp,
-  startDate,
-  endDate,
-  markers,
+  startDate: startDateProp,
+  endDate: endDateProp,
+  markers: markersProp,
   onTaskClick,
   taskUrl,
   onTaskUpdate: onTaskUpdateProp,
@@ -629,16 +686,45 @@ export function GanttView({
   onLayoutChange,
   onRefresh,
   refreshing = false,
+  timeZone,
   exportFileName,
   interactions,
   onBeforeTaskUpdate,
 }: GanttViewProps) {
+  // Business-time-zone shim (业务时区): translate every incoming date into
+  // the display space where the browser clock reads the configured zone's
+  // wall time; translate emitted date changes back to real instants. All
+  // calendar logic below runs unchanged and becomes zone-correct.
+  const tzShift = React.useMemo(() => makeTzShift(timeZone), [timeZone]);
+  const tasks = React.useMemo(() => {
+    if (tzShift.delta === 0) return tasksProp;
+    return tasksProp.map((tk) => ({
+      ...tk,
+      start: tzShift.to(tk.start),
+      end: tzShift.to(tk.end),
+      baselineStart: tk.baselineStart ? tzShift.to(tk.baselineStart) : tk.baselineStart,
+      baselineEnd: tk.baselineEnd ? tzShift.to(tk.baselineEnd) : tk.baselineEnd,
+    }));
+  }, [tasksProp, tzShift]);
+  const startDate = React.useMemo(
+    () => (startDateProp && tzShift.delta !== 0 ? tzShift.to(startDateProp) : startDateProp),
+    [startDateProp, tzShift],
+  );
+  const endDate = React.useMemo(
+    () => (endDateProp && tzShift.delta !== 0 ? tzShift.to(endDateProp) : endDateProp),
+    [endDateProp, tzShift],
+  );
+  const markers = React.useMemo(() => {
+    if (!markersProp || tzShift.delta === 0) return markersProp;
+    return markersProp.map((m) => ({ ...m, date: tzShift.to(new Date(m.date)) }));
+  }, [markersProp, tzShift]);
+
   const { t, language } = useGanttTranslation();
   // Locale for every user-facing date label. Falls back to the runtime default
   // (browser locale) when no I18nProvider supplies a language, so standalone
   // embeds and tests behave exactly as before.
   const dateLocale = language || undefined;
-  const [currentDate, setCurrentDate] = React.useState(new Date());
+  const [currentDate, setCurrentDate] = React.useState(() => tzShift.now());
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { width: containerWidth } = useResizeObserver(containerRef);
   const effectiveWidth = containerWidth || (typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -658,7 +744,18 @@ export function GanttView({
   const ixResize = interactions?.resize !== false;
   const ixProgress = interactions?.progress !== false;
   const ixLink = interactions?.link !== false;
-  const onTaskUpdate = effectiveReadOnly ? undefined : onTaskUpdateProp;
+  // Emitted date changes are display-space — translate back to real instants
+  // before they reach the host (writes must persist real time).
+  const onTaskUpdate = React.useMemo(() => {
+    if (effectiveReadOnly || !onTaskUpdateProp) return undefined;
+    if (tzShift.delta === 0) return onTaskUpdateProp;
+    return (task: GanttTask, changes: Partial<Pick<GanttTask, 'title' | 'start' | 'end' | 'progress'>>) => {
+      const out = { ...changes };
+      if (out.start instanceof Date) out.start = tzShift.from(out.start);
+      if (out.end instanceof Date) out.end = tzShift.from(out.end);
+      onTaskUpdateProp(task, out);
+    };
+  }, [effectiveReadOnly, onTaskUpdateProp, tzShift]);
   const onTaskDelete = effectiveReadOnly ? undefined : onTaskDeleteProp;
   const onDependencyCreate = effectiveReadOnly || !ixLink ? undefined : onDependencyCreateProp;
   const onDependencyDelete = effectiveReadOnly || !ixLink ? undefined : onDependencyDeleteProp;
@@ -1669,8 +1766,8 @@ export function GanttView({
 
   // Calculate timeline range
   const timelineRange = React.useMemo(() => {
-    let start = startDate ? new Date(startDate) : new Date();
-    let end = endDate ? new Date(endDate) : new Date();
+    let start = startDate ? new Date(startDate) : tzShift.now();
+    let end = endDate ? new Date(endDate) : tzShift.now();
     
     if (!startDate && tasks.length > 0) {
       // Find min start date
@@ -1704,7 +1801,7 @@ export function GanttView({
     // and `fitColumnWidth` stretches the column width so a short project still
     // fills the area — the industry "zoom to fit" approach.
     return { start, end };
-  }, [startDate, endDate, tasks, viewMode, shiftSegments]);
+  }, [startDate, endDate, tasks, viewMode, shiftSegments, tzShift]);
 
   // Non-linear working-time axis (非线性工作时间轴). In day mode, when a working
   // calendar marks weekends/holidays as non-working, those columns are DROPPED
@@ -2201,10 +2298,10 @@ export function GanttView({
   // Compute the index (and pixel offset) of "today" within the timeline so
   // we can render a sticky marker AND scroll to it on demand.
   const todayLeftPx = React.useMemo(() => {
-    const now = new Date();
+    const now = tzShift.now();
     if (now < timelineRange.start || now > timelineRange.end) return null;
     return Math.round(dateToX(now));
-  }, [timelineRange, dateToX]);
+  }, [timelineRange, dateToX, tzShift]);
   const jumpToToday = React.useCallback(() => {
     if (todayLeftPx == null || !scrollAreaRef.current) return;
     const target = Math.max(0, todayLeftPx - scrollAreaRef.current.clientWidth / 2);
@@ -2328,12 +2425,12 @@ export function GanttView({
     [],
   );
   const jumpToWeek = React.useCallback(
-    () => scrollToDate(startOfUnit(new Date(), 'week')),
-    [scrollToDate],
+    () => scrollToDate(startOfUnit(tzShift.now(), 'week')),
+    [scrollToDate, tzShift],
   );
   const jumpToMonth = React.useCallback(
-    () => scrollToDate(startOfUnit(new Date(), 'month')),
-    [scrollToDate],
+    () => scrollToDate(startOfUnit(tzShift.now(), 'month')),
+    [scrollToDate, tzShift],
   );
 
   // --- Always-visible horizontal scrollbar (自绘水平滚动条) ----------------
