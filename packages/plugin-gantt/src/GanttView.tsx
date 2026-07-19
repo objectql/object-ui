@@ -3492,8 +3492,9 @@ export function GanttView({
                 {rowWindow.startIdx > 0 && (
                   <div style={{ height: rowWindow.startIdx * rowHeight }} aria-hidden="true" />
                 )}
-                {rows.slice(rowWindow.startIdx, rowWindow.endIdx).map((row) => {
+                {rows.slice(rowWindow.startIdx, rowWindow.endIdx).map((row, winIdx) => {
                    const task = row.task;
+                   const absRowIdx = rowWindow.startIdx + winIdx;
                    const isCrit = isCriticalTask(task.id);
                    const baseStyle = styleFor(row.start, row.end);
                    // Baseline (planned) reference strip beneath the live bar.
@@ -3566,10 +3567,30 @@ export function GanttView({
                    const durationDays = Math.max(1, Math.round(
                      (row.end.getTime() - row.start.getTime()) / MS_PER_DAY
                    ));
+                   // Tooltip flip (bottom rows, 最后一行悬浮狂闪): a downward
+                   // tooltip on one of the last rows overflows the rows box,
+                   // growing the scroller's scrollHeight while shown. With the
+                   // user scrolled to the bottom, the browser's scroll
+                   // clamping/anchoring then re-adjusts scrollTop every time the
+                   // tooltip mounts/unmounts — the bar slides under the
+                   // stationary cursor, hover re-fires, and the tooltip
+                   // flickers in a loop. Upward overflow never extends the
+                   // scrollable area, so rows whose downward tooltip would
+                   // poke past the content box flip it above the bar instead
+                   // (only when there's room above to be useful).
+                   const TOOLTIP_EST_PX = 300;
+                   const tooltipFlipsUp =
+                     (absRowIdx + 1) * rowHeight + TOOLTIP_EST_PX > totalRowsHeight &&
+                     absRowIdx * rowHeight > TOOLTIP_EST_PX;
                    const tooltip = hoveredTaskId === task.id && !dragState && !progressDrag && !linkDrag ? (
                      <div
                        className="absolute z-30 pointer-events-none rounded-md border bg-popover text-popover-foreground px-2.5 py-1.5 text-xs shadow-md whitespace-nowrap"
-                       style={{ left: Math.max(liveStyle.left + 8, 4), top: rowHeight - 8 }}
+                       style={{
+                         left: Math.max(liveStyle.left + 8, 4),
+                         ...(tooltipFlipsUp
+                           ? { bottom: rowHeight - 8 }
+                           : { top: rowHeight - 8 }),
+                       }}
                        role="tooltip"
                        data-testid={`gantt-tooltip-${task.id}`}
                      >
