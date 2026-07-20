@@ -403,6 +403,74 @@ export function useObjectLabel() {
     },
 
     /**
+     * Resolve a translated copy of an action's post-success RESULT DIALOG
+     * (`title` / `description` / `acknowledge` + per-field labels).
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.resultDialog.*`,
+     * falling back to `{ns}.globalActions.{actionName}.resultDialog.*` when
+     * objectName is omitted, then to the metadata's literal strings.
+     *
+     * The `fields` translation node is keyed by the LITERAL result-field path
+     * from the action metadata (may contain dots, e.g. `"user.email"`), so it
+     * is fetched whole with `returnObjects` and indexed directly — never
+     * resolved through a dotted i18next key.
+     */
+    actionResultDialog: <T extends {
+      title?: string;
+      description?: string;
+      acknowledge?: string;
+      fields?: Array<{ path: string; label?: string; [key: string]: any }>;
+    }>(
+      objectName: string | undefined,
+      actionName: string | undefined,
+      spec: T | undefined,
+    ): T | undefined => {
+      if (!spec || !actionName) return spec;
+      const suffixesFor = (attr: string): string[] => {
+        const tail = `_actions.${actionName}.resultDialog.${attr}`;
+        return objectName
+          ? objectSuffixes(objectName, tail)
+          : [`globalActions.${actionName}.resultDialog.${attr}`];
+      };
+      const textFor = (attr: 'title' | 'description' | 'acknowledge'): string | undefined => {
+        const resolved = resolve(suffixesFor(attr), spec[attr] ?? '');
+        return resolved || spec[attr];
+      };
+      const fieldsMap = ((): Record<string, unknown> | undefined => {
+        try {
+          for (const ns of getAppNamespaces()) {
+            for (const suffix of suffixesFor('fields')) {
+              const node = t(`${ns}.${suffix}`, {
+                returnObjects: true,
+                defaultValue: null,
+                [I18N_PROBE_FLAG]: true,
+              }) as unknown;
+              if (node && typeof node === 'object' && !Array.isArray(node)) {
+                return node as Record<string, unknown>;
+              }
+            }
+          }
+        } catch {
+          // Graceful degradation when i18n provider is not available
+        }
+        return undefined;
+      })();
+      const fields = Array.isArray(spec.fields)
+        ? spec.fields.map((field) => {
+            if (!field || typeof field.path !== 'string') return field;
+            const label = fieldsMap?.[field.path];
+            return typeof label === 'string' && label.length > 0 ? { ...field, label } : field;
+          })
+        : spec.fields;
+      return {
+        ...spec,
+        title: textFor('title'),
+        description: textFor('description'),
+        acknowledge: textFor('acknowledge'),
+        fields,
+      };
+    },
+
+    /**
      * Resolve translated action-PARAMETER text (label / placeholder / helpText).
      * Convention: `{ns}.objects.{objectName}._actions.{actionName}.params.{paramName}.{attr}`.
      * Falls back to the provided value (the metadata's literal string) when no

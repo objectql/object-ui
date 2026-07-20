@@ -89,8 +89,9 @@ const zh = {
   },
   actions: {
     resultDialog: {
-      defaultTitle: 'Save this value now',
-      acknowledge: 'I have saved this',
+      defaultTitle: '请立即保存此值',
+      acknowledge: '我已保存',
+      copyAll: '全部复制',
     },
   },
   validation: {

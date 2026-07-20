@@ -92,6 +92,7 @@ const en = {
     resultDialog: {
       defaultTitle: 'Save this value now',
       acknowledge: 'I have saved this',
+      copyAll: 'Copy all',
     },
   },
   validation: {

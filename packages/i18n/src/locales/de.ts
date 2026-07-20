@@ -75,8 +75,9 @@ const de = {
   },
   actions: {
     resultDialog: {
-      defaultTitle: 'Save this value now',
-      acknowledge: 'I have saved this',
+      defaultTitle: 'Diesen Wert jetzt speichern',
+      acknowledge: 'Ich habe ihn gespeichert',
+      copyAll: 'Alle kopieren',
     },
   },
   validation: {

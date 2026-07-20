@@ -219,6 +219,7 @@ function QrcodeBlock({ value }: { value: string }) {
 }
 
 function CodeListBlock({ value }: { value: string[] }) {
+  const { t } = useObjectTranslation();
   const joined = value.join('\n');
   return (
     <div className="space-y-2">
@@ -235,7 +236,7 @@ function CodeListBlock({ value }: { value: string[] }) {
         </ul>
       </div>
       <div className="flex justify-end">
-        <CopyButton value={joined} label="Copy all" />
+        <CopyButton value={joined} label={t('actions.resultDialog.copyAll') || 'Copy all'} />
       </div>
     </div>
   );

@@ -75,8 +75,9 @@ const ko = {
   },
   actions: {
     resultDialog: {
-      defaultTitle: 'Save this value now',
-      acknowledge: 'I have saved this',
+      defaultTitle: '이 값을 지금 저장하세요',
+      acknowledge: '저장했습니다',
+      copyAll: '모두 복사',
     },
   },
   validation: {

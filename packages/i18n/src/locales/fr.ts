@@ -75,8 +75,9 @@ const fr = {
   },
   actions: {
     resultDialog: {
-      defaultTitle: 'Save this value now',
-      acknowledge: 'I have saved this',
+      defaultTitle: 'Enregistrez cette valeur maintenant',
+      acknowledge: 'Je l\'ai enregistrée',
+      copyAll: 'Tout copier',
     },
   },
   validation: {

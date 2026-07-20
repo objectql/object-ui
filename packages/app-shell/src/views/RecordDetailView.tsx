@@ -158,7 +158,7 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
     };
   }, [originFromState, location.search, appName]);
   const { t, language } = useObjectTranslation();
-  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, actionDescription, fieldLabel, fieldOptionLabel } = useObjectLabel();
+  const { objectLabel, viewLabel: _vLabel, sectionLabel, actionLabel, actionConfirm, actionSuccess, actionParamText, actionParamOptionLabel, actionDescription, actionResultDialog, fieldLabel, fieldOptionLabel } = useObjectLabel();
   const { isFavorite, toggleFavorite, refreshLabel: refreshFavoriteLabel } = useFavorites();
   const { addRecentItem } = useRecentItems();
   const [isLoading, setIsLoading] = useState(true);
@@ -335,10 +335,17 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // (2FA secrets, OAuth client_secret, recovery codes).
   const [resultDialogState, setResultDialogState] = useState<ResultDialogState>({ open: false });
   const resultDialogHandler = useCallback(
-    (spec: any, data: unknown) => new Promise<void>((resolve) => {
-      setResultDialogState({ open: true, spec, data, resolve });
+    (spec: any, data: unknown, action?: any) => new Promise<void>((resolve) => {
+      // Localize title/description/acknowledge + field labels via the
+      // `_actions.<action>.resultDialog` convention (metadata literals as
+      // fallback); the action's own object wins over the page object.
+      const objForI18n = (typeof action?.objectName === 'string' && action.objectName)
+        ? action.objectName
+        : objectName || objectDef?.name;
+      const localized = actionResultDialog(objForI18n, action?.name, spec) ?? spec;
+      setResultDialogState({ open: true, spec: localized, data, resolve });
     }),
-    [],
+    [objectName, objectDef, actionResultDialog],
   );
 
   const confirmHandler = useCallback((message: string, options?: { title?: string; confirmText?: string; cancelText?: string }) => {

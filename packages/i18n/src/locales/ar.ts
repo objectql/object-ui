@@ -75,8 +75,9 @@ const ar = {
   },
   actions: {
     resultDialog: {
-      defaultTitle: 'Save this value now',
-      acknowledge: 'I have saved this',
+      defaultTitle: 'احفظ هذه القيمة الآن',
+      acknowledge: 'لقد حفظتها',
+      copyAll: 'نسخ الكل',
     },
   },
   validation: {

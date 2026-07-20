@@ -128,7 +128,7 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   // [ADR-0066 D4] System capabilities for the action capability gate (fail-open
   // when no PermissionProvider is mounted — usePermissions returns []).
   const { systemPermissions } = usePermissions();
-  const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel, actionDescription } = useObjectLabel();
+  const { fieldLabel, fieldOptionLabel, actionParamText, actionParamOptionLabel, actionDescription, actionResultDialog } = useObjectLabel();
 
   const objectDef = useMemo(
     () => (objectName ? objects?.find((o: any) => o.name === objectName) : undefined),
@@ -161,10 +161,18 @@ export function useConsoleActionRuntime(opts: ConsoleActionRuntimeOptions): Cons
   const serverActionInFlight = useRef<Set<string>>(new Set());
 
   const resultDialogHandler = useCallback<ResultDialogHandler>(
-    (spec: any, data: unknown) => new Promise<void>((resolve) => {
-      setResultDialogState({ open: true, spec, data, resolve });
+    (spec: any, data: unknown, action?: any) => new Promise<void>((resolve) => {
+      // Localize title/description/acknowledge + field labels via the
+      // `_actions.<action>.resultDialog` convention (metadata literals as
+      // fallback). The action's own object wins over the page object,
+      // mirroring the param-dialog localization below.
+      const objForI18n = (typeof action?.objectName === 'string' && action.objectName)
+        ? action.objectName
+        : objectName || (objectDef as any)?.name;
+      const localized = actionResultDialog(objForI18n, action?.name, spec) ?? spec;
+      setResultDialogState({ open: true, spec: localized, data, resolve });
     }),
-    [],
+    [objectName, objectDef, actionResultDialog],
   );
 
   const confirmHandler = useCallback<ConfirmationHandler>((message, options) => {

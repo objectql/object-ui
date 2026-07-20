@@ -75,8 +75,9 @@ const ru = {
   },
   actions: {
     resultDialog: {
-      defaultTitle: 'Save this value now',
-      acknowledge: 'I have saved this',
+      defaultTitle: 'Сохраните это значение сейчас',
+      acknowledge: 'Я сохранил(а) это',
+      copyAll: 'Копировать всё',
     },
   },
   validation: {

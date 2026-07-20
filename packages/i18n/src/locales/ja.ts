@@ -75,8 +75,9 @@ const ja = {
   },
   actions: {
     resultDialog: {
-      defaultTitle: 'Save this value now',
-      acknowledge: 'I have saved this',
+      defaultTitle: 'この値を今すぐ保存してください',
+      acknowledge: '保存しました',
+      copyAll: 'すべてコピー',
     },
   },
   validation: {
