@@ -476,6 +476,16 @@ export function SchemaForm({
   // Editable + truly unknown shape → keep the raw JSON editor as a
   // last resort, since we can't safely guess primitive types for
   // fields the user might add.
+  // Hoisted above the schema-synthesis guard below so this hook runs on every
+  // render (the guard can early-return a <RawJsonEditor/>).
+  const issuesByPath = React.useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const i of issues) {
+      (map[i.path] ??= []).push(translateValidationMessage(i.message, locale));
+    }
+    return map;
+  }, [issues, locale]);
+
   let effectiveSchema: JsonSchema | undefined = schema;
   if (!effectiveSchema || typeof effectiveSchema !== 'object') {
     if (value && typeof value === 'object') {
@@ -501,14 +511,6 @@ export function SchemaForm({
       const visibleOn = (props[k] as any)?.visibleOn;
       return !visibleOn || evaluatePredicate(visibleOn, { data: predicateData });
     });
-
-  const issuesByPath = React.useMemo(() => {
-    const map: Record<string, string[]> = {};
-    for (const i of issues) {
-      (map[i.path] ??= []).push(translateValidationMessage(i.message, locale));
-    }
-    return map;
-  }, [issues, locale]);
 
   const v = value ?? {};
 
@@ -1643,6 +1645,13 @@ function RecordField({
   onChange: (v: unknown) => void;
 }) {
   const locale = useMetadataLocale();
+  // State hoisted above every early return below (the widget delegation and the
+  // specialized-editor branches) so hook order stays stable across renders.
+  const [openKey, setOpenKey] = React.useState<string | null>(null);
+  const [pendingKey, setPendingKey] = React.useState('');
+  const [keyError, setKeyError] = React.useState<string | null>(null);
+  const [dragKey, setDragKey] = React.useState<string | null>(null);
+  const [dropTarget, setDropTarget] = React.useState<string | null>(null);
   // Delegate to a registered widget if the form spec asked for one
   // explicitly (e.g. `widget: 'airtable'`). The widget owns the entire UI.
   if (widget) {
@@ -1673,9 +1682,6 @@ function RecordField({
       : {};
   const entries = Object.entries(record);
   const specs = fields.map(normaliseField).filter((s) => s.field !== keyProp);
-  const [openKey, setOpenKey] = React.useState<string | null>(null);
-  const [pendingKey, setPendingKey] = React.useState('');
-  const [keyError, setKeyError] = React.useState<string | null>(null);
 
   const emit = (next: Record<string, Record<string, unknown>>) => onChange(next);
 
@@ -1737,9 +1743,8 @@ function RecordField({
   };
 
   // Drag-to-reorder. We rebuild the Record with the new key order, since
-  // insertion order = display order for `type: 'record'`.
-  const [dragKey, setDragKey] = React.useState<string | null>(null);
-  const [dropTarget, setDropTarget] = React.useState<string | null>(null);
+  // insertion order = display order for `type: 'record'`. (dragKey/dropTarget
+  // state is declared at the top of the component with the other hooks.)
   const reorder = (sourceKey: string, targetKey: string) => {
     if (sourceKey === targetKey) return;
     const keys = entries.map(([k]) => k);

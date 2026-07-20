@@ -118,6 +118,7 @@ export function ObjectSettingsPanel({
         </header>
         <div className="max-w-xl p-3">
           {DefaultInspector ? (
+            // eslint-disable-next-line react-hooks/static-components -- getMetadataDefaultInspector returns a registered component (stable), not one created during render
             <DefaultInspector
               type="object"
               name={name}

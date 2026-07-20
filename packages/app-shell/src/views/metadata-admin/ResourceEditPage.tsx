@@ -2159,6 +2159,7 @@ function MetadataResourceEditPageImpl({
                         </div>
                       </div>
                       <div className="flex-1 min-h-0 overflow-auto p-4 bg-[radial-gradient(circle_at_1px_1px,theme(colors.border)_1px,transparent_0)] [background-size:16px_16px] bg-muted/30">
+                        {/* eslint-disable-next-line react-hooks/static-components -- getMetadataPreview returns a registered component (stable), not one created during render */}
                         <PreviewComponent
                           type={type}
                           name={name}
@@ -2282,6 +2283,7 @@ function MetadataResourceEditPageImpl({
                             }))}
                           />
                         ) : selection && InspectorComponent ? (
+                          // eslint-disable-next-line react-hooks/static-components -- getMetadataInspector returns a registered component (stable), not one created during render
                           <InspectorComponent
                             type={type}
                             name={name}
@@ -2299,6 +2301,7 @@ function MetadataResourceEditPageImpl({
                             locale={locale}
                           />
                         ) : !selection && DefaultInspectorComponent ? (
+                          // eslint-disable-next-line react-hooks/static-components -- getMetadataDefaultInspector returns a registered component (stable), not one created during render
                           <DefaultInspectorComponent
                             type={type}
                             name={name}

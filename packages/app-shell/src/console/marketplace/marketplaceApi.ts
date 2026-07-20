@@ -323,7 +323,9 @@ export async function listInstallableOrgIds(): Promise<Set<string>> {
   if (!meId) return new Set();
 
   const url = `${base}/api/v1/data/sys_member?limit=200`;
-  let payload: any = null;
+  // Assigned in the try below before the read; the only fall-through path is a
+  // successful fetch (both the !ok branch and the catch return early).
+  let payload: any;
   try {
     const res = await fetch(url, {
       credentials: 'include',

@@ -75,7 +75,9 @@ function collectSourceFiles(): string[] {
   };
   for (const group of ['packages', 'apps']) {
     const groupDir = path.join(repoRoot, group);
-    let pkgs: string[] = [];
+    // Assigned by readdirSync below before the read; the catch `continue`s, so
+    // the loop body past the try only runs when pkgs was assigned.
+    let pkgs: string[];
     try {
       pkgs = readdirSync(groupDir);
     } catch {

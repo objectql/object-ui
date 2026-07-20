@@ -252,17 +252,8 @@ function DiffTable({
 }) {
   const [showUnchanged, setShowUnchanged] = React.useState(false);
 
-  // No baseline = pure runtime overlay; the diff table has nothing to compare.
-  if (code == null) {
-    return (
-      <div className="rounded border bg-muted/30 p-4 text-xs text-muted-foreground">
-        {t('engine.layers.diff.noBaseline', locale)}
-      </div>
-    );
-  }
-
   const rows = React.useMemo(
-    () => computeDiffRows(code, effective),
+    () => (code == null ? [] : computeDiffRows(code, effective)),
     [code, effective],
   );
 
@@ -275,6 +266,16 @@ function DiffTable({
       { unchanged: 0, modified: 0, added: 0, removed: 0 } as Record<DiffStatus, number>,
     );
   }, [rows]);
+
+  // No baseline = pure runtime overlay; the diff table has nothing to compare.
+  // Checked after the hooks above so hook order stays stable across renders.
+  if (code == null) {
+    return (
+      <div className="rounded border bg-muted/30 p-4 text-xs text-muted-foreground">
+        {t('engine.layers.diff.noBaseline', locale)}
+      </div>
+    );
+  }
 
   const visibleRows = showUnchanged
     ? rows

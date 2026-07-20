@@ -462,6 +462,7 @@ function NavCard({
         ) : (
           <span className="w-3.5" />
         )}
+        {/* eslint-disable-next-line react-hooks/static-components -- kindIcon returns a stable icon component from a static registry, not one created during render */}
         <Icon className={cn('h-3.5 w-3.5 shrink-0', tone.icon)} />
         {editing ? (
           <input

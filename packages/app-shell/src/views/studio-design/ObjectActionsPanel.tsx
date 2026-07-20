@@ -204,6 +204,7 @@ export function ObjectActionsPanel({
                 </button>
               </div>
             )}
+            {/* eslint-disable-next-line react-hooks/static-components -- getMetadataDefaultInspector returns a registered component (stable), not one created during render */}
             <Inspector
               type="action"
               name={String(sel.name ?? '')}

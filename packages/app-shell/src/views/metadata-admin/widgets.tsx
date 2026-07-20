@@ -42,7 +42,6 @@ import {
   DialogTitle,
 } from '@object-ui/components';
 import { ChevronDown, ChevronsUpDown, ChevronUp, Eye, EyeOff, Plus, Search, Trash2 } from 'lucide-react';
-// @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
 import { iconNames } from 'lucide-react/dynamic.mjs';
 import { useMetadataLocale, t, tFormat } from './i18n';
 import { ColorVariantPicker } from './color-variant-field';

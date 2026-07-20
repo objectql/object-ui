@@ -268,6 +268,7 @@ function SelectorControl({
       >
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-sidebar-border/70 bg-sidebar-accent text-sidebar-foreground/70">
+            {/* eslint-disable-next-line react-hooks/static-components -- getIcon returns a stable icon component from a static registry, not one created during render */}
             <Icon className="h-3 w-3" />
           </span>
           <SelectValue placeholder={placeholder} className="truncate" />

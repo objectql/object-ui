@@ -114,6 +114,7 @@ export function AppCard({ app, onClick, isFavorite, index = 0 }: AppCardProps) {
             accent.to,
           )}
         >
+          {/* eslint-disable-next-line react-hooks/static-components -- getIcon returns a stable icon component from a static registry, not one created during render */}
           <Icon
             className={cn('h-7 w-7', accent.text)}
           />

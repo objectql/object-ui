@@ -49,11 +49,12 @@ export function MetadataToggle({ open, onToggle, className }: { open: boolean; o
  * The side panel that renders JSON metadata sections.
  */
 export function MetadataPanel({ sections, open }: Omit<MetadataInspectorProps, 'onToggle'>) {
-  if (!open) return null;
-
   const { t } = useObjectTranslation();
   const [expandedSections, setExpandedSections] = useState<string[]>(['0']);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  // Checked after the hooks above so hook order stays stable across renders.
+  if (!open) return null;
 
   const handleCopy = async (data: any, index: number) => {
     try {

@@ -13,7 +13,6 @@
 
 import React from 'react';
 import { Database } from 'lucide-react';
-// @ts-ignore - lucide-react has no `exports` field; subpath types live alongside dynamic.mjs
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic.mjs';
 
 /** Convert PascalCase / camelCase / mixed names to kebab-case for DynamicIcon. */

@@ -228,6 +228,7 @@ export function ActionPreview({ name, draft }: MetadataPreviewProps) {
           {/* On-click description */}
           <div className="rounded border border-blue-200 bg-blue-50 p-2.5 text-xs">
             <div className="flex items-center gap-1.5 font-medium text-blue-900 mb-0.5">
+              {/* eslint-disable-next-line react-hooks/static-components -- typeIcon returns a stable icon component from a static registry, not one created during render */}
               <TypeIcon className="h-3.5 w-3.5" /> On click
             </div>
             <div className="text-blue-950 font-mono break-all">

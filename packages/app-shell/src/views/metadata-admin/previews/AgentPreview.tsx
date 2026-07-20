@@ -105,7 +105,6 @@ export function AgentPreview({ name, draft }: MetadataPreviewProps) {
             <div className="rounded border bg-muted/30 p-3 flex items-start gap-3">
               <div className="h-10 w-10 rounded-full bg-background border flex items-center justify-center shrink-0 overflow-hidden">
                 {avatar ? (
-                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={avatar} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <Bot className="h-5 w-5 text-muted-foreground" />

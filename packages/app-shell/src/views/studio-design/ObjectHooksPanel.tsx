@@ -260,6 +260,7 @@ export function ObjectHooksPanel({
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
               {HookInspector ? (
+                // eslint-disable-next-line react-hooks/static-components -- getMetadataDefaultInspector returns a registered component (stable), not one created during render
                 <HookInspector
                   type="hook"
                   name={String(draft.name ?? '')}

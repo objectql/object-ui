@@ -120,6 +120,25 @@ export function ViewPreview({ name, draft, editing }: MetadataPreviewProps) {
     };
   }, [body, draft, name]);
 
+  // Hoisted above the early returns below so this hook runs on every render
+  // (hook order must stay stable). Only the final `object-view` branch reads it;
+  // the earlier branches shadow it with their own local `schema`/`formSchema`.
+  const schema = React.useMemo(
+    () => ({
+      type: 'object-view',
+      objectName,
+      defaultViewType,
+      defaultListView: defaultViewId,
+      listViews,
+      showSearch: true,
+      showFilters: true,
+      showCreate: false,
+      showRefresh: true,
+      showViewSwitcher: true,
+    }),
+    [objectName, defaultViewType, defaultViewId, listViews],
+  );
+
   // -------------------------------------------------------------------------
   // Raw single-schema draft (no ViewItem `config` wrapper): render directly.
   // -------------------------------------------------------------------------
@@ -170,22 +189,6 @@ export function ViewPreview({ name, draft, editing }: MetadataPreviewProps) {
   // Delegate to `object-view` — the same renderer the runtime route uses —
   // with the draft body injected so the preview reflects unsaved edits.
   // -------------------------------------------------------------------------
-  const schema = React.useMemo(
-    () => ({
-      type: 'object-view',
-      objectName,
-      defaultViewType,
-      defaultListView: defaultViewId,
-      listViews,
-      showSearch: true,
-      showFilters: true,
-      showCreate: false,
-      showRefresh: true,
-      showViewSwitcher: true,
-    }),
-    [objectName, defaultViewType, defaultViewId, listViews],
-  );
-
   return (
     <PreviewShell hint={`view · ${defaultViewType}${designMode ? ' · design' : ''}`}>
       <PreviewErrorBoundary fallbackHint="The view references an object or field that doesn't resolve.">

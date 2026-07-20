@@ -2251,6 +2251,7 @@ export function DataPillar({
         </button>
         {current ? (
           <span className="flex min-w-0 items-center gap-2">
+            {/* eslint-disable-next-line react-hooks/static-components -- getIcon returns a stable icon component from a static registry, not one created during render */}
             <HeaderIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="truncate text-[15px] font-semibold leading-none text-foreground">{current.label}</span>
             <span className="shrink-0 rounded bg-muted/70 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">

@@ -184,6 +184,7 @@ function NavRow({
         style={{ paddingLeft: `${12 + depth * 16}px` }}
         onClick={onSelect ? (e) => { e.stopPropagation(); onSelect(path, item); } : undefined}
       >
+        {/* eslint-disable-next-line react-hooks/static-components -- kindIcon returns a stable icon component from a static registry, not one created during render */}
         <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <span className="font-medium truncate">{item.label}</span>
         {item.kind && (
