@@ -285,7 +285,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
           
-          let items: any[] = extractRecords(result);
+          const items: any[] = extractRecords(result);
           
           if (isMounted) {
             setData(items);

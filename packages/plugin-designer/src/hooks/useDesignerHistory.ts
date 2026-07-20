@@ -9,10 +9,10 @@
 import { useUndoRedo, type UndoRedoOptions, type UndoRedoState } from './useUndoRedo';
 
 /** Options for the designer history hook */
-export interface DesignerHistoryOptions extends UndoRedoOptions {}
+export type DesignerHistoryOptions = UndoRedoOptions;
 
 /** Designer history state — command-pattern wrapper around undo/redo */
-export interface DesignerHistoryState<T> extends UndoRedoState<T> {}
+export type DesignerHistoryState<T> = UndoRedoState<T>;
 
 /**
  * Hook providing command-pattern undo/redo history for designer components.

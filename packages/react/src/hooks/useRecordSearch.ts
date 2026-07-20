@@ -160,7 +160,8 @@ export function useRecordSearch(opts: UseRecordSearchOptions): UseRecordSearchRe
   // new array reference but identical content.
   const candidates = useMemo(() => {
     if (!Array.isArray(objects) || objects.length === 0) return [];
-    let pool = objects;
+    // Assigned in both branches below before it's read; no dead initializer.
+    let pool: any[];
     if (Array.isArray(objectNames) && objectNames.length > 0) {
       const byName = new Map<string, any>();
       for (const obj of objects) {

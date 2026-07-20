@@ -61,6 +61,10 @@ export async function buildApp(schemaPath: string, options: BuildOptions) {
     try {
       schema = parseSchemaFile(fullSchemaPath);
     } catch (error) {
+      // The caught error's message is inlined below. We can't pass it as the
+      // `Error` `cause` option because this package targets ES2020, whose lib
+      // types the 1-arg `Error` constructor only; hence the scoped disable.
+      // eslint-disable-next-line preserve-caught-error
       throw new Error(`Invalid schema file: ${error instanceof Error ? error.message : error}`);
     }
   }
@@ -123,6 +127,10 @@ export async function buildApp(schemaPath: string, options: BuildOptions) {
     console.log(chalk.cyan(`  objectui start --dir ${outDir}`));
     console.log();
   } catch (error) {
+    // The caught error's message is inlined below. We can't pass it as the
+    // `Error` `cause` option because this package targets ES2020, whose lib
+    // types the 1-arg `Error` constructor only; hence the scoped disable.
+    // eslint-disable-next-line preserve-caught-error
     throw new Error(`Build failed: ${error instanceof Error ? error.message : error}`);
   }
 }

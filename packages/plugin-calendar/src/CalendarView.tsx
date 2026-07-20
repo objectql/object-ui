@@ -947,7 +947,7 @@ function TimeGridView({
       type ColRun = { endMin: number }
       const cols: ColRun[] = []
       const assigned: Array<{ entry: Entry; col: number }> = []
-      let activeGroupStart = 0
+      const activeGroupStart = 0
       const flushGroup = (until: number) => {
         const groupCols = cols.length
         for (let i = activeGroupStart; i < assigned.length; i++) {
@@ -956,7 +956,7 @@ function TimeGridView({
           ;(assigned[i] as any).until = until
         }
       }
-      let _ = flushGroup // silence unused
+      const _ = flushGroup // silence unused
       void _
       const laid: Laid[] = []
       // Simpler 2-pass: assign column index greedily, then walk through and

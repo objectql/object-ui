@@ -296,6 +296,10 @@ export function useETagCache(userConfig: ETagCacheConfig = {}): ETagCacheResult 
           }
         } catch (e) {
           if (e instanceof Error && e.message.startsWith('Unsupported')) throw e;
+          // Any other parse failure collapses to a generic message; we can't
+          // attach `e` as the `Error` `cause` because this package targets
+          // ES2020, whose lib types the 1-arg `Error` constructor only.
+          // eslint-disable-next-line preserve-caught-error
           throw new Error('Invalid URL');
         }
       }

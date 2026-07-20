@@ -103,7 +103,7 @@ export function Mermaid({ chart }: { chart: string }) {
       data-mermaid
       role="img"
       className="my-4 flex justify-center overflow-auto [&_svg]:h-auto [&_svg]:max-w-full"
-      // eslint-disable-next-line react/no-danger -- mermaid strict-mode SVG, rendered post-sanitize by our own trusted component
+      // mermaid strict-mode SVG, rendered post-sanitize by our own trusted component
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   )

@@ -143,6 +143,10 @@ export class IntegrationManager {
           }
         } catch (e) {
           if (e instanceof TypeError) {
+            // A malformed URL surfaces as its own message; we can't attach `e`
+            // as the `Error` `cause` because this package targets ES2020, whose
+            // lib types the 1-arg `Error` constructor only. Scoped disable.
+            // eslint-disable-next-line preserve-caught-error
             throw new Error(`Invalid webhook URL: ${url}`);
           }
           throw e;
@@ -168,6 +172,10 @@ export class IntegrationManager {
           }
         } catch (e) {
           if (e instanceof TypeError) {
+            // A malformed URL surfaces as its own message; we can't attach `e`
+            // as the `Error` `cause` because this package targets ES2020, whose
+            // lib types the 1-arg `Error` constructor only. Scoped disable.
+            // eslint-disable-next-line preserve-caught-error
             throw new Error(`Invalid Slack webhook URL: ${url}`);
           }
           throw e;

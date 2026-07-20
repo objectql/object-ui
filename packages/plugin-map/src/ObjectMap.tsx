@@ -416,7 +416,7 @@ export const ObjectMap: React.FC<ObjectMapProps> = ({
             ...(expand.length > 0 ? { $expand: expand } : {}),
           });
           
-          let items: any[] = extractRecords(result);
+          const items: any[] = extractRecords(result);
           setData(items);
         } else if (dataConfig?.provider === 'api') {
           console.warn('API provider not yet implemented for ObjectMap');

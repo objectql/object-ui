@@ -2022,32 +2022,25 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     config: Record<string, any>
   ): Promise<Record<string, any> | void> {
     await this.connect();
-    try {
-      // ADR-0005 metadata customization overlay: persist views under
-      // `type='view'` (NOT `type=<objectName>` — that was a pre-overlay
-      // misuse that hit `/api/v1/meta/<objectName>/<viewId>`, which the
-      // server never wired). The view's `data.object` field is what
-      // associates it back to the object on read.
-      const merged = { ...(config || {}), object: (config as any)?.object || objectName, name: viewId };
-      const result: any = await this.client.meta.saveItem(
-        'view',
-        viewId,
-        merged
-      );
-      // Invalidate cached read so next getView reflects the change
-      const cacheKey = `view:${objectName}:${viewId}`;
-      this.metadataCache.invalidate?.(cacheKey);
-      // Also invalidate the batch override map so listViewOverrides re-fetches
-      this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
-      this.metadataCache.invalidate?.(`views:${objectName}`);
-      if (result && result.item) return result.item;
-      return result ?? undefined;
-    } catch (err) {
-      // Surface the error so the caller can decide whether to toast/log;
-      // we don't swallow it here because persistence failures are
-      // operationally meaningful (unlike read fallbacks).
-      throw err;
-    }
+    // ADR-0005 metadata customization overlay: persist views under
+    // `type='view'` (NOT `type=<objectName>` — that was a pre-overlay
+    // misuse that hit `/api/v1/meta/<objectName>/<viewId>`, which the
+    // server never wired). The view's `data.object` field is what
+    // associates it back to the object on read.
+    const merged = { ...(config || {}), object: (config as any)?.object || objectName, name: viewId };
+    const result: any = await this.client.meta.saveItem(
+      'view',
+      viewId,
+      merged
+    );
+    // Invalidate cached read so next getView reflects the change
+    const cacheKey = `view:${objectName}:${viewId}`;
+    this.metadataCache.invalidate?.(cacheKey);
+    // Also invalidate the batch override map so listViewOverrides re-fetches
+    this.metadataCache.invalidate?.(`view-overrides:${objectName}`);
+    this.metadataCache.invalidate?.(`views:${objectName}`);
+    if (result && result.item) return result.item;
+    return result ?? undefined;
   }
 
   /**
@@ -2167,14 +2160,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       object: spec?.object || objectName,
       data: spec?.data || { provider: 'object', object: objectName },
     };
-    try {
-      const result: any = await this.client.meta.saveItem('view', name, fullSpec);
-      this.metadataCache.invalidate?.(`views:${objectName}`);
-      if (result && result.item) return result.item;
-      return fullSpec;
-    } catch (err) {
-      throw err;
-    }
+    const result: any = await this.client.meta.saveItem('view', name, fullSpec);
+    this.metadataCache.invalidate?.(`views:${objectName}`);
+    if (result && result.item) return result.item;
+    return fullSpec;
   }
 
   /**
@@ -2204,15 +2193,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       name: viewName,
       object: current?.object || (current as any)?.data?.object || objectName,
     };
-    try {
-      const result: any = await this.client.meta.saveItem('view', viewName, merged);
-      this.metadataCache.invalidate?.(`views:${objectName}`);
-      this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
-      if (result && result.item) return result.item;
-      return merged;
-    } catch (err) {
-      throw err;
-    }
+    const result: any = await this.client.meta.saveItem('view', viewName, merged);
+    this.metadataCache.invalidate?.(`views:${objectName}`);
+    this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
+    if (result && result.item) return result.item;
+    return merged;
   }
 
   /**
@@ -2225,14 +2210,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     viewName: string,
   ): Promise<{ deleted: boolean }> {
     await this.connect();
-    try {
-      const result: any = await this.client.meta.deleteItem('view', viewName);
-      this.metadataCache.invalidate?.(`views:${objectName}`);
-      this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
-      return { deleted: !!(result?.deleted ?? result?.reset ?? true) };
-    } catch (err) {
-      throw err;
-    }
+    const result: any = await this.client.meta.deleteItem('view', viewName);
+    this.metadataCache.invalidate?.(`views:${objectName}`);
+    this.metadataCache.invalidate?.(`view:${objectName}:${viewName}`);
+    return { deleted: !!(result?.deleted ?? result?.reset ?? true) };
   }
 
 
@@ -2299,21 +2280,17 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     schema: Record<string, any>
   ): Promise<Record<string, any> | void> {
     await this.connect();
-    try {
-      const result: any = await this.client.meta.saveItem(
-        'dashboard',
-        dashboardName,
-        schema
-      );
-      // Invalidate dashboards list and any cached dashboard read so the
-      // next render reflects the change.
-      this.metadataCache.invalidate?.('dashboards');
-      this.metadataCache.invalidate?.(`dashboard:${dashboardName}`);
-      if (result && result.item) return result.item;
-      return result ?? undefined;
-    } catch (err) {
-      throw err;
-    }
+    const result: any = await this.client.meta.saveItem(
+      'dashboard',
+      dashboardName,
+      schema
+    );
+    // Invalidate dashboards list and any cached dashboard read so the
+    // next render reflects the change.
+    this.metadataCache.invalidate?.('dashboards');
+    this.metadataCache.invalidate?.(`dashboard:${dashboardName}`);
+    if (result && result.item) return result.item;
+    return result ?? undefined;
   }
 
   /**
