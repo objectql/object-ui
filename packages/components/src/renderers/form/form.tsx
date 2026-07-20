@@ -128,13 +128,13 @@ const DATA_SOURCE_FIELD_TYPES = new Set([
   'object-ref', 'filter-condition', 'recipient-picker',
 ]);
 
-// Option fields (`select`/`radio`/`multiselect`) support per-option `visibleWhen`
-// cascading + `dependsOn` gating (#2284/#1583): the widget re-filters its OFFERED
-// set against the live form record (`record.country == 'cn'` …). They take no
-// `dataSource`, but they DO need the live `dependentValues` record — without it a
-// cascading select never sees its controlling field and stays permanently gated
-// on the "select the parent first" hint.
-const CASCADE_OPTION_FIELD_TYPES = new Set(['select', 'radio', 'multiselect']);
+// Option fields (`select`/`radio`/`multiselect`/`checkboxes`) support per-option
+// `visibleWhen` cascading + `dependsOn` gating (#2284/#1583): the widget re-filters
+// its OFFERED set against the live form record (`record.country == 'cn'` …). They
+// take no `dataSource`, but they DO need the live `dependentValues` record —
+// without it a cascading select never sees its controlling field and stays
+// permanently gated on the "select the parent first" hint.
+const CASCADE_OPTION_FIELD_TYPES = new Set(['select', 'radio', 'multiselect', 'checkboxes']);
 
 function stripRendererOnlyProps<T extends Record<string, any>>(props: T): T {
   const {
@@ -408,7 +408,13 @@ ComponentRegistry.register('form',
         const name = f?.name;
         if (!name) continue;
         const resolvedType = (f as any).widget || f.type;
-        if (resolvedType !== 'select' && resolvedType !== 'radio' && resolvedType !== 'multiselect') continue;
+        if (
+          resolvedType !== 'select' &&
+          resolvedType !== 'radio' &&
+          resolvedType !== 'multiselect' &&
+          resolvedType !== 'checkboxes'
+        )
+          continue;
         const opts = (f as any).options as SelectOption[] | undefined;
         if (!opts || opts.length === 0) continue;
         const dependsOn = (f as any).dependsOn;
@@ -797,7 +803,10 @@ ComponentRegistry.register('form',
                 // while a declared `dependsOn` parent is still empty — surfacing a
                 // "select the parent first" hint instead of an unfiltered list.
                 const isOptionField =
-                  resolvedType === 'select' || resolvedType === 'radio' || resolvedType === 'multiselect';
+                  resolvedType === 'select' ||
+                  resolvedType === 'radio' ||
+                  resolvedType === 'multiselect' ||
+                  resolvedType === 'checkboxes';
                 const rawOptions = (fieldProps as any).options as SelectOption[] | undefined;
                 // Resolve gating + `visibleWhen` filtering through the shared
                 // core helper so this pre-filter can't drift from the widgets'

@@ -99,17 +99,18 @@ single dropdown does.
 
 ### Cascading & role-gated select options
 
-`select`, `multiselect`, and `radio` options support a per-option `visibleWhen`
-CEL predicate (offered only when TRUE, evaluated against the live record +
-`current_user`) and a field-level `dependsOn`. Together they drive dependent
-selects (country → province → city) and role-gated options with no bespoke
-matrix — the same primitives dependent lookups use. All three widgets resolve
-this through the shared [`useCascadingOptions`](./src/widgets/useCascadingOptions.ts)
+`select`, `multiselect`, `radio`, and `checkboxes` options support a per-option
+`visibleWhen` CEL predicate (offered only when TRUE, evaluated against the live
+record + `current_user`) and a field-level `dependsOn`. Together they drive
+dependent selects (country → province → city) and role-gated options with no
+bespoke matrix — the same primitives dependent lookups use. All four widgets
+resolve this through the shared [`useCascadingOptions`](./src/widgets/useCascadingOptions.ts)
 hook, which wraps the pure `resolveCascadingOptions` helper in `@object-ui/core`
 (also used by the form renderer's inline pre-filter, so gating and filtering
 never drift). While a `dependsOn` parent is empty the control is gated; a parent
 change re-filters the list and clears a now-invalid value (scalar `select` /
-`radio` drop the value; `multiselect` prunes just the offered-out entries).
+`radio` drop the value; multi-value `multiselect` / `checkboxes` prune just the
+offered-out entries).
 Client-side hiding is UX only — gate authorization-sensitive values on the
 server too. See
 [`content/docs/fields/select.mdx`](../../content/docs/fields/select.mdx).
