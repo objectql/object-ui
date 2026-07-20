@@ -90,14 +90,14 @@
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.2",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
-    "autoprefixer": "^10.5.2",
-    "postcss": "^8.5.18",
-    "shadcn": "^4.13.0",
-    "tailwindcss": "^4.3.2",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.20",
+    "shadcn": "^4.13.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.1.5",
     "vite-plugin-dts": "^5.0.3"
