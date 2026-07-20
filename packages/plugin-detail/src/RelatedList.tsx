@@ -318,6 +318,10 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   }, [api, dataSource]);
 
   React.useEffect(() => {
+    // Stale-response guard: page flips re-run this effect while an earlier
+    // window may still be in flight — a slow page-2 response must not
+    // overwrite page 3 after the fact.
+    let cancelled = false;
     // Only auto-fetch when the caller didn't pass `data` at all. If the parent
     // explicitly passed an empty array, that means "no related records" — we
     // must NOT fall back to fetching all rows of the API (which would surface
@@ -356,6 +360,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           if (orderby.length > 0) params.$orderby = orderby;
         }
         dataSource.find(api, params).then((result) => {
+          if (cancelled) return;
           const isArrayResult = Array.isArray(result);
           const items = isArrayResult
             ? (result as any[])
@@ -382,7 +387,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           setLoading(false);
         }).catch((err) => {
           console.error('Failed to fetch related data:', err);
-          setLoading(false);
+          if (!cancelled) setLoading(false);
         });
       } else {
         const qs = new URLSearchParams({
@@ -391,6 +396,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         fetch(`${api}?${qs}`)
           .then(res => res.json())
           .then(result => {
+            if (cancelled) return;
             const items = Array.isArray(result) ? result : (result?.data || []);
             setRelatedData(items);
             setTotal(null);
@@ -399,9 +405,12 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           .catch(err => {
             console.error('Failed to fetch related data:', err);
           })
-          .finally(() => setLoading(false));
+          .finally(() => { if (!cancelled) setLoading(false); });
       }
     }
+    return () => {
+      cancelled = true;
+    };
   }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce, windowed, effectivePageSize, fetchPage, fetchSortField, fetchSortDirection, defaultSortSpec]);
 
   // Windowed mode: a page beyond the (shrunken) collection — e.g. the last
@@ -1015,12 +1024,18 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           </div>
         )}
 
-        {loading ? (
+        {loading && relatedData.length === 0 ? (
+          // Placeholder only while there's nothing to show (first load). Page
+          // flips keep the previous rows in place (slightly dimmed) until the
+          // next window arrives — swapping to a placeholder collapses the
+          // card and makes the whole related section visibly jump.
           <div className="flex items-center justify-center py-6 text-muted-foreground text-sm">
             {t('detail.loading')}
           </div>
         ) : (
-          <SchemaRenderer schema={viewSchema} />
+          <div className={cn(loading && 'opacity-60 pointer-events-none transition-opacity')}>
+            <SchemaRenderer schema={viewSchema} />
+          </div>
         )}
 
         {/* Pagination controls */}
