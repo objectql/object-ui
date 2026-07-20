@@ -23,6 +23,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ActionParamDef } from '@object-ui/core';
 import { ActionParamDialog, filterVisibleParams, serializeParamValues } from './ActionParamDialog';
+import { expectedParamShape, classifyValueShape } from '../utils/paramValueShape';
 
 const p = (name: string, visible?: string): ActionParamDef => ({
   name,
@@ -189,6 +190,88 @@ describe('ActionParamDialog — shared field-widget rendering (ADR-0059)', () =>
     expect((input as HTMLInputElement).value).toBe('seed');
     confirm();
     await waitFor(() => expect(resolve).toHaveBeenCalledWith({ note: 'seed' }));
+  });
+});
+
+describe('emitted value-shape parity (contract-tied render proofs, #2714)', () => {
+  // Each proof drives the REAL widget and asserts the value the dialog resolves
+  // on confirm matches the shape declared in `paramValueShape.ts`. This ties the
+  // declarative contract table to what the widgets actually emit — a silent
+  // widget-onChange swap that changed a param's POST shape fails here, not just
+  // in the pure table. Covers the endpoint-relied contracts drivable without a
+  // dataSource; the lookup/user id contract is pinned in `paramValueShape.test.ts`.
+
+  it('number param emits a number matching its declared contract', async () => {
+    const param = def({ name: 'count', type: 'number' });
+    const resolve = openDialog([param]);
+    const input = await screen.findByLabelText('Param One');
+    fireEvent.change(input, { target: { value: '42' } });
+    confirm();
+    await waitFor(() => expect(resolve).toHaveBeenCalled());
+    const emitted = resolve.mock.calls[0][0].count;
+    expect(emitted).toBe(42);
+    expect(classifyValueShape(emitted)).toBe(expectedParamShape(param)); // 'number'
+  });
+
+  it('datetime param emits an ISO-ish string matching its declared contract', async () => {
+    const param = def({ name: 'when', type: 'datetime' });
+    const resolve = openDialog([param]);
+    const input = await screen.findByLabelText('Param One');
+    expect(input.getAttribute('type')).toBe('datetime-local');
+    fireEvent.change(input, { target: { value: '2026-07-20T14:30' } });
+    confirm();
+    await waitFor(() => expect(resolve).toHaveBeenCalled());
+    const emitted = resolve.mock.calls[0][0].when;
+    expect(emitted).toBe('2026-07-20T14:30');
+    expect(classifyValueShape(emitted)).toBe(expectedParamShape(param)); // 'string'
+  });
+
+  it('time param emits a string matching its declared contract', async () => {
+    const param = def({ name: 'at', type: 'time' });
+    const resolve = openDialog([param]);
+    const input = await screen.findByLabelText('Param One');
+    expect(input.getAttribute('type')).toBe('time');
+    fireEvent.change(input, { target: { value: '09:15' } });
+    confirm();
+    await waitFor(() => expect(resolve).toHaveBeenCalled());
+    const emitted = resolve.mock.calls[0][0].at;
+    expect(emitted).toBe('09:15');
+    expect(classifyValueShape(emitted)).toBe(expectedParamShape(param)); // 'string'
+  });
+
+  it('select+multiple param emits a string[] matching its declared contract (#2709)', async () => {
+    const param = def({
+      name: 'envs',
+      type: 'select',
+      multiple: true,
+      options: [
+        { label: 'Production', value: 'prod' },
+        { label: 'Staging', value: 'stage' },
+      ],
+    });
+    const resolve = openDialog([param]);
+    // A `multiple` select renders the chip picker (MultiSelectField) — plain
+    // toggle buttons, not a Radix combobox — so it is drivable in JSDOM.
+    fireEvent.click(await screen.findByRole('button', { name: 'Production' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Staging' }));
+    confirm();
+    await waitFor(() => expect(resolve).toHaveBeenCalled());
+    const emitted = resolve.mock.calls[0][0].envs;
+    expect(emitted).toEqual(['prod', 'stage']);
+    expect(classifyValueShape(emitted)).toBe(expectedParamShape(param)); // 'string[]'
+  });
+
+  it('a file param emits a fileId string after serialize (#2698/#2710), matching its contract', () => {
+    // The FileField upload widget can't complete a presigned upload in JSDOM, so
+    // the emitted-shape proof for file/image lives at the serialize boundary:
+    // a resolved { file_id } descriptor serializes to the fileId string the
+    // contract declares. (End-to-end upload UX is covered by #2710's suite.)
+    const param = def({ name: 'attachment', type: 'file' });
+    const out = serializeParamValues([param], {
+      attachment: { file_id: 'file_abc', name: 'x.pdf', url: 'https://…' },
+    });
+    expect(out.attachment).toBe('file_abc');
+    expect(classifyValueShape(out.attachment)).toBe(expectedParamShape(param)); // 'string'
   });
 });
 
