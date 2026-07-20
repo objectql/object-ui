@@ -26,10 +26,15 @@
  *   • number / integer            → number
  *   • boolean                     → boolean
  *   • array of string             → stringList
+ *   • array of number / integer   → numberList
  *   • array of object             → objectList (columns from item props)
- *   • object (one level)          → flattened sub-fields under config.<key>.*
+ *   • object with fixed `properties`
+ *                                 → flattened sub-fields under config.<key>.*
  *                                   (a nested `enabled: boolean` makes the
  *                                    group's other fields reveal when enabled)
+ *   • object with `additionalProperties` (a free-form string-keyed map, no fixed
+ *     properties)                 → keyValue (the flat `{ var: value }` editor,
+ *                                   e.g. CRUD `fields`/`filter`, assignments)
  */
 
 import type { FlowConfigField, FlowConfigColumn, FlowConfigFieldKind, FlowReferenceSpec, ReferenceKind } from './flow-node-config';
@@ -55,6 +60,14 @@ interface JsonSchemaNode {
   properties?: Record<string, JsonSchemaNode>;
   items?: JsonSchemaNode;
   required?: string[];
+  /**
+   * Value schema (or `true`) for a free-form string-keyed map — the JSON-Schema
+   * idiom for "an object of arbitrary keys". With no fixed `properties`, such an
+   * object maps to the flat `keyValue` editor (e.g. a CRUD node's `fields` /
+   * `filter`, an assignment's `assignments`, a connector's `input`). `false`
+   * (closed object) is treated as absent.
+   */
+  additionalProperties?: boolean | JsonSchemaNode;
   /**
    * Reference annotation carried from the executor's Zod `.meta({ xRef })`
    * (ADR-0018). Marks a string as a typed reference so the inspector renders a
@@ -287,6 +300,8 @@ export function jsonSchemaToFlowFields(schema: unknown): FlowConfigField[] | nul
         fields.push({ id: key, path: ['config', key], kind: 'objectList', columns: columnsFor(item), ...meta(prop, key) });
       } else if (itemType === 'string') {
         fields.push({ id: key, path: ['config', key], kind: 'stringList', ...meta(prop, key) });
+      } else if (itemType === 'number' || itemType === 'integer') {
+        fields.push({ id: key, path: ['config', key], kind: 'numberList', ...meta(prop, key) });
       }
       // arrays of anything else fall through to the Advanced block.
       continue;
@@ -319,6 +334,17 @@ export function jsonSchemaToFlowFields(schema: unknown): FlowConfigField[] | nul
         };
         fields.push(field);
       }
+      continue;
+    }
+
+    // ── free-form object map → keyValue ─────────────────────────────────────
+    // An object with `additionalProperties` but no fixed `properties` is a
+    // dynamic string-keyed map (the object-with-`properties` case is handled
+    // above and `continue`s, so it never reaches here). objectui edits it with
+    // the flat keyValue widget — the engine reads `config.<key>` as
+    // `{ var: value }` (CRUD `fields`/`filter`, assignment `assignments`, …).
+    if (t === 'object' && prop.additionalProperties !== undefined && prop.additionalProperties !== false) {
+      fields.push({ id: key, path: ['config', key], kind: 'keyValue', ...meta(prop, key) });
       continue;
     }
 

@@ -367,3 +367,57 @@ describe('jsonSchemaToFlowFields — xExpression authoring-mode marker', () => {
     expect(cols.find((c) => c.key === 'plain')!.kind).toBe('text');
   });
 });
+
+describe('jsonSchemaToFlowFields — free-form object maps → keyValue (#3304)', () => {
+  const field = (schema: unknown, id: string) => jsonSchemaToFlowFields(schema)!.find((f) => f.id === id);
+
+  it('maps an object with a value schema (additionalProperties) to a keyValue field', () => {
+    const f = field(
+      {
+        type: 'object',
+        properties: {
+          fields: { type: 'object', additionalProperties: { type: 'string' }, title: 'Field values', description: 'Values to write.' },
+        },
+      },
+      'fields',
+    )!;
+    expect(f.kind).toBe('keyValue');
+    expect(f.path).toEqual(['config', 'fields']);
+    expect(f.label).toBe('Field values');
+    expect(f.help).toBe('Values to write.');
+  });
+
+  it('maps `additionalProperties: true` (any value) to keyValue too', () => {
+    expect(field({ type: 'object', properties: { filter: { type: 'object', additionalProperties: true } } }, 'filter')!.kind).toBe('keyValue');
+  });
+
+  it('prefers flattening when the object has fixed `properties` (not keyValue)', () => {
+    // An object with real properties is a structured group → flattened sub-fields,
+    // never the keyValue map editor.
+    const fields = jsonSchemaToFlowFields({
+      type: 'object',
+      properties: { grp: { type: 'object', properties: { host: { type: 'string' }, port: { type: 'number' } } } },
+    })!;
+    expect(fields.some((f) => f.kind === 'keyValue')).toBe(false);
+    expect(fields.find((f) => f.id === 'grp.host')!.kind).toBe('text');
+    expect(fields.find((f) => f.id === 'grp.port')!.kind).toBe('number');
+  });
+
+  it('leaves an opaque object (no properties, no additionalProperties) to the Advanced block', () => {
+    // Not representable → omitted from the form (falls through to Advanced JSON).
+    expect(field({ type: 'object', properties: { blob: { type: 'object' } } }, 'blob')).toBeUndefined();
+    // `additionalProperties: false` is a closed object, also not a keyValue map.
+    expect(field({ type: 'object', properties: { closed: { type: 'object', additionalProperties: false } } }, 'closed')).toBeUndefined();
+  });
+});
+
+describe('jsonSchemaToFlowFields — numeric arrays → numberList (#3304)', () => {
+  const field = (schema: unknown, id: string) => jsonSchemaToFlowFields(schema)!.find((f) => f.id === id)!;
+
+  it('maps an array of number / integer to numberList (sibling of stringList)', () => {
+    expect(field({ type: 'object', properties: { offsets: { type: 'array', items: { type: 'number' } } } }, 'offsets').kind).toBe('numberList');
+    expect(field({ type: 'object', properties: { days: { type: 'array', items: { type: 'integer' } } } }, 'days').kind).toBe('numberList');
+    // string arrays still map to stringList.
+    expect(field({ type: 'object', properties: { tags: { type: 'array', items: { type: 'string' } } } }, 'tags').kind).toBe('stringList');
+  });
+});
