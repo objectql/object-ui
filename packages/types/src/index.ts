@@ -434,6 +434,8 @@ export type {
 // used by default list-column derivation to keep framework-injected fields
 // (notably `owner_id`) out of the leading business columns.
 export { SYSTEM_MANAGED_FIELD_NAMES, isSystemManagedField } from './system-fields';
+export { MANAGED_BY_BUCKETS } from './managed-by';
+export type { ManagedByBucket } from './managed-by';
 
 // ============================================================================
 // Phase 3: Data Protocol Advanced Types
