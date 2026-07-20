@@ -602,22 +602,29 @@ export function ApprovalsInboxPage() {
 
   // Participant checks — drive the reply box + the "why disabled" hint (the
   // decision buttons themselves are server-declared and gate via their own
-  // `visible` CEL). No actor-override branch: the admin "act as" escape hatch
-  // retired with the composer (cloud#861 enterprise act-as is the successor).
+  // `visible` CEL). Prefer the server-computed `viewer` block (framework#3310)
+  // so the hint never contradicts the buttons — it already reflects position/
+  // team approver resolution, which the client identity heuristic below can't.
+  // The heuristic stays as a fallback for a backend that predates `viewer`.
+  // No actor-override branch: the admin "act as" escape hatch retired with the
+  // composer (cloud#861 enterprise act-as is the successor).
   const canApproveReject = useMemo(() => {
     if (!selected || selected.status !== 'pending') return false;
+    if (selected.viewer) return selected.viewer.can_act;
     const pending = new Set(selected.pending_approvers || []);
     return identities.some(id => pending.has(id));
   }, [selected, identities]);
 
   const canRecall = useMemo(() => {
     if (!selected || selected.status !== 'pending') return false;
+    if (selected.viewer) return selected.viewer.is_submitter;
     return selected.submitter_id === user?.id;
   }, [selected, user?.id]);
 
   /** ADR-0044: the submitter may resubmit (or abandon) a returned request. */
   const canResubmit = useMemo(() => {
     if (!selected || selected.status !== 'returned') return false;
+    if (selected.viewer) return selected.viewer.is_submitter;
     return selected.submitter_id === user?.id;
   }, [selected, user?.id]);
 

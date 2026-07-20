@@ -71,6 +71,19 @@ export interface ApprovalRequestRow {
     need: number;
     groups?: Array<{ group: string; got: number; need: number; satisfied: boolean }>;
   };
+  /**
+   * Server-computed capability for the current viewer (framework#3310), attached
+   * by getRequest/listRequests. Declared decision actions gate their `visible`
+   * CEL on it — approver actions on `viewer.can_act`, submitter levers on
+   * `viewer.is_submitter` — so the drawer never offers a decision the caller
+   * can't make. Absent on rows not read through the approvals service.
+   */
+  viewer?: {
+    /** The caller is a current pending approver (mirrors the service's authz). */
+    can_act: boolean;
+    /** The caller submitted this request. */
+    is_submitter: boolean;
+  };
   /** ADR-0044 revision round on this (run, node): absent/1 = first round. */
   round?: number;
 }
