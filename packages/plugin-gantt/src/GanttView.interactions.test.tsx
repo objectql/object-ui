@@ -129,9 +129,9 @@ describe('GanttView context menu', () => {
     const { container } = renderView([A()], { onTaskDelete });
     fireEvent.contextMenu(container.querySelector('[data-testid="gantt-task-bar-a"]')!, { clientX: 10, clientY: 10 });
     expect(document.querySelector('[data-testid="gantt-context-menu"]')).toBeTruthy();
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    });
+    // Dispatch through RTL's fireEvent (not a raw synthetic KeyboardEvent) —
+    // the Escape listener is on window; mirrors the existing pattern below.
+    fireEvent.keyDown(window, { key: 'Escape' });
     expect(document.querySelector('[data-testid="gantt-context-menu"]')).toBeFalsy();
     expect(onTaskDelete).not.toHaveBeenCalled();
   });

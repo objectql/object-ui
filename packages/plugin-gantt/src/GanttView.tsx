@@ -1042,7 +1042,8 @@ export function GanttView({
         if (onBeforeTaskUpdate) {
           const kept: typeof candidates = [];
           for (const u of candidates) {
-            let ok = true;
+            // Assigned by both the try and the catch below before it's read.
+            let ok: boolean;
             try {
               ok = (await onBeforeTaskUpdate(u.task, u.changes)) !== false;
             } catch {

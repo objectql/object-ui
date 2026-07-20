@@ -394,14 +394,20 @@ function QuickFilterDemo() {
   );
 }
 
-/** 状态色图例 (3.4.3) — decodes the 排产计划 / 派工单 bar colors for the mfg demo. */
-function ManufacturingLegend() {
-  const Swatch = ({ color, label, hollow }: { color: string; label: string; hollow?: boolean }) => (
+/** One color swatch in the manufacturing legend. Hoisted to module scope so it
+ *  is a stable component reference (react-hooks/static-components); purely
+ *  props-driven, so nothing from the legend's render scope is captured. */
+function Swatch({ color, label, hollow }: { color: string; label: string; hollow?: boolean }) {
+  return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       <span style={{ width: 12, height: 12, borderRadius: 3, background: hollow ? 'transparent' : color, border: hollow ? `1px solid ${color}` : 'none', display: 'inline-block' }} />
       {label}
     </span>
   );
+}
+
+/** 状态色图例 (3.4.3) — decodes the 排产计划 / 派工单 bar colors for the mfg demo. */
+function ManufacturingLegend() {
   return (
     <div
       data-testid="mfg-legend"
@@ -453,7 +459,6 @@ const shiftConfig = (showMidnight: boolean) => ({
 
 function App() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get('quickfilter') === '1') return <QuickFilterDemo />;
   const perf = Number(params.get('perf') || 0);
   const edge = params.has('edge');
   const mfg = params.has('mfg');
@@ -492,6 +497,10 @@ function App() {
       return { key: String(v), label: String(v) };
     };
   }, [resourceMode, resourceField]);
+  // Demo-only render timer: capturing the render-start timestamp necessarily
+  // reads performance.now() during render (paired with the effect below that
+  // measures elapsed ms). Intentional and demo-only.
+  // eslint-disable-next-line react-hooks/purity
   const t0 = React.useMemo(() => performance.now(), []);
   const [tasks, setTasks] = React.useState<GanttTask[]>(() => {
     const base = perf > 0 ? perfFixture(perf) : edge ? edgeFixture() : mfg ? manufacturingFixture() : projectFixture();
@@ -514,6 +523,10 @@ function App() {
   React.useEffect(() => {
     (window as unknown as { __ganttTasks?: GanttTask[] }).__ganttTasks = tasks;
   }, [tasks]);
+
+  // Route to the quick-filter demo AFTER all hooks above run, so the hook order
+  // stays stable across renders (React requires the same hooks every render).
+  if (params.get('quickfilter') === '1') return <QuickFilterDemo />;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

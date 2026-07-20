@@ -950,7 +950,8 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
     return quickFilterDefs.map((def) => {
       const fd = fieldDefs[def.field] ?? fieldDefs[def.field.split('.')[0]];
       const label = def.label ?? fd?.label ?? humanizeLabel(def.field);
-      let options: QuickFilterOption[] = [];
+      // Assigned by every branch of the exhaustive if/else chain below.
+      let options: QuickFilterOption[];
 
       if (def.options?.length) {
         options = def.options.map((o) =>
