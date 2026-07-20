@@ -469,41 +469,39 @@ export function AppHeader({
   const unreadCount = notifications.reduce((n, x) => n + (x.is_read ? 0 : 1), 0);
 
   // Read-state lives in `sys_notification_receipt`, keyed
-  // (notification_id, user_id, channel) — ADR-0030. Marking read UPDATEs the
-  // existing `delivered` receipt to `read` (the inbox channel always writes one
-  // on materialization); we INSERT only as a fallback for the rare row whose
-  // receipt is missing. Rows without a `notification_id` (legacy/synthetic)
-  // can't be keyed, so they update optimistically but don't persist.
-  const writeReadReceipt = useCallback(async (n: { notification_id?: string | null; receipt_id?: string | null }, now: string) => {
-    if (!dataSource || !n.notification_id) return;
-    if (n.receipt_id) {
-      await dataSource.update('sys_notification_receipt', n.receipt_id, { state: 'read', at: now });
-    } else {
-      await dataSource.create('sys_notification_receipt', {
-        notification_id: n.notification_id,
-        user_id: user?.id,
-        channel: 'inbox',
-        state: 'read',
-        at: now,
-        created_at: now,
-      });
-    }
-  }, [dataSource, user?.id]);
+  // (notification_id, user_id, channel) — ADR-0030. That object is
+  // engine-owned (ADR-0103: `enable.apiMethods` = get/list), so the generic
+  // data API REJECTS receipt writes — the previous direct create/update here
+  // silently failed and the next poll flipped rows back to unread. Mark-read
+  // goes through the framework's dedicated REST surface instead
+  // (`POST /api/v1/notifications/read[/all]`), which upserts the receipt
+  // server-side keyed by the notification EVENT id. Rows without a
+  // `notification_id` (legacy/synthetic) can't be keyed, so they update
+  // optimistically but don't persist.
+  const postMarkRead = useCallback(async (subPath: 'read' | 'read/all', ids?: string[]) => {
+    const serverUrl = (import.meta.env?.VITE_SERVER_URL || '').replace(/\/$/, '');
+    await fetch(`${serverUrl}/api/v1/notifications/${subPath}`, {
+      method: 'POST',
+      credentials: 'include',
+      // Bearer too — see utils/authToken (#2548 split-origin fix).
+      headers: { 'Content-Type': 'application/json', ...bearerAuthHeaders() },
+      body: JSON.stringify(ids ? { ids } : {}),
+    });
+  }, []);
 
   const markNotificationRead = useCallback(async (id: string) => {
     const target = notifications.find(n => n.id === id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
-    if (!target) return;
-    try { await writeReadReceipt(target, new Date().toISOString()); } catch { /* best-effort */ }
-  }, [notifications, writeReadReceipt]);
+    if (!target?.notification_id) return;
+    try { await postMarkRead('read', [target.notification_id]); } catch { /* best-effort */ }
+  }, [notifications, postMarkRead]);
 
   const markAllRead = useCallback(async () => {
     const unread = notifications.filter(n => !n.is_read);
     if (!unread.length) return;
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-    const now = new Date().toISOString();
-    await Promise.all(unread.map(n => writeReadReceipt(n, now).catch(() => {})));
-  }, [notifications, writeReadReceipt]);
+    try { await postMarkRead('read/all'); } catch { /* best-effort */ }
+  }, [notifications, postMarkRead]);
 
   const tenantPresence = useTenantPresence();
   const activeUsers = presenceUsers ?? (tenantPresence.length > 0 ? tenantPresence : EMPTY_PRESENCE_USERS);
