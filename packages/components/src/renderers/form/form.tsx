@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveVisibleOptions, isOptionGroupGated, resolveDependsOnFields, isValueStillOffered } from '@object-ui/core';
+import { ComponentRegistry, resolveFieldRuleState, evalFieldPredicate, resolveCascadingOptions, isValueStillOffered } from '@object-ui/core';
 import type { FormSchema, FormField as FormFieldConfig, ValidationRule, FieldCondition, SelectOption } from '@object-ui/types';
 import { useForm } from 'react-hook-form';
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '../../ui/form';
@@ -417,9 +417,9 @@ ComponentRegistry.register('form',
         const current = form.getValues(name);
         if (current === undefined || current === null || current === '') continue;
         // While gated (a dependency is empty) the whole list is withheld — clear
-        // any prior value so it can't linger past a parent reset.
-        const gated = isOptionGroupGated(dependsOn, ruleRecord);
-        const visible = gated ? [] : resolveVisibleOptions(opts, ruleRecord, predicateScope);
+        // any prior value so it can't linger past a parent reset. Same shared
+        // resolver the widgets use, so gating/filtering stays in lockstep.
+        const { options: visible } = resolveCascadingOptions(opts, ruleRecord, dependsOn, predicateScope);
         if (!isValueStillOffered(current, visible)) {
           form.setValue(name, Array.isArray(current) ? [] : undefined, {
             shouldValidate: false,
@@ -799,16 +799,16 @@ ComponentRegistry.register('form',
                 const isOptionField =
                   resolvedType === 'select' || resolvedType === 'radio' || resolvedType === 'multiselect';
                 const rawOptions = (fieldProps as any).options as SelectOption[] | undefined;
-                const dependsOnFields = isOptionField
-                  ? resolveDependsOnFields((field as any).dependsOn)
-                  : [];
-                const optionGroupGated =
-                  dependsOnFields.length > 0 && isOptionGroupGated((field as any).dependsOn, ruleRecord);
-                const effectiveOptions = isOptionField
-                  ? optionGroupGated
-                    ? []
-                    : resolveVisibleOptions(rawOptions, ruleRecord, predicateScope)
-                  : rawOptions;
+                // Resolve gating + `visibleWhen` filtering through the shared
+                // core helper so this pre-filter can't drift from the widgets'
+                // `useCascadingOptions` hook (#2715). Non-option fields pass
+                // their options through untouched.
+                const cascade = isOptionField
+                  ? resolveCascadingOptions(rawOptions, ruleRecord, (field as any).dependsOn, predicateScope)
+                  : null;
+                const optionGroupGated = cascade?.gated ?? false;
+                const dependsOnFields = cascade?.dependsOnFields ?? [];
+                const effectiveOptions = cascade ? cascade.options : rawOptions;
                 const gatedHint = optionGroupGated
                   ? `Select ${dependsOnFields.map((fn) => fieldLabelByName[fn] || fn).join(' / ')} first`
                   : undefined;

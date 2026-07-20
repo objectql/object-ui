@@ -15,6 +15,7 @@ import {
   isOptionGroupGated,
   resolveVisibleOptions,
   isValueStillOffered,
+  resolveCascadingOptions,
   type OptionLike,
 } from '../optionRules';
 
@@ -125,5 +126,42 @@ describe('isValueStillOffered — cascade clear decision', () => {
   it('handles multi-select arrays element-wise', () => {
     expect(isValueStillOffered(['zj', 'gd'], cnOptions)).toBe(true);
     expect(isValueStillOffered(['zj', 'ca'], cnOptions)).toBe(false);
+  });
+});
+
+describe('resolveCascadingOptions — one-shot resolution', () => {
+  it('gates (empty options) while a dependsOn parent is empty', () => {
+    const r = resolveCascadingOptions(provinces, {}, 'country');
+    expect(r.gated).toBe(true);
+    expect(r.options).toEqual([]);
+    expect(r.dependsOnFields).toEqual(['country']);
+  });
+
+  it('filters by visibleWhen once the parent is set', () => {
+    const r = resolveCascadingOptions(provinces, { country: 'cn' }, 'country');
+    expect(r.gated).toBe(false);
+    expect(r.options.map((o) => o.value)).toEqual(['zj', 'gd', 'other']);
+  });
+
+  it('is never gated without a dependsOn — still filters by visibleWhen', () => {
+    const r = resolveCascadingOptions(provinces, { country: 'us' }, undefined);
+    expect(r.gated).toBe(false);
+    expect(r.dependsOnFields).toEqual([]);
+    expect(r.options.map((o) => o.value)).toEqual(['ca', 'tx', 'other']);
+  });
+
+  it('threads the predicate scope for role/context gating', () => {
+    const tier: OptionLike[] = [
+      { label: 'Standard', value: 'standard' },
+      { label: 'Admin only', value: 'admin_only', visibleWhen: "'admin' in current_user.positions" },
+    ];
+    const nonAdmin = resolveCascadingOptions(tier, {}, undefined, {
+      current_user: { positions: ['sales'] },
+    });
+    expect(nonAdmin.options.map((o) => o.value)).toEqual(['standard']);
+    const admin = resolveCascadingOptions(tier, {}, undefined, {
+      current_user: { positions: ['admin'] },
+    });
+    expect(admin.options.map((o) => o.value)).toEqual(['standard', 'admin_only']);
   });
 });

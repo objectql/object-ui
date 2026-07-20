@@ -112,3 +112,37 @@ export function isValueStillOffered(
   }
   return visibleOptions.some((o) => o.value === value);
 }
+
+/** The resolved state of a cascading / role-gated option list. */
+export interface CascadingOptions<T extends OptionLike> {
+  /** Offered options after `visibleWhen` filtering. Empty while gated. */
+  options: T[];
+  /** True when a declared `dependsOn` field is empty — the list is gated. */
+  gated: boolean;
+  /** Normalized `dependsOn` field names (drives the "select the parent first" hint). */
+  dependsOnFields: string[];
+}
+
+/**
+ * Resolve an option field's offered set in one shot: normalize `dependsOn`,
+ * decide whether the list is gated (a controlling field is still empty), and —
+ * unless gated — filter by each option's `visibleWhen`. The single source of
+ * truth behind the option widgets' `useCascadingOptions` hook and the form
+ * renderer's inline pre-filter / cascade-clear, so gating and filtering can
+ * never drift between them (#2715).
+ *
+ * `gated` is true only when there IS a `dependsOn` and one of its fields is
+ * empty; a field with no `dependsOn` is never gated (its options are filtered
+ * purely by `visibleWhen`). Callers format their own hint from `dependsOnFields`.
+ */
+export function resolveCascadingOptions<T extends OptionLike>(
+  rawOptions: readonly T[] | undefined | null,
+  record: Record<string, unknown>,
+  dependsOn: DependsOnInput,
+  scope?: Record<string, unknown>,
+): CascadingOptions<T> {
+  const dependsOnFields = resolveDependsOnFields(dependsOn);
+  const gated = dependsOnFields.length > 0 && isOptionGroupGated(dependsOn, record);
+  const options = gated ? [] : resolveVisibleOptions(rawOptions, record, scope);
+  return { options, gated, dependsOnFields };
+}

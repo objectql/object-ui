@@ -1,8 +1,7 @@
 import { useContext, useMemo } from 'react';
 import {
-  resolveVisibleOptions,
-  isOptionGroupGated,
-  resolveDependsOnFields,
+  resolveCascadingOptions,
+  type CascadingOptions,
   type OptionLike,
   type DependsOnInput,
 } from '@object-ui/core';
@@ -10,25 +9,20 @@ import { SchemaRendererContext, usePredicateScope } from '@object-ui/react';
 
 /**
  * Shared per-option cascading / role-gating resolution for the option widgets
- * (`SelectField` single, `MultiSelectField`) — the client half of ADR-0058
- * (#2284). Each option may carry a `visibleWhen` CEL predicate; the offered set
- * narrows against the live form record (`record.country == 'cn'`) + the global
- * predicate scope (`'admin' in current_user.positions`). A field declares which
- * sibling fields drive its list via `dependsOn`; while any is empty the list is
- * *gated* — callers surface a "select the parent first" hint rather than an
- * unfiltered set, mirroring the dependent-lookup UX.
+ * (`SelectField` single, `MultiSelectField`, `RadioField`) — the client half of
+ * ADR-0058 (#2284). Each option may carry a `visibleWhen` CEL predicate; the
+ * offered set narrows against the live form record (`record.country == 'cn'`) +
+ * the global predicate scope (`'admin' in current_user.positions`). A field
+ * declares which sibling fields drive its list via `dependsOn`; while any is
+ * empty the list is *gated* — callers surface a "select the parent first" hint
+ * rather than an unfiltered set, mirroring the dependent-lookup UX.
  *
- * Extracted so single- and multi-select stay in lockstep instead of duplicating
- * the resolver + its `dependentValues` / predicate-scope wiring (#2715).
+ * This is the React wrapper that sources `record` (the live form values) and the
+ * predicate scope from context; the actual resolution is the pure
+ * {@link resolveCascadingOptions} in `@object-ui/core`, shared with the form
+ * renderer so gating/filtering can never drift between them (#2715).
  */
-export interface CascadingOptionsResult<T extends OptionLike> {
-  /** Offered options after `visibleWhen` filtering. Empty while gated. */
-  options: T[];
-  /** True when a `dependsOn` field is empty — the list is gated. */
-  gated: boolean;
-  /** Normalized `dependsOn` field names (for the gate hint). */
-  dependsOnFields: string[];
-}
+export type CascadingOptionsResult<T extends OptionLike> = CascadingOptions<T>;
 
 export function useCascadingOptions<T extends OptionLike>(
   rawOptions: readonly T[],
@@ -45,18 +39,8 @@ export function useCascadingOptions<T extends OptionLike>(
   }, [dependentValues, ctx?.formValues, ctx?.data]);
   const predicateScope = usePredicateScope();
 
-  const dependsOnFields = useMemo(() => resolveDependsOnFields(dependsOn), [dependsOn]);
-  const gated = useMemo(
-    () => dependsOnFields.length > 0 && isOptionGroupGated(dependsOn, record),
-    [dependsOnFields, dependsOn, record],
+  return useMemo(
+    () => resolveCascadingOptions(rawOptions, record, dependsOn, predicateScope),
+    [rawOptions, record, dependsOn, predicateScope],
   );
-
-  // Effective (offered) options after per-option `visibleWhen` filtering. Empty
-  // while gated so we never present an unfiltered set before the parent is set.
-  const options = useMemo(
-    () => (gated ? [] : resolveVisibleOptions(rawOptions, record, predicateScope)),
-    [gated, rawOptions, record, predicateScope],
-  );
-
-  return { options, gated, dependsOnFields };
 }
