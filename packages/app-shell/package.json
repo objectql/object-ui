@@ -53,7 +53,7 @@
     "@objectstack/spec": "^16.0.0-rc.0",
     "@sentry/react": "^10.66.0",
     "jsonc-parser": "^3.3.1",
-    "lucide-react": "^1.24.0",
+    "lucide-react": "^1.25.0",
     "qrcode": "^1.5.4",
     "sonner": "^2.0.7",
     "zod": "^4.4.3"
