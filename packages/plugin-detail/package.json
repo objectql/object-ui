@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@object-ui/i18n": "workspace:*",
-    "@objectstack/spec": "^15.1.1",
+    "@objectstack/spec": "^16.0.0-rc.0",
     "lucide-react": "^1.24.0"
   },
   "peerDependencies": {

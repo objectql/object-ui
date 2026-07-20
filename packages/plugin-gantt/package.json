@@ -38,7 +38,7 @@
     "@object-ui/plugin-detail": "workspace:*",
     "@object-ui/react": "workspace:*",
     "@object-ui/types": "workspace:*",
-    "@objectstack/spec": "^15.1.1",
+    "@objectstack/spec": "^16.0.0-rc.0",
     "lucide-react": "^1.24.0",
     "sonner": "^2.0.7"
   },

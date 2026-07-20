@@ -32,8 +32,8 @@
   },
   "dependencies": {
     "@object-ui/types": "workspace:*",
-    "@objectstack/formula": "^15.1.1",
-    "@objectstack/spec": "^15.1.1",
+    "@objectstack/formula": "^16.0.0-rc.0",
+    "@objectstack/spec": "^16.0.0-rc.0",
     "lodash": "^4.18.1",
     "zod": "^4.4.3"
   },

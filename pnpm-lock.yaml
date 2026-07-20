@@ -30,8 +30,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.7.0(jiti@2.7.0))
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       '@playwright/test':
         specifier: ^1.61.1
         version: 1.61.1
@@ -262,11 +262,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/client':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       '@tailwindcss/postcss':
         specifier: ^4.3.2
         version: 4.3.2
@@ -397,8 +397,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       fumadocs-core:
         specifier: 16.11.3
         version: 16.11.3(@mdx-js/mdx@3.1.1)(@tanstack/react-router@1.170.8(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@types/estree-jsx@1.0.5)(@types/hast@3.0.5)(@types/mdast@4.0.4)(@types/react@19.2.17)(lucide-react@1.24.0(react@19.2.7))(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react-dom@19.2.7(react@19.2.7))(react-router@7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(react@19.2.7)(zod@4.4.3)
@@ -686,14 +686,14 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/lint':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       '@sentry/react':
         specifier: ^10.65.0
         version: 10.65.0(react@19.2.7)
@@ -1072,11 +1072,11 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/formula':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
@@ -1134,8 +1134,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/client':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
     devDependencies:
       tsup:
         specifier: ^8.5.1
@@ -1722,8 +1722,8 @@ importers:
         specifier: workspace:^
         version: link:../permissions
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -1838,8 +1838,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -1893,8 +1893,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -2125,8 +2125,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -2314,8 +2314,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2366,8 +2366,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       lucide-react:
         specifier: ^1.24.0
         version: 1.24.0(react@19.2.7)
@@ -2430,8 +2430,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -2495,8 +2495,8 @@ importers:
         specifier: workspace:*
         version: link:../types
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       react:
         specifier: 19.2.7
         version: 19.2.7
@@ -2601,8 +2601,8 @@ importers:
   packages/types:
     dependencies:
       '@objectstack/spec':
-        specifier: ^15.1.1
-        version: 15.1.1(ai@7.0.22(zod@4.4.3))
+        specifier: ^16.0.0-rc.0
+        version: 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -3947,26 +3947,26 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@objectstack/client@15.1.1':
-    resolution: {integrity: sha512-493dIHiYKLiXKBEVj7rKo7QDVjgJ1RQSDk6MCyCwZuofiSIYkwQbPRtpUpPpw9QOc9eWoUfVb2pDgyYp0nHV6Q==}
+  '@objectstack/client@16.0.0-rc.0':
+    resolution: {integrity: sha512-vV0yFbb4g+kmAnTf7ObjmDGIAzjU/TArsPIFE7E8l8JUcOPTb+vQHyuCe/V5hbzbbs/WHQmnu/6LB2ZRhu/ZHQ==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/core@15.1.1':
-    resolution: {integrity: sha512-S9kpn/BQ9Rj5ZjGjZBN4Gm3YL2UpC/07exdjOY2IKGwsQTZi1H9qbJeG6BqzRR7U1vu+ZwSya0jl62v1FRJVvQ==}
+  '@objectstack/core@16.0.0-rc.0':
+    resolution: {integrity: sha512-N19BULKrBaGsgFIZUuaOkAdWdmhHpsnOhMkfr3V+g7+gHMV4ETkYKCtNzId3ViYWxFdU3RFq1iMgXp5VZwrliA==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/formula@15.1.1':
-    resolution: {integrity: sha512-IzEotJBuqYlnSkurczgZn3+HwV/p/FH6CYOB6XYkTRg+r/XIJB2MXxHbpzyTYtvJnP/sQDi4zHVnoNqGqmQbKQ==}
+  '@objectstack/formula@16.0.0-rc.0':
+    resolution: {integrity: sha512-AMqSfiwwk/l6sNq4d6WOKGt5/XFeAaguKJUCT3RhpJ0fIxHW4hUrNnfe1Z2St3hKpCK1ZB+l0K72c4vVIzT9Dw==}
 
-  '@objectstack/lint@15.1.1':
-    resolution: {integrity: sha512-kpoJbmVvBGOIFbVH+QrCh+VcrQGjD88aTAXAt1FAJgLOvhyiEcY7wtTq/e6ui6UzsNMK7RlXDkLt2Gy0ZpaUpA==}
+  '@objectstack/lint@16.0.0-rc.0':
+    resolution: {integrity: sha512-bFP3S9A42MKWYbtLGtjBBTQLn+fhxCzObtxTZDFrYhoIiN6CMSG9Bwyfw+9ZinHAGTl/Y1yCsQgZLZaDl9ongg==}
     engines: {node: '>=18.0.0'}
 
-  '@objectstack/sdui-parser@15.1.1':
-    resolution: {integrity: sha512-nGjhZXHcdMq8QS0IKHXZ6KFJ2SzHF6hsF1Oi8iBn7MQis+OTWwMZqXiGO0htx2YiGuB5CSvRB9dIG7rX/MKZeQ==}
+  '@objectstack/sdui-parser@16.0.0-rc.0':
+    resolution: {integrity: sha512-1xw9+uzDNLi2/cuovDBbut60tUsQd3bnbjBRqMGpcIZcb2a2xiCJwmuk8wLr45SLAiPpRnqDjE3OIx/s/+dyfg==}
 
-  '@objectstack/spec@15.1.1':
-    resolution: {integrity: sha512-Eto1iLtzmnh3kSzIVGPUQF9DZGE1dY3YWFm+3qRpNBFB8iSvOilLwNYVSF64D5sTobp0CZSzB1/GalzFAR1icA==}
+  '@objectstack/spec@16.0.0-rc.0':
+    resolution: {integrity: sha512-oO/v8TztbMuM14mc3yKYITg/0+brv7zqAcxVxWdn+rCiZe4lz1s7gK6hFAk8pv9nv6g1y10AtnvFTVjs9AoLcQ==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       ai: ^7.0.0
@@ -12091,40 +12091,40 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@objectstack/client@15.1.1(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/client@16.0.0-rc.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
-      '@objectstack/core': 15.1.1(ai@7.0.22(zod@4.4.3))
-      '@objectstack/spec': 15.1.1(ai@7.0.22(zod@4.4.3))
+      '@objectstack/core': 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
+      '@objectstack/spec': 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/core@15.1.1(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/core@16.0.0-rc.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
-      '@objectstack/spec': 15.1.1(ai@7.0.22(zod@4.4.3))
+      '@objectstack/spec': 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       zod: 4.4.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/formula@15.1.1(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/formula@16.0.0-rc.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
       '@marcbachmann/cel-js': 8.0.0
-      '@objectstack/spec': 15.1.1(ai@7.0.22(zod@4.4.3))
+      '@objectstack/spec': 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/lint@15.1.1(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/lint@16.0.0-rc.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
-      '@objectstack/formula': 15.1.1(ai@7.0.22(zod@4.4.3))
-      '@objectstack/sdui-parser': 15.1.1
-      '@objectstack/spec': 15.1.1(ai@7.0.22(zod@4.4.3))
+      '@objectstack/formula': 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
+      '@objectstack/sdui-parser': 16.0.0-rc.0
+      '@objectstack/spec': 16.0.0-rc.0(ai@7.0.22(zod@4.4.3))
       sucrase: 3.35.1
       typescript: 6.0.3
     transitivePeerDependencies:
       - ai
 
-  '@objectstack/sdui-parser@15.1.1': {}
+  '@objectstack/sdui-parser@16.0.0-rc.0': {}
 
-  '@objectstack/spec@15.1.1(ai@7.0.22(zod@4.4.3))':
+  '@objectstack/spec@16.0.0-rc.0(ai@7.0.22(zod@4.4.3))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:
