@@ -76,7 +76,7 @@ jobs:
         run: pnpm --version
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20.x'
           cache: 'pnpm'
@@ -113,7 +113,7 @@ jobs:
         run: pnpm --version
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20.x'
           cache: 'pnpm'
@@ -152,7 +152,7 @@ jobs:
         run: pnpm --version
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20.x'
           cache: 'pnpm'
@@ -253,7 +253,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.docs-changes.outputs.should_run == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20.x'
           cache: 'pnpm'
@@ -295,7 +295,7 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '20.x'
           cache: 'pnpm'
