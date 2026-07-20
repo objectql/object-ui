@@ -32,13 +32,12 @@ import { Loader2, MoreHorizontal } from 'lucide-react';
 import { resolveIcon } from './resolve-icon';
 
 function useMoreActionsLabel(): string {
-  try {
-    const { t } = useObjectTranslation();
-    const v = t('detail.moreActions');
-    return !v || v === 'detail.moreActions' ? 'More actions' : v;
-  } catch {
-    return 'More actions';
-  }
+  // useObjectTranslation is provider-safe (never throws); no try/catch, which
+  // would wrap the hook call and violate rules-of-hooks. The 'More actions'
+  // fallback still applies when the key is missing/untranslated.
+  const { t } = useObjectTranslation();
+  const v = t('detail.moreActions');
+  return !v || v === 'detail.moreActions' ? 'More actions' : v;
 }
 
 export interface ActionMenuSchema {
@@ -187,6 +186,7 @@ const ActionMenuRenderer = forwardRef<HTMLButtonElement, { schema: ActionMenuSch
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <>
+                {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
                 <TriggerIcon className={cn('h-4 w-4', schema.label && 'mr-2')} />
                 {schema.label && <span>{schema.label}</span>}
               </>

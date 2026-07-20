@@ -6,6 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ConfigPanelRenderer } from '../custom/config-panel-renderer';
@@ -426,7 +427,6 @@ describe('ConfigPanelRenderer', () => {
 
   describe('section icons', () => {
     it('should render section icon when provided', () => {
-      const React = require('react');
       const schemaWithIcon: ConfigPanelSchema = {
         breadcrumb: ['Test'],
         sections: [

@@ -30,8 +30,7 @@ import { cn } from "../lib/utils"
  * @example
  * <ShimmerSkeleton className="h-4 w-32 rounded-md" />
  */
-export interface ShimmerSkeletonProps
-  extends React.HTMLAttributes<HTMLDivElement> {}
+export type ShimmerSkeletonProps = React.HTMLAttributes<HTMLDivElement>;
 
 export function ShimmerSkeleton({
   className,

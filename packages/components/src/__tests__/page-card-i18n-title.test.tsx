@@ -15,6 +15,7 @@ import { ComponentRegistry } from '@object-ui/core';
 function PageCard({ schema }: { schema: any }) {
   const Component = ComponentRegistry.get('page:card');
   if (!Component) throw new Error('page:card not registered');
+  // eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns a registered component (stable), not one created during render
   return <Component schema={schema} />;
 }
 

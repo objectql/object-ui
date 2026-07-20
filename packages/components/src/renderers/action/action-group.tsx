@@ -97,6 +97,7 @@ const InlineActionButton: React.FC<{
       onClick={handleClick}
     >
       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
       {!loading && Icon && <Icon className={cn('h-4 w-4', action.label && 'mr-2')} />}
       {action.label}
     </Button>
@@ -231,6 +232,7 @@ const ActionGroupRenderer = forwardRef<HTMLDivElement, { schema: ActionGroupSche
               {...{ 'data-obj-id': dataObjId, 'data-obj-type': dataObjType, style }}
             >
               {dropdownLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not one created during render */}
               {!dropdownLoading && TriggerIcon && <TriggerIcon className="mr-2 h-4 w-4" />}
               {schema.label || 'Actions'}
               <ChevronDown className="ml-2 h-3 w-3 opacity-50" />

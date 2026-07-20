@@ -41,13 +41,12 @@ import { cn } from '../../lib/utils';
 import { useIsMobile } from '../../hooks/use-mobile';
 
 function useActionsLabel(): string {
-  try {
-    const { t } = useObjectTranslation();
-    const v = t('common.actions');
-    return !v || v === 'common.actions' ? 'Actions' : v;
-  } catch {
-    return 'Actions';
-  }
+  // useObjectTranslation is provider-safe (never throws); no try/catch, which
+  // would wrap the hook call and violate rules-of-hooks. The 'Actions' fallback
+  // still applies when the key is missing/untranslated.
+  const { t } = useObjectTranslation();
+  const v = t('common.actions');
+  return !v || v === 'common.actions' ? 'Actions' : v;
 }
 
 export interface ActionBarSchema {
@@ -218,6 +217,7 @@ const ActionBarRenderer = forwardRef<HTMLDivElement, { schema: ActionBarSchema; 
     // + system actions. This guarantees at most ONE "More" button per bar.
     const MenuRenderer = combinedOverflow.length > 0 ? ComponentRegistry.get('action:menu') : null;
     const overflowMenu = MenuRenderer ? (
+      // eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns a registered renderer (stable reference), not a component created during render
       <MenuRenderer
         schema={{
           type: 'action:menu' as const,

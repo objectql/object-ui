@@ -85,7 +85,6 @@ export function checkDOMStructure(container: HTMLElement): {
   const hasChildren = container.children.length > 0;
 
   // Calculate nesting depth
-  let maxDepth = 0;
   function getDepth(el: Element, depth = 0): number {
     if (el.children.length === 0) return depth;
     let max = depth;
@@ -94,7 +93,7 @@ export function checkDOMStructure(container: HTMLElement): {
     }
     return max;
   }
-  maxDepth = getDepth(container);
+  const maxDepth = getDepth(container);
 
   // Check for excessive nesting (potential performance issue)
   if (maxDepth > 20) {

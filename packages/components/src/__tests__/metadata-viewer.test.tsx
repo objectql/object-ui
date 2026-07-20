@@ -27,6 +27,7 @@ function Viewer({ properties, getItem }: { properties: any; getItem: (t: string,
   if (!C) throw new Error('element:metadata_viewer not registered');
   return (
     <MetadataCtx.Provider value={metaCtx(getItem) as any}>
+      {/* eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns a registered component (stable), not one created during render */}
       <C schema={{ type: 'element:metadata_viewer', properties }} />
     </MetadataCtx.Provider>
   );

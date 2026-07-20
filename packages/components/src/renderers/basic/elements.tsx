@@ -145,7 +145,6 @@ function ElementImageRenderer({ schema }: { schema: any }) {
     );
   }
   return (
-    // eslint-disable-next-line jsx-a11y/alt-text
     <img
       src={props.src}
       alt={props.alt ?? ''}

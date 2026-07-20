@@ -21,6 +21,7 @@ import {
 function PageHeader({ schema }: { schema: any }) {
   const Component = ComponentRegistry.get('page:header');
   if (!Component) throw new Error('page:header not registered');
+  // eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns a registered component (stable), not one created during render
   return <Component schema={schema} />;
 }
 

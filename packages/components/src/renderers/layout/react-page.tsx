@@ -91,16 +91,16 @@ export const ReactKindPage: React.FC<{ schema: any }> = ({ schema }) => {
   // The live data source for the injected data blocks (and the page's own
   // `useAdapter()` calls). Same object the rest of the app renders against.
   const adapter = useAdapter();
-
-  // Gate: default-closed. Off in OSS / untrusted builds.
-  if (!isCapabilityEnabled(CAP_REACT_PAGES)) {
-    return <CapabilityDisabledNotice />;
-  }
+  // Gate: default-closed. Off in OSS / untrusted builds. Read here so the hooks
+  // below stay unconditional; the disabled notice is returned after them, and
+  // the effect never loads the gated runtime when disabled.
+  const capabilityEnabled = isCapabilityEnabled(CAP_REACT_PAGES);
 
   const [runtime, setRuntime] = React.useState<RuntimeModule | null>(null);
   const [loadError, setLoadError] = React.useState<Error | null>(null);
 
   React.useEffect(() => {
+    if (!capabilityEnabled) return;
     let alive = true;
     import('@object-ui/react-runtime')
       .then((m) => alive && setRuntime(m))
@@ -108,7 +108,7 @@ export const ReactKindPage: React.FC<{ schema: any }> = ({ schema }) => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [capabilityEnabled]);
 
   const scope = React.useMemo(
     () => ({
@@ -123,6 +123,11 @@ export const ReactKindPage: React.FC<{ schema: any }> = ({ schema }) => {
     }),
     [schema, adapter],
   );
+
+  // Capability gate — returned after all hooks above so hook order stays stable.
+  if (!capabilityEnabled) {
+    return <CapabilityDisabledNotice />;
+  }
 
   if (loadError) {
     return (

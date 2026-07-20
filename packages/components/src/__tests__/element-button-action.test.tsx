@@ -16,6 +16,7 @@ import '../renderers/basic/elements';
 function ElementButton({ schema }: { schema: any }) {
   const C = ComponentRegistry.get('element:button');
   if (!C) throw new Error('element:button not registered');
+  // eslint-disable-next-line react-hooks/static-components -- ComponentRegistry.get returns a registered component (stable), not one created during render
   return <C schema={schema} />;
 }
 

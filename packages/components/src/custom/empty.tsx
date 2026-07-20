@@ -12,13 +12,12 @@ import { useObjectTranslation } from "@object-ui/i18n"
 import { cn } from "../lib/utils"
 
 function useEmptyValueLabel(): string {
-  try {
-    const { t } = useObjectTranslation()
-    const v = t("detail.noValue")
-    return !v || v === "detail.noValue" ? "No value" : v
-  } catch {
-    return "No value"
-  }
+  // useObjectTranslation is provider-safe (never throws); no try/catch, which
+  // would wrap the hook call and violate rules-of-hooks. The "No value"
+  // fallback still applies when the key is missing/untranslated.
+  const { t } = useObjectTranslation()
+  const v = t("detail.noValue")
+  return !v || v === "detail.noValue" ? "No value" : v
 }
 
 function Empty({ className, ...props }: React.ComponentProps<"div">) {
