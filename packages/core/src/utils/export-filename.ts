@@ -9,7 +9,10 @@
  */
 
 /** Windows-reserved + control characters that cannot appear in a filename. */
-const ILLEGAL_FILENAME_CHARS = /[\\\/:*?"<>|\u0000-\u001f]+/g;
+// The control-char range in the class is matched deliberately (illegal in
+// filenames, must be stripped), so no-control-regex is intentionally disabled.
+// eslint-disable-next-line no-control-regex
+const ILLEGAL_FILENAME_CHARS = /[\\/:*?"<>|\u0000-\u001f]+/g;
 
 /** Longest base we emit — keeps the full name comfortably under OS limits. */
 const MAX_BASE_LENGTH = 80;

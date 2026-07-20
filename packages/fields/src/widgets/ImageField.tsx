@@ -29,10 +29,50 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
   const [uploading, setUploading] = useState(false);
   useUploadingSignal(uploading, onUploadingChange);
 
+  // Derived value + memoized handlers must run before the readonly early return
+  // so hook order stays stable across renders.
+  const images = value ? (Array.isArray(value) ? value : [value]) : [];
+
+  const handleCropConfirm = useCallback(
+    async (blob: Blob, name: string) => {
+      if (!cropTarget) return;
+      setUploading(true);
+      try {
+        const result = await upload(blob);
+        const next = {
+          name: result.name || name,
+          original_name: name,
+          size: result.size,
+          mime_type: result.mimeType,
+          url: result.url,
+        };
+        if (multiple) {
+          const updated = [...images];
+          updated[cropTarget.index] = next;
+          onChange(updated);
+        } else {
+          onChange(next);
+        }
+      } finally {
+        setUploading(false);
+        setCropTarget(null);
+      }
+    },
+    [cropTarget, images, multiple, onChange, upload],
+  );
+
+  const openCropper = useCallback(
+    (index: number) => {
+      const img = images[index];
+      if (!img?.url) return;
+      setCropTarget({ index, src: img.url, name: img.name || `image-${index}.png` });
+    },
+    [images],
+  );
+
   if (readonly) {
     if (!value) return <EmptyValue />;
-    
-    const images = Array.isArray(value) ? value : [value];
+
     return (
       <div className="flex flex-wrap gap-2">
         {images.map((img: any, idx: number) => (
@@ -46,8 +86,6 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
       </div>
     );
   }
-
-  const images = value ? (Array.isArray(value) ? value : [value]) : [];
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -88,43 +126,6 @@ export function ImageField({ value, onChange, field, readonly, onUploadingChange
       onChange(null);
     }
   };
-
-  const handleCropConfirm = useCallback(
-    async (blob: Blob, name: string) => {
-      if (!cropTarget) return;
-      setUploading(true);
-      try {
-        const result = await upload(blob);
-        const next = {
-          name: result.name || name,
-          original_name: name,
-          size: result.size,
-          mime_type: result.mimeType,
-          url: result.url,
-        };
-        if (multiple) {
-          const updated = [...images];
-          updated[cropTarget.index] = next;
-          onChange(updated);
-        } else {
-          onChange(next);
-        }
-      } finally {
-        setUploading(false);
-        setCropTarget(null);
-      }
-    },
-    [cropTarget, images, multiple, onChange, upload],
-  );
-
-  const openCropper = useCallback(
-    (index: number) => {
-      const img = images[index];
-      if (!img?.url) return;
-      setCropTarget({ index, src: img.url, name: img.name || `image-${index}.png` });
-    },
-    [images],
-  );
 
   return (
     <div className={props.className}>

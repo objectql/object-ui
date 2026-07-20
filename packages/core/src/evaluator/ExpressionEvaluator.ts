@@ -169,6 +169,10 @@ export class ExpressionEvaluator {
       // Execute with context values
       return compiled.fn(...varValues);
     } catch (error) {
+      // The original error's message is inlined below. We can't pass it as the
+      // `Error` `cause` option because this package targets ES2020, whose lib
+      // types the 1-arg `Error` constructor only; hence the scoped disable.
+      // eslint-disable-next-line preserve-caught-error
       throw new Error(`Failed to evaluate expression "${expression}": ${(error as Error).message}`);
     }
   }

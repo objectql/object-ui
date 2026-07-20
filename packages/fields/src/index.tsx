@@ -277,12 +277,11 @@ function useFieldLabel() {
  * fallback in that case.
  */
 function useFieldTranslate(): ((key: string, params?: Record<string, unknown>) => string) | undefined {
-  try {
-    const { t } = useObjectTranslation();
-    return t as (key: string, params?: Record<string, unknown>) => string;
-  } catch {
-    return undefined;
-  }
+  // useObjectTranslation is provider-safe (optional context read; react-i18next
+  // falls back to the global instance), so it never throws — no try/catch, which
+  // would wrap a hook call and violate rules-of-hooks. Mirrors useFieldLabel.
+  const { t } = useObjectTranslation();
+  return t as (key: string, params?: Record<string, unknown>) => string;
 }
 
 import { TextField } from './widgets/TextField';

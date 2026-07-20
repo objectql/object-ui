@@ -313,7 +313,10 @@ export class SafeExpressionParser {
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      let op: string | null = null;
+      // Every branch below either assigns `op` or `break`s out of the loop, so
+      // `op` is always set by the time the switch reads it (no null initializer
+      // needed).
+      let op: string;
 
       if (this.peek() === '=' && this.peek(1) === '=' && this.peek(2) === '=') {
         op = '==='; this.pos += 3;
@@ -659,7 +662,7 @@ export class SafeExpressionParser {
     // Optional exponent: e+5, E-3
     if (/[eE]/.test(this.source[this.pos] ?? '')) {
       this.pos++; // consume 'e' or 'E'
-      if (/[+\-]/.test(this.source[this.pos] ?? '')) this.pos++; // optional sign
+      if (/[+-]/.test(this.source[this.pos] ?? '')) this.pos++; // optional sign
 
       let expDigits = 0;
       while (this.pos < this.source.length && /\d/.test(this.source[this.pos])) {
