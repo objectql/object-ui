@@ -110,7 +110,7 @@ export function toCsv(rows: Array<Array<string | number | null | undefined>>): s
 function downloadCsv(filename: string, rows: Array<Array<string | number | null | undefined>>): void {
   if (typeof document === 'undefined') return;
   const base = filename && filename.trim() ? filename.trim() : 'export';
-  const blob = new Blob([`﻿${toCsv(rows)}`], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([`\uFEFF${toCsv(rows)}`], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

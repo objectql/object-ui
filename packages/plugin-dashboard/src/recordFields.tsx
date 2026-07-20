@@ -152,7 +152,7 @@ export function buildFieldMeta(params: BuildFieldMetaParams): FieldMeta {
 export function isNumericFieldMeta(fieldMeta: Pick<FieldMeta, 'type' | 'format'>): boolean {
   return (
     NUMERIC_FIELD_TYPES.has(fieldMeta.type as string) ||
-    (typeof fieldMeta.format === 'string' && /^[\$¥€£]|%$|0/.test(fieldMeta.format))
+    (typeof fieldMeta.format === 'string' && /^[$¥€£]|%$|0/.test(fieldMeta.format))
   );
 }
 
@@ -181,7 +181,7 @@ export function renderFieldValue(
     return formatCurrency(value, fieldMeta.currency || inferred || tenantCurrency);
   }
   if (typeof fmt === 'string' && /%/.test(fmt) && typeof value === 'number') {
-    const decimals = (fmt.match(/0\.(0+)%/) || [, ''] as any)[1].length;
+    const decimals = (fmt.match(/0\.(0+)%/) || [undefined, ''] as any)[1].length;
     const normalized = value > 1 ? value / 100 : value;
     return formatPercent(normalized * 100, decimals);
   }

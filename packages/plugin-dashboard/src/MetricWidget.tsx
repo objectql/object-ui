@@ -235,6 +235,7 @@ export const MetricWidget = ({
   const resolvedIcon = useMemo(() => {
     if (typeof icon === 'string') {
       const IconComponent = getLazyIcon(icon);
+      // eslint-disable-next-line react-hooks/static-components -- getLazyIcon returns a module-cached stable component per name, not one created during render
       return IconComponent ? <IconComponent className="h-4 w-4" /> : null;
     }
     return icon;

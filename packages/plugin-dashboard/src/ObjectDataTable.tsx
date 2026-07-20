@@ -141,13 +141,15 @@ export const ObjectDataTable: React.FC<ObjectDataTableProps> = ({ schema, dataSo
   const { fieldLabel, fieldOptionLabel } = useSafeFieldLabel();
   let noDataLabel = 'No data available';
   let noDataSourceLabel = 'No data source available for';
-  try {
-    const { t } = useObjectTranslation();
-    const a = t('dashboard.noDataAvailable');
-    if (a && a !== 'dashboard.noDataAvailable') noDataLabel = a;
-    const b = t('dashboard.noDataSourceFor');
-    if (b && b !== 'dashboard.noDataSourceFor') noDataSourceLabel = b;
-  } catch {/* no i18n provider */}
+  // useObjectTranslation is provider-safe (react-i18next falls back to the
+  // global instance and never throws), so call it directly — no try/catch,
+  // which would make the hook conditional. The English defaults above stand
+  // until a translation resolves.
+  const { t } = useObjectTranslation();
+  const a = t('dashboard.noDataAvailable');
+  if (a && a !== 'dashboard.noDataAvailable') noDataLabel = a;
+  const b = t('dashboard.noDataSourceFor');
+  if (b && b !== 'dashboard.noDataSourceFor') noDataSourceLabel = b;
 
   const [fetchedData, setFetchedData] = useState<any[]>([]);
   const [objectSchema, setObjectSchema] = useState<any>(null);

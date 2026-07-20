@@ -47,7 +47,6 @@ function formatValue(value: number, format?: string): string {
   if (!format) return String(value);
 
   let prefix = '';
-  let suffix = '';
   let useGrouping = false;
   let decimals: number | undefined;
 
@@ -77,7 +76,7 @@ function formatValue(value: number, format?: string): string {
   }
 
   // Remaining characters become suffix
-  suffix = fmt.replace(/[0-9#.f]/g, '');
+  const suffix = fmt.replace(/[0-9#.f]/g, '');
 
   const formatted = decimals !== undefined ? value.toFixed(decimals) : String(value);
 

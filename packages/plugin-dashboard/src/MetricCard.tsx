@@ -58,6 +58,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
           {resolveLabel(title)}
         </CardTitle>
         {IconComponent && (
+          // eslint-disable-next-line react-hooks/static-components -- getLazyIcon returns a module-cached stable component per name, not one created during render
           <IconComponent className="h-4 w-4 text-muted-foreground" />
         )}
       </CardHeader>
