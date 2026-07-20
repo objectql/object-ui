@@ -8,7 +8,15 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import type { DataSource } from '@object-ui/types';
-import { useDataScope, useNavigationOverlay, useSafeFieldLabel } from '@object-ui/react';
+import {
+  useDataScope,
+  useNavigationOverlay,
+  useSafeFieldLabel,
+  useSafeTranslate,
+  extractWriteErrorMessage,
+  isPermissionError,
+} from '@object-ui/react';
+import { toast } from '@object-ui/components';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 import { getBadgeColorClasses, getCellRenderer, resolveCellRendererType } from '@object-ui/fields';
@@ -82,6 +90,7 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
 }) => {
   void _props;
   const { translateOptions, fieldLabel } = useSafeFieldLabel();
+  const tt = useSafeTranslate();
   // When a parent (e.g. ListView) pre-fetches data and passes it via the `data` prop,
   // we must not trigger a second fetch. Detect external data by checking if externalData
   // is an array (undefined when not provided by parent).
@@ -541,6 +550,14 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
         });
       } catch (err) {
         console.warn('[ObjectKanban] Failed to persist card move', err);
+        // Surface the failure — never silently snap the card back. A row-level
+        // security denial (403) is the common case: the user lacks permission
+        // to change this record's status. (cloud#864)
+        toast.error(
+          isPermissionError(err)
+            ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
+            : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed'),
+        );
         if (!hasExternalData) {
           // Revert optimistic update on failure
           setFetchedData((prev) =>
@@ -553,7 +570,7 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
         }
       }
     },
-    [schema.groupBy, schema.objectName, dataSource, hasExternalData],
+    [schema.groupBy, schema.objectName, dataSource, hasExternalData, tt],
   );
 
   return (

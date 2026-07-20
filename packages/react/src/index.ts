@@ -16,10 +16,15 @@ export * from './data-invalidation';
 // i18n utilities
 export { resolveI18nLabel } from './utils/i18n';
 
+// Write-error surfacing utilities (shared by drag-write plugins so a failed
+// PATCH — e.g. an RLS 403 — is never silently swallowed).
+export { extractWriteErrorMessage, isPermissionError } from './utils/error-message';
+
 // Built-in i18n support
 export {
   I18nProvider,
   useObjectTranslation,
+  useSafeTranslate,
   useObjectLabel,
   useSafeFieldLabel,
   useI18nContext,

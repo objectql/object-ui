@@ -26,7 +26,12 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import type { ObjectGridSchema, DataSource, ViewData, CalendarConfig } from '@object-ui/types';
 import { CalendarView, type CalendarEvent } from './CalendarView';
 import { usePullToRefresh } from '@object-ui/mobile';
-import { useNavigationOverlay } from '@object-ui/react';
+import {
+  useNavigationOverlay,
+  useSafeTranslate,
+  extractWriteErrorMessage,
+  isPermissionError,
+} from '@object-ui/react';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
   useIsMobile,
@@ -39,6 +44,7 @@ import {
   Button,
   Input,
   Label,
+  toast,
 } from '@object-ui/components';
 import { extractRecords, buildExpandFields, getRecordDisplayName } from '@object-ui/core';
 
@@ -168,6 +174,7 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
   onEventDrop,
   locale,
 }) => {
+  const tt = useSafeTranslate();
   // When the parent (e.g. ObjectView) pre-fetches data and passes it via the `data` prop,
   // we must not trigger a second fetch. Detect external data by checking for an array.
   const hasExternalData = Array.isArray(externalData);
@@ -429,8 +436,16 @@ export const ObjectCalendar: React.FC<ObjectCalendarProps> = ({
       setData(prevData);
       // eslint-disable-next-line no-console
       console.error('[ObjectCalendar] Failed to persist drag-and-drop reschedule:', err);
+      // Surface the failure — never silently snap the event back. A row-level
+      // security denial (403) is the common case: the user lacks permission to
+      // reschedule this record. (cloud#864)
+      toast.error(
+        isPermissionError(err)
+          ? tt('errors.unauthorized', 'You are not authorized to perform this action.')
+          : extractWriteErrorMessage(err) ?? tt('table.saveFailed', 'Save failed'),
+      );
     }
-  }, [calendarConfig, schema.objectName, dataSource, data]);
+  }, [calendarConfig, schema.objectName, dataSource, data, tt]);
 
   // Quick-create state: clicking an empty day cell opens a small dialog
   // pre-filled with that date. On submit, dataSource.create() inserts a
