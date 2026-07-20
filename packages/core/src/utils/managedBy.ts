@@ -66,11 +66,12 @@ export interface SchemaLike {
 }
 
 const DEFAULTS: Record<ManagedByBucket, CrudAffordances> = {
-  platform:      { create: true,  import: true,  edit: true,  delete: true,  exportCsv: true },
-  config:        { create: true,  import: false, edit: true,  delete: true,  exportCsv: true },
-  system:        { create: false, import: false, edit: false, delete: false, exportCsv: true },
-  'append-only': { create: false, import: false, edit: false, delete: false, exportCsv: true },
-  'better-auth': { create: false, import: false, edit: false, delete: false, exportCsv: true },
+  platform:       { create: true,  import: true,  edit: true,  delete: true,  exportCsv: true },
+  config:         { create: true,  import: false, edit: true,  delete: true,  exportCsv: true },
+  system:         { create: false, import: false, edit: false, delete: false, exportCsv: true },
+  'engine-owned': { create: false, import: false, edit: false, delete: false, exportCsv: true },
+  'append-only':  { create: false, import: false, edit: false, delete: false, exportCsv: true },
+  'better-auth':  { create: false, import: false, edit: false, delete: false, exportCsv: true },
 };
 
 /**

@@ -19,6 +19,7 @@ export type ManagedByBucket =
   | 'platform'
   | 'config'
   | 'system'
+  | 'engine-owned'
   | 'append-only'
   | 'better-auth';
 
@@ -27,6 +28,7 @@ export const MANAGED_BY_BUCKETS: readonly ManagedByBucket[] = [
   'platform',
   'config',
   'system',
+  'engine-owned',
   'append-only',
   'better-auth',
 ];

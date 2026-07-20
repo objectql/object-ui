@@ -20,6 +20,13 @@ describe('resolveManagedByEmptyState', () => {
     expect(resolveManagedByEmptyState('append-only', t)?.title).toBe('No events recorded');
   });
 
+  // ADR-0103 — the explicit engine-owned bucket reuses the `system` engine-owned
+  // empty state; it never opens creation, so it always renders that copy.
+  it('gives the engine-owned bucket the same engine-owned empty state as locked system', () => {
+    expect(resolveManagedByEmptyState('engine-owned', t)?.title).toBe('Nothing here yet');
+    expect(resolveManagedByEmptyState('engine-owned', t, 'sys_automation_run', undefined)?.title).toBe('Nothing here yet');
+  });
+
   // ADR-0103 — a `system` object that opened creation (writable set: Notification
   // Preferences, delegated RBAC assignments, …) is admin/user-writable data. The
   // "entries appear automatically" copy would be wrong, so the helper returns

@@ -28,10 +28,12 @@ import { isSystemWritable, type ManagedByBucket } from '../utils/crudAffordances
  * `@objectstack/spec/data/object.zod.ts` → `ObjectSchemaBase.managedBy`:
  *   - `platform`     — User-owned business data. **Renders nothing.**
  *   - `config`       — Admin-authored configuration.
- *   - `system`       — Engine-managed runtime rows (default) — but a `system`
- *                      object that opens writes via `userActions` (ADR-0103) is
- *                      platform-defined, admin/user-writable DATA and gets the
- *                      distinct writable-system copy instead.
+ *   - `system`       — Engine-managed schema. A `system` object that opens writes
+ *                      via `userActions` (ADR-0103) is platform-defined,
+ *                      admin/user-writable DATA and gets the distinct
+ *                      writable-system copy; a locked one reads engine-owned.
+ *   - `engine-owned` — Runtime rows a platform service owns end to end (ADR-0103);
+ *                      the explicit read-only monitoring surface.
  *   - `append-only`  — Immutable audit log.
  *   - `better-auth`  — Identity tables owned by better-auth driver.
  *
@@ -98,6 +100,22 @@ const VARIANTS: Record<VariantKey, Variant> = {
     tone: 'border-sky-300/60 bg-sky-50 text-sky-900 hover:bg-sky-100 dark:border-sky-500/40 dark:bg-sky-950/40 dark:text-sky-100',
   },
   system: {
+    icon: Lock,
+    i18nKey: 'system',
+    short: 'System-managed',
+    title: 'Managed by the platform',
+    body: () =>
+      'Rows here are created automatically when actions run on the source record. The list below is a read-only monitoring surface — row-level actions (Approve, Recall, Resend, …) live on each row.',
+    tone: 'border-slate-300/60 bg-slate-50 text-slate-900 hover:bg-slate-100 dark:border-slate-500/40 dark:bg-slate-950/40 dark:text-slate-100',
+  },
+  // ADR-0103 — the explicit engine-owned bucket: rows a platform service owns end
+  // to end (jobs, automation runs, approval runtime rows, the metadata store, …).
+  // To a user this reads identically to a locked `system` object ("the platform
+  // manages this, read-only"), so it deliberately REUSES the `system` copy/i18n key
+  // — zero translation churn, consistent UX; the self-documentation is at the
+  // schema level. (Same object shape as `system`; the distinct bucket value is the
+  // point, not distinct user-facing copy.)
+  'engine-owned': {
     icon: Lock,
     i18nKey: 'system',
     short: 'System-managed',

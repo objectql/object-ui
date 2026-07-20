@@ -23,8 +23,8 @@ describe('resolveCrudAffordances (shared source of truth)', () => {
     });
   });
 
-  it('system / append-only / better-auth: export-only by default', () => {
-    for (const managedBy of ['system', 'append-only', 'better-auth']) {
+  it('system / engine-owned / append-only / better-auth: export-only by default', () => {
+    for (const managedBy of ['system', 'engine-owned', 'append-only', 'better-auth']) {
       expect(resolveCrudAffordances({ managedBy })).toEqual({
         create: false, import: false, edit: false, delete: false, exportCsv: true,
       });
@@ -86,7 +86,7 @@ describe('isSystemWritable (ADR-0103)', () => {
 describe('isObjectInlineEditable', () => {
   it('mirrors the resolved edit affordance (replaces the old NON_EDITABLE_BUCKETS set)', () => {
     // Non-editable buckets by default...
-    for (const managedBy of ['system', 'append-only', 'better-auth']) {
+    for (const managedBy of ['system', 'engine-owned', 'append-only', 'better-auth']) {
       expect(isObjectInlineEditable({ managedBy })).toBe(false);
     }
     // ...editable buckets and opened-up system objects.
@@ -139,7 +139,7 @@ describe('userActionPredicates', () => {
 });
 
 describe('MANAGED_BY_BUCKETS', () => {
-  it('is the closed 5-bucket union in canonical order', () => {
-    expect(MANAGED_BY_BUCKETS).toEqual(['platform', 'config', 'system', 'append-only', 'better-auth']);
+  it('is the closed 6-bucket union in canonical order (ADR-0103 engine-owned split)', () => {
+    expect(MANAGED_BY_BUCKETS).toEqual(['platform', 'config', 'system', 'engine-owned', 'append-only', 'better-auth']);
   });
 });
