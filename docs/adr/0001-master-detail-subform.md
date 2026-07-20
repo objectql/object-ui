@@ -347,3 +347,21 @@ item 4):
   endpoint is absent (404/405) or the runtime can't do transactions (501).
 - Hard removal of the emulation is gated on the server advertising a batch
   capability via discovery (not yet advertised), so the fallback stays for now.
+
+## Addendum (2026-07, #2694): batch transport goes through the client SDK
+
+Follow-up to the #2679 unification above, now that `@objectstack/client@^16`
+(framework #3271) ships `data.batchTransaction` and is the ObjectUI dependency
+floor:
+
+- `ObjectStackAdapter.batchTransaction` calls the typed SDK method
+  `client.data.batchTransaction(operations)` directly. The transitional
+  hand-rolled `fetch('/api/v1/batch')` branch — a feature-detect shim kept while
+  the SDK method was unreleased — has been removed. Per AGENTS.md §7, adapter
+  data always flows through `@objectstack/client`, never a raw `fetch`.
+- Behavior is unchanged: the SDK still drives the server's atomic
+  `POST /api/v1/batch`, and the adapter still degrades to
+  `emulateBatchTransaction` when this backend lacks the endpoint (404/405) or its
+  runtime can't do transactions (501). Every other status surfaces to the caller.
+- The non-atomic emulation itself is untouched (still gated on a
+  discovery-advertised batch capability, not yet advertised).

@@ -233,30 +233,33 @@ describe('ObjectStackAdapter.batchTransaction mutation events', () => {
 });
 
 /**
- * #2679: when POST /api/v1/batch is unavailable (endpoint missing → 404/405, or
- * a runtime without transactions → 501), the adapter degrades to a client-side,
- * NON-atomic emulation instead of failing the save. This is the isolated home of
- * the non-atomic fallback — the form no longer carries it. Real errors (4xx/5xx
- * other than those three) must still surface, never be silently downgraded.
+ * #2679 / #2694: cross-object saves go through the SDK's
+ * `client.data.batchTransaction` (no hand-rolled POST /api/v1/batch). When the
+ * SDK reports this backend can't do a transactional batch — it throws an error
+ * carrying HTTP 404/405 (endpoint missing) or 501 (runtime without
+ * transactions) — the adapter degrades to a client-side, NON-atomic emulation
+ * instead of failing the save. This is the isolated home of the non-atomic
+ * fallback — the form no longer carries it. Real errors (any other 4xx/5xx)
+ * must still surface, never be silently downgraded.
  */
 describe('ObjectStackAdapter.batchTransaction fallback (no server atomicity)', () => {
+  // The SDK's batchTransaction signals "backend can't do a transactional batch"
+  // by throwing an error decorated with the HTTP status (the @objectstack/client
+  // convention that `errorStatusOf` reads).
   function makeFallbackDS(opts: { batchStatus: number; clientData: Record<string, any> }) {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ error: 'nope' }), {
-        status: opts.batchStatus,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
-    const ds: any = new ObjectStackAdapter({ baseUrl: 'http://test.local', fetch: fetchMock });
+    const batchTransaction = vi.fn(async () => {
+      throw Object.assign(new Error('nope'), { httpStatus: opts.batchStatus });
+    });
+    const ds: any = new ObjectStackAdapter({ baseUrl: 'http://test.local', fetch: vi.fn() });
     ds.connected = true;
     ds.connectionState = 'connected';
-    ds.client = { data: opts.clientData };
-    return { ds, fetchMock };
+    ds.client = { data: { batchTransaction, ...opts.clientData } };
+    return { ds, batchTransaction };
   }
 
   it('404 → warns once, saves via the create primitive, and caches the detection', async () => {
     const create = vi.fn(async (_o: string, d: any) => ({ record: { id: 'p1', ...d } }));
-    const { ds, fetchMock } = makeFallbackDS({ batchStatus: 404, clientData: { create } });
+    const { ds, batchTransaction } = makeFallbackDS({ batchStatus: 404, clientData: { create } });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const events: MutationEvent[] = [];
     ds.onMutation((e: MutationEvent) => events.push(e));
@@ -270,11 +273,11 @@ describe('ObjectStackAdapter.batchTransaction fallback (no server atomicity)', (
     // committed-batch path (no double emission).
     expect(events).toEqual([{ type: 'create', resource: 'proj', record: { id: 'p1', name: 'A' } }]);
 
-    const probes = fetchMock.mock.calls.length;
     // A second batch short-circuits: the endpoint is known-unsupported, so we
-    // never probe POST /api/v1/batch again.
+    // never call the SDK batch method again.
+    expect(batchTransaction).toHaveBeenCalledTimes(1);
     await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'B' } }]);
-    expect(fetchMock.mock.calls.length).toBe(probes);
+    expect(batchTransaction).toHaveBeenCalledTimes(1);
     warn.mockRestore();
   });
 
@@ -287,7 +290,7 @@ describe('ObjectStackAdapter.batchTransaction fallback (no server atomicity)', (
     warn.mockRestore();
   });
 
-  it('a real error (400) surfaces as ObjectStackError — never downgraded to emulation', async () => {
+  it('a real error (400) surfaces — never downgraded to emulation', async () => {
     const create = vi.fn();
     const { ds } = makeFallbackDS({ batchStatus: 400, clientData: { create } });
     await expect(
@@ -297,16 +300,20 @@ describe('ObjectStackAdapter.batchTransaction fallback (no server atomicity)', (
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('prefers the SDK client.data.batchTransaction when present (no raw fetch)', async () => {
+  it('routes a committed batch through the SDK method and never hand-rolls a fetch', async () => {
     const sdkBatch = vi.fn(async () => ({ results: [{ id: 'p1', name: 'A' }] }));
-    const { ds, fetchMock } = makeFallbackDS({ batchStatus: 500, clientData: { batchTransaction: sdkBatch } });
+    const fetchMock = vi.fn();
+    const ds: any = new ObjectStackAdapter({ baseUrl: 'http://test.local', fetch: fetchMock });
+    ds.connected = true;
+    ds.connectionState = 'connected';
+    ds.client = { data: { batchTransaction: sdkBatch } };
     const events: MutationEvent[] = [];
     ds.onMutation((e: MutationEvent) => events.push(e));
 
     const res = await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'A' } }]);
 
     expect(sdkBatch).toHaveBeenCalledTimes(1);
-    expect(fetchMock).not.toHaveBeenCalled(); // raw /api/v1/batch not used
+    expect(fetchMock).not.toHaveBeenCalled(); // no raw POST /api/v1/batch
     expect(res.results[0]).toMatchObject({ id: 'p1' });
     // Committed via the SDK → one event per op (emitted once).
     expect(events).toEqual([{ type: 'create', resource: 'proj', record: { id: 'p1', name: 'A' } }]);

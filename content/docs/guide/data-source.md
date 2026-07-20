@@ -178,8 +178,10 @@ Master-detail saves (a parent record plus its child line items) go through
 `dataSource.batchTransaction(operations)` — one ordered list of cross-object
 create/update/delete operations, where a child's foreign key can be
 `{ $ref: <parent op index> }` to point at a parent created in the same batch.
-The `@object-ui/data-objectstack` adapter maps this to the server's atomic
-`POST /api/v1/batch` endpoint (commit-all-or-roll-back-all). Adapters without a
+The `@object-ui/data-objectstack` adapter maps this to the published
+`@objectstack/client` `data.batchTransaction` SDK method, which drives the
+server's atomic `POST /api/v1/batch` endpoint (commit-all-or-roll-back-all).
+Adapters without a
 transactional endpoint don't need to hand-write orchestration: call
 `emulateBatchTransaction(dataSource, operations)` from `@object-ui/core`, which
 executes the operations sequentially (resolving `$ref`s) with best-effort
