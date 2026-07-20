@@ -73,6 +73,39 @@ export function filterVisibleParams(
   });
 }
 
+/**
+ * Serialize collected values for the request body. Upload widgets (`file` /
+ * `image`) hold a rich `{ file_id, name, url, … }` object — or an array of them
+ * when `multiple` — but the portable API contract is the storage id(s). Map each
+ * upload param to its `file_id` (a bare string passes through unchanged, and an
+ * object missing `file_id` is left intact so the failure is visible rather than
+ * silently POSTing `undefined`). Every non-upload value is returned as-is. Pure
+ * + exported so the mapping is unit-testable without the dialog render tree.
+ */
+export function serializeParamValues(
+  params: ActionParamDef[],
+  values: Record<string, any>,
+): Record<string, any> {
+  const uploadNames = new Set(
+    params
+      .filter((p) => {
+        const t = paramToField(p).type;
+        return t === 'file' || t === 'image';
+      })
+      .map((p) => p.name),
+  );
+  if (uploadNames.size === 0) return values;
+  const toId = (item: any) =>
+    item && typeof item === 'object' ? (item.file_id ?? item.id ?? item) : item;
+  const out: Record<string, any> = { ...values };
+  for (const name of uploadNames) {
+    const v = out[name];
+    if (v == null) continue;
+    out[name] = Array.isArray(v) ? v.map(toId) : toId(v);
+  }
+  return out;
+}
+
 /** Skeleton shown while a lazy field widget's chunk loads. */
 function WidgetFallback() {
   return <div className="h-9 w-full animate-pulse rounded-md bg-muted" aria-hidden="true" />;
@@ -135,7 +168,9 @@ export function ActionParamDialog({ state, onOpenChange }: ActionParamDialogProp
       setErrors(newErrors);
       return;
     }
-    state.resolve?.(values);
+    // Map upload params (file/image) from their rich widget objects to the
+    // storage id(s) the API expects before resolving.
+    state.resolve?.(serializeParamValues(visibleParams, values));
     onOpenChange(false);
   };
 

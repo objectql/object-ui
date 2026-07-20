@@ -24,9 +24,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { CommentAttachment, type Attachment } from '@object-ui/plugin-detail';
 import { DeclaredActionsBar } from '@object-ui/app-shell';
-import { createObjectStackUploadAdapter } from '@object-ui/providers';
 import { createAuthenticatedFetch } from '@object-ui/auth';
 import {
   Button,
@@ -48,8 +46,6 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  Textarea,
-  Label,
   Skeleton,
   Empty,
   EmptyTitle,
@@ -76,7 +72,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { toast } from 'sonner';
-import { useAuth, useIsWorkspaceAdmin } from '@object-ui/auth';
+import { useAuth } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import {
   CheckCircle2,
@@ -252,7 +248,6 @@ function payloadSummary(
 export function ApprovalsInboxPage() {
   const { t, language } = useObjectTranslation();
   const { user } = useAuth();
-  const isAdmin = useIsWorkspaceAdmin();
   const { appName } = useParams<{ appName?: string }>();
   // Deep link (#2678 P1.5): notifications carry `/system/approvals?request=<id>`
   // so landing here opens that request's drawer directly. Consumed once, then
@@ -336,41 +331,13 @@ export function ApprovalsInboxPage() {
   const [selected, setSelected] = useState<ApprovalRequestRow | null>(null);
   const [actions, setActions] = useState<ApprovalActionRow[]>([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
-  const [comment, setComment] = useState('');
-  const [actorOverride, setActorOverride] = useState('');
-  const [submitting, setSubmitting] = useState<'approve' | 'reject' | 'recall' | null>(null);
-  // Decision attachments (#3266): files staged in the composer, sent as
-  // `attachments: fileId[]` with the next approve/reject. Uploads go through
-  // the same presigned-storage adapter as RecordAttachmentsPanel.
-  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  // Approve/reject/reassign/send-back/… are server-declared actions rendered by
+  // DeclaredActionsBar (objectui#2697 + framework#3300); their param dialog
+  // collects the comment and — since the shared upload-widget renderer (#2700/
+  // #2707) plus the declared `attachments` file param (#2698) — file
+  // attachments, so the inbox no longer hand-wires a decision composer. `authFetch`
+  // stays for the timeline's attachment-name resolution and signed-URL open.
   const authFetch = useMemo(() => createAuthenticatedFetch(), []);
-  const uploadAdapter = useMemo(
-    () => createObjectStackUploadAdapter({
-      baseUrl: (import.meta.env.VITE_SERVER_URL || '').replace(/\/$/, ''),
-      scope: 'attachments',
-      fetchImpl: authFetch,
-    }),
-    [authFetch],
-  );
-  const handleAttachmentUpload = useCallback(async (files: FileList) => {
-    setAttachmentError(null);
-    for (const file of Array.from(files)) {
-      try {
-        const result = await uploadAdapter.upload(file);
-        const fileId = String((result.meta as { fileId?: string } | undefined)?.fileId ?? '');
-        if (!fileId) throw new Error('upload returned no fileId');
-        setPendingAttachments(prev => [...prev, {
-          id: fileId, name: result.name, size: result.size, type: result.mimeType, url: result.url,
-        }]);
-      } catch (err) {
-        setAttachmentError((err as Error)?.message ?? String(err));
-      }
-    }
-  }, [uploadAdapter]);
-  const handleAttachmentRemove = useCallback((attachmentId: string) => {
-    setPendingAttachments(prev => prev.filter(a => a.id !== attachmentId));
-  }, []);
   // Resolve attachment fileIds → sys_file display names for the timeline chips
   // (#2678 P1.5). Best-effort, cached per id; unresolved ids fall back to a
   // generic "Attachment" label.
@@ -529,10 +496,6 @@ export function ApprovalsInboxPage() {
   const openDrawer = useCallback(async (id: string) => {
     setSelectedId(id);
     setDrawerLoading(true);
-    setComment('');
-    setActorOverride('');
-    setPendingAttachments([]);
-    setAttachmentError(null);
     try {
       const [req, acts] = await Promise.all([
         approvalsApi.getRequest(id),
@@ -553,10 +516,6 @@ export function ApprovalsInboxPage() {
     setSelectedId(null);
     setSelected(null);
     setActions([]);
-    setComment('');
-    setActorOverride('');
-    setPendingAttachments([]);
-    setAttachmentError(null);
   };
 
   // Consume the notification deep link once (see useSearchParams above).
@@ -575,77 +534,12 @@ export function ApprovalsInboxPage() {
    *   2. First identity that intersects `pending_approvers`.
    *   3. User id fallback.
    */
-  const resolveActor = useCallback((req: ApprovalRequestRow | null): string => {
-    if (actorOverride.trim()) return actorOverride.trim();
-    if (!req) return user?.id || '';
-    const pending = new Set(req.pending_approvers || []);
-    for (const id of identities) if (pending.has(id)) return id;
-    return user?.id || '';
-  }, [actorOverride, identities, user?.id]);
-
   const refreshBadge = useCallback(() => {
     if (!identities.length) return;
     approvalsApi.listRequests({ status: 'pending', approverId: identities })
       .then(res => setMyPendingCount(res.data.length))
       .catch(() => { /* best-effort */ });
   }, [identities]);
-
-  const doAction = useCallback(async (kind: 'approve' | 'reject' | 'recall') => {
-    if (!selected) return;
-    const actor = kind === 'recall' ? (user?.id || resolveActor(selected)) : resolveActor(selected);
-    if (!actor) {
-      toast.error(tr('noActor', 'Cannot determine the acting identity'));
-      return;
-    }
-    setSubmitting(kind);
-    try {
-      const body = {
-        actor_id: actor,
-        comment: comment.trim() || undefined,
-        // Decision attachments (#3266) ride approve/reject only — recall has no composer.
-        ...(kind !== 'recall' && pendingAttachments.length
-          ? { attachments: pendingAttachments.map(a => a.id) }
-          : {}),
-      };
-      const fn = kind === 'approve' ? approvalsApi.approve
-              : kind === 'reject'  ? approvalsApi.reject
-              : approvalsApi.recall;
-      const res = await fn(selected.id, body);
-      toast.success(
-        kind === 'approve'
-          ? (res.finalized ? tr('approvedFinal', 'Approved') : tr('approvedWaiting', 'Approved — waiting on the remaining approvers'))
-          : kind === 'reject' ? tr('rejectedToast', 'Rejected')
-          : tr('recalledToast', 'Request recalled'),
-      );
-      setComment('');
-      setPendingAttachments([]);
-      setAttachmentError(null);
-      // Queue processing (Fiori "My Inbox" pattern): a decision on the
-      // pending tab advances straight to the next waiting item instead of
-      // parking on the finished one. Recall keeps the drawer for review.
-      if (kind !== 'recall' && tab === 'pending') {
-        const list = filteredRef.current;
-        const idx = list.findIndex(r => r.id === selected.id);
-        const next = list[idx + 1] ?? list[idx - 1];
-        void load();
-        if (next && next.id !== selected.id) void openDrawer(next.id);
-        else closeDrawer();
-        return;
-      }
-      // Refresh drawer + list.
-      const [req, acts] = await Promise.all([
-        approvalsApi.getRequest(selected.id),
-        approvalsApi.listActions(selected.id),
-      ]);
-      setSelected(req.data);
-      setActions(acts.data);
-      void load();
-    } catch (err: any) {
-      toast.error(humanizeError(err, tr('actionFailed', 'Action failed')));
-    } finally {
-      setSubmitting(null);
-    }
-  }, [selected, resolveActor, comment, pendingAttachments, load, user?.id, humanizeError, tr, tab, openDrawer]);
 
   /** Refresh the open drawer + list after a thread interaction. */
   const refreshThread = useCallback(async (id: string) => {
@@ -657,6 +551,40 @@ export function ApprovalsInboxPage() {
     setActions(acts.data);
     void load();
   }, [load]);
+
+  /**
+   * `onDone` for the pending drawer's declared-action bar. Refreshes the acted
+   * request + list, then — on the pending tab — advances to the next waiting
+   * item when this one is no longer the current user's to act on (finalized,
+   * approved-away in a quorum, reassigned): the Fiori "My Inbox" queue-processing
+   * flow the hand-wired composer used to own, now driven generically off the
+   * refreshed row rather than a per-action handler. Stays in place otherwise
+   * (e.g. remind / request-info leave the item pending and still yours).
+   */
+  const onDecisionDone = useCallback(async () => {
+    if (!selected) return;
+    const id = selected.id;
+    try {
+      const [req, acts] = await Promise.all([
+        approvalsApi.getRequest(id),
+        approvalsApi.listActions(id),
+      ]);
+      setSelected(req.data);
+      setActions(acts.data);
+      void load();
+      const pending = new Set(req.data.pending_approvers || []);
+      const stillMine = req.data.status === 'pending' && identities.some(x => pending.has(x));
+      if (tab === 'pending' && !stillMine) {
+        const list = filteredRef.current;
+        const idx = list.findIndex(r => r.id === id);
+        const next = list[idx + 1] ?? list[idx - 1];
+        if (next && next.id !== id) { void openDrawer(next.id); return; }
+        closeDrawer();
+      }
+    } catch {
+      void refreshThread(id);
+    }
+  }, [selected, identities, tab, load, openDrawer, closeDrawer, refreshThread]);
 
   const doReply = useCallback(async () => {
     if (!selected || !reply.trim()) return;
@@ -672,22 +600,26 @@ export function ApprovalsInboxPage() {
     }
   }, [selected, reply, user?.id, refreshThread, humanizeError, tr]);
 
+  // Participant checks — drive the reply box + the "why disabled" hint (the
+  // decision buttons themselves are server-declared and gate via their own
+  // `visible` CEL). No actor-override branch: the admin "act as" escape hatch
+  // retired with the composer (cloud#861 enterprise act-as is the successor).
   const canApproveReject = useMemo(() => {
     if (!selected || selected.status !== 'pending') return false;
     const pending = new Set(selected.pending_approvers || []);
-    return identities.some(id => pending.has(id)) || actorOverride.trim().length > 0;
-  }, [selected, identities, actorOverride]);
+    return identities.some(id => pending.has(id));
+  }, [selected, identities]);
 
   const canRecall = useMemo(() => {
     if (!selected || selected.status !== 'pending') return false;
-    return selected.submitter_id === user?.id || actorOverride.trim().length > 0;
-  }, [selected, user?.id, actorOverride]);
+    return selected.submitter_id === user?.id;
+  }, [selected, user?.id]);
 
   /** ADR-0044: the submitter may resubmit (or abandon) a returned request. */
   const canResubmit = useMemo(() => {
     if (!selected || selected.status !== 'returned') return false;
-    return selected.submitter_id === user?.id || actorOverride.trim().length > 0;
-  }, [selected, user?.id, actorOverride]);
+    return selected.submitter_id === user?.id;
+  }, [selected, user?.id]);
 
 
   /** Unique process labels present in current rows (for filter dropdown). */
@@ -1686,105 +1618,25 @@ export function ApprovalsInboxPage() {
                 <>
                   <Separator />
                   <div className="space-y-3">
-                    {isAdmin && (
-                      <details className="group">
-                        <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none">
-                          {tr('overrideActor', 'Act as another identity (admin)')}
-                        </summary>
-                        <div className="mt-2">
-                          <Label htmlFor="actor-override" className="text-xs">
-                            {tr('actor', 'Actor')}
-                          </Label>
-                          <input
-                            id="actor-override"
-                            type="text"
-                            value={actorOverride}
-                            onChange={(e) => setActorOverride(e.target.value)}
-                            placeholder={`${tr('auto', 'Auto')}: ${resolveActor(selected) || '—'}`}
-                            className="w-full mt-1 px-3 py-2 text-sm border rounded-md bg-background"
-                          />
-                          <div className="text-[10px] text-muted-foreground mt-1">
-                            {tr('overrideHint', 'e.g. role:sales_manager. Leave blank to use the auto-detected identity.')}
-                          </div>
-                        </div>
-                      </details>
-                    )}
-                    <div>
-                      <Label htmlFor="comment" className="text-xs">{tr('comment', 'Comment (optional)')}</Label>
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {[
-                          tr('quickPhrase1', 'Approved — meets requirements.'),
-                          tr('quickPhrase2', 'Approved with conditions — please monitor execution.'),
-                          tr('quickPhrase3', 'Please add supporting material and resubmit.'),
-                        ].map((p) => (
-                          <button
-                            key={p}
-                            type="button"
-                            onClick={() => setComment(p)}
-                            className="text-[11px] px-2 py-0.5 rounded-full border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                          >
-                            {p}
-                          </button>
-                        ))}
-                      </div>
-                      <Textarea
-                        id="comment"
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        rows={2}
-                        className="mt-1"
-                      />
-                      {/* Decision attachments (#3266) — staged files ride the next approve/reject. */}
-                      <CommentAttachment
-                        className="mt-2"
-                        attachments={pendingAttachments}
-                        onUpload={handleAttachmentUpload}
-                        onRemove={handleAttachmentRemove}
-                      />
-                      {attachmentError && (
-                        <div className="text-xs text-destructive mt-1">{attachmentError}</div>
-                      )}
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <Button
-                        size="sm"
-                        onClick={() => doAction('approve')}
-                        disabled={!canApproveReject || submitting !== null}
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-1" />
-                        {submitting === 'approve' ? tr('approving', 'Approving…') : tr('approve', 'Approve')}
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!canApproveReject || submitting !== null}
-                            className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                          >
-                            <XCircle className="h-4 w-4 mr-1" />
-                            {submitting === 'reject' ? tr('rejecting', 'Rejecting…') : tr('reject', 'Reject')}
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>{tr('rejectTitle', 'Reject this request?')}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {tr('rejectBody', 'This marks the request as rejected and notifies the submitter.')}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>{tr('cancel', 'Cancel')}</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => doAction('reject')}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              {tr('reject', 'Reject')}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                    {/* SERVER-DECLARED decision actions (objectui#2678 P2-4 +
+                        framework#3300). The inbox hand-wires NOTHING: approve /
+                        reject (with comment + file attachments), reassign,
+                        send-back, request-info, remind and recall all ship as the
+                        object's declared actions and render + execute here through
+                        the shared console action runtime. Each action's `visible`
+                        CEL gates it (submitter levers on `submitter_id ==
+                        ctx.user.id`; approver levers on `status == pending`), its
+                        param dialog collects the comment and — via the shared
+                        upload-widget renderer (#2700/#2707) — the `attachments`
+                        file param (#2698), and its `{id}`-interpolated
+                        `type:'api'` target resolves from the selected row. */}
+                    <DeclaredActionsBar
+                      objectName="sys_approval_request"
+                      record={selected}
+                      location="record_section"
+                      label={tr('declaredActions', 'Actions')}
+                      onDone={() => { void onDecisionDone(); }}
+                    />
                     {!canApproveReject && (
                       <div className="text-xs text-muted-foreground">
                         {canRecall
@@ -1794,25 +1646,6 @@ export function ApprovalsInboxPage() {
                             })}
                       </div>
                     )}
-                    {/* SERVER-DECLARED secondary actions (objectui#2678 P2-4 +
-                        framework#3300). The inbox no longer hand-wires send-back /
-                        request-info / reassign / remind / recall — they ship as the
-                        object's declared actions and render + execute here through
-                        the shared console action runtime with ZERO per-action code.
-                        Each action's `visible` CEL gates it (submitter levers on
-                        `submitter_id == ctx.user.id`; approver levers on
-                        `status == pending`), and its `{id}`-interpolated `type:'api'`
-                        target resolves from the selected row. approve/reject are
-                        `exclude`d because the composer above keeps them — it collects
-                        file attachments the generic param dialog can't yet. */}
-                    <DeclaredActionsBar
-                      objectName="sys_approval_request"
-                      record={selected}
-                      location="record_section"
-                      exclude={['approval_approve', 'approval_reject']}
-                      label={tr('declaredActions', 'More actions')}
-                      onDone={() => { void refreshThread(selected.id); void load(); }}
-                    />
                   </div>
                 </>
               )}
@@ -1842,7 +1675,6 @@ export function ApprovalsInboxPage() {
                         objectName="sys_approval_request"
                         record={selected}
                         location="record_section"
-                        exclude={['approval_approve', 'approval_reject']}
                         onDone={() => { void refreshThread(selected.id); void load(); }}
                       />
                     </div>

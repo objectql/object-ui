@@ -22,7 +22,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import type { ActionParamDef } from '@object-ui/core';
-import { ActionParamDialog, filterVisibleParams } from './ActionParamDialog';
+import { ActionParamDialog, filterVisibleParams, serializeParamValues } from './ActionParamDialog';
 
 const p = (name: string, visible?: string): ActionParamDef => ({
   name,
@@ -189,5 +189,53 @@ describe('ActionParamDialog — shared field-widget rendering (ADR-0059)', () =>
     expect((input as HTMLInputElement).value).toBe('seed');
     confirm();
     await waitFor(() => expect(resolve).toHaveBeenCalledWith({ note: 'seed' }));
+  });
+});
+
+describe('serializeParamValues', () => {
+  const fileParam = (name: string, multiple = false): ActionParamDef =>
+    ({ name, label: name, type: 'file', ...(multiple ? { multiple: true } : {}) } as ActionParamDef);
+
+  it('is a no-op when there are no upload params', () => {
+    const values = { comment: 'hi', to: 'u1' };
+    expect(serializeParamValues([p('comment'), p('to')], values)).toBe(values);
+  });
+
+  it('maps a single file param object to its file_id', () => {
+    const out = serializeParamValues([fileParam('attachments')], {
+      comment: 'ok',
+      attachments: { file_id: 'f_123', name: 'x.pdf', url: 'https://…' },
+    });
+    expect(out).toEqual({ comment: 'ok', attachments: 'f_123' });
+  });
+
+  it('maps a multiple file param array to file_id[]', () => {
+    const out = serializeParamValues([fileParam('attachments', true)], {
+      attachments: [
+        { file_id: 'f_1', name: 'a' },
+        { file_id: 'f_2', name: 'b' },
+      ],
+    });
+    expect(out).toEqual({ attachments: ['f_1', 'f_2'] });
+  });
+
+  it('passes a bare string id through unchanged', () => {
+    expect(serializeParamValues([fileParam('attachments')], { attachments: 'f_9' }))
+      .toEqual({ attachments: 'f_9' });
+  });
+
+  it('leaves an absent / null upload value alone', () => {
+    expect(serializeParamValues([fileParam('attachments', true)], { comment: 'c' }))
+      .toEqual({ comment: 'c' });
+    expect(serializeParamValues([fileParam('attachments')], { attachments: null }))
+      .toEqual({ attachments: null });
+  });
+
+  it('does not touch non-upload params', () => {
+    const out = serializeParamValues([fileParam('attachments'), p('comment')], {
+      attachments: { file_id: 'f_1' },
+      comment: 'keep me',
+    });
+    expect(out).toEqual({ attachments: 'f_1', comment: 'keep me' });
   });
 });
