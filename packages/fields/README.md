@@ -83,6 +83,18 @@ or photo per row without opening the row form (objectui#2360). Columns accept
 exported as `FileCell`). Auto-derived subform columns map `file`/`image`/
 `avatar` fields to file columns instead of dropping them.
 
+### Multi-value selects
+
+A `select` field declared `multiple: true` selects zero-or-more values (spec
+allows `multiple` on `select`). `SelectField` delegates to the multi-value chip
+picker (the same widget the `multiselect` type uses) and stores a `string[]`.
+Delegating inside `SelectField` — rather than at a type-resolution layer — means
+every surface that renders the `select` widget (the object form, the inline grid
+editor, and the app-shell `ActionParamDialog`) gets multi-select identically,
+with no per-surface drift. Single-value selects keep the cascading dropdown
+below. (A multi-value select forgoes per-option `visibleWhen` cascading, which
+the chip picker does not implement.)
+
 ### Cascading & role-gated select options
 
 `select` options support a per-option `visibleWhen` CEL predicate (offered only

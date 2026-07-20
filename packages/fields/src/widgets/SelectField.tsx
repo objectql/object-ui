@@ -17,9 +17,33 @@ import { SchemaRendererContext, usePredicateScope } from '@object-ui/react';
 import { SelectFieldMetadata } from '@object-ui/types';
 import { useFieldTranslation } from './useFieldTranslation';
 import { FieldWidgetProps } from './types';
+import { MultiSelectField } from './MultiSelectField';
 
 /**
- * SelectField - Dropdown selection widget with configurable options.
+ * SelectField - dropdown selection widget.
+ *
+ * A field declared `multiple: true` selects zero-or-more values (spec:
+ * `multiple` is valid on `select`), so it renders the multi-value chip picker
+ * — the same widget the `multiselect` type uses. Delegating here (rather than
+ * only at a type-resolution layer) means every surface that renders the
+ * `select` widget — the object form, the inline grid editor, and
+ * `ActionParamDialog` — inherits multi-select identically, with no drift
+ * between them. Single-value selects keep the cascading dropdown below.
+ *
+ * (A `multiple` select forgoes per-option `visibleWhen` cascading, which the
+ * chip picker does not implement; single selects retain it. Multi-select +
+ * cascading is not a combination in use today.)
+ */
+export function SelectField(props: FieldWidgetProps<any>) {
+  const config = (props.field || (props as any).schema) as SelectFieldMetadata | undefined;
+  if ((config as any)?.multiple) {
+    return <MultiSelectField {...props} />;
+  }
+  return <SingleSelectField {...(props as FieldWidgetProps<string>)} />;
+}
+
+/**
+ * SingleSelectField - single-value dropdown with configurable options.
  *
  * Supports cascading / role-gated options (#2284): each option may carry a
  * `visibleWhen` CEL predicate, evaluated against the live form record +
@@ -29,7 +53,7 @@ import { FieldWidgetProps } from './types';
  * of those is empty the control is gated with a "select the parent first" hint,
  * mirroring the dependent-lookup UX.
  */
-export function SelectField({
+function SingleSelectField({
   value,
   onChange,
   field,
