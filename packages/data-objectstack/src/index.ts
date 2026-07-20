@@ -179,6 +179,44 @@ export function clearSharedDiscoveryCache(): void {
 }
 
 /**
+ * Read the cross-object atomic-batch capability from a `discovery` document
+ * (framework #3298 / objectui #2693). The server advertises it hierarchically
+ * under `capabilities.transactionalBatch.enabled`; the published
+ * `@objectstack/client` also accepts the flat `capabilities.transactionalBatch:
+ * boolean` form and normalizes the two — mirror that here so the adapter reads
+ * the same bit regardless of which shape reaches it.
+ *
+ * Returns:
+ *   - `true`  — the backend GUARANTEES an atomic `/batch` (declared === enforced,
+ *     i.e. the route is mounted AND the runtime can honour a transaction): the
+ *     client may drop its non-atomic fallback and treat any batch failure as a
+ *     real error.
+ *   - `false` — the backend explicitly does NOT (route absent, or a runtime that
+ *     can't open a transaction).
+ *   - `undefined` — the capability is absent, i.e. the backend predates #3298;
+ *     the caller must keep the legacy runtime-probe fallback (we can't tell
+ *     whether `/batch` exists without trying it).
+ */
+export function readTransactionalBatchCapability(
+  discovery: unknown,
+): boolean | undefined {
+  const caps = (discovery as { capabilities?: unknown } | null | undefined)?.capabilities;
+  if (!caps || typeof caps !== 'object') return undefined;
+  const value = (caps as Record<string, unknown>).transactionalBatch;
+  // Flat form: `{ transactionalBatch: true }`.
+  if (typeof value === 'boolean') return value;
+  // Hierarchical form: `{ transactionalBatch: { enabled: true } }`.
+  if (
+    value &&
+    typeof value === 'object' &&
+    typeof (value as { enabled?: unknown }).enabled === 'boolean'
+  ) {
+    return (value as { enabled: boolean }).enabled;
+  }
+  return undefined;
+}
+
+/**
  * Detect "missing resource" errors regardless of where they originate.
  *
  * The ObjectStack client decorates thrown errors with `httpStatus` (and a
@@ -415,6 +453,15 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
   // client-side emulation — the non-atomic fallback lives HERE, isolated to the
   // one adapter that has to cope with a backend lacking server atomicity (#2679).
   private batchUnsupported = false;
+  // The server's declared cross-object atomic-batch capability, read from
+  // discovery at connect() (framework #3298 / objectui #2693). `true` → the
+  // backend GUARANTEES an atomic `/batch`, so batchTransaction trusts it and
+  // never degrades to the non-atomic emulation (any failure surfaces as a real
+  // error). `false` or `undefined` (capability absent → backend predates #3298)
+  // → keep the legacy runtime-probe + emulation fallback so a save is still
+  // possible; dropping it there would turn "saves, less safe" into "no save
+  // path" on older backends (#2679 compatibility constraint).
+  private atomicBatchCapability: boolean | undefined;
   // Subscribers registered via onMutation(). Emitted after each successful
   // create/update/delete so data-bound views (ListView, ObjectView, kanban,
   // calendar) auto-refresh — the interface ListView relies on to reflect
@@ -489,6 +536,11 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         // Prime the underlying client's cached discovery so capability/route
         // helpers continue to work without a redundant fetch.
         (this.client as unknown as { discoveryInfo?: unknown }).discoveryInfo = data;
+
+        // Record the declared cross-object atomic-batch capability (#3298) so
+        // batchTransaction can decide declaratively at call time whether it may
+        // trust server atomicity instead of runtime-probing 404/405/501.
+        this.atomicBatchCapability = readTransactionalBatchCapability(data);
 
         this.connected = true;
         this.reconnectAttempts = 0;
@@ -947,23 +999,42 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * Transport: the published `@objectstack/client` SDK method
    * `data.batchTransaction` (framework #3271; shipped since client v16, our
    * dependency floor). Per AGENTS.md §7 data always flows through the client —
-   * never a hand-rolled `fetch('/api/v1/batch')`. If this BACKEND has no such
-   * endpoint (404/405) or a runtime that can't do transactions (501), we
-   * degrade to a client-side, NON-atomic emulation via
-   * {@link emulateBatchTransaction} so a save is still possible — this is the
-   * isolated home of the non-atomic fallback. Hard removal of the emulation is
-   * gated on the server advertising a batch capability via discovery (the
-   * current discovery payload does not), so the fallback stays for now.
+   * never a hand-rolled `fetch('/api/v1/batch')`.
+   *
+   * Fallback decision — declarative capability negotiation (framework #3298 /
+   * objectui #2693). At connect() we read `capabilities.transactionalBatch`
+   * from discovery:
+   *   - Declared `true` → the backend GUARANTEES atomicity (declared ===
+   *     enforced). We TRUST it: any batch failure — including 404/405/501 —
+   *     surfaces as a real error. No non-atomic client-side compensation. This
+   *     is the path modern backends take.
+   *   - Declared `false`, or ABSENT (backend predates #3298) → we can't rely on
+   *     server atomicity, so we keep the legacy behaviour: on 404/405 (no
+   *     endpoint) or 501 (runtime without transactions) degrade to the
+   *     client-side, NON-atomic {@link emulateBatchTransaction} so a save is
+   *     still possible. Removing that here would regress older backends from
+   *     "saves, less safe" to "no save path" (#2679 compatibility constraint).
+   *     The non-atomic fallback stays isolated to THIS adapter.
    */
   async batchTransaction(
     operations: BatchTransactionOperation[],
   ): Promise<{ results: any[] }> {
-    // Already known-unsupported on this backend — skip the round trip entirely.
-    if (this.batchUnsupported) {
+    // Ensure discovery (and thus the #3298 capability) is loaded so the
+    // decision below is declarative, not "fire a batch and read the status".
+    await this.connect();
+
+    // When the backend declares atomic batch support we never degrade: a
+    // failure is a real error, not a cue to fall back. Otherwise (declared
+    // false, or capability absent on a pre-#3298 backend) the emulation
+    // fallback below stays active.
+    const guaranteed = this.atomicBatchCapability === true;
+
+    // Already degraded on a non-declaring backend — skip the SDK call.
+    // (Unreachable once `guaranteed`: that path never sets `batchUnsupported`.)
+    if (!guaranteed && this.batchUnsupported) {
       return emulateBatchTransaction(this, operations);
     }
 
-    await this.connect();
     try {
       // Typed SDK method — guaranteed present by the `@objectstack/client@^16`
       // dependency floor (framework #3271). No hand-rolled POST /api/v1/batch.
@@ -971,14 +1042,17 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
       this.emitBatchMutations(operations, payload?.results);
       return payload;
     } catch (err) {
-      // The client HAS the method but this BACKEND lacks the endpoint (404/405)
-      // or its runtime can't do transactions (the framework rest-server answers
-      // 501 "Transactional batch not supported by this runtime") → degrade to
-      // the non-atomic client emulation so the save still goes through. Every
-      // other status (400 validation, 401/403 auth, 409 conflict, 500 fault) is
-      // a real error the caller must see — never silently retried.
-      if (this.batchStatusUnsupported(this.errorStatusOf(err))) {
-        return this.fallbackToEmulation(operations, this.errorStatusOf(err));
+      // On a non-declaring backend, endpoint missing (404/405) or a runtime that
+      // can't do transactions (the framework rest-server answers 501
+      // "Transactional batch not supported by this runtime") → degrade to the
+      // non-atomic client emulation so the save still goes through. When the
+      // backend DECLARED support (`guaranteed`), even these are hard errors — a
+      // server that advertised the capability must honour it. Every other status
+      // (400 validation, 401/403 auth, 409 conflict, 500 fault) is a real error
+      // the caller must see — never silently retried.
+      const status = this.errorStatusOf(err);
+      if (!guaranteed && this.batchStatusUnsupported(status)) {
+        return this.fallbackToEmulation(operations, status);
       }
       throw err;
     }
