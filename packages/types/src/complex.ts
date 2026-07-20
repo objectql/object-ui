@@ -709,44 +709,6 @@ export interface DashboardWidgetSchema {
    */
   filter?: any;
   /**
-   * @deprecated Pre-ADR-0021 inline single-object query. Removed from the
-   * authorable spec at @objectstack/spec 9.0.0 and no longer emitted by any
-   * Studio surface — bind a `dataset` instead. Retained here only so the
-   * renderer can still read legacy/static widget metadata during the
-   * transition; will be removed once renderer legacy branches are retired.
-   */
-  object?: string;
-  /**
-   * @deprecated Pre-ADR-0021 inline analytics key — use `dataset` +
-   * `dimensions`. See `object`.
-   */
-  categoryField?: string;
-  /**
-   * @deprecated Pre-ADR-0021 inline analytics key — the bound dataset's
-   * dimension declares its own `dateGranularity`. See `object`.
-   */
-  categoryGranularity?: 'day' | 'week' | 'month' | 'quarter' | 'year';
-  /**
-   * @deprecated Pre-ADR-0021 inline analytics key — use `dataset` + `values`.
-   * See `object`.
-   */
-  valueField?: string;
-  /**
-   * @deprecated Pre-ADR-0021 inline analytics key — the bound dataset's
-   * measure declares its own `aggregate`. See `object`.
-   */
-  aggregate?: string;
-  /**
-   * @deprecated Pre-ADR-0021 inline pivot measures — use `dataset` + `values`.
-   * See `object`.
-   */
-  measures?: Array<{
-    valueField: string;
-    aggregate: string;
-    label?: string;
-    format?: string;
-  }>;
-  /**
    * Responsive configuration per breakpoint.
    * Aligned with @objectstack/spec DashboardWidgetSchema.responsive.
    */

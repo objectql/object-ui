@@ -307,20 +307,18 @@ describe('P1.2 FormView Spec Alignment', () => {
 // P1.3 Dashboard Spec Alignment
 // ============================================================================
 describe('P1.3 Dashboard Spec Alignment', () => {
-  it('should accept widget data binding properties', () => {
+  it('should accept widget dataset binding properties (ADR-0021)', () => {
     const widget: DashboardWidgetSchema = {
       type: 'bar-chart',
       title: 'Revenue by Region',
-      object: 'Opportunity',
       filter: [['stage', '=', 'Closed Won']],
-      categoryField: 'region',
-      valueField: 'amount',
-      aggregate: 'sum',
+      dataset: 'opportunity_metrics',
+      dimensions: ['region'],
+      values: ['amount'],
     };
-    expect(widget.object).toBe('Opportunity');
-    expect(widget.categoryField).toBe('region');
-    expect(widget.valueField).toBe('amount');
-    expect(widget.aggregate).toBe('sum');
+    expect(widget.dataset).toBe('opportunity_metrics');
+    expect(widget.dimensions).toEqual(['region']);
+    expect(widget.values).toEqual(['amount']);
   });
 
   it('should accept widget color variants', () => {
@@ -337,17 +335,16 @@ describe('P1.3 Dashboard Spec Alignment', () => {
     });
   });
 
-  it('should accept widget measures (pivot/matrix)', () => {
+  it('should accept dataset-bound pivot widgets (matrix)', () => {
     const widget: DashboardWidgetSchema = {
       type: 'pivot',
       title: 'Sales Matrix',
-      measures: [
-        { valueField: 'amount', aggregate: 'sum', label: 'Total Sales', format: '$0,0' },
-        { valueField: 'count', aggregate: 'count', label: 'Deal Count' },
-      ],
+      dataset: 'sales_metrics',
+      dimensions: ['region', 'quarter'],
+      values: ['total_amount', 'deal_count'],
     };
-    expect(widget.measures).toHaveLength(2);
-    expect(widget.measures![0].label).toBe('Total Sales');
+    expect(widget.values).toEqual(['total_amount', 'deal_count']);
+    expect(widget.dimensions).toHaveLength(2);
   });
 
   it('should accept globalFilters with optionsFrom', () => {

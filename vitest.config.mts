@@ -88,6 +88,8 @@ const heavyDomTests = [
   'packages/components/src/__tests__/page-header-title.test.tsx',
   'packages/plugin-calendar/src/registration.test.tsx',
   'packages/plugin-dashboard/src/__tests__/DashboardRenderer.designMode.test.tsx',
+  'packages/plugin-dashboard/src/__tests__/DashboardRenderer.filters.test.tsx',
+  'packages/plugin-dashboard/src/__tests__/DashboardRenderer.legacyRetired.test.tsx',
   'packages/plugin-kanban/src/registration.test.tsx',
 ];
 

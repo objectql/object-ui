@@ -9,116 +9,127 @@
 /**
  * Dashboard-level filter broadcast (framework#2501).
  *
- * The widget child components (`object-chart`, …) are stubbed in the REAL
- * component registry so the real SchemaRenderer resolves them and each stub
- * surfaces its resolved `filter` as a DOM attribute — the page-variables
- * provider, filter bar, binding resolution, and $and merge all run for real.
+ * ADR-0021: widgets bind a semantic-layer `dataset` and render through
+ * DatasetWidget, which forwards the widget's EFFECTIVE `filter` (its own filter
+ * AND the dashboard broadcast, resolved through the same bindings + `$and` merge)
+ * to `dataSource.queryDataset` as `runtimeFilter`. We assert that call so the
+ * page-variables provider, filter bar, binding resolution, and merge all run for
+ * real. Date macros (`{today}`, `{30_days_ago}`) are resolved client-side before
+ * the query, so date-range assertions check the SHAPE, not the literal tokens.
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import type { DashboardSchema } from '@object-ui/types';
-import { ComponentRegistry } from '@object-ui/core';
 import { DashboardRenderer } from '../DashboardRenderer';
-
-const FilterProbe = ({ schema }: { schema: any }) => (
-  <div
-    data-testid={`widget-schema-${schema?.objectName ?? schema?.type}`}
-    data-filter={JSON.stringify(schema?.filter ?? null)}
-  />
-);
-ComponentRegistry.register('object-chart', FilterProbe);
-ComponentRegistry.register('object-metric', FilterProbe);
 
 afterEach(cleanup);
 
-const widgetFilter = (objectName: string) => {
-  const el = screen.getByTestId(`widget-schema-${objectName}`);
-  return JSON.parse(el.getAttribute('data-filter')!);
+/** A dataset data source that records every `queryDataset` call. */
+const makeQueryDataset = () => vi.fn(async () => ({ rows: [{ count: 1 }], fields: [] }));
+
+/** The `runtimeFilter` of the LAST `queryDataset` call for a given dataset. */
+const lastRuntimeFilter = (
+  queryDataset: ReturnType<typeof makeQueryDataset>,
+  dataset: string,
+): unknown => {
+  const calls = queryDataset.mock.calls.filter((c) => c[0] === dataset);
+  if (calls.length === 0) return undefined;
+  return (calls[calls.length - 1][1] as { runtimeFilter?: unknown })?.runtimeFilter;
 };
 
 describe('DashboardRenderer dashboard-level filters', () => {
-  it('renders no filter bar when the schema declares no filters', () => {
+  it('renders no filter bar when the schema declares no filters', async () => {
+    const queryDataset = makeQueryDataset();
     const schema: DashboardSchema = {
       type: 'dashboard',
-      widgets: [{ id: 'w1', type: 'bar', object: 'invoices', aggregate: 'count' }],
+      widgets: [{ id: 'w1', type: 'bar', dataset: 'invoices', values: ['count'] }],
     };
-    render(<DashboardRenderer schema={schema} />);
+    render(<DashboardRenderer schema={schema} dataSource={{ queryDataset }} />);
     expect(screen.queryByTestId('dashboard-filter-bar')).not.toBeInTheDocument();
-    expect(widgetFilter('invoices')).toBeNull();
+    await waitFor(() => expect(queryDataset).toHaveBeenCalledWith('invoices', expect.anything()));
+    expect(lastRuntimeFilter(queryDataset, 'invoices')).toBeUndefined();
   });
 
-  it('broadcasts the default date range into each widget via its own bound field', () => {
+  it('broadcasts the default date range into each widget via its own bound field', async () => {
+    const queryDataset = makeQueryDataset();
     const schema: DashboardSchema = {
       type: 'dashboard',
       dateRange: { field: 'created_at', defaultRange: 'last_30_days', allowCustomRange: true },
       widgets: [
         // Default binding → dateRange.field (created_at).
-        { id: 'w1', type: 'bar', object: 'invoices', aggregate: 'count' },
+        { id: 'w1', type: 'bar', dataset: 'invoices', values: ['count'] },
         // Explicit per-widget override → this widget's own field.
-        { id: 'w2', type: 'line', object: 'accounts', aggregate: 'count', filterBindings: { dateRange: 'signed_at' } },
+        { id: 'w2', type: 'line', dataset: 'accounts', values: ['count'], filterBindings: { dateRange: 'signed_at' } },
       ],
     };
-    render(<DashboardRenderer schema={schema} />);
+    render(<DashboardRenderer schema={schema} dataSource={{ queryDataset }} />);
 
     expect(screen.getByTestId('dashboard-filter-bar')).toBeInTheDocument();
-    expect(widgetFilter('invoices')).toEqual({
-      created_at: { $gte: '{30_days_ago}', $lte: '{today}' },
-    });
-    expect(widgetFilter('accounts')).toEqual({
-      signed_at: { $gte: '{30_days_ago}', $lte: '{today}' },
+    await waitFor(() => {
+      expect(lastRuntimeFilter(queryDataset, 'invoices')).toEqual({
+        created_at: { $gte: expect.any(String), $lte: expect.any(String) },
+      });
+      expect(lastRuntimeFilter(queryDataset, 'accounts')).toEqual({
+        signed_at: { $gte: expect.any(String), $lte: expect.any(String) },
+      });
     });
   });
 
-  it('merges the broadcast with a widget\'s own filter and honors opt-out', () => {
+  it('merges the broadcast with a widget\'s own filter and honors opt-out', async () => {
+    const queryDataset = makeQueryDataset();
     const schema: DashboardSchema = {
       type: 'dashboard',
       globalFilters: [
         { name: 'region', field: 'region', type: 'select', options: ['EMEA', 'APAC'], defaultValue: 'EMEA' },
       ],
       widgets: [
-        { id: 'w1', type: 'bar', object: 'invoices', aggregate: 'count', filter: { status: 'paid' } },
-        { id: 'w2', type: 'pie', object: 'accounts', aggregate: 'count', filterBindings: { region: false } },
+        { id: 'w1', type: 'bar', dataset: 'invoices', values: ['count'], filter: { status: 'paid' } },
+        { id: 'w2', type: 'pie', dataset: 'accounts', values: ['count'], filterBindings: { region: false } },
       ],
     };
-    render(<DashboardRenderer schema={schema} />);
+    render(<DashboardRenderer schema={schema} dataSource={{ queryDataset }} />);
 
     // Widget filter AND dashboard filter.
-    expect(widgetFilter('invoices')).toEqual({
-      $and: [{ status: 'paid' }, { region: 'EMEA' }],
+    await waitFor(() => {
+      expect(lastRuntimeFilter(queryDataset, 'invoices')).toEqual({
+        $and: [{ status: 'paid' }, { region: 'EMEA' }],
+      });
     });
-    // Opted out — own (absent) filter untouched.
-    expect(widgetFilter('accounts')).toBeNull();
+    // Opted out — own (absent) filter untouched, so no runtimeFilter.
+    expect(lastRuntimeFilter(queryDataset, 'accounts')).toBeUndefined();
   });
 
   it('re-scopes all bound widgets live when a filter value changes', async () => {
+    const queryDataset = makeQueryDataset();
     const schema: DashboardSchema = {
       type: 'dashboard',
       globalFilters: [{ name: 'q', field: 'name', type: 'text', label: 'Search' }],
       widgets: [
-        { id: 'w1', type: 'bar', object: 'invoices', aggregate: 'count' },
-        { id: 'w2', type: 'line', object: 'accounts', aggregate: 'count', filterBindings: { q: 'title' } },
+        { id: 'w1', type: 'bar', dataset: 'invoices', values: ['count'] },
+        { id: 'w2', type: 'line', dataset: 'accounts', values: ['count'], filterBindings: { q: 'title' } },
       ],
     };
-    render(<DashboardRenderer schema={schema} />);
+    render(<DashboardRenderer schema={schema} dataSource={{ queryDataset }} />);
 
-    expect(widgetFilter('invoices')).toBeNull();
+    await waitFor(() => expect(queryDataset).toHaveBeenCalledWith('invoices', expect.anything()));
+    expect(lastRuntimeFilter(queryDataset, 'invoices')).toBeUndefined();
 
     const input = screen.getByTestId('dashboard-filter-q');
     fireEvent.change(input, { target: { value: 'acme' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
     await waitFor(() => {
-      expect(widgetFilter('invoices')).toEqual({ name: { $contains: 'acme' } });
-      expect(widgetFilter('accounts')).toEqual({ title: { $contains: 'acme' } });
+      expect(lastRuntimeFilter(queryDataset, 'invoices')).toEqual({ name: { $contains: 'acme' } });
+      expect(lastRuntimeFilter(queryDataset, 'accounts')).toEqual({ title: { $contains: 'acme' } });
     });
 
     // Clearing the value removes the broadcast again.
     fireEvent.change(input, { target: { value: '' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => {
-      expect(widgetFilter('invoices')).toBeNull();
-      expect(widgetFilter('accounts')).toBeNull();
+      expect(lastRuntimeFilter(queryDataset, 'invoices')).toBeUndefined();
+      expect(lastRuntimeFilter(queryDataset, 'accounts')).toBeUndefined();
     });
   });
 

@@ -172,26 +172,24 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
     const options = (widget.options || {}) as Record<string, any>;
     if (widgetType === 'bar' || widgetType === 'horizontal-bar' || widgetType === 'line' || widgetType === 'area' || widgetType === 'pie' || widgetType === 'donut' || widgetType === 'scatter' || widgetType === 'funnel') {
       const widgetData = (widget as any).data || options.data;
-      // Widget-level fields (from config panel) override options-level fields
-      const xAxisKey = widget.categoryField || options.xField || 'name';
-      const yField = widget.valueField || options.yField || 'value';
+      const xAxisKey = options.xField || 'name';
+      const yField = options.yField || 'value';
 
-      // provider: 'object' — delegate to ObjectChart for async data loading
+      // provider: 'object' — delegate to ObjectChart for async data loading.
+      // Field/aggregate config comes from the nested data provider (the
+      // pre-ADR-0021 top-level analytics keys were retired in framework#3320).
       if (isObjectProvider(widgetData)) {
-        // Merge widget-level fields with data provider config.
-        // Widget-level fields take precedence so that config panel
-        // edits are immediately reflected in the live preview.
         const providerAgg = widgetData.aggregate;
         const effectiveAggregate = providerAgg ? {
-          field: widget.valueField || providerAgg.field,
-          function: widget.aggregate || providerAgg.function,
-          groupBy: widget.categoryField || providerAgg.groupBy,
+          field: providerAgg.field,
+          function: providerAgg.function,
+          groupBy: providerAgg.groupBy,
         } : undefined;
         const effectiveYField = effectiveAggregate?.field || yField;
         return {
           type: 'object-chart',
           chartType: widgetType,
-          objectName: widget.object || widgetData.object,
+          objectName: widgetData.object,
           aggregate: effectiveAggregate,
           xAxisKey: xAxisKey,
           series: [{ dataKey: effectiveYField }],
@@ -200,28 +198,8 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         };
       }
 
-      // No explicit data provider but widget has object binding
-      // (e.g. newly created widget via config panel) — build object-chart
-      if (!widgetData && widget.object) {
-        const aggregate = widget.aggregate ? {
-          field: widget.valueField || 'value',
-          function: widget.aggregate,
-          groupBy: widget.categoryField || 'name',
-        } : undefined;
-        return {
-          type: 'object-chart',
-          chartType: widgetType,
-          objectName: widget.object,
-          aggregate,
-          xAxisKey: xAxisKey,
-          series: [{ dataKey: widget.valueField || 'value' }],
-          colors: CHART_COLORS,
-          className: "h-full"
-        };
-      }
-
       const dataItems = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
-      
+
       return {
         type: 'chart',
         chartType: widgetType,
@@ -242,21 +220,8 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         return {
           type: 'data-table',
           ...restOptions,
-          objectName: widget.object || widgetData.object,
+          objectName: widgetData.object,
           dataProvider: widgetData,
-          data: [],
-          searchable: false,
-          pagination: false,
-          className: "border-0"
-        };
-      }
-
-      // No explicit data provider but widget has object binding
-      if (!widgetData && widget.object) {
-        return {
-          type: 'data-table',
-          ...options,
-          objectName: widget.object,
           data: [],
           searchable: false,
           pagination: false,
@@ -283,7 +248,7 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         return {
           type: 'pivot',
           ...restOptions,
-          objectName: widget.object || widgetData.object,
+          objectName: widgetData.object,
           dataProvider: widgetData,
           data: [],
         };

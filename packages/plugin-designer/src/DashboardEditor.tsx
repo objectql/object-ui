@@ -181,11 +181,6 @@ function WidgetCard({
         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
           {meta.label}
         </span>
-        {widget.object && (
-          <span className="text-[10px] text-gray-400">
-            {widget.object}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -257,54 +252,10 @@ function WidgetPropertyPanel({
         </select>
       </div>
 
-      {/* Data source */}
-      <div className="space-y-1">
-        <label htmlFor="widget-object" className="text-xs font-medium text-gray-600">Data Source (Object)</label>
-        <input
-          id="widget-object"
-          data-testid="widget-prop-object"
-          type="text"
-          value={widget.object ?? ''}
-          onChange={(e) => onChange({ object: e.target.value })}
-          disabled={readOnly}
-          placeholder="e.g. orders"
-          className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
-        />
-      </div>
-
-      {/* Value field */}
-      <div className="space-y-1">
-        <label htmlFor="widget-value-field" className="text-xs font-medium text-gray-600">Value Field</label>
-        <input
-          id="widget-value-field"
-          data-testid="widget-prop-value-field"
-          type="text"
-          value={widget.valueField ?? ''}
-          onChange={(e) => onChange({ valueField: e.target.value })}
-          disabled={readOnly}
-          placeholder="e.g. amount"
-          className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
-        />
-      </div>
-
-      {/* Aggregate */}
-      <div className="space-y-1">
-        <label htmlFor="widget-aggregate" className="text-xs font-medium text-gray-600">Aggregate</label>
-        <select
-          id="widget-aggregate"
-          data-testid="widget-prop-aggregate"
-          value={widget.aggregate ?? 'count'}
-          onChange={(e) => onChange({ aggregate: e.target.value })}
-          disabled={readOnly}
-          className="block w-full rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50"
-        >
-          <option value="count">Count</option>
-          <option value="sum">Sum</option>
-          <option value="avg">Average</option>
-          <option value="min">Min</option>
-          <option value="max">Max</option>
-        </select>
-      </div>
+      {/* Analytics binding (data source / dimensions / measures) is authored via
+          the dataset picker in app-shell's DashboardWidgetInspector / plugin-
+          dashboard's WidgetConfigPanel. The pre-ADR-0021 inline object /
+          valueField / aggregate fields were retired in framework#3320. */}
 
       {/* Color variant */}
       <div className="space-y-1">

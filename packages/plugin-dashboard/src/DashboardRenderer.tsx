@@ -178,15 +178,30 @@ function defaultChartDrill(chartType: string): { enabled: true } | undefined {
 /**
  * Object-backed child schema types whose `filter` reaches the data source —
  * the injection surface for dashboard-level filters. Static-data widgets
- * (`chart`, `data-table`, `pivot` with inline `data`) have no query to scope
- * and are intentionally not filtered.
+ * (`chart`, `data-table` with inline `data`) have no query to scope and are
+ * intentionally not filtered.
  */
 const FILTERABLE_COMPONENT_TYPES = new Set([
   'object-chart',
   'object-metric',
   'object-data-table',
-  'object-pivot',
 ]);
+
+/**
+ * Placeholder schema for a widget that still carries the retired pre-ADR-0021
+ * inline-analytics binding — top-level `object` + `categoryField`/`valueField`/
+ * `aggregate` — with no `dataset` and no inline `options.data`. No authoring
+ * surface emits this shape anymore (framework#3320); any surviving stored
+ * metadata renders this visible error placeholder (not a blank) so an author can
+ * rebind the widget to a dataset.
+ */
+const LEGACY_RETIRED_WIDGET_SCHEMA = {
+  type: 'text',
+  value: 'This widget uses a retired data format. Edit it to bind a dataset.',
+  variant: 'caption',
+  align: 'center',
+  className: 'flex h-full w-full items-center justify-center rounded border border-dashed border-destructive/40 bg-destructive/5 p-4 text-center text-destructive',
+} as const;
 
 export interface DashboardRendererProps {
   schema: DashboardSchema;
@@ -264,38 +279,6 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
       [schema.globalFilters, schema.dateRange]
     );
     const { variables: filterValues, setVariable: setFilterValue, resetVariables: resetFilterValues } = usePageVariables();
-
-    // Metadata-aware default bindings (#2578 item 5): fetch each inline
-    // widget object's field names once so buildWidgetScopedFilter can skip a
-    // DEFAULT binding whose field doesn't exist on that object (explicit
-    // filterBindings strings are always honoured). Best-effort — while a
-    // schema is loading (or the data source can't describe objects), the
-    // entry stays absent and the previous unchecked behaviour applies.
-    const [objectFieldSets, setObjectFieldSets] = useState<Record<string, ReadonlySet<string>>>({});
-    useEffect(() => {
-      if (filterDefs.length === 0 || !dataSource || typeof (dataSource as any).getObjectSchema !== 'function') return;
-      const objects = Array.from(
-        new Set(
-          (schema.widgets ?? [])
-            .map((w: DashboardWidgetSchema) => (w as any).object)
-            .filter((o: unknown): o is string => typeof o === 'string' && o.length > 0),
-        ),
-      );
-      let cancelled = false;
-      for (const objectName of objects) {
-        (dataSource as any)
-          .getObjectSchema(objectName)
-          .then((objSchema: any) => {
-            if (cancelled) return;
-            const fields = objSchema?.fields;
-            if (!fields || typeof fields !== 'object') return;
-            setObjectFieldSets((prev) => ({ ...prev, [objectName]: new Set(Object.keys(fields)) }));
-          })
-          .catch(() => { /* stay unchecked for this object */ });
-      }
-      return () => { cancelled = true; };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filterDefs.length, dataSource, schema.widgets]);
 
     // Build ActionDef[] from header actions so useActionEngine can dispatch by name.
     const headerActionDefs = useMemo<ActionDef[]>(() => {
@@ -498,73 +481,21 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             // Handle Shorthand Registry Mappings
             const widgetType = widget.type;
             const options = (widget.options || {}) as Record<string, any>;
+            // Renderer-internal data sources only (ADR-0021): the inline
+            // `options.data` / `widget.data` array, or the `provider: 'object'`
+            // async config (which carries its OWN nested `object`/`aggregate`).
+            // The pre-ADR-0021 top-level analytics keys (`object`, `categoryField`,
+            // `valueField`, `aggregate`, …) are no longer read — their renderer
+            // branches were retired in framework#3320.
+            const widgetData = (widget as any).data || options.data;
 
-            // Metric widgets with object binding — delegate to ObjectMetricWidget
-            // for async data loading with proper error/loading states.
-            // Static metric options (label, value, trend, icon) are passed as
-            // fallback values that render only when no dataSource is available.
-            if (widgetType === 'metric' && widget.object) {
-                const widgetData = options.data;
-                const aggregate = isObjectProvider(widgetData) && widgetData.aggregate
-                    ? {
-                        field: widget.valueField || widgetData.aggregate.field,
-                        function: widget.aggregate || widgetData.aggregate.function,
-                        // Prefer explicit categoryField or aggregate.groupBy; otherwise, default to a single bucket.
-                        groupBy: widget.categoryField ?? widgetData.aggregate.groupBy ?? '_all',
-                    }
-                    : widget.aggregate ? {
-                        field: widget.valueField || 'value',
-                        function: widget.aggregate,
-                        // Default to a single group unless the user explicitly configures a categoryField.
-                        groupBy: widget.categoryField || '_all',
-                    } : undefined;
-
-                return {
-                    type: 'object-metric',
-                    objectName: widget.object || (isObjectProvider(widgetData) ? widgetData.object : undefined),
-                    aggregate,
-                    filter: (isObjectProvider(widgetData) ? widgetData.filter : undefined) || widget.filter,
-                    label: options.label || tWidgetTitle(widget) || '',
-                    fallbackValue: options.value,
-                    trend: options.trend,
-                    icon: options.icon,
-                    description: options.description,
-                    colorVariant: (widget as any).colorVariant,
-                    format: options.format,
-                    currency: options.currency,
-                    prefix: options.prefix,
-                    suffix: options.suffix,
-                    drillDown: options.drillDown ?? { enabled: true },
-                    title: options.label || tWidgetTitle(widget) || '',
-                    compareTo: (widget as any).compareTo,
-                };
-            }
-
-            // gauge / solid-gauge / kpi / bullet with object binding → render as
-            // object-metric (all are a single aggregated value, optionally vs a target).
-            if (METRIC_LIKE_TYPES.has(widgetType || '') && widget.object) {
-                const aggregate = widget.aggregate ? {
-                    field: widget.valueField || 'value',
-                    function: widget.aggregate,
-                    groupBy: widget.categoryField || '_all',
-                } : undefined;
-                return {
-                    type: 'object-metric',
-                    objectName: widget.object,
-                    aggregate,
-                    filter: widget.filter,
-                    label: options.label || tWidgetTitle(widget) || '',
-                    fallbackValue: options.fallbackValue ?? options.value,
-                    icon: options.icon,
-                    description: options.description,
-                    colorVariant: (widget as any).colorVariant,
-                    format: options.format,
-                    currency: options.currency,
-                    prefix: options.prefix,
-                    suffix: options.suffix,
-                    invert: options.invert,
-                    compareTo: (widget as any).compareTo,
-                };
+            // Retired legacy inline-analytics widget (framework#3320): still carries
+            // the pre-ADR-0021 top-level `object` binding with no `dataset` and no
+            // inline `options.data`. No authoring surface emits this anymore, so it
+            // is stale stored metadata — render a visible error placeholder (not a
+            // blank) prompting a rebind to a dataset.
+            if (!widgetData && (widget as any).object) {
+                return LEGACY_RETIRED_WIDGET_SCHEMA;
             }
 
             // Normalize spec-level chart families onto a renderer-supported base
@@ -573,44 +504,29 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             const resolvedWidgetType = (widgetType && CHART_TYPE_ALIASES[widgetType]) || widgetType;
 
             if (resolvedWidgetType && SUPPORTED_CHART_TYPES.has(resolvedWidgetType)) {
-                // Support data at widget level or nested inside options
-                const widgetData = (widget as any).data || options.data;
-                // Widget-level fields (from config panel) override options-level fields
-                const xAxisKey = widget.categoryField || options.xField || 'name';
-                const yField = widget.valueField || options.yField || 'value';
+                const xAxisKey = options.xField || 'name';
+                const yField = options.yField || 'value';
 
-                // provider: 'object' — delegate to ObjectChart for async data loading
+                // provider: 'object' — delegate to ObjectChart for async data loading.
+                // Field/aggregate config comes from the nested data provider.
                 if (isObjectProvider(widgetData)) {
-                    // Merge widget-level fields with data provider config.
-                    // Widget-level fields take precedence so that config panel
-                    // edits are immediately reflected in the live preview.
                     const providerAgg = widgetData.aggregate;
-                    const effectiveGroupBy = (() => {
-                        const baseField = widget.categoryField || providerAgg?.groupBy;
-                        if (!baseField) return undefined;
-                        if (widget.categoryGranularity && typeof baseField === 'string') {
-                            // Structured GroupBy node — engine date-buckets it server-side.
-                            return { field: baseField, dateGranularity: widget.categoryGranularity } as any;
-                        }
-                        return baseField;
-                    })();
                     const effectiveAggregate = providerAgg ? {
-                        field: widget.valueField || providerAgg.field,
-                        function: widget.aggregate || providerAgg.function,
-                        groupBy: effectiveGroupBy,
+                        field: providerAgg.field,
+                        function: providerAgg.function,
+                        groupBy: providerAgg.groupBy,
                     } : undefined;
                     const effectiveYField = effectiveAggregate?.field || yField;
-                    const objectForLabel = widget.object || widgetData.object;
                     return {
                         type: 'object-chart',
                         chartType: resolvedWidgetType,
-                        objectName: objectForLabel,
+                        objectName: widgetData.object,
                         aggregate: effectiveAggregate,
                         filter: widgetData.filter || widget.filter,
                         xAxisKey: xAxisKey,
                         series: [{
                             dataKey: effectiveYField,
-                            label: resolveSeriesLabel(objectForLabel, effectiveYField, effectiveAggregate?.function),
+                            label: resolveSeriesLabel(widgetData.object, effectiveYField, effectiveAggregate?.function),
                         }],
                         colors: CHART_COLORS,
                         drillDown: options.drillDown ?? defaultChartDrill(resolvedWidgetType),
@@ -619,36 +535,9 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                     };
                 }
 
-                // No explicit data provider but widget has object binding
-                // (e.g. newly created widget via config panel) — build object-chart
-                if (!widgetData && widget.object) {
-                    const baseField = widget.categoryField || 'name';
-                    const structuredGroupBy = widget.categoryGranularity
-                        ? ({ field: baseField, dateGranularity: widget.categoryGranularity } as any)
-                        : baseField;
-                    const aggregate = widget.aggregate ? {
-                        field: widget.valueField || 'value',
-                        function: widget.aggregate,
-                        groupBy: structuredGroupBy,
-                    } : undefined;
-                    const yKey = widget.valueField || 'value';
-                    return {
-                        type: 'object-chart',
-                        chartType: resolvedWidgetType,
-                        objectName: widget.object,
-                        aggregate,
-                        filter: widget.filter,
-                        xAxisKey: xAxisKey,
-                        series: [{ dataKey: yKey, label: resolveSeriesLabel(widget.object, yKey, widget.aggregate) }],
-                        colors: CHART_COLORS,
-                        drillDown: options.drillDown ?? defaultChartDrill(resolvedWidgetType),
-                        compareTo: (widget as any).compareTo,
-                        className: "h-[200px] sm:h-[250px] md:h-[300px]"
-                    };
-                }
-
+                // Static inline data array.
                 const dataItems = Array.isArray(widgetData) ? widgetData : widgetData?.items || [];
-                
+
                 return {
                     type: 'chart',
                     chartType: resolvedWidgetType,
@@ -656,7 +545,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                     xAxisKey: xAxisKey,
                     series: [{
                         dataKey: yField,
-                        label: resolveSeriesLabel(widget.object, yField, widget.aggregate),
+                        label: resolveSeriesLabel(undefined, yField, undefined),
                     }],
                     colors: CHART_COLORS,
                     className: "h-[200px] sm:h-[250px] md:h-[300px]"
@@ -664,47 +553,24 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
             }
 
             if (widgetType === 'table') {
-                // Support data at widget level or nested inside options
-                const widgetData = (widget as any).data || options.data;
-
-                // Default-on drill-to-record for object-backed tables: clicking a
-                // row opens that record in a detail drawer. Static (data-array)
-                // tables stay opt-in (no object to fetch the record's schema from).
-                const isObjectTable = isObjectProvider(widgetData) || (!widgetData && !!widget.object);
-                const tableDrill = isObjectTable
-                    ? (options.drillDown ?? { enabled: true, mode: 'record' as const })
-                    : undefined;
-
-                // provider: 'object' — use ObjectDataTable for async data loading
+                // provider: 'object' — use ObjectDataTable for async data loading.
+                // Default-on drill-to-record: a click opens the record in a drawer.
                 if (isObjectProvider(widgetData)) {
                     const { data: _data, ...restOptions } = options;
                     return {
                         type: 'object-data-table',
                         ...restOptions,
-                        objectName: widget.object || widgetData.object,
+                        objectName: widgetData.object,
                         dataProvider: widgetData,
                         filter: widgetData.filter || widget.filter,
                         searchable: widget.searchable ?? false,
                         pagination: widget.pagination ?? false,
-                        drillDown: tableDrill,
+                        drillDown: options.drillDown ?? { enabled: true, mode: 'record' as const },
                         className: "border-0"
                     };
                 }
 
-                // No explicit data provider but widget has object binding
-                if (!widgetData && widget.object) {
-                    return {
-                        type: 'object-data-table',
-                        ...options,
-                        objectName: widget.object,
-                        filter: widget.filter,
-                        searchable: widget.searchable ?? false,
-                        pagination: widget.pagination ?? false,
-                        drillDown: tableDrill,
-                        className: "border-0"
-                    };
-                }
-
+                // Static (data-array) table — drill-to-record stays opt-in.
                 return {
                     type: 'data-table',
                     ...options,
@@ -715,101 +581,33 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                 };
             }
 
+            // Pivot widgets are authored as dataset-bound (ADR-0021) and render via
+            // DatasetWidget (a grouped table / cross-tab). The dashboard renderer no
+            // longer emits the `object-pivot` / `pivot` blocks (framework#3320); the
+            // ObjectPivotTable / PivotTable components remain public SDUI blocks for
+            // other surfaces. A non-dataset pivot reaching here is stale metadata —
+            // show the retired placeholder rather than a blank grid.
             if (widgetType === 'pivot') {
-                const widgetData = (widget as any).data || options.data;
-                // Pivot config can live either at widget top-level (when edited
-                // through WidgetConfigPanel) or under widget.options (static
-                // metadata).  Top-level wins so live edits are reflected.
-                const w = widget as any;
-                const pivotProps = {
-                    rowField: w.rowField ?? options.rowField,
-                    columnField: w.columnField ?? options.columnField,
-                    valueField: w.valueField ?? options.valueField,
-                    aggregation: w.aggregation ?? options.aggregation ?? 'sum',
-                    showRowTotals: w.showRowTotals ?? options.showRowTotals,
-                    showColumnTotals: w.showColumnTotals ?? options.showColumnTotals,
-                    format: w.format ?? options.format,
-                };
-
-                // Phase-1 default-on policy: object-backed pivot tables enable
-                // drill-down by default. Authors can disable explicitly with
-                // `drillDown: { enabled: false }` on widget options. Static
-                // (data-array) pivots stay opt-in because we cannot derive a
-                // server-side filter for them.
-                const isObjectPivot = isObjectProvider(widgetData) || (!widgetData && !!widget.object);
-                const pivotOptions = (isObjectPivot && options.drillDown === undefined)
-                    ? { ...options, drillDown: { enabled: true } }
-                    : options;
-
-                // provider: 'object' — use ObjectPivotTable for async data loading
-                if (isObjectProvider(widgetData)) {
-                    const { data: _data, ...restOptions } = pivotOptions;
-                    return {
-                        type: 'object-pivot',
-                        ...restOptions,
-                        ...pivotProps,
-                        objectName: widget.object || widgetData.object,
-                        dataProvider: widgetData,
-                        filter: widgetData.filter || widget.filter,
-                    };
-                }
-
-                // No explicit data provider but widget has object binding
-                if (!widgetData && widget.object) {
-                    return {
-                        type: 'object-pivot',
-                        ...pivotOptions,
-                        ...pivotProps,
-                        objectName: widget.object,
-                        filter: widget.filter,
-                    };
-                }
-
-                return {
-                    type: 'pivot',
-                    ...options,
-                    ...pivotProps,
-                    data: Array.isArray(widgetData) ? widgetData : widgetData?.items || [],
-                };
+                return LEGACY_RETIRED_WIDGET_SCHEMA;
             }
 
             // List widget — render as a compact rows-only data table.
             // List shares table semantics (raw records) but typically without
             // search / pagination chrome.
             if (widgetType === 'list') {
-                const widgetData = (widget as any).data || options.data;
-
-                // Default-on drill-to-record for object-backed lists (same policy
-                // as the table widget — a list row is a record).
-                const isObjectList = isObjectProvider(widgetData) || (!widgetData && !!widget.object);
-                const listDrill = isObjectList
-                    ? (options.drillDown ?? { enabled: true, mode: 'record' as const })
-                    : undefined;
-
+                // provider: 'object' — default-on drill-to-record (a list row is a
+                // record), same policy as the table widget.
                 if (isObjectProvider(widgetData)) {
                     const { data: _data, ...restOptions } = options;
                     return {
                         type: 'object-data-table',
                         ...restOptions,
-                        objectName: widget.object || widgetData.object,
+                        objectName: widgetData.object,
                         dataProvider: widgetData,
                         filter: widgetData.filter || widget.filter,
                         searchable: false,
                         pagination: false,
-                        drillDown: listDrill,
-                        className: "border-0",
-                    };
-                }
-
-                if (!widgetData && widget.object) {
-                    return {
-                        type: 'object-data-table',
-                        ...options,
-                        objectName: widget.object,
-                        filter: widget.filter,
-                        searchable: false,
-                        pagination: false,
-                        drillDown: listDrill,
+                        drillDown: options.drillDown ?? { enabled: true, mode: 'record' as const },
                         className: "border-0",
                     };
                 }
@@ -862,12 +660,7 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
         // schemas re-fetch on filter change, so no widget renderer changes
         // are needed downstream.
         const scopedFilter = filterDefs.length > 0
-            ? buildWidgetScopedFilter(
-                widget,
-                filterDefs,
-                filterValues,
-                typeof (widget as any).object === 'string' ? objectFieldSets[(widget as any).object] : undefined,
-              )
+            ? buildWidgetScopedFilter(widget, filterDefs, filterValues)
             : undefined;
         const componentSchema = (() => {
             const cs = getComponentSchema() as Record<string, any>;
