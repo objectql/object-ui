@@ -115,11 +115,31 @@ export interface FlowReferenceSpec {
 export interface FlowConfigColumn {
   key: string;
   label: string;
-  kind: 'text' | 'expression' | 'boolean' | 'select' | 'reference';
+  /**
+   * Scalar cells (`text`/`expression`/`boolean`/`select`/`reference`) plus the
+   * three *nested-list* kinds — a cell that is itself a repeater
+   * (repeater-in-repeater). `stringList`/`numberList` hold a primitive array;
+   * `objectList` holds an array-of-objects whose own shape is in {@link columns}.
+   */
+  kind:
+    | 'text'
+    | 'expression'
+    | 'boolean'
+    | 'select'
+    | 'reference'
+    | 'stringList'
+    | 'numberList'
+    | 'objectList';
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
   /** For `kind: 'reference'` — the picker data source (may be polymorphic). */
   ref?: FlowReferenceSpec;
+  /**
+   * For `kind: 'objectList'` — the nested repeater's own column schema. Recursive:
+   * a nested `objectList` column may itself carry `columns`, so an engine-published
+   * array-of-objects-of-…-arrays renders inline instead of dropping to Advanced JSON.
+   */
+  columns?: FlowConfigColumn[];
 }
 
 export interface FlowConfigField {

@@ -106,6 +106,12 @@ intermediate state.
 For node types whose engine executor publishes a `configSchema` (ADR-0018), the
 inspector renders a **server-driven property form** from that schema — so a
 plugin's node gets a real config UI without the designer hardcoding its fields.
+The mapping covers scalars, enums (→ select), typed references (→ picker),
+free-form maps (→ key/value), and array/object shapes: an array of objects
+becomes a **repeater**, and a repeater column that is itself an array (of
+strings, numbers, or objects) becomes a **nested repeater** — so an
+engine-published nested-array config is editable inline rather than dropping to
+the Advanced JSON block.
 
 A **Decision** node's Branches editor defines each branch's label, CEL
 expression, **and target node** in one table: the **Target** column picks the

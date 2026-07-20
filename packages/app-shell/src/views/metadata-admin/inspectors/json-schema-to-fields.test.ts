@@ -421,3 +421,103 @@ describe('jsonSchemaToFlowFields — numeric arrays → numberList (#3304)', () 
     expect(field({ type: 'object', properties: { tags: { type: 'array', items: { type: 'string' } } } }, 'tags').kind).toBe('stringList');
   });
 });
+
+describe('jsonSchemaToFlowFields — nested-array columns (#2678 P2-5)', () => {
+  const cols = (schema: unknown, id: string) =>
+    jsonSchemaToFlowFields(schema)!.find((f) => f.id === id)!.columns!;
+
+  // A realistic array-in-objectList: a per-node rule list where each rule owns a
+  // string[] (recipients) and an integer[] (retry offsets). Before this branch
+  // both nested arrays fell through to a `text` cell that `String()`-joined and
+  // corrupted the array on save.
+  const RULES_SCHEMA = {
+    type: 'object',
+    properties: {
+      rules: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            recipients: { type: 'array', items: { type: 'string' }, title: 'Recipients' },
+            offsets: { type: 'array', items: { type: 'integer' } },
+          },
+        },
+      },
+    },
+  };
+
+  it('maps a string[] item property to a nested stringList column (not text)', () => {
+    const recipients = cols(RULES_SCHEMA, 'rules').find((c) => c.key === 'recipients')!;
+    expect(recipients.kind).toBe('stringList');
+    expect(recipients.label).toBe('Recipients'); // schema `title` wins
+  });
+
+  it('maps a number/integer[] item property to a nested numberList column', () => {
+    expect(cols(RULES_SCHEMA, 'rules').find((c) => c.key === 'offsets')!.kind).toBe('numberList');
+    // scalar siblings are unaffected.
+    expect(cols(RULES_SCHEMA, 'rules').find((c) => c.key === 'name')!.kind).toBe('text');
+  });
+
+  it('maps an object[] item property to a nested objectList column with recursive columns', () => {
+    const columns = cols(
+      {
+        type: 'object',
+        properties: {
+          groups: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string' },
+                members: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      user: { type: 'string', xRef: { kind: 'user' } },
+                      lead: { type: 'boolean' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      'groups',
+    );
+    const members = columns.find((c) => c.key === 'members')!;
+    expect(members.kind).toBe('objectList');
+    // The nested columns are derived recursively — including the xRef picker.
+    expect(members.columns!.map((c) => c.key)).toEqual(['user', 'lead']);
+    expect(members.columns!.find((c) => c.key === 'user')!.kind).toBe('reference');
+    expect(members.columns!.find((c) => c.key === 'user')!.ref).toEqual({ kind: 'user' });
+    expect(members.columns!.find((c) => c.key === 'lead')!.kind).toBe('boolean');
+  });
+
+  it('stops recursing past the nesting cap, leaving the deepest array to Advanced JSON', () => {
+    // Build object-array nesting deeper than MAX_COLUMN_NEST_DEPTH (4). The
+    // outer levels render as objectList columns; the level past the cap is not
+    // emitted as an objectList column (falls through to the scalar `text` map).
+    let items: Record<string, unknown> = { type: 'object', properties: { leaf: { type: 'string' } } };
+    for (let i = 0; i < 7; i++) {
+      items = { type: 'object', properties: { child: { type: 'array', items } } };
+    }
+    const top = jsonSchemaToFlowFields({ type: 'object', properties: { root: { type: 'array', items } } })!.find(
+      (f) => f.id === 'root',
+    )!;
+    // Walk down the objectList `child` columns until one is no longer objectList.
+    let node = top;
+    let depth = 0;
+    while (node?.columns) {
+      const child = node.columns.find((c) => c.key === 'child');
+      if (!child || child.kind !== 'objectList') break;
+      node = child as unknown as typeof top;
+      depth++;
+    }
+    // Bounded — never recurses without limit.
+    expect(depth).toBeLessThanOrEqual(4);
+    expect(depth).toBeGreaterThan(0);
+  });
+});

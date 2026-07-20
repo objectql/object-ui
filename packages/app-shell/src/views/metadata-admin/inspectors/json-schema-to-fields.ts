@@ -27,7 +27,10 @@
  *   • boolean                     → boolean
  *   • array of string             → stringList
  *   • array of number / integer   → numberList
- *   • array of object             → objectList (columns from item props)
+ *   • array of object             → objectList (columns from item props; an item
+ *                                   prop that is itself an array of string /
+ *                                   number / object becomes a nested list column
+ *                                   — a repeater-in-repeater, not a text cell)
  *   • object with fixed `properties`
  *                                 → flattened sub-fields under config.<key>.*
  *                                   (a nested `enabled: boolean` makes the
@@ -228,13 +231,64 @@ function scalarField(
   return undefined;
 }
 
+/**
+ * Recursion budget for nested `objectList` columns (array-of-objects nested
+ * inside an array-of-objects). Real engine configs nest one, occasionally two
+ * levels; the cap is a backstop so a pathologically deep — or, via inlined
+ * `$ref`, cyclic — schema can't build a non-terminating / unusable form. Beyond
+ * it, the offending array column is left to the Advanced JSON block.
+ */
+const MAX_COLUMN_NEST_DEPTH = 4;
+
+/**
+ * A nested-array item property → a nested list column (repeater-in-repeater),
+ * or `null` when the array isn't representable as a list (the caller then falls
+ * back to the scalar mapping, i.e. a plain text cell — the legacy behavior):
+ *   • array of string           → stringList column
+ *   • array of number / integer → numberList column
+ *   • array of object           → objectList column (nested columns derived
+ *                                 recursively, honoring {@link MAX_COLUMN_NEST_DEPTH})
+ */
+function nestedListColumn(
+  prop: JsonSchemaNode,
+  depth: number,
+): { kind: 'stringList' | 'numberList' | 'objectList'; columns?: FlowConfigColumn[] } | null {
+  const item = isObject(prop.items) ? prop.items : undefined;
+  const itemType = item ? schemaType(item) : undefined;
+  if (item && itemType === 'object' && isObject(item.properties)) {
+    if (depth >= MAX_COLUMN_NEST_DEPTH) return null; // too deep → Advanced JSON
+    return { kind: 'objectList', columns: columnsFor(item, depth + 1) };
+  }
+  if (itemType === 'string') return { kind: 'stringList' };
+  if (itemType === 'number' || itemType === 'integer') return { kind: 'numberList' };
+  return null;
+}
+
 /** Derive `objectList` columns from an item object's properties. */
-function columnsFor(item: JsonSchemaNode): FlowConfigColumn[] {
+function columnsFor(item: JsonSchemaNode, depth = 0): FlowConfigColumn[] {
   const props = item.properties ?? {};
   const cols: FlowConfigColumn[] = [];
   for (const [key, prop] of Object.entries(props)) {
     if (!isObject(prop)) continue;
     const t = schemaType(prop);
+
+    // A nested array → a nested list column (repeater-in-repeater). When the
+    // array isn't a representable list we fall through to the scalar mapping
+    // below (a plain text cell — legacy behavior), so nothing regresses.
+    if (t === 'array') {
+      const nested = nestedListColumn(prop, depth);
+      if (nested) {
+        cols.push({
+          key,
+          label: prop.title || humanizeKey(key),
+          kind: nested.kind,
+          ...(nested.columns ? { columns: nested.columns } : {}),
+          ...(prop.description ? { placeholder: prop.description } : {}),
+        });
+        continue;
+      }
+    }
+
     let kind: FlowConfigColumn['kind'];
     let options: Array<{ value: string; label: string }> | undefined;
     // A reference annotation wins over the plain scalar mapping — the column is

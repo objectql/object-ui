@@ -364,7 +364,11 @@ Config keys come in three editable shapes so authors never hand-write JSON:
   single-column **string-list editor** (`stringList` kind).
 - **Arrays of objects** — a `screen` node's **Fields** (a list of
   `{name,label,type,required,visibleWhen}` definitions) — use a column-driven
-  **object-list repeater** (`objectList` kind).
+  **object-list repeater** (`objectList` kind). A repeater column can itself be a
+  list: an item property that is an array of strings / numbers / objects renders
+  as a **nested repeater** (`stringList` / `numberList` / `objectList` column) —
+  a repeater-in-repeater — so an engine-published nested-array config is editable
+  inline instead of falling to the Advanced JSON block (#2678 P2-5).
 
 A `decision` node's **Branches** repeater additionally shows a per-branch
 **Target** column (#1942) — a node picker scoped to this flow — so the whole
