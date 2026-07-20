@@ -4,8 +4,8 @@ import React from 'react';
 import { ObjectKanbanRenderer } from './index';
 
 // Mock dependencies
-vi.mock('@object-ui/react', () => {
-  const React = require('react');
+vi.mock('@object-ui/react', async () => {
+  const React = await import('react');
   return {
     useSchemaContext: vi.fn(() => ({ dataSource: { type: 'mock-datasource' } })),
     SchemaRendererContext: React.createContext(null),

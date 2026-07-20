@@ -500,14 +500,6 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
     onRowClick: externalClick,
   });
 
-  if (error) {
-      return (
-        <div className="p-4 border border-destructive/50 rounded bg-destructive/10 text-destructive">
-            Error loading kanban data: {error.message}
-        </div>
-      );
-  }
-
   // Pass through to the renderer
   const detailTitle = schema.objectName
     ? `${schema.objectName.charAt(0).toUpperCase() + schema.objectName.slice(1).replace(/_/g, ' ')} Detail`
@@ -572,6 +564,16 @@ export const ObjectKanban: React.FC<ObjectKanbanProps> = ({
     },
     [schema.groupBy, schema.objectName, dataSource, hasExternalData, tt],
   );
+
+  // Error branch renders only after every hook above has run, so hook order
+  // stays stable across renders (no early return before the hooks).
+  if (error) {
+    return (
+      <div className="p-4 border border-destructive/50 rounded bg-destructive/10 text-destructive">
+        Error loading kanban data: {error.message}
+      </div>
+    );
+  }
 
   return (
     <>

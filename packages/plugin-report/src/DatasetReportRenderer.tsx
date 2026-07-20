@@ -456,6 +456,7 @@ function DatasetReportChart({
   return (
     <div className="rounded-md border bg-card p-3" data-testid="dataset-report-chart">
       {title ? <h3 className="mb-2 text-sm font-semibold">{title}</h3> : null}
+      {/* eslint-disable-next-line react-hooks/static-components -- ChartComponent is a stable registry lookup (useRegistryComponent), not a component created during render */}
       <ChartComponent
         schema={{
           chartType: mapReportChartType(chart.type),

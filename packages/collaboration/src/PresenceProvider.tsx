@@ -128,5 +128,10 @@ export function useRecordPresence(
  * @internal
  */
 export function __unsafe_usePresenceContext(): PresenceSource {
+  // This IS a hook (a thin useContext wrapper that must be called under the
+  // Rules of Hooks); the `__unsafe_` prefix is a deliberate danger signal for
+  // this @internal test-only accessor, so the name doesn't start with `use`.
+  // Scoped disable rather than renaming away the intentional prefix.
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   return React.useContext(PresenceContext);
 }

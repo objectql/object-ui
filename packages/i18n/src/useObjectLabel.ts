@@ -471,14 +471,10 @@ const SAFE_FIELD_LABEL_FALLBACK = {
  * may be rendered outside an i18n context.
  */
 export function useSafeFieldLabel() {
-  let resolved: ReturnType<typeof useObjectLabel> | null = null;
-  try {
-    resolved = useObjectLabel();
-  } catch {
-    resolved = null;
-  }
-  // useObjectLabel already returns a stable (memoized) object per language —
-  // pass-through avoids creating a fresh wrapper here. The module-level
-  // fallback object is reused when no provider is mounted.
-  return resolved ?? SAFE_FIELD_LABEL_FALLBACK;
+  // useObjectLabel delegates to the provider-safe useObjectTranslation (react-
+  // i18next falls back to the global instance and never throws), so it needs no
+  // try/catch — wrapping the hook call would violate rules-of-hooks. It already
+  // returns a stable memoized object; the module-level fallback stays as a
+  // defensive default, reached only if it ever returns nullish.
+  return useObjectLabel() ?? SAFE_FIELD_LABEL_FALLBACK;
 }

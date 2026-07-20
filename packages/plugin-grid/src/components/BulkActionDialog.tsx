@@ -513,7 +513,9 @@ const ParamField: React.FC<ParamFieldProps> = ({ param, multiple, value, onChang
     </Label>
   );
 
-  let control: React.ReactNode = null;
+  // Assigned by every switch branch (including `default`) before it's read
+  // below — no dead initializer needed.
+  let control: React.ReactNode;
   switch (param.type) {
     case 'boolean':
       control = (

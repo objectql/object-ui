@@ -176,6 +176,7 @@ export const TabBarSelect: React.FC<TabBarProps> = ({
             className="h-7 px-2 text-xs font-medium text-foreground gap-1.5 max-w-[60vw] truncate"
             aria-label="Switch view"
           >
+            {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable lucide icon component from a static registry, not a component created during render */}
             {ActiveIcon && <ActiveIcon className="h-3.5 w-3.5 shrink-0" />}
             <span className="truncate">{activeTab?.label ?? ''}</span>
             <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />

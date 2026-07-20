@@ -317,6 +317,7 @@ function InternalSidebar({
                       className="size-6 object-contain"
                     />
                   ) : (
+                    // eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not a component created during render
                     <Icon className="size-4" />
                   )}
                 </div>

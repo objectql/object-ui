@@ -13,13 +13,12 @@ import type { ListViewSchema } from '@object-ui/types';
 import { useSafeFieldLabel, useObjectTranslation } from '@object-ui/i18n';
 
 function useMoreLabel(): string {
-  try {
-    const { t } = useObjectTranslation();
-    const v = t('common.more');
-    return !v || v === 'common.more' ? 'More' : v;
-  } catch {
-    return 'More';
-  }
+  // useObjectTranslation is provider-safe (never throws); no try/catch, which
+  // would wrap the hook call and violate rules-of-hooks. The 'More' fallback
+  // still applies when the key is missing/untranslated.
+  const { t } = useObjectTranslation();
+  const v = t('common.more');
+  return !v || v === 'common.more' ? 'More' : v;
 }
 
 /** Resolved option with optional count */

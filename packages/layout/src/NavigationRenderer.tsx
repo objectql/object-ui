@@ -977,6 +977,7 @@ function NavigationItemRenderer({
           onClick={() => onAction?.(item)}
           className={mobileBtnClass}
         >
+          {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not a component created during render */}
           <Icon className={navIconClass} />
           <span>{actionLabel}</span>
           {item.badge != null && (
@@ -1017,6 +1018,7 @@ function NavigationItemRenderer({
 
   const content = (
     <>
+      {/* eslint-disable-next-line react-hooks/static-components -- resolveIcon returns a stable icon component from a static registry, not a component created during render */}
       <Icon className={navIconClass} />
       <span>{itemLabel}</span>
       {item.badge != null && (

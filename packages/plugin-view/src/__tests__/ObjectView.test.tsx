@@ -12,8 +12,8 @@ import { ObjectView } from '../ObjectView';
 import type { ObjectViewSchema, DataSource } from '@object-ui/types';
 
 // Mock @object-ui/react to avoid circular dependency issues
-vi.mock('@object-ui/react', () => {
-  const React = require('react');
+vi.mock('@object-ui/react', async () => {
+  const React = await import('react');
   return {
     SchemaRenderer: ({ schema }: any) => (
       <div data-testid="schema-renderer" data-schema-type={schema?.type}>

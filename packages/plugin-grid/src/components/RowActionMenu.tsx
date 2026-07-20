@@ -24,15 +24,14 @@ const ROW_ACTION_FALLBACKS: Record<string, string> = {
 };
 
 function useRowActionTranslation() {
-  try {
-    const { t } = useObjectTranslation();
-    return (key: string) => {
-      const v = t(key);
-      return v === key ? (ROW_ACTION_FALLBACKS[key] ?? key) : v;
-    };
-  } catch {
-    return (key: string) => ROW_ACTION_FALLBACKS[key] ?? key;
-  }
+  // useObjectTranslation is provider-safe (react-i18next falls back to the
+  // global instance and never throws), so no try/catch — wrapping the hook call
+  // would violate rules-of-hooks. The per-key fallback still applies below.
+  const { t } = useObjectTranslation();
+  return (key: string) => {
+    const v = t(key);
+    return v === key ? (ROW_ACTION_FALLBACKS[key] ?? key) : v;
+  };
 }
 
 /**

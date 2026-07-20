@@ -90,17 +90,16 @@ import type { ViewTabBarConfig } from '@object-ui/types';
 import { useObjectTranslation } from '@object-ui/react';
 
 function useViewTabLabel() {
-  try {
-    const { t } = useObjectTranslation();
-    return (key: string, fallback: string, vars?: Record<string, unknown>): string => {
-      const v = t(key, vars as any);
-      // i18next's `t()` is typed `string | object`; coerce so render sites and
-      // aria-labels always receive a string (an object child white-screens React).
-      return !v || v === key ? fallback : String(v);
-    };
-  } catch {
-    return (_k: string, fallback: string) => fallback;
-  }
+  // useObjectTranslation is provider-safe (never throws); no try/catch, which
+  // would wrap the hook call and violate rules-of-hooks. The `fallback` still
+  // applies below when the key is missing/untranslated.
+  const { t } = useObjectTranslation();
+  return (key: string, fallback: string, vars?: Record<string, unknown>): string => {
+    const v = t(key, vars as any);
+    // i18next's `t()` is typed `string | object`; coerce so render sites and
+    // aria-labels always receive a string (an object child white-screens React).
+    return !v || v === key ? fallback : String(v);
+  };
 }
 
 /** Visibility group sort order: private → team → organization → public */
@@ -211,7 +210,7 @@ const SortableTab: React.FC<{
   children: (props: {
     setNodeRef: (node: HTMLElement | null) => void;
     style: React.CSSProperties;
-    listeners: Record<string, Function> | undefined;
+    listeners: Record<string, (...args: any[]) => void> | undefined;
     attributes: Record<string, unknown>;
     isDragging: boolean;
   }) => React.ReactNode;
@@ -414,7 +413,7 @@ export const ViewTabBar: React.FC<ViewTabBarProps> = ({
     const visibilityIcon = getVisibilityIcon(view);
 
     const buildTabContent = (dragHandleProps?: {
-      listeners: Record<string, Function> | undefined;
+      listeners: Record<string, (...args: any[]) => void> | undefined;
       attributes: Record<string, unknown>;
       isDragging?: boolean;
     }) => (

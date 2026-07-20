@@ -128,6 +128,26 @@ export interface AdvancedChartImplProps {
 }
 
 /**
+ * Treemap leaf cell — paints each leaf rect with its palette fill + label.
+ * Hoisted to module scope so it is a stable component reference rather than one
+ * re-created on every AdvancedChartImpl render (react-hooks/static-components).
+ * It is purely props-driven: Recharts injects the cell geometry (x/y/width/
+ * height) and datum (name/fill) as props, so no render-scope closure is needed.
+ */
+function TreemapCell(props: any) {
+  const { x, y, width, height, name, fill } = props;
+  if (width <= 0 || height <= 0) return null;
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={fill} stroke="hsl(var(--background))" strokeWidth={2} />
+      {width > 48 && height > 18 ? (
+        <text x={x + 6} y={y + 18} fill="#fff" fontSize={12} className="pointer-events-none">{name}</text>
+      ) : null}
+    </g>
+  );
+}
+
+/**
  * AdvancedChartImpl - The heavy implementation that imports Recharts with full features
  * This component is lazy-loaded to avoid including Recharts in the initial bundle
  */
@@ -426,18 +446,6 @@ export default function AdvancedChartImpl({
       size: Number(row?.[dataKey]) || 0,
       fill: resolveColor(palette[idx % palette.length]),
     }));
-    const TreemapCell = (props: any) => {
-      const { x, y, width, height, name, fill } = props;
-      if (width <= 0 || height <= 0) return null;
-      return (
-        <g>
-          <rect x={x} y={y} width={width} height={height} fill={fill} stroke="hsl(var(--background))" strokeWidth={2} />
-          {width > 48 && height > 18 ? (
-            <text x={x + 6} y={y + 18} fill="#fff" fontSize={12} className="pointer-events-none">{name}</text>
-          ) : null}
-        </g>
-      );
-    };
     return (
       <ChartContainer config={config} className={className}>
         <Treemap data={tmData} dataKey="size" nameKey="name" isAnimationActive content={<TreemapCell />} {...treemapClickProps}>

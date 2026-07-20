@@ -677,7 +677,7 @@ function buildImportTemplateCsv(fields: ImportWizardProps['fields']): string {
  *  reads non-ASCII correctly). No-op in non-DOM environments. */
 function downloadTextFile(filename: string, text: string, mime = 'text/csv;charset=utf-8'): void {
   if (typeof document === 'undefined' || typeof URL?.createObjectURL !== 'function') return;
-  const blob = new Blob([`﻿${text}`], { type: mime });
+  const blob = new Blob([`\uFEFF${text}`], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2036,7 +2036,7 @@ export const ImportWizard: React.FC<ImportWizardProps> = ({
     if (errorsByRow.size === 0) return;
     const csv = buildFailedRowsCsv(headers, rows, mapping, errorsByRow);
     try {
-      const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' });
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
