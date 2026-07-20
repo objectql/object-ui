@@ -83,14 +83,30 @@ or photo per row without opening the row form (objectui#2360). Columns accept
 exported as `FileCell`). Auto-derived subform columns map `file`/`image`/
 `avatar` fields to file columns instead of dropping them.
 
+### Multi-value selects
+
+A `select` field declared `multiple: true` selects zero-or-more values (spec
+allows `multiple` on `select`). `SelectField` delegates to the multi-value chip
+picker (the same widget the `multiselect` type uses) and stores a `string[]`.
+Delegating inside `SelectField` — rather than at a type-resolution layer — means
+every surface that renders the `select` widget (the object form, the inline grid
+editor, and the app-shell `ActionParamDialog`) gets multi-select identically,
+with no per-surface drift. Both single- and multi-value selects resolve
+per-option `visibleWhen` cascading and `dependsOn` gating through the same
+[`useCascadingOptions`](./src/widgets/useCascadingOptions.ts) hook, so the
+offered chips narrow (and now-invalid selections are pruned) exactly as the
+single dropdown does.
+
 ### Cascading & role-gated select options
 
-`select` options support a per-option `visibleWhen` CEL predicate (offered only
-when TRUE, evaluated against the live record + `current_user`) and a field-level
-`dependsOn`. Together they drive dependent selects (country → province → city)
-and role-gated options with no bespoke matrix — the same primitives dependent
-lookups use. While a `dependsOn` parent is empty the control is gated; a parent
-change re-filters the list and clears a now-invalid value. Client-side hiding is
+`select` and `multiselect` options support a per-option `visibleWhen` CEL
+predicate (offered only when TRUE, evaluated against the live record +
+`current_user`) and a field-level `dependsOn`. Together they drive dependent
+selects (country → province → city) and role-gated options with no bespoke
+matrix — the same primitives dependent lookups use. While a `dependsOn` parent
+is empty the control is gated; a parent change re-filters the list and clears a
+now-invalid value (single select drops the value; multi-select prunes just the
+offered-out entries). Client-side hiding is
 UX only — gate authorization-sensitive values on the server too. See
 [`content/docs/fields/select.mdx`](../../content/docs/fields/select.mdx).
 

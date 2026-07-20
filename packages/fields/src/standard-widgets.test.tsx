@@ -213,6 +213,50 @@ describe('Standard Field Widgets', () => {
       );
       expect(container.textContent).toBe('Option A');
     });
+
+    // A `select` declared `multiple` is a multi-value picker (spec allows
+    // `multiple` on select). SelectField delegates to the chip picker so the
+    // form, inline editor, and ActionParamDialog all get multi-select from the
+    // one `select` widget — no single-select fallback, no per-surface drift.
+    it('renders the multi-value chip picker when field.multiple is set', () => {
+      render(
+        <SelectField
+          value={['a']}
+          onChange={mockOnChange}
+          field={{ ...fieldMock, multiple: true } as any}
+        />
+      );
+      // Chip picker uses toggle buttons (aria-pressed), not a Radix combobox.
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+      const optionA = screen.getByRole('button', { name: 'Option A' });
+      expect(optionA).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByRole('button', { name: 'Option B' })).toHaveAttribute('aria-pressed', 'false');
+    });
+
+    it('multi-select toggles values as an array', () => {
+      render(
+        <SelectField
+          value={['a']}
+          onChange={mockOnChange}
+          field={{ ...fieldMock, multiple: true } as any}
+        />
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Option B' }));
+      expect(mockOnChange).toHaveBeenCalledWith(['a', 'b']);
+    });
+
+    it('multi-select renders selected values as badges in readonly mode', () => {
+      const { container } = render(
+        <SelectField
+          value={['a', 'b']}
+          onChange={mockOnChange}
+          field={{ ...fieldMock, multiple: true } as any}
+          readonly={true}
+        />
+      );
+      expect(container.textContent).toContain('Option A');
+      expect(container.textContent).toContain('Option B');
+    });
   });
 
   describe('BooleanField', () => {

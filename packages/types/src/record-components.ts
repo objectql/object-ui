@@ -90,9 +90,12 @@ export interface RecordRelatedListComponentProps {
   relationshipField: string;
   /** Columns to display in the related list */
   columns?: string[];
-  /** Sort configuration */
-  sort?: Array<{ field: string; order: 'asc' | 'desc' }>;
-  /** Maximum records to display */
+  /** Sort configuration — `'field'` / `'-field'` string or explicit array (spec union) */
+  sort?: string | Array<{ field: string; order: 'asc' | 'desc' }>;
+  /**
+   * Number of records to display per page. Spec default: 5 (the renderer
+   * applies it when the node didn't pass through a zod parse).
+   */
   limit?: number;
   /** Filter conditions */
   filter?: any;

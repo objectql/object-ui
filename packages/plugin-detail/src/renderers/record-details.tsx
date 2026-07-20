@@ -15,6 +15,7 @@ import { useRecordContext, useHighlightFieldNames, useSafeFieldLabel } from '@ob
 import { useFieldPermissions, usePermissions } from '@object-ui/permissions';
 import { useObjectTranslation, pickLocalized } from '@object-ui/i18n';
 import type { RecordDetailsComponentProps } from '@object-ui/types';
+import { isObjectInlineEditable } from '@object-ui/core';
 import { DetailView } from '../DetailView';
 
 /** Normalize a field entry (string | {field} | {name}) to its machine name. */
@@ -220,26 +221,15 @@ export const RecordDetailsRenderer: React.FC<RecordDetailsRendererProps> = ({
     : schema.sections;
 
   // Inline-edit by default, but gated by the object's lifecycle: system /
-  // append-only / better-auth objects are not user-editable, so the per-field
-  // double-click / pencil affordances must not be offered on them. This mirrors
-  // resolveCrudAffordances (app-shell/utils/crudAffordances.ts) — duplicated
-  // here because plugin-detail cannot depend on app-shell; keep the two in
-  // lockstep. Previously this gate was carried only by the `sys_inline_edit`
-  // header button (removed in #2401); now that double-click is the entry point
-  // the object-editability check has to live at the field-render source.
+  // Engine-owned system / append-only / better-auth objects are not
+  // user-editable, so the per-field double-click / pencil affordances must not
+  // be offered on them — unless the object opened `userActions.edit` (the
+  // ADR-0103 admin/user-writable set). This is the shared resolved `edit`
+  // affordance from `@object-ui/core` (`isObjectInlineEditable`), the single
+  // source of truth — formerly a hand-mirrored `NON_EDITABLE_BUCKETS` set kept
+  // in lockstep by hand because plugin-detail can't depend on app-shell.
   // Authors can still force-disable with `inlineEdit: false`.
-  const NON_EDITABLE_BUCKETS = new Set(['system', 'append-only', 'better-auth']);
-  const managedBy = objSchema?.managedBy as string | undefined;
-  // `userActions.edit` is a boolean or, since #2614, an object form whose
-  // `enabled` carries the boolean (its per-record predicates gate row action
-  // buttons, not detail inline-edit, so they are ignored here).
-  const rawEditOverride = (objSchema?.userActions as { edit?: boolean | { enabled?: boolean } } | undefined)?.edit;
-  const userEditOverride =
-    typeof rawEditOverride === 'object' && rawEditOverride !== null
-      ? rawEditOverride.enabled
-      : rawEditOverride;
-  const objectInlineEditable =
-    userEditOverride ?? !(managedBy != null && NON_EDITABLE_BUCKETS.has(managedBy));
+  const objectInlineEditable = isObjectInlineEditable(objSchema);
   const inlineEditDefault = (schema.inlineEdit ?? true) && objectInlineEditable;
 
   const synthesized: any = {

@@ -126,6 +126,15 @@ pins param support ⊇ form support. `required` validation and `visible` CEL
 gating are applied by the dialog; file/image uploads use the ambient
 `UploadProvider`, lookup/user pickers the surrounding `SchemaRendererContext`.
 
+Because each param now emits its widget's own value shape on confirm, the shape
+the dialog **POSTs** for every type is pinned as a contract in
+`utils/paramValueShape.ts` (`PARAM_VALUE_SHAPES` / `expectedParamShape`) and
+guarded by `paramValueShape.test.ts` (#2714): `number`→number, `boolean`→boolean,
+`date`/`datetime`/`time`→string, `select`→string (`string[]` when `multiple`),
+`lookup`/`user`→id string(s), `file`/`image`→fileId string(s) (via
+`serializeParamValues`, #2698/#2710), `object`/`address`→object, `grid`→object[].
+See the full table in [ADR-0059](../../docs/adr/0059-action-params-shared-field-widgets.md#value-shapes-the-emitted-shape-contract).
+
 ## Metadata designers
 
 The metadata-admin engine (`src/views/metadata-admin`) renders an in-app editor

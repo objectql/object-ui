@@ -87,15 +87,43 @@ or special-casing one fails CI. This mirrors the `FieldEditWidget` ↔
 `FORM_FIELD_TYPES` drift test that caught `lookup` falling back to a text box
 inline.
 
-## Value shapes
+## Value shapes (the emitted-shape contract)
 
-Widgets emit their own value shapes and the dialog passes them through
-untouched to the action runner (`resolve(values)`), exactly as before for the
-previously-supported types (`select` → string, `number` → number, `boolean` →
-boolean, `date` → `YYYY-MM-DD`, lookup → id / id[]). New types follow their
-widget's contract — e.g. `file` → uploaded-file descriptor(s)
-(`{ name, url, … }`, array when `multiple`). Endpoint authors declare params
-with the shape their route expects, same as record forms.
+Routing every param through its real widget means each param emits **its
+widget's own value shape** on confirm, and the dialog passes that through to the
+action runner (`resolve(values)`). An endpoint's input contract depends on
+getting the shape it declared, so the emitted shapes are pinned as a contract —
+one entry per `FORM_FIELD_TYPES` widget key — in
+`packages/app-shell/src/utils/paramValueShape.ts` (`PARAM_VALUE_SHAPES` /
+`expectedParamShape()`), and guarded by `paramValueShape.test.ts` (objectui#2714).
+The shapes below are the value the dialog **POSTs** — i.e. after
+`serializeParamValues` (so `file`/`image` are already their fileId string; see
+Follow-ups and objectui#2698 / #2710):
+
+| Param `type` (spelling → widget) | Emitted (POST) shape | Notes |
+|---|---|---|
+| `text` `textarea` `email` `phone` `url` `password`/`secret` `markdown` `html` `richtext` `code`/`json` `color` `avatar` `signature` `qrcode` | `string` | Free/encoded text, hex, or data-URL string. |
+| `date` `datetime` `time` | `string` | ISO-ish: `YYYY-MM-DD`, `…THH:mm`, `HH:mm`. |
+| `number` `currency` `percent` `slider` `rating` | `number` | A real number, **not** a string; `null` when cleared. |
+| `boolean`/`checkbox`/`toggle` | `boolean` | Rendered as the dialog's inline checkbox row. |
+| `select` | `string`, or **`string[]` when `multiple`** | `multiple` delegates to the chip picker (objectui#2709). |
+| `radio` | `string` | Single option value. |
+| `multiselect` `checkboxes` `tags` | `string[]` | Always an array of values. |
+| `lookup`/`reference` `master_detail` `user` `owner` `tree` | id `string`, or **`string[]` when `multiple`** | Record id(s). `master_detail` renders the single-value lookup (parent id). A targetless `lookup`/`reference` (no `referenceTo`) falls back to a plain text `string`. |
+| `file` `image` `video`/`audio` | fileId `string`, or **`string[]` when `multiple`** | Widget state holds a `{ file_id, name, url, … }` descriptor; `serializeParamValues` maps it to the storage id on confirm (objectui#2698 / #2710). |
+| `object`/`composite`/`record` `location` `address` `geolocation` | `object` | Structured JSON value. |
+| `grid`/`repeater` | `object[]` | Array of row objects. |
+| `formula` `summary` `autonumber`/`auto_number` `vector` | — (nothing) | Computed / read-only widgets never call `onChange`. |
+
+(`object-ref` / `filter-condition` / `recipient-picker` are widget-hint-only —
+reached via a field `widget:` override, never a bare param `type` — so they are
+outside the declarable-param contract, though the drift guard still covers them.)
+
+Endpoint authors declare params with the shape their route expects, same as
+record forms. If a widget swap ever changed a param's emitted shape, the
+`paramValueShape` net (contract table + the `ActionParamDialog` render proofs
+that drive the real widget and classify what it emits) fails before the change
+can break an endpoint silently.
 
 ## Consequences
 

@@ -71,9 +71,11 @@ import type { ViewTabItem } from './ViewTabBar';
 function useViewLabel() {
   try {
     const { t } = useObjectTranslation();
-    return (key: string, fallback: string, vars?: Record<string, unknown>) => {
+    return (key: string, fallback: string, vars?: Record<string, unknown>): string => {
       const v = t(key, vars as any);
-      return !v || v === key ? fallback : v;
+      // i18next's `t()` is typed `string | object`; coerce so render sites and
+      // aria-labels always receive a string (an object child white-screens React).
+      return !v || v === key ? fallback : String(v);
     };
   } catch {
     return (_k: string, fallback: string) => fallback;

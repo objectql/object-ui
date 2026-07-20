@@ -50,6 +50,12 @@ function useFileUploads(opts: {
                 setUploadProgress((prev) => ({ ...prev, [file.name]: ratio })),
             });
             return {
+              // `file_id` is the storage id the backend keys attachments by
+              // (the adapter returns it as `meta.fileId`); surfacing it here
+              // lets callers that need the id — e.g. an action param POSTing
+              // `attachments: string[]` — recover it without a second lookup.
+              // Extra key; the record file-field value shape is unchanged.
+              file_id: (result.meta as { fileId?: string } | undefined)?.fileId,
               name: result.name,
               original_name: file.name,
               size: result.size,

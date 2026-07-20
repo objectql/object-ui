@@ -22,6 +22,10 @@ import { FieldWidgetProps } from './types';
  * textarea trapped between other fields.
  */
 export function TextAreaField({ value, onChange, field, readonly, errorMessage, ...props }: FieldWidgetProps<string>) {
+  // Hooks must run before any early return (readonly) to keep hook order stable.
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [draft, setDraft] = useState(value ?? '');
+
   if (readonly) {
     return (
       <div className="text-sm whitespace-pre-wrap">
@@ -42,8 +46,6 @@ export function TextAreaField({ value, onChange, field, readonly, errorMessage, 
     (props as any).mobile_fullscreen ??
     (props as any).schema?.mobile_fullscreen,
   );
-  const [fullscreenOpen, setFullscreenOpen] = useState(false);
-  const [draft, setDraft] = useState(value ?? '');
 
   const openFullscreen = () => { setDraft(value ?? ''); setFullscreenOpen(true); };
   const cancelFullscreen = () => setFullscreenOpen(false);

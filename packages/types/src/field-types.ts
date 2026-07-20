@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import type { ManagedByBucket } from './managed-by';
+
 /**
  * @object-ui/types - Field Type Definitions
  * 
@@ -930,20 +932,24 @@ export interface ObjectSchemaMetadata {
   editMode?: 'modal' | 'page';
 
   /**
-   * Identifies the upstream system that owns this object's schema.
+   * Object lifecycle bucket — sets the default CRUD affordances and the write
+   * policy (ADR-0103). The enforced policy is the *resolved affordance*
+   * (bucket default + `userActions`), computed by `resolveCrudAffordances`
+   * in `@object-ui/core` — not the bare bucket.
    *
-   * - `undefined` or `'platform'` — ObjectStack owns it; the Console
-   *   may freely render create/edit/delete actions.
-   * - any other string (e.g. `'better-auth'`) — the table is managed
-   *   by a third-party library or service. The Console renders a
-   *   warning banner on list/detail pages and treats the schema as
-   *   read-only by default, because direct writes through the generic
-   *   data API would bypass the owning system's business logic
-   *   (password hashing, session validation, audit hooks, etc.).
+   * - `'platform'` (default) — ObjectStack-owned business data; full CRUD.
+   * - `'config'` — admin-authored configuration; New / Edit / Delete, no import.
+   * - `'system'` — platform-defined schema; engine-owned (read-only) by
+   *   default, unless it declares `userActions` opening writes (the
+   *   admin/user-writable set: RBAC links, prefs, messaging config).
+   * - `'append-only'` — immutable audit trail; View + Export only.
+   * - `'better-auth'` — identity tables owned by the auth driver; generic
+   *   user-context writes are suppressed (they bypass password hashing,
+   *   session validation, audit hooks) and flow through the auth API instead.
    *
    * @default 'platform'
    */
-  managedBy?: 'platform' | 'better-auth' | (string & {});
+  managedBy?: ManagedByBucket;
 
   /**
    * Cache configuration (Phase 3.1.5)

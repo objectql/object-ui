@@ -8,6 +8,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { isSystemWritable, type ManagedByBucket } from '../utils/crudAffordances';
 
 /**
  * ManagedByBadge — replaces the verbose, full-width `ManagedByBanner` with
@@ -43,22 +44,17 @@ import { useObjectTranslation } from '@object-ui/i18n';
  * `ObjectView` via `resolveManagedByEmptyState()`.
  */
 
-type Bucket = 'platform' | 'config' | 'system' | 'append-only' | 'better-auth';
+type Bucket = ManagedByBucket;
 
 /**
  * Subset of `userActions` (ADR-0103) the badge needs to tell an engine-owned
- * `system` object apart from an admin/user-writable one. Mirrors the server's
+ * `system` object apart from an admin/user-writable one. Mirrors the shared
  * `resolveCrudAffordances` inputs; `edit`/`delete` accept the #2614 object form.
  */
 export interface ManagedByUserActions {
   create?: boolean;
   edit?: boolean | { enabled?: boolean };
   delete?: boolean | { enabled?: boolean };
-}
-
-/** True only when a userActions flag (bare boolean or object form) opts the write in. */
-function isWriteOptedIn(v: boolean | { enabled?: boolean } | undefined | null): boolean {
-  return v === true || (typeof v === 'object' && v !== null && v.enabled === true);
 }
 
 export interface ManagedByBadgeProps {
@@ -149,10 +145,7 @@ export function ManagedByBadge({ managedBy, userActions, label, className }: Man
   if (!managedBy || managedBy === 'platform') return null;
   // ADR-0103 — a `system` object that opened any write is admin/user-writable
   // data, not an engine-owned monitoring surface: pick the writable variant/copy.
-  const ua = userActions ?? undefined;
-  const systemWritable =
-    managedBy === 'system' &&
-    (ua?.create === true || isWriteOptedIn(ua?.edit) || isWriteOptedIn(ua?.delete));
+  const systemWritable = isSystemWritable({ managedBy, userActions });
   const variantKey: VariantKey = systemWritable ? 'system-writable' : (managedBy as VariantKey);
   const variant = VARIANTS[variantKey];
   if (!variant) return null;

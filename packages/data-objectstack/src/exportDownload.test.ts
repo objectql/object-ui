@@ -23,7 +23,9 @@ function csvResponse(body = 'ID,Name\n1,Acme') {
 
 describe('ObjectStackAdapter.exportDownload', () => {
   it('GETs the /export route with format, fields, orderby, header and limit', async () => {
-    const fetchImpl = vi.fn(async () => csvResponse());
+    // Typed like `fetch` so `fetchImpl.mock.calls[0]` is `[url, init]` rather
+    // than an empty tuple (the zero-arg impl would otherwise infer `never`).
+    const fetchImpl = vi.fn(async (_url: string, _init: RequestInit) => csvResponse());
     const ds = makeDS(fetchImpl);
 
     const blob = await ds.exportDownload('task', {
@@ -50,7 +52,9 @@ describe('ObjectStackAdapter.exportDownload', () => {
   });
 
   it('defaults to csv and omits optional params when not provided', async () => {
-    const fetchImpl = vi.fn(async () => csvResponse());
+    // Typed like `fetch` so `fetchImpl.mock.calls[0]` is `[url, init]` rather
+    // than an empty tuple (the zero-arg impl would otherwise infer `never`).
+    const fetchImpl = vi.fn(async (_url: string, _init: RequestInit) => csvResponse());
     const ds = makeDS(fetchImpl);
 
     await ds.exportDownload('task', {});
@@ -65,7 +69,9 @@ describe('ObjectStackAdapter.exportDownload', () => {
   });
 
   it('serializes the filter to a JSON AST query param', async () => {
-    const fetchImpl = vi.fn(async () => csvResponse());
+    // Typed like `fetch` so `fetchImpl.mock.calls[0]` is `[url, init]` rather
+    // than an empty tuple (the zero-arg impl would otherwise infer `never`).
+    const fetchImpl = vi.fn(async (_url: string, _init: RequestInit) => csvResponse());
     const ds = makeDS(fetchImpl);
 
     await ds.exportDownload('task', { filter: [['status', '=', 'open']] });

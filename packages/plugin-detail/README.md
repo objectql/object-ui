@@ -192,6 +192,21 @@ Tab navigation for organizing content into different views.
 
 Displays related records in list, grid, or table format.
 
+Related lists are **paged by default**: the `record:related_list` renderer
+applies the spec default `limit` of **5** when the node doesn't declare one
+(`@objectstack/spec` `RecordRelatedListProps.limit`, "Number of records to
+display initially"), so a child collection of any size renders as pages with
+Previous/Next controls instead of one flat dump. On the auto-fetch path the
+component asks the server for **one page at a time** (`$top`/`$skip`) and
+reads the collection size from `QueryResult.total` (falling back to a
+`hasMore` estimate), so large child tables never ship wholesale to the
+browser. A user column sort becomes a server `$orderby` (ordering stays
+global across pages), and the node's `sort` prop seeds the initial order.
+Passing `data` directly keeps the historical client-side slicing, and typing
+in the opt-in filter box temporarily falls back to the full-fetch client
+pipeline (the contains-filter sweeps every field, which no generic server
+filter can express).
+
 The `record:related_list` renderer is automatically gated on the current
 user's object-level `read` permission for the child object: when the
 permission system (`@object-ui/permissions`) is loaded and denies read,

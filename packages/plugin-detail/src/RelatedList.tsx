@@ -98,6 +98,13 @@ export interface RelatedListProps {
   maxColumns?: number;
   /** Page size for pagination (enables pagination when set) */
   pageSize?: number;
+  /**
+   * Initial sort applied while the user hasn't clicked a column sort — the
+   * spec `RecordRelatedListProps.sort` shape (`'field'` / `'-field'` string or
+   * `[{field, order}]`). On the auto-fetch path this becomes the server
+   * `$orderby`, keeping page windows deterministic.
+   */
+  defaultSort?: string | Array<{ field: string; order: 'asc' | 'desc' }>;
   /** Enable column sorting */
   sortable?: boolean;
   /** Enable text filtering */
@@ -137,6 +144,24 @@ function resolveIconComponent(name: string | undefined): LucideIcon {
     .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
     .join('');
   return ((lucideIcons as Record<string, LucideIcon>)[pascal]) || Inbox;
+}
+
+/**
+ * Normalize the spec `sort` union (`'field'` / `'-field'` string or
+ * `[{field, order}]`) into the object-array form fed to `$orderby`.
+ */
+function normalizeSortSpec(
+  sort: RelatedListProps['defaultSort'],
+): Array<{ field: string; order: 'asc' | 'desc' }> {
+  if (!sort) return [];
+  if (typeof sort === 'string') {
+    const trimmed = sort.trim();
+    if (!trimmed) return [];
+    return trimmed.startsWith('-')
+      ? [{ field: trimmed.slice(1), order: 'desc' }]
+      : [{ field: trimmed, order: 'asc' }];
+  }
+  return sort.filter((s) => !!s?.field);
 }
 
 /**
@@ -200,6 +225,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   add,
   maxColumns = 6,
   pageSize,
+  defaultSort,
   sortable = false,
   filterable = false,
   collapsible = false,
@@ -221,6 +247,11 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const [sortField, setSortField] = React.useState<string | null>(null);
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
   const [filterText, setFilterText] = React.useState('');
+  // Server-reported collection size / next-page hint (windowed fetch only —
+  // see `windowed` below). `total` drives the count badge and page indicator;
+  // `hasMore` keeps "Next" usable when a non-conforming backend omits `total`.
+  const [total, setTotal] = React.useState<number | null>(null);
+  const [hasMore, setHasMore] = React.useState(false);
   const [objectSchema, setObjectSchema] = React.useState<any>(null);
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
   // Add-by-picker (generic m2m/junction assignment). `refreshNonce` re-runs the
@@ -233,6 +264,39 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const [lookupLabels, setLookupLabels] = React.useState<Record<string, Record<string, string>>>({});
   const { t } = useDetailTranslation();
   const { fieldLabel: resolveFieldLabel } = useSafeFieldLabel();
+
+  const effectivePageSize = pageSize && pageSize > 0 ? pageSize : 0;
+  // The built-in contains-filter is a CLIENT-side sweep over every field —
+  // inexpressible as a generic server filter. While the user is typing in it
+  // (opt-in `filterable` consumers only) we drop back to the legacy
+  // fetch-everything mode so the filter keeps seeing the whole collection.
+  const filterActive = filterable && filterText !== '';
+  // Windowed (server-paged) mode — issue #2711: on the auto-fetch path with
+  // pagination enabled, ask the server for ONE page ($top/$skip) plus the
+  // running total instead of dumping every child row into the browser.
+  // Caller-provided `data` and the raw-URL fallback keep the historical
+  // client-side slicing.
+  const windowed =
+    !dataProvided &&
+    !!api &&
+    effectivePageSize > 0 &&
+    !!dataSource &&
+    typeof dataSource.find === 'function' &&
+    !filterActive;
+  // Freeze paging/sort fetch inputs while not windowed so the fetch effect
+  // doesn't re-run (and re-download the full collection) on page clicks or
+  // column sorts that the client pipeline already handles in memory.
+  const fetchPage = windowed ? currentPage : 0;
+  const fetchSortField = windowed ? sortField : null;
+  const fetchSortDirection = windowed ? sortDirection : 'asc';
+  // Key the memo on content, not identity — inline `sort` arrays from schema
+  // nodes would otherwise re-trigger the fetch effect every render.
+  const defaultSortKey = JSON.stringify(defaultSort ?? null);
+  const defaultSortSpec = React.useMemo(
+    () => normalizeSortSpec(defaultSort),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [defaultSortKey],
+  );
 
   // Sync internal state when data prop changes (e.g., parent fetches async data)
   React.useEffect(() => {
@@ -254,6 +318,10 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   }, [api, dataSource]);
 
   React.useEffect(() => {
+    // Stale-response guard: page flips re-run this effect while an earlier
+    // window may still be in flight — a slow page-2 response must not
+    // overwrite page 3 after the fact.
+    let cancelled = false;
     // Only auto-fetch when the caller didn't pass `data` at all. If the parent
     // explicitly passed an empty array, that means "no related records" — we
     // must NOT fall back to fetching all rows of the API (which would surface
@@ -272,23 +340,54 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           );
         }
         setRelatedData([]);
+        setTotal(null);
+        setHasMore(false);
         setLoading(false);
         return;
       }
       setLoading(true);
       const filter = { [referenceField!]: parentId } as Record<string, any>;
       if (dataSource && typeof dataSource.find === 'function') {
-        dataSource.find(api, { $filter: filter }).then((result) => {
-          const items = Array.isArray(result)
-            ? result
+        const params: Record<string, any> = { $filter: filter };
+        if (windowed) {
+          params.$top = effectivePageSize;
+          params.$skip = fetchPage * effectivePageSize;
+          // A user column sort becomes a server $orderby so ordering stays
+          // global across pages; otherwise the schema's declared `sort` wins.
+          const orderby = fetchSortField
+            ? [{ field: fetchSortField, order: fetchSortDirection }]
+            : defaultSortSpec;
+          if (orderby.length > 0) params.$orderby = orderby;
+        }
+        dataSource.find(api, params).then((result) => {
+          if (cancelled) return;
+          const isArrayResult = Array.isArray(result);
+          const items = isArrayResult
+            ? (result as any[])
             : Array.isArray((result as any)?.data)
               ? (result as any).data
               : [];
           setRelatedData(items);
+          if (windowed) {
+            const reportedTotal = !isArrayResult && typeof (result as any)?.total === 'number'
+              ? (result as any).total as number
+              : null;
+            setTotal(reportedTotal);
+            // Prefer the server's own hint; a full page implies "maybe more"
+            // when the backend reports neither total nor hasMore.
+            setHasMore(
+              !isArrayResult && typeof (result as any)?.hasMore === 'boolean'
+                ? (result as any).hasMore as boolean
+                : items.length === effectivePageSize,
+            );
+          } else {
+            setTotal(null);
+            setHasMore(false);
+          }
           setLoading(false);
         }).catch((err) => {
           console.error('Failed to fetch related data:', err);
-          setLoading(false);
+          if (!cancelled) setLoading(false);
         });
       } else {
         const qs = new URLSearchParams({
@@ -297,16 +396,38 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         fetch(`${api}?${qs}`)
           .then(res => res.json())
           .then(result => {
+            if (cancelled) return;
             const items = Array.isArray(result) ? result : (result?.data || []);
             setRelatedData(items);
+            setTotal(null);
+            setHasMore(false);
           })
           .catch(err => {
             console.error('Failed to fetch related data:', err);
           })
-          .finally(() => setLoading(false));
+          .finally(() => { if (!cancelled) setLoading(false); });
       }
     }
-  }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce]);
+    return () => {
+      cancelled = true;
+    };
+  }, [api, dataProvided, dataSource, referenceField, parentId, refreshNonce, windowed, effectivePageSize, fetchPage, fetchSortField, fetchSortDirection, defaultSortSpec]);
+
+  // Windowed mode: a page beyond the (shrunken) collection — e.g. the last
+  // row of the last page was just deleted — comes back empty. Step back one
+  // page instead of stranding the user on an empty window.
+  React.useEffect(() => {
+    if (!windowed || loading) return;
+    if (currentPage > 0 && relatedData.length === 0) {
+      setCurrentPage((p) => Math.max(0, p - 1));
+    }
+  }, [windowed, loading, relatedData, currentPage]);
+
+  // A different parent (or relationship) is a different collection — restart
+  // from the first page.
+  React.useEffect(() => {
+    setCurrentPage(0);
+  }, [api, referenceField, parentId]);
 
   // Refetch when a mutation elsewhere signals this related object changed —
   // e.g. a child row action executed through the host retargets `api` and
@@ -398,20 +519,20 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataSource, objectSchema, relatedData]);
 
-  // Filter data
+  // Filter data (client mode only — windowed mode filters/sorts server-side)
   const filteredData = React.useMemo(() => {
-    if (!filterText) return relatedData;
+    if (windowed || !filterText) return relatedData;
     const lower = filterText.toLowerCase();
     return relatedData.filter((row) =>
       Object.values(row).some((val) =>
         val !== null && val !== undefined && String(val).toLowerCase().includes(lower)
       )
     );
-  }, [relatedData, filterText]);
+  }, [relatedData, filterText, windowed]);
 
-  // Sort data
+  // Sort data (client mode only — a windowed sort is a server $orderby)
   const sortedData = React.useMemo(() => {
-    if (!sortField) return filteredData;
+    if (windowed || !sortField) return filteredData;
     return [...filteredData].sort((a, b) => {
       const aVal = a[sortField];
       const bVal = b[sortField];
@@ -421,14 +542,26 @@ export const RelatedList: React.FC<RelatedListProps> = ({
       const cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
       return sortDirection === 'asc' ? cmp : -cmp;
     });
-  }, [filteredData, sortField, sortDirection]);
+  }, [filteredData, sortField, sortDirection, windowed]);
 
-  // Paginate data
-  const effectivePageSize = pageSize && pageSize > 0 ? pageSize : 0;
-  const totalPages = effectivePageSize ? Math.max(1, Math.ceil(sortedData.length / effectivePageSize)) : 1;
-  const paginatedData = effectivePageSize
+  // Paginate data. Windowed mode already holds exactly one page; client mode
+  // slices the in-memory collection as before.
+  const paginatedData = effectivePageSize && !windowed
     ? sortedData.slice(currentPage * effectivePageSize, (currentPage + 1) * effectivePageSize)
     : sortedData;
+  const totalPages = !effectivePageSize
+    ? 1
+    : windowed
+      ? total != null
+        ? Math.max(1, Math.ceil(total / effectivePageSize))
+        : currentPage + (hasMore ? 2 : 1)
+      : Math.max(1, Math.ceil(sortedData.length / effectivePageSize));
+  const canGoNext = windowed
+    ? (total != null ? (currentPage + 1) * effectivePageSize < total : hasMore)
+    : currentPage < totalPages - 1;
+  const showPagination = effectivePageSize > 0 && (windowed
+    ? currentPage > 0 || canGoNext
+    : sortedData.length > effectivePageSize);
 
   // Reset to first page when filter/sort changes
   React.useEffect(() => {
@@ -436,6 +569,9 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   }, [filterText, sortField, sortDirection]);
 
   const handleSort = React.useCallback((field: string) => {
+    // Same-batch page reset: in windowed mode sort + page feed one fetch, so
+    // resetting here avoids an extra request against the stale page index.
+    setCurrentPage(0);
     if (sortField === field) {
       setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -769,7 +905,12 @@ export const RelatedList: React.FC<RelatedListProps> = ({
   const handleHeaderClick = collapsible ? () => setCollapsed((c) => !c) : undefined;
 
   const SectionIcon = resolveIconComponent(icon);
-  const isEmpty = !loading && relatedData.length === 0;
+  // Badge shows the COLLECTION size: the server total in windowed mode (only
+  // one page is in memory), the loaded row count otherwise.
+  const recordCount = windowed && total != null ? total : relatedData.length;
+  // In windowed mode an empty page beyond page 0 is a transient overflow (the
+  // step-back effect above corrects it), not an empty collection.
+  const isEmpty = !loading && relatedData.length === 0 && (!windowed || currentPage === 0);
   // When the consumer explicitly enables `filterable`, always render the
   // filter input — they're opting in. (data-table's own auto-search is
   // suppressed via the viewSchema below to avoid a duplicate input.)
@@ -796,11 +937,11 @@ export const RelatedList: React.FC<RelatedListProps> = ({
               variant="secondary"
               className={cn(
                 'text-xs font-normal h-5 px-1.5',
-                relatedData.length === 0 && 'bg-muted text-muted-foreground'
+                recordCount === 0 && 'bg-muted text-muted-foreground'
               )}
-              aria-label={`${relatedData.length} records`}
+              aria-label={`${recordCount} records`}
             >
-              {relatedData.length}
+              {recordCount}
             </Badge>
             {isEmpty && (
               <span className="text-xs text-muted-foreground/70 italic ml-1 truncate">
@@ -883,16 +1024,22 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           </div>
         )}
 
-        {loading ? (
+        {loading && relatedData.length === 0 ? (
+          // Placeholder only while there's nothing to show (first load). Page
+          // flips keep the previous rows in place (slightly dimmed) until the
+          // next window arrives — swapping to a placeholder collapses the
+          // card and makes the whole related section visibly jump.
           <div className="flex items-center justify-center py-6 text-muted-foreground text-sm">
             {t('detail.loading')}
           </div>
         ) : (
-          <SchemaRenderer schema={viewSchema} />
+          <div className={cn(loading && 'opacity-60 pointer-events-none transition-opacity')}>
+            <SchemaRenderer schema={viewSchema} />
+          </div>
         )}
 
         {/* Pagination controls */}
-        {effectivePageSize > 0 && sortedData.length > effectivePageSize && (
+        {showPagination && (
           <div className="flex items-center justify-between mt-3 pt-3 border-t">
             <Button
               variant="outline"
@@ -911,8 +1058,8 @@ export const RelatedList: React.FC<RelatedListProps> = ({
               variant="outline"
               size="sm"
               className="h-7 text-xs gap-1"
-              disabled={currentPage >= totalPages - 1}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={!canGoNext}
+              onClick={() => setCurrentPage((p) => (canGoNext ? p + 1 : p))}
             >
               {t('detail.nextPage')}
               <ChevronRight className="h-3 w-3" />
@@ -921,7 +1068,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
         )}
 
         {/* Footer "View all" link — only when records are truncated (more than displayed) */}
-        {onViewAll && !isEmpty && effectivePageSize > 0 && sortedData.length > effectivePageSize && (
+        {onViewAll && !isEmpty && showPagination && (
           <div className="mt-3 pt-3 border-t flex justify-center">
             <button
               type="button"

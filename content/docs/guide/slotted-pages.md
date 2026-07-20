@@ -81,6 +81,15 @@ renderer suppresses itself the same way on hand-authored pages). The server
 always enforced data access — this keeps the UI from rendering an empty
 grid with a "New" button that would be rejected on save.
 
+Related lists **paginate by default**: when a `record:related_list` node
+does not declare `limit`, the renderer applies the spec default of **5**
+records per page (`RecordRelatedListProps.limit`), fetching one page at a
+time from the server (`$top`/`$skip`) with the count badge showing the
+full collection size. Authors can raise the page size per list
+(`limit: 20`) and pin the initial order with `sort`
+(`'-created_at'` or `[{ field, order }]`); a user's column sort is sent
+to the server so ordering stays global across pages.
+
 ## Header actions: inline vs. overflow
 
 `page:header` renders the record's `record_header` actions (authored
