@@ -58,9 +58,60 @@ function ChartContainer({
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
 
+  // Re-mount the chart exactly ONCE, after its container has settled at a real,
+  // non-zero size. Why: a Recharts bar/area/line entrance animation is a
+  // requestAnimationFrame tween that starts at height 0 (see recharts'
+  // JavascriptAnimate: `useState(isActive ? 0 : 1)`). Inside a react-grid-layout
+  // dashboard the widget's box settles over several frames right after mount,
+  // and the tween kicked off during that churn can be interrupted before it ever
+  // advances past 0 — so the chart paints its axes/labels but the bars stay stuck
+  // at height 0. Any *unrelated* later re-render (a theme toggle, a manual
+  // resize) mints a fresh Recharts `animationId`, which re-keys the tween and
+  // lets it replay to completion — which is why the bars "appear on resize". We
+  // reproduce that single healing re-render automatically: once the ResizeObserver
+  // reports that size changes have stopped at a positive box, we bump
+  // `settleNonce`, which re-keys the ResponsiveContainer below so the whole chart
+  // performs one clean re-mount in a quiet window. The entrance animation then
+  // runs uninterrupted and the bars actually draw on first paint.
+  //
+  // The nonce only ever bumps under a genuine layout engine (a positive, stable
+  // box). Headless/jsdom/happy-dom renders report a 0×0 box, so `settleNonce`
+  // stays 0 and those tests see a single, ordinary render. See
+  // dashboard-chart-empty-first-render.
+  const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const [settleNonce, setSettleNonce] = React.useState(0)
+  React.useEffect(() => {
+    const el = containerRef.current
+    if (el == null || typeof ResizeObserver === "undefined") return
+
+    let settled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const observer = new ResizeObserver((entries) => {
+      if (settled) return
+      const box = entries[0]?.contentRect
+      if (box == null || box.width <= 0 || box.height <= 0) return
+      // Debounce: only re-mount once size changes have STOPPED, so we replay the
+      // entrance animation after the grid finishes settling — not midway through
+      // it (which would just re-arm the same race).
+      if (timer != null) clearTimeout(timer)
+      timer = setTimeout(() => {
+        settled = true
+        observer.disconnect()
+        setSettleNonce((n) => n + 1)
+      }, 80)
+    })
+    observer.observe(el)
+    return () => {
+      settled = true
+      if (timer != null) clearTimeout(timer)
+      observer.disconnect()
+    }
+  }, [])
+
   return (
     <ChartContext.Provider value={{ config }}>
       <div
+        ref={containerRef}
         data-slot="chart"
         data-chart={chartId}
         className={cn(
@@ -81,7 +132,7 @@ function ChartContainer({
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer key={settleNonce} width="100%" height="100%">
           {children}
         </ResponsiveContainer>
       </div>
