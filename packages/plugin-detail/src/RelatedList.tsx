@@ -929,6 +929,7 @@ export const RelatedList: React.FC<RelatedListProps> = ({
                 ? (<ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />)
                 : (<ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />)
             )}
+            {/* eslint-disable-next-line react-hooks/static-components -- resolveIconComponent returns a stable icon component from a static registry, not a component created during render */}
             <SectionIcon className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden />
             <span className={cn('truncate', isEmpty && 'text-muted-foreground font-medium')}>
               {title}

@@ -43,23 +43,11 @@ export const RecordHighlightsRenderer: React.FC<RecordHighlightsRendererProps> =
   const required: string[] = Array.isArray((schema as any).requiredPermissions)
     ? (schema as any).requiredPermissions
     : [];
-  if (required.length > 0 && objectName) {
-    const ok = required.every((p) => perms.can(objectName, p as any));
-    if (!ok) {
-      return (
-        <div
-          className={className}
-          {...designer}
-          role="status"
-          aria-live="polite"
-        >
-          <p className="text-sm text-muted-foreground italic">
-            Insufficient permissions to view highlights.
-          </p>
-        </div>
-      );
-    }
-  }
+  // Evaluated up-front but enforced AFTER the hooks below (useId /
+  // useRegisterHighlightFields) so hook order stays stable across renders.
+  const highlightsAllowed =
+    !(required.length > 0 && objectName) ||
+    required.every((p) => perms.can(objectName, p as any));
 
   const rawFields: any[] = Array.isArray(schema.fields) ? schema.fields : [];
   // Normalize: spec accepts either bare strings or { name, label?, icon?, type? }
@@ -85,10 +73,27 @@ export const RecordHighlightsRenderer: React.FC<RecordHighlightsRendererProps> =
   // same fields from its body grid even for hand-authored Lightning
   // pages (where the synth-time `hideFields` plumbing doesn't apply).
   const instanceId = React.useId();
+  // Register [] when not allowed — equivalent to not registering, so
+  // RecordDetailsRenderer never hides body fields for highlights we don't show.
   useRegisterHighlightFields(
     instanceId,
-    highlightFields.map((f) => f.name),
+    highlightsAllowed ? highlightFields.map((f) => f.name) : [],
   );
+
+  if (!highlightsAllowed) {
+    return (
+      <div
+        className={className}
+        {...designer}
+        role="status"
+        aria-live="polite"
+      >
+        <p className="text-sm text-muted-foreground italic">
+          Insufficient permissions to view highlights.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className={className} {...designer}>

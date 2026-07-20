@@ -94,18 +94,6 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
   const required: string[] = Array.isArray(schema.requiredPermissions)
     ? schema.requiredPermissions
     : [];
-  if (required.length > 0 && objectName) {
-    const ok = required.every((p) => perms.can(objectName, p as any));
-    if (!ok) {
-      return (
-        <div className={className} {...designer} role="status" aria-live="polite">
-          <p className="text-sm text-muted-foreground italic">
-            Insufficient permissions to view quick actions.
-          </p>
-        </div>
-      );
-    }
-  }
 
   const location: ActionLocation = (schema.location as ActionLocation) || 'record_header';
 
@@ -121,6 +109,21 @@ export const RecordQuickActionsRenderer: React.FC<RecordQuickActionsRendererProp
       objectName: ctx?.objectName,
     } as any,
   });
+
+  // Object-level permission gate — evaluated AFTER all hooks (useActionEngine
+  // above must run every render) so hook order stays stable.
+  if (required.length > 0 && objectName) {
+    const ok = required.every((p) => perms.can(objectName, p as any));
+    if (!ok) {
+      return (
+        <div className={className} {...designer} role="status" aria-live="polite">
+          <p className="text-sm text-muted-foreground italic">
+            Insufficient permissions to view quick actions.
+          </p>
+        </div>
+      );
+    }
+  }
 
   const visibleActions = actions.length > 0 ? getActionsForLocation(location) : [];
 

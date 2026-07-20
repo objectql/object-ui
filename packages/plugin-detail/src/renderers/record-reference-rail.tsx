@@ -231,10 +231,13 @@ export const RecordReferenceRailRenderer: React.FC<RecordReferenceRailRendererPr
     void Promise.all(workers);
   }, [railVisible, dataSource, parentId, entriesSig]);
 
+  // useState must run unconditionally — declared above the empty-entries early
+  // return so hook order stays stable across renders.
+  const [showEmpty, setShowEmpty] = React.useState(false);
+
   if (entries.length === 0) return null;
 
   const hideEmpty = schema.hideEmpty !== false;
-  const [showEmpty, setShowEmpty] = React.useState(false);
 
   // Stable partition: an entry is "empty" only once it has finished loading
   // with total === 0. While loading or on error, we render it so users

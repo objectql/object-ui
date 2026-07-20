@@ -74,18 +74,8 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
       : '';
   const title = pickLocalized(schema.title, language) || resolvedObjectLabel || 'Related';
 
-  if (!objectName) {
-    return (
-      <div className={className} {...designer}>
-        <div className="text-xs text-muted-foreground italic px-3 py-2 border border-dashed rounded">
-          record:related_list — missing objectName
-        </div>
-      </div>
-    );
-  }
-
   const perms = usePermissions();
-  const { readableFields } = useFieldPermissions(objectName);
+  const { readableFields } = useFieldPermissions(objectName || '');
 
   // Host-provided CRUD + action handlers for this child object. Absent when no
   // host wired the provider (Studio designer, standalone embed) — the related
@@ -116,6 +106,18 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
       }) ?? null,
     [relatedActions, objectName, schema.relationshipField, parentLinkValue],
   );
+
+  // Missing objectName renders a designer placeholder — checked AFTER the hooks
+  // above so hook order stays stable across renders.
+  if (!objectName) {
+    return (
+      <div className={className} {...designer}>
+        <div className="text-xs text-muted-foreground italic px-3 py-2 border border-dashed rounded">
+          record:related_list — missing objectName
+        </div>
+      </div>
+    );
+  }
 
   // Automatic object-level read gate (objectui#2359). Related lists surface
   // the CHILD object's records, so they require `read` on that object — the
