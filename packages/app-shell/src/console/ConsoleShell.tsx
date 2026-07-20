@@ -12,12 +12,13 @@
 
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { AuthGuard, useAuth } from '@object-ui/auth';
+import { AuthGuard, useAuth, createAuthenticatedFetch } from '@object-ui/auth';
 import { useObjectTranslation } from '@object-ui/i18n';
 import { SchemaRendererProvider, ActionProvider } from '@object-ui/react';
 import { useActionModal } from '../hooks/useActionModal';
 import { createObjectStackUserStateAdapter } from '@object-ui/data-objectstack';
 import { AdapterProvider, useAdapter } from '../providers/AdapterProvider';
+import { withSettleSignal } from '../observability/settleSignal';
 import { MetadataProvider, useMetadata } from '../providers/MetadataProvider';
 import { useAiSurfaceEnabled } from '../hooks/useAiSurface';
 import { PreviewModeProvider } from '../preview/PreviewModeContext';
@@ -115,6 +116,14 @@ export function ConnectedShell({ children }: { children: ReactNode }) {
   );
 }
 
+// Authenticated fetch for `provider: 'api'` view data sources (#2725): custom
+// endpoints get the same Authorization / X-Tenant-ID / Accept-Language headers
+// as the native adapter channel, so a cookie whose HMAC signature rotated
+// (e.g. dev-server restart) no longer strands them on 401. `sameOriginOnly`
+// keeps the bearer token off third-party hosts a view's URL may point at, and
+// withSettleSignal keeps these requests visible to the ADR-0054 C5 idle probe.
+const apiProviderFetch = withSettleSignal(createAuthenticatedFetch({ sameOriginOnly: true }));
+
 function ConnectedShellInner({ children }: { children: ReactNode }) {
   const adapter = useAdapter();
   const { language } = useObjectTranslation();
@@ -149,7 +158,7 @@ function ConnectedShellInner({ children }: { children: ReactNode }) {
   // Expose the adapter via SchemaRendererContext so descendant hooks like
   // useDiscovery() (used to gate the global AI chatbot) can resolve it.
   return (
-    <SchemaRendererProvider dataSource={adapter}>
+    <SchemaRendererProvider dataSource={adapter} apiFetch={apiProviderFetch}>
       <MetadataProvider key={language} adapter={adapter}>
         <UserStateBridge />
         <GlobalCreateModalProvider dataSource={adapter}>

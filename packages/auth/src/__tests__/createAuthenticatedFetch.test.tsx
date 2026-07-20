@@ -83,4 +83,32 @@ describe('createAuthenticatedFetch', () => {
     await createAuthenticatedFetch()(API_URL, { headers: { 'Accept-Language': 'ja' } });
     expect(calls[0].headers.get('Accept-Language')).toBe('ja');
   });
+
+  // ── sameOriginOnly (#2725) — provider:'api' fetches must not leak the
+  //    bearer token to third-party hosts a view's metadata URL may name ──
+
+  it('sameOriginOnly: still injects the token on same-origin API calls', async () => {
+    vi.spyOn(TokenStorage, 'get').mockReturnValue('tok123');
+    const calls = stubFetch();
+    await createAuthenticatedFetch({ sameOriginOnly: true })('/api/gantt/tree');
+    expect(calls[0].headers.get('Authorization')).toBe('Bearer tok123');
+  });
+
+  it('sameOriginOnly: passes cross-origin URLs through with no auth/tenant headers', async () => {
+    vi.spyOn(TokenStorage, 'get').mockReturnValue('tok123');
+    ActiveOrganizationStorage.set('org-42');
+    document.documentElement.lang = 'zh-CN';
+    const calls = stubFetch();
+    await createAuthenticatedFetch({ sameOriginOnly: true })('https://third-party.example.com/api/x');
+    expect(calls[0].headers.get('Authorization')).toBeNull();
+    expect(calls[0].headers.get('X-Tenant-ID')).toBeNull();
+    expect(calls[0].headers.get('Accept-Language')).toBeNull();
+  });
+
+  it('without sameOriginOnly, cross-origin /api/ URLs keep the legacy attach behaviour', async () => {
+    vi.spyOn(TokenStorage, 'get').mockReturnValue('tok123');
+    const calls = stubFetch();
+    await createAuthenticatedFetch()('https://third-party.example.com/api/x');
+    expect(calls[0].headers.get('Authorization')).toBe('Bearer tok123');
+  });
 });

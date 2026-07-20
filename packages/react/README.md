@@ -81,6 +81,30 @@ function App() {
 }
 ```
 
+### SchemaRendererProvider
+
+Injects the host's data source (and optional capabilities) into every renderer
+below it:
+
+```tsx
+import { SchemaRendererProvider } from '@object-ui/react'
+
+<SchemaRendererProvider
+  dataSource={adapter}
+  // Optional: host-authenticated fetch used by `provider: 'api'` view data
+  // sources, so custom endpoints carry the same credentials (Authorization,
+  // tenant, locale headers) as the native data channel. When omitted,
+  // ApiDataSource falls back to the bare global fetch (cookies only).
+  apiFetch={authenticatedFetch}
+>
+  <SchemaRenderer schema={schema} />
+</SchemaRendererProvider>
+```
+
+Nested providers inherit `apiFetch` from their parent when they don't supply
+their own, so re-wrapped subtrees (embedded pages, preview surfaces) keep the
+host's authentication.
+
 ## Hooks
 
 ### useSchemaContext

@@ -22,11 +22,11 @@
  * - Works with object/api/value data providers
  */
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import type { ObjectGridSchema, DataSource, ViewData, GanttConfig } from '@object-ui/types';
 import { GanttConfigSchema } from '@objectstack/spec/ui';
-import { useNavigationOverlay } from '@object-ui/react';
+import { useNavigationOverlay, SchemaRendererContext } from '@object-ui/react';
 import { useLocalization, resolveFieldCurrency } from '@object-ui/i18n';
 import { RecordDetailDrawer, deriveRecordPageHref } from '@object-ui/plugin-detail';
 import {
@@ -458,10 +458,14 @@ export const ObjectGantt: React.FC<ObjectGanttProps> = ({
   // Every read AND write-back below goes through this single adapter, so the
   // 'api' provider now supports reschedule / dependency / delete / inline-edit
   // write-backs — not just object-backed views.
+  // Host-authenticated fetch (SchemaRendererContext.apiFetch) so the 'api'
+  // provider's custom endpoints carry the same Authorization/tenant headers
+  // as native requests instead of relying on cookies alone (#2725).
+  const apiFetch = useContext(SchemaRendererContext)?.apiFetch;
   const effectiveDataSource = useMemo(
-    () => resolveDataSource(dataConfig, dataSource ?? null),
+    () => resolveDataSource(dataConfig, dataSource ?? null, { fetch: apiFetch }),
     // dataConfig is already memoized by deep value above.
-    [dataConfig, dataSource],
+    [dataConfig, dataSource, apiFetch],
   );
 
   // Unified resource name for find/update/delete. For 'object' it's the bound

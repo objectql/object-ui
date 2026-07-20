@@ -420,3 +420,68 @@ describe('useViewData — edge cases', () => {
     expect(mockDS.find).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// provider: 'api' — host-authenticated fetch (#2725)
+// ---------------------------------------------------------------------------
+
+describe("useViewData — provider: 'api' host auth fetch", () => {
+  const apiViewData: ViewData = {
+    provider: 'api',
+    read: { url: '/api/gantt/tree', method: 'GET' },
+  } as ViewData;
+
+  function jsonResponse() {
+    return new Response(JSON.stringify({ data: [{ id: '1' }], total: 1 }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  function apiFetchWrapper(apiFetch: typeof fetch) {
+    return ({ children }: { children: React.ReactNode }) =>
+      React.createElement(
+        SchemaRendererContext.Provider,
+        { value: { dataSource: null, apiFetch } },
+        children,
+      );
+  }
+
+  it('routes api-provider requests through the context apiFetch', async () => {
+    const apiFetch = vi.fn(async () => jsonResponse()) as unknown as typeof fetch;
+
+    const { result } = renderHook(
+      () => useViewData({ viewData: apiViewData, resource: 'tasks' }),
+      { wrapper: apiFetchWrapper(apiFetch) },
+    );
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(apiFetch).toHaveBeenCalled();
+    expect(result.current.data).toEqual([{ id: '1' }]);
+  });
+
+  it('lets an explicit adapterOptions.fetch win over the context apiFetch', async () => {
+    const contextFetch = vi.fn(async () => jsonResponse()) as unknown as typeof fetch;
+    const explicitFetch = vi.fn(async () => jsonResponse()) as unknown as typeof fetch;
+
+    const { result } = renderHook(
+      () =>
+        useViewData({
+          viewData: apiViewData,
+          resource: 'tasks',
+          adapterOptions: { fetch: explicitFetch },
+        }),
+      { wrapper: apiFetchWrapper(contextFetch) },
+    );
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    expect(explicitFetch).toHaveBeenCalled();
+    expect(contextFetch).not.toHaveBeenCalled();
+  });
+});

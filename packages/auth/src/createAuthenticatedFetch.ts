@@ -56,6 +56,29 @@ export const ActiveOrganizationStorage = {
   },
 };
 
+export interface CreateAuthenticatedFetchOptions {
+  /**
+   * When true, requests whose URL resolves to a different origin than the
+   * current page are passed through to the bare global fetch — no
+   * Authorization, X-Tenant-ID, or Accept-Language headers are attached.
+   *
+   * Use this for fetches whose target URL comes from view metadata
+   * (`provider: 'api'` data sources): those may point at third-party hosts
+   * that must never see the platform bearer token.
+   */
+  sameOriginOnly?: boolean;
+}
+
+/** True when `url` resolves to a different origin than the current page. */
+function isCrossOrigin(url: string): boolean {
+  if (typeof window === 'undefined' || !window.location) return true;
+  try {
+    return new URL(url, window.location.href).origin !== window.location.origin;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Creates an authenticated fetch wrapper that injects the Bearer token
  * from localStorage into every request to the ObjectStack API.
@@ -74,10 +97,15 @@ export const ActiveOrganizationStorage = {
  * });
  * ```
  */
-export function createAuthenticatedFetch(): (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
+export function createAuthenticatedFetch(
+  options?: CreateAuthenticatedFetchOptions,
+): (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const headers = new Headers(init?.headers);
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (options?.sameOriginOnly && isCrossOrigin(url)) {
+      return fetch(input, init);
+    }
     const isApiCall = /\/api\//i.test(url);
     const token = TokenStorage.get();
     if (token && isApiCall) {

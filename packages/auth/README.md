@@ -126,10 +126,16 @@ Displays current user info with avatar and sign-out:
 
 ### createAuthenticatedFetch
 
-Creates a fetch wrapper that injects auth tokens into DataSource requests:
+Creates a fetch wrapper that injects the stored Bearer token (plus
+`X-Tenant-ID` and `Accept-Language`) into API requests:
 
 ```tsx
-const authedFetch = createAuthenticatedFetch({ getToken: () => session.token });
+const authedFetch = createAuthenticatedFetch();
+
+// For fetches whose target URL comes from view metadata (`provider: 'api'`
+// data sources), restrict credential injection to the current page's origin
+// so the platform token never leaks to third-party hosts:
+const apiProviderFetch = createAuthenticatedFetch({ sameOriginOnly: true });
 ```
 
 ## Preview Mode

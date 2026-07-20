@@ -94,18 +94,26 @@ export function useViewData<T = any>(options: UseViewDataOptions<T>): UseViewDat
     skip = false,
   } = options;
 
-  // Get context DataSource
+  // Get context DataSource + host-authenticated fetch
   const context = useContext(SchemaRendererContext);
   const contextDataSource = context?.dataSource ?? null;
+  const contextApiFetch = context?.apiFetch;
 
   // Resolve the DataSource — memoize to prevent re-creation on every render.
   // We key on the viewData provider + config identity.
   const resolvedDataSource = useMemo(() => {
     if (explicitDataSource) return explicitDataSource;
-    return resolveDataSource<T>(viewData, contextDataSource, adapterOptions);
+    // Default the 'api' provider's fetch to the host's authenticated fetch
+    // (SchemaRendererContext.apiFetch) so custom endpoints carry the same
+    // credentials as native requests; explicit adapterOptions still win.
+    return resolveDataSource<T>(viewData, contextDataSource, {
+      fetch: contextApiFetch,
+      ...adapterOptions,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     explicitDataSource,
+    contextApiFetch,
     viewData?.provider,
     // For 'api' provider, key on read/write URLs
     viewData?.provider === 'api' ? (viewData as any).read?.url : undefined,

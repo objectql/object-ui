@@ -63,6 +63,50 @@ describe('useSchemaContext provider requirement', () => {
   });
 });
 
+describe('SchemaRendererProvider apiFetch inheritance (#2725)', () => {
+  const ApiFetchProbe: React.FC = () => {
+    const { apiFetch } = useSchemaContext();
+    return <div data-testid="api-fetch-probe">{(apiFetch as any)?.__name ?? 'none'}</div>;
+  };
+
+  const namedFetch = (name: string) => {
+    const fn = (async () => new Response('{}')) as any;
+    fn.__name = name;
+    return fn;
+  };
+
+  it('nested provider without apiFetch inherits the parent host fetch', () => {
+    render(
+      <SchemaRendererProvider dataSource={{}} apiFetch={namedFetch('host')}>
+        <SchemaRendererProvider dataSource={{ inner: true }}>
+          <ApiFetchProbe />
+        </SchemaRendererProvider>
+      </SchemaRendererProvider>
+    );
+    expect(screen.getByTestId('api-fetch-probe')).toHaveTextContent('host');
+  });
+
+  it('nested provider with its own apiFetch overrides the parent', () => {
+    render(
+      <SchemaRendererProvider dataSource={{}} apiFetch={namedFetch('host')}>
+        <SchemaRendererProvider dataSource={{}} apiFetch={namedFetch('inner')}>
+          <ApiFetchProbe />
+        </SchemaRendererProvider>
+      </SchemaRendererProvider>
+    );
+    expect(screen.getByTestId('api-fetch-probe')).toHaveTextContent('inner');
+  });
+
+  it('apiFetch stays undefined when no provider supplies one', () => {
+    render(
+      <SchemaRendererProvider dataSource={{}}>
+        <ApiFetchProbe />
+      </SchemaRendererProvider>
+    );
+    expect(screen.getByTestId('api-fetch-probe')).toHaveTextContent('none');
+  });
+});
+
 describe('SchemaRenderer + SchemaRendererProvider integration', () => {
   beforeEach(() => {
     ComponentRegistry.register('test-ctx-consumer', ContextConsumer);
