@@ -170,6 +170,11 @@ export default function AdvancedChartImpl({
   // Only emit the prop when explicitly disabled, so the default (animated)
   // behavior is byte-for-byte unchanged for every existing caller.
   const animProps = isAnimationActive === false ? { isAnimationActive: false as const } : {};
+  // When the entrance animation is off there is no stuck-at-0 tween to heal, so
+  // tell ChartContainer to skip its settle re-mount — avoids a needless 1-frame
+  // reflow on the dashboard's first paint (#2756). Animated callers keep the
+  // heal; this object is empty for them, leaving their markup unchanged.
+  const containerProps = isAnimationActive === false ? { disableSettleRemount: true } : {};
   const [isMobile, setIsMobile] = React.useState(false);
 
   // Recharts' top-level onClick payload: { activeLabel, activePayload, ... }
@@ -358,7 +363,7 @@ export default function AdvancedChartImpl({
       }
     });
     return (
-      <ChartContainer config={pieConfig} className={className}>
+      <ChartContainer config={pieConfig} className={className} {...containerProps}>
         <PieChart>
           <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
           <Pie
@@ -415,14 +420,14 @@ export default function AdvancedChartImpl({
       return bv - av;
     });
     return (
-      <ChartContainer config={config} className={className}>
+      <ChartContainer config={config} className={className} {...containerProps}>
         <FunnelChart>
           <ChartTooltip content={<ChartTooltipContent />} />
           <Funnel
             dataKey={dataKey}
             data={funnelData}
             nameKey={xAxisKey}
-            isAnimationActive
+            {...animProps}
             {...funnelClickProps}
           >
             <LabelList position="right" fill="hsl(var(--foreground))" stroke="none" dataKey={xAxisKey} />
@@ -447,8 +452,8 @@ export default function AdvancedChartImpl({
       fill: resolveColor(palette[idx % palette.length]),
     }));
     return (
-      <ChartContainer config={config} className={className}>
-        <Treemap data={tmData} dataKey="size" nameKey="name" isAnimationActive content={<TreemapCell />} {...treemapClickProps}>
+      <ChartContainer config={config} className={className} {...containerProps}>
+        <Treemap data={tmData} dataKey="size" nameKey="name" {...animProps} content={<TreemapCell />} {...treemapClickProps}>
           <Tooltip />
         </Treemap>
       </ChartContainer>
@@ -468,7 +473,7 @@ export default function AdvancedChartImpl({
       return <div className={className} />;
     }
     return (
-      <ChartContainer config={config} className={className}>
+      <ChartContainer config={config} className={className} {...containerProps}>
         <Sankey
           data={{ nodes, links }}
           nodePadding={24}
@@ -485,7 +490,7 @@ export default function AdvancedChartImpl({
   // Radar chart
   if (chartType === 'radar') {
     return (
-      <ChartContainer config={config} className={className}>
+      <ChartContainer config={config} className={className} {...containerProps}>
         <RadarChart data={data}>
           <PolarGrid />
           <PolarAngleAxis dataKey={xAxisKey} />
@@ -504,6 +509,7 @@ export default function AdvancedChartImpl({
                 stroke={color}
                 fill={color}
                 fillOpacity={0.6}
+                {...animProps}
               />
             );
           })}
@@ -515,7 +521,7 @@ export default function AdvancedChartImpl({
   // Scatter chart
   if (chartType === 'scatter') {
     return (
-      <ChartContainer config={config} className={className}>
+      <ChartContainer config={config} className={className} {...containerProps}>
         <ScatterChart>
           <CartesianGrid vertical={false} />
           <XAxis 
@@ -552,6 +558,7 @@ export default function AdvancedChartImpl({
                 data={data}
                 fill={color}
                 fillOpacity={cmp?.fillOpacity}
+                {...animProps}
                 {...scatterClickProps}
               />
             );
@@ -564,7 +571,7 @@ export default function AdvancedChartImpl({
   // Combo chart (mixed bar + line on same chart)
   if (chartType === 'combo') {
     return (
-      <ChartContainer config={config} className={className}>
+      <ChartContainer config={config} className={className} {...containerProps}>
         <BarChart data={data}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey={xAxisKey} {...xAxisCommonProps} />
@@ -612,7 +619,7 @@ export default function AdvancedChartImpl({
   const gslug = (c: string) => 'g' + c.replace(/[^a-zA-Z0-9]/g, '');
 
   return (
-    <ChartContainer config={config} className={className}>
+    <ChartContainer config={config} className={className} {...containerProps}>
       <ChartComponent data={data} layout={isHorizontal ? 'vertical' : 'horizontal'} {...cartesianClickProps}>
         <defs>
           {gradColors.map((c) => (

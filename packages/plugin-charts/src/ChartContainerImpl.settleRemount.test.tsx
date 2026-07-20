@@ -145,4 +145,29 @@ describe('ChartContainer — settle re-mount (dashboard-chart-empty-first-render
 
     expect(mountCount).toBe(1); // no re-mount, no loop
   });
+
+  // #2756: dashboard charts render with `isAnimationActive={false}`, so there is
+  // no entrance-animation tween to heal. `disableSettleRemount` must fully
+  // suppress the settle re-mount — even at a positive, stable box — so the first
+  // paint is never followed by a needless ResponsiveContainer reflow.
+  it('never re-mounts when disableSettleRemount is set, even after settling at a non-zero box', () => {
+    act(() => {
+      render(
+        <ChartContainer config={{}} disableSettleRemount>
+          <MountProbe />
+        </ChartContainer>,
+      );
+    });
+    expect(mountCount).toBe(1);
+
+    // A real, settled positive box would normally trigger exactly one re-mount…
+    fireResize(320, 240);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    // …but the flag opts out of it entirely: the observer never even armed.
+    expect(mountCount).toBe(1);
+    expect(roCallback).toBeNull(); // no ResizeObserver was created
+  });
 });

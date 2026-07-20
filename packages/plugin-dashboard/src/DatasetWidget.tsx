@@ -552,7 +552,13 @@ export function DatasetWidget({ widget, dataSource }: { widget: any; dataSource:
   return (
     <div className={cn('relative h-full w-full min-h-[220px]')}>
       <SchemaRenderer
-        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series, ...(categoryColors ? { categoryColors } : {}) } as any}
+        // isAnimationActive: false — dashboard charts render at final geometry on
+        // the FIRST committed frame. Recharts' entrance animation is a rAF tween
+        // that starts at height 0 and, inside react-grid-layout's mount-time
+        // measurement churn, can freeze there — bars never draw until an unrelated
+        // re-render (#2756, follow-up to #2727's ineffective settle re-mount).
+        // Turning the tween off makes the first paint deterministic.
+        schema={{ type: 'chart', chartType, data: chartData, xAxisKey, series, isAnimationActive: false, ...(categoryColors ? { categoryColors } : {}) } as any}
         onChartClick={chartDrill}
         onSegmentClick={chartDrill}
       />

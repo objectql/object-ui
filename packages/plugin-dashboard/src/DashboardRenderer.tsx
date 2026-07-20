@@ -529,6 +529,9 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                             label: resolveSeriesLabel(widgetData.object, effectiveYField, effectiveAggregate?.function),
                         }],
                         colors: CHART_COLORS,
+                        // Deterministic first paint inside the grid — no entrance
+                        // animation to freeze at height 0 (#2756).
+                        isAnimationActive: false,
                         drillDown: options.drillDown ?? defaultChartDrill(resolvedWidgetType),
                         compareTo: (widget as any).compareTo,
                         className: "h-[200px] sm:h-[250px] md:h-[300px]"
@@ -548,6 +551,8 @@ const DashboardRendererInner = forwardRef<HTMLDivElement, DashboardRendererProps
                         label: resolveSeriesLabel(undefined, yField, undefined),
                     }],
                     colors: CHART_COLORS,
+                    // Deterministic first paint inside the grid (#2756).
+                    isAnimationActive: false,
                     className: "h-[200px] sm:h-[250px] md:h-[300px]"
                 };
             }

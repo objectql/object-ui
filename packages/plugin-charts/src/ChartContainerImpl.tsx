@@ -48,12 +48,20 @@ function ChartContainer({
   className,
   children,
   config,
+  disableSettleRemount,
   ...props
 }: React.ComponentProps<"div"> & {
   config: ChartConfig
   children: React.ComponentProps<
     typeof ResponsiveContainer
   >["children"]
+  /**
+   * Skip the settle re-mount below. Set by callers that render their series with
+   * `isAnimationActive={false}` (e.g. dashboard charts, see #2756): with no
+   * entrance-animation tween there is nothing to "heal", so re-mounting would
+   * only cost a needless 1-frame ResponsiveContainer reflow on first paint.
+   */
+  disableSettleRemount?: boolean
 }) {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
@@ -78,9 +86,17 @@ function ChartContainer({
   // box). Headless/jsdom/happy-dom renders report a 0×0 box, so `settleNonce`
   // stays 0 and those tests see a single, ordinary render. See
   // dashboard-chart-empty-first-render.
+  //
+  // NOTE (#2756): the settle re-mount only *heals* an interrupted entrance
+  // animation — it bets that a clean re-mount replays the tween to completion.
+  // In a live react-grid-layout dashboard that bet doesn't hold (the re-mount
+  // itself can land back in the grid/measurement churn), so dashboard charts
+  // instead render with `isAnimationActive={false}` and pass
+  // `disableSettleRemount` — there is no tween to heal and no reflow to pay for.
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const [settleNonce, setSettleNonce] = React.useState(0)
   React.useEffect(() => {
+    if (disableSettleRemount) return
     const el = containerRef.current
     if (el == null || typeof ResizeObserver === "undefined") return
 
@@ -106,7 +122,7 @@ function ChartContainer({
       if (timer != null) clearTimeout(timer)
       observer.disconnect()
     }
-  }, [])
+  }, [disableSettleRemount])
 
   return (
     <ChartContext.Provider value={{ config }}>

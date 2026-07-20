@@ -194,6 +194,8 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
           xAxisKey: xAxisKey,
           series: [{ dataKey: effectiveYField }],
           colors: CHART_COLORS,
+          // Deterministic first paint inside the grid (#2756).
+          isAnimationActive: false,
           className: "h-full"
         };
       }
@@ -207,6 +209,8 @@ export const DashboardGridLayout: React.FC<DashboardGridLayoutProps> = ({
         xAxisKey: xAxisKey,
         series: [{ dataKey: yField }],
         colors: CHART_COLORS,
+        // Deterministic first paint inside the grid (#2756).
+        isAnimationActive: false,
         className: "h-full"
       };
     }
