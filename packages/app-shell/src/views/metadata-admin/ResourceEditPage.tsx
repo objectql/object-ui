@@ -584,6 +584,7 @@ function MetadataResourceEditPageImpl({
   // `object`; other types fall back to their own `object`/`objectName`.
   const sourceObjectName: string | undefined =
     ((draft as any)?.interfaceConfig?.source as string | undefined) ||
+    ((draft as any)?.data?.object as string | undefined) ||
     ((draft as any)?.object as string | undefined) ||
     ((draft as any)?.objectName as string | undefined);
   const [objectFields, setObjectFields] = React.useState<Array<{ name: string; label?: string; type?: string }>>([]);

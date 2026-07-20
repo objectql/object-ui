@@ -64,11 +64,12 @@ function mapOperator(op: string) {
     case 'equals': case 'eq': return '=';
     case 'notEquals': case 'not_equals': case 'ne': case 'neq': return '!=';
     case 'contains': return 'contains';
-    case 'notContains': case 'notcontains': return 'notcontains';
-    case 'greaterThan': case 'gt': return '>';
-    case 'greaterOrEqual': case 'gte': return '>=';
-    case 'lessThan': case 'lt': return '<';
-    case 'lessOrEqual': case 'lte': return '<=';
+    case 'notContains': case 'not_contains': case 'notcontains': return 'notcontains';
+    case 'startsWith': case 'starts_with': return 'startswith';
+    case 'greaterThan': case 'greater_than': case 'gt': return '>';
+    case 'greaterOrEqual': case 'greater_than_or_equal': case 'gte': return '>=';
+    case 'lessThan': case 'less_than': case 'lt': return '<';
+    case 'lessOrEqual': case 'less_than_or_equal': case 'lte': return '<=';
     case 'in': return 'in';
     case 'notIn': case 'not_in': case 'nin': return 'not in';
     case 'before': return '<';

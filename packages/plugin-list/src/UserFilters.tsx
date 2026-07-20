@@ -72,13 +72,22 @@ export interface UserFiltersProps {
   onSelectionsChange?: (selections: Record<string, Array<string | number | boolean>>) => void;
 }
 
-/** Map @objectstack/spec ViewFilterRule operators to ObjectQL AST operators. */
+/**
+ * Map @objectstack/spec ViewFilterRule operators to ObjectQL AST operators.
+ * Accepts the canonical vocabulary (`greater_than`, `not_equals`, `before`, …)
+ * that the Studio filter builder now writes, plus legacy shorthand spellings
+ * (`gt`, `eq`, `nin`) still present in already-stored view metadata.
+ */
 function specOperatorToAst(op: string | undefined): string {
   switch (op) {
     case undefined: case 'equals': case 'eq': return '=';
     case 'not_equals': case 'ne': case 'neq': return '!=';
-    case 'gte': return '>='; case 'lte': return '<=';
-    case 'gt': return '>'; case 'lt': return '<';
+    case 'greater_than_or_equal': case 'gte': return '>=';
+    case 'less_than_or_equal': case 'lte': return '<=';
+    case 'greater_than': case 'gt': case 'after': return '>';
+    case 'less_than': case 'lt': case 'before': return '<';
+    case 'not_contains': return 'notcontains';
+    case 'starts_with': return 'startswith';
     case 'not_in': case 'nin': return 'not in';
     default: return op;
   }

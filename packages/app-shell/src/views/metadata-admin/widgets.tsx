@@ -1668,22 +1668,34 @@ function ActionMultiWidget({ id, value, onChange, readOnly, context }: WidgetPro
 
 /* -------------------------------------------------------------------------- */
 /* filter-builder — the SAME runtime FilterBuilder used by the list toolbar,   */
-/* reused in Studio for tab presets and the page base filter (unified UX).     */
-/* Stored format stays spec ViewFilterRule[] ({field,operator,value}); the     */
-/* builder's camelCase operators are mapped at the boundary so the runtime     */
-/* (specOperatorToAst) keeps working unchanged.                                */
+/* reused in Studio for view/tab filters and the page base filter (unified UX).*/
+/* Stored format stays spec ViewFilterRule[] ({field,operator,value}). Writes  */
+/* use the CANONICAL @objectstack/spec operator vocabulary (the enum enforced  */
+/* by ViewFilterRuleSchema); reads also accept legacy shorthand/camelCase      */
+/* spellings still present in already-stored view metadata (gt / eq / isNull). */
 /* -------------------------------------------------------------------------- */
 const FB_TO_SPEC: Record<string, string> = {
   equals: 'equals', notEquals: 'not_equals', contains: 'contains', notContains: 'not_contains',
-  isEmpty: 'is_empty', isNotEmpty: 'is_not_empty', greaterThan: 'gt', lessThan: 'lt',
-  greaterOrEqual: 'gte', lessOrEqual: 'lte', before: 'lt', after: 'gt', between: 'between',
+  isEmpty: 'is_empty', isNotEmpty: 'is_not_empty',
+  greaterThan: 'greater_than', lessThan: 'less_than',
+  greaterOrEqual: 'greater_than_or_equal', lessOrEqual: 'less_than_or_equal',
+  before: 'before', after: 'after', between: 'between',
   in: 'in', notIn: 'not_in',
 };
+/** Spec operator → FilterBuilder camelCase. Keys cover both the canonical
+ *  vocabulary and legacy spellings (shorthand + snake/camel) so stored view
+ *  metadata written before canonicalization still seeds the builder. */
 const SPEC_TO_FB: Record<string, string> = {
-  equals: 'equals', eq: 'equals', not_equals: 'notEquals', ne: 'notEquals', neq: 'notEquals',
-  contains: 'contains', not_contains: 'notContains', is_empty: 'isEmpty', is_not_empty: 'isNotEmpty',
-  gt: 'greaterThan', greater_than: 'greaterThan', lt: 'lessThan', less_than: 'lessThan',
-  gte: 'greaterOrEqual', lte: 'lessOrEqual', in: 'in', not_in: 'notIn', nin: 'notIn',
+  equals: 'equals', eq: 'equals',
+  not_equals: 'notEquals', ne: 'notEquals', neq: 'notEquals', notEquals: 'notEquals',
+  contains: 'contains', not_contains: 'notContains', notContains: 'notContains',
+  is_empty: 'isEmpty', isEmpty: 'isEmpty', is_not_empty: 'isNotEmpty', isNotEmpty: 'isNotEmpty',
+  greater_than: 'greaterThan', gt: 'greaterThan', greaterThan: 'greaterThan',
+  less_than: 'lessThan', lt: 'lessThan', lessThan: 'lessThan',
+  greater_than_or_equal: 'greaterOrEqual', gte: 'greaterOrEqual', greaterOrEqual: 'greaterOrEqual',
+  less_than_or_equal: 'lessOrEqual', lte: 'lessOrEqual', lessOrEqual: 'lessOrEqual',
+  before: 'before', after: 'after', between: 'between',
+  in: 'in', not_in: 'notIn', nin: 'notIn', notIn: 'notIn',
 };
 
 interface FilterRuleLite { field: string; operator: string; value?: unknown }
@@ -1700,8 +1712,10 @@ function FilterBuilderField({ value, onChange, fields, readOnly }: {
     logic: 'and' as const,
     conditions: rules.map((r, i) => ({
       id: `c${i}`,
-      field: r.field,
+      // Keep the raw operator verbatim if the builder has no camelCase
+      // equivalent, so it round-trips on save instead of being rewritten.
       operator: SPEC_TO_FB[r.operator] ?? r.operator ?? 'equals',
+      field: r.field,
       value: (r.value as any) ?? '',
     })),
   };
