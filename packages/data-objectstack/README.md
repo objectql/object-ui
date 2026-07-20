@@ -272,6 +272,68 @@ await dataSource.bulk('users', 'delete', [
 - Provides partial success reporting for resilient error handling
 - Atomic operations where supported by the backend
 
+## Cross-Object Atomic Batch (`batchTransaction`)
+
+`bulk()` above operates on **one** object. To persist a set of **cross-object**
+writes as a single all-or-nothing unit — the master-detail case, where a parent
+and its children must commit or roll back together — use `batchTransaction`:
+
+```typescript
+// Create a parent and a child that references it, atomically.
+// `{ $ref: 0 }` resolves to the id minted by operation 0 (the parent).
+await dataSource.batchTransaction([
+  { object: 'invoice',      action: 'create', data: { no: 'INV-1' } },
+  { object: 'invoice_line', action: 'create', data: { invoice: { $ref: 0 }, amount: 10 } },
+]);
+```
+
+On a supporting backend this is one `POST /api/v1/batch` that commits or rolls
+back the whole set in a single server transaction — no orphaned parent if a
+child write fails.
+
+### Declarative capability negotiation (`transactionalBatch`)
+
+Whether the adapter can rely on server atomicity is decided **at connect time**,
+not by firing a batch and reading the failure. `connect()` reads the
+`capabilities.transactionalBatch` flag from `GET /api/v1/discovery`
+([framework #3298](https://github.com/objectstack-ai/framework/issues/3298)),
+which the server sets to `true` only when the `/batch` route is mounted **and**
+the runtime engine can honour a transaction (`declared === enforced`):
+
+| Discovery `capabilities.transactionalBatch` | `batchTransaction` behaviour |
+| --- | --- |
+| `true` | **Trusts server atomicity.** Calls `/batch`; any failure — including `404`/`405`/`501` — surfaces as a real error. No non-atomic client-side fallback. |
+| `false` | Backend can't do an atomic batch (route absent, or a runtime without transactions) → falls back to the non-atomic client-side emulation below. |
+| *absent* | Backend predates #3298 and advertises nothing → the legacy runtime probe stays: try `/batch`, and on `404`/`405`/`501` fall back to emulation. |
+
+The hierarchical wire shape (`{ transactionalBatch: { enabled: true } }`) and the
+flat form the client SDK normalizes to (`{ transactionalBatch: true }`) are both
+accepted.
+
+### Non-atomic fallback
+
+When the capability is `false` or absent, the adapter degrades to a client-side
+emulation (`@object-ui/core`'s `emulateBatchTransaction`): the operations run in
+order and, on failure, it best-effort deletes the records it created (children
+before parent) before rethrowing. This is **not** a transaction — a create's
+side effects (hooks, rollups, webhooks) are not undone by a later delete, and a
+mid-batch network drop leaves no chance to compensate. It exists only so a save
+is still possible against a backend that lacks server atomicity; removing it
+would turn "saves, less safe" into "no save path" on older backends
+([objectui #2679](https://github.com/objectstack-ai/objectui/issues/2679)).
+
+### Minimum supported backend
+
+Atomic cross-object saves are **guaranteed only against ObjectStack backends on
+the 16.x line that advertise `capabilities.transactionalBatch: true`** — the
+endpoint landed in [framework #1604](https://github.com/objectstack-ai/framework/issues/1604)
+and its discovery capability in
+[framework #3298](https://github.com/objectstack-ai/framework/issues/3298).
+ObjectUI does not hard-require it: against an older backend a master-detail save
+still succeeds, but non-atomically via the fallback above. Treat the advertised
+capability as the floor for the atomicity guarantee, not as a connection
+prerequisite.
+
 ## User-Scoped State Adapter
 
 In addition to the main `DataSource` adapter, this package ships
@@ -348,6 +410,7 @@ new ObjectStackAdapter(config: {
 - `update(resource, id, data)` - Update an existing record
 - `delete(resource, id)` - Delete a record
 - `bulk(resource, operation, data)` - Batch operations (create/update/delete)
+- `batchTransaction(operations)` - Cross-object atomic batch (master-detail); atomic when the backend advertises `transactionalBatch`, else non-atomic client-side fallback
 - `getObjectSchema(objectName)` - Get schema metadata (cached)
 - `getCacheStats()` - Get cache statistics
 - `invalidateCache(key?)` - Invalidate cache entries

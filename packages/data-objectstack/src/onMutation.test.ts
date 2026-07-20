@@ -17,8 +17,12 @@
  * issued by ObjectGrid's default batch-save were silent and the grid kept
  * showing stale rows until a manual reload.
  */
-import { describe, it, expect, vi } from 'vitest';
-import { ObjectStackAdapter } from './index';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  ObjectStackAdapter,
+  clearSharedDiscoveryCache,
+  readTransactionalBatchCapability,
+} from './index';
 import type { MutationEvent } from '@object-ui/types';
 
 function makeDS(stub: Record<string, any>) {
@@ -374,5 +378,171 @@ describe('ObjectStackAdapter.bulk mutation events', () => {
     await expect(ds.bulk('ehr_task_check_item', 'create', [{ label: 'a' }])).rejects.toThrow();
 
     expect(events).toEqual([]);
+  });
+});
+
+/**
+ * #2693 / framework#3298 — declarative capability negotiation for atomic batch.
+ *
+ * The adapter reads `capabilities.transactionalBatch` from discovery at
+ * connect(). When the backend DECLARES support it TRUSTS server atomicity and
+ * never degrades to the non-atomic client emulation — a batch failure (even
+ * 404/405/501) is a real error. When the capability is ABSENT (backend predates
+ * #3298) or explicitly `false`, the legacy runtime-probe + emulation fallback
+ * stays active so a save is still possible (#2679 compatibility constraint).
+ */
+describe('ObjectStackAdapter.batchTransaction capability gate (#2693 / framework#3298)', () => {
+  // The discovery cache is module-level and shared across files in the (unit)
+  // project — reset it so each case reads its own advertised capability.
+  beforeEach(() => clearSharedDiscoveryCache());
+
+  function makeCapabilityDS(opts: {
+    /** Value placed at `capabilities.transactionalBatch`; omit to leave it absent. */
+    capability?: boolean | { enabled: boolean };
+    batchStatus: number;
+    /** Response body for the `/batch` call (defaults to an error envelope). */
+    batchBody?: unknown;
+    clientData?: Record<string, any>;
+  }) {
+    const capabilities: Record<string, unknown> = {};
+    if (opts.capability !== undefined) capabilities.transactionalBatch = opts.capability;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/v1/discovery')) {
+        return new Response(
+          JSON.stringify({ success: true, data: { name: 't', version: '1.0.0', capabilities } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      // POST /api/v1/batch
+      return new Response(JSON.stringify(opts.batchBody ?? { error: 'nope' }), {
+        status: opts.batchStatus,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const ds: any = new ObjectStackAdapter({
+      baseUrl: 'http://test.local',
+      autoReconnect: false,
+      fetch: fetchMock,
+    });
+    // Feature-detect target for the SDK batch method + emulation primitives.
+    ds.client = { data: opts.clientData ?? {} };
+    return { ds, fetchMock };
+  }
+
+  it('declared transactionalBatch:true → a 404 is a hard error, NOT downgraded to emulation', async () => {
+    const create = vi.fn();
+    const { ds } = makeCapabilityDS({ capability: { enabled: true }, batchStatus: 404, clientData: { create } });
+
+    await expect(
+      ds.batchTransaction([{ object: 'proj', action: 'create', data: {} }]),
+    ).rejects.toThrow(/nope/);
+    // A declared-atomic backend is trusted: no client-side compensation ran.
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('declared transactionalBatch:true → 501 is also a hard error (no emulation)', async () => {
+    const create = vi.fn();
+    const { ds } = makeCapabilityDS({ capability: { enabled: true }, batchStatus: 501, clientData: { create } });
+
+    await expect(
+      ds.batchTransaction([{ object: 'proj', action: 'create', data: {} }]),
+    ).rejects.toThrow();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('accepts the flat boolean capability shape too', async () => {
+    const create = vi.fn();
+    const { ds } = makeCapabilityDS({ capability: true, batchStatus: 404, clientData: { create } });
+
+    await expect(
+      ds.batchTransaction([{ object: 'proj', action: 'create', data: {} }]),
+    ).rejects.toThrow();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('declared support → a committed batch commits via /batch and emits one event per op', async () => {
+    const { ds } = makeCapabilityDS({
+      capability: { enabled: true },
+      batchStatus: 200,
+      batchBody: { results: [{ id: 'p1', name: 'A' }, { id: 'c1', proj: 'p1' }] },
+    });
+    const events: MutationEvent[] = [];
+    ds.onMutation((e: MutationEvent) => events.push(e));
+
+    const res = await ds.batchTransaction([
+      { object: 'proj', action: 'create', data: { name: 'A' } },
+      { object: 'item', action: 'create', data: { proj: { $ref: 0 } } },
+    ]);
+
+    expect(res.results).toHaveLength(2);
+    expect(events).toEqual([
+      { type: 'create', resource: 'proj', record: { id: 'p1', name: 'A' } },
+      { type: 'create', resource: 'item', record: { id: 'c1', proj: 'p1' } },
+    ]);
+  });
+
+  it('declared transactionalBatch:false → 404 still degrades to non-atomic emulation', async () => {
+    const create = vi.fn(async (_o: string, d: any) => ({ record: { id: 'p1', ...d } }));
+    const { ds } = makeCapabilityDS({ capability: { enabled: false }, batchStatus: 404, clientData: { create } });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const res = await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'A' } }]);
+
+    expect(create).toHaveBeenCalledWith('proj', { name: 'A' });
+    expect(res.results[0]).toMatchObject({ id: 'p1', name: 'A' });
+    warn.mockRestore();
+  });
+
+  it('capability ABSENT (backend predates #3298) → 404 degrades to emulation (back-compat)', async () => {
+    const create = vi.fn(async (_o: string, d: any) => ({ record: { id: 'p1', ...d } }));
+    const { ds } = makeCapabilityDS({ batchStatus: 404, clientData: { create } }); // no capability advertised
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await ds.batchTransaction([{ object: 'proj', action: 'create', data: { name: 'A' } }]);
+
+    expect(create).toHaveBeenCalledWith('proj', { name: 'A' });
+    warn.mockRestore();
+  });
+
+  it('declared support → a real error (400) surfaces unchanged', async () => {
+    const create = vi.fn();
+    const { ds } = makeCapabilityDS({ capability: { enabled: true }, batchStatus: 400, clientData: { create } });
+
+    await expect(
+      ds.batchTransaction([{ object: 'proj', action: 'create', data: {} }]),
+    ).rejects.toThrow(/nope/);
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Unit coverage for the discovery capability reader — it must accept both the
+ * hierarchical `{ enabled }` wire shape (what the framework producers emit) and
+ * the flat boolean the client SDK normalizes to, and return `undefined` for a
+ * pre-#3298 backend that advertises nothing.
+ */
+describe('readTransactionalBatchCapability (#3298 shape reader)', () => {
+  it('reads the hierarchical { enabled } form', () => {
+    expect(readTransactionalBatchCapability({ capabilities: { transactionalBatch: { enabled: true } } })).toBe(true);
+    expect(readTransactionalBatchCapability({ capabilities: { transactionalBatch: { enabled: false } } })).toBe(false);
+  });
+
+  it('reads the flat boolean form', () => {
+    expect(readTransactionalBatchCapability({ capabilities: { transactionalBatch: true } })).toBe(true);
+    expect(readTransactionalBatchCapability({ capabilities: { transactionalBatch: false } })).toBe(false);
+  });
+
+  it('returns undefined when the capability (or the whole map) is absent', () => {
+    expect(readTransactionalBatchCapability({ capabilities: {} })).toBeUndefined();
+    expect(readTransactionalBatchCapability({ capabilities: { comments: { enabled: true } } })).toBeUndefined();
+    expect(readTransactionalBatchCapability({})).toBeUndefined();
+    expect(readTransactionalBatchCapability(null)).toBeUndefined();
+    expect(readTransactionalBatchCapability(undefined)).toBeUndefined();
+  });
+
+  it('ignores a malformed capability value', () => {
+    expect(readTransactionalBatchCapability({ capabilities: { transactionalBatch: { enabled: 'yes' } } })).toBeUndefined();
+    expect(readTransactionalBatchCapability({ capabilities: { transactionalBatch: 'true' } })).toBeUndefined();
   });
 });

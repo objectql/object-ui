@@ -186,3 +186,16 @@ executes the operations sequentially (resolving `$ref`s) with best-effort
 compensation on failure. UI components never branch on atomicity — they call
 `runBatchTransaction(dataSource, operations)` (also from `@object-ui/core`),
 which uses the adapter's method when present and emulates otherwise.
+
+The `@object-ui/data-objectstack` adapter decides whether it can trust server
+atomicity **declaratively**, at connect time: it reads the
+`capabilities.transactionalBatch` flag from `GET /api/v1/discovery`
+(framework #3298). When the backend advertises `true`, the adapter treats any
+`/batch` failure as a real error — no non-atomic client-side compensation. When
+the flag is `false` or absent (a backend predating #3298), it keeps the legacy
+behaviour: probe `/batch` and fall back to the non-atomic emulation on
+`404`/`405`/`501`. Atomic cross-object saves are therefore guaranteed only
+against backends that advertise the capability; older ones still save, but
+best-effort. See the
+[adapter README](../../../packages/data-objectstack/README.md#cross-object-atomic-batch-batchtransaction)
+for the full capability table and minimum-backend note.
