@@ -36,34 +36,15 @@
  * (they never affect the object-level `canEdit` / `canDelete` verdict).
  */
 
-/** Per-record CEL predicates for a built-in row action (objectui#2614).
- * Kept as authored — bare CEL string or `{ dialect, source }` envelope —
- * and handed to `useRowPredicate` untouched. */
-export interface RowCrudPredicates {
-  visibleWhen?: unknown;
-  disabledWhen?: unknown;
-}
+import { normalizeUserAction, type RowCrudPredicates, type UserActionOverride } from '@object-ui/core';
 
+// The `userActions.{edit,delete}` override shape (bare boolean or #2614 object
+// form) and its per-record predicates are parsed in exactly one place —
+// `@object-ui/core`'s `normalizeUserAction`. Re-exported under the historical
+// names so existing `./rowCrudAffordances` importers keep resolving.
+export type { RowCrudPredicates } from '@object-ui/core';
 /** A `userActions.edit` / `delete` flag: bare boolean or the #2614 object form. */
-export type RowCrudUserAction =
-  | boolean
-  | { enabled?: boolean; visibleWhen?: unknown; disabledWhen?: unknown };
-
-/** Object-level enabled verdict for a userActions flag (undefined = no opt-out). */
-function isOptedOut(v: RowCrudUserAction | undefined | null): boolean {
-  if (typeof v === 'boolean') return v === false;
-  return v?.enabled === false;
-}
-
-/** Extract the per-record predicates from the object form, if any. */
-function predicatesOf(v: RowCrudUserAction | undefined | null): RowCrudPredicates | undefined {
-  if (v == null || typeof v === 'boolean') return undefined;
-  if (v.visibleWhen == null && v.disabledWhen == null) return undefined;
-  const out: RowCrudPredicates = {};
-  if (v.visibleWhen != null) out.visibleWhen = v.visibleWhen;
-  if (v.disabledWhen != null) out.disabledWhen = v.disabledWhen;
-  return out;
-}
+export type RowCrudUserAction = UserActionOverride;
 
 export function resolveRowCrudAffordances(opts: {
   operationsUpdate?: boolean;
@@ -80,16 +61,19 @@ export function resolveRowCrudAffordances(opts: {
   editPredicates?: RowCrudPredicates;
   deletePredicates?: RowCrudPredicates;
 } {
-  const editOptedOut = isOptedOut(opts.userActions?.edit);
-  const deleteOptedOut = isOptedOut(opts.userActions?.delete);
+  // Opt-out model (base = true): the generic Edit/Delete surface UNLESS the
+  // object explicitly disabled the flag (`false` / `{ enabled: false }`). The
+  // bucket-level lock is applied upstream via the view's `operations.*`.
+  const edit = normalizeUserAction(opts.userActions?.edit, true);
+  const del = normalizeUserAction(opts.userActions?.delete, true);
   const canEdit =
-    !!((opts.operationsUpdate || opts.wantEditAction) && opts.hasOnEdit) && !editOptedOut;
+    !!((opts.operationsUpdate || opts.wantEditAction) && opts.hasOnEdit) && edit.enabled;
   const canDelete =
-    !!((opts.operationsDelete || opts.wantDeleteAction) && opts.hasOnDelete) && !deleteOptedOut;
+    !!((opts.operationsDelete || opts.wantDeleteAction) && opts.hasOnDelete) && del.enabled;
   return {
     canEdit,
     canDelete,
-    editPredicates: canEdit ? predicatesOf(opts.userActions?.edit) : undefined,
-    deletePredicates: canDelete ? predicatesOf(opts.userActions?.delete) : undefined,
+    editPredicates: canEdit ? edit.predicates : undefined,
+    deletePredicates: canDelete ? del.predicates : undefined,
   };
 }

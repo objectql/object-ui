@@ -5,6 +5,8 @@ import {
   isWriteOptedIn,
   isSystemWritable,
   isObjectInlineEditable,
+  normalizeUserAction,
+  userActionPredicates,
 } from './managedBy';
 
 describe('resolveCrudAffordances (shared source of truth)', () => {
@@ -93,6 +95,46 @@ describe('isObjectInlineEditable', () => {
     expect(isObjectInlineEditable({ managedBy: 'system', userActions: { edit: true } })).toBe(true);
     // an explicit edit:false disables even on an otherwise-editable bucket
     expect(isObjectInlineEditable({ managedBy: 'platform', userActions: { edit: false } })).toBe(false);
+  });
+});
+
+// The ONE parser for the userActions override shape, now consumed by the grid
+// row affordances and related-list row predicates (objectui#2712 follow-up) so
+// no package re-implements the boolean / #2614 object-form parse locally.
+describe('normalizeUserAction (the single override parser)', () => {
+  it('a missing flag falls back to the caller-supplied bucket default', () => {
+    expect(normalizeUserAction(undefined, true)).toEqual({ enabled: true });
+    expect(normalizeUserAction(undefined, false)).toEqual({ enabled: false });
+    expect(normalizeUserAction(null, true)).toEqual({ enabled: true });
+  });
+
+  it('a bare boolean wins over the default and carries no predicates', () => {
+    expect(normalizeUserAction(true, false)).toEqual({ enabled: true });
+    expect(normalizeUserAction(false, true)).toEqual({ enabled: false });
+  });
+
+  it('object form: enabled overrides the default; predicates ride alongside', () => {
+    expect(normalizeUserAction({ enabled: false, disabledWhen: 'record.frozen' }, true))
+      .toEqual({ enabled: false, predicates: { disabledWhen: 'record.frozen' } });
+    // omitted `enabled` falls back to the base; only the present predicate key is set.
+    expect(normalizeUserAction({ visibleWhen: 'a' }, true))
+      .toEqual({ enabled: true, predicates: { visibleWhen: 'a' } });
+    // object form without predicates is boolean-equivalent.
+    expect(normalizeUserAction({ enabled: true }, false)).toEqual({ enabled: true });
+  });
+});
+
+describe('userActionPredicates', () => {
+  it('returns predicates independent of the enabled verdict, undefined otherwise', () => {
+    expect(userActionPredicates(true)).toBeUndefined();
+    expect(userActionPredicates(false)).toBeUndefined();
+    expect(userActionPredicates(undefined)).toBeUndefined();
+    expect(userActionPredicates({ enabled: true })).toBeUndefined();
+    expect(userActionPredicates({ disabledWhen: 'x' })).toEqual({ disabledWhen: 'x' });
+    expect(userActionPredicates({ visibleWhen: 'a', disabledWhen: 'b' }))
+      .toEqual({ visibleWhen: 'a', disabledWhen: 'b' });
+    // predicates survive even when the flag opts the action out.
+    expect(userActionPredicates({ enabled: false, visibleWhen: 'a' })).toEqual({ visibleWhen: 'a' });
   });
 });
 

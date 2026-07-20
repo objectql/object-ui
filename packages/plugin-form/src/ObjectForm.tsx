@@ -18,6 +18,7 @@ import type { ObjectFormSchema, FormField, FormSchema, DataSource } from '@objec
 import { SchemaRenderer, useSafeFieldLabel } from '@object-ui/react';
 import { mapFieldTypeToFormType, buildValidationRules, formatFileSize } from '@object-ui/fields';
 import { useIsMobile, toast } from '@object-ui/components';
+import { resolveCrudAffordances } from '@object-ui/core';
 import { resolveSuccessNavigate, isSameOriginUrl } from './successBehavior';
 import { usePermissions } from '@object-ui/permissions';
 import { TabbedForm } from './TabbedForm';
@@ -457,29 +458,25 @@ const SimpleObjectForm: React.FC<ObjectFormProps> = ({
 
     const generatedFields: FormField[] = [];
 
-    // Managed-object blanket lock (ADR-0092 D4). Non-`platform` lifecycle
-    // buckets (config / system / append-only / better-auth) historically had
-    // no generic edit affordance, so every field was disabled as a defensive
-    // default. An object can now OPEN per-record editing for the current mode
-    // via `userActions.{edit,create}` (e.g. sys_user opens `edit` for its
-    // profile fields); when it does, we drop the blanket lock and honor each
-    // field's own `readonly` flag instead. Mirrors the server's
-    // resolveCrudAffordances contract — managed buckets default the affordance
-    // off, so only an explicit `=== true` override unlocks. The server-side
-    // write guard remains the real boundary; this is UX only.
-    const managed = !!objectSchema?.managedBy && objectSchema.managedBy !== 'platform';
-    // `userActions.edit` may be the #2614 object form ({ enabled, ...CEL
-    // predicates }); only the explicit enabled boolean unlocks — predicates
-    // gate row action buttons, not the form's blanket lock.
-    const uaEdit = (objectSchema as any)?.userActions?.edit;
-    const editAffordanceOpen = uaEdit === true || (typeof uaEdit === 'object' && uaEdit !== null && uaEdit.enabled === true);
+    // Managed-object blanket lock (ADR-0092 D4 / ADR-0103). We disable every
+    // field when the object's resolved CRUD affordance for the CURRENT mode is
+    // closed — `edit` for edit mode, `create` for create mode. This routes
+    // through the SAME shared `resolveCrudAffordances` policy the detail
+    // (`isObjectInlineEditable`) and grid surfaces use, instead of re-deriving
+    // the bucket lock here: `platform` and admin-editable `config` resolve open;
+    // engine-owned `system` / `append-only` / `better-auth` resolve closed
+    // unless the object OPENED per-record writing via `userActions.{edit,create}`
+    // (e.g. sys_user opens `edit` for its profile fields). When open, the lock
+    // lifts and each field's own `readonly` flag decides. The server-side write
+    // guard remains the real boundary; this is UX only.
+    const affordances = resolveCrudAffordances(objectSchema as any);
     const modeAffordanceOpen =
       schema.mode === 'edit'
-        ? editAffordanceOpen
+        ? affordances.edit
         : schema.mode === 'create'
-          ? (objectSchema as any)?.userActions?.create === true
-          : false;
-    const managedBlanketLock = managed && !modeAffordanceOpen;
+          ? affordances.create
+          : true; // view mode disables fields elsewhere — never double-lock here
+    const managedBlanketLock = !modeAffordanceOpen;
 
     // Determine which fields to include
     const fieldsToShow = schema.fields || Object.keys(objectSchema.fields || {});

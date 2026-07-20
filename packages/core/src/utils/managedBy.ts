@@ -75,9 +75,16 @@ const DEFAULTS: Record<ManagedByBucket, CrudAffordances> = {
 
 /**
  * Collapse an `edit`/`delete` override (boolean or #2614 object form) onto
- * the bucket default, surfacing any per-record predicates alongside.
+ * the given bucket default, surfacing any per-record predicates alongside.
+ *
+ * THE single parser for the `userActions.{edit,delete}` override shape — every
+ * UI package (grid row affordances, related-list row predicates, this module's
+ * own `resolveCrudAffordances`) routes through here instead of re-implementing
+ * the boolean/object-form parse locally. `base` is the bucket default an
+ * omitted `enabled` falls back to (callers that only gate on an explicit
+ * opt-out pass `true`; predicate extraction is independent of `base`).
  */
-function normalizeOverride(
+export function normalizeUserAction(
   v: UserActionOverride | undefined | null,
   base: boolean,
 ): { enabled: boolean; predicates?: RowCrudPredicates } {
@@ -91,13 +98,26 @@ function normalizeOverride(
   return { enabled, predicates };
 }
 
+/**
+ * Extract the per-record CEL predicates (#2614 object form) from a
+ * `userActions.edit` / `delete` flag, or `undefined` for a bare boolean /
+ * predicate-less flag. Independent of the object-level enabled verdict — row
+ * renderers use this to gate a built-in action per record. Thin wrapper over
+ * {@link normalizeUserAction} so the parse lives in exactly one place.
+ */
+export function userActionPredicates(
+  v: UserActionOverride | undefined | null,
+): RowCrudPredicates | undefined {
+  return normalizeUserAction(v, false).predicates;
+}
+
 /** Resolve the effective CRUD affordances for an object schema. */
 export function resolveCrudAffordances(obj: SchemaLike | null | undefined): CrudAffordances {
   const bucket = (obj?.managedBy as ManagedByBucket | undefined) ?? 'platform';
   const base = DEFAULTS[bucket] ?? DEFAULTS.platform;
   const o = obj?.userActions ?? {};
-  const edit = normalizeOverride(o.edit, base.edit);
-  const del = normalizeOverride(o.delete, base.delete);
+  const edit = normalizeUserAction(o.edit, base.edit);
+  const del = normalizeUserAction(o.delete, base.delete);
   const out: CrudAffordances = {
     create:    o.create    ?? base.create,
     import:    o.import    ?? base.import,

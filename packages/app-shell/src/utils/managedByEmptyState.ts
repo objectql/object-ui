@@ -21,6 +21,8 @@
  * (in the header) and the empty state (in the body) tell a consistent
  * story without repeating themselves verbatim.
  */
+import { resolveCrudAffordances, type UserActionsOverride } from '@object-ui/core';
+
 export interface ManagedByEmptyState {
   title: string;
   message: string;
@@ -34,24 +36,20 @@ export interface ManagedByEmptyState {
  */
 type TranslateFn = (key: string, options?: Record<string, unknown>) => string;
 
-/** Subset of `userActions` (ADR-0103) that opens generic creation. */
-interface EmptyStateUserActions {
-  create?: boolean;
-}
-
 export function resolveManagedByEmptyState(
   managedBy: string | undefined | null,
   t: TranslateFn,
   objectName?: string | null,
-  userActions?: EmptyStateUserActions | null,
+  userActions?: UserActionsOverride | null,
 ): ManagedByEmptyState | undefined {
   switch (managedBy) {
     case 'system':
       // ADR-0103 — a `system` object that opened creation is admin/user-writable
       // data (e.g. Notification Preferences). The "entries appear automatically"
       // copy would be wrong; fall back to the generic empty state (which surfaces
-      // the New button) by returning undefined.
-      if (userActions?.create === true) return undefined;
+      // the New button) by returning undefined. The resolved `create` affordance
+      // (shared @object-ui/core policy) is the one place that reads the override.
+      if (resolveCrudAffordances({ managedBy, userActions }).create) return undefined;
       return {
         icon: 'Lock',
         title: t('list.managedBy.system.title', { defaultValue: 'Nothing here yet' }),

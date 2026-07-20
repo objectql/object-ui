@@ -45,6 +45,14 @@ describe('ObjectForm — managed-object edit affordance (ADR-0092 D4)', () => {
       />,
     );
 
+  const renderCreate = (schema: any) =>
+    render(
+      <ObjectForm
+        schema={{ type: 'object-form', objectName: schema.name, mode: 'create' } as any}
+        dataSource={dsFor(schema)}
+      />,
+    );
+
   async function inputByName(container: HTMLElement, name: string): Promise<HTMLInputElement> {
     return waitFor(() => {
       const el = container.querySelector(`input[name="${name}"]`) as HTMLInputElement | null;
@@ -81,5 +89,27 @@ describe('ObjectForm — managed-object edit affordance (ADR-0092 D4)', () => {
     const { container } = renderEdit(schema);
     const name = await inputByName(container, 'name');
     expect(name.disabled).toBe(false);
+  });
+
+  // ADR-0103 alignment (objectui#2712 follow-up): the blanket lock now routes
+  // through the SAME shared `resolveCrudAffordances` policy detail/grid use, so
+  // an admin-editable `config` bucket (sys_webhook, sys_permission_set, …) is
+  // editable in the form too — it was previously over-locked as "non-platform".
+  it('config object: editable (resolved config.edit === true, matches detail/grid)', async () => {
+    const schema = { name: 'sys_webhook', managedBy: 'config', fields: { name: { type: 'text', label: 'Name', readonly: false } } };
+    const { container } = renderEdit(schema);
+    const name = await inputByName(container, 'name');
+    expect(name.disabled).toBe(false);
+  });
+
+  // Create mode keys off the resolved `create` affordance (not `edit`): an
+  // engine-owned system object stays locked, while one that opened
+  // `userActions.create` (e.g. Notification Preferences) unlocks.
+  it('create mode: engine-owned system locked, userActions.create unlocks', async () => {
+    const locked = renderCreate({ name: 'sys_automation_run', managedBy: 'system', fields: { name: { type: 'text', label: 'Name', readonly: false } } });
+    expect((await inputByName(locked.container, 'name')).disabled).toBe(true);
+
+    const open = renderCreate({ name: 'sys_notification_preference', managedBy: 'system', userActions: { create: true }, fields: { name: { type: 'text', label: 'Name', readonly: false } } });
+    expect((await inputByName(open.container, 'name')).disabled).toBe(false);
   });
 });

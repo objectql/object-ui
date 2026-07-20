@@ -40,6 +40,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { DataSource, FieldMetadata } from '@object-ui/types';
 import { getCellRenderer, resolveCellRendererType, RecordPickerDialog } from '@object-ui/fields';
+import { userActionPredicates } from '@object-ui/core';
 import { useSafeFieldLabel } from '@object-ui/react';
 import { usePermissions } from '@object-ui/permissions';
 import { useDetailTranslation } from './useDetailTranslation';
@@ -723,13 +724,10 @@ export const RelatedList: React.FC<RelatedListProps> = ({
     // Per-record CEL predicates for the built-in row Edit/Delete, from the
     // CHILD object's `userActions.edit` / `delete` object form (#2614) — the
     // master-detail case where a child row freezes on a parent state change
-    // renders through this path. Boolean forms yield no predicates.
-    const uaEdit = objectSchema?.userActions?.edit;
-    const uaDelete = objectSchema?.userActions?.delete;
-    const predicatesOf = (v: any) =>
-      v != null && typeof v === 'object' && (v.visibleWhen != null || v.disabledWhen != null)
-        ? { visibleWhen: v.visibleWhen ?? undefined, disabledWhen: v.disabledWhen ?? undefined }
-        : undefined;
+    // renders through this path. Boolean forms yield no predicates. Parsed by
+    // the shared `@object-ui/core` normalizer so there is one parser platform-wide.
+    const rowEditPredicates = userActionPredicates(objectSchema?.userActions?.edit);
+    const rowDeletePredicates = userActionPredicates(objectSchema?.userActions?.delete);
 
     // Auto-generate schema based on type. We disable the data-table's own
     // search/toolbar — RelatedList provides its own filter input above.
@@ -747,8 +745,8 @@ export const RelatedList: React.FC<RelatedListProps> = ({
           rowActions: hasRowActions,
           onRowEdit,
           onRowDelete: onRowDelete ? handleDeleteRow : undefined,
-          rowEditPredicates: predicatesOf(uaEdit),
-          rowDeletePredicates: predicatesOf(uaDelete),
+          rowEditPredicates,
+          rowDeletePredicates,
           onRowClick,
           // Child-object row actions (locations:['list_item']) rendered in the
           // same overflow menu, dispatched with the clicked row as target.
