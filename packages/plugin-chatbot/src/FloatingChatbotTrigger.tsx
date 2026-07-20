@@ -14,15 +14,14 @@ import { useFloatingChatbot } from "./FloatingChatbotProvider"
 import { useObjectTranslation } from "@object-ui/react"
 
 function useChatbotLabel() {
-  try {
-    const { t } = useObjectTranslation();
-    return (key: 'openChat' | 'closeChat', fallback: string) => {
-      const v = t(`common.${key}`);
-      return !v || v === `common.${key}` ? fallback : v;
-    };
-  } catch {
-    return (_k: string, fallback: string) => fallback;
-  }
+  // useObjectTranslation is provider-safe (never throws); no try/catch, which
+  // would wrap the hook call and violate rules-of-hooks. The `fallback` still
+  // applies below when the key is missing/untranslated.
+  const { t } = useObjectTranslation();
+  return (key: 'openChat' | 'closeChat', fallback: string) => {
+    const v = t(`common.${key}`);
+    return !v || v === `common.${key}` ? fallback : v;
+  };
 }
 
 export interface FloatingChatbotTriggerProps {

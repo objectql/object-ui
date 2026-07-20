@@ -31,8 +31,13 @@ const ShimmerComponent = ({
   duration = 2,
   spread = 2,
 }: TextShimmerProps) => {
-  const MotionComponent = motion.create(
-    Component as keyof JSX.IntrinsicElements
+  // motion.create() builds a fresh motion component; it must key off the `as`
+  // prop so it can't be hoisted to module scope. Memoize per `Component` so it
+  // stays a stable reference across renders (react-hooks/static-components)
+  // instead of being re-created — and re-mounting — every render.
+  const MotionComponent = useMemo(
+    () => motion.create(Component as keyof JSX.IntrinsicElements),
+    [Component],
   );
 
   const dynamicSpread = useMemo(
@@ -41,6 +46,7 @@ const ShimmerComponent = ({
   );
 
   return (
+    // eslint-disable-next-line react-hooks/static-components -- MotionComponent is memoized per `as` prop above (stable across renders); motion.create needs the runtime tag, so it can't be declared at module scope
     <MotionComponent
       animate={{ backgroundPosition: "0% center" }}
       className={cn(

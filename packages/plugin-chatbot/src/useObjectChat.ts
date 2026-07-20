@@ -487,80 +487,61 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     };
   }, []);
 
-  // ---- API mode return ----
-  if (isApiMode) {
-    const {
-      messages: aiMessages,
-      status,
-      error,
-      sendMessage: aiSendMessage,
-      regenerate,
-      stop,
-      setMessages,
-    } = chatResult as any;
+  // ---- API-mode derived state + callbacks ----
+  // `chatResult` (the useChat above) is ALWAYS called; destructure it and
+  // declare every callback below unconditionally so the hook calls the same
+  // hooks in the same order regardless of `isApiMode` (rules-of-hooks). Only
+  // the API return branch consumes these.
+  const {
+    messages: aiMessages,
+    status,
+    error,
+    sendMessage: aiSendMessage,
+    regenerate,
+    stop,
+    setMessages,
+  } = chatResult as any;
 
-    const isLoading = status === 'submitted' || status === 'streaming';
+  const isLoading = status === 'submitted' || status === 'streaming';
 
-    // Vercel AI SDK v6 UIMessage → OUI ChatMessage. The shared mapper handles
-    // parts (text, reasoning, tool-*, source-*), streaming-cursor flagging,
-    // and legacy `msg.toolInvocations` fallback. We splice `metadata` back in
-    // because `ChatbotEnhanced.ChatMessage` doesn't carry it but OUI's does.
-    const messages: OuiChatMessage[] = uiMessagesToChatMessages(aiMessages, {
-      isStreaming: isLoading,
-    }).map((m, idx) => ({
-      ...m,
-      metadata: (aiMessages[idx] as any)?.metadata,
-    })) as OuiChatMessage[];
+  // Vercel AI SDK v6 UIMessage → OUI ChatMessage. The shared mapper handles
+  // parts (text, reasoning, tool-*, source-*), streaming-cursor flagging,
+  // and legacy `msg.toolInvocations` fallback. We splice `metadata` back in
+  // because `ChatbotEnhanced.ChatMessage` doesn't carry it but OUI's does.
+  const apiMessages: OuiChatMessage[] = uiMessagesToChatMessages(aiMessages, {
+    isStreaming: isLoading,
+  }).map((m, idx) => ({
+    ...m,
+    metadata: (aiMessages[idx] as any)?.metadata,
+  })) as OuiChatMessage[];
 
-    // Local input state (v3 useChat no longer manages it) — declared above
-    // at the top of the hook to comply with the Rules of Hooks.
+  const sendMessage = useCallback(
+    (content: string) => {
+      const trimmed = content.trim();
+      if (!trimmed) return;
+      const nextMessages: OuiChatMessage[] = [
+        ...apiMessages,
+        { id: generateUniqueId('msg'), role: 'user', content: trimmed },
+      ];
+      aiSendMessage({ text: trimmed });
+      setApiInput('');
+      onSend?.(trimmed, nextMessages);
+    },
+    [aiSendMessage, onSend, apiMessages],
+  );
 
-    const sendMessage = useCallback(
-      (content: string) => {
-        const trimmed = content.trim();
-        if (!trimmed) return;
-        const nextMessages: OuiChatMessage[] = [
-          ...messages,
-          { id: generateUniqueId('msg'), role: 'user', content: trimmed },
-        ];
-        aiSendMessage({ text: trimmed });
-        setApiInput('');
-        onSend?.(trimmed, nextMessages);
-      },
-      [aiSendMessage, onSend, messages],
-    );
+  const clear = useCallback(() => {
+    setMessages([]);
+  }, [setMessages]);
 
-    const clear = useCallback(() => {
-      setMessages([]);
-    }, [setMessages]);
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      setApiInput(e.target.value);
+    },
+    [],
+  );
 
-    const handleInputChange = useCallback(
-      (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        setApiInput(e.target.value);
-      },
-      [],
-    );
-
-    return {
-      messages,
-      isLoading,
-      error,
-      sendMessage,
-      stop,
-      reload: regenerate,
-      clear,
-      // ADR-0013 D2: expose the underlying useChat setMessages so the host can
-      // re-hydrate the thread from the server after a stream-transport failure
-      // (the reply may already be persisted server-side — reconcile, don't re-run).
-      setMessages,
-      isApiMode: true,
-      input: apiInput,
-      setInput: setApiInput,
-      handleInputChange,
-    };
-  }
-
-  // ---- Local/legacy mode return ----
+  // ---- Local/legacy mode callbacks ----
   const localStop = useCallback(() => {
     if (autoResponseTimerRef.current) {
       clearTimeout(autoResponseTimerRef.current);
@@ -615,6 +596,29 @@ export function useObjectChat(options: UseObjectChatOptions = {}): UseObjectChat
     setLocalInput(e.target.value);
   }, []);
 
+  // ---- API mode return ----
+  // All hooks above run every render; only the returned surface differs by mode.
+  if (isApiMode) {
+    return {
+      messages: apiMessages,
+      isLoading,
+      error,
+      sendMessage,
+      stop,
+      reload: regenerate,
+      clear,
+      // ADR-0013 D2: expose the underlying useChat setMessages so the host can
+      // re-hydrate the thread from the server after a stream-transport failure
+      // (the reply may already be persisted server-side — reconcile, don't re-run).
+      setMessages,
+      isApiMode: true,
+      input: apiInput,
+      setInput: setApiInput,
+      handleInputChange,
+    };
+  }
+
+  // ---- Local/legacy mode return ----
   return {
     messages: localMessages,
     isLoading: localIsLoading,
