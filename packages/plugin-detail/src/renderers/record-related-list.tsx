@@ -29,6 +29,15 @@ const colName = (entry: any): string | null => {
 /** Extract a record's primary key, tolerating the `id` / `_id` split. */
 const rowId = (row: any): string | number | null => row?.id ?? row?._id ?? null;
 
+/**
+ * Spec default for `RecordRelatedListProps.limit` (`.default(5)` — "Number of
+ * records to display initially"). Zod materializes defaults only when the
+ * metadata passes through a spec parse; the synthesized default record page
+ * hands us raw nodes, so the renderer enforces the contract's default itself
+ * (issue #2711 — without it related lists rendered ALL child rows unpaged).
+ */
+const SPEC_DEFAULT_LIMIT = 5;
+
 const splitDesigner = (props: Record<string, any>) => {
   const { 'data-obj-id': id, 'data-obj-type': type, style, ...rest } = props || {};
   return { designer: { 'data-obj-id': id, 'data-obj-type': type, style }, rest };
@@ -163,7 +172,12 @@ export const RecordRelatedListRenderer: React.FC<RecordRelatedListRendererProps>
         referenceField={schema.relationshipField}
         parentId={parentLinkValue as any}
         columns={filteredColumns as any}
-        pageSize={schema.limit}
+        pageSize={
+          typeof schema.limit === 'number' && schema.limit > 0
+            ? schema.limit
+            : SPEC_DEFAULT_LIMIT
+        }
+        defaultSort={schema.sort}
         dataSource={ctx?.dataSource as any}
         add={
           (schema as any).add
