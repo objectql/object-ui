@@ -39,7 +39,7 @@ export function parsePackages(payload: unknown): PkgEntry[] {
     if (scope === 'system' || scope === 'cloud') continue; // kernel — not app packages
     const namespace =
       typeof m.namespace === 'string' && m.namespace ? m.namespace : deriveNamespaceFromPackageId(id);
-    out.push({ id, name: String(m.name ?? id), writable: scope !== 'project', namespace });
+    out.push({ id, name: String(m.name ?? id), writable: true, namespace });
   }
   return out;
 }
