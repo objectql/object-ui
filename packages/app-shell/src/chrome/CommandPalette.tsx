@@ -117,6 +117,17 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
   );
   const showRecentRecords = open && inputValue.trim().length === 0 && recentRecords.length > 0;
 
+  // Index object defs by name so group headings can resolve the object's
+  // localized label (labels may be `{ key, defaultValue }` i18n objects, which
+  // the hook's plain-string `objectLabel` can't carry).
+  const objectsByName = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const obj of objects || []) {
+      if (typeof obj?.name === 'string') map.set(obj.name, obj);
+    }
+    return map;
+  }, [objects]);
+
   // Group the (server-ranked) record hits by object so the palette lists them
   // under per-object headings — issue #3371 asks for record hits "grouped by
   // object". The object with the top-ranked hit leads (first-seen order), and
@@ -130,7 +141,11 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
     for (const hit of recordHits) {
       let group = byObject.get(hit.objectName);
       if (!group) {
-        group = { objectLabel: hit.objectLabel, icon: hit.icon, hits: [] };
+        // Prefer the i18n-resolved object label; fall back to the hit's plain
+        // label (already objectName when the def had no string label).
+        const objDef = objectsByName.get(hit.objectName);
+        const label = resolveI18nLabel(objDef?.label, t) || hit.objectLabel;
+        group = { objectLabel: label, icon: hit.icon, hits: [] };
         byObject.set(hit.objectName, group);
         order.push(hit.objectName);
       }
@@ -140,7 +155,7 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
       const group = byObject.get(name)!;
       return { objectName: name, ...group };
     });
-  }, [recordHits]);
+  }, [recordHits, objectsByName, t]);
 
   return (
     <CommandDialog
