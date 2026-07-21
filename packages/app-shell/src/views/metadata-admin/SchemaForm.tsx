@@ -137,6 +137,36 @@ function resolveUnionBranch(
 }
 
 /**
+ * Resolve the row (item) schema for a `repeater` field. The repeater derives
+ * its per-row sub-fields from `items.properties`, but the field's JSONSchema
+ * may wrap the canonical array form in a union (`anyOf` / `oneOf`) — e.g. a
+ * View `sort` (`anyOf: [ "field desc" string, {field,order}[] ]`, kept as a
+ * union so the legacy bare-string form still validates). Reading
+ * `schema.items` at the top level then misses the array branch nested inside
+ * the union, leaving the repeater with zero sub-fields — a blank row with no
+ * field picker or order dropdown (objectui#3379).
+ *
+ * Resolve the union to its ARRAY branch first (forcing an array value so the
+ * score lands on that branch even before any row exists), then return its
+ * `items`, itself union-resolved against the first existing row. A plain
+ * array schema (no union) passes straight through unchanged.
+ */
+function repeaterItemSchema(
+  schema: JsonSchema | undefined,
+  value: unknown,
+): JsonSchema {
+  if (!schema) return {};
+  const arrayBranch = resolveUnionBranch(
+    schema,
+    Array.isArray(value) ? value : [],
+  );
+  const items = arrayBranch?.items as JsonSchema | undefined;
+  if (!items || typeof items !== 'object') return {};
+  const firstRow = Array.isArray(value) && value.length ? value[0] : undefined;
+  return (resolveUnionBranch(items, firstRow) ?? {}) as JsonSchema;
+}
+
+/**
  * Infer widget name from FormFieldSpec.type (Data.FieldType) and schema.
  * Priority: explicit widget > type-based inference > schema-based inference > default.
  */
@@ -967,7 +997,14 @@ function FieldControl({
     );
   }
   if (fieldSpec?.type === 'repeater') {
-    const itemSchema = (schema?.items as JsonSchema | undefined) ?? {};
+    // The row schema may be nested inside a union (`anyOf` / `oneOf`) — e.g.
+    // a View `sort` authored as `anyOf: [ string, {field,order}[] ]`. Reading
+    // `schema.items` at the top level misses the array branch and renders a
+    // blank row with no sub-fields (objectui#3379). Resolve to the array
+    // branch's items and hand RepeaterField a schema whose `items` is that
+    // object schema, so both the derived field list and `pickSubSchema`
+    // (per-row controls) see real sub-schemas.
+    const itemSchema = repeaterItemSchema(schema, value);
     const fields =
       fieldSpec.fields?.length
         ? fieldSpec.fields
@@ -976,7 +1013,7 @@ function FieldControl({
       <RepeaterField
         value={value}
         fields={fields}
-        schema={schema}
+        schema={{ ...schema, items: itemSchema }}
         readOnly={readOnly}
         widgetContext={widgetContext}
         widget={fieldSpec.widget}
