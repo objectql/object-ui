@@ -37,7 +37,7 @@ import { Plus, Upload, Star, StarOff, Table as TableIcon, KanbanSquare, Calendar
 import { useFavorites } from '../hooks/useFavorites';
 import { getIcon } from '../utils/getIcon';
 import type { ListViewSchema, ViewNavigationConfig, FeedItem } from '@object-ui/types';
-import { detectStatusField } from '@object-ui/types';
+import { detectStatusField, isSystemManagedField } from '@object-ui/types';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
 import { useMetadataClient } from './metadata-admin/useMetadata';
@@ -114,6 +114,34 @@ function substituteFilterTokens(filter: any, currentUserId: string | undefined):
         return v;
     };
     return filter.map(sub);
+}
+
+/**
+ * Default list columns for an object that declares no explicit list view.
+ *
+ * Priority: the `highlightFields` semantic role (ADR-0085) wins verbatim
+ * (only dropping names with no field def); otherwise the first `limit`
+ * business fields in declared order. Framework-injected system / audit /
+ * ownership columns are excluded via the shared `isSystemManagedField`
+ * classifier — its single source of truth is the spec `system` flag stamped
+ * by `applySystemFields`, with a name-set fallback covering the injected,
+ * non-hidden / non-readonly `owner_id` and `organization_id`. Without this,
+ * `applySystemFields` (which spreads injected fields to the FRONT of the field
+ * map) would surface `owner_id` as a leading raw-id column (#2702, #2777).
+ */
+export function defaultListColumnsFromObject(objectDef: any, limit = 5): string[] {
+    const curated = objectDef?.highlightFields;
+    if (Array.isArray(curated) && curated.length > 0) {
+        return curated.filter((n: string) => objectDef?.fields?.[n]);
+    }
+    const fields = objectDef?.fields;
+    if (fields && typeof fields === 'object') {
+        return Object.entries(fields)
+            .filter(([name, f]: [string, any]) => f && !f.hidden && !isSystemManagedField(name, f))
+            .map(([name]) => name)
+            .slice(0, limit);
+    }
+    return [];
 }
 
 export function ObjectView({ dataSource, objects, onEdit, externalRefreshKey }: any) {
@@ -248,21 +276,10 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 // Prefill sensible defaults so the saved view renders rows
                 // immediately even if the user didn't pick columns yet.
                 const objectDef = objects?.find?.((o: any) => o.name === objectName);
-                const SYSTEM_FIELDS = new Set([
-                    'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
-                    'deleted_at', 'deletedAt', 'created_by', 'createdBy',
-                    'updated_by', 'updatedBy', '_version', '_rev',
-                ]);
-                let defaultColumns: string[] = [];
-                const curated = objectDef?.highlightFields;
-                if (Array.isArray(curated) && curated.length > 0) {
-                    defaultColumns = curated.filter((n: string) => objectDef.fields?.[n]);
-                } else if (objectDef?.fields) {
-                    defaultColumns = Object.entries(objectDef.fields)
-                        .filter(([name, f]: [string, any]) => f && !f.hidden && !SYSTEM_FIELDS.has(name))
-                        .map(([name]) => name)
-                        .slice(0, 5);
-                }
+                // Prefill business columns only — the shared helper keeps the
+                // framework-injected `owner_id` / audit columns out of the lead
+                // (#2702, #2777), so a newly created view never opens on a raw id.
+                const defaultColumns = defaultListColumnsFromObject(objectDef, 5);
                 const incomingColumns = Array.isArray(config.columns) && config.columns.length > 0
                     ? config.columns
                     : defaultColumns;
@@ -543,34 +560,13 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
 
     // Resolve Views from objectDef.listViews (camelCase per @objectstack/spec)
     const views = useMemo(() => {
-        // Default column resolution priority:
-        //   1. The `highlightFields` semantic role (ADR-0085).
-        //   2. Business fields only — exclude system-managed identifiers/audit
-        //      columns (id, created_at, updated_at, …) and fields explicitly
-        //      marked hidden/readonly on the schema. First 5 kept for compactness.
-        const SYSTEM_FIELDS = new Set([
-            'id', 'created_at', 'createdAt', 'updated_at', 'updatedAt',
-            'deleted_at', 'deletedAt', 'created_by', 'createdBy',
-            'updated_by', 'updatedBy', '_version', '_rev',
-        ]);
-        const resolveDefaultColumns = (): string[] => {
-            const curated = objectDef.highlightFields;
-            if (Array.isArray(curated) && curated.length > 0) {
-                return curated.filter((n: string) => objectDef.fields?.[n]);
-            }
-            if (objectDef.fields) {
-                return Object.entries(objectDef.fields)
-                    .filter(([name, f]: [string, any]) => {
-                        if (!f) return false;
-                        if (f.hidden) return false;
-                        if (SYSTEM_FIELDS.has(name)) return false;
-                        return true;
-                    })
-                    .map(([name]) => name)
-                    .slice(0, 5);
-            }
-            return [];
-        };
+        // Default columns for the auto-generated "所有记录" view (and any saved
+        // grid view with no explicit columns). `highlightFields` (ADR-0085) wins;
+        // otherwise the first business fields — framework-injected system / audit
+        // / ownership columns (notably the non-readonly `owner_id`) are excluded
+        // by the shared classifier. #2702 applied this to ObjectGrid /
+        // InterfaceListPage; this view resolves its columns here (#2777).
+        const resolveDefaultColumns = (): string[] => defaultListColumnsFromObject(objectDef, 5);
 
         const definedViews = objectDef.listViews || objectDef.list_views || {};
         const viewList = Object.entries(definedViews).map(([key, value]: [string, any]) => {
