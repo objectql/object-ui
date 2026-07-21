@@ -168,9 +168,9 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 - **合并前必须等远端 CI 全绿,绝不 `gh pr merge --auto`** —— auto-merge 可能把还红着的 PR 落到共享 `main` 上,弄脏所有并行 agent 的基线。串行合并;合下一个前先 rebase 其他在途分支。注意 path-filter 跳过的检查(显示 `skipping`)配合 `mergeStateStatus:CLEAN` 即算全绿,不是失败。
 - **CI 全绿即自行合并,不必等维护者确认** —— 修改完成后**只提交你任务改动的文件**(逐路径 `git add <file>`,绝不 `git add -A` 扫入无关 diff),开 PR;待测试/CI 全部通过后直接 `gh pr merge --squash --delete-branch`。测试通过就是合并门槛。
 
-### 服务纪律(本仓库与 `../framework` 多 agent 并行开发)
+### 服务纪律(本仓库与 `../objectstack` 多 agent 并行开发)
 
-本仓库和 `../framework` 都有多个 agent 同时开发,正在运行的 dev 服务很可能是**别人的**:
+本仓库和 `../objectstack` 都有多个 agent 同时开发,正在运行的 dev 服务很可能是**别人的**:
 
 - **要测试就自己起临时服务**(自选空闲端口),**绝不随手停/杀别人的服务** —— 发现端口被占先 `lsof -i :PORT` 看清是谁的,不是你起的就换端口,不要 kill。
 - **开发完成必须关掉自己起的服务**,只清理自己启动的进程(按记下的 PID 杀,不要按端口/进程名一锅端)。
@@ -189,15 +189,15 @@ export const SchemaRenderer = ({ schema }: { schema: UIComponent }) => {
 
 上面是**单栈**约定(后端 :3000 + 前端 :5180);多 agent 并行时端口会打架。要彻底隔离,每人起**自己端口**的一整套栈(后端 + console),互不干扰。**下面这套已实测端到端跑通**(console 代理登录 + 从自己后端拉到 `showcase_account` 的 Northwind/Contoso):
 
-1. **后端(`../framework`)—— `--fresh` 临时库 + 自选端口**,数据与端口都隔离、退出自动清:
+1. **后端(`../objectstack`)—— `--fresh` 临时库 + 自选端口**,数据与端口都隔离、退出自动清:
    ```bash
    # showcase(带 showcase_field_zoo / showcase_account 等):
-   cd ../framework/examples/app-showcase
+   cd ../objectstack/examples/app-showcase
    pnpm exec objectstack dev --seed-admin --fresh -p 4010
    #  --fresh        临时 sqlite 库(os.tmpdir()/objectstack-dev-*),SIGINT/SIGTERM 自动删,绝不碰别人的 .objectstack/data/dev.db
    #  -p <port>      监听端口(等价 OS_PORT / PORT;dev 模式端口被占会自动顺延)
    #  --seed-admin   默认开;空库播种 admin@objectos.ai / admin123
-   # CRM:  cd ../framework/examples/app-crm && pnpm exec objectstack dev --seed-admin --fresh -p <port>
+   # CRM:  cd ../objectstack/examples/app-crm && pnpm exec objectstack dev --seed-admin --fresh -p <port>
    # 要持久库(跨重启保留):去掉 --fresh,改用 --database "file:/tmp/agent-<port>.db"(或 OS_DATABASE_URL)
    ```
    干净 checkout 首次需先 `pnpm setup`(build `@objectstack/spec`);已装过的直接可跑。

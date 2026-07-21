@@ -12,7 +12,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
  * none, so this spec targets `todo_task` from examples/app-todo and SKIPS
  * when that backend isn't the live target:
  *
- *   cd ../framework/examples/app-todo && pnpm exec objectstack dev --seed-admin --fresh -p 4015
+ *   cd ../objectstack/examples/app-todo && pnpm exec objectstack dev --seed-admin --fresh -p 4015
  *   cd apps/console && DEV_PROXY_TARGET=http://localhost:4015 pnpm exec vite --port 5196 --strictPort
  *   LIVE_APP_URL=http://localhost:5196 LIVE_API_URL=http://localhost:4015 pnpm test:e2e:live record-history-display
  */
