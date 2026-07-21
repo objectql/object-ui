@@ -1,5 +1,215 @@
 # @object-ui/types
 
+## 16.1.0
+
+### Minor Changes
+
+- 94d4876: feat(dashboard): Studio authors the ADR-0021 dataset shape only (framework#3251)
+
+  Finishes the dashboard analytics migration on the authoring side so the
+  framework can enable `DashboardWidgetSchema.strict()`. Both Studio surfaces now
+  emit only the semantic-layer shape (`dataset` + `dimensions` + `values`); no
+  surface authors the removed pre-ADR-0021 inline query.
+
+  **FROM → TO** (authoring)
+
+  - charts: `object` + `categoryField` + `valueField` + `aggregate`
+    → `dataset` + `dimensions` + `values`
+  - pivots: `object` + `rowField` + `columnField` + `valueField` + `aggregation`
+    → `dataset` + `dimensions` + `values` (last dimension spreads across columns)
+
+  **Changes**
+
+  - `@object-ui/types` — `DashboardWidgetSchema` gains `dataset` / `dimensions` /
+    `values`; the inline analytics keys (`object`, `categoryField`,
+    `categoryGranularity`, `valueField`, `aggregate`, `measures`) are marked
+    `@deprecated` (retained only so the renderer can still read legacy/static
+    metadata during the transition).
+  - `@object-ui/plugin-dashboard` — `WidgetConfigPanel` is rewritten as a dataset
+    picker (chart AND pivot). **Breaking prop change:** the unused
+    `availableObjects` / `availableFields` props are replaced by a new
+    `datasets?: WidgetDatasetCatalogEntry[]` (+ `datasetsLoading?`) catalog prop,
+    also forwarded by `DashboardWithConfig`. Hosts resolve the catalog (e.g. via
+    the metadata client's `list('dataset')`); without it the panel falls back to
+    free-text authoring. New exports: `WidgetDatasetCatalogEntry` and
+    `sanitizeDraftForType`.
+  - `@object-ui/app-shell` — the metadata-admin `DashboardWidgetInspector` drops
+    the legacy inline fields (object / value field / category field / aggregate);
+    the dataset section is now the primary (and only) analytics binding, and the
+    filter-binding field picker sources options from the bound dataset's
+    dimensions. The "Add widget" catalog drops `list` / `custom` — neither is a
+    member of `@objectstack/spec` `ChartTypeSchema`, so a widget authored with
+    them could never publish.
+
+  **Not changed:** `DashboardRenderer` keeps its legacy/static read branches and
+  the `ObjectPivotTable` / `PivotTable` blocks (still public SDUI blocks and the
+  backward-compat path for stored/static widgets) — only the dashboard authoring
+  flow stops emitting the legacy keys. Retiring those renderer branches is a
+  follow-up gated on migrating stored dashboards.
+
+- 31b77d4: **Add the explicit `engine-owned` lifecycle bucket (tracks framework ADR-0103 addendum / #3343).** The framework split the overloaded `managedBy: 'system'` bucket by promoting the engine-owned case to its own enum value; this mirrors it in the UI type + runtime + badge.
+
+  - **`@object-ui/types`** — `ManagedByBucket` union and `MANAGED_BY_BUCKETS` gain `'engine-owned'` (canonical order: `platform, config, system, engine-owned, append-only, better-auth`). The union stays closed, so every consumer that missed the new value is a compile error.
+  - **`@object-ui/core`** — `resolveCrudAffordances` gains the `engine-owned` default row (identical all-locked matrix as `system`/`append-only`), so `isObjectInlineEditable` / the grid + form gates treat it as read-only automatically.
+  - **`@object-ui/app-shell`** — the `ManagedByBadge` renders `engine-owned` with the same read-only "System-managed" copy as a locked `system` object (reuses the existing `managedByBadge.system` i18n key — zero translation churn; the distinction is at the schema level, not the user-facing string), and `resolveManagedByEmptyState` reuses the `system` engine-owned empty state.
+
+  Behaviour-preserving: `engine-owned` resolves to the same locked affordances `system` did by default, so nothing about how a locked object renders changes — the value just makes the schema self-documenting. New unit coverage for the bucket in `resolveCrudAffordances` / `isObjectInlineEditable` / `MANAGED_BY_BUCKETS` / the empty-state helper.
+
+- 62b9ab5: feat(data): unify master-detail saves behind `DataSource.batchTransaction`, isolate the non-atomic fallback in the adapter (#2679)
+
+  Master-detail saves (`MasterDetailForm`, `LineItemsPanel`) now always persist
+  through `dataSource.batchTransaction(operations)` — one ordered cross-object
+  operation list, with `{ $ref: <op index> }` linking a child to a parent created
+  in the same batch. The form no longer contains any client-side orchestration or
+  best-effort compensation-delete; that atomicity anti-pattern is gone from the UI
+  layer (framework #1604 / framework ADR-0034 item 4).
+
+  - **`@object-ui/types`** — `batchTransaction?` is now a first-class (optional)
+    method on the `DataSource` contract, typed via `BatchTransactionOperation` /
+    `BatchRef`. Replaces the previous `(dataSource as any).batchTransaction`
+    method-sniffing.
+  - **`@object-ui/core`** — new `emulateBatchTransaction(dataSource, operations)`
+    (sequential writes, `$ref` resolution, best-effort reverse-order compensation)
+    and `runBatchTransaction(dataSource, operations)` (prefers the adapter's method,
+    emulates otherwise). `ApiDataSource` / `ValueDataSource` implement
+    `batchTransaction` via the emulation.
+  - **`@object-ui/data-objectstack`** — `ObjectStackAdapter.batchTransaction` uses
+    the server's atomic `POST /api/v1/batch`, prefers the typed
+    `client.data.batchTransaction` SDK method when the installed client exposes it,
+    and degrades to the client-side emulation ONLY when the endpoint is missing
+    (404/405) or the runtime can't do transactions (501). Real errors (400/401/403/
+    409/500) still surface. This is the isolated, tested home of the non-atomic
+    fallback.
+  - **`@object-ui/plugin-form`** — removed `applyDetail` / `createMany` /
+    `ApplyDetailResult` from `masterDetailTx.ts`; `MasterDetailForm` and
+    `LineItemsPanel` build ops and call `runBatchTransaction`. `LineItemsPanel`
+    saves are now atomic on a capable backend, with the rollup folded into the same
+    batch.
+
+  No behavior change on a current ObjectStack backend (it has `/api/v1/batch`);
+  older/limited backends keep a working — now clearly non-atomic — save path.
+
+- 199fa83: feat(dashboard): retire the pre-ADR-0021 inline-analytics renderer branches (framework#3320)
+
+  Follow-up to the dashboard analytics migration (framework#3251 / objectui#2703).
+  Authoring already emits only the semantic-layer shape (`dataset` + `dimensions` +
+  `values`); this removes the renderer's now-unauthored legacy read-branches.
+
+  - **types**: drop the `@deprecated` inline-analytics keys (`object`,
+    `categoryField`, `categoryGranularity`, `valueField`, `aggregate`, `measures`)
+    from `DashboardWidgetSchema`. They were retained in #2703 only so the renderer
+    could read legacy/static metadata during the transition.
+  - **plugin-dashboard**: `DashboardRenderer` no longer emits the object-bound
+    metric / chart / pivot / table / list branches from the top-level `object` +
+    analytics keys. It keeps the renderer-internal static paths (`options.data` /
+    `widget.data` array and the `provider: 'object'` async config) and
+    `widget.component`. The dashboard renderer no longer emits `object-pivot` /
+    `pivot` at all — dataset pivots render through `DatasetWidget` (grouped table /
+    cross-tab); the `ObjectPivotTable` / `PivotTable` components stay as public
+    SDUI blocks for other surfaces. `DashboardGridLayout` gets the same treatment.
+  - **graceful fallback**: a widget that still carries the retired inline shape in
+    stored metadata (top-level `object`, no `dataset`, no inline `options.data`)
+    now renders a visible error placeholder prompting a rebind to a dataset, rather
+    than a blank chart/grid.
+  - **plugin-designer**: `DashboardEditor` drops its inline object / value-field /
+    aggregate fields (analytics binding is authored via the dataset picker in
+    app-shell's `DashboardWidgetInspector` / plugin-dashboard's `WidgetConfigPanel`).
+
+### Patch Changes
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 2b17339: fix(list): keep the injected `owner_id` out of the leading auto-derived columns
+
+  A view-less object's default list columns are derived from the object's field
+  order. The framework's `applySystemFields` spreads its injected
+  system/audit/ownership fields to the FRONT of that order and stamps them
+  `system: true`; `owner_id` is deliberately non-hidden and non-readonly
+  (ownership is reassignable), so the old name-based exclusion lists in
+  `ObjectGrid` and `InterfaceListPage` — which never listed `owner_id` — let it
+  through as column #1 on many showcase list pages (e.g. `showcase_field_zoo`).
+
+  Default-column derivation now classifies system fields via the shared
+  `isSystemManagedField` helper, which branches on the spec `system` flag (the
+  single source of truth stamped by the registry) with a name-set fallback that
+  includes the ownership/tenancy FKs. `owner_id` is pushed to the end
+  (`ObjectGrid`) / excluded from the business columns (`InterfaceListPage`), so
+  auto-derived lists lead with business fields again and pick up future injected
+  fields without editing a name list. Also declares the `system` flag on the
+  `@object-ui/types` field metadata.
+
+- 6d4fbe6: **Consolidate the `managedBy` lifecycle-bucket logic into one shared source of truth (follows framework ADR-0103).** The bucket taxonomy was hand-mirrored in several places — `crudAffordances.ts`, `ManagedByBadge.tsx` (its own `Bucket` union + `isWriteOptedIn` + the writable-system derivation), and `plugin-detail`'s `record-details.tsx` (`NON_EDITABLE_BUCKETS`, duplicated because it can't depend on app-shell) — a drift risk, and the object-schema `managedBy` type was open-ended (`(string & {})`) so unknown buckets slipped through and silently defaulted to fully-editable.
+
+  - **`@object-ui/types`** now owns the closed `ManagedByBucket` union (+ `MANAGED_BY_BUCKETS`), and `ObjectSchema.managedBy` is tightened from `'platform' | 'better-auth' | (string & {})` to that union — unknown buckets are now a type error at authoring time.
+  - **`@object-ui/core`** now owns the React-free runtime logic — `resolveCrudAffordances`, `isWriteOptedIn`, `isSystemWritable`, `isObjectInlineEditable` — reachable by every UI package including `plugin-detail` (which could not import app-shell).
+  - **`app-shell/utils/crudAffordances.ts`** is now a thin re-export of `@object-ui/core` (existing imports keep working); `ManagedByBadge` consumes the shared `isSystemWritable`; `plugin-detail` `record-details.tsx` replaces its hand-mirrored `NON_EDITABLE_BUCKETS` with `isObjectInlineEditable`.
+
+  Behavior-preserving — all existing affordance/edit-gate tests stay green; the shared module adds direct unit coverage (including the previously-untested `isSystemWritable` derivation). Translated copy (badge variants, empty-state messages) stays in app-shell.
+
+- 29c6040: fix(app-shell): redo the record-list "Add View" create flow — empty-name 405, invisible drafts, canonical naming
+
+  Rebuilds the record-list "Add View" / "Save as view" create path so a
+  runtime-created view has one canonical identity and is actually verifiable
+  before publish (supersedes #2754; fixes #2767).
+
+  - **Unified identity (P1).** New `viewEnvelope(objectName, spec, { name, label })`
+    seam in `runtime-metadata-persistence.ts` emits the canonical ViewItem
+    (`{ name: '<object>.<key>', object, viewKind: 'list', label, config }` with
+    `config.data = { provider: 'object', object }`), mirroring the Studio
+    `anchors.ts:createBuildBody`. The **qualified** name is passed as BOTH the
+    `PUT /meta/view/:name` URL segment and `body.name`, so the `sys_metadata`
+    row key, the ViewTabBar tab id, and the body identity all agree and the
+    draft → read → publish loop resolves. `ObjectView` and `ObjectDataPage` both
+    call the single helper — the duplicated envelope block is gone (P6).
+  - **Empty-name guards (405).** `MetadataClient.save()` and
+    `createRuntimeMetadata()` throw a clear contextual error instead of emitting
+    `PUT /meta/view/` (empty `:name`, server 405).
+  - **Draft visibility (P2/P3/P4).** `DataSource.listViews(objectName, { previewDrafts })`:
+    in draft-preview mode the `ObjectStackAdapter` makes a **single**
+    `MetadataClient.withPreviewDrafts(true).list('view')` request and uses the
+    server's already-overlaid list (draft wins by name, `_draft` tagged) —
+    replacing, not appending, so a draft that edits a published view can't
+    double-tab. No hand-rolled `fetch` of metadata routes at the adapter layer.
+    After a create in normal mode the console navigates to the new view with
+    `?preview=draft`, so the DraftPreviewBar is visible and Publish is one click.
+  - **CJK-aware naming (P5).** `CreateViewDialog` gains an editable machine-name
+    field, prefilled via `slugify(label)` for Latin labels and required (submit
+    disabled) when slugify yields empty for non-Latin labels — no more silent
+    random `task_grid_mrsyt56j` names. New `console.objectView.viewName*` keys
+    (en/zh).
+
+- faebac3: Related lists paginate by default and fetch server-side windows (#2711).
+
+  `record:related_list` now applies the spec default `limit` of 5 when a node
+  doesn't declare one, so detail-page related lists render pages with
+  Previous/Next controls instead of dumping every child row. On the auto-fetch
+  path RelatedList requests one page at a time (`$top`/`$skip`), reads the
+  collection size from `QueryResult.total` (`hasMore` fallback), sends user
+  column sorts as a server `$orderby`, and seeds the initial order from the
+  node's `sort` prop (new `defaultSort` prop on RelatedList). Caller-provided
+  `data` keeps the historical client-side slicing. Behavior change: lists that
+  previously rendered all rows now show 5 per page — declare a larger `limit`
+  on the `record:related_list` node to widen the window.
+
 ## 16.0.0
 
 ### Major Changes

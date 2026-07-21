@@ -1,5 +1,204 @@
 # @object-ui/data-objectstack
 
+## 16.1.0
+
+### Minor Changes
+
+- 8c1e415: feat(data-objectstack): gate the non-atomic batch fallback on the discovery `transactionalBatch` capability (#2693)
+
+  `ObjectStackAdapter.batchTransaction` now negotiates atomic cross-object batch
+  **declaratively** instead of only probing at runtime. At `connect()` the adapter
+  reads `capabilities.transactionalBatch` from `GET /api/v1/discovery`
+  (framework #3298 — `declared === enforced`; the server advertises `true` only
+  when the `/batch` route is mounted _and_ the runtime engine can honour a
+  transaction):
+
+  - **Declared `true`** — the adapter TRUSTS server atomicity: it calls `/batch`
+    and surfaces any failure (including `404`/`405`/`501`) as a real error. No
+    runtime probe, no non-atomic client-side compensation.
+  - **Declared `false`, or absent** (backend predates #3298) — the legacy path is
+    unchanged: probe `/batch` and, on `404`/`405`/`501`, fall back to the
+    non-atomic `emulateBatchTransaction`. Keeping this avoids regressing older
+    backends from "saves, less safe" to "no save path" (#2679 compat constraint).
+
+  Both the hierarchical wire shape (`{ transactionalBatch: { enabled: true } }`)
+  and the flat form the client SDK normalizes to (`{ transactionalBatch: true }`)
+  are accepted. `@object-ui/core`'s generic `emulateBatchTransaction` /
+  `runBatchTransaction` are untouched and remain the fallback for adapters with no
+  server-side transaction (`ValueDataSource`, `MockDataSource`, …).
+
+  Docs: the adapter README and the data-source guide now document the capability
+  table and the minimum-backend note — atomic cross-object saves are guaranteed
+  only against backends advertising the capability (framework #3298 / #1604).
+
+  Picks up #2679 acceptance item 4; unblocked by framework#3298 (merged).
+
+- 62b9ab5: feat(data): unify master-detail saves behind `DataSource.batchTransaction`, isolate the non-atomic fallback in the adapter (#2679)
+
+  Master-detail saves (`MasterDetailForm`, `LineItemsPanel`) now always persist
+  through `dataSource.batchTransaction(operations)` — one ordered cross-object
+  operation list, with `{ $ref: <op index> }` linking a child to a parent created
+  in the same batch. The form no longer contains any client-side orchestration or
+  best-effort compensation-delete; that atomicity anti-pattern is gone from the UI
+  layer (framework #1604 / framework ADR-0034 item 4).
+
+  - **`@object-ui/types`** — `batchTransaction?` is now a first-class (optional)
+    method on the `DataSource` contract, typed via `BatchTransactionOperation` /
+    `BatchRef`. Replaces the previous `(dataSource as any).batchTransaction`
+    method-sniffing.
+  - **`@object-ui/core`** — new `emulateBatchTransaction(dataSource, operations)`
+    (sequential writes, `$ref` resolution, best-effort reverse-order compensation)
+    and `runBatchTransaction(dataSource, operations)` (prefers the adapter's method,
+    emulates otherwise). `ApiDataSource` / `ValueDataSource` implement
+    `batchTransaction` via the emulation.
+  - **`@object-ui/data-objectstack`** — `ObjectStackAdapter.batchTransaction` uses
+    the server's atomic `POST /api/v1/batch`, prefers the typed
+    `client.data.batchTransaction` SDK method when the installed client exposes it,
+    and degrades to the client-side emulation ONLY when the endpoint is missing
+    (404/405) or the runtime can't do transactions (501). Real errors (400/401/403/
+    409/500) still surface. This is the isolated, tested home of the non-atomic
+    fallback.
+  - **`@object-ui/plugin-form`** — removed `applyDetail` / `createMany` /
+    `ApplyDetailResult` from `masterDetailTx.ts`; `MasterDetailForm` and
+    `LineItemsPanel` build ops and call `runBatchTransaction`. `LineItemsPanel`
+    saves are now atomic on a capable backend, with the rollup folded into the same
+    batch.
+
+  No behavior change on a current ObjectStack backend (it has `/api/v1/batch`);
+  older/limited backends keep a working — now clearly non-atomic — save path.
+
+### Patch Changes
+
+- 8b8b744: chore(deps): align `@objectstack/formula` / `lint` / `client` to `^15.1.1`
+
+  These three were still pinned to `^14.6.0` while `@objectstack/spec` was already
+  `^15.1.1` — a version skew from the v15 upgrade (formula/lint/client publish in
+  lockstep with spec, and their own 15.0.0 entries are pure dependency bumps, so
+  this is alignment, not a behavioral migration).
+
+  Practical effect: the client-side field-rule evaluation
+  (`visibleWhen`/`readonlyWhen`/`requiredWhen` via `fieldRules.ts`, which delegates
+  to `@objectstack/formula`'s `ExpressionEngine`) now tracks the 15.x engine — and
+  will pick up the framework's `dateField == today()` equality fix
+  (objectstack-ai/framework#3205) automatically at the next 15.x release via the
+  caret range. Renderer/action `visible`/`disabled` predicates are unaffected (they
+  use the home-grown JS evaluator — tracked separately in #2661).
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 0ea5036: refactor(data-objectstack): route `batchTransaction` through the client SDK only, drop the raw-fetch branch
+
+  `@objectstack/client@^16` (framework #3271, the current ObjectUI dependency
+  floor) ships `data.batchTransaction`, so `ObjectStackAdapter.batchTransaction`
+  now calls the typed SDK method directly. The transitional hand-rolled
+  `fetch('/api/v1/batch')` branch — a feature-detect shim kept while the SDK
+  method was unreleased — is removed (#2694). Per AGENTS.md §7, adapter data
+  always flows through `@objectstack/client`, never a raw `fetch`.
+
+  No behavior change: the SDK still drives the server's atomic `POST /api/v1/batch`,
+  one `MutationEvent` is emitted per committed op (no double-fire), and the adapter
+  still degrades to the non-atomic `emulateBatchTransaction` when this backend lacks
+  the endpoint (404/405) or its runtime can't do transactions (501). Every other
+  status still surfaces to the caller.
+
+- 549c67d: chore(lint): clear the mechanical baseline lint errors so these packages' lint gates protect them again
+
+  Extends the fields/core cleanup from #2709 (objectui#2713). These eight package
+  lints were red at baseline on `main`, so their per-package `lint` gate could not
+  catch new violations of the same class. Cleared every **error** (no behavior
+  change; warnings are out of scope):
+
+  - **`no-useless-catch`** (`data-objectstack`) — unwrapped five try/catch blocks
+    whose `catch` only re-threw; errors still propagate identically.
+  - **`preserve-caught-error`** (`cli`, `data-objectstack`, `react`) — the caught
+    error's message is inlined into the thrown `Error`; a scoped disable with a
+    justifying comment carries each one, because these packages target ES2020
+    whose lib types the 1-arg `Error` constructor only (so `{ cause }` won't
+    compile) — same reasoning as the core case in #2709.
+  - **`prefer-const`** (`plugin-calendar`, `plugin-map`) — `let`→`const` for
+    never-reassigned bindings.
+  - **`no-empty-object-type`** (`plugin-designer`) — empty extend-only interfaces
+    → equivalent `type` aliases.
+  - **`no-useless-assignment`** (`react`) — dropped a dead initializer that both
+    branches overwrite before it is read.
+  - **`no-require-imports`** (`plugin-calendar`, `plugin-timeline` tests) —
+    hoisted `vi.mock` factories now use an `async` factory with
+    `await import('react')` instead of `require('react')`.
+  - **stale `eslint-disable` directive** (`plugin-markdown`) — removed a
+    `react/no-danger` disable whose plugin is not loaded in the flat config (an
+    unknown-rule reference that ESLint v10 reports as an error); the rationale is
+    kept as a plain comment.
+
+- 29c6040: fix(app-shell): redo the record-list "Add View" create flow — empty-name 405, invisible drafts, canonical naming
+
+  Rebuilds the record-list "Add View" / "Save as view" create path so a
+  runtime-created view has one canonical identity and is actually verifiable
+  before publish (supersedes #2754; fixes #2767).
+
+  - **Unified identity (P1).** New `viewEnvelope(objectName, spec, { name, label })`
+    seam in `runtime-metadata-persistence.ts` emits the canonical ViewItem
+    (`{ name: '<object>.<key>', object, viewKind: 'list', label, config }` with
+    `config.data = { provider: 'object', object }`), mirroring the Studio
+    `anchors.ts:createBuildBody`. The **qualified** name is passed as BOTH the
+    `PUT /meta/view/:name` URL segment and `body.name`, so the `sys_metadata`
+    row key, the ViewTabBar tab id, and the body identity all agree and the
+    draft → read → publish loop resolves. `ObjectView` and `ObjectDataPage` both
+    call the single helper — the duplicated envelope block is gone (P6).
+  - **Empty-name guards (405).** `MetadataClient.save()` and
+    `createRuntimeMetadata()` throw a clear contextual error instead of emitting
+    `PUT /meta/view/` (empty `:name`, server 405).
+  - **Draft visibility (P2/P3/P4).** `DataSource.listViews(objectName, { previewDrafts })`:
+    in draft-preview mode the `ObjectStackAdapter` makes a **single**
+    `MetadataClient.withPreviewDrafts(true).list('view')` request and uses the
+    server's already-overlaid list (draft wins by name, `_draft` tagged) —
+    replacing, not appending, so a draft that edits a published view can't
+    double-tab. No hand-rolled `fetch` of metadata routes at the adapter layer.
+    After a create in normal mode the console navigates to the new view with
+    `?preview=draft`, so the DraftPreviewBar is visible and Publish is one click.
+  - **CJK-aware naming (P5).** `CreateViewDialog` gains an editable machine-name
+    field, prefilled via `slugify(label)` for Latin labels and required (submit
+    disabled) when slugify yields empty for non-Latin labels — no more silent
+    random `task_grid_mrsyt56j` names. New `console.objectView.viewName*` keys
+    (en/zh).
+
+- Updated dependencies [1c8935a]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [94d4876]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

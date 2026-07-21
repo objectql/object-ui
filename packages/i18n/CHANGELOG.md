@@ -1,5 +1,142 @@
 # @object-ui/i18n
 
+## 16.1.0
+
+### Minor Changes
+
+- af1b0db: feat(i18n): localize action result dialogs via the `_actions.<action>.resultDialog` convention
+
+  The post-success secret-reveal dialog (create-user temporary password, 2FA
+  backup codes, OAuth client secrets) always rendered the hardcoded English
+  metadata literals — the spec bundles now carry `resultDialog` translations
+  (objectstack `_actions.<action>.resultDialog.*`), but nothing resolved them
+  client-side.
+
+  - **@object-ui/i18n.** `useObjectLabel()` gains `actionResultDialog(objectName,
+actionName, spec)`: overlays translated `title` / `description` /
+    `acknowledge` and per-field labels onto the metadata spec, falling back to
+    the literals. The `fields` node is keyed by the LITERAL result-field path
+    (may contain dots, e.g. `"user.email"`), so it is fetched whole with
+    `returnObjects` and indexed directly — never resolved through a dotted
+    i18next key. Built-in locale packs also translate the dialog's fallback
+    `defaultTitle` / `acknowledge` (previously English in all ten locales) and
+    add the new `actions.resultDialog.copyAll` key.
+  - **@object-ui/app-shell.** The result-dialog handlers in
+    `useConsoleActionRuntime` and `RecordDetailView` accept the action context
+    (already passed by `ActionRunner`) and localize the spec before opening the
+    dialog; `ActionResultDialog`'s hardcoded "Copy all" button now goes through
+    `actions.resultDialog.copyAll`.
+
+### Patch Changes
+
+- 0318118: fix(app-shell): block ActionParamDialog submit while a file/image param is uploading; map spec `autonumber` (ADR-0059 follow-ups)
+
+  Two follow-ups to the shared-field-widget param rendering (ADR-0059):
+
+  - **Upload-in-progress guard.** A `file`/`image` param's value only becomes its
+    fileId once the presigned upload settles, so confirming mid-upload sent an
+    empty/stale value. `FileField`/`ImageField` now surface their upload state via
+    an optional `onUploadingChange` prop (shared `useUploadingSignal` hook,
+    ignored by other widgets); `ActionParamDialog` wires it for `file`/`image`
+    params and disables Confirm (label → "Uploading…", new `actionDialog.uploading`
+    i18n key across all locales) plus blocks submit while any upload is in flight.
+  - **`autonumber` spelling.** `mapFieldTypeToFormType` now maps the spec
+    `FieldType` spelling `autonumber` (in addition to the widget-map key
+    `auto_number`) to the AutoNumber widget, so a spec-typed `autonumber`
+    field/param no longer falls through to the plain text input — fixes the object
+    form path as well as action params.
+
+- 1100a8b: feat(plugin-gantt)!: remove the 移动端二维码 (mobile QR share) context-menu item
+
+  The QR-share feature is removed outright: the context-menu item, the QR dialog,
+  the `taskUrl` prop on `GanttView`, the URL wiring in `ObjectGantt`, the
+  `gantt.menu.qrcode` / `gantt.qr.*` i18n keys (en/zh) and the `qrcode`
+  dependency are all deleted. It baked one consumer's app-specific requirement
+  (scan-to-open on mobile) into the generic gantt renderer, and what it encoded —
+  the desktop console record URL — was not even the right target for that
+  requirement. Apps that need scan-to-mobile flows should implement them
+  app-side against their own mobile surface.
+
+- 7abe4cd: **Console user-import wizard defaults to the `auto` password policy (tracks framework#3236).** The "Sign-in setup for imported users" selector gains an **Automatic (recommended)** option and it is now the default (was "No password"). `auto` decides per row on the server: reachable users get an invitation (email / SMS), anyone who can't be reached gets a one-time password shown once on the result screen — so it works with or without an email/SMS service, and the one-time-password reveal now surfaces only the rows that actually fell back (instead of the whole batch under `temporary`).
+
+  The other three policies are unchanged and still selectable: `invite` (force invitations, unreachable rows fail), `temporary` (force one-time passwords for every row), `none` (identity only). New `console.identityImport.policy.auto` / `policyHint.auto` strings added for `en` and `zh`; the `none` label drops its "(recommended)" marker.
+
+- ebe6494: chore(lint): clear the baseline lint errors in nine more packages (objectui#2713 Wave 2)
+
+  Second wave of the #2713 lint-gate restoration (after #2730). These nine package
+  lints were red at baseline on `main`, so their per-package `lint` gate could not
+  catch new violations. Cleared every **error** (no behavior change; warnings out
+  of scope):
+
+  - **`react-hooks/rules-of-hooks`** (`i18n`, `plugin-grid`, `plugin-view`,
+    `plugin-list`) — translation helpers (`useSafeFieldLabel`,
+    `useRowActionTranslation`, `useViewLabel`, `useViewTabLabel`, `useMoreLabel`)
+    wrapped a provider-safe hook (`useObjectTranslation`/`useObjectLabel`, which
+    never throw) in try/catch; removed the wrapper (the same fix #2709 applied in
+    fields). `plugin-kanban` `ObjectKanban` moved its `if (error)` early return
+    below the `useCallback` so hooks run unconditionally. `collaboration`
+    `__unsafe_usePresenceContext` keeps its deliberate danger-prefix name via a
+    justified scoped disable.
+  - **`react-hooks/static-components`** (`layout`, `plugin-list`, `plugin-report`)
+    — dynamic-icon / registry lookups (`resolveIcon`, `useRegistryComponent`) are
+    stable component references, not components created during render → scoped
+    disable with justification. `plugin-charts` `TreemapCell` was a _genuine_
+    inline component and is hoisted to module scope (it is purely props-driven).
+  - **`no-irregular-whitespace`** (`plugin-grid` `ImportWizard`) — the literal
+    U+FEFF BOM prepended to exported CSV/text blobs (so Excel detects UTF-8) is
+    now written as the `﻿` escape: byte-identical at runtime, no literal
+    irregular-whitespace character in source.
+  - **`no-useless-assignment`** (`plugin-grid` `BulkActionDialog`) — dropped a
+    dead `= null` initializer that the exhaustive `switch` (incl. `default`)
+    overwrites before it is read.
+  - **`no-unsafe-function-type`** (`plugin-view` `ViewTabBar`) — the dnd-kit
+    render-prop `listeners` map is typed `Record<string, (...args: any[]) => void>`
+    instead of bare `Function`.
+  - **`no-require-imports`** (`plugin-kanban`, `plugin-view` tests) — hoisted
+    `vi.mock` factories use an `async` factory with `await import('react')`.
+
+- f80aaf2: **Distinguish writable `system` objects from engine-owned ones in the Console (framework ADR-0103 / #3220).** The framework split the overloaded `managedBy: 'system'` bucket: engine-owned rows stay read-only, but several `system` objects are admin/user-writable _data_ (Notification Preferences/Subscriptions/Templates, delegated RBAC assignments, user preferences) and declare `userActions` opening their writes.
+
+  The Console already surfaced the New/Edit/Delete buttons correctly for these (all affordance mirrors honour `userActions`), but the badge and empty-state _copy_ still called every `system` object a "read-only monitoring surface". Now:
+
+  - **`ManagedByBadge`** takes the object's `userActions` and, when a `system` object opens any write, renders the "Platform schema — admin-writable" variant instead of the engine-owned copy.
+  - **`resolveManagedByEmptyState`** returns `undefined` for a `system` object whose `userActions.create` is set, so the generic empty state (with the New button) shows instead of "entries appear automatically".
+  - New `managedByBadge.systemWritable.*` strings (en + zh; other locales fall back to the English default).
+
+  Copy/UX only — no behavioural change to what a user can do.
+
+- 29c6040: fix(app-shell): redo the record-list "Add View" create flow — empty-name 405, invisible drafts, canonical naming
+
+  Rebuilds the record-list "Add View" / "Save as view" create path so a
+  runtime-created view has one canonical identity and is actually verifiable
+  before publish (supersedes #2754; fixes #2767).
+
+  - **Unified identity (P1).** New `viewEnvelope(objectName, spec, { name, label })`
+    seam in `runtime-metadata-persistence.ts` emits the canonical ViewItem
+    (`{ name: '<object>.<key>', object, viewKind: 'list', label, config }` with
+    `config.data = { provider: 'object', object }`), mirroring the Studio
+    `anchors.ts:createBuildBody`. The **qualified** name is passed as BOTH the
+    `PUT /meta/view/:name` URL segment and `body.name`, so the `sys_metadata`
+    row key, the ViewTabBar tab id, and the body identity all agree and the
+    draft → read → publish loop resolves. `ObjectView` and `ObjectDataPage` both
+    call the single helper — the duplicated envelope block is gone (P6).
+  - **Empty-name guards (405).** `MetadataClient.save()` and
+    `createRuntimeMetadata()` throw a clear contextual error instead of emitting
+    `PUT /meta/view/` (empty `:name`, server 405).
+  - **Draft visibility (P2/P3/P4).** `DataSource.listViews(objectName, { previewDrafts })`:
+    in draft-preview mode the `ObjectStackAdapter` makes a **single**
+    `MetadataClient.withPreviewDrafts(true).list('view')` request and uses the
+    server's already-overlaid list (draft wins by name, `_draft` tagged) —
+    replacing, not appending, so a draft that edits a published view can't
+    double-tab. No hand-rolled `fetch` of metadata routes at the adapter layer.
+    After a create in normal mode the console navigates to the new view with
+    `?preview=draft`, so the DraftPreviewBar is visible and Publish is one click.
+  - **CJK-aware naming (P5).** `CreateViewDialog` gains an editable machine-name
+    field, prefilled via `slugify(label)` for Latin labels and required (submit
+    disabled) when slugify yields empty for non-Latin labels — no more silent
+    random `task_grid_mrsyt56j` names. New `console.objectView.viewName*` keys
+    (en/zh).
+
 ## 16.0.0
 
 ### Patch Changes

@@ -1,5 +1,55 @@
 # @object-ui/plugin-tree
 
+## 16.1.0
+
+### Patch Changes
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- Updated dependencies [1c8935a]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/components@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

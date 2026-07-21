@@ -1,5 +1,106 @@
 # @object-ui/plugin-report
 
+## 16.1.0
+
+### Minor Changes
+
+- 2331ac9: feat(report): drill a date-bucket cell into its time range, not a superset (#1752)
+
+  Clicking a report/dashboard cell grouped by a `dateGranularity` date dimension
+  ("2026-Q2") used to drill into a **superset** — the date dimension was skipped,
+  so the record list spanned every time bucket. It now scopes to the clicked
+  bucket's half-open range, consuming the framework's new `drillRanges` sidecar.
+
+  - **`@object-ui/core`** — `buildDatasetDrillFilter` accepts the per-row
+    `drillRanges` and emits an ObjectQL range operator object
+    (`{ [field]: { $gte, $lt } }`) alongside the equality dims.
+  - **`@object-ui/plugin-report` / `@object-ui/plugin-dashboard`** — the report
+    renderer and dashboard widget forward `drillRanges`, and a **date-only**
+    report (no equality drill dim) is now drillable via the range alone.
+  - **`@object-ui/app-shell`** — the "Open in list →" escape hatch
+    (`useOpenRecordList`) now targets the ADR-0055 **bare data surface**
+    (`/:object/data`, "the URL is the view" — no baked-in view filter to
+    over-narrow the drill) and serializes a range to the
+    `filter[field][gte|lt]` operator contract. `ObjectDataPage` parses those
+    operators (equality shorthand unchanged), renders a range as a single chip,
+    and removes both bounds together. A new `drillUrlFilters` module owns the
+    write/read serialization so both sides can't drift (round-trip tested).
+
+  Companion to the framework analytics change (objectstack-ai/framework#3256).
+
+### Patch Changes
+
+- ebe6494: chore(lint): clear the baseline lint errors in nine more packages (objectui#2713 Wave 2)
+
+  Second wave of the #2713 lint-gate restoration (after #2730). These nine package
+  lints were red at baseline on `main`, so their per-package `lint` gate could not
+  catch new violations. Cleared every **error** (no behavior change; warnings out
+  of scope):
+
+  - **`react-hooks/rules-of-hooks`** (`i18n`, `plugin-grid`, `plugin-view`,
+    `plugin-list`) — translation helpers (`useSafeFieldLabel`,
+    `useRowActionTranslation`, `useViewLabel`, `useViewTabLabel`, `useMoreLabel`)
+    wrapped a provider-safe hook (`useObjectTranslation`/`useObjectLabel`, which
+    never throw) in try/catch; removed the wrapper (the same fix #2709 applied in
+    fields). `plugin-kanban` `ObjectKanban` moved its `if (error)` early return
+    below the `useCallback` so hooks run unconditionally. `collaboration`
+    `__unsafe_usePresenceContext` keeps its deliberate danger-prefix name via a
+    justified scoped disable.
+  - **`react-hooks/static-components`** (`layout`, `plugin-list`, `plugin-report`)
+    — dynamic-icon / registry lookups (`resolveIcon`, `useRegistryComponent`) are
+    stable component references, not components created during render → scoped
+    disable with justification. `plugin-charts` `TreemapCell` was a _genuine_
+    inline component and is hoisted to module scope (it is purely props-driven).
+  - **`no-irregular-whitespace`** (`plugin-grid` `ImportWizard`) — the literal
+    U+FEFF BOM prepended to exported CSV/text blobs (so Excel detects UTF-8) is
+    now written as the `﻿` escape: byte-identical at runtime, no literal
+    irregular-whitespace character in source.
+  - **`no-useless-assignment`** (`plugin-grid` `BulkActionDialog`) — dropped a
+    dead `= null` initializer that the exhaustive `switch` (incl. `default`)
+    overwrites before it is read.
+  - **`no-unsafe-function-type`** (`plugin-view` `ViewTabBar`) — the dnd-kit
+    render-prop `listeners` map is typed `Record<string, (...args: any[]) => void>`
+    instead of bare `Function`.
+  - **`no-require-imports`** (`plugin-kanban`, `plugin-view` tests) — hoisted
+    `vi.mock` factories use an `async` factory with `await import('react')`.
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [aefcf39]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [14cb729]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+- Updated dependencies [3b2e4d9]
+  - @object-ui/fields@16.1.0
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/components@16.1.0
+  - @object-ui/plugin-grid@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

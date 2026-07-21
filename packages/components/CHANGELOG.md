@@ -1,5 +1,110 @@
 # @object-ui/components
 
+## 16.1.0
+
+### Patch Changes
+
+- ef14f69: feat(fields): CheckboxesField per-option `visibleWhen` cascading + `dependsOn` gating (completes the option-widget parity set)
+
+  `checkboxes` was the last static-option widget still rendering `config.options`
+  raw — with no per-option `visibleWhen` filtering, `dependsOn` gating, or cascade
+  clear. It now matches `MultiSelectField` (its multi-value sibling), completing
+  the ADR-0058 parity across `select` / `multiselect` / `radio` / `checkboxes`.
+
+  - **`@object-ui/fields`**: `CheckboxesField` routes through the shared
+    `useCascadingOptions` hook — offered boxes narrow against the live record +
+    `current_user`, the control gates behind a "select the parent first" hint
+    while a `dependsOn` field is empty, and selections no longer offered are
+    pruned per-element from the array. Adds `checkboxes-empty-*` /
+    `checkboxes-option-*` testids.
+  - **`@object-ui/components`**: adds `checkboxes` to the form renderer's option
+    field sets (`CASCADE_OPTION_FIELD_TYPES`, the cross-field cascade-clear
+    effect, and the option pre-filter) so a `checkboxes` field is threaded
+    `dependentValues` and gated identically to the other option widgets.
+  - Tests: `CheckboxesField.cascade.test.tsx` mirrors `MultiSelectField.cascade.test.tsx`.
+
+- 69fa5d1: chore(lint): clear the baseline lint errors in components (objectui#2713 Wave 3)
+
+  Wave 3 of the #2713 lint-gate restoration. `@object-ui/components` was red at
+  baseline on `main`; cleared every **error** (no behavior change; warnings out of
+  scope):
+
+  - **`react-hooks/rules-of-hooks`** — `react-page` `ReactKindPage` had a
+    capability-gate early return _before_ four hooks (incl. a `useEffect` that
+    `import()`s the react runtime). Hoisted the hooks above the gate **and guarded
+    the import** (`if (!capabilityEnabled) return` inside the effect) so a disabled
+    build still never loads the gated runtime; the disabled notice is returned
+    after the hooks. Translation helpers in `empty` / `action-bar` / `action-menu`
+    unwrap a try/catch around the provider-safe `useObjectTranslation` (the #2709
+    fix).
+  - **`react-hooks/static-components`** — dynamic renderer/icon lookups
+    (`ComponentRegistry.get`, `resolveIcon`) in `action-bar` / `action-group` ×2 /
+    `action-menu`, and the five `__tests__` helpers that render a registry-resolved
+    component, are stable references → justified scoped disables.
+  - **`react-hooks/purity`** — `ui/sidebar` skeleton width uses `Math.random()`
+    once per mount (`useMemo([])`) for a decorative placeholder → justified scoped
+    disable.
+  - **`@typescript-eslint/no-empty-object-type`** — `ShimmerSkeletonProps` empty
+    extend → `type` alias.
+  - **`no-useless-assignment`** — `test-utils` `maxDepth` dead initializer → single
+    `const`.
+  - **`no-require-imports`** — `config-panel-renderer` test uses a top-level
+    `import React` instead of an in-test `require`.
+  - **stale `eslint-disable`** — removed a `jsx-a11y/alt-text` directive in
+    `elements` whose plugin is not loaded in the flat config.
+
+- 1629313: feat(fields): RadioField per-option `visibleWhen` cascading + `dependsOn` gating; single-source the option resolver
+
+  Brings `RadioField` to parity with `SelectField` / `MultiSelectField` for ADR-0058
+  cascading & role-gated options, and collapses the three copies of the
+  gate-then-filter logic onto one shared resolver.
+
+  - **`@object-ui/core`**: new pure `resolveCascadingOptions(rawOptions, record, dependsOn, scope)`
+    → `{ options, gated, dependsOnFields }` — the single source of truth for
+    `dependsOn` gating + per-option `visibleWhen` filtering.
+  - **`@object-ui/fields`**: `RadioField` now narrows its offered radios against
+    the live record + `current_user`, gates behind a "select the parent first"
+    hint while a `dependsOn` field is empty, and clears a value no longer offered
+    (scalar cascade clear). The `useCascadingOptions` hook is refactored to a thin
+    React wrapper over `resolveCascadingOptions`.
+  - **`@object-ui/components`**: the form renderer's inline option pre-filter and
+    cross-field cascade-clear effect now call `resolveCascadingOptions` instead of
+    re-deriving gating/filtering, so they can't drift from the widgets (no
+    behavior change).
+  - Tests: `RadioField.cascade.test.tsx` mirrors the select cascade tests; core
+    gains `resolveCascadingOptions` unit coverage.
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/react-runtime@16.1.0
+  - @object-ui/sdui-parser@16.1.0
+
 ## 16.0.0
 
 ### Minor Changes

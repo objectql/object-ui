@@ -1,5 +1,138 @@
 # @object-ui/plugin-gantt
 
+## 16.1.0
+
+### Patch Changes
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 803558e: feat(data): thread the host's authenticated fetch into `provider: 'api'` data sources (#2725)
+
+  `provider: 'api'` view data sources went through a bare `globalThis.fetch`, so
+  custom endpoints (gantt composite trees, report aggregates) carried only
+  same-origin cookies while every native `/api/v1/*` request carried
+  `Authorization: Bearer` — the moment cookie HMAC verification failed (dev
+  restart rotating the fallback auth secret, cookie expiry/rotation in prod)
+  those views 401'd while the rest of the app kept working.
+
+  - **`@object-ui/react`** — `SchemaRendererProvider` accepts an optional
+    `apiFetch`; nested providers inherit it from their parent so re-wrapped
+    subtrees (react pages, preview surfaces) keep the host's authentication.
+    `useViewData` defaults the api-provider adapter's fetch to the context
+    `apiFetch` (explicit `adapterOptions.fetch` still wins).
+  - **`@object-ui/auth`** — `createAuthenticatedFetch` gains a
+    `sameOriginOnly` option: cross-origin URLs pass through to the bare fetch
+    with no `Authorization` / `X-Tenant-ID` / `Accept-Language`, so metadata-
+    supplied third-party URLs never see the platform token.
+  - **`@object-ui/app-shell`** — the console wires
+    `createAuthenticatedFetch({ sameOriginOnly: true })` (settle-signal wrapped)
+    as `apiFetch` on the root `SchemaRendererProvider`.
+  - **`@object-ui/plugin-gantt`** — `ObjectGantt` resolves its api-provider
+    DataSource with the context `apiFetch`, covering reads and write-backs.
+
+  Behaviour is unchanged for hosts that don't provide `apiFetch` (bare fetch +
+  cookies, as before).
+
+- 5606ca8: fix(plugin-gantt): align the task-list header with the row date columns
+
+  Every data row reserves a trailing w-6 (+4px) slot for the 「→」 open-details
+  button whenever `onTaskClick` is live, but the header row didn't — so the
+  开始/结束 header labels sat 28px to the right of the date values they caption.
+  The header now mirrors the slot under the same condition.
+
+- 1100a8b: feat(plugin-gantt)!: remove the 移动端二维码 (mobile QR share) context-menu item
+
+  The QR-share feature is removed outright: the context-menu item, the QR dialog,
+  the `taskUrl` prop on `GanttView`, the URL wiring in `ObjectGantt`, the
+  `gantt.menu.qrcode` / `gantt.qr.*` i18n keys (en/zh) and the `qrcode`
+  dependency are all deleted. It baked one consumer's app-specific requirement
+  (scan-to-open on mobile) into the generic gantt renderer, and what it encoded —
+  the desktop console record URL — was not even the right target for that
+  requirement. Apps that need scan-to-mobile flows should implement them
+  app-side against their own mobile surface.
+
+- 7a5750e: chore(lint): clear the baseline lint errors in plugin-gantt (objectui#2713 Wave 3)
+
+  Wave 3 of the #2713 lint-gate restoration. `@object-ui/plugin-gantt` was red at
+  baseline on `main`; cleared every **error** (no behavior change; warnings out of
+  scope). 18 of the 21 were in the demo harness:
+
+  - **`react-hooks/static-components` (demo, ×8)** — the `Swatch` legend cell was
+    defined inside `ManufacturingLegend`; hoisted to module scope (purely
+    props-driven, so nothing from render scope is captured).
+  - **`react-hooks/rules-of-hooks` (demo, ×9)** — `App` had a `?quickfilter=1`
+    early return before ~9 hooks; moved that route below all hooks so hook order
+    is stable (the quick-filter branch renders `<QuickFilterDemo />` regardless).
+  - **`react-hooks/purity` (demo, ×1)** — the demo render-timer necessarily reads
+    `performance.now()` during render (paired with an effect that measures elapsed
+    ms); justified scoped disable, demo-only.
+  - **`object-ui/no-synthetic-event-trigger`** (`GanttView.interactions.test`) —
+    the Escape-closes-menu test dispatched a raw `window` `KeyboardEvent`; switched
+    to `fireEvent.keyDown(window, { key: 'Escape' })` (the pattern already used
+    elsewhere in the same file). The window-level Escape listener behaves
+    identically.
+  - **`no-useless-assignment`** (`GanttView`, `ObjectGantt`) — dropped two dead
+    initializers (`ok`, `options`) that their exhaustive `try`/`catch` and
+    `if`/`else` branches overwrite before reading.
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [aefcf39]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [53513a4]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [f329ec5]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [14cb729]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+- Updated dependencies [3b2e4d9]
+  - @object-ui/fields@16.1.0
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/plugin-detail@16.1.0
+  - @object-ui/components@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

@@ -1,5 +1,73 @@
 # @object-ui/runner
 
+## 16.1.0
+
+### Minor Changes
+
+- 62b9ab5: feat(data): unify master-detail saves behind `DataSource.batchTransaction`, isolate the non-atomic fallback in the adapter (#2679)
+
+  Master-detail saves (`MasterDetailForm`, `LineItemsPanel`) now always persist
+  through `dataSource.batchTransaction(operations)` — one ordered cross-object
+  operation list, with `{ $ref: <op index> }` linking a child to a parent created
+  in the same batch. The form no longer contains any client-side orchestration or
+  best-effort compensation-delete; that atomicity anti-pattern is gone from the UI
+  layer (framework #1604 / framework ADR-0034 item 4).
+
+  - **`@object-ui/types`** — `batchTransaction?` is now a first-class (optional)
+    method on the `DataSource` contract, typed via `BatchTransactionOperation` /
+    `BatchRef`. Replaces the previous `(dataSource as any).batchTransaction`
+    method-sniffing.
+  - **`@object-ui/core`** — new `emulateBatchTransaction(dataSource, operations)`
+    (sequential writes, `$ref` resolution, best-effort reverse-order compensation)
+    and `runBatchTransaction(dataSource, operations)` (prefers the adapter's method,
+    emulates otherwise). `ApiDataSource` / `ValueDataSource` implement
+    `batchTransaction` via the emulation.
+  - **`@object-ui/data-objectstack`** — `ObjectStackAdapter.batchTransaction` uses
+    the server's atomic `POST /api/v1/batch`, prefers the typed
+    `client.data.batchTransaction` SDK method when the installed client exposes it,
+    and degrades to the client-side emulation ONLY when the endpoint is missing
+    (404/405) or the runtime can't do transactions (501). Real errors (400/401/403/
+    409/500) still surface. This is the isolated, tested home of the non-atomic
+    fallback.
+  - **`@object-ui/plugin-form`** — removed `applyDetail` / `createMany` /
+    `ApplyDetailResult` from `masterDetailTx.ts`; `MasterDetailForm` and
+    `LineItemsPanel` build ops and call `runBatchTransaction`. `LineItemsPanel`
+    saves are now atomic on a capable backend, with the rollup folded into the same
+    batch.
+
+  No behavior change on a current ObjectStack backend (it has `/api/v1/batch`);
+  older/limited backends keep a working — now clearly non-atomic — save path.
+
+### Patch Changes
+
+- Updated dependencies [1c8935a]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/components@16.1.0
+  - @object-ui/plugin-kanban@16.1.0
+  - @object-ui/plugin-charts@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

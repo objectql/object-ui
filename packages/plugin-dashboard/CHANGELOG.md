@@ -1,5 +1,166 @@
 # @object-ui/plugin-dashboard
 
+## 16.1.0
+
+### Minor Changes
+
+- 94d4876: feat(dashboard): Studio authors the ADR-0021 dataset shape only (framework#3251)
+
+  Finishes the dashboard analytics migration on the authoring side so the
+  framework can enable `DashboardWidgetSchema.strict()`. Both Studio surfaces now
+  emit only the semantic-layer shape (`dataset` + `dimensions` + `values`); no
+  surface authors the removed pre-ADR-0021 inline query.
+
+  **FROM → TO** (authoring)
+
+  - charts: `object` + `categoryField` + `valueField` + `aggregate`
+    → `dataset` + `dimensions` + `values`
+  - pivots: `object` + `rowField` + `columnField` + `valueField` + `aggregation`
+    → `dataset` + `dimensions` + `values` (last dimension spreads across columns)
+
+  **Changes**
+
+  - `@object-ui/types` — `DashboardWidgetSchema` gains `dataset` / `dimensions` /
+    `values`; the inline analytics keys (`object`, `categoryField`,
+    `categoryGranularity`, `valueField`, `aggregate`, `measures`) are marked
+    `@deprecated` (retained only so the renderer can still read legacy/static
+    metadata during the transition).
+  - `@object-ui/plugin-dashboard` — `WidgetConfigPanel` is rewritten as a dataset
+    picker (chart AND pivot). **Breaking prop change:** the unused
+    `availableObjects` / `availableFields` props are replaced by a new
+    `datasets?: WidgetDatasetCatalogEntry[]` (+ `datasetsLoading?`) catalog prop,
+    also forwarded by `DashboardWithConfig`. Hosts resolve the catalog (e.g. via
+    the metadata client's `list('dataset')`); without it the panel falls back to
+    free-text authoring. New exports: `WidgetDatasetCatalogEntry` and
+    `sanitizeDraftForType`.
+  - `@object-ui/app-shell` — the metadata-admin `DashboardWidgetInspector` drops
+    the legacy inline fields (object / value field / category field / aggregate);
+    the dataset section is now the primary (and only) analytics binding, and the
+    filter-binding field picker sources options from the bound dataset's
+    dimensions. The "Add widget" catalog drops `list` / `custom` — neither is a
+    member of `@objectstack/spec` `ChartTypeSchema`, so a widget authored with
+    them could never publish.
+
+  **Not changed:** `DashboardRenderer` keeps its legacy/static read branches and
+  the `ObjectPivotTable` / `PivotTable` blocks (still public SDUI blocks and the
+  backward-compat path for stored/static widgets) — only the dashboard authoring
+  flow stops emitting the legacy keys. Retiring those renderer branches is a
+  follow-up gated on migrating stored dashboards.
+
+- 2331ac9: feat(report): drill a date-bucket cell into its time range, not a superset (#1752)
+
+  Clicking a report/dashboard cell grouped by a `dateGranularity` date dimension
+  ("2026-Q2") used to drill into a **superset** — the date dimension was skipped,
+  so the record list spanned every time bucket. It now scopes to the clicked
+  bucket's half-open range, consuming the framework's new `drillRanges` sidecar.
+
+  - **`@object-ui/core`** — `buildDatasetDrillFilter` accepts the per-row
+    `drillRanges` and emits an ObjectQL range operator object
+    (`{ [field]: { $gte, $lt } }`) alongside the equality dims.
+  - **`@object-ui/plugin-report` / `@object-ui/plugin-dashboard`** — the report
+    renderer and dashboard widget forward `drillRanges`, and a **date-only**
+    report (no equality drill dim) is now drillable via the range alone.
+  - **`@object-ui/app-shell`** — the "Open in list →" escape hatch
+    (`useOpenRecordList`) now targets the ADR-0055 **bare data surface**
+    (`/:object/data`, "the URL is the view" — no baked-in view filter to
+    over-narrow the drill) and serializes a range to the
+    `filter[field][gte|lt]` operator contract. `ObjectDataPage` parses those
+    operators (equality shorthand unchanged), renders a range as a single chip,
+    and removes both bounds together. A new `drillUrlFilters` module owns the
+    write/read serialization so both sides can't drift (round-trip tested).
+
+  Companion to the framework analytics change (objectstack-ai/framework#3256).
+
+- 199fa83: feat(dashboard): retire the pre-ADR-0021 inline-analytics renderer branches (framework#3320)
+
+  Follow-up to the dashboard analytics migration (framework#3251 / objectui#2703).
+  Authoring already emits only the semantic-layer shape (`dataset` + `dimensions` +
+  `values`); this removes the renderer's now-unauthored legacy read-branches.
+
+  - **types**: drop the `@deprecated` inline-analytics keys (`object`,
+    `categoryField`, `categoryGranularity`, `valueField`, `aggregate`, `measures`)
+    from `DashboardWidgetSchema`. They were retained in #2703 only so the renderer
+    could read legacy/static metadata during the transition.
+  - **plugin-dashboard**: `DashboardRenderer` no longer emits the object-bound
+    metric / chart / pivot / table / list branches from the top-level `object` +
+    analytics keys. It keeps the renderer-internal static paths (`options.data` /
+    `widget.data` array and the `provider: 'object'` async config) and
+    `widget.component`. The dashboard renderer no longer emits `object-pivot` /
+    `pivot` at all — dataset pivots render through `DatasetWidget` (grouped table /
+    cross-tab); the `ObjectPivotTable` / `PivotTable` components stay as public
+    SDUI blocks for other surfaces. `DashboardGridLayout` gets the same treatment.
+  - **graceful fallback**: a widget that still carries the retired inline shape in
+    stored metadata (top-level `object`, no `dataset`, no inline `options.data`)
+    now renders a visible error placeholder prompting a rebind to a dataset, rather
+    than a blank chart/grid.
+  - **plugin-designer**: `DashboardEditor` drops its inline object / value-field /
+    aggregate fields (analytics binding is authored via the dataset picker in
+    app-shell's `DashboardWidgetInspector` / plugin-dashboard's `WidgetConfigPanel`).
+
+### Patch Changes
+
+- 0c3209a: chore(lint): clear the baseline lint errors in plugin-dashboard (objectui#2713 Wave 3)
+
+  First package of Wave 3 in the #2713 lint-gate restoration. `@object-ui/plugin-dashboard`
+  was red at baseline on `main`; cleared every **error** (no behavior change;
+  warnings out of scope):
+
+  - **`react-hooks/rules-of-hooks`** (`ObjectDataTable`) — `useObjectTranslation`
+    was wrapped in try/catch; removed the wrapper (the hook is provider-safe and
+    never throws — the #2709 fix). English defaults still stand until a
+    translation resolves.
+  - **`react-hooks/static-components`** (`MetricCard`, `MetricWidget`) —
+    `getLazyIcon(name)` returns a module-cached, stable component per name (not a
+    component created during render), so the render sites carry a justified scoped
+    disable.
+  - **`no-irregular-whitespace`** (`DatasetWidget`) — the literal U+FEFF BOM
+    prepended to the exported CSV blob (Excel UTF-8 detection) is written as the
+    `﻿` escape: byte-identical at runtime, no literal irregular-whitespace char.
+  - **`no-useless-escape`** (`recordFields`) — dropped a needless `\$` inside a
+    character class (`[\$¥€£]` → `[$¥€£]`).
+  - **`no-sparse-arrays`** (`recordFields`) — the `|| [, '']` match fallback is
+    written `[undefined, '']` so index 0 is an explicit hole, not a sparse one.
+  - **`no-useless-assignment`** (`PivotTable`) — the `suffix` accumulator is now a
+    single `const` at its one assignment site instead of a dead-initialized `let`.
+  - **`no-require-imports`** (`DashboardRenderer.designMode` test) — the hoisted
+    `vi.mock` factory uses an `async` factory with `await import('react')`.
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [aefcf39]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [14cb729]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+- Updated dependencies [3b2e4d9]
+  - @object-ui/fields@16.1.0
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/components@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

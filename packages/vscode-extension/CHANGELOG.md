@@ -1,5 +1,28 @@
 # Changelog
 
+## 16.1.0
+
+### Patch Changes
+
+- Updated dependencies [1c8935a]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [94d4876]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

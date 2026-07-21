@@ -1,5 +1,99 @@
 # @object-ui/plugin-view
 
+## 16.1.0
+
+### Patch Changes
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- ebe6494: chore(lint): clear the baseline lint errors in nine more packages (objectui#2713 Wave 2)
+
+  Second wave of the #2713 lint-gate restoration (after #2730). These nine package
+  lints were red at baseline on `main`, so their per-package `lint` gate could not
+  catch new violations. Cleared every **error** (no behavior change; warnings out
+  of scope):
+
+  - **`react-hooks/rules-of-hooks`** (`i18n`, `plugin-grid`, `plugin-view`,
+    `plugin-list`) — translation helpers (`useSafeFieldLabel`,
+    `useRowActionTranslation`, `useViewLabel`, `useViewTabLabel`, `useMoreLabel`)
+    wrapped a provider-safe hook (`useObjectTranslation`/`useObjectLabel`, which
+    never throw) in try/catch; removed the wrapper (the same fix #2709 applied in
+    fields). `plugin-kanban` `ObjectKanban` moved its `if (error)` early return
+    below the `useCallback` so hooks run unconditionally. `collaboration`
+    `__unsafe_usePresenceContext` keeps its deliberate danger-prefix name via a
+    justified scoped disable.
+  - **`react-hooks/static-components`** (`layout`, `plugin-list`, `plugin-report`)
+    — dynamic-icon / registry lookups (`resolveIcon`, `useRegistryComponent`) are
+    stable component references, not components created during render → scoped
+    disable with justification. `plugin-charts` `TreemapCell` was a _genuine_
+    inline component and is hoisted to module scope (it is purely props-driven).
+  - **`no-irregular-whitespace`** (`plugin-grid` `ImportWizard`) — the literal
+    U+FEFF BOM prepended to exported CSV/text blobs (so Excel detects UTF-8) is
+    now written as the `﻿` escape: byte-identical at runtime, no literal
+    irregular-whitespace character in source.
+  - **`no-useless-assignment`** (`plugin-grid` `BulkActionDialog`) — dropped a
+    dead `= null` initializer that the exhaustive `switch` (incl. `default`)
+    overwrites before it is read.
+  - **`no-unsafe-function-type`** (`plugin-view` `ViewTabBar`) — the dnd-kit
+    render-prop `listeners` map is typed `Record<string, (...args: any[]) => void>`
+    instead of bare `Function`.
+  - **`no-require-imports`** (`plugin-kanban`, `plugin-view` tests) — hoisted
+    `vi.mock` factories use an `async` factory with `await import('react')`.
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+- Updated dependencies [3b2e4d9]
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/plugin-form@16.1.0
+  - @object-ui/components@16.1.0
+  - @object-ui/plugin-grid@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

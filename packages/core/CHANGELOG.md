@@ -1,5 +1,242 @@
 # @object-ui/core
 
+## 16.1.0
+
+### Minor Changes
+
+- 1c8935a: feat(app-shell): render ActionParamDialog params through the shared form field-widget renderer (ADR-0059, #2700)
+
+  `ActionParamDialog` no longer hand-rolls a per-type ternary chain (select /
+  lookup / textarea / number / boolean, everything else → text input). Every
+  declared action param now renders through the same `fieldWidgetMap` the object
+  form uses, so a param of ANY form-supported field type — `file`, `image`,
+  `richtext`, `markdown`, `color`, `address`, `code`, `date`, … — gets its real
+  widget, lazily loaded behind `Suspense`. Subsumes the single `file` branch ask
+  in #2698: `type: 'file'` params render the real `FileField` upload control via
+  the ambient `UploadProvider`, honoring `multiple`/`accept`/`maxSize`.
+
+  - `@object-ui/fields`: new exports `resolveFormWidgetType(type)` (widget-key
+    resolution incl. spec aliases, text fallback) and `getLazyFieldWidget(type)`
+    (per-type-cached `React.lazy` over the form's own widget loaders).
+  - `@object-ui/core`: `ActionParamDef` gains `accept`/`maxSize`; `multiple` is
+    now general widget config (was lookup-only).
+  - `@object-ui/app-shell`: new pure `paramToField()` adapter (param → field
+    shape) with a drift test pinning param support ⊇ form support (`FORM_FIELD_TYPES`),
+    mirroring the FieldEditWidget parity guard; `resolveActionParams()` inherits
+    `multiple`/`accept`/`maxSize` from the referenced field for every type.
+    `required` validation, `visible` CEL gating, helpText, error styling, and
+    value shapes for previously-supported types are unchanged.
+
+- 2e7d7f0: feat(evaluator): route `{ dialect: 'cel' }` component/action predicates to the canonical CEL engine (#2661)
+
+  Component and action `visible` / `disabled` / `hidden` predicates were evaluated
+  by the home-grown JS `ExpressionEvaluator`, while field rules
+  (`visibleWhen`/`readonlyWhen`/`requiredWhen`, via `fieldRules.ts`) and row/list
+  conditionals (via `evalRowPredicate`) already delegate to the canonical
+  `@objectstack/formula` engine. That split meant a `{ dialect: 'cel' }` predicate
+  in a renderer/action surface was executed as **JavaScript** — CEL-only forms
+  (`x in list`, `has()`, typed `==`, the `today()`/`daysFromNow()` catalog) behaved
+  differently from, or faulted against, the server's enforcement.
+
+  This converges the remaining tier onto the same engine:
+
+  - **`@object-ui/core`** — `ExpressionEvaluator.evaluateCondition` now detects a
+    `{ dialect: 'cel', source }` envelope and evaluates it on `@objectstack/formula`
+    (via `evalFieldPredicate`), binding the `record` namespace plus the whole
+    context bag as top-level scope (`record.*`, `features.*`, `user.*`, `app.*`).
+    Fail-soft to visible/enabled to match the legacy default; `throwOnError`
+    callers still fail closed on a _faulting_ predicate (a genuine `false` never
+    throws). This fixes every `SchemaRenderer` visibility/disabled read at once.
+  - **`@object-ui/react`** — `toPredicateInput` preserves a CEL envelope instead of
+    collapsing it to a `${source}` string, and `useCondition` accepts and forwards
+    the envelope (keyed on a stable `(dialect, source)` so it doesn't re-evaluate
+    each render). Action buttons (`action-icon`/`group`/`bar`/`button`) therefore
+    evaluate CEL `visible`/`enabled`/`disabled` on the canonical engine.
+
+  **Back-compat:** bare strings and `${…}` templates stay on the legacy JS path
+  (deprecation window); only an explicit `{ dialect: 'cel' }` envelope is rerouted.
+  `{ dialect: 'template' }` is unaffected.
+
+  Together with the `^15.1.1` alignment (#2662), a renderer CEL predicate now
+  reaches the identical verdict as the server — including the framework's
+  `dateField == today()` equality fix (objectstack-ai/framework#3205) once it
+  lands in a published 15.x. The broader home-grown-vs-canonical divergence
+  motivation is #2661.
+
+- 31b77d4: **Add the explicit `engine-owned` lifecycle bucket (tracks framework ADR-0103 addendum / #3343).** The framework split the overloaded `managedBy: 'system'` bucket by promoting the engine-owned case to its own enum value; this mirrors it in the UI type + runtime + badge.
+
+  - **`@object-ui/types`** — `ManagedByBucket` union and `MANAGED_BY_BUCKETS` gain `'engine-owned'` (canonical order: `platform, config, system, engine-owned, append-only, better-auth`). The union stays closed, so every consumer that missed the new value is a compile error.
+  - **`@object-ui/core`** — `resolveCrudAffordances` gains the `engine-owned` default row (identical all-locked matrix as `system`/`append-only`), so `isObjectInlineEditable` / the grid + form gates treat it as read-only automatically.
+  - **`@object-ui/app-shell`** — the `ManagedByBadge` renders `engine-owned` with the same read-only "System-managed" copy as a locked `system` object (reuses the existing `managedByBadge.system` i18n key — zero translation churn; the distinction is at the schema level, not the user-facing string), and `resolveManagedByEmptyState` reuses the `system` engine-owned empty state.
+
+  Behaviour-preserving: `engine-owned` resolves to the same locked affordances `system` did by default, so nothing about how a locked object renders changes — the value just makes the schema self-documenting. New unit coverage for the bucket in `resolveCrudAffordances` / `isObjectInlineEditable` / `MANAGED_BY_BUCKETS` / the empty-state helper.
+
+- 62b9ab5: feat(data): unify master-detail saves behind `DataSource.batchTransaction`, isolate the non-atomic fallback in the adapter (#2679)
+
+  Master-detail saves (`MasterDetailForm`, `LineItemsPanel`) now always persist
+  through `dataSource.batchTransaction(operations)` — one ordered cross-object
+  operation list, with `{ $ref: <op index> }` linking a child to a parent created
+  in the same batch. The form no longer contains any client-side orchestration or
+  best-effort compensation-delete; that atomicity anti-pattern is gone from the UI
+  layer (framework #1604 / framework ADR-0034 item 4).
+
+  - **`@object-ui/types`** — `batchTransaction?` is now a first-class (optional)
+    method on the `DataSource` contract, typed via `BatchTransactionOperation` /
+    `BatchRef`. Replaces the previous `(dataSource as any).batchTransaction`
+    method-sniffing.
+  - **`@object-ui/core`** — new `emulateBatchTransaction(dataSource, operations)`
+    (sequential writes, `$ref` resolution, best-effort reverse-order compensation)
+    and `runBatchTransaction(dataSource, operations)` (prefers the adapter's method,
+    emulates otherwise). `ApiDataSource` / `ValueDataSource` implement
+    `batchTransaction` via the emulation.
+  - **`@object-ui/data-objectstack`** — `ObjectStackAdapter.batchTransaction` uses
+    the server's atomic `POST /api/v1/batch`, prefers the typed
+    `client.data.batchTransaction` SDK method when the installed client exposes it,
+    and degrades to the client-side emulation ONLY when the endpoint is missing
+    (404/405) or the runtime can't do transactions (501). Real errors (400/401/403/
+    409/500) still surface. This is the isolated, tested home of the non-atomic
+    fallback.
+  - **`@object-ui/plugin-form`** — removed `applyDetail` / `createMany` /
+    `ApplyDetailResult` from `masterDetailTx.ts`; `MasterDetailForm` and
+    `LineItemsPanel` build ops and call `runBatchTransaction`. `LineItemsPanel`
+    saves are now atomic on a capable backend, with the rollup folded into the same
+    batch.
+
+  No behavior change on a current ObjectStack backend (it has `/api/v1/batch`);
+  older/limited backends keep a working — now clearly non-atomic — save path.
+
+- 1629313: feat(fields): RadioField per-option `visibleWhen` cascading + `dependsOn` gating; single-source the option resolver
+
+  Brings `RadioField` to parity with `SelectField` / `MultiSelectField` for ADR-0058
+  cascading & role-gated options, and collapses the three copies of the
+  gate-then-filter logic onto one shared resolver.
+
+  - **`@object-ui/core`**: new pure `resolveCascadingOptions(rawOptions, record, dependsOn, scope)`
+    → `{ options, gated, dependsOnFields }` — the single source of truth for
+    `dependsOn` gating + per-option `visibleWhen` filtering.
+  - **`@object-ui/fields`**: `RadioField` now narrows its offered radios against
+    the live record + `current_user`, gates behind a "select the parent first"
+    hint while a `dependsOn` field is empty, and clears a value no longer offered
+    (scalar cascade clear). The `useCascadingOptions` hook is refactored to a thin
+    React wrapper over `resolveCascadingOptions`.
+  - **`@object-ui/components`**: the form renderer's inline option pre-filter and
+    cross-field cascade-clear effect now call `resolveCascadingOptions` instead of
+    re-deriving gating/filtering, so they can't drift from the widgets (no
+    behavior change).
+  - Tests: `RadioField.cascade.test.tsx` mirrors the select cascade tests; core
+    gains `resolveCascadingOptions` unit coverage.
+
+- 2331ac9: feat(report): drill a date-bucket cell into its time range, not a superset (#1752)
+
+  Clicking a report/dashboard cell grouped by a `dateGranularity` date dimension
+  ("2026-Q2") used to drill into a **superset** — the date dimension was skipped,
+  so the record list spanned every time bucket. It now scopes to the clicked
+  bucket's half-open range, consuming the framework's new `drillRanges` sidecar.
+
+  - **`@object-ui/core`** — `buildDatasetDrillFilter` accepts the per-row
+    `drillRanges` and emits an ObjectQL range operator object
+    (`{ [field]: { $gte, $lt } }`) alongside the equality dims.
+  - **`@object-ui/plugin-report` / `@object-ui/plugin-dashboard`** — the report
+    renderer and dashboard widget forward `drillRanges`, and a **date-only**
+    report (no equality drill dim) is now drillable via the range alone.
+  - **`@object-ui/app-shell`** — the "Open in list →" escape hatch
+    (`useOpenRecordList`) now targets the ADR-0055 **bare data surface**
+    (`/:object/data`, "the URL is the view" — no baked-in view filter to
+    over-narrow the drill) and serializes a range to the
+    `filter[field][gte|lt]` operator contract. `ObjectDataPage` parses those
+    operators (equality shorthand unchanged), renders a range as a single chip,
+    and removes both bounds together. A new `drillUrlFilters` module owns the
+    write/read serialization so both sides can't drift (round-trip tested).
+
+  Companion to the framework analytics change (objectstack-ai/framework#3256).
+
+### Patch Changes
+
+- 8b8b744: chore(deps): align `@objectstack/formula` / `lint` / `client` to `^15.1.1`
+
+  These three were still pinned to `^14.6.0` while `@objectstack/spec` was already
+  `^15.1.1` — a version skew from the v15 upgrade (formula/lint/client publish in
+  lockstep with spec, and their own 15.0.0 entries are pure dependency bumps, so
+  this is alignment, not a behavioral migration).
+
+  Practical effect: the client-side field-rule evaluation
+  (`visibleWhen`/`readonlyWhen`/`requiredWhen` via `fieldRules.ts`, which delegates
+  to `@objectstack/formula`'s `ExpressionEngine`) now tracks the 15.x engine — and
+  will pick up the framework's `dateField == today()` equality fix
+  (objectstack-ai/framework#3205) automatically at the next 15.x release via the
+  caret range. Renderer/action `visible`/`disabled` predicates are unaffected (they
+  use the home-grown JS evaluator — tracked separately in #2661).
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 6d4fbe6: **Consolidate the `managedBy` lifecycle-bucket logic into one shared source of truth (follows framework ADR-0103).** The bucket taxonomy was hand-mirrored in several places — `crudAffordances.ts`, `ManagedByBadge.tsx` (its own `Bucket` union + `isWriteOptedIn` + the writable-system derivation), and `plugin-detail`'s `record-details.tsx` (`NON_EDITABLE_BUCKETS`, duplicated because it can't depend on app-shell) — a drift risk, and the object-schema `managedBy` type was open-ended (`(string & {})`) so unknown buckets slipped through and silently defaulted to fully-editable.
+
+  - **`@object-ui/types`** now owns the closed `ManagedByBucket` union (+ `MANAGED_BY_BUCKETS`), and `ObjectSchema.managedBy` is tightened from `'platform' | 'better-auth' | (string & {})` to that union — unknown buckets are now a type error at authoring time.
+  - **`@object-ui/core`** now owns the React-free runtime logic — `resolveCrudAffordances`, `isWriteOptedIn`, `isSystemWritable`, `isObjectInlineEditable` — reachable by every UI package including `plugin-detail` (which could not import app-shell).
+  - **`app-shell/utils/crudAffordances.ts`** is now a thin re-export of `@object-ui/core` (existing imports keep working); `ManagedByBadge` consumes the shared `isSystemWritable`; `plugin-detail` `record-details.tsx` replaces its hand-mirrored `NON_EDITABLE_BUCKETS` with `isObjectInlineEditable`.
+
+  Behavior-preserving — all existing affordance/edit-gate tests stay green; the shared module adds direct unit coverage (including the previously-untested `isSystemWritable` derivation). Translated copy (badge variants, empty-state messages) stays in app-shell.
+
+- 0a3710b: **Finish the `managedBy` / `userActions` de-dup — one parser for the override shape (completes objectui#2712, framework#3343).** #2712 consolidated the bucket _union_ + affordance _set_ mirrors but left four surfaces still parsing the `userActions.{create,edit,delete}` override shape by hand. They now all route through the shared `@object-ui/core` policy, so no package re-implements the boolean / #2614-object-form parse locally.
+
+  - **`@object-ui/core`** promotes the internal `normalizeOverride` to the exported **`normalizeUserAction(v, base)`** (the one parser) and adds **`userActionPredicates(v)`** for per-record CEL predicate extraction.
+  - **`app-shell/utils/managedByEmptyState.ts`** — the writable-`system` create check and its local `EmptyStateUserActions` interface are replaced by `resolveCrudAffordances({ managedBy, userActions }).create`.
+  - **`plugin-grid/rowCrudAffordances.ts`** — the local `isOptedOut` / `predicatesOf` helpers (and duplicated `RowCrudUserAction` / `RowCrudPredicates` types) fold into `normalizeUserAction`; the historical type names stay re-exported for compat.
+  - **`plugin-detail/RelatedList.tsx`** — its inline `predicatesOf` fold into `userActionPredicates`.
+  - **`plugin-form/ObjectForm.tsx`** — the hand-rolled `managedBy !== 'platform'` blanket lock + `userActions` unlock is replaced by the resolved affordance for the current mode (`edit` / `create`), the **same** `resolveCrudAffordances` contract the detail (`isObjectInlineEditable`) and grid surfaces use.
+
+  Behavior-preserving for `platform` / `system` / `append-only` / `better-auth`, with one deliberate alignment: an admin-editable **`config`**-bucket object (e.g. `sys_webhook`, `sys_permission_set`) is now editable in `ObjectForm` — it was previously over-locked as "non-`platform`", while detail/grid already treated it as editable (`config` resolves `edit: true`). New unit coverage for the shared parser and the config / create-mode form gate; all existing affordance/edit-gate tests stay green.
+
+- eee4ded: feat(fields): render `select` + `multiple` through the multi-value chip picker; restore fields/core lint gates
+
+  - **Multi-value select** — a `select` field/param declared `multiple: true`
+    now renders the multi-value chip picker (the `multiselect` widget) and stores
+    a `string[]`, instead of collapsing to a single-value dropdown that could
+    hold only one value. The delegation lives inside `SelectField`, so the object
+    form, the inline grid editor, and the app-shell `ActionParamDialog` all
+    inherit it from the one `select` widget with no per-surface drift. Single
+    selects keep the cascading dropdown (multi + per-option `visibleWhen`
+    cascading is not a combination in use today).
+  - **`autonumber` mapping is unchanged** here; this change is orthogonal.
+  - **Lint gates restored** — fixed the pre-existing baseline lint errors that
+    had left the `@object-ui/fields` and `@object-ui/core` package lints red (so
+    the gate could not catch new violations): `react-hooks/rules-of-hooks` in
+    `ImageField` / `TextAreaField` / `index.tsx` (hooks hoisted above early
+    returns; the `useFieldTranslate` hook no longer wrapped in try/catch), plus
+    `no-useless-assignment` / `no-useless-escape` / `no-control-regex` /
+    `prefer-const` / `preserve-caught-error` in the core evaluator and utils. No
+    behavior change from the lint fixes.
+
+- Updated dependencies [7cf4051]
+- Updated dependencies [94d4876]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [199fa83]
+  - @object-ui/types@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

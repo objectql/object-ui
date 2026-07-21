@@ -1,5 +1,129 @@
 # @object-ui/plugin-grid
 
+## 16.1.0
+
+### Patch Changes
+
+- ebe6494: chore(lint): clear the baseline lint errors in nine more packages (objectui#2713 Wave 2)
+
+  Second wave of the #2713 lint-gate restoration (after #2730). These nine package
+  lints were red at baseline on `main`, so their per-package `lint` gate could not
+  catch new violations. Cleared every **error** (no behavior change; warnings out
+  of scope):
+
+  - **`react-hooks/rules-of-hooks`** (`i18n`, `plugin-grid`, `plugin-view`,
+    `plugin-list`) — translation helpers (`useSafeFieldLabel`,
+    `useRowActionTranslation`, `useViewLabel`, `useViewTabLabel`, `useMoreLabel`)
+    wrapped a provider-safe hook (`useObjectTranslation`/`useObjectLabel`, which
+    never throw) in try/catch; removed the wrapper (the same fix #2709 applied in
+    fields). `plugin-kanban` `ObjectKanban` moved its `if (error)` early return
+    below the `useCallback` so hooks run unconditionally. `collaboration`
+    `__unsafe_usePresenceContext` keeps its deliberate danger-prefix name via a
+    justified scoped disable.
+  - **`react-hooks/static-components`** (`layout`, `plugin-list`, `plugin-report`)
+    — dynamic-icon / registry lookups (`resolveIcon`, `useRegistryComponent`) are
+    stable component references, not components created during render → scoped
+    disable with justification. `plugin-charts` `TreemapCell` was a _genuine_
+    inline component and is hoisted to module scope (it is purely props-driven).
+  - **`no-irregular-whitespace`** (`plugin-grid` `ImportWizard`) — the literal
+    U+FEFF BOM prepended to exported CSV/text blobs (so Excel detects UTF-8) is
+    now written as the `﻿` escape: byte-identical at runtime, no literal
+    irregular-whitespace character in source.
+  - **`no-useless-assignment`** (`plugin-grid` `BulkActionDialog`) — dropped a
+    dead `= null` initializer that the exhaustive `switch` (incl. `default`)
+    overwrites before it is read.
+  - **`no-unsafe-function-type`** (`plugin-view` `ViewTabBar`) — the dnd-kit
+    render-prop `listeners` map is typed `Record<string, (...args: any[]) => void>`
+    instead of bare `Function`.
+  - **`no-require-imports`** (`plugin-kanban`, `plugin-view` tests) — hoisted
+    `vi.mock` factories use an `async` factory with `await import('react')`.
+
+- 2b17339: fix(list): keep the injected `owner_id` out of the leading auto-derived columns
+
+  A view-less object's default list columns are derived from the object's field
+  order. The framework's `applySystemFields` spreads its injected
+  system/audit/ownership fields to the FRONT of that order and stamps them
+  `system: true`; `owner_id` is deliberately non-hidden and non-readonly
+  (ownership is reassignable), so the old name-based exclusion lists in
+  `ObjectGrid` and `InterfaceListPage` — which never listed `owner_id` — let it
+  through as column #1 on many showcase list pages (e.g. `showcase_field_zoo`).
+
+  Default-column derivation now classifies system fields via the shared
+  `isSystemManagedField` helper, which branches on the spec `system` flag (the
+  single source of truth stamped by the registry) with a name-set fallback that
+  includes the ownership/tenancy FKs. `owner_id` is pushed to the end
+  (`ObjectGrid`) / excluded from the business columns (`InterfaceListPage`), so
+  auto-derived lists lead with business fields again and pick up future injected
+  fields without editing a name list. Also declares the `system` flag on the
+  `@object-ui/types` field metadata.
+
+- 0a3710b: **Finish the `managedBy` / `userActions` de-dup — one parser for the override shape (completes objectui#2712, framework#3343).** #2712 consolidated the bucket _union_ + affordance _set_ mirrors but left four surfaces still parsing the `userActions.{create,edit,delete}` override shape by hand. They now all route through the shared `@object-ui/core` policy, so no package re-implements the boolean / #2614-object-form parse locally.
+
+  - **`@object-ui/core`** promotes the internal `normalizeOverride` to the exported **`normalizeUserAction(v, base)`** (the one parser) and adds **`userActionPredicates(v)`** for per-record CEL predicate extraction.
+  - **`app-shell/utils/managedByEmptyState.ts`** — the writable-`system` create check and its local `EmptyStateUserActions` interface are replaced by `resolveCrudAffordances({ managedBy, userActions }).create`.
+  - **`plugin-grid/rowCrudAffordances.ts`** — the local `isOptedOut` / `predicatesOf` helpers (and duplicated `RowCrudUserAction` / `RowCrudPredicates` types) fold into `normalizeUserAction`; the historical type names stay re-exported for compat.
+  - **`plugin-detail/RelatedList.tsx`** — its inline `predicatesOf` fold into `userActionPredicates`.
+  - **`plugin-form/ObjectForm.tsx`** — the hand-rolled `managedBy !== 'platform'` blanket lock + `userActions` unlock is replaced by the resolved affordance for the current mode (`edit` / `create`), the **same** `resolveCrudAffordances` contract the detail (`isObjectInlineEditable`) and grid surfaces use.
+
+  Behavior-preserving for `platform` / `system` / `append-only` / `better-auth`, with one deliberate alignment: an admin-editable **`config`**-bucket object (e.g. `sys_webhook`, `sys_permission_set`) is now editable in `ObjectForm` — it was previously over-locked as "non-`platform`", while detail/grid already treated it as editable (`config` resolves `edit: true`). New unit coverage for the shared parser and the config / create-mode form gate; all existing affordance/edit-gate tests stay green.
+
+- 3b2e4d9: fix(list): route remaining system-field groupings through the shared classifier
+
+  Follow-up to the `owner_id` default-column fix: consolidate the display-oriented
+  system-field exclusions onto the shared `isSystemManagedField` /
+  `SYSTEM_MANAGED_FIELD_NAMES` (from `@object-ui/types`) so the framework-injected
+  `owner_id` is treated consistently across the grid, record picker, and detail
+  drawer.
+
+  - `ObjectGrid` record-detail drawer: the business-fields vs. muted meta-section
+    split now uses the shared classifier, so `owner_id` (and other injected system
+    fields) land in the meta section instead of the business body.
+  - `deriveLookupColumns` (record picker): drops its local name set for the shared
+    classifier — now flag-aware (`field.system`), not just name-based.
+  - `RecordDetailDrawer`: its default `systemFields` set is derived from the shared
+    `SYSTEM_MANAGED_FIELD_NAMES`; the `systemFields` prop override is preserved.
+
+  `deriveRelatedLists`' narrow "audit FK on every object" set and plugin-detail's
+  inline-edit "never editable" set are intentionally left distinct — different
+  semantics (the latter deliberately keeps `owner_id` editable).
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [aefcf39]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [14cb729]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+- Updated dependencies [3b2e4d9]
+  - @object-ui/fields@16.1.0
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/components@16.1.0
+  - @object-ui/mobile@16.1.0
+
 ## 16.0.0
 
 ### Minor Changes

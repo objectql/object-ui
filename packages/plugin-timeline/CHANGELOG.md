@@ -1,5 +1,84 @@
 # @object-ui/plugin-timeline
 
+## 16.1.0
+
+### Patch Changes
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 549c67d: chore(lint): clear the mechanical baseline lint errors so these packages' lint gates protect them again
+
+  Extends the fields/core cleanup from #2709 (objectui#2713). These eight package
+  lints were red at baseline on `main`, so their per-package `lint` gate could not
+  catch new violations of the same class. Cleared every **error** (no behavior
+  change; warnings are out of scope):
+
+  - **`no-useless-catch`** (`data-objectstack`) — unwrapped five try/catch blocks
+    whose `catch` only re-threw; errors still propagate identically.
+  - **`preserve-caught-error`** (`cli`, `data-objectstack`, `react`) — the caught
+    error's message is inlined into the thrown `Error`; a scoped disable with a
+    justifying comment carries each one, because these packages target ES2020
+    whose lib types the 1-arg `Error` constructor only (so `{ cause }` won't
+    compile) — same reasoning as the core case in #2709.
+  - **`prefer-const`** (`plugin-calendar`, `plugin-map`) — `let`→`const` for
+    never-reassigned bindings.
+  - **`no-empty-object-type`** (`plugin-designer`) — empty extend-only interfaces
+    → equivalent `type` aliases.
+  - **`no-useless-assignment`** (`react`) — dropped a dead initializer that both
+    branches overwrite before it is read.
+  - **`no-require-imports`** (`plugin-calendar`, `plugin-timeline` tests) —
+    hoisted `vi.mock` factories now use an `async` factory with
+    `await import('react')` instead of `require('react')`.
+  - **stale `eslint-disable` directive** (`plugin-markdown`) — removed a
+    `react/no-danger` disable whose plugin is not loaded in the flat config (an
+    unknown-rule reference that ESLint v10 reports as an error); the rationale is
+    kept as a plain comment.
+
+- Updated dependencies [1c8935a]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/components@16.1.0
+  - @object-ui/mobile@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

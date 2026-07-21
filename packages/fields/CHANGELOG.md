@@ -1,5 +1,203 @@
 # @object-ui/fields
 
+## 16.1.0
+
+### Minor Changes
+
+- 1c8935a: feat(app-shell): render ActionParamDialog params through the shared form field-widget renderer (ADR-0059, #2700)
+
+  `ActionParamDialog` no longer hand-rolls a per-type ternary chain (select /
+  lookup / textarea / number / boolean, everything else → text input). Every
+  declared action param now renders through the same `fieldWidgetMap` the object
+  form uses, so a param of ANY form-supported field type — `file`, `image`,
+  `richtext`, `markdown`, `color`, `address`, `code`, `date`, … — gets its real
+  widget, lazily loaded behind `Suspense`. Subsumes the single `file` branch ask
+  in #2698: `type: 'file'` params render the real `FileField` upload control via
+  the ambient `UploadProvider`, honoring `multiple`/`accept`/`maxSize`.
+
+  - `@object-ui/fields`: new exports `resolveFormWidgetType(type)` (widget-key
+    resolution incl. spec aliases, text fallback) and `getLazyFieldWidget(type)`
+    (per-type-cached `React.lazy` over the form's own widget loaders).
+  - `@object-ui/core`: `ActionParamDef` gains `accept`/`maxSize`; `multiple` is
+    now general widget config (was lookup-only).
+  - `@object-ui/app-shell`: new pure `paramToField()` adapter (param → field
+    shape) with a drift test pinning param support ⊇ form support (`FORM_FIELD_TYPES`),
+    mirroring the FieldEditWidget parity guard; `resolveActionParams()` inherits
+    `multiple`/`accept`/`maxSize` from the referenced field for every type.
+    `required` validation, `visible` CEL gating, helpText, error styling, and
+    value shapes for previously-supported types are unchanged.
+
+- ef14f69: feat(fields): CheckboxesField per-option `visibleWhen` cascading + `dependsOn` gating (completes the option-widget parity set)
+
+  `checkboxes` was the last static-option widget still rendering `config.options`
+  raw — with no per-option `visibleWhen` filtering, `dependsOn` gating, or cascade
+  clear. It now matches `MultiSelectField` (its multi-value sibling), completing
+  the ADR-0058 parity across `select` / `multiselect` / `radio` / `checkboxes`.
+
+  - **`@object-ui/fields`**: `CheckboxesField` routes through the shared
+    `useCascadingOptions` hook — offered boxes narrow against the live record +
+    `current_user`, the control gates behind a "select the parent first" hint
+    while a `dependsOn` field is empty, and selections no longer offered are
+    pruned per-element from the array. Adds `checkboxes-empty-*` /
+    `checkboxes-option-*` testids.
+  - **`@object-ui/components`**: adds `checkboxes` to the form renderer's option
+    field sets (`CASCADE_OPTION_FIELD_TYPES`, the cross-field cascade-clear
+    effect, and the option pre-filter) so a `checkboxes` field is threaded
+    `dependentValues` and gated identically to the other option widgets.
+  - Tests: `CheckboxesField.cascade.test.tsx` mirrors `MultiSelectField.cascade.test.tsx`.
+
+- 14cb729: feat(fields): MultiSelectField per-option `visibleWhen` cascading + `dependsOn` gating (parity with single select, #2715)
+
+  The multi-value chip picker now implements the same ADR-0058 option
+  resolution as the single `SelectField`, closing the gap #2709 opened when a
+  `select` + `multiple` (and the `multiselect` type) started delegating to it.
+
+  - Extracted `useCascadingOptions` — the shared hook that resolves per-option
+    `visibleWhen` filtering, `dependsOn` gating, and the live `dependentValues` +
+    predicate-scope wiring — and routed both `SingleSelectField` and
+    `MultiSelectField` through it (no duplicated resolver).
+  - `MultiSelectField` narrows its offered chips against the live record +
+    `current_user`, gates behind a "select the parent first" hint while a
+    `dependsOn` field is empty, and surfaces a legible empty state instead of a
+    bare chip row.
+  - Cascade-clear: when the offered set changes (parent changed / predicate
+    flipped) the widget prunes only the now-invalid selections, keeping the
+    still-offered ones — the array analogue of the single select's clear.
+  - Tests: `MultiSelectField.cascade.test.tsx` mirrors `SelectField.cascade.test.tsx`
+    (gating, per-element cascade clear, role/context gating).
+
+- 1629313: feat(fields): RadioField per-option `visibleWhen` cascading + `dependsOn` gating; single-source the option resolver
+
+  Brings `RadioField` to parity with `SelectField` / `MultiSelectField` for ADR-0058
+  cascading & role-gated options, and collapses the three copies of the
+  gate-then-filter logic onto one shared resolver.
+
+  - **`@object-ui/core`**: new pure `resolveCascadingOptions(rawOptions, record, dependsOn, scope)`
+    → `{ options, gated, dependsOnFields }` — the single source of truth for
+    `dependsOn` gating + per-option `visibleWhen` filtering.
+  - **`@object-ui/fields`**: `RadioField` now narrows its offered radios against
+    the live record + `current_user`, gates behind a "select the parent first"
+    hint while a `dependsOn` field is empty, and clears a value no longer offered
+    (scalar cascade clear). The `useCascadingOptions` hook is refactored to a thin
+    React wrapper over `resolveCascadingOptions`.
+  - **`@object-ui/components`**: the form renderer's inline option pre-filter and
+    cross-field cascade-clear effect now call `resolveCascadingOptions` instead of
+    re-deriving gating/filtering, so they can't drift from the widgets (no
+    behavior change).
+  - Tests: `RadioField.cascade.test.tsx` mirrors the select cascade tests; core
+    gains `resolveCascadingOptions` unit coverage.
+
+- eee4ded: feat(fields): render `select` + `multiple` through the multi-value chip picker; restore fields/core lint gates
+
+  - **Multi-value select** — a `select` field/param declared `multiple: true`
+    now renders the multi-value chip picker (the `multiselect` widget) and stores
+    a `string[]`, instead of collapsing to a single-value dropdown that could
+    hold only one value. The delegation lives inside `SelectField`, so the object
+    form, the inline grid editor, and the app-shell `ActionParamDialog` all
+    inherit it from the one `select` widget with no per-surface drift. Single
+    selects keep the cascading dropdown (multi + per-option `visibleWhen`
+    cascading is not a combination in use today).
+  - **`autonumber` mapping is unchanged** here; this change is orthogonal.
+  - **Lint gates restored** — fixed the pre-existing baseline lint errors that
+    had left the `@object-ui/fields` and `@object-ui/core` package lints red (so
+    the gate could not catch new violations): `react-hooks/rules-of-hooks` in
+    `ImageField` / `TextAreaField` / `index.tsx` (hooks hoisted above early
+    returns; the `useFieldTranslate` hook no longer wrapped in try/catch), plus
+    `no-useless-assignment` / `no-useless-escape` / `no-control-regex` /
+    `prefer-const` / `preserve-caught-error` in the core evaluator and utils. No
+    behavior change from the lint fixes.
+
+### Patch Changes
+
+- 0318118: fix(app-shell): block ActionParamDialog submit while a file/image param is uploading; map spec `autonumber` (ADR-0059 follow-ups)
+
+  Two follow-ups to the shared-field-widget param rendering (ADR-0059):
+
+  - **Upload-in-progress guard.** A `file`/`image` param's value only becomes its
+    fileId once the presigned upload settles, so confirming mid-upload sent an
+    empty/stale value. `FileField`/`ImageField` now surface their upload state via
+    an optional `onUploadingChange` prop (shared `useUploadingSignal` hook,
+    ignored by other widgets); `ActionParamDialog` wires it for `file`/`image`
+    params and disables Confirm (label → "Uploading…", new `actionDialog.uploading`
+    i18n key across all locales) plus blocks submit while any upload is in flight.
+  - **`autonumber` spelling.** `mapFieldTypeToFormType` now maps the spec
+    `FieldType` spelling `autonumber` (in addition to the widget-map key
+    `auto_number`) to the AutoNumber widget, so a spec-typed `autonumber`
+    field/param no longer falls through to the plain text input — fixes the object
+    form path as well as action params.
+
+- aefcf39: feat(action-params): serialize file/image action params to storage id(s); retire the approvals composer
+
+  Declared action params of `type: 'file'`/`'image'` now POST the portable API
+  contract — the storage id(s) — instead of the upload widget's rich object:
+
+  - `FileField` surfaces the id it already receives from the upload adapter
+    (`meta.fileId`) as `file_id` on each emitted file object (additive; the
+    record file-field value shape is unchanged).
+  - `ActionParamDialog` maps upload-param values to their `file_id`(s) at submit
+    (`serializeParamValues`, pure + exported): single → string, `multiple` →
+    `string[]`. The api handler already forwards param values untouched, so an
+    action with a `file` param POSTs `attachments: string[]`.
+
+  This lets the approvals inbox retire its last hand-wired UI — the approve/reject
+  composer with its bespoke attachment upload — so the drawer renders every
+  decision through `DeclaredActionsBar` with the declared `attachments` file param
+  (framework side declares it; see the paired framework change). `DeclaredActionsBar`'s
+  `exclude` prop stays as a general capability.
+
+- 3b2e4d9: fix(list): route remaining system-field groupings through the shared classifier
+
+  Follow-up to the `owner_id` default-column fix: consolidate the display-oriented
+  system-field exclusions onto the shared `isSystemManagedField` /
+  `SYSTEM_MANAGED_FIELD_NAMES` (from `@object-ui/types`) so the framework-injected
+  `owner_id` is treated consistently across the grid, record picker, and detail
+  drawer.
+
+  - `ObjectGrid` record-detail drawer: the business-fields vs. muted meta-section
+    split now uses the shared classifier, so `owner_id` (and other injected system
+    fields) land in the meta section instead of the business body.
+  - `deriveLookupColumns` (record picker): drops its local name set for the shared
+    classifier — now flag-aware (`field.system`), not just name-based.
+  - `RecordDetailDrawer`: its default `systemFields` set is derived from the shared
+    `SYSTEM_MANAGED_FIELD_NAMES`; the `systemFields` prop override is preserved.
+
+  `deriveRelatedLists`' narrow "audit FK on every object" set and plugin-detail's
+  inline-edit "never editable" set are intentionally left distinct — different
+  semantics (the latter deliberately keeps `owner_id` editable).
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/components@16.1.0
+  - @object-ui/providers@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

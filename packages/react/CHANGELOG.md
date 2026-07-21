@@ -1,5 +1,153 @@
 # @object-ui/react
 
+## 16.1.0
+
+### Minor Changes
+
+- 803558e: feat(data): thread the host's authenticated fetch into `provider: 'api'` data sources (#2725)
+
+  `provider: 'api'` view data sources went through a bare `globalThis.fetch`, so
+  custom endpoints (gantt composite trees, report aggregates) carried only
+  same-origin cookies while every native `/api/v1/*` request carried
+  `Authorization: Bearer` — the moment cookie HMAC verification failed (dev
+  restart rotating the fallback auth secret, cookie expiry/rotation in prod)
+  those views 401'd while the rest of the app kept working.
+
+  - **`@object-ui/react`** — `SchemaRendererProvider` accepts an optional
+    `apiFetch`; nested providers inherit it from their parent so re-wrapped
+    subtrees (react pages, preview surfaces) keep the host's authentication.
+    `useViewData` defaults the api-provider adapter's fetch to the context
+    `apiFetch` (explicit `adapterOptions.fetch` still wins).
+  - **`@object-ui/auth`** — `createAuthenticatedFetch` gains a
+    `sameOriginOnly` option: cross-origin URLs pass through to the bare fetch
+    with no `Authorization` / `X-Tenant-ID` / `Accept-Language`, so metadata-
+    supplied third-party URLs never see the platform token.
+  - **`@object-ui/app-shell`** — the console wires
+    `createAuthenticatedFetch({ sameOriginOnly: true })` (settle-signal wrapped)
+    as `apiFetch` on the root `SchemaRendererProvider`.
+  - **`@object-ui/plugin-gantt`** — `ObjectGantt` resolves its api-provider
+    DataSource with the context `apiFetch`, covering reads and write-backs.
+
+  Behaviour is unchanged for hosts that don't provide `apiFetch` (bare fetch +
+  cookies, as before).
+
+- 2e7d7f0: feat(evaluator): route `{ dialect: 'cel' }` component/action predicates to the canonical CEL engine (#2661)
+
+  Component and action `visible` / `disabled` / `hidden` predicates were evaluated
+  by the home-grown JS `ExpressionEvaluator`, while field rules
+  (`visibleWhen`/`readonlyWhen`/`requiredWhen`, via `fieldRules.ts`) and row/list
+  conditionals (via `evalRowPredicate`) already delegate to the canonical
+  `@objectstack/formula` engine. That split meant a `{ dialect: 'cel' }` predicate
+  in a renderer/action surface was executed as **JavaScript** — CEL-only forms
+  (`x in list`, `has()`, typed `==`, the `today()`/`daysFromNow()` catalog) behaved
+  differently from, or faulted against, the server's enforcement.
+
+  This converges the remaining tier onto the same engine:
+
+  - **`@object-ui/core`** — `ExpressionEvaluator.evaluateCondition` now detects a
+    `{ dialect: 'cel', source }` envelope and evaluates it on `@objectstack/formula`
+    (via `evalFieldPredicate`), binding the `record` namespace plus the whole
+    context bag as top-level scope (`record.*`, `features.*`, `user.*`, `app.*`).
+    Fail-soft to visible/enabled to match the legacy default; `throwOnError`
+    callers still fail closed on a _faulting_ predicate (a genuine `false` never
+    throws). This fixes every `SchemaRenderer` visibility/disabled read at once.
+  - **`@object-ui/react`** — `toPredicateInput` preserves a CEL envelope instead of
+    collapsing it to a `${source}` string, and `useCondition` accepts and forwards
+    the envelope (keyed on a stable `(dialect, source)` so it doesn't re-evaluate
+    each render). Action buttons (`action-icon`/`group`/`bar`/`button`) therefore
+    evaluate CEL `visible`/`enabled`/`disabled` on the canonical engine.
+
+  **Back-compat:** bare strings and `${…}` templates stay on the legacy JS path
+  (deprecation window); only an explicit `{ dialect: 'cel' }` envelope is rerouted.
+  `{ dialect: 'template' }` is unaffected.
+
+  Together with the `^15.1.1` alignment (#2662), a renderer CEL predicate now
+  reaches the identical verdict as the server — including the framework's
+  `dateField == today()` equality fix (objectstack-ai/framework#3205) once it
+  lands in a published 15.x. The broader home-grown-vs-canonical divergence
+  motivation is #2661.
+
+### Patch Changes
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 549c67d: chore(lint): clear the mechanical baseline lint errors so these packages' lint gates protect them again
+
+  Extends the fields/core cleanup from #2709 (objectui#2713). These eight package
+  lints were red at baseline on `main`, so their per-package `lint` gate could not
+  catch new violations of the same class. Cleared every **error** (no behavior
+  change; warnings are out of scope):
+
+  - **`no-useless-catch`** (`data-objectstack`) — unwrapped five try/catch blocks
+    whose `catch` only re-threw; errors still propagate identically.
+  - **`preserve-caught-error`** (`cli`, `data-objectstack`, `react`) — the caught
+    error's message is inlined into the thrown `Error`; a scoped disable with a
+    justifying comment carries each one, because these packages target ES2020
+    whose lib types the 1-arg `Error` constructor only (so `{ cause }` won't
+    compile) — same reasoning as the core case in #2709.
+  - **`prefer-const`** (`plugin-calendar`, `plugin-map`) — `let`→`const` for
+    never-reassigned bindings.
+  - **`no-empty-object-type`** (`plugin-designer`) — empty extend-only interfaces
+    → equivalent `type` aliases.
+  - **`no-useless-assignment`** (`react`) — dropped a dead initializer that both
+    branches overwrite before it is read.
+  - **`no-require-imports`** (`plugin-calendar`, `plugin-timeline` tests) —
+    hoisted `vi.mock` factories now use an `async` factory with
+    `await import('react')` instead of `require('react')`.
+  - **stale `eslint-disable` directive** (`plugin-markdown`) — removed a
+    `react/no-danger` disable whose plugin is not loaded in the flat config (an
+    unknown-rule reference that ESLint v10 reports as an error); the rationale is
+    kept as a plain comment.
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [8c1e415]
+- Updated dependencies [0ea5036]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/data-objectstack@16.1.0
+  - @object-ui/types@16.1.0
+
 ## 16.0.0
 
 ### Minor Changes

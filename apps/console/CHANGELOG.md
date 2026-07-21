@@ -1,5 +1,58 @@
 # @object-ui/console
 
+## 16.1.0
+
+### Patch Changes
+
+- 8b8b744: chore(deps): align `@objectstack/formula` / `lint` / `client` to `^15.1.1`
+
+  These three were still pinned to `^14.6.0` while `@objectstack/spec` was already
+  `^15.1.1` — a version skew from the v15 upgrade (formula/lint/client publish in
+  lockstep with spec, and their own 15.0.0 entries are pure dependency bumps, so
+  this is alignment, not a behavioral migration).
+
+  Practical effect: the client-side field-rule evaluation
+  (`visibleWhen`/`readonlyWhen`/`requiredWhen` via `fieldRules.ts`, which delegates
+  to `@objectstack/formula`'s `ExpressionEngine`) now tracks the 15.x engine — and
+  will pick up the framework's `dateField == today()` equality fix
+  (objectstack-ai/framework#3205) automatically at the next 15.x release via the
+  caret range. Renderer/action `visible`/`disabled` predicates are unaffected (they
+  use the home-grown JS evaluator — tracked separately in #2661).
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 6b114a1: fix(approvals-inbox): align participant gating with the server-computed `viewer` block
+
+  Consume framework#3310's per-viewer capability: `ApprovalRequestRow` gains an
+  optional `viewer: { can_act, is_submitter }`, and the approvals inbox's
+  participant checks (the reply box + the "why disabled" hint) prefer it over the
+  client-side identity heuristic when present. This keeps the hint from ever
+  contradicting the declared decision buttons — whose `visible` CEL now gates on
+  `record.viewer.*` — and correctly recognizes position/team-addressed approvers
+  that the client heuristic couldn't resolve. The heuristic remains as a fallback
+  for a backend that predates `viewer`.
+  - @object-ui/react-runtime@16.1.0
+  - @object-ui/sdui-parser@16.1.0
+
 ## 16.0.0
 
 ### Patch Changes

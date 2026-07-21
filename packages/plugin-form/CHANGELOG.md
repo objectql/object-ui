@@ -1,5 +1,113 @@
 # @object-ui/plugin-form
 
+## 16.1.0
+
+### Minor Changes
+
+- 62b9ab5: feat(data): unify master-detail saves behind `DataSource.batchTransaction`, isolate the non-atomic fallback in the adapter (#2679)
+
+  Master-detail saves (`MasterDetailForm`, `LineItemsPanel`) now always persist
+  through `dataSource.batchTransaction(operations)` — one ordered cross-object
+  operation list, with `{ $ref: <op index> }` linking a child to a parent created
+  in the same batch. The form no longer contains any client-side orchestration or
+  best-effort compensation-delete; that atomicity anti-pattern is gone from the UI
+  layer (framework #1604 / framework ADR-0034 item 4).
+
+  - **`@object-ui/types`** — `batchTransaction?` is now a first-class (optional)
+    method on the `DataSource` contract, typed via `BatchTransactionOperation` /
+    `BatchRef`. Replaces the previous `(dataSource as any).batchTransaction`
+    method-sniffing.
+  - **`@object-ui/core`** — new `emulateBatchTransaction(dataSource, operations)`
+    (sequential writes, `$ref` resolution, best-effort reverse-order compensation)
+    and `runBatchTransaction(dataSource, operations)` (prefers the adapter's method,
+    emulates otherwise). `ApiDataSource` / `ValueDataSource` implement
+    `batchTransaction` via the emulation.
+  - **`@object-ui/data-objectstack`** — `ObjectStackAdapter.batchTransaction` uses
+    the server's atomic `POST /api/v1/batch`, prefers the typed
+    `client.data.batchTransaction` SDK method when the installed client exposes it,
+    and degrades to the client-side emulation ONLY when the endpoint is missing
+    (404/405) or the runtime can't do transactions (501). Real errors (400/401/403/
+    409/500) still surface. This is the isolated, tested home of the non-atomic
+    fallback.
+  - **`@object-ui/plugin-form`** — removed `applyDetail` / `createMany` /
+    `ApplyDetailResult` from `masterDetailTx.ts`; `MasterDetailForm` and
+    `LineItemsPanel` build ops and call `runBatchTransaction`. `LineItemsPanel`
+    saves are now atomic on a capable backend, with the rollup folded into the same
+    batch.
+
+  No behavior change on a current ObjectStack backend (it has `/api/v1/batch`);
+  older/limited backends keep a working — now clearly non-atomic — save path.
+
+### Patch Changes
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 0a3710b: **Finish the `managedBy` / `userActions` de-dup — one parser for the override shape (completes objectui#2712, framework#3343).** #2712 consolidated the bucket _union_ + affordance _set_ mirrors but left four surfaces still parsing the `userActions.{create,edit,delete}` override shape by hand. They now all route through the shared `@object-ui/core` policy, so no package re-implements the boolean / #2614-object-form parse locally.
+
+  - **`@object-ui/core`** promotes the internal `normalizeOverride` to the exported **`normalizeUserAction(v, base)`** (the one parser) and adds **`userActionPredicates(v)`** for per-record CEL predicate extraction.
+  - **`app-shell/utils/managedByEmptyState.ts`** — the writable-`system` create check and its local `EmptyStateUserActions` interface are replaced by `resolveCrudAffordances({ managedBy, userActions }).create`.
+  - **`plugin-grid/rowCrudAffordances.ts`** — the local `isOptedOut` / `predicatesOf` helpers (and duplicated `RowCrudUserAction` / `RowCrudPredicates` types) fold into `normalizeUserAction`; the historical type names stay re-exported for compat.
+  - **`plugin-detail/RelatedList.tsx`** — its inline `predicatesOf` fold into `userActionPredicates`.
+  - **`plugin-form/ObjectForm.tsx`** — the hand-rolled `managedBy !== 'platform'` blanket lock + `userActions` unlock is replaced by the resolved affordance for the current mode (`edit` / `create`), the **same** `resolveCrudAffordances` contract the detail (`isObjectInlineEditable`) and grid surfaces use.
+
+  Behavior-preserving for `platform` / `system` / `append-only` / `better-auth`, with one deliberate alignment: an admin-editable **`config`**-bucket object (e.g. `sys_webhook`, `sys_permission_set`) is now editable in `ObjectForm` — it was previously over-locked as "non-`platform`", while detail/grid already treated it as editable (`config` resolves `edit: true`). New unit coverage for the shared parser and the config / create-mode form gate; all existing affordance/edit-gate tests stay green.
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [aefcf39]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [14cb729]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+- Updated dependencies [3b2e4d9]
+  - @object-ui/fields@16.1.0
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/components@16.1.0
+  - @object-ui/permissions@16.1.0
+
 ## 16.0.0
 
 ### Minor Changes

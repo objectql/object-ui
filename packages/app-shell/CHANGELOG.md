@@ -1,5 +1,553 @@
 # @object-ui/app-shell — Changelog
 
+## 16.1.0
+
+### Minor Changes
+
+- 1c8935a: feat(app-shell): render ActionParamDialog params through the shared form field-widget renderer (ADR-0059, #2700)
+
+  `ActionParamDialog` no longer hand-rolls a per-type ternary chain (select /
+  lookup / textarea / number / boolean, everything else → text input). Every
+  declared action param now renders through the same `fieldWidgetMap` the object
+  form uses, so a param of ANY form-supported field type — `file`, `image`,
+  `richtext`, `markdown`, `color`, `address`, `code`, `date`, … — gets its real
+  widget, lazily loaded behind `Suspense`. Subsumes the single `file` branch ask
+  in #2698: `type: 'file'` params render the real `FileField` upload control via
+  the ambient `UploadProvider`, honoring `multiple`/`accept`/`maxSize`.
+
+  - `@object-ui/fields`: new exports `resolveFormWidgetType(type)` (widget-key
+    resolution incl. spec aliases, text fallback) and `getLazyFieldWidget(type)`
+    (per-type-cached `React.lazy` over the form's own widget loaders).
+  - `@object-ui/core`: `ActionParamDef` gains `accept`/`maxSize`; `multiple` is
+    now general widget config (was lookup-only).
+  - `@object-ui/app-shell`: new pure `paramToField()` adapter (param → field
+    shape) with a drift test pinning param support ⊇ form support (`FORM_FIELD_TYPES`),
+    mirroring the FieldEditWidget parity guard; `resolveActionParams()` inherits
+    `multiple`/`accept`/`maxSize` from the referenced field for every type.
+    `required` validation, `visible` CEL gating, helpText, error styling, and
+    value shapes for previously-supported types are unchanged.
+
+- aefcf39: feat(action-params): serialize file/image action params to storage id(s); retire the approvals composer
+
+  Declared action params of `type: 'file'`/`'image'` now POST the portable API
+  contract — the storage id(s) — instead of the upload widget's rich object:
+
+  - `FileField` surfaces the id it already receives from the upload adapter
+    (`meta.fileId`) as `file_id` on each emitted file object (additive; the
+    record file-field value shape is unchanged).
+  - `ActionParamDialog` maps upload-param values to their `file_id`(s) at submit
+    (`serializeParamValues`, pure + exported): single → string, `multiple` →
+    `string[]`. The api handler already forwards param values untouched, so an
+    action with a `file` param POSTs `attachments: string[]`.
+
+  This lets the approvals inbox retire its last hand-wired UI — the approve/reject
+  composer with its bespoke attachment upload — so the drawer renders every
+  decision through `DeclaredActionsBar` with the declared `attachments` file param
+  (framework side declares it; see the paired framework change). `DeclaredActionsBar`'s
+  `exclude` prop stays as a general capability.
+
+- 94d4876: feat(dashboard): Studio authors the ADR-0021 dataset shape only (framework#3251)
+
+  Finishes the dashboard analytics migration on the authoring side so the
+  framework can enable `DashboardWidgetSchema.strict()`. Both Studio surfaces now
+  emit only the semantic-layer shape (`dataset` + `dimensions` + `values`); no
+  surface authors the removed pre-ADR-0021 inline query.
+
+  **FROM → TO** (authoring)
+
+  - charts: `object` + `categoryField` + `valueField` + `aggregate`
+    → `dataset` + `dimensions` + `values`
+  - pivots: `object` + `rowField` + `columnField` + `valueField` + `aggregation`
+    → `dataset` + `dimensions` + `values` (last dimension spreads across columns)
+
+  **Changes**
+
+  - `@object-ui/types` — `DashboardWidgetSchema` gains `dataset` / `dimensions` /
+    `values`; the inline analytics keys (`object`, `categoryField`,
+    `categoryGranularity`, `valueField`, `aggregate`, `measures`) are marked
+    `@deprecated` (retained only so the renderer can still read legacy/static
+    metadata during the transition).
+  - `@object-ui/plugin-dashboard` — `WidgetConfigPanel` is rewritten as a dataset
+    picker (chart AND pivot). **Breaking prop change:** the unused
+    `availableObjects` / `availableFields` props are replaced by a new
+    `datasets?: WidgetDatasetCatalogEntry[]` (+ `datasetsLoading?`) catalog prop,
+    also forwarded by `DashboardWithConfig`. Hosts resolve the catalog (e.g. via
+    the metadata client's `list('dataset')`); without it the panel falls back to
+    free-text authoring. New exports: `WidgetDatasetCatalogEntry` and
+    `sanitizeDraftForType`.
+  - `@object-ui/app-shell` — the metadata-admin `DashboardWidgetInspector` drops
+    the legacy inline fields (object / value field / category field / aggregate);
+    the dataset section is now the primary (and only) analytics binding, and the
+    filter-binding field picker sources options from the bound dataset's
+    dimensions. The "Add widget" catalog drops `list` / `custom` — neither is a
+    member of `@objectstack/spec` `ChartTypeSchema`, so a widget authored with
+    them could never publish.
+
+  **Not changed:** `DashboardRenderer` keeps its legacy/static read branches and
+  the `ObjectPivotTable` / `PivotTable` blocks (still public SDUI blocks and the
+  backward-compat path for stored/static widgets) — only the dashboard authoring
+  flow stops emitting the legacy keys. Retiring those renderer branches is a
+  follow-up gated on migrating stored dashboards.
+
+- 20a2a02: feat(app-shell): nested-array columns in the flow designer property form (#2678 P2-5)
+
+  The server-driven node property form (`configSchema` → `FlowConfigField`) now
+  renders **nested arrays** inside an `objectList` repeater instead of degrading
+  them to a plain text cell that `String()`-joined and corrupted the array on
+  save. A repeater column whose item property is itself an array becomes a
+  **nested repeater** (repeater-in-repeater):
+
+  - `json-schema-to-fields` `columnsFor` maps an array-typed item property to a
+    `stringList` / `numberList` / `objectList` column; object-array columns derive
+    their own nested columns recursively (bounded by a nesting cap so a
+    pathological / cyclic schema can't build a non-terminating form). Arrays that
+    still aren't representable fall through to the prior text behavior — no
+    regression.
+  - `FlowConfigColumn` gains the three list `kind`s plus a recursive `columns` for
+    nested `objectList`.
+  - `FlowObjectListField` renders those columns via the shared `FlowStringListField`
+    (string/number lists, with `number[]` coercion) and a recursive
+    `FlowObjectListField` (object lists), round-tripping each cell as an array.
+
+  Any engine-published node config with a nested array is now editable inline
+  rather than dropping to the Advanced JSON escape hatch.
+
+- a4acca7: feat(studio): expand loop / parallel / try_catch regions inline on the flow designer canvas (#2670)
+
+  The flow designer rendered ADR-0031 structured control-flow containers
+  (`loop` / `parallel` / `try_catch`) as opaque single node cards — their nested
+  regions (`config.body` / `config.branches[]` / `config.try`/`catch`) were only
+  visible, and only editable, as raw JSON in the inspector's Advanced block.
+
+  A container card now carries an expand chevron that grows the card **in place**
+  to embed its region(s) as a read-only mini-canvas — the same top-to-bottom
+  node/edge layout as the parent graph, scaled to fit the card width — with a
+  header per region (a named branch or `Branch N`, and `Try` / `Catch`; a loop
+  body has none). The canvas layout is geometry-aware: the layers below an
+  expanded container are **pushed down** by its real height and its outgoing edge
+  leaves from its true bottom. Collapsed by default; expansion is session-only
+  view state (never written to the flow draft). Legacy flat loops (a `loop` with
+  no `config.body`) and all ordinary nodes render exactly as before — with no
+  expanded container the layout is identical to the previous release, locked by
+  invariance tests.
+
+  Known limitation: a node pinned via a manual drag position sitting at/below an
+  expanded container can overlap it (manual positions are absolute); drag it
+  clear or collapse the container.
+
+- 5a89ee5: feat(studio): select and edit nested container nodes through the schema-driven flow inspector (#2670)
+
+  Phase 2 (#2680) expanded a container's regions (`loop.body` /
+  `parallel.branches[]` / `try_catch.try`/`catch`) inline on the flow designer
+  canvas, but the nested nodes were read-only — changing one still meant editing
+  the container's Advanced JSON by hand. A nested node is now a first-class
+  selection: click it on the expanded canvas and it opens in the SAME
+  schema-driven inspector as a top-level node, with a `container › region › node`
+  breadcrumb. Edits (label / type / description / typed config fields / Advanced
+  JSON) write straight back into `config.<region>.nodes[i]` — the write rebuilds
+  the container with explicit spreads so the `config.branches` array stays an
+  array and each region's own `edges` / a branch's `name` are preserved.
+
+  Scope resolves correctly for the region's outer context (ADR-0031): a loop
+  body node sees the loop's `iteratorVariable` in its data picker even though the
+  container's own outputs are otherwise out of scope at its id.
+
+  This phase is edit-only by design. A nested node keeps its id read-only (rename
+  it in the container's Advanced JSON), has no delete, and — for a nested
+  decision — drops the virtual Target column, since a region sub-graph's internal
+  routing is not managed by the inspector yet (nested region-edge editing,
+  structural add/remove, and drag are follow-ups). A stale nested deep link
+  (the draft moved on) resolves to a harmless empty-state rather than writing to
+  the wrong node.
+
+  Also fixes an expression/template validation split now that the engine
+  publishes a loop `configSchema`: a string property can carry an `xExpression:
+'expression' | 'template'` marker so the designer renders bare-CEL vs
+  `interpolate()` `{var}` semantics (mono editor, data-picker brace mode, and
+  whether the CEL brace-trap applies) instead of guessing from the field name. A
+  loop / map `collection` (`{leadList}`) is a template, so it no longer
+  false-positives as a malformed condition inline or on the canvas badge.
+
+- 12390de: feat(studio): nest per-iteration / per-region step logs in the flow Runs panel (#1505)
+
+  The run-observability `FlowRunsPanel` (Studio → flow preview → Runs) rendered a
+  run's step log as a flat list, so a `loop` container showed as a single step and
+  its body steps — one set per iteration — appeared as an undifferentiated repeat
+  of the same node ids, with `parallel` branches and `try`/`catch` handlers
+  likewise flattened. The automation engine already tags each structured-region
+  body step with its container (`parentNodeId`) plus an `iteration` / `regionKind`
+  (ADR-0031, framework #1505); the panel ignored those fields.
+
+  `FlowRunsPanel` now reconstructs the execution tree from the flat, pre-order step
+  log (`buildStepTree`) and nests body steps under their container node, grouped by
+  a per-iteration / per-branch / handler header (`Iteration 2`, `Branch 1`, `Try`,
+  `Catch`). The reconstruction is robust to repeated node ids (a loop body node
+  runs once per iteration) and to regions nested inside regions, and degrades
+  safely — a body step whose container was dropped by durable-history truncation
+  still surfaces at the top level rather than vanishing.
+
+- 7abe4cd: **Console user-import wizard defaults to the `auto` password policy (tracks framework#3236).** The "Sign-in setup for imported users" selector gains an **Automatic (recommended)** option and it is now the default (was "No password"). `auto` decides per row on the server: reachable users get an invitation (email / SMS), anyone who can't be reached gets a one-time password shown once on the result screen — so it works with or without an email/SMS service, and the one-time-password reveal now surfaces only the rows that actually fell back (instead of the whole batch under `temporary`).
+
+  The other three policies are unchanged and still selectable: `invite` (force invitations, unreachable rows fail), `temporary` (force one-time passwords for every row), `none` (identity only). New `console.identityImport.policy.auto` / `policyHint.auto` strings added for `en` and `zh`; the `none` label drops its "(recommended)" marker.
+
+- 2331ac9: feat(report): drill a date-bucket cell into its time range, not a superset (#1752)
+
+  Clicking a report/dashboard cell grouped by a `dateGranularity` date dimension
+  ("2026-Q2") used to drill into a **superset** — the date dimension was skipped,
+  so the record list spanned every time bucket. It now scopes to the clicked
+  bucket's half-open range, consuming the framework's new `drillRanges` sidecar.
+
+  - **`@object-ui/core`** — `buildDatasetDrillFilter` accepts the per-row
+    `drillRanges` and emits an ObjectQL range operator object
+    (`{ [field]: { $gte, $lt } }`) alongside the equality dims.
+  - **`@object-ui/plugin-report` / `@object-ui/plugin-dashboard`** — the report
+    renderer and dashboard widget forward `drillRanges`, and a **date-only**
+    report (no equality drill dim) is now drillable via the range alone.
+  - **`@object-ui/app-shell`** — the "Open in list →" escape hatch
+    (`useOpenRecordList`) now targets the ADR-0055 **bare data surface**
+    (`/:object/data`, "the URL is the view" — no baked-in view filter to
+    over-narrow the drill) and serializes a range to the
+    `filter[field][gte|lt]` operator contract. `ObjectDataPage` parses those
+    operators (equality shorthand unchanged), renders a range as a single chip,
+    and removes both bounds together. A new `drillUrlFilters` module owns the
+    write/read serialization so both sides can't drift (round-trip tested).
+
+  Companion to the framework analytics change (objectstack-ai/framework#3256).
+
+- e7a8de7: feat(flow-designer): map free-form object maps → keyValue (and numeric arrays → numberList) in the schema-driven inspector (#3304)
+
+  The server-first flow-designer form generator (`jsonSchemaToFlowFields`, ADR-0018)
+  had no way to render the flat `{ var: value }` **keyValue** editor from a JSON
+  Schema, so any node whose config uses a free-form map — a CRUD node's `fields` /
+  `filter`, an `assignment`'s `assignments`, a connector's `input`, a screen's
+  `defaults` — could not be driven from its published `configSchema` without
+  dropping that editor to raw Advanced JSON.
+
+  The adapter now maps:
+
+  - an object with **`additionalProperties`** (a value schema, or `true`) and **no
+    fixed `properties`** → a `keyValue` field (the object-with-`properties` case
+    still flattens to sub-fields; an opaque object or `additionalProperties: false`
+    still falls through to the Advanced block);
+  - an array of **number / integer** → `numberList` (the sibling of the existing
+    array-of-string → `stringList`).
+
+  This is a pure capability addition — inert until a node publishes such a schema,
+  so no existing form changes. It unblocks giving the previously schema-less flow
+  nodes (assignment, the CRUD quartet, script, subflow, screen) a server-driven
+  config form that matches their hardcoded one, the objectui half of framework
+  #3304 (the descriptor-side counterpart to #2670 Phase 3).
+
+- 7938b60: feat(studio): filter editor for roll-up `summary` fields (framework#1868)
+
+  The object-designer field inspector now edits `summaryOperations.filter` on a
+  `summary` field. Backing the framework's new filtered roll-ups — where one child
+  object feeds several parent totals, each aggregating only the child rows a
+  predicate matches (an approved-only sum vs the grand total) — the inspector adds
+  a structured field/operator/value row editor under Rollup Options (mirroring the
+  lookupFilters editor), reading and writing the spec's FilterCondition object.
+
+  - Values are coerced to the child field's stored type, so a `boolean` field emits
+    `{ billable: true }` (not the string `"true"`) and a numeric operator emits
+    `{ amount: { $gte: 500 } }` — the FilterCondition then matches the real column.
+  - Rows map to/from the flat FilterCondition (and a top-level `$and`); a filter
+    using logic the rows can't represent (`$or` / nested) is shown read-only with a
+    note instead of being clobbered on edit.
+  - New `designer.field.summary.filter*` i18n keys (en + zh-CN).
+
+- 276c6ba: feat(flow-designer): first-class panel for the time-relative trigger (#1874)
+
+  The flow designer's start-node inspector now offers a **Time-relative (date sweep)**
+  trigger option alongside record / schedule triggers. Picking it reveals typed
+  fields for the backend's `config.timeRelative` descriptor — Sweep object, Date
+  field, Within days (range mode), Offset days (T-minus mode), an Extra filter, and
+  Max records — instead of hand-writing the block in the Advanced JSON editor. The
+  per-record Entry condition is available too.
+
+  Adds a `numberList` config-field kind (a string-list editor that commits
+  `number[]`), so **Offset days** authors emit numbers rather than strings — keeping
+  the backend schema (`z.array(z.number())`) strict rather than coercing on the
+  consumer side. All fields live under the nested `config.timeRelative` block, which
+  the group fully owns, so it never double-renders in Advanced JSON.
+
+### Patch Changes
+
+- 0318118: fix(app-shell): block ActionParamDialog submit while a file/image param is uploading; map spec `autonumber` (ADR-0059 follow-ups)
+
+  Two follow-ups to the shared-field-widget param rendering (ADR-0059):
+
+  - **Upload-in-progress guard.** A `file`/`image` param's value only becomes its
+    fileId once the presigned upload settles, so confirming mid-upload sent an
+    empty/stale value. `FileField`/`ImageField` now surface their upload state via
+    an optional `onUploadingChange` prop (shared `useUploadingSignal` hook,
+    ignored by other widgets); `ActionParamDialog` wires it for `file`/`image`
+    params and disables Confirm (label → "Uploading…", new `actionDialog.uploading`
+    i18n key across all locales) plus blocks submit while any upload is in flight.
+  - **`autonumber` spelling.** `mapFieldTypeToFormType` now maps the spec
+    `FieldType` spelling `autonumber` (in addition to the widget-map key
+    `auto_number`) to the AutoNumber widget, so a spec-typed `autonumber`
+    field/param no longer falls through to the plain text input — fixes the object
+    form path as well as action params.
+
+- af1b0db: feat(i18n): localize action result dialogs via the `_actions.<action>.resultDialog` convention
+
+  The post-success secret-reveal dialog (create-user temporary password, 2FA
+  backup codes, OAuth client secrets) always rendered the hardcoded English
+  metadata literals — the spec bundles now carry `resultDialog` translations
+  (objectstack `_actions.<action>.resultDialog.*`), but nothing resolved them
+  client-side.
+
+  - **@object-ui/i18n.** `useObjectLabel()` gains `actionResultDialog(objectName,
+actionName, spec)`: overlays translated `title` / `description` /
+    `acknowledge` and per-field labels onto the metadata spec, falling back to
+    the literals. The `fields` node is keyed by the LITERAL result-field path
+    (may contain dots, e.g. `"user.email"`), so it is fetched whole with
+    `returnObjects` and indexed directly — never resolved through a dotted
+    i18next key. Built-in locale packs also translate the dialog's fallback
+    `defaultTitle` / `acknowledge` (previously English in all ten locales) and
+    add the new `actions.resultDialog.copyAll` key.
+  - **@object-ui/app-shell.** The result-dialog handlers in
+    `useConsoleActionRuntime` and `RecordDetailView` accept the action context
+    (already passed by `ActionRunner`) and localize the spec before opening the
+    dialog; `ActionResultDialog`'s hardcoded "Copy all" button now goes through
+    `actions.resultDialog.copyAll`.
+
+- 8b8b744: chore(deps): align `@objectstack/formula` / `lint` / `client` to `^15.1.1`
+
+  These three were still pinned to `^14.6.0` while `@objectstack/spec` was already
+  `^15.1.1` — a version skew from the v15 upgrade (formula/lint/client publish in
+  lockstep with spec, and their own 15.0.0 entries are pure dependency bumps, so
+  this is alignment, not a behavioral migration).
+
+  Practical effect: the client-side field-rule evaluation
+  (`visibleWhen`/`readonlyWhen`/`requiredWhen` via `fieldRules.ts`, which delegates
+  to `@objectstack/formula`'s `ExpressionEngine`) now tracks the 15.x engine — and
+  will pick up the framework's `dateField == today()` equality fix
+  (objectstack-ai/framework#3205) automatically at the next 15.x release via the
+  caret range. Renderer/action `visible`/`disabled` predicates are unaffected (they
+  use the home-grown JS evaluator — tracked separately in #2661).
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 803558e: feat(data): thread the host's authenticated fetch into `provider: 'api'` data sources (#2725)
+
+  `provider: 'api'` view data sources went through a bare `globalThis.fetch`, so
+  custom endpoints (gantt composite trees, report aggregates) carried only
+  same-origin cookies while every native `/api/v1/*` request carried
+  `Authorization: Bearer` — the moment cookie HMAC verification failed (dev
+  restart rotating the fallback auth secret, cookie expiry/rotation in prod)
+  those views 401'd while the rest of the app kept working.
+
+  - **`@object-ui/react`** — `SchemaRendererProvider` accepts an optional
+    `apiFetch`; nested providers inherit it from their parent so re-wrapped
+    subtrees (react pages, preview surfaces) keep the host's authentication.
+    `useViewData` defaults the api-provider adapter's fetch to the context
+    `apiFetch` (explicit `adapterOptions.fetch` still wins).
+  - **`@object-ui/auth`** — `createAuthenticatedFetch` gains a
+    `sameOriginOnly` option: cross-origin URLs pass through to the bare fetch
+    with no `Authorization` / `X-Tenant-ID` / `Accept-Language`, so metadata-
+    supplied third-party URLs never see the platform token.
+  - **`@object-ui/app-shell`** — the console wires
+    `createAuthenticatedFetch({ sameOriginOnly: true })` (settle-signal wrapped)
+    as `apiFetch` on the root `SchemaRendererProvider`.
+  - **`@object-ui/plugin-gantt`** — `ObjectGantt` resolves its api-provider
+    DataSource with the context `apiFetch`, covering reads and write-backs.
+
+  Behaviour is unchanged for hosts that don't provide `apiFetch` (bare fetch +
+  cookies, as before).
+
+- ce5e3fc: fix(flow-designer): author the canonical `config.schedule` a scheduled flow's runtime reads
+
+  The start-node inspector's "Cron schedule" field wrote a flat `config.cron`, but the
+  automation runtime (`resolveTriggerBinding` → `normalizeSchedule`) only ever reads
+  `config.schedule` — so a scheduled flow authored in the designer silently never
+  bound and never fired. The field now writes the canonical nested
+  `config.schedule.expression`, and a `fallbackPath` migrates an existing flat
+  `config.cron` on first edit. Reading `.expression` also renders an object-shaped
+  `config.schedule` (e.g. `{ type: 'cron', expression }`) as its cron string instead of
+  "[object Object]" (the old legacy text field on `config.schedule` printed the object).
+  The canvas node-card summary reads the nested value too. The field is also offered for
+  the `time_relative` sweep cadence (optional; defaults to daily).
+
+- d9c304d: chore(lint): clear the baseline lint errors in app-shell (objectui#2713 Wave 3)
+
+  Final package of the #2713 lint-gate restoration — with this the whole workspace
+  is at **0 lint errors**. `@object-ui/app-shell` was red at baseline on `main`;
+  cleared every **error** (no behavior change; warnings out of scope):
+
+  - **`react-hooks/rules-of-hooks` (12)** — hooks called after conditional early
+    returns, restructured so hook order is stable:
+    - `SchemaForm`: hoisted the `issuesByPath` `useMemo` above the RawJsonEditor
+      fallback guard, and `RecordField`'s five `useState` above its widget /
+      specialized-editor early returns.
+    - `MetadataPanel`: moved `if (!open) return null` below its three hooks.
+    - `LayeredDiff`: moved the `if (code == null)` guard below the two `useMemo`s
+      and made `rows` null-safe (`code == null ? [] : computeDiffRows(...)`).
+    - `ViewPreview`: hoisted the `object-view` `schema` `useMemo` above the three
+      render branches (the earlier branches shadow it locally).
+  - **`react-hooks/static-components` (12)** — icon/inspector/preview lookups
+    (`getIcon`, `typeIcon`, `kindIcon`, `getMetadataPreview` / `…Inspector` /
+    `…DefaultInspector`) are stable registry references → justified scoped disables.
+  - **`no-useless-assignment` (3)** — dead `= null` / `= []` initializers in
+    `marketplaceApi` and the two ratchet tests (the only fall-through paths
+    reassign first).
+  - **`@typescript-eslint/ban-ts-comment` (2)** — the `lucide-react/dynamic.mjs`
+    imports in `getIcon` / `widgets` no longer error under the build's `tsc`, so
+    the stale `@ts-ignore` directives are removed outright.
+  - **stale `eslint-disable` (1)** — removed a `@next/next/no-img-element`
+    directive in `AgentPreview` whose plugin isn't loaded in the flat config.
+
+- 2b17339: fix(list): keep the injected `owner_id` out of the leading auto-derived columns
+
+  A view-less object's default list columns are derived from the object's field
+  order. The framework's `applySystemFields` spreads its injected
+  system/audit/ownership fields to the FRONT of that order and stamps them
+  `system: true`; `owner_id` is deliberately non-hidden and non-readonly
+  (ownership is reassignable), so the old name-based exclusion lists in
+  `ObjectGrid` and `InterfaceListPage` — which never listed `owner_id` — let it
+  through as column #1 on many showcase list pages (e.g. `showcase_field_zoo`).
+
+  Default-column derivation now classifies system fields via the shared
+  `isSystemManagedField` helper, which branches on the spec `system` flag (the
+  single source of truth stamped by the registry) with a name-set fallback that
+  includes the ownership/tenancy FKs. `owner_id` is pushed to the end
+  (`ObjectGrid`) / excluded from the business columns (`InterfaceListPage`), so
+  auto-derived lists lead with business fields again and pick up future injected
+  fields without editing a name list. Also declares the `system` flag on the
+  `@object-ui/types` field metadata.
+
+- 31b77d4: **Add the explicit `engine-owned` lifecycle bucket (tracks framework ADR-0103 addendum / #3343).** The framework split the overloaded `managedBy: 'system'` bucket by promoting the engine-owned case to its own enum value; this mirrors it in the UI type + runtime + badge.
+
+  - **`@object-ui/types`** — `ManagedByBucket` union and `MANAGED_BY_BUCKETS` gain `'engine-owned'` (canonical order: `platform, config, system, engine-owned, append-only, better-auth`). The union stays closed, so every consumer that missed the new value is a compile error.
+  - **`@object-ui/core`** — `resolveCrudAffordances` gains the `engine-owned` default row (identical all-locked matrix as `system`/`append-only`), so `isObjectInlineEditable` / the grid + form gates treat it as read-only automatically.
+  - **`@object-ui/app-shell`** — the `ManagedByBadge` renders `engine-owned` with the same read-only "System-managed" copy as a locked `system` object (reuses the existing `managedByBadge.system` i18n key — zero translation churn; the distinction is at the schema level, not the user-facing string), and `resolveManagedByEmptyState` reuses the `system` engine-owned empty state.
+
+  Behaviour-preserving: `engine-owned` resolves to the same locked affordances `system` did by default, so nothing about how a locked object renders changes — the value just makes the schema self-documenting. New unit coverage for the bucket in `resolveCrudAffordances` / `isObjectInlineEditable` / `MANAGED_BY_BUCKETS` / the empty-state helper.
+
+- 6d4fbe6: **Consolidate the `managedBy` lifecycle-bucket logic into one shared source of truth (follows framework ADR-0103).** The bucket taxonomy was hand-mirrored in several places — `crudAffordances.ts`, `ManagedByBadge.tsx` (its own `Bucket` union + `isWriteOptedIn` + the writable-system derivation), and `plugin-detail`'s `record-details.tsx` (`NON_EDITABLE_BUCKETS`, duplicated because it can't depend on app-shell) — a drift risk, and the object-schema `managedBy` type was open-ended (`(string & {})`) so unknown buckets slipped through and silently defaulted to fully-editable.
+
+  - **`@object-ui/types`** now owns the closed `ManagedByBucket` union (+ `MANAGED_BY_BUCKETS`), and `ObjectSchema.managedBy` is tightened from `'platform' | 'better-auth' | (string & {})` to that union — unknown buckets are now a type error at authoring time.
+  - **`@object-ui/core`** now owns the React-free runtime logic — `resolveCrudAffordances`, `isWriteOptedIn`, `isSystemWritable`, `isObjectInlineEditable` — reachable by every UI package including `plugin-detail` (which could not import app-shell).
+  - **`app-shell/utils/crudAffordances.ts`** is now a thin re-export of `@object-ui/core` (existing imports keep working); `ManagedByBadge` consumes the shared `isSystemWritable`; `plugin-detail` `record-details.tsx` replaces its hand-mirrored `NON_EDITABLE_BUCKETS` with `isObjectInlineEditable`.
+
+  Behavior-preserving — all existing affordance/edit-gate tests stay green; the shared module adds direct unit coverage (including the previously-untested `isSystemWritable` derivation). Translated copy (badge variants, empty-state messages) stays in app-shell.
+
+- 0a3710b: **Finish the `managedBy` / `userActions` de-dup — one parser for the override shape (completes objectui#2712, framework#3343).** #2712 consolidated the bucket _union_ + affordance _set_ mirrors but left four surfaces still parsing the `userActions.{create,edit,delete}` override shape by hand. They now all route through the shared `@object-ui/core` policy, so no package re-implements the boolean / #2614-object-form parse locally.
+
+  - **`@object-ui/core`** promotes the internal `normalizeOverride` to the exported **`normalizeUserAction(v, base)`** (the one parser) and adds **`userActionPredicates(v)`** for per-record CEL predicate extraction.
+  - **`app-shell/utils/managedByEmptyState.ts`** — the writable-`system` create check and its local `EmptyStateUserActions` interface are replaced by `resolveCrudAffordances({ managedBy, userActions }).create`.
+  - **`plugin-grid/rowCrudAffordances.ts`** — the local `isOptedOut` / `predicatesOf` helpers (and duplicated `RowCrudUserAction` / `RowCrudPredicates` types) fold into `normalizeUserAction`; the historical type names stay re-exported for compat.
+  - **`plugin-detail/RelatedList.tsx`** — its inline `predicatesOf` fold into `userActionPredicates`.
+  - **`plugin-form/ObjectForm.tsx`** — the hand-rolled `managedBy !== 'platform'` blanket lock + `userActions` unlock is replaced by the resolved affordance for the current mode (`edit` / `create`), the **same** `resolveCrudAffordances` contract the detail (`isObjectInlineEditable`) and grid surfaces use.
+
+  Behavior-preserving for `platform` / `system` / `append-only` / `better-auth`, with one deliberate alignment: an admin-editable **`config`**-bucket object (e.g. `sys_webhook`, `sys_permission_set`) is now editable in `ObjectForm` — it was previously over-locked as "non-`platform`", while detail/grid already treated it as editable (`config` resolves `edit: true`). New unit coverage for the shared parser and the config / create-mode form gate; all existing affordance/edit-gate tests stay green.
+
+- f80aaf2: **Distinguish writable `system` objects from engine-owned ones in the Console (framework ADR-0103 / #3220).** The framework split the overloaded `managedBy: 'system'` bucket: engine-owned rows stay read-only, but several `system` objects are admin/user-writable _data_ (Notification Preferences/Subscriptions/Templates, delegated RBAC assignments, user preferences) and declare `userActions` opening their writes.
+
+  The Console already surfaced the New/Edit/Delete buttons correctly for these (all affordance mirrors honour `userActions`), but the badge and empty-state _copy_ still called every `system` object a "read-only monitoring surface". Now:
+
+  - **`ManagedByBadge`** takes the object's `userActions` and, when a `system` object opens any write, renders the "Platform schema — admin-writable" variant instead of the engine-owned copy.
+  - **`resolveManagedByEmptyState`** returns `undefined` for a `system` object whose `userActions.create` is set, so the generic empty state (with the New button) shows instead of "entries appear automatically".
+  - New `managedByBadge.systemWritable.*` strings (en + zh; other locales fall back to the English default).
+
+  Copy/UX only — no behavioural change to what a user can do.
+
+- 29c6040: fix(app-shell): redo the record-list "Add View" create flow — empty-name 405, invisible drafts, canonical naming
+
+  Rebuilds the record-list "Add View" / "Save as view" create path so a
+  runtime-created view has one canonical identity and is actually verifiable
+  before publish (supersedes #2754; fixes #2767).
+
+  - **Unified identity (P1).** New `viewEnvelope(objectName, spec, { name, label })`
+    seam in `runtime-metadata-persistence.ts` emits the canonical ViewItem
+    (`{ name: '<object>.<key>', object, viewKind: 'list', label, config }` with
+    `config.data = { provider: 'object', object }`), mirroring the Studio
+    `anchors.ts:createBuildBody`. The **qualified** name is passed as BOTH the
+    `PUT /meta/view/:name` URL segment and `body.name`, so the `sys_metadata`
+    row key, the ViewTabBar tab id, and the body identity all agree and the
+    draft → read → publish loop resolves. `ObjectView` and `ObjectDataPage` both
+    call the single helper — the duplicated envelope block is gone (P6).
+  - **Empty-name guards (405).** `MetadataClient.save()` and
+    `createRuntimeMetadata()` throw a clear contextual error instead of emitting
+    `PUT /meta/view/` (empty `:name`, server 405).
+  - **Draft visibility (P2/P3/P4).** `DataSource.listViews(objectName, { previewDrafts })`:
+    in draft-preview mode the `ObjectStackAdapter` makes a **single**
+    `MetadataClient.withPreviewDrafts(true).list('view')` request and uses the
+    server's already-overlaid list (draft wins by name, `_draft` tagged) —
+    replacing, not appending, so a draft that edits a published view can't
+    double-tab. No hand-rolled `fetch` of metadata routes at the adapter layer.
+    After a create in normal mode the console navigates to the new view with
+    `?preview=draft`, so the DraftPreviewBar is visible and Publish is one click.
+  - **CJK-aware naming (P5).** `CreateViewDialog` gains an editable machine-name
+    field, prefilled via `slugify(label)` for Latin labels and required (submit
+    disabled) when slugify yields empty for non-Latin labels — no more silent
+    random `task_grid_mrsyt56j` names. New `console.objectView.viewName*` keys
+    (en/zh).
+
+- Updated dependencies [0318118]
+- Updated dependencies [1c8935a]
+- Updated dependencies [af1b0db]
+- Updated dependencies [8b8b744]
+- Updated dependencies [7cf4051]
+- Updated dependencies [803558e]
+- Updated dependencies [aefcf39]
+- Updated dependencies [8c1e415]
+- Updated dependencies [0ea5036]
+- Updated dependencies [2e7d7f0]
+- Updated dependencies [ef14f69]
+- Updated dependencies [94d4876]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [69fa5d1]
+- Updated dependencies [549c67d]
+- Updated dependencies [ebe6494]
+- Updated dependencies [2b17339]
+- Updated dependencies [31b77d4]
+- Updated dependencies [6d4fbe6]
+- Updated dependencies [0a3710b]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [62b9ab5]
+- Updated dependencies [14cb729]
+- Updated dependencies [1629313]
+- Updated dependencies [29c6040]
+- Updated dependencies [faebac3]
+- Updated dependencies [2331ac9]
+- Updated dependencies [199fa83]
+- Updated dependencies [eee4ded]
+- Updated dependencies [3b2e4d9]
+  - @object-ui/fields@16.1.0
+  - @object-ui/i18n@16.1.0
+  - @object-ui/core@16.1.0
+  - @object-ui/data-objectstack@16.1.0
+  - @object-ui/types@16.1.0
+  - @object-ui/react@16.1.0
+  - @object-ui/auth@16.1.0
+  - @object-ui/components@16.1.0
+  - @object-ui/layout@16.1.0
+  - @object-ui/collaboration@16.1.0
+  - @object-ui/plugin-editor@16.1.0
+  - @object-ui/permissions@16.1.0
+  - @object-ui/providers@16.1.0
+
 ## 16.0.0
 
 ### Minor Changes

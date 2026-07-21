@@ -1,5 +1,131 @@
 # @object-ui/plugin-detail
 
+## 16.1.0
+
+### Minor Changes
+
+- faebac3: Related lists paginate by default and fetch server-side windows (#2711).
+
+  `record:related_list` now applies the spec default `limit` of 5 when a node
+  doesn't declare one, so detail-page related lists render pages with
+  Previous/Next controls instead of dumping every child row. On the auto-fetch
+  path RelatedList requests one page at a time (`$top`/`$skip`), reads the
+  collection size from `QueryResult.total` (`hasMore` fallback), sends user
+  column sorts as a server `$orderby`, and seeds the initial order from the
+  node's `sort` prop (new `defaultSort` prop on RelatedList). Caller-provided
+  `data` keeps the historical client-side slicing. Behavior change: lists that
+  previously rendered all rows now show 5 per page — declare a larger `limit`
+  on the `record:related_list` node to widen the window.
+
+### Patch Changes
+
+- 7cf4051: chore(deps): align every `@objectstack/*` dependency to `^16.0.0-rc.0`
+
+  Bumps `@objectstack/spec` / `client` / `formula` / `lint` from `^15.1.1` to the
+  `16.0.0-rc.0` pre-release across the workspace (root + `apps/console` +
+  `apps/site` + all consuming packages). ObjectUI's own packages are already on
+  major 16, so this closes the 15↔16 skew between ObjectUI and the `@objectstack`
+  contract libraries (which publish in lockstep with `spec`).
+
+  This is a dependency alignment, not a behavioral migration: the full workspace
+  build (43/43) and the `@objectstack`-consuming package test suites
+  (`core` / `app-shell` / `data-objectstack` / `plugin-form` / `types`) are green
+  against `16.0.0-rc.0` with no source changes required.
+
+  Practical effect: `@objectstack/client@16.0.0-rc.0` now ships
+  `data.batchTransaction` (framework #3271), so `ObjectStackAdapter`'s feature
+  detect (`typeof client.data.batchTransaction === 'function'`) routes
+  master-detail cross-object saves through the typed SDK method instead of the
+  raw `fetch('/api/v1/batch')` fallback — realizing the "verify SDK path" half of
+  #2694. The raw-fetch branch stays as a defensive fallback (removal tracked in
+  #2694).
+
+- 53513a4: fix(plugin-detail): #2688 — record surfaces without a caller title no longer floor to `Record #<id>`, and the meta footer never prints a raw audit user id
+
+  - `DetailView` header: after every declared-identity step misses and no
+    `schema.title` was provided, probe name-ish record keys (`name`, `title`,
+    `*_name`, …) before falling to the `Record #<id>` floor. Fixes records whose
+    name lives in a field the type-aware derivation deliberately skips (e.g. an
+    `autonumber` `name`) opened from surfaces like the gantt row drawer.
+  - `RecordMetaFooter`: `created_by` / `updated_by` are always user references on
+    ObjectStack — when the fetched schema omits the audit system fields, default
+    the reference target to `sys_user` so the footer renders a resolved user name
+    (or the muted placeholder) instead of the raw opaque id.
+
+- f329ec5: chore(lint): clear the baseline lint errors in plugin-detail (objectui#2713 Wave 3)
+
+  Wave 3 of the #2713 lint-gate restoration. `@object-ui/plugin-detail` was red at
+  baseline on `main`; cleared every **error** (no behavior change; warnings out of
+  scope). All nine are `react-hooks` errors — the record renderers called hooks
+  after conditional early returns, which is a real fragility (React throws when the
+  guard toggles between renders), so each is restructured so hooks run
+  unconditionally while the rendered output stays identical:
+
+  - **`record-reference-rail`** — hoisted `useState` above the empty-entries early
+    return (no dependency on it).
+  - **`record-related-list`** — moved the `!objectName` placeholder return below
+    the four hooks (`usePermissions` / `useFieldPermissions` / `useRelatedRecordActions`
+    / `useMemo`); those hooks are pure context/memo reads, safe with an empty
+    object name. The object-level read gate ordering is unchanged (covered by
+    `RecordRelatedListRenderer.readgate.test`).
+  - **`record-quick-actions`** — moved the `requiredPermissions` gate below
+    `useActionEngine` (a pure `useContext`/`useMemo` hook).
+  - **`record-highlights`** — `useId` + `useRegisterHighlightFields` now run
+    unconditionally; the permission gate is enforced after them. Because
+    `useRegisterHighlightFields` has a register effect, it is passed `[]` when the
+    gate denies — equivalent to not registering, so no body field is ever hidden
+    for highlights that aren't rendered.
+  - **`RelatedList`** `SectionIcon` (`react-hooks/static-components`) —
+    `resolveIconComponent` is a stable registry lookup, not a component created
+    during render → justified scoped disable.
+
+- 6d4fbe6: **Consolidate the `managedBy` lifecycle-bucket logic into one shared source of truth (follows framework ADR-0103).** The bucket taxonomy was hand-mirrored in several places — `crudAffordances.ts`, `ManagedByBadge.tsx` (its own `Bucket` union + `isWriteOptedIn` + the writable-system derivation), and `plugin-detail`'s `record-details.tsx` (`NON_EDITABLE_BUCKETS`, duplicated because it can't depend on app-shell) — a drift risk, and the object-schema `managedBy` type was open-ended (`(string & {})`) so unknown buckets slipped through and silently defaulted to fully-editable.
+
+  - **`@object-ui/types`** now owns the closed `ManagedByBucket` union (+ `MANAGED_BY_BUCKETS`), and `ObjectSchema.managedBy` is tightened from `'platform' | 'better-auth' | (string & {})` to that union — unknown buckets are now a type error at authoring time.
+  - **`@object-ui/core`** now owns the React-free runtime logic — `resolveCrudAffordances`, `isWriteOptedIn`, `isSystemWritable`, `isObjectInlineEditable` — reachable by every UI package including `plugin-detail` (which could not import app-shell).
+  - **`app-shell/utils/crudAffordances.ts`** is now a thin re-export of `@object-ui/core` (existing imports keep working); `ManagedByBadge` consumes the shared `isSystemWritable`; `plugin-detail` `record-details.tsx` replaces its hand-mirrored `NON_EDITABLE_BUCKETS` with `isObjectInlineEditable`.
+
+  Behavior-preserving — all existing affordance/edit-gate tests stay green; the shared module adds direct unit coverage (including the previously-untested `isSystemWritable` derivation). Translated copy (badge variants, empty-state messages) stays in app-shell.
+
+- 0a3710b: **Finish the `managedBy` / `userActions` de-dup — one parser for the override shape (completes objectui#2712, framework#3343).** #2712 consolidated the bucket _union_ + affordance _set_ mirrors but left four surfaces still parsing the `userActions.{create,edit,delete}` override shape by hand. They now all route through the shared `@object-ui/core` policy, so no package re-implements the boolean / #2614-object-form parse locally.
+
+  - **`@object-ui/core`** promotes the internal `normalizeOverride` to the exported **`normalizeUserAction(v, base)`** (the one parser) and adds **`userActionPredicates(v)`** for per-record CEL predicate extraction.
+  - **`app-shell/utils/managedByEmptyState.ts`** — the writable-`system` create check and its local `EmptyStateUserActions` interface are replaced by `resolveCrudAffordances({ managedBy, userActions }).create`.
+  - **`plugin-grid/rowCrudAffordances.ts`** — the local `isOptedOut` / `predicatesOf` helpers (and duplicated `RowCrudUserAction` / `RowCrudPredicates` types) fold into `normalizeUserAction`; the historical type names stay re-exported for compat.
+  - **`plugin-detail/RelatedList.tsx`** — its inline `predicatesOf` fold into `userActionPredicates`.
+  - **`plugin-form/ObjectForm.tsx`** — the hand-rolled `managedBy !== 'platform'` blanket lock + `userActions` unlock is replaced by the resolved affordance for the current mode (`edit` / `create`), the **same** `resolveCrudAffordances` contract the detail (`isObjectInlineEditable`) and grid surfaces use.
+
+  Behavior-preserving for `platform` / `system` / `append-only` / `better-auth`, with one deliberate alignment: an admin-editable **`config`**-bucket object (e.g. `sys_webhook`, `sys_permission_set`) is now editable in `ObjectForm` — it was previously over-locked as "non-`platform`", while detail/grid already treated it as editable (`config` resolves `edit: true`). New unit coverage for the shared parser and the config / create-mode form gate; all existing affordance/edit-gate tests stay green.
+
+- 3b2e4d9: fix(list): route remaining system-field groupings through the shared classifier
+
+  Follow-up to the `owner_id` default-column fix: consolidate the display-oriented
+  system-field exclusions onto the shared `isSystemManagedField` /
+  `SYSTEM_MANAGED_FIELD_NAMES` (from `@object-ui/types`) so the framework-injected
+  `owner_id` is treated consistently across the grid, record picker, and detail
+  drawer.
+
+  - `ObjectGrid` record-detail drawer: the business-fields vs. muted meta-section
+    split now uses the shared classifier, so `owner_id` (and other injected system
+    fields) land in the meta section instead of the business body.
+  - `deriveLookupColumns` (record picker): drops its local name set for the shared
+    classifier — now flag-aware (`field.system`), not just name-based.
+  - `RecordDetailDrawer`: its default `systemFields` set is derived from the shared
+    `SYSTEM_MANAGED_FIELD_NAMES`; the `systemFields` prop override is preserved.
+
+  `deriveRelatedLists`' narrow "audit FK on every object" set and plugin-detail's
+  inline-edit "never editable" set are intentionally left distinct — different
+  semantics (the latter deliberately keeps `owner_id` editable).
+
+- Updated dependencies [0318118]
+- Updated dependencies [af1b0db]
+- Updated dependencies [1100a8b]
+- Updated dependencies [7abe4cd]
+- Updated dependencies [ebe6494]
+- Updated dependencies [f80aaf2]
+- Updated dependencies [29c6040]
+  - @object-ui/i18n@16.1.0
+
 ## 16.0.0
 
 ### Minor Changes
