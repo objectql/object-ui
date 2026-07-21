@@ -62,6 +62,11 @@ export function useObjectLabel() {
    * Returns top-level keys (outside built-in Object UI keys) that contain
    * an `objects`, `fields`, or `apps` sub-key — e.g. "crm" when resources
    * include crm.objects.* or crm.apps.*.
+   *
+   * `globalActions` is included so an app bundle whose only translated scope
+   * is global actions (no object/field entries) is still discovered — its
+   * `globalActions.<action>.*` overlays would otherwise be unreachable
+   * (objectui#3372).
    */
   const getAppNamespaces = (): string[] => {
     if (!i18n || typeof i18n.getResourceBundle !== 'function') return [];
@@ -71,7 +76,8 @@ export function useObjectLabel() {
     return Object.keys(bundle).filter(
       (key) => !BUILTIN_KEYS.has(key) && bundle[key] && typeof bundle[key] === 'object'
         && (bundle[key].objects || bundle[key].fields || bundle[key].apps
-          || bundle[key].dashboards || bundle[key].pages || bundle[key].reports),
+          || bundle[key].dashboards || bundle[key].pages || bundle[key].reports
+          || bundle[key].globalActions),
     );
   };
 
@@ -116,6 +122,35 @@ export function useObjectLabel() {
     return base !== objectName
       ? [`objects.${objectName}.${tail}`, `objects.${base}.${tail}`]
       : [`objects.${objectName}.${tail}`];
+  };
+
+  /**
+   * Build suffix candidates for an action-scoped key, mirroring the canonical
+   * `@objectstack/spec` resolver (`lookupActionField` in `system/i18n-resolver`).
+   *
+   * When the action is object-scoped, the object key
+   * (`objects.<obj>._actions.<action>.<tail>`) wins, but the global key
+   * (`globalActions.<action>.<tail>`) is appended as a fallback so a
+   * **globalAction surfaced on an object's action bar** still picks up its
+   * `globalActions.<action>.*` overlay when no object-scoped translation
+   * exists (objectui#3372). Without this fallback, a globalAction rendered on
+   * a record-detail action bar — where the caller passes `objectDef.name` for
+   * every action — misses `objects.<obj>._actions.<action>.label` and leaks the
+   * English metadata literal.
+   *
+   * Object-less actions (`objectName` omitted) resolve straight to the global
+   * namespace, as before. Object precedence is preserved: the global key is
+   * only consulted after every object-scoped candidate misses.
+   */
+  const actionSuffixes = (
+    objectName: string | undefined,
+    actionName: string,
+    tail: string,
+  ): string[] => {
+    const globalSuffix = `globalActions.${actionName}.${tail}`;
+    return objectName
+      ? [...objectSuffixes(objectName, `_actions.${actionName}.${tail}`), globalSuffix]
+      : [globalSuffix];
   };
 
   const fieldSuffixes = (objectName: string, fieldName: string): string[] => {
@@ -348,40 +383,35 @@ export function useObjectLabel() {
 
     /**
      * Resolve translated action label.
-     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.label`.
-     * Falls back to `{ns}.globalActions.{actionName}.label` when objectName is omitted.
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.label`,
+     * falling back to `{ns}.globalActions.{actionName}.label` — both when
+     * objectName is omitted AND when the object-scoped key misses (so a
+     * globalAction surfaced on a record-detail action bar still resolves;
+     * objectui#3372).
      */
-    actionLabel: (objectName: string | undefined, actionName: string, fallback: string) => {
-      if (objectName) {
-        return resolve(objectSuffixes(objectName, `_actions.${actionName}.label`), fallback);
-      }
-      return resolve(`globalActions.${actionName}.label`, fallback);
-    },
+    actionLabel: (objectName: string | undefined, actionName: string, fallback: string) =>
+      resolve(actionSuffixes(objectName, actionName, 'label'), fallback),
 
     /**
      * Resolve translated action confirmation prompt.
-     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.confirmText`.
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.confirmText`,
+     * falling back to `{ns}.globalActions.{actionName}.confirmText`.
      * Returns undefined when no translation and no fallback exist.
      */
     actionConfirm: (objectName: string | undefined, actionName: string, fallback?: string) => {
       const fb = fallback ?? '';
-      const suffixes = objectName
-        ? objectSuffixes(objectName, `_actions.${actionName}.confirmText`)
-        : `globalActions.${actionName}.confirmText`;
-      const resolved = resolve(suffixes, fb);
+      const resolved = resolve(actionSuffixes(objectName, actionName, 'confirmText'), fb);
       return resolved || undefined;
     },
 
     /**
      * Resolve translated action success message.
-     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.successMessage`.
+     * Convention: `{ns}.objects.{objectName}._actions.{actionName}.successMessage`,
+     * falling back to `{ns}.globalActions.{actionName}.successMessage`.
      */
     actionSuccess: (objectName: string | undefined, actionName: string, fallback?: string) => {
       const fb = fallback ?? '';
-      const suffixes = objectName
-        ? objectSuffixes(objectName, `_actions.${actionName}.successMessage`)
-        : `globalActions.${actionName}.successMessage`;
-      const resolved = resolve(suffixes, fb);
+      const resolved = resolve(actionSuffixes(objectName, actionName, 'successMessage'), fb);
       return resolved || undefined;
     },
 
@@ -395,10 +425,7 @@ export function useObjectLabel() {
     actionDescription: (objectName: string | undefined, actionName: string | undefined, fallback?: string) => {
       const fb = fallback ?? '';
       if (!actionName) return fb || undefined;
-      const suffixes = objectName
-        ? objectSuffixes(objectName, `_actions.${actionName}.description`)
-        : `globalActions.${actionName}.description`;
-      const resolved = resolve(suffixes, fb);
+      const resolved = resolve(actionSuffixes(objectName, actionName, 'description'), fb);
       return resolved || undefined;
     },
 
@@ -406,8 +433,9 @@ export function useObjectLabel() {
      * Resolve a translated copy of an action's post-success RESULT DIALOG
      * (`title` / `description` / `acknowledge` + per-field labels).
      * Convention: `{ns}.objects.{objectName}._actions.{actionName}.resultDialog.*`,
-     * falling back to `{ns}.globalActions.{actionName}.resultDialog.*` when
-     * objectName is omitted, then to the metadata's literal strings.
+     * falling back to `{ns}.globalActions.{actionName}.resultDialog.*` (when
+     * objectName is omitted OR the object-scoped key misses), then to the
+     * metadata's literal strings.
      *
      * The `fields` translation node is keyed by the LITERAL result-field path
      * from the action metadata (may contain dots, e.g. `"user.email"`), so it
@@ -425,12 +453,8 @@ export function useObjectLabel() {
       spec: T | undefined,
     ): T | undefined => {
       if (!spec || !actionName) return spec;
-      const suffixesFor = (attr: string): string[] => {
-        const tail = `_actions.${actionName}.resultDialog.${attr}`;
-        return objectName
-          ? objectSuffixes(objectName, tail)
-          : [`globalActions.${actionName}.resultDialog.${attr}`];
-      };
+      const suffixesFor = (attr: string): string[] =>
+        actionSuffixes(objectName, actionName, `resultDialog.${attr}`);
       const textFor = (attr: 'title' | 'description' | 'acknowledge'): string | undefined => {
         const resolved = resolve(suffixesFor(attr), spec[attr] ?? '');
         return resolved || spec[attr];
@@ -485,11 +509,10 @@ export function useObjectLabel() {
     ) => {
       const fb = fallback ?? '';
       if (!actionName || !paramName) return fb || undefined;
-      const suffix = `_actions.${actionName}.params.${paramName}.${attr}`;
-      const suffixes = objectName
-        ? objectSuffixes(objectName, suffix)
-        : `globalActions.${actionName}.params.${paramName}.${attr}`;
-      const resolved = resolve(suffixes, fb);
+      const resolved = resolve(
+        actionSuffixes(objectName, actionName, `params.${paramName}.${attr}`),
+        fb,
+      );
       return resolved || undefined;
     },
     /**
@@ -505,11 +528,10 @@ export function useObjectLabel() {
       fallback: string,
     ) => {
       if (!actionName || !paramName) return fallback;
-      const suffix = `_actions.${actionName}.params.${paramName}.options.${optionValue}`;
-      const suffixes = objectName
-        ? objectSuffixes(objectName, suffix)
-        : `globalActions.${actionName}.params.${paramName}.options.${optionValue}`;
-      return resolve(suffixes, fallback);
+      return resolve(
+        actionSuffixes(objectName, actionName, `params.${paramName}.options.${optionValue}`),
+        fallback,
+      );
     },
   };
   }, [t, i18n]);
