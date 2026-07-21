@@ -506,7 +506,7 @@ function formatRelativeDays(diffDays: number, locale?: string): string {
 
 /**
  * Format date as relative time (e.g., "3 days ago", "Today", "Overdue 3d"),
- * localized via `Intl.RelativeTimeFormat` (objectstack-ai/framework#3040).
+ * localized via `Intl.RelativeTimeFormat` (objectstack-ai/objectstack#3040).
  *
  * `dueLike` gates the "Overdue" wording — a past `start_date`/`created_at`
  * isn't overdue, only a past due/deadline-semantic field is. Non-due-like

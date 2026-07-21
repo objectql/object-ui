@@ -901,7 +901,7 @@ parentData, details)` — emits a parent `update` op (index 0) then diffs each
   `type:'tabbed'` form view now renders tabbed in the modal too — not just on the
   full-page route (#1762). Non-breaking; `FormView.type` enum unchanged.
 
-  Refs objectstack-ai/framework#1890, ADR-0050
+  Refs objectstack-ai/objectstack#1890, ADR-0050
 
 - 650bd1f: fix(forms/dashboard/related-list): four business-facing rendering fixes found while QA-ing a showcase workspace
 

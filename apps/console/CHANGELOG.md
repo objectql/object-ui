@@ -15,7 +15,7 @@
   (`visibleWhen`/`readonlyWhen`/`requiredWhen` via `fieldRules.ts`, which delegates
   to `@objectstack/formula`'s `ExpressionEngine`) now tracks the 15.x engine — and
   will pick up the framework's `dateField == today()` equality fix
-  (objectstack-ai/framework#3205) automatically at the next 15.x release via the
+  (objectstack-ai/objectstack#3205) automatically at the next 15.x release via the
   caret range. Renderer/action `visible`/`disabled` predicates are unaffected (they
   use the home-grown JS evaluator — tracked separately in #2661).
 

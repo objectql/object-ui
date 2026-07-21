@@ -212,7 +212,7 @@
     and removes both bounds together. A new `drillUrlFilters` module owns the
     write/read serialization so both sides can't drift (round-trip tested).
 
-  Companion to the framework analytics change (objectstack-ai/framework#3256).
+  Companion to the framework analytics change (objectstack-ai/objectstack#3256).
 
 - e7a8de7: feat(flow-designer): map free-form object maps → keyValue (and numeric arrays → numberList) in the schema-driven inspector (#3304)
 
@@ -323,7 +323,7 @@ actionName, spec)`: overlays translated `title` / `description` /
   (`visibleWhen`/`readonlyWhen`/`requiredWhen` via `fieldRules.ts`, which delegates
   to `@objectstack/formula`'s `ExpressionEngine`) now tracks the 15.x engine — and
   will pick up the framework's `dateField == today()` equality fix
-  (objectstack-ai/framework#3205) automatically at the next 15.x release via the
+  (objectstack-ai/objectstack#3205) automatically at the next 15.x release via the
   caret range. Renderer/action `visible`/`disabled` predicates are unaffected (they
   use the home-grown JS evaluator — tracked separately in #2661).
 
@@ -2138,7 +2138,7 @@ unauthenticated` in the token-based console, while the runtime data adapter's
   object / field / flow / role / connector / template references were already
   pickers). Unit-tested (`resolveConnectorName`, `connectorActionsToOptions`).
 
-- 7a6837c: Studio package-create dogfood follow-ups (objectstack-ai/framework#2615):
+- 7a6837c: Studio package-create dogfood follow-ups (objectstack-ai/objectstack#2615):
 
   - Read-only packages now gate authoring affordances client-side (Add field, New object/flow/permission set, nav Edit, Save draft, Publish, Create app) with a "switch to a writable package" hint, instead of letting doomed edits pile up until the server 422s (objectui#2259). Records stay fully usable; the field inspector opens read-only.
   - New fields auto-derive their API name from the label while still auto-named — now also for the Data pillar's generic `field_N` names, so relabeling "New field" to "Status" yields a `status` column instead of `field_2` forever (objectui#2260).
@@ -3815,7 +3815,7 @@ unauthenticated` in the token-based console, while the runtime data adapter's
   panel inside their Studio Preview tab, so connecting a mature external
   database and registering its tables as ObjectStack objects is a
   point-and-click flow instead of a CLI-only one. The panel pairs with the
-  framework backend shipped in objectstack-ai/framework#1390
+  framework backend shipped in objectstack-ai/objectstack#1390
   (`registerExternalDatasourceRoutes` → `/api/v1/datasources/:name/external/*`).
 
   ObjectStack is metadata-driven: `datasource` is a metadata type, so it is
@@ -4242,7 +4242,7 @@ unauthenticated` in the token-based console, while the runtime data adapter's
   allowSkip, showStepIndicator, split\*). Page-level layouts only — `drawer`/`modal`
   are presentation/open-modes, not record-page layouts, so they fall back to `simple`.
 
-  Refs objectstack-ai/framework#1890
+  Refs objectstack-ai/objectstack#1890
 
 - 0ad72a6: fix: pass full gantt config to renderer, render multi-value lookups in gantt tooltips, persist `bodyExtra` on dataSource actions, and complete zh/en gantt labels
 

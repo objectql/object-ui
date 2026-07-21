@@ -59,7 +59,7 @@
 
   Together with the `^15.1.1` alignment (#2662), a renderer CEL predicate now
   reaches the identical verdict as the server — including the framework's
-  `dateField == today()` equality fix (objectstack-ai/framework#3205) once it
+  `dateField == today()` equality fix (objectstack-ai/objectstack#3205) once it
   lands in a published 15.x. The broader home-grown-vs-canonical divergence
   motivation is #2661.
 
@@ -148,7 +148,7 @@
     and removes both bounds together. A new `drillUrlFilters` module owns the
     write/read serialization so both sides can't drift (round-trip tested).
 
-  Companion to the framework analytics change (objectstack-ai/framework#3256).
+  Companion to the framework analytics change (objectstack-ai/objectstack#3256).
 
 ### Patch Changes
 
@@ -163,7 +163,7 @@
   (`visibleWhen`/`readonlyWhen`/`requiredWhen` via `fieldRules.ts`, which delegates
   to `@objectstack/formula`'s `ExpressionEngine`) now tracks the 15.x engine — and
   will pick up the framework's `dateField == today()` equality fix
-  (objectstack-ai/framework#3205) automatically at the next 15.x release via the
+  (objectstack-ai/objectstack#3205) automatically at the next 15.x release via the
   caret range. Renderer/action `visible`/`disabled` predicates are unaffected (they
   use the home-grown JS evaluator — tracked separately in #2661).
 
@@ -736,7 +736,7 @@
   (plugin-charts) and `DatasetWidget` (plugin-dashboard) both use it, so
   multi-dimension charts render consistently as grouped/coloured bars.
 
-  Refs objectstack-ai/objectui#1759, objectstack-ai/framework#1890
+  Refs objectstack-ai/objectui#1759, objectstack-ai/objectstack#1890
 
 - 7c239fd: Add `ComponentRegistry.unregister(type, namespace?)` — the inverse of
   `register()`. Clears the namespaced key and the bare-name fallback (when it

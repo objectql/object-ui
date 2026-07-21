@@ -63,7 +63,7 @@
 
   Together with the `^15.1.1` alignment (#2662), a renderer CEL predicate now
   reaches the identical verdict as the server — including the framework's
-  `dateField == today()` equality fix (objectstack-ai/framework#3205) once it
+  `dateField == today()` equality fix (objectstack-ai/objectstack#3205) once it
   lands in a published 15.x. The broader home-grown-vs-canonical divergence
   motivation is #2661.
 

@@ -69,7 +69,7 @@
     and removes both bounds together. A new `drillUrlFilters` module owns the
     write/read serialization so both sides can't drift (round-trip tested).
 
-  Companion to the framework analytics change (objectstack-ai/framework#3256).
+  Companion to the framework analytics change (objectstack-ai/objectstack#3256).
 
 - 199fa83: feat(dashboard): retire the pre-ADR-0021 inline-analytics renderer branches (framework#3320)
 
@@ -541,7 +541,7 @@
   - A dataset-bound `metric` widget takes the shared Card wrapper (title + border)
     like kpi/gauge, instead of rendering as bare untitled text.
 
-  Requires `AnalyticsResult.fields[].label`/`format` (objectstack-ai/framework#1683).
+  Requires `AnalyticsResult.fields[].label`/`format` (objectstack-ai/objectstack#1683).
 
 - 92449ef: Dataset-bound dashboard widgets now render their TRUE chart family instead of
   always a bar chart.

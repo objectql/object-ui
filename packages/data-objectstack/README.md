@@ -296,7 +296,7 @@ child write fails.
 Whether the adapter can rely on server atomicity is decided **at connect time**,
 not by firing a batch and reading the failure. `connect()` reads the
 `capabilities.transactionalBatch` flag from `GET /api/v1/discovery`
-([framework #3298](https://github.com/objectstack-ai/framework/issues/3298)),
+([framework #3298](https://github.com/objectstack-ai/objectstack/issues/3298)),
 which the server sets to `true` only when the `/batch` route is mounted **and**
 the runtime engine can honour a transaction (`declared === enforced`):
 
@@ -326,9 +326,9 @@ would turn "saves, less safe" into "no save path" on older backends
 
 Atomic cross-object saves are **guaranteed only against ObjectStack backends on
 the 16.x line that advertise `capabilities.transactionalBatch: true`** — the
-endpoint landed in [framework #1604](https://github.com/objectstack-ai/framework/issues/1604)
+endpoint landed in [framework #1604](https://github.com/objectstack-ai/objectstack/issues/1604)
 and its discovery capability in
-[framework #3298](https://github.com/objectstack-ai/framework/issues/3298).
+[framework #3298](https://github.com/objectstack-ai/objectstack/issues/3298).
 ObjectUI does not hard-require it: against an older backend a master-detail save
 still succeeds, but non-atomically via the fallback above. Treat the advertised
 capability as the floor for the atomicity guarantee, not as a connection

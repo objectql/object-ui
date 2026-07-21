@@ -21,7 +21,7 @@
 
 ## What is Object UI?
 
-**Object UI is the View layer of the [ObjectStack](https://github.com/objectstack-ai/framework) ecosystem** — a standalone, schema-driven renderer that turns a JSON schema (or ObjectStack metadata) into production-grade React UI. Use it on its own with any backend, like Amis or Formily — or let it render ObjectStack apps end to end.
+**Object UI is the View layer of the [ObjectStack](https://github.com/objectstack-ai/objectstack) ecosystem** — a standalone, schema-driven renderer that turns a JSON schema (or ObjectStack metadata) into production-grade React UI. Use it on its own with any backend, like Amis or Formily — or let it render ObjectStack apps end to end.
 
 ```
 Describe  →  ObjectStack   the open-source protocol, toolkit & production runtime

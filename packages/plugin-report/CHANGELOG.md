@@ -26,7 +26,7 @@
     and removes both bounds together. A new `drillUrlFilters` module owns the
     write/read serialization so both sides can't drift (round-trip tested).
 
-  Companion to the framework analytics change (objectstack-ai/framework#3256).
+  Companion to the framework analytics change (objectstack-ai/objectstack#3256).
 
 ### Patch Changes
 

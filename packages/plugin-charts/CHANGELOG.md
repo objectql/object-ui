@@ -429,7 +429,7 @@
   `ObjectView` emit the dataset shape. The legacy inline aggregate is kept as a
   deprecated fallback so pre-ADR-0021 metadata keeps rendering.
 
-  Refs objectstack-ai/framework#1890
+  Refs objectstack-ai/objectstack#1890
 
 - ab168e4: Dashboard charts no longer render blank on first paint. Recharts'
   `ResponsiveContainer` was a child of a `flex … justify-center` box, so it
