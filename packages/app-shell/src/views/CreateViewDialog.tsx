@@ -7,9 +7,13 @@
  * configuration fields (e.g. the group-by field for kanban, the start-date
  * field for calendar/timeline/gantt, lat/lng for map, image for gallery).
  *   The Create button stays disabled until every required field is set.
- * Step 3: The user enters a name (required, defaults to "Grid 1" etc.).
+ * Step 3: The user enters a display label (required, defaults to "Grid 1" etc.)
+ * and a machine `name` (the metadata key). The name auto-fills from the label
+ * via `slugify`; for non-Latin (CJK/…) labels slugify yields nothing, so the
+ * field is left empty and the user must type a key before Create enables
+ * (#2767 P5 — no more silent random names).
  *
- * On submit, calls `onCreate({ type, label, [type]: {...required fields} })`.
+ * On submit, calls `onCreate({ type, label, name, [type]: {...required fields} })`.
  * The parent is responsible for actually persisting the view (we keep this
  * component pure — no dataSource coupling).
  */
@@ -27,6 +31,7 @@ import {
   cn,
 } from '@object-ui/components';
 import { useObjectTranslation } from '@object-ui/i18n';
+import { slugify } from './metadata-admin/createDerive';
 import {
   deriveFieldOptions,
   isImageLikeField,
@@ -58,7 +63,7 @@ export interface CreateViewDialogProps {
    * fields are nested under their type key (e.g. `kanban.groupByField`),
    * matching the @objectstack/spec NamedListView shape.
    */
-  onCreate: (config: Record<string, any> & { type: string; label: string }) => void;
+  onCreate: (config: Record<string, any> & { type: string; label: string; name: string }) => void;
   /** Used to suggest unique default names like "Grid 2" if "Grid 1" exists. */
   existingLabels?: string[];
   /** Restrict the available view types. Defaults to all built-in types. */
@@ -305,6 +310,10 @@ export function CreateViewDialog({
   const [selectedType, setSelectedType] = useState<string>(types[0]?.type ?? 'grid');
   const [label, setLabel] = useState<string>('');
   const [touched, setTouched] = useState(false);
+  // Machine `name` (metadata key) + whether the user has typed into it. Auto-
+  // derived from `label` via slugify until the user edits it directly.
+  const [name, setName] = useState<string>('');
+  const [nameTouched, setNameTouched] = useState(false);
   /** Map of `${type}.${fieldKey}` → selected field name. Per-type so switching
    *  view types preserves the user's earlier choices in case they switch back. */
   const [requiredFieldValues, setRequiredFieldValues] = useState<Record<string, string>>({});
@@ -315,6 +324,7 @@ export function CreateViewDialog({
     if (open) {
       setSelectedType(types[0]?.type ?? 'grid');
       setTouched(false);
+      setNameTouched(false);
       setRequiredFieldValues({});
     }
   }, [open, types]);
@@ -325,6 +335,13 @@ export function CreateViewDialog({
       setLabel(suggestName(meta?.label ?? 'View', existingSet));
     }
   }, [selectedType, touched, types, existingSet]);
+
+  // Derive the machine name from the label until the user edits it. slugify
+  // returns '' for non-Latin labels, so the field stays empty and the user is
+  // prompted to fill it in (rather than a silent random key — #2767 P5).
+  useEffect(() => {
+    if (!nameTouched) setName(slugify(label));
+  }, [label, nameTouched]);
 
   // Required fields for the currently selected type
   const requiredFields = REQUIRED_FIELDS_BY_TYPE[selectedType] ?? [];
@@ -358,7 +375,13 @@ export function CreateViewDialog({
   const trimmed = label.trim();
   const isDuplicate = trimmed.length > 0 && existingSet.has(trimmed);
   const allRequiredFilled = requiredFields.every(f => getRequiredValue(f.key).length > 0);
-  const canSubmit = trimmed.length > 0 && !isDuplicate && allRequiredFilled;
+  // Machine name: same snake_case shape slugify emits and the metadata `name`
+  // pattern (`^[a-z_][a-z0-9_]*$`) accepts. Empty → prompt; malformed → hint.
+  const NAME_RE = /^[a-z_][a-z0-9_]*$/;
+  const nameKey = name.trim();
+  const nameMissing = nameKey.length === 0;
+  const nameInvalid = nameKey.length > 0 && !NAME_RE.test(nameKey);
+  const canSubmit = trimmed.length > 0 && !isDuplicate && allRequiredFilled && !nameMissing && !nameInvalid;
 
   // Auto-pick a sensible default for any required field. Runs whenever the
   // type or available options change, but only fills slots the user hasn't
@@ -398,9 +421,10 @@ export function CreateViewDialog({
       if (!v) return;
       subConfig[rf.key] = rf.key === 'yAxisFields' ? [v] : v;
     });
-    const payload: Record<string, any> & { type: string; label: string } = {
+    const payload: Record<string, any> & { type: string; label: string; name: string } = {
       type: selectedType,
       label: trimmed,
+      name: nameKey,
     };
     if (Object.keys(subConfig).length > 0) {
       payload[selectedType] = subConfig;
@@ -545,6 +569,35 @@ export function CreateViewDialog({
           {isDuplicate && (
             <p className="text-[11px] text-destructive" data-testid="create-view-error-duplicate">
               {t('console.objectView.duplicateViewName')}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <label htmlFor="create-view-machine-name-input" className="text-xs font-medium">
+            {t('console.objectView.viewName')}
+            <span className="ml-1 text-destructive">*</span>
+          </label>
+          <Input
+            id="create-view-machine-name-input"
+            data-testid="create-view-machine-name-input"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setNameTouched(true); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canSubmit) handleSubmit(); }}
+            placeholder="grid_1"
+            className="h-9 font-mono"
+          />
+          {nameMissing ? (
+            <p className="text-[11px] text-muted-foreground" data-testid="create-view-machine-name-help">
+              {t('console.objectView.viewNameRequired')}
+            </p>
+          ) : nameInvalid ? (
+            <p className="text-[11px] text-destructive" data-testid="create-view-error-machine-name">
+              {t('console.objectView.viewNameInvalid')}
+            </p>
+          ) : (
+            <p className="text-[11px] text-muted-foreground" data-testid="create-view-machine-name-help">
+              {t('console.objectView.viewNameHelp')}
             </p>
           )}
         </div>

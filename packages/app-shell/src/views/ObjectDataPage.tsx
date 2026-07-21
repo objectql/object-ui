@@ -58,8 +58,13 @@ import { RecordDetailView } from './RecordDetailView';
 import { PageHeader } from '../layout/PageHeader';
 import { getIcon } from '../utils/getIcon';
 import { useMetadataClient } from './metadata-admin/useMetadata';
-import { createRuntimeMetadata } from './runtime-metadata-persistence';
+import { createRuntimeMetadata, viewEnvelope } from './runtime-metadata-persistence';
 import { CreateViewDialog } from './CreateViewDialog';
+import {
+  usePreviewDrafts,
+  PREVIEW_QUERY_FLAG,
+  PREVIEW_QUERY_VALUE,
+} from '../preview/PreviewModeContext';
 
 /** Field types the auto-derived user-filter bar offers as dropdowns. */
 const USER_FILTER_TYPES = new Set(['select', 'multiselect', 'radio', 'enum', 'boolean']);
@@ -76,6 +81,9 @@ export function ObjectDataPage({ dataSource, objects }: any) {
   const { user } = useAuth();
   const isAdmin = useIsWorkspaceAdmin();
   const metadataClient = useMetadataClient();
+  // ADR-0037: enter draft-preview after "Save as view" so the fresh draft is
+  // visible; if already previewing, keep the flag off the suffix (it's sticky).
+  const previewDrafts = usePreviewDrafts();
   const [showCreateViewDialog, setShowCreateViewDialog] = React.useState(false);
 
   const objectDef = React.useMemo(
@@ -233,14 +241,25 @@ export function ObjectDataPage({ dataSource, objects }: any) {
           columns: Array.isArray(config.columns) && config.columns.length > 0 ? config.columns : columns,
           ...(urlFilters.length ? { filter: urlFilters } : {}),
         };
-        const draftName = String(config?.name ?? config?.id ?? '');
-        const createdId = await createRuntimeMetadata('view', draftName, spec, { metadataClient });
-        if (createdId) navigate(`../view/${createdId}`, { relative: 'path' });
+        // #2767 P1: unified identity — the qualified `<object>.<key>` name is the
+        // URL segment AND the body identity. #2767 P4: land on the new draft in
+        // preview mode so it's visible and one click from Publish.
+        const env = viewEnvelope(objectName ?? '', spec, {
+          name: config.name,
+          label: config.label,
+        });
+        const createdId = await createRuntimeMetadata('view', env.name, env, { metadataClient });
+        if (createdId) {
+          const previewSuffix = previewDrafts
+            ? ''
+            : `?${PREVIEW_QUERY_FLAG}=${PREVIEW_QUERY_VALUE}`;
+          navigate(`../view/${createdId}${previewSuffix}`, { relative: 'path' });
+        }
       } catch (err) {
         console.error('[ObjectDataPage] Failed to save view:', err);
       }
     },
-    [columns, urlFilters, metadataClient, navigate],
+    [columns, urlFilters, metadataClient, navigate, objectName, previewDrafts],
   );
 
   if (!objectDef) {

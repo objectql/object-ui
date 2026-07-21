@@ -41,8 +41,13 @@ import { detectStatusField } from '@object-ui/types';
 import { MetadataPanel, useMetadataInspector } from './MetadataInspector';
 import { ViewConfigPanel } from './ViewConfigPanel';
 import { useMetadataClient } from './metadata-admin/useMetadata';
-import { persistRuntimeMetadata, createRuntimeMetadata } from './runtime-metadata-persistence';
+import { persistRuntimeMetadata, createRuntimeMetadata, viewEnvelope } from './runtime-metadata-persistence';
 import { CreateViewDialog } from './CreateViewDialog';
+import {
+  usePreviewDrafts,
+  PREVIEW_QUERY_FLAG,
+  PREVIEW_QUERY_VALUE,
+} from '../preview/PreviewModeContext';
 import { PageHeader } from '../layout/PageHeader';
 import { useMobileViewSwitcherRegistration } from '../layout/MobileViewSwitcherContext';
 import type { MobileViewSwitcherItem } from '../layout/MobileViewSwitcherContext';
@@ -169,6 +174,12 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
     // model (the `sys_view` table is retired).
     const metadataClient = useMetadataClient();
 
+    // ADR-0037: in draft-preview mode (`?preview=draft`), `listViews()` reads
+    // the draft-overlaid world so a view just created via "Add View" shows up
+    // in the ViewTabBar before it is published. Normal mode sees published
+    // views only (the publish gate stays intact).
+    const previewDrafts = usePreviewDrafts();
+
     // Inline view config panel state (Airtable-style right sidebar)
     const [showViewConfigPanel, setShowViewConfigPanel] = useState(false);
     const [viewConfigPanelMode, setViewConfigPanelMode] = useState<'create' | 'edit'>('edit');
@@ -276,31 +287,45 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
                 // ADR-0034: a new view is created as an invisible per-item
                 // draft via the metadata seam; an explicit Publish promotes it.
                 // UI-layer concerns (default columns, kanban/gallery massaging
-                // above, and the auto-activation below) stay here.
-                const draftName = String(
-                    (config as any)?.name ?? (config as any)?.id ?? (spec as any)?.id ?? '',
-                );
-                createdId = await createRuntimeMetadata('view', draftName, spec, {
+                // above, and the auto-activation below) stay here; the canonical
+                // ViewItem envelope + qualified-name identity live in the seam.
+                //
+                // #2767 P1: the qualified name `<object>.<key>` is used as BOTH
+                // the URL segment and `body.name`, so the sys_metadata row key,
+                // the ViewTabBar tab id, and the body identity all agree and the
+                // draft → read → publish loop resolves.
+                const env = viewEnvelope(objectName, spec, {
+                    name: (config as any)?.name,
+                    label: config.label,
+                });
+                createdId = await createRuntimeMetadata('view', env.name, env, {
                     metadataClient,
                 });
             }
             setShowViewConfigPanel(false);
             setViewConfigPanelMode('edit');
             setRefreshKey(k => k + 1);
-            // Auto-activate the newly created view (Airtable parity).
-            // Routing falls back to the default view if `createdId` doesn't
-            // resolve yet — re-render after refresh will pick it up.
+            // Auto-activate the newly created view (Airtable parity), and close
+            // the main-path loop (#2767 P4): a fresh view is a DRAFT, invisible
+            // to a normal (published-only) read, so navigating there plainly
+            // would land on "view not found". Enter draft-preview mode
+            // (`?preview=draft`) instead — the DraftPreviewBar then lets the
+            // user verify and Publish in one click. If already in preview, the
+            // sticky provider keeps the flag, so no suffix is needed.
             if (createdId) {
+                const previewSuffix = previewDrafts
+                    ? ''
+                    : `?${PREVIEW_QUERY_FLAG}=${PREVIEW_QUERY_VALUE}`;
                 if (viewId) {
-                    navigate(`../${createdId}`, { relative: 'path' });
+                    navigate(`../${createdId}${previewSuffix}`, { relative: 'path' });
                 } else {
-                    navigate(`view/${createdId}`);
+                    navigate(`view/${createdId}${previewSuffix}`);
                 }
             }
         } catch (err) {
             console.error('[ViewConfigPanel] Failed to create view:', err);
         }
-    }, [dataSource, objectName, objects, navigate, viewId, metadataClient]);
+    }, [dataSource, objectName, objects, navigate, viewId, metadataClient, previewDrafts]);
     
     // Record count tracking for footer
     const [recordCount, setRecordCount] = useState<number | undefined>(undefined);
@@ -418,7 +443,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // Read saved views from the metadata overlay (`/meta/view`) via the
         // adapter's `listViews`. Adapters without it surface no saved views.
         if (typeof (dataSource as any)?.listViews === 'function') {
-            (dataSource as any).listViews(objectName)
+            (dataSource as any).listViews(objectName, { previewDrafts })
                 .then((rows: any[]) => {
                     if (cancelled) return;
                     // Normalize: ensure each view has an `id` for ViewTabBar
@@ -445,7 +470,7 @@ function ObjectViewInner({ dataSource, objects, onEdit, externalRefreshKey }: an
         // saved views. The retired `sys_view` table is no longer read.
         setSavedViews([]);
         return () => { cancelled = true; };
-    }, [dataSource, objectName, refreshKey]);
+    }, [dataSource, objectName, refreshKey, previewDrafts]);
 
     // Persisted per-view config overrides (e.g. density toggle). Saved
     // separately from `objectDef.listViews` (the embedded definition) via

@@ -529,6 +529,15 @@ export class MetadataClient {
     item: unknown,
     options: MetadataSaveOptions = {},
   ): Promise<T> {
+    if (!name || !String(name).trim()) {
+      // The `PUT /meta/:type/:name` route rejects a missing `:name` segment
+      // with 405. Fail with a clear contextual error at the call boundary
+      // instead of firing a malformed request at the server (#2767).
+      throw new Error(
+        `MetadataClient.save: name must be non-empty (type="${type}").` +
+          ' The PUT /meta/:type/:name route requires a name segment.',
+      );
+    }
     const params: string[] = [];
     if (options.force) params.push('force=true');
     if (options.mode === 'draft') params.push('mode=draft');

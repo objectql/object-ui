@@ -10,6 +10,8 @@ import {
   unwrapDraftBody,
   recordPageName,
   recordPageEnvelope,
+  viewEnvelope,
+  deriveViewKey,
 } from './runtime-metadata-persistence';
 
 /**
@@ -112,6 +114,18 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
     expect(id).toBe('view_123');
   });
 
+  it('createRuntimeMetadata throws on an empty name (no malformed PUT) — #2767', async () => {
+    const metadataClient = makeMetadataClient();
+    await expect(
+      createRuntimeMetadata('view', '', { columns: [] }, { metadataClient }),
+    ).rejects.toThrow(/name must be non-empty/);
+    await expect(
+      createRuntimeMetadata('view', '   ', { columns: [] }, { metadataClient }),
+    ).rejects.toThrow(/name must be non-empty/);
+    // The guard fires BEFORE any server call.
+    expect(metadataClient.save).not.toHaveBeenCalled();
+  });
+
   it('publishRuntimeMetadata → publish(type, name)', async () => {
     const metadataClient = makeMetadataClient();
 
@@ -150,6 +164,75 @@ describe('runtime-metadata-persistence seam (ADR-0034)', () => {
 
     expect(metadataClient.reset).toHaveBeenCalledWith('report', 'my_report', {
       state: 'draft',
+    });
+  });
+
+  describe('viewEnvelope / deriveViewKey (#2767 canonical identity)', () => {
+    it('deriveViewKey prefers an explicit machine name', () => {
+      expect(deriveViewKey({ name: 'my_grid', label: 'Anything' })).toBe('my_grid');
+    });
+
+    it('deriveViewKey reduces an over-qualified name to its <key> half', () => {
+      expect(deriveViewKey({ name: 'crm_task.my_grid' })).toBe('my_grid');
+    });
+
+    it('deriveViewKey slugifies the label when no name is given', () => {
+      expect(deriveViewKey({ label: 'High Priority' })).toBe('high_priority');
+    });
+
+    it('deriveViewKey falls back to a unique `<type>_…` key for CJK labels', () => {
+      // slugify('看板') === '' → last-resort key, prefixed by the view type.
+      const key = deriveViewKey({ label: '看板', type: 'kanban' });
+      expect(key).toMatch(/^kanban_[a-z0-9]+$/);
+    });
+
+    it('viewEnvelope emits a canonical ViewItem with a qualified name', () => {
+      const env = viewEnvelope(
+        'crm_task',
+        { type: 'grid', label: 'My Grid', columns: ['name', 'stage'] },
+        { name: 'my_grid', label: 'My Grid' },
+      );
+      expect(env).toEqual({
+        name: 'crm_task.my_grid',
+        object: 'crm_task',
+        viewKind: 'list',
+        label: 'My Grid',
+        config: {
+          type: 'grid',
+          columns: ['name', 'stage'],
+          data: { provider: 'object', object: 'crm_task' },
+        },
+      });
+    });
+
+    it('viewEnvelope keeps `name`/`label` at the top level only (not in config)', () => {
+      const env = viewEnvelope('acct', { type: 'grid', name: 'x', label: 'X', columns: [] }, { name: 'x', label: 'X' });
+      expect(env.config).not.toHaveProperty('name');
+      expect(env.config).not.toHaveProperty('label');
+    });
+
+    it('viewEnvelope preserves an existing config.data while stamping the object', () => {
+      const env = viewEnvelope(
+        'acct',
+        { type: 'grid', columns: [], data: { pageSize: 25 } },
+        { name: 'big', label: 'Big' },
+      );
+      expect(env.config.data).toEqual({ provider: 'object', pageSize: 25, object: 'acct' });
+    });
+
+    it('viewEnvelope falls back to slugify(label) when no name is supplied', () => {
+      const env = viewEnvelope('acct', { type: 'grid', columns: [] }, { label: 'Overdue Tasks' });
+      expect(env.name).toBe('acct.overdue_tasks');
+    });
+
+    it('a view envelope round-trips through createRuntimeMetadata with matching identity', async () => {
+      const metadataClient = makeMetadataClient();
+      const env = viewEnvelope('acct', { type: 'grid', columns: ['name'] }, { name: 'mine', label: 'Mine' });
+      const id = await createRuntimeMetadata('view', env.name, env, { metadataClient });
+      // Row key (URL segment), returned id, and body.name are the SAME value.
+      expect(id).toBe('acct.mine');
+      expect(metadataClient.save).toHaveBeenCalledWith('view', 'acct.mine', env, { mode: 'draft' });
+      expect(env.name).toBe('acct.mine');
     });
   });
 

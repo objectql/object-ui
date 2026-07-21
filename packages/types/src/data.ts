@@ -421,8 +421,13 @@ export interface DataSource<T = any> {
    * customization overlay). Returns view specs (not physical sys_view
    * records). Implementations route to
    * `GET /api/v1/meta/view` and filter client-side by `data.object`.
+   *
+   * `options.previewDrafts` (ADR-0037): when true, read the draft-overlaid
+   * world — pending drafts win by name and draft-only views surface (tagged
+   * `_draft`) — so a view just created via "Add View" is visible before it is
+   * published. Omitted/false reads published views only.
    */
-  listViews?(objectName: string): Promise<any[]>;
+  listViews?(objectName: string, options?: { previewDrafts?: boolean }): Promise<any[]>;
 
   /**
    * Create a new overlay view. The view's `name` field is the stable

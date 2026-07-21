@@ -26,6 +26,18 @@ The key asymmetry: a page can imitate the other two, but it **loses the object
 shell** — and every future improvement to that shell (new actions, better view
 switching, permission trimming) will skip your page.
 
+> **Creating a view at runtime ("Add View" / "Save as view").** Both entry
+> points stage the new view as a per-item **draft** (ADR-0034) — invisible to
+> other users until you Publish. Its identity is the canonical qualified name
+> `<object>.<key>` (e.g. `project.by_status`), used as the metadata row key,
+> the `body.name`, and the ViewTabBar tab id alike, so the draft → preview →
+> publish loop resolves to a single row. After creating, the console navigates
+> you to the new view in **draft-preview mode** (`?preview=draft`) so you can
+> verify it and Publish from the DraftPreviewBar in one click. The create
+> dialog asks for a display label **and** a machine key; the key auto-fills
+> from the label for Latin text, and must be typed for non-Latin (CJK, …)
+> labels rather than falling back to a random name.
+
 ## The Rule of Least Power
 
 Use the least powerful construct that expresses the requirement:

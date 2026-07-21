@@ -59,6 +59,14 @@ describe('MetadataClient', () => {
     expect(urls[0]).toBe('http://localhost:3000/api/v1/meta/object');
   });
 
+  it('save() rejects an empty name before any request (#2767 empty-name 405)', async () => {
+    const c = client('http://localhost:3000');
+    await expect(c.save('view', '', { columns: [] })).rejects.toThrow(/name must be non-empty/);
+    await expect(c.save('view', '   ', { columns: [] })).rejects.toThrow(/name must be non-empty/);
+    // No malformed `PUT /meta/view/` ever reached the transport.
+    expect(urls).toEqual([]);
+  });
+
   it('builds scoped URLs when environmentId is set', async () => {
     await client('http://localhost:3000', 'env_42').list('object');
     expect(urls[0]).toBe('http://localhost:3000/api/v1/environments/env_42/meta/object');

@@ -30,6 +30,7 @@ import {
   normalizeSchemaReferenceKeys,
 } from '@object-ui/core';
 import { MetadataCache } from './cache/MetadataCache';
+import { MetadataClient } from './metadata-client';
 import {
   ObjectStackError,
   MetadataNotFoundError,
@@ -2100,13 +2101,31 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
    * Filters by `data.object === objectName` (or top-level `object`)
    * client-side because the metadata index is name-only, not field-typed.
    */
-  async listViews(objectName: string): Promise<any[]> {
+  async listViews(
+    objectName: string,
+    options?: { previewDrafts?: boolean },
+  ): Promise<any[]> {
     await this.connect();
     try {
-      const result: any = await this.client.meta.getItems('view');
-      const items: any[] = Array.isArray(result?.items)
-        ? result.items
-        : Array.isArray(result) ? result : [];
+      let items: any[];
+      if (options?.previewDrafts) {
+        // ADR-0037 + #2767 (P2/P3): a SINGLE `?preview=draft` request already
+        // returns the active+draft OVERLAID list — draft wins by name,
+        // draft-only views surface, each draft tagged `_draft: true`. So we
+        // REPLACE the published list wholesale (never fetch both and append,
+        // which double-lists a draft that edits a published view). Route it
+        // through `MetadataClient` rather than a hand-rolled fetch so the
+        // metadata route + any environment scoping stay in one place.
+        const draftItems = await this.metadataClient()
+          .withPreviewDrafts(true)
+          .list<any>('view');
+        items = Array.isArray(draftItems) ? draftItems : [];
+      } else {
+        const result: any = await this.client.meta.getItems('view');
+        items = Array.isArray(result?.items)
+          ? result.items
+          : Array.isArray(result) ? result : [];
+      }
       // This feeds the list-view switcher (ViewTabBar), so it must return
       // LIST-family views only. The backend now exposes each view as an
       // independent ViewItem carrying a `viewKind` discriminant (ADR-0017);
@@ -2125,6 +2144,10 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
         return !(viewKind && FORM_FAMILY.has(viewKind));
       }).map((v: any) => {
         const spec = v.list ?? v;
+        // Preserve the draft provenance flag so the switcher can badge an
+        // unpublished view (ADR-0037). The overlay tags the item, not its
+        // nested spec, so read from either.
+        const isDraft = v._draft === true || spec?._draft === true;
         // Canonical ViewItem (ADR-0017) carries its body under `config`;
         // the display `type` (grid/kanban/gallery/…) lives at `config.type`,
         // and only the list/form *family* sits at the top level (`viewKind`).
@@ -2140,14 +2163,29 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
             name: spec.name ?? spec.config.name,
             label: spec.label ?? spec.config.label,
             isDefault: !!spec.isDefault,
+            ...(isDraft ? { _draft: true } : {}),
           };
         }
-        return spec;
+        return isDraft ? { ...spec, _draft: true } : spec;
       });
     } catch (err) {
       console.warn('[OBJECTSTACKDataSource] listViews failed:', err);
       return [];
     }
+  }
+
+  /**
+   * Build a {@link MetadataClient} bound to this adapter's server + auth. Used
+   * by draft-aware reads (`listViews({ previewDrafts })`) so the `/meta` route,
+   * `?preview=draft` flag, and environment scoping live in the SDK rather than
+   * being hand-assembled at each call site (#2767 P3).
+   */
+  private metadataClient(): MetadataClient {
+    return new MetadataClient({
+      baseUrl: this.baseUrl,
+      fetch: this.fetchImpl,
+      ...(this.token ? { headers: { Authorization: `Bearer ${this.token}` } } : {}),
+    });
   }
 
   /**
