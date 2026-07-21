@@ -132,13 +132,16 @@ export function RecordDetailView({ dataSource, objects, onEdit, objectNameOverri
   // overlay contract where Back closes `?form=…`).
   const [tabSearchParams, setTabSearchParams] = useSearchParams();
   const activeTabParam = tabSearchParams.get(RECORD_DETAIL_TAB_PARAM) ?? undefined;
+  const location = useLocation();
   const handleTabChange = useCallback((value: string) => {
     const sp = new URLSearchParams(window.location.search);
     if (sp.get(RECORD_DETAIL_TAB_PARAM) === value) return;
     sp.set(RECORD_DETAIL_TAB_PARAM, value);
-    setTabSearchParams(sp, { replace: true });
-  }, [setTabSearchParams]);
-  const location = useLocation();
+    // `setSearchParams` is a navigation: without an explicit `state` it drops
+    // the entry's history state, losing the list-origin `state.from` that
+    // renders the "← All <object>" back link — switching tabs must keep it.
+    setTabSearchParams(sp, { replace: true, state: location.state });
+  }, [setTabSearchParams, location.state]);
   // Inline "← back to parent" link shown above the record body. Prefers an
   // explicit history-state `from` (legacy, in-session only), then falls back
   // to the last ancestor in the `?from=` URL trail — which, unlike history
