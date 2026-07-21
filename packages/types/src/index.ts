@@ -269,6 +269,8 @@ export type {
   QueryParams,
   QueryResult,
   DataSource,
+  GlobalSearchHit,
+  GlobalSearchResult,
   BatchRef,
   BatchTransactionOperation,
   DataScope,

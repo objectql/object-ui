@@ -292,4 +292,121 @@ describe('useRecordSearch', () => {
       expect(ds.find).toHaveBeenCalledWith('account', { $search: 'acme', $top: 3 });
     });
   });
+
+  // ADR-0061 / framework #3371: when the data source exposes the unified global
+  // search endpoint (`searchAll` → GET /api/v1/search), the palette must use it
+  // instead of the per-object `find({ $search })` fanout — the fanout misses
+  // records that only the global index knows about.
+  describe('global searchAll endpoint', () => {
+    function makeSearchDataSource(hits: any[]) {
+      return {
+        find: vi.fn(async () => ({ data: [] })),
+        searchAll: vi.fn(async () => ({ query: 'wayne', hits })),
+      };
+    }
+
+    it('prefers searchAll and maps hits without fanning out to find', async () => {
+      const ds = makeSearchDataSource([
+        { object: 'account', id: 'a1', title: 'Wayne Enterprises', snippet: 'Wayne Enterprises' },
+        { object: 'contact', id: 'c1', title: 'Bruce Wayne', record: { id: 'c1' } },
+      ]);
+
+      const { result } = renderHook(() =>
+        useRecordSearch({ query: 'wayne', objects, dataSource: ds, debounceMs: 0 }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.isSearching).toBe(false);
+        expect(result.current.results.length).toBe(2);
+      });
+
+      expect(ds.searchAll).toHaveBeenCalledTimes(1);
+      expect(ds.find).not.toHaveBeenCalled();
+
+      const byId = Object.fromEntries(result.current.results.map((h) => [h.recordId, h]));
+      expect(byId.a1.display).toBe('Wayne Enterprises');
+      expect(byId.a1.objectName).toBe('account');
+      expect(byId.a1.objectLabel).toBe('Account');
+      expect(byId.c1.display).toBe('Bruce Wayne');
+    });
+
+    it('trims and forwards the whitelist as the objects scope', async () => {
+      const ds = makeSearchDataSource([]);
+      renderHook(() =>
+        useRecordSearch({
+          query: '  wayne  ',
+          objects,
+          dataSource: ds,
+          objectNames: ['account', 'contact'],
+          debounceMs: 0,
+        }),
+      );
+
+      await waitFor(() => {
+        expect(ds.searchAll).toHaveBeenCalledTimes(1);
+      });
+      const [term, opts] = ds.searchAll.mock.calls[0];
+      expect(term).toBe('wayne');
+      expect(opts.objects).toEqual(['account', 'contact']);
+    });
+
+    it('drops hits for objects outside the candidate whitelist', async () => {
+      // Server ignored our `objects` filter and returned an out-of-scope object.
+      const ds = makeSearchDataSource([
+        { object: 'account', id: 'a1', title: 'Wayne Enterprises' },
+        { object: 'secret_object', id: 's1', title: 'Should be hidden' },
+      ]);
+
+      const { result } = renderHook(() =>
+        useRecordSearch({
+          query: 'wayne',
+          objects,
+          dataSource: ds,
+          objectNames: ['account'],
+          debounceMs: 0,
+        }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.isSearching).toBe(false);
+      });
+      expect(result.current.results.map((h) => h.objectName)).toEqual(['account']);
+    });
+
+    it('floats an exact-id paste above the server ranking', async () => {
+      const ds = makeSearchDataSource([
+        { object: 'account', id: 'a1', title: 'Alpha' },
+        { object: 'account', id: 'OPP-42', title: 'Unrelated name' },
+      ]);
+
+      const { result } = renderHook(() =>
+        useRecordSearch({ query: 'OPP-42', objects, dataSource: ds, debounceMs: 0 }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.results.length).toBe(2);
+      });
+      expect(result.current.results[0].recordId).toBe('OPP-42');
+    });
+
+    it('surfaces searchAll errors and clears results', async () => {
+      const ds = {
+        find: vi.fn(),
+        searchAll: vi.fn(async () => {
+          throw new Error('index unavailable');
+        }),
+      };
+
+      const { result } = renderHook(() =>
+        useRecordSearch({ query: 'wayne', objects, dataSource: ds, debounceMs: 0 }),
+      );
+
+      await waitFor(() => {
+        expect(result.current.isSearching).toBe(false);
+        expect(result.current.error?.message).toBe('index unavailable');
+      });
+      expect(result.current.results).toEqual([]);
+      expect(ds.find).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -208,6 +208,93 @@ export function useRecordSearch(opts: UseRecordSearchOptions): UseRecordSearchRe
       // Skip if a newer run started during the debounce window.
       if (runIdRef.current !== myRunId) return;
 
+      // Prefer the platform's unified global-search endpoint when the data
+      // source exposes it (ObjectStackAdapter → GET /api/v1/search?q=). The
+      // per-object `find({ $search })` fanout below only runs each object's
+      // metadata-driven search (ADR-0061) and can miss records the global
+      // search index knows about — the command-palette symptom in framework
+      // #3371, where `/api/v1/search` returned an account/opportunity the
+      // palette never showed. When `searchAll` is absent (mock/test adapters,
+      // non-ObjectStack backends) we fall back to the fanout.
+      const searchAll = (dataSource as { searchAll?: unknown }).searchAll;
+      if (typeof searchAll === 'function') {
+        // Scope to the candidate objects (the app's searchable nav objects) so
+        // the palette doesn't surface records from objects the current app
+        // can't route to. We both ask the server to scope (`objects`) and
+        // re-filter locally, guarding servers that ignore the param.
+        const byName = new Map<string, any>();
+        for (const obj of candidates) {
+          if (typeof obj?.name === 'string') byName.set(obj.name, obj);
+        }
+
+        Promise.resolve()
+          .then(() =>
+            (searchAll as (q: string, o?: any) => Promise<any>).call(dataSource, trimmed, {
+              limit: maxObjectsQueried * topPerObject,
+              objects: Array.from(byName.keys()),
+            }),
+          )
+          .then((res: any) => {
+            // Discard if a newer run started while we were waiting.
+            if (runIdRef.current !== myRunId) return;
+
+            const rawHits: any[] = Array.isArray(res?.hits)
+              ? res.hits
+              : Array.isArray(res)
+                ? res
+                : [];
+
+            const hits: RecordSearchHit[] = [];
+            for (const h of rawHits) {
+              const objectName = h?.object ?? h?.objectName;
+              if (typeof objectName !== 'string') continue;
+              // Keep only whitelisted objects (no-op when the server already
+              // honored `objects`).
+              if (byName.size > 0 && !byName.has(objectName)) continue;
+              const recordId = h?.id ?? h?.record?.id ?? h?.record?._id;
+              if (recordId == null) continue;
+
+              const objDef = byName.get(objectName) ?? { name: objectName };
+              const title =
+                typeof h?.title === 'string' && h.title.trim() !== '' ? h.title.trim() : '';
+              const display = title || getDisplayName(objDef, h?.record ?? {}) || `Record #${recordId}`;
+              const snippet = typeof h?.snippet === 'string' ? h.snippet.trim() : '';
+
+              hits.push({
+                objectName,
+                objectLabel:
+                  typeof objDef.label === 'string' && objDef.label.length > 0
+                    ? objDef.label
+                    : objectName,
+                recordId: String(recordId),
+                display,
+                // Only surface a snippet when it adds information beyond the title.
+                subtitle: snippet && snippet !== display ? snippet : undefined,
+                icon: objDef?.icon,
+                score: scoreHit(trimmed, display, String(recordId)),
+                raw: h?.record ?? h,
+              });
+            }
+
+            // The server already ranks hits across objects; preserve that order.
+            // Only float an exact-id paste to the very top (parity with the
+            // fanout path). Array.prototype.sort is stable, so every other hit
+            // keeps the server ordering.
+            hits.sort((a, b) => (b.score === 110 ? 1 : 0) - (a.score === 110 ? 1 : 0));
+
+            setResults(hits);
+            setIsSearching(false);
+            setError(undefined);
+          })
+          .catch((err: any) => {
+            if (runIdRef.current !== myRunId) return;
+            setResults([]);
+            setIsSearching(false);
+            setError(err instanceof Error ? err : new Error(String(err)));
+          });
+        return;
+      }
+
       const requests = candidates.map((obj) =>
         Promise.resolve()
           .then(() =>
@@ -281,6 +368,7 @@ export function useRecordSearch(opts: UseRecordSearchOptions): UseRecordSearchRe
     dataSource,
     candidateSignature,
     topPerObject,
+    maxObjectsQueried,
     minLength,
     debounceMs,
     getDisplayName,

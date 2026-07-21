@@ -117,6 +117,31 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
   );
   const showRecentRecords = open && inputValue.trim().length === 0 && recentRecords.length > 0;
 
+  // Group the (server-ranked) record hits by object so the palette lists them
+  // under per-object headings — issue #3371 asks for record hits "grouped by
+  // object". The object with the top-ranked hit leads (first-seen order), and
+  // within each group the server's relevance order is preserved.
+  const recordGroups = useMemo(() => {
+    const order: string[] = [];
+    const byObject = new Map<
+      string,
+      { objectLabel: string; icon?: string; hits: typeof recordHits }
+    >();
+    for (const hit of recordHits) {
+      let group = byObject.get(hit.objectName);
+      if (!group) {
+        group = { objectLabel: hit.objectLabel, icon: hit.icon, hits: [] };
+        byObject.set(hit.objectName, group);
+        order.push(hit.objectName);
+      }
+      group.hits.push(hit);
+    }
+    return order.map((name) => {
+      const group = byObject.get(name)!;
+      return { objectName: name, ...group };
+    });
+  }, [recordHits]);
+
   return (
     <CommandDialog
       open={open}
@@ -171,24 +196,28 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
           </CommandGroup>
         )}
 
-        {/* Record search — only renders when there are async hits */}
-        {recordHits.length > 0 && (
-          <CommandGroup
-            heading={
-              <span className="inline-flex items-center gap-2">
-                {t('console.commandPalette.records', { defaultValue: 'Records' })}
-                {isSearching && (
-                  <span
-                    aria-hidden
-                    className="inline-block h-1.5 w-1.5 rounded-full bg-primary motion-safe:animate-pulse"
-                  />
-                )}
-              </span>
-            }
-          >
-            {recordHits.map((hit) => {
-              const Icon = getIcon(hit.icon);
-              return (
+        {/* Record search hits from the platform's global search
+            (/api/v1/search), grouped by object (issue #3371). The searching
+            pulse rides the first group's heading so it stays visible while a
+            refined query is in flight over an existing result set. */}
+        {recordGroups.map((group, groupIndex) => {
+          const Icon = getIcon(group.icon);
+          return (
+            <CommandGroup
+              key={`records:${group.objectName}`}
+              heading={
+                <span className="inline-flex items-center gap-2">
+                  {group.objectLabel}
+                  {isSearching && groupIndex === 0 && (
+                    <span
+                      aria-hidden
+                      className="inline-block h-1.5 w-1.5 rounded-full bg-primary motion-safe:animate-pulse"
+                    />
+                  )}
+                </span>
+              }
+            >
+              {group.hits.map((hit) => (
                 <CommandItem
                   key={`${hit.objectName}:${hit.recordId}`}
                   // Embed the live query so cmdk's client-side filter doesn't
@@ -198,12 +227,16 @@ export function CommandPalette({ apps, activeApp, objects, onAppChange, dataSour
                 >
                   <Icon className="mr-2 h-4 w-4" />
                   <span className="truncate">{hit.display}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">{hit.objectLabel}</span>
+                  {hit.subtitle && (
+                    <span className="ml-auto max-w-[45%] truncate text-xs text-muted-foreground">
+                      {hit.subtitle}
+                    </span>
+                  )}
                 </CommandItem>
-              );
-            })}
-          </CommandGroup>
-        )}
+              ))}
+            </CommandGroup>
+          );
+        })}
         {/* Object Navigation */}
         {navItems.filter(i => i.type === 'object').length > 0 && (
           <CommandGroup heading={t('console.commandPalette.objects')}>

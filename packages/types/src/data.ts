@@ -200,15 +200,69 @@ export interface BatchTransactionOperation {
  * }
  * ```
  */
+/**
+ * A single record hit returned by the platform's global search endpoint
+ * (`GET /api/v1/search`). The backend's registered search service ranks these
+ * across every searchable object the caller can see, so the returned ordering
+ * is authoritative (best match first).
+ */
+export interface GlobalSearchHit {
+  /** Object/table the record belongs to (e.g. `crm_account`). */
+  object: string;
+  /** Stable record identifier. */
+  id: string;
+  /** Server-resolved display title for the record, when provided. */
+  title?: string;
+  /** Optional highlighted/context snippet describing why it matched. */
+  snippet?: string;
+  /** The (partial) record payload, when the server includes it. */
+  record?: Record<string, any>;
+}
+
+/**
+ * Result of a {@link DataSource.searchAll} call — the query echoed back plus
+ * the ranked cross-object hits.
+ */
+export interface GlobalSearchResult {
+  /** The query string the server actually ran. */
+  query: string;
+  /** Ranked record hits across all searchable objects. */
+  hits: GlobalSearchHit[];
+}
+
 export interface DataSource<T = any> {
   /**
    * Fetch multiple records.
-   * 
+   *
    * @param resource - Resource name (e.g., 'users', 'posts')
    * @param params - Query parameters
    * @returns Promise resolving to query result
    */
   find(resource: string, params?: QueryParams): Promise<QueryResult<T>>;
+
+  /**
+   * Full-text search across every object the caller can see, in a single
+   * round-trip. Backed by the platform's global search endpoint
+   * (`GET /api/v1/search?q=`), which is served by the registered search
+   * service (e.g. the pinyin full-text plugin) and ranks hits across objects.
+   *
+   * This is intentionally distinct from `find(resource, { $search })`, which
+   * runs a *per-object* metadata-driven search: the global endpoint consults
+   * the search index and can surface records the per-object path misses. Global
+   * affordances — the ⌘K command palette, the search page — should prefer this
+   * and fall back to a per-object `find` fanout only when it is absent.
+   *
+   * Optional: adapters without a global search endpoint may omit it.
+   *
+   * @param query - Raw search term (the adapter trims/encodes it).
+   * @param options - Optional caps: `limit` (max total hits) and `objects`
+   *   (restrict the search to a whitelist of object names).
+   * @returns Ranked hits across objects.
+   */
+  searchAll?(
+    query: string,
+    options?: { limit?: number; objects?: string[] },
+  ): Promise<GlobalSearchResult>;
 
   /**
    * Fetch a single record by ID.

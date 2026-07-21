@@ -13,6 +13,8 @@ import type {
   MutationEvent,
   QueryParams,
   QueryResult,
+  GlobalSearchResult,
+  GlobalSearchHit,
   FileUploadResult,
   ExportDownloadRequest,
   ImportRequestOptions,
@@ -725,6 +727,103 @@ export class ObjectStackAdapter<T = unknown> implements DataSource<T> {
     };
     promise.then(cleanup, cleanup);
     return promise;
+  }
+
+  /**
+   * Full-text search across every searchable object in a single round-trip.
+   *
+   * Hits `GET /api/v1/search?q=`, the platform's global search endpoint served
+   * by the registered search service (the pinyin full-text plugin) and backed
+   * by `metadata-protocol`'s `searchAll`. Unlike `find(resource, { $search })`
+   * — a per-object metadata-driven search (ADR-0061) — this consults the search
+   * index and ranks hits across objects, so it surfaces records the per-object
+   * fanout misses. Global affordances (⌘K command palette, search page) prefer
+   * this path (framework #3371).
+   *
+   * Returns `{ query, hits }`. A backend without the search plugin installed
+   * answers `404`; we treat that as "no global search here" and return an empty
+   * hit set so callers can fall back to a per-object fanout rather than surface
+   * an error.
+   */
+  async searchAll(
+    query: string,
+    options?: { limit?: number; objects?: string[] },
+  ): Promise<GlobalSearchResult> {
+    const trimmed = (query ?? '').trim();
+    if (trimmed === '') return { query: '', hits: [] };
+
+    await this.connect();
+
+    const queryParams = new URLSearchParams();
+    queryParams.set('q', trimmed);
+    if (options?.limit != null && options.limit > 0) {
+      queryParams.set('limit', String(options.limit));
+    }
+    if (options?.objects && options.objects.length > 0) {
+      queryParams.set('objects', options.objects.join(','));
+    }
+
+    const baseUrl = (this.baseUrl || '').replace(/\/$/, '');
+    // Avoid doubling /api/v1 when baseUrl already carries the version suffix.
+    const hasApiVersionSuffix = /\/api\/v\d+$/i.test(baseUrl);
+    const searchPath = hasApiVersionSuffix ? '/search' : '/api/v1/search';
+    const url = `${baseUrl}${searchPath}?${queryParams.toString()}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    const res = await this.fetchImpl(url, { method: 'GET', headers });
+
+    if (!res.ok) {
+      // 404 → the search plugin isn't installed on this backend. Degrade to an
+      // empty result so the caller can fall back instead of hard-failing.
+      if (res.status === 404) return { query: trimmed, hits: [] };
+      const errorBody = await res.json().catch(() => ({ message: res.statusText }));
+      const err = new Error(
+        errorBody?.error?.message || errorBody?.message || res.statusText,
+      ) as Error & { status?: number };
+      err.status = res.status;
+      throw err;
+    }
+
+    const body = await res.json();
+    // Unwrap the standard `{ success, data }` envelope when present; the search
+    // endpoint itself returns `{ query, hits }`.
+    const payload =
+      body && typeof body === 'object' && typeof body.success === 'boolean' && 'data' in body
+        ? body.data
+        : body;
+
+    const rawHits: unknown[] = Array.isArray(payload?.hits)
+      ? payload.hits
+      : Array.isArray(payload)
+        ? payload
+        : [];
+
+    const hits: GlobalSearchHit[] = [];
+    for (const entry of rawHits) {
+      if (!entry || typeof entry !== 'object') continue;
+      const h = entry as Record<string, any>;
+      const object = h.object ?? h.objectName ?? h.object_name;
+      const id = h.id ?? h.record?.id ?? h.record?._id;
+      if (typeof object !== 'string' || id == null) continue;
+      hits.push({
+        object,
+        id: String(id),
+        title: typeof h.title === 'string' ? h.title : undefined,
+        snippet: typeof h.snippet === 'string' ? h.snippet : undefined,
+        record: h.record && typeof h.record === 'object' ? h.record : undefined,
+      });
+    }
+
+    return {
+      query: typeof payload?.query === 'string' ? payload.query : trimmed,
+      hits,
+    };
   }
 
   /**
