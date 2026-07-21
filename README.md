@@ -4,7 +4,7 @@
 
 **The Universal Schema-Driven UI Engine**
 
-*From JSON to world-class UI in minutes*
+*AI writes the schema; Object UI renders it — production React, no component code*
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/objectstack-ai/objectui/workflows/CI/badge.svg)](https://github.com/objectstack-ai/objectui/actions/workflows/ci.yml)
@@ -21,7 +21,7 @@
 
 ## What is Object UI?
 
-**Object UI is the View layer of the [ObjectStack](https://github.com/objectstack-ai/objectstack) ecosystem** — a standalone, schema-driven renderer that turns a JSON schema (or ObjectStack metadata) into production-grade React UI. Use it on its own with any backend, like Amis or Formily — or let it render ObjectStack apps end to end.
+**Object UI is the View layer of the [ObjectStack](https://github.com/objectstack-ai/objectstack) ecosystem** — a standalone, schema-driven renderer that turns a JSON schema (or ObjectStack metadata) into production-grade React UI. Use it on its own with any backend, like Amis or Formily — or let it render ObjectStack apps end to end. Schema-driven is also what makes UI **AI-writable**: an agent that would drown hand-writing React across fifty screens can emit and refactor compact schemas instead — and every screen stays consistent by construction.
 
 ```
 Describe  →  ObjectStack   the open-source protocol, toolkit & production runtime
