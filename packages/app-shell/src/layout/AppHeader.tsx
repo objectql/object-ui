@@ -274,9 +274,35 @@ export function AppHeader({
           return { data: [] as Record<string, unknown>[] };
         });
       if (activityResult.data?.length) {
-        const items = (activityResult.data as Record<string, unknown>[]).filter(
-          (a): a is ActivityItem & Record<string, unknown> => typeof a.type === 'string'
-        );
+        // Raw sys_activity rows use plugin-audit's column names
+        // (summary / actor_name / object_name / timestamp). Map them onto
+        // ActivityItem's shape (description / user / objectName) — casting the
+        // raw row straight through left every field undefined, so the popover
+        // Activity tab rendered blank rows (only the relative time showed).
+        // Mirrors the mapping in `useHomeInbox` so the bell and Home never diverge.
+        const items: ActivityItem[] = (activityResult.data as Record<string, unknown>[])
+          .filter((r) => typeof r.type === 'string' && String(r.summary ?? '').trim())
+          .map((r) => {
+            let when = r.timestamp as string | undefined;
+            if (!when || when === 'NOW()' || Number.isNaN(Date.parse(when))) {
+              when = r.created_at as string | undefined;
+            }
+            const raw = String(r.type);
+            const type: ActivityItem['type'] =
+              raw === 'commented' || raw === 'mentioned' ? 'comment'
+                : raw === 'deleted' ? 'delete'
+                  : raw === 'created' ? 'create'
+                    : 'update';
+            return {
+              id: String(r.id),
+              type,
+              objectName: (r.object_name as string) ?? '',
+              recordId: (r.record_id as string) ?? undefined,
+              user: (r.actor_name as string) ?? '',
+              description: (r.summary as string) ?? '',
+              timestamp: when ?? '',
+            };
+          });
         if (items.length) setApiActivities(items);
       }
     } catch { /* fallback below */ } finally {
