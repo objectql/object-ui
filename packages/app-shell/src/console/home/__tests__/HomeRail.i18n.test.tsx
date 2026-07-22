@@ -17,7 +17,7 @@ import { HomeActionCenter } from '../HomeRail';
 
 const zh = (key: string, opts?: any) =>
   ({
-    'home.actionCenter.title': '待你处理',
+    'home.actionCenter.title': '待办事项',
     'home.actionCenter.empty': '全部处理完毕',
   })[key] ?? opts?.defaultValue ?? key;
 
@@ -44,7 +44,7 @@ function renderRail() {
 describe('HomeActionCenter localization', () => {
   it('renders the translated heading rather than the English default', () => {
     renderRail();
-    expect(screen.getByText('待你处理')).toBeTruthy();
+    expect(screen.getByText('待办事项')).toBeTruthy();
     expect(screen.queryByText('Needs your attention')).toBeNull();
   });
 
