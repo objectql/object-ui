@@ -748,7 +748,7 @@ export function AppHeader({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" sideOffset={8} className="w-56 max-h-72 overflow-y-auto">
                         <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-                          Switch Object
+                          {t('topbar.switchObject', { defaultValue: 'Switch Object' })}
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {seg.siblings.map((sibling) => (
