@@ -529,6 +529,22 @@ export function AppHeader({
     try { await postMarkRead('read/all'); } catch { /* best-effort */ }
   }, [notifications, postMarkRead]);
 
+  // Per-group "mark all of this type read" (#2765): the inbox coalesces
+  // repeats of the same (topic, title) into one expandable row, and this marks
+  // every member read in a SINGLE request instead of one POST per row (a
+  // scheduled-digest group can hold 20). Rows without a `notification_id`
+  // (legacy/synthetic) still flip optimistically but can't be keyed server-side.
+  const markManyRead = useCallback(async (ids: string[]) => {
+    const idSet = new Set(ids);
+    const notifIds = notifications
+      .filter(n => idSet.has(n.id) && !n.is_read)
+      .map(n => n.notification_id)
+      .filter((v): v is string => !!v);
+    setNotifications(prev => prev.map(n => idSet.has(n.id) ? { ...n, is_read: true } : n));
+    if (!notifIds.length) return;
+    try { await postMarkRead('read', notifIds); } catch { /* best-effort */ }
+  }, [notifications, postMarkRead]);
+
   const tenantPresence = useTenantPresence();
   const activeUsers = presenceUsers ?? (tenantPresence.length > 0 ? tenantPresence : EMPTY_PRESENCE_USERS);
   const activeActivities = activities ?? apiActivities ?? [];
@@ -925,6 +941,7 @@ export function AppHeader({
             activities={activeActivities}
             onMarkAllRead={markAllRead}
             onMarkRead={markNotificationRead}
+            onMarkManyRead={markManyRead}
           />
 
           {/* Design in Studio — the app → builder reverse bridge (ADR-0080).

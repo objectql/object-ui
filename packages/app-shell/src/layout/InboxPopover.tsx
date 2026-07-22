@@ -8,13 +8,19 @@
  *   - Activity (recent activity feed across the org)
  *
  * Rendered as a single bell button + popover with a tabbed body. The badge
- * shows the combined unread count (notifications + approvals) so users
- * still see at-a-glance pressure.
+ * shows the combined unread pressure — distinct unread *topics* + pending
+ * approvals — so a recurring notification (e.g. a scheduled digest that fires
+ * once a minute) can't inflate the badge to "9+" on its own (#2765).
+ *
+ * Notifications are grouped/coalesced by `(topic, title)`: repeats collapse
+ * into a single expandable row (`Scheduled project digest ×10`) with a
+ * per-group "mark all read", instead of one row each drowning the actionable
+ * items (assignments, @mentions, approvals).
  *
  * @module
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Button,
@@ -26,28 +32,17 @@ import {
   TabsTrigger,
   TabsContent,
 } from '@object-ui/components';
-import { Bell, CheckSquare, Activity as ActivityIcon } from 'lucide-react';
+import { Bell, CheckSquare, Activity as ActivityIcon, ChevronRight } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import type { ActivityItem } from './ActivityFeed';
 import { useNavigationContext } from '../context/NavigationContext';
 import { timeAgo } from '../utils/relativeTime';
+import { groupNotifications } from './inboxGrouping';
+import type { InboxNotification, NotificationGroup } from './inboxGrouping';
 
-export interface InboxNotification {
-  id: string;
-  /** FK → sys_notification (L2 event) — keys the read-state receipt (ADR-0030). */
-  notification_id?: string | null;
-  receipt_id?: string | null;
-  type: string;
-  title: string;
-  body?: string | null;
-  /** Deep-link target carried by the inbox materialization. */
-  action_url?: string | null;
-  source_object?: string | null;
-  source_id?: string | null;
-  actor_name?: string | null;
-  is_read?: boolean;
-  created_at?: string;
-}
+// Re-exported so importers of the notification/group shapes keep resolving
+// through this module (the pure logic itself lives in inboxGrouping.ts).
+export type { InboxNotification, NotificationGroup } from './inboxGrouping';
 
 export interface InboxPopoverProps {
   notifications: InboxNotification[];
@@ -56,6 +51,12 @@ export interface InboxPopoverProps {
   activities: ActivityItem[];
   onMarkAllRead: () => void;
   onMarkRead: (id: string) => void;
+  /**
+   * Mark several notifications read in one shot (per-group "mark all of this
+   * type read"). Optional: when absent we fall back to N `onMarkRead` calls, so
+   * the component still works for callers that only wire the single-mark path.
+   */
+  onMarkManyRead?: (ids: string[]) => void;
 }
 
 export function InboxPopover({
@@ -65,6 +66,7 @@ export function InboxPopover({
   activities,
   onMarkAllRead,
   onMarkRead,
+  onMarkManyRead,
 }: InboxPopoverProps) {
   const { t, language } = useObjectTranslation();
   const navigate = useNavigate();
@@ -77,8 +79,18 @@ export function InboxPopover({
   // the server (`?view=mine` already scopes to current user), so we filter
   // client-side — switching tabs never re-fetches.
   const [notifFilter, setNotifFilter] = useState<'unread' | 'all'>('unread');
+  // Which coalesced groups the user has expanded (keyed by group.key). Empty by
+  // default — the whole point is to keep repeats collapsed until asked for.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
 
-  const totalBadge = unreadCount + pendingApprovalsCount;
+  // Badge/count semantics (#2765): count distinct unread *topics*, not raw
+  // rows. Grouping the full list (not just the visible filter) keeps the badge
+  // stable when the user toggles Unread/All. 10 identical digests + 2 mentions
+  // read as "3", not "9+".
+  const allGroups = useMemo(() => groupNotifications(notifications), [notifications]);
+  const unreadTopics = allGroups.reduce((sum, g) => sum + (g.unreadCount > 0 ? 1 : 0), 0);
+
+  const totalBadge = unreadTopics + pendingApprovalsCount;
   const ariaLabel = t('sidebar.inboxAriaLabel', { defaultValue: 'Open inbox' }) as string;
 
   // Pulse the bell once whenever the unread/approval pressure increases.
@@ -156,6 +168,50 @@ export function InboxPopover({
     }
   };
 
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const markGroupRead = (group: NotificationGroup) => {
+    const ids = group.items.filter((n) => !n.is_read).map((n) => n.id);
+    if (ids.length === 0) return;
+    if (onMarkManyRead) onMarkManyRead(ids);
+    else ids.forEach(onMarkRead);
+  };
+
+  // A single notification line — shared by standalone rows and the members of
+  // an expanded group (which indent). Kept a render helper (not a nested
+  // component) so it closes over `language`/`handleNotificationClick` without
+  // remounting the subtree on every parent render.
+  const renderRow = (n: InboxNotification, nested: boolean) => (
+    <button
+      type="button"
+      onClick={() => handleNotificationClick(n)}
+      className={`w-full text-left ${nested ? 'pl-9 pr-3 py-2' : 'px-3 py-2.5'} hover:bg-accent transition-colors duration-150 ${n.is_read ? '' : 'bg-accent/40'}`}
+    >
+      <div className="flex items-start gap-2">
+        <span
+          className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary transition-opacity duration-200 ${n.is_read ? 'opacity-0' : 'opacity-100'}`}
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium leading-tight truncate">{n.title}</div>
+          {n.body && (
+            <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</div>
+          )}
+          <div className="text-[10px] text-muted-foreground mt-1">
+            {timeAgo(n.created_at, language)}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -197,12 +253,12 @@ export function InboxPopover({
             <TabsTrigger value="notifications" className="text-xs gap-1.5 data-[state=active]:bg-transparent">
               <Bell className="h-3.5 w-3.5" />
               {t('sidebar.notifications', { defaultValue: 'Notifications' })}
-              {unreadCount > 0 && (
+              {unreadTopics > 0 && (
                 <span
-                  key={`notif-${unreadCount}`}
+                  key={`notif-${unreadTopics}`}
                   className="ml-0.5 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] text-white motion-safe:animate-in motion-safe:zoom-in-75 motion-safe:duration-200"
                 >
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {unreadTopics > 9 ? '9+' : unreadTopics}
                 </span>
               )}
             </TabsTrigger>
@@ -239,8 +295,8 @@ export function InboxPopover({
                 }`}
               >
                 {t('notifications.filterUnread', { defaultValue: 'Unread' })}
-                {unreadCount > 0 && (
-                  <span className="ml-1 text-[10px] opacity-70">{unreadCount}</span>
+                {unreadTopics > 0 && (
+                  <span className="ml-1 text-[10px] opacity-70">{unreadTopics}</span>
                 )}
               </button>
               <button
@@ -269,37 +325,104 @@ export function InboxPopover({
                   </div>
                 );
               }
+              const groups = groupNotifications(visible);
               return (
                 <ul className="divide-y">
-                  {visible.map((n, idx) => (
-                    <li
-                      key={n.id}
-                      className="motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200"
-                      style={{ animationDelay: `${Math.min(idx, 6) * 20}ms` }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleNotificationClick(n)}
-                        className={`w-full text-left px-3 py-2.5 hover:bg-accent transition-colors duration-150 ${n.is_read ? '' : 'bg-accent/40'}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <span
-                            className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary transition-opacity duration-200 ${n.is_read ? 'opacity-0' : 'opacity-100'}`}
-                            aria-hidden
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-medium leading-tight truncate">{n.title}</div>
-                            {n.body && (
-                              <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</div>
-                            )}
-                            <div className="text-[10px] text-muted-foreground mt-1">
-                              {timeAgo(n.created_at, language)}
+                  {groups.map((group, idx) => {
+                    const animation = {
+                      className:
+                        'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-200',
+                      style: { animationDelay: `${Math.min(idx, 6) * 20}ms` },
+                    };
+                    // A group of one is just a row — no count pill, no chevron.
+                    if (group.items.length === 1) {
+                      return (
+                        <li key={group.key} {...animation}>
+                          {renderRow(group.items[0], false)}
+                        </li>
+                      );
+                    }
+                    const isExpanded = expandedGroups.has(group.key);
+                    return (
+                      <li key={group.key} {...animation}>
+                        <div className="flex items-stretch">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(group.key)}
+                            aria-expanded={isExpanded}
+                            className={`flex-1 min-w-0 text-left px-3 py-2.5 hover:bg-accent transition-colors duration-150 ${group.unreadCount > 0 ? 'bg-accent/40' : ''}`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <span
+                                className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary transition-opacity duration-200 ${group.unreadCount > 0 ? 'opacity-100' : 'opacity-0'}`}
+                                aria-hidden
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-medium leading-tight truncate">
+                                    {group.title}
+                                  </span>
+                                  <span
+                                    className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] font-medium leading-4 text-muted-foreground"
+                                    aria-label={
+                                      t('notifications.groupCount', {
+                                        defaultValue: '{{count}} notifications',
+                                        count: group.items.length,
+                                      }) as string
+                                    }
+                                  >
+                                    ×{group.items.length}
+                                  </span>
+                                </div>
+                                {group.items[0].body && (
+                                  <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                                    {group.items[0].body}
+                                  </div>
+                                )}
+                                <div className="text-[10px] text-muted-foreground mt-1">
+                                  {timeAgo(group.latestCreatedAt, language)}
+                                  {group.unreadCount > 0 && (
+                                    <span className="ml-1">
+                                      ·{' '}
+                                      {t('notifications.groupUnread', {
+                                        defaultValue: '{{count}} unread',
+                                        count: group.unreadCount,
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <ChevronRight
+                                className={`mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                                aria-hidden
+                              />
                             </div>
-                          </div>
+                          </button>
+                          {group.unreadCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => markGroupRead(group)}
+                              className="shrink-0 px-2 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors border-l"
+                              title={
+                                t('notifications.groupMarkReadTitle', {
+                                  defaultValue: 'Mark all of this type read',
+                                }) as string
+                              }
+                            >
+                              {t('notifications.groupMarkRead', { defaultValue: 'Mark read' })}
+                            </button>
+                          )}
                         </div>
-                      </button>
-                    </li>
-                  ))}
+                        {isExpanded && (
+                          <ul className="divide-y border-t bg-muted/20">
+                            {group.items.map((n) => (
+                              <li key={n.id}>{renderRow(n, true)}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               );
             })()}
