@@ -90,6 +90,7 @@ import {
   ChevronRight,
   Send,
   Check,
+  Circle,
   Paperclip,
 } from 'lucide-react';
 import {
@@ -393,7 +394,11 @@ export function ApprovalsInboxPage() {
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [bulkRunning, setBulkRunning] = useState(false);
 
-  // Inline reject confirmation target (row-level quick action / keyboard)
+  // Inline decision confirmation targets (row-level quick action / mobile
+  // card / keyboard). BOTH decisions confirm before executing (#2762 P0-2):
+  // the right-edge icons are small, easy to misclick, and a decision is
+  // irreversible — one stray click must never finalize a request.
+  const [approveTarget, setApproveTarget] = useState<ApprovalRequestRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<ApprovalRequestRow | null>(null);
   const [inlineActing, setInlineActing] = useState<string | null>(null);
 
@@ -761,12 +766,14 @@ export function ApprovalsInboxPage() {
     refreshBadge();
   }, [actionableSelectedRows, identities, user?.id, load, refreshBadge, tr]);
 
-  /** Row-level quick approve (hover button / `a` key). */
-  const inlineApprove = useCallback(async (r: ApprovalRequestRow) => {
-    if (!isActionable(r) || inlineActing) return;
+  /** Confirmed row-level approve (from the shared dialog). */
+  const inlineApprove = useCallback(async () => {
+    const r = approveTarget;
+    if (!r) return;
     const pending = new Set(r.pending_approvers || []);
     const actor = identities.find(i => pending.has(i)) || user?.id || '';
     setInlineActing(r.id);
+    setApproveTarget(null);
     try {
       const res = await approvalsApi.approve(r.id, { actor_id: actor });
       toast.success(res.finalized
@@ -779,7 +786,7 @@ export function ApprovalsInboxPage() {
     } finally {
       setInlineActing(null);
     }
-  }, [isActionable, inlineActing, identities, user?.id, load, refreshBadge, humanizeError, tr]);
+  }, [approveTarget, identities, user?.id, load, refreshBadge, humanizeError, tr]);
 
   /** Confirmed row-level reject (from the shared dialog). */
   const inlineReject = useCallback(async () => {
@@ -809,7 +816,7 @@ export function ApprovalsInboxPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (selectedId || rejectTarget) return; // a sheet/dialog owns the keyboard
+      if (selectedId || approveTarget || rejectTarget) return; // a sheet/dialog owns the keyboard
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return;
@@ -830,9 +837,9 @@ export function ApprovalsInboxPage() {
       } else if ((e.key === 'x' || e.key === ' ') && idx >= 0 && list[idx] && tab === 'pending') {
         e.preventDefault();
         toggleRow(list[idx].id);
-      } else if (e.key === 'a' && idx >= 0 && list[idx]) {
+      } else if (e.key === 'a' && idx >= 0 && list[idx] && isActionable(list[idx])) {
         e.preventDefault();
-        void inlineApprove(list[idx]);
+        setApproveTarget(list[idx]);
       } else if (e.key === 'r' && idx >= 0 && list[idx] && isActionable(list[idx])) {
         e.preventDefault();
         setRejectTarget(list[idx]);
@@ -840,7 +847,7 @@ export function ApprovalsInboxPage() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedId, rejectTarget, tab, openDrawer, toggleRow, inlineApprove, isActionable]);
+  }, [selectedId, approveTarget, rejectTarget, tab, openDrawer, toggleRow, isActionable]);
 
   // Drawer keyboard: ←/→ walk the visible list without going back to it.
   useEffect(() => {
@@ -920,7 +927,7 @@ export function ApprovalsInboxPage() {
           variant="ghost"
           className="h-7 px-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400"
           disabled={busy}
-          onClick={() => void inlineApprove(r)}
+          onClick={() => setApproveTarget(r)}
           aria-label={tr('approve', 'Approve')}
         >
           <CheckCircle2 className="h-4 w-4" />
@@ -1175,7 +1182,8 @@ export function ApprovalsInboxPage() {
                         <TableHead>{tr('colRequest', 'Request')}</TableHead>
                         <TableHead>{tr('colRecord', 'Record')}</TableHead>
                         <TableHead>{tr('colRequester', 'Requester')}</TableHead>
-                        <TableHead>{tr('colStatus', 'Status')}</TableHead>
+                        {/* min-width keeps the status pill on one line (#2762 P0-1) */}
+                        <TableHead className="min-w-[96px] whitespace-nowrap">{tr('colStatus', 'Status')}</TableHead>
                         <TableHead>{tr('colWaiting', 'Submitted')}</TableHead>
                         <TableHead className="w-20" aria-label={tr('colActions', 'Actions')} />
                       </TableRow>
@@ -1257,7 +1265,7 @@ export function ApprovalsInboxPage() {
                       </div>
                       {isActionable(r) && (
                         <div className="flex gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
-                          <Button size="sm" className="h-7 flex-1" disabled={inlineActing === r.id} onClick={() => void inlineApprove(r)}>
+                          <Button size="sm" className="h-7 flex-1" disabled={inlineActing === r.id} onClick={() => setApproveTarget(r)}>
                             <CheckCircle2 className="h-3.5 w-3.5 mr-1" />{tr('approve', 'Approve')}
                           </Button>
                           <Button
@@ -1293,6 +1301,28 @@ export function ApprovalsInboxPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Shared inline-approve confirmation (#2762 P0-2) */}
+      <AlertDialog open={!!approveTarget} onOpenChange={(open) => !open && setApproveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {tr('approveOneTitle', 'Approve "{{title}}"?', {
+                title: approveTarget ? (approveTarget.record_title || formatIdentity(approveTarget.record_id)) : '',
+              })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {tr('approveOneBody', 'This approves the request with your identity. To add a comment or attachment, open the request instead.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tr('cancel', 'Cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void inlineApprove()}>
+              {tr('approve', 'Approve')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Shared inline-reject confirmation */}
       <AlertDialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
@@ -1340,7 +1370,9 @@ export function ApprovalsInboxPage() {
                 <ChevronLeft className="h-4 w-4 mr-0.5" />
                 {tr('prevRequest', 'Previous')}
               </Button>
-              <span>{tr('positionOf', '{{index}} of {{total}}', { index: drawerIndex + 1, total: filteredRows.length })}</span>
+              {/* "Request N of M" — spelled out so it can't be misread as
+                  decision progress (#2762 P1-1). */}
+              <span>{tr('positionOf', 'Request {{index}} of {{total}}', { index: drawerIndex + 1, total: filteredRows.length })}</span>
               <Button
                 variant="ghost" size="sm" className="h-7 px-2"
                 disabled={drawerIndex >= filteredRows.length - 1}
@@ -1421,40 +1453,84 @@ export function ApprovalsInboxPage() {
                     </div>
                   )}
                   {/* Aggregation progress (#3266): server-computed — "2 of 3
-                      approved" for quorum/unanimous, per-group ticks for 会签. */}
-                  {selected.decision_progress && (
-                    <div className="border-t pt-3">
-                      <div className="text-[11px] text-muted-foreground mb-1">
-                        {selected.decision_progress.behavior === 'per_group'
-                          ? tr('progressGroups', 'Sign-off progress — {{got}} of {{need}} groups', {
-                              got: selected.decision_progress.got, need: selected.decision_progress.need,
-                            })
-                          : tr('progressApprovals', 'Approvals — {{got}} of {{need}}', {
-                              got: selected.decision_progress.got, need: selected.decision_progress.need,
-                            })}
-                      </div>
-                      {selected.decision_progress.groups && (
-                        <div className="flex flex-wrap gap-1">
-                          {selected.decision_progress.groups.map((g) => (
-                            <Badge
-                              key={g.group}
-                              variant="outline"
-                              className={cn(
-                                'text-[11px] gap-1',
-                                g.satisfied
-                                  ? 'border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400'
-                                  : 'text-muted-foreground',
-                              )}
-                              title={`${g.got}/${g.need}`}
-                            >
-                              {g.satisfied ? <Check className="h-3 w-3" /> : null}
-                              {g.group} {g.got}/{g.need}
-                            </Badge>
-                          ))}
+                      approved" for quorum/unanimous, per-group ticks for 会签.
+                      Rendered as a segmented bar + per-group state (#2762 P1-1)
+                      instead of text alone, with the eligible-approver count
+                      spelled out so "0 of 1" can't be misread against the
+                      drawer pager's "Request 2 of 3". */}
+                  {selected.decision_progress && (() => {
+                    const dp = selected.decision_progress;
+                    const eligible = (selected.pending_approvers || []).length;
+                    return (
+                      <div className="border-t pt-3">
+                        <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                          <span className="text-[11px] text-muted-foreground">
+                            {dp.behavior === 'per_group'
+                              ? tr('progressGroups', 'Sign-off progress — {{got}} of {{need}} groups', {
+                                  got: dp.got, need: dp.need,
+                                })
+                              : tr('progressApprovals', 'Approvals — {{got}} of {{need}}', {
+                                  got: dp.got, need: dp.need,
+                                })}
+                          </span>
+                          {dp.behavior !== 'per_group' && selected.status === 'pending' && eligible > 0 && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {tr('progressEligible', '{{count}} eligible approver(s)', { count: eligible })}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <div
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={dp.need}
+                          aria-valuenow={Math.min(dp.got, dp.need)}
+                          aria-label={tr('progressBar', 'Decision progress')}
+                          className="flex gap-1"
+                        >
+                          {dp.need > 0 && dp.need <= 12 ? (
+                            Array.from({ length: dp.need }).map((_, i) => (
+                              <div
+                                key={i}
+                                className={cn(
+                                  'h-1.5 flex-1 rounded-full',
+                                  i < dp.got ? 'bg-emerald-500' : 'bg-muted',
+                                )}
+                              />
+                            ))
+                          ) : (
+                            <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-emerald-500"
+                                style={{ width: `${dp.need > 0 ? Math.min(100, (dp.got / dp.need) * 100) : 0}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                        {dp.groups && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {dp.groups.map((g) => (
+                              <Badge
+                                key={g.group}
+                                variant="outline"
+                                className={cn(
+                                  'text-[11px] gap-1',
+                                  g.satisfied
+                                    ? 'border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400'
+                                    : 'text-muted-foreground',
+                                )}
+                                title={`${g.got}/${g.need}`}
+                              >
+                                {g.satisfied
+                                  ? <Check className="h-3 w-3" />
+                                  : <Circle className="h-2.5 w-2.5" />}
+                                {g.group} {g.got}/{g.need}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {selected.status === 'pending' && (selected.pending_approvers || []).length > 0 && (
                     <div className="border-t pt-3">
                       <div className="text-[11px] text-muted-foreground mb-1">

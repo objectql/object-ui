@@ -39,6 +39,7 @@ import {
   toPredicateInput,
 } from '@object-ui/react';
 import type { ActionDef } from '@object-ui/core';
+import { useObjectLabel } from '@object-ui/i18n';
 import { Loader2 } from 'lucide-react';
 import { useConsoleActionRuntime } from '../hooks/useConsoleActionRuntime';
 import { useAdapter } from '../providers/AdapterProvider';
@@ -96,6 +97,12 @@ const DeclaredActionButton: React.FC<{
 }> = ({ action, objectName, record }) => {
   const { execute } = useAction();
   const [loading, setLoading] = useState(false);
+  // Localize the SERVER-DECLARED strings through the `_actions.<name>.*`
+  // translation convention (objectui#2762 P0-3) — the metadata's literal
+  // label/confirmText/successMessage are the fallback, exactly like
+  // ObjectView/RecordDetailView do for their toolbars. The param dialog's
+  // labels localize downstream in useConsoleActionRuntime.
+  const { actionLabel, actionConfirm, actionSuccess } = useObjectLabel();
 
   const recordData = record != null && typeof record === 'object' ? (record as Record<string, any>) : {};
   // `visible` fails CLOSED on a throwing predicate — mirrors action:button and
@@ -118,6 +125,19 @@ const DeclaredActionButton: React.FC<{
       const { params: rawParams, ...rest } = action as ActionDef & { params?: unknown };
       const dispatch: any = {
         ...rest,
+        // Localized copies ride the dispatch: the runner reads `label` for the
+        // param-dialog title, `confirmText` for the confirm prompt and
+        // `successMessage` for the toast. A nameless action has no translation
+        // key, so it keeps its literal strings.
+        ...(action.name && {
+          label: actionLabel(objectName, action.name, action.label || action.name),
+          ...(rest.confirmText !== undefined && {
+            confirmText: actionConfirm(objectName, action.name, (rest as any).confirmText),
+          }),
+          ...(rest.successMessage !== undefined && {
+            successMessage: actionSuccess(objectName, action.name, (rest as any).successMessage),
+          }),
+        }),
         objectName,
         params: { _rowRecord: record },
       };
@@ -128,7 +148,7 @@ const DeclaredActionButton: React.FC<{
     } finally {
       setLoading(false);
     }
-  }, [action, execute, loading, objectName, record]);
+  }, [action, execute, loading, objectName, record, actionLabel, actionConfirm, actionSuccess]);
 
   if ((action as any).visible && !isVisible) return null;
 
@@ -136,7 +156,8 @@ const DeclaredActionButton: React.FC<{
   const variant = (action as any).variant === 'primary'
     ? 'default'
     : ((action as any).variant || 'outline');
-  const label = action.label || action.name;
+  const fallbackLabel = action.label || action.name || '';
+  const label = action.name ? actionLabel(objectName, action.name, fallbackLabel) : fallbackLabel;
 
   return (
     <Button
