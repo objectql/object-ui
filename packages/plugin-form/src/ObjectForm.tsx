@@ -57,10 +57,39 @@ export interface ObjectFormProps {
 }
 
 /**
+/**
+ * Fold the structured, spec-aligned `buttons`/`defaults` surface
+ * (`@objectstack/spec` FormViewSchema; framework#1894 / #2998) down onto the
+ * flat renderer props ObjectForm and its variants read
+ * (`showSubmit`/`submitText`/`showCancel`/`cancelText`/`showReset`/
+ * `initialValues`). This is the objectui-side consumer of those spec keys — it
+ * is what lets them flip `experimental → live` in the spec liveness ledger.
+ *
+ * Spec is the authored surface, but an explicitly-set flat key still wins so
+ * existing metadata that authored the deprecated flat keys is unchanged.
+ * Returns the input untouched when neither structured key is present (the
+ * common case), so there is no allocation on the hot path.
+ */
+function foldFormButtons(schema: ObjectFormProps['schema']): ObjectFormProps['schema'] {
+  const buttons = (schema as { buttons?: ObjectFormSchema['buttons'] }).buttons;
+  const defaults = (schema as { defaults?: Record<string, any> }).defaults;
+  if (!buttons && !defaults) return schema;
+  const s = schema as Record<string, any>;
+  const out: Record<string, any> = { ...s };
+  if (buttons?.submit?.show !== undefined && s.showSubmit === undefined) out.showSubmit = buttons.submit.show;
+  if (buttons?.submit?.label != null && s.submitText === undefined) out.submitText = buttons.submit.label;
+  if (buttons?.cancel?.show !== undefined && s.showCancel === undefined) out.showCancel = buttons.cancel.show;
+  if (buttons?.cancel?.label != null && s.cancelText === undefined) out.cancelText = buttons.cancel.label;
+  if (buttons?.reset?.show !== undefined && s.showReset === undefined) out.showReset = buttons.reset.show;
+  if (defaults && s.initialValues === undefined) out.initialValues = defaults;
+  return out as ObjectFormProps['schema'];
+}
+
+/**
  * ObjectForm Component
- * 
+ *
  * Renders a form for an ObjectQL object with automatic schema integration.
- * 
+ *
  * @example
  * ```tsx
  * <ObjectForm
@@ -84,15 +113,23 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
   // (Tabbed/Wizard/Split/Drawer/Modal/Simple) transparently honour FLS.
   // Fail-open when no provider mounted (perms.isLoaded false).
   const schema = useMemo<ObjectFormProps['schema']>(() => {
+    // framework#1894 / #2998 (ADR-0078): the authored @objectstack/spec
+    // FormViewSchema carries the structured `buttons.{submit,cancel,reset}.
+    // {show,label}` + `defaults` surface, but this renderer historically read
+    // only the flat `showSubmit`/`submitText`/…/`initialValues`. Fold the
+    // structured shape down onto those flat props FIRST so every downstream
+    // read (and every variant we dispatch `schema` into) sees it. An
+    // explicitly-set flat key still wins (deprecated back-compat).
+    const folded = foldFormButtons(rawSchema);
     // #2545: spec FormViewSchema defines `groups` as a legacy alias of
     // `sections`, and this renderer only ever consumes `sections` — normalize
-    // FIRST so groups-only metadata actually renders (it used to be silently
+    // so groups-only metadata actually renders (it used to be silently
     // ignored). Legacy shape maps `title`→`label`, `defaultCollapsed`→`collapsed`.
-    const legacyGroups = (rawSchema as any).groups;
+    const legacyGroups = (folded as any).groups;
     const base: ObjectFormProps['schema'] =
-      !rawSchema.sections?.length && Array.isArray(legacyGroups) && legacyGroups.length
+      !folded.sections?.length && Array.isArray(legacyGroups) && legacyGroups.length
         ? {
-            ...rawSchema,
+            ...folded,
             sections: legacyGroups.map((g: any) => ({
               label: g.title ?? g.label,
               description: g.description,
@@ -101,7 +138,7 @@ export const ObjectForm: React.FC<ObjectFormProps> = ({
               fields: g.fields ?? [],
             })),
           }
-        : rawSchema;
+        : folded;
     if (!perms?.isLoaded) return base;
     const gateField = (f: any) => {
       if (!f?.name) return f;

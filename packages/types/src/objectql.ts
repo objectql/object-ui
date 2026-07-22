@@ -1046,9 +1046,35 @@ export interface ObjectFormSchema extends BaseSchema {
   
   /**
    * Initial values (for create mode)
+   *
+   * @deprecated Prefer the spec-aligned {@link defaults}. Kept as back-compat:
+   * ObjectForm folds `defaults` into this at render, and an explicitly-set
+   * `initialValues` still wins.
    */
   initialValues?: Record<string, any>;
-  
+
+  /**
+   * Structured, spec-aligned form action-button config — the authoring surface
+   * for submit/cancel/reset visibility + labels, mirroring `@objectstack/spec`
+   * `FormViewSchema.buttons` (framework#1894 / #2998). ObjectForm normalizes
+   * this down onto the flat `showSubmit`/`submitText`/`showCancel`/`cancelText`/
+   * `showReset` props at render, so prefer this over those flat keys (which
+   * remain only as deprecated back-compat). An explicitly-set flat key wins.
+   */
+  buttons?: {
+    submit?: { show?: boolean; label?: string };
+    cancel?: { show?: boolean; label?: string };
+    reset?: { show?: boolean; label?: string };
+  };
+
+  /**
+   * Create-mode initial field values, keyed by field machine name — the
+   * spec-aligned alias of the deprecated flat {@link initialValues}, mirroring
+   * `@objectstack/spec` `FormViewSchema.defaults` (framework#1894 / #2998).
+   * ObjectForm folds this into `initialValues` at render.
+   */
+  defaults?: Record<string, any>;
+
   /**
    * Callback on successful submission
    */

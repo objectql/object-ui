@@ -311,6 +311,12 @@ export function RecordFormPage({ mode }: RecordFormPageProps) {
                 mode,
                 recordId: mode === 'edit' ? recordId : undefined,
                 ...(prefillValues && { initialValues: prefillValues }),
+                // framework#1894 / #2998: honor the spec-aligned structured
+                // `buttons`/`defaults` from the object's form view. ObjectForm
+                // folds them onto its flat props; an explicit `initialValues`
+                // (URL prefill above) still wins over `defaults`.
+                ...(formDef.buttons && { buttons: formDef.buttons }),
+                ...(formDef.defaults && { defaults: formDef.defaults }),
                 title: pageTitle,
                 description:
                   mode === 'create'

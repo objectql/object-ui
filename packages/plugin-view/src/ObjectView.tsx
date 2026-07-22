@@ -901,6 +901,11 @@ export const ObjectView: React.FC<ObjectViewProps> = ({
       cancelText: schema.form?.cancelText,
       showReset: schema.form?.showReset,
       initialValues: schema.form?.initialValues,
+      // framework#1894 / #2998: forward the spec-aligned structured
+      // `buttons`/`defaults`; ObjectForm folds them onto the flat props above
+      // (an explicitly-set flat key still wins).
+      buttons: schema.form?.buttons,
+      defaults: schema.form?.defaults,
       readOnly: schema.form?.readOnly || formMode === 'view',
       className: schema.form?.className,
       // Master-detail by config: a form view can declare inline child
