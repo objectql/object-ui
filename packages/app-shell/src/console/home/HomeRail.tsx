@@ -16,21 +16,20 @@ import {
   CheckSquare, Activity, ArrowRight, CheckCheck, Bell, Clock,
   FileText, Database, LayoutDashboard, File,
 } from 'lucide-react';
+import { formatRelativeTime, useObjectTranslation } from '@object-ui/i18n';
 import type { ActivityItem } from '../../layout/ActivityFeed';
 import type { HomeNotification } from '../../hooks/useHomeInbox';
 import type { RecentItem } from '../../hooks/useRecentItems';
 
 type TFn = (key: string, opts?: any) => string;
 
-function timeAgo(iso?: string): string {
+// Relative timestamps go through Intl.RelativeTimeFormat — the old hand-rolled
+// `${n}d` suffixes were English-only and never reached a translation file.
+function timeAgo(iso: string | undefined, locale: string): string {
   if (!iso) return '';
   const ms = new Date(iso).getTime();
   if (Number.isNaN(ms)) return '';
-  const diff = (Date.now() - ms) / 1000;
-  if (diff < 60) return `${Math.max(1, Math.floor(diff))}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
+  return formatRelativeTime(ms, locale);
 }
 
 function Card({
@@ -116,6 +115,7 @@ export function HomeActionCenter({
   onOpenNotification: (n: HomeNotification) => void;
   t: TFn;
 }) {
+  const { language } = useObjectTranslation();
   const total = pendingApprovalsCount + notifications.length;
   return (
     <Card icon={CheckSquare} accent count={total} title={t('home.actionCenter.title', { defaultValue: 'Needs your attention' })}>
@@ -142,7 +142,7 @@ export function HomeActionCenter({
               icon={Bell}
               iconClass="bg-primary/10 text-primary"
               label={n.title}
-              meta={timeAgo(n.createdAt)}
+              meta={timeAgo(n.createdAt, language)}
               onClick={() => onOpenNotification(n)}
             />
           ))}
@@ -194,6 +194,7 @@ export function HomeContinue({ items, onOpen, t }: { items: RecentItem[]; onOpen
 }
 
 export function HomeActivity({ items, onViewAll, t }: { items: ActivityItem[]; onViewAll: () => void; t: TFn }) {
+  const { language } = useObjectTranslation();
   return (
     <Card icon={Activity} title={t('sidebar.activityFeed', { defaultValue: 'Activity' })}>
       {items.length === 0 ? (
@@ -207,7 +208,7 @@ export function HomeActivity({ items, onViewAll, t }: { items: ActivityItem[]; o
               <span className="font-medium">{a.user}</span>{' '}
               <span className="text-muted-foreground">{a.description}</span>
               <div className="mt-0.5 text-[11px] text-muted-foreground">
-                {timeAgo(a.timestamp)} · {a.objectName}
+                {timeAgo(a.timestamp, language)} · {a.objectName}
               </div>
             </li>
           ))}
