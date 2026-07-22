@@ -30,6 +30,7 @@ import { Bell, CheckSquare, Activity as ActivityIcon } from 'lucide-react';
 import { useObjectTranslation } from '@object-ui/i18n';
 import type { ActivityItem } from './ActivityFeed';
 import { useNavigationContext } from '../context/NavigationContext';
+import { timeAgo } from '../utils/relativeTime';
 
 export interface InboxNotification {
   id: string;
@@ -57,17 +58,6 @@ export interface InboxPopoverProps {
   onMarkRead: (id: string) => void;
 }
 
-function timeAgo(iso?: string): string {
-  if (!iso) return '';
-  const ms = new Date(iso).getTime();
-  if (Number.isNaN(ms)) return '';
-  const diff = (Date.now() - ms) / 1000;
-  if (diff < 60) return `${Math.max(1, Math.floor(diff))}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
-}
-
 export function InboxPopover({
   notifications,
   unreadCount,
@@ -76,7 +66,7 @@ export function InboxPopover({
   onMarkAllRead,
   onMarkRead,
 }: InboxPopoverProps) {
-  const { t } = useObjectTranslation();
+  const { t, language } = useObjectTranslation();
   const navigate = useNavigate();
   const params = useParams();
   const { currentAppName } = useNavigationContext();
@@ -303,7 +293,7 @@ export function InboxPopover({
                               <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</div>
                             )}
                             <div className="text-[10px] text-muted-foreground mt-1">
-                              {timeAgo(n.created_at)}
+                              {timeAgo(n.created_at, language)}
                             </div>
                           </div>
                         </div>
@@ -379,7 +369,7 @@ export function InboxPopover({
                       <span className="text-muted-foreground">{a.description}</span>
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      {timeAgo(a.timestamp)} · {a.objectName}
+                      {timeAgo(a.timestamp, language)} · {a.objectName}
                     </div>
                   </li>
                 ))}

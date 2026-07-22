@@ -16,21 +16,13 @@ import {
   CheckSquare, Activity, ArrowRight, CheckCheck, Bell, Clock,
   FileText, Database, LayoutDashboard, File,
 } from 'lucide-react';
-import { formatRelativeTime, useObjectTranslation } from '@object-ui/i18n';
+import { useObjectTranslation } from '@object-ui/i18n';
 import type { ActivityItem } from '../../layout/ActivityFeed';
 import type { HomeNotification } from '../../hooks/useHomeInbox';
 import type { RecentItem } from '../../hooks/useRecentItems';
+import { timeAgo } from '../../utils/relativeTime';
 
 type TFn = (key: string, opts?: any) => string;
-
-// Relative timestamps go through Intl.RelativeTimeFormat — the old hand-rolled
-// `${n}d` suffixes were English-only and never reached a translation file.
-function timeAgo(iso: string | undefined, locale: string): string {
-  if (!iso) return '';
-  const ms = new Date(iso).getTime();
-  if (Number.isNaN(ms)) return '';
-  return formatRelativeTime(ms, locale);
-}
 
 function Card({
   icon: Icon,
