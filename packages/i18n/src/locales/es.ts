@@ -1498,8 +1498,8 @@ const es = {
     uploading: "Subiendo…",
     defaultActionTitle: "Acción",
     ok: "Aceptar",
-    lookupPlaceholder: "Pegar ID de registro (UUID) para {{label}}",
-    lookupHelpText: "Ingrese el ID del registro del objeto referenciado. Pronto se añadirá un selector.",
+    lookupPlaceholder: "ID de registro para {{label}}",
+    lookupHelpText: "Este parámetro no tiene un objeto de referencia configurado, por lo que el selector de registros no está disponible. Ingrese un ID de registro o pida a un administrador que corrija el parámetro de la acción.",
   },
   actionConfirm: {
     title: "Confirmar acción",

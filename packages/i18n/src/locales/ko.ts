@@ -1498,8 +1498,8 @@ const ko = {
     uploading: "업로드 중…",
     defaultActionTitle: "작업",
     ok: "확인",
-    lookupPlaceholder: "{{label}}의 레코드 ID(UUID) 붙여넣기",
-    lookupHelpText: "참조된 개체의 레코드 ID를 입력하세요. 선택기가 곧 추가됩니다.",
+    lookupPlaceholder: "{{label}}의 레코드 ID",
+    lookupHelpText: "이 매개변수에 참조 개체가 설정되어 있지 않아 레코드 선택기를 사용할 수 없습니다. 레코드 ID를 직접 입력하거나 관리자에게 작업 매개변수 수정을 요청하세요.",
   },
   actionConfirm: {
     title: "작업 확인",

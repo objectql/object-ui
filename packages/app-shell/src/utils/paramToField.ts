@@ -53,10 +53,23 @@ const LOOKUP_WIDGET_TYPES = new Set(['lookup', 'master_detail']);
  * `referenceTo` target renders as a plain text input (the picker cannot query
  * without a target object) — preserving the dialog's long-standing behavior
  * for partially-resolved metadata.
+ *
+ * That fallback is now a last resort, not an expected path (#3405): inline
+ * params declare `reference` and field-backed ones inherit it, and the spec
+ * rejects a targetless inline picker at parse time. Reaching it means the
+ * metadata is broken or partial, so say so in dev instead of silently handing
+ * the user a box that wants a raw UUID.
  */
 export function paramToField(param: ActionParamDef): Record<string, any> {
   let type = resolveParamWidgetType(param.type);
   if (LOOKUP_WIDGET_TYPES.has(type) && !param.referenceTo) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(
+        `[ActionParamDialog] Param "${param.name}" is type "${param.type}" but has no reference target, ` +
+          'so it degrades to a plain record-id text input. Declare `reference: \'<object>\'` on the param, ' +
+          'or make it field-backed (`{ field: \'<lookup_field>\' }`) to inherit the target.',
+      );
+    }
     type = 'text';
   }
 

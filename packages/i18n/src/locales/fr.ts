@@ -1496,8 +1496,8 @@ const fr = {
     uploading: "Téléversement…",
     defaultActionTitle: "Action",
     ok: "OK",
-    lookupPlaceholder: "Coller l'ID d'enregistrement (UUID) pour {{label}}",
-    lookupHelpText: "Entrez l'ID de l'enregistrement de l'objet référencé. Un sélecteur sera bientôt ajouté.",
+    lookupPlaceholder: "ID d'enregistrement pour {{label}}",
+    lookupHelpText: "Aucun objet de référence n'est configuré pour ce paramètre, le sélecteur d'enregistrement est donc indisponible. Saisissez un ID d'enregistrement ou demandez à un administrateur de corriger le paramètre d'action.",
   },
   actionConfirm: {
     title: "Confirmer l’action",

@@ -130,3 +130,66 @@ describe('resolveActionParams — widget config (ADR-0059)', () => {
     });
   });
 });
+
+/**
+ * #3405 — an inline `lookup` param carries its own picker target.
+ *
+ * Real-world break (PLAT-DEF-005): a QC dispatch action declared
+ * `{ name: 'inspector', type: 'lookup', reference: 'sys_user' }`. The key was
+ * unknown to both the spec schema and this resolver, so it was dropped twice
+ * over and `paramToField()` degraded the param to a "paste the record id
+ * (UUID)" text box — a supervisor had to go find a user's UUID by hand.
+ */
+describe('resolveActionParams — inline lookup reference target (#3405)', () => {
+  const lookupCtx = () =>
+    ctx({
+      objects: [
+        {
+          name: 'quality_dispatch',
+          fields: {
+            inspector: { type: 'lookup', label: '质检人', reference: 'sys_user' },
+            reviewer: { type: 'lookup', label: 'Reviewer', reference_to: 'sys_user', display_field: 'name' },
+          },
+        },
+      ],
+      objectName: 'quality_dispatch',
+    });
+
+  it('maps an inline `reference` onto referenceTo so the picker can query', () => {
+    const params: RawActionParam[] = [
+      { name: 'inspector', label: '质检员', type: 'lookup', reference: 'sys_user', required: true },
+    ];
+    expect(resolveActionParams(params, lookupCtx())[0]).toMatchObject({
+      name: 'inspector',
+      type: 'lookup',
+      referenceTo: 'sys_user',
+    });
+  });
+
+  it('still inherits the target from the referenced field when field-backed', () => {
+    expect(resolveActionParams([{ field: 'inspector' }], lookupCtx())[0]).toMatchObject({
+      type: 'lookup',
+      referenceTo: 'sys_user',
+    });
+    expect(resolveActionParams([{ field: 'reviewer' }], lookupCtx())[0]).toMatchObject({
+      referenceTo: 'sys_user',
+      displayField: 'name',
+    });
+  });
+
+  it('lets an inline reference override the field metadata', () => {
+    const params: RawActionParam[] = [{ field: 'inspector', reference: 'sys_member' }];
+    expect(resolveActionParams(params, lookupCtx())[0].referenceTo).toBe('sys_member');
+  });
+
+  it('keeps the inline reference on the missing-field fallback branch', () => {
+    const params: RawActionParam[] = [
+      { field: 'does_not_exist', type: 'lookup', reference: 'sys_user' },
+    ];
+    expect(resolveActionParams(params, lookupCtx())[0].referenceTo).toBe('sys_user');
+  });
+
+  it('leaves referenceTo undefined for a non-picker inline param', () => {
+    expect(resolveActionParams([{ name: 'note', type: 'textarea' }], lookupCtx())[0].referenceTo).toBeUndefined();
+  });
+});

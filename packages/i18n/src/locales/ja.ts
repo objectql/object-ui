@@ -1498,8 +1498,8 @@ const ja = {
     uploading: "アップロード中…",
     defaultActionTitle: "アクション",
     ok: "OK",
-    lookupPlaceholder: "{{label}} のレコードID（UUID）を貼り付け",
-    lookupHelpText: "参照オブジェクトのレコードIDを入力してください。ピッカーは近日公開予定です。",
+    lookupPlaceholder: "{{label}} のレコードID",
+    lookupHelpText: "このパラメータには参照オブジェクトが設定されていないため、レコードピッカーを利用できません。レコードIDを直接入力するか、管理者にアクションパラメータの修正を依頼してください。",
   },
   actionConfirm: {
     title: "操作の確認",

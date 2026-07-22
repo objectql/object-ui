@@ -15,7 +15,7 @@
  * `FORM_FIELD_TYPES` + this drift test makes that class of bug impossible to
  * reintroduce silently.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { FORM_FIELD_TYPES } from '@object-ui/fields';
 import type { ActionParamDef } from '@object-ui/core';
 import { paramToField, resolveParamWidgetType } from './paramToField';
@@ -128,6 +128,25 @@ describe('paramToField', () => {
   it('lookup param without a referenceTo target falls back to a text input (param-only fallback)', () => {
     expect(paramToField(p({ type: 'lookup' }))).toMatchObject({ type: 'text' });
     expect(paramToField(p({ type: 'reference' }))).toMatchObject({ type: 'text' });
+  });
+
+  // #3405 — the fallback is now a broken-metadata signal, not a normal path,
+  // so it must be audible in dev instead of silently handing the user a box
+  // that wants a raw UUID.
+  it('warns in dev when a picker param degrades for want of a target', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      paramToField(p({ name: 'inspector', type: 'lookup' }));
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain('inspector');
+      expect(warn.mock.calls[0][0]).toContain('reference');
+
+      warn.mockClear();
+      paramToField(p({ name: 'inspector', type: 'lookup', referenceTo: 'sys_user' }));
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('user params keep their picker without needing referenceTo (implicit sys_user)', () => {

@@ -1496,8 +1496,8 @@ const ar = {
     uploading: "جارٍ الرفع…",
     defaultActionTitle: "إجراء",
     ok: "موافق",
-    lookupPlaceholder: "لصق معرف السجل (UUID) لـ {{label}}",
-    lookupHelpText: "أدخل معرف سجل الكائن المرجع. سيتم إضافة أداة اختيار قريباً.",
+    lookupPlaceholder: "معرف السجل لـ {{label}}",
+    lookupHelpText: "لم يتم تكوين كائن مرجعي لهذه المعلمة، لذا فإن أداة اختيار السجلات غير متاحة. أدخل معرف السجل، أو اطلب من المسؤول تصحيح معلمة الإجراء.",
   },
   actionConfirm: {
     title: "تأكيد الإجراء",

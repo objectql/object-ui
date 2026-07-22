@@ -44,6 +44,13 @@ export interface RawActionParam {
   /** Max upload size in bytes for `file`/`image` params. */
   maxSize?: number;
   /**
+   * Reference target for an INLINE `lookup`/`master_detail` param (#3405) —
+   * the object whose records the picker searches. Field-backed params inherit
+   * it from the referenced field instead (see `lookupExtras` below). Spelled
+   * `reference` to match `FieldSchema.reference` / `ActionParamSchema.reference`.
+   */
+  reference?: string;
+  /**
    * Visibility predicate (CEL) — mirrors the spec `ActionParamSchema.visible`.
    * The server serialises it through `ExpressionInputSchema` as an
    * `{ dialect, source }` envelope, so accept both the raw string and the
@@ -172,6 +179,10 @@ export function resolveActionParam(
       multiple: param.multiple,
       accept: param.accept,
       maxSize: param.maxSize,
+      // Inline picker target (#3405). Without this an inline `lookup` param
+      // could never reach `<LookupField>` — `paramToField()` degrades a
+      // targetless picker to a raw record-id text input.
+      referenceTo: param.reference,
     };
   }
 
@@ -196,6 +207,9 @@ export function resolveActionParam(
       multiple: param.multiple,
       accept: param.accept,
       maxSize: param.maxSize,
+      // The field is unresolvable, so an inline `reference` is the only picker
+      // target available — keep it rather than dropping to a text input.
+      referenceTo: param.reference,
     };
   }
 
@@ -211,7 +225,9 @@ export function resolveActionParam(
   const isLookupResolvedType = resolvedType === 'lookup' || resolvedType === 'reference';
   const lookupExtras: Partial<ActionParamDef> = isLookupResolvedType
     ? {
-        referenceTo: field.reference_to ?? field.reference,
+        // Inline `reference` wins, matching how every other inline value
+        // overrides the resolved field (#3405).
+        referenceTo: param.reference ?? field.reference_to ?? field.reference,
         displayField: field.display_field ?? field.reference_field,
         idField: field.id_field,
         descriptionField: field.description_field,

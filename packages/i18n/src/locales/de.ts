@@ -1498,8 +1498,8 @@ const de = {
     uploading: "Wird hochgeladen…",
     defaultActionTitle: "Aktion",
     ok: "OK",
-    lookupPlaceholder: "Datensatz-ID (UUID) für {{label}} einfügen",
-    lookupHelpText: "Geben Sie die Datensatz-ID des referenzierten Objekts ein. Eine Auswahlhilfe kommt bald.",
+    lookupPlaceholder: "Datensatz-ID für {{label}}",
+    lookupHelpText: "Für diesen Parameter ist kein Referenzobjekt konfiguriert, daher ist die Datensatzauswahl nicht verfügbar. Geben Sie eine Datensatz-ID ein oder bitten Sie einen Administrator, den Aktionsparameter zu korrigieren.",
   },
   actionConfirm: {
     title: "Aktion bestätigen",

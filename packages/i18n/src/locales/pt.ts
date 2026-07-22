@@ -1496,8 +1496,8 @@ const pt = {
     uploading: "Enviando…",
     defaultActionTitle: "Ação",
     ok: "OK",
-    lookupPlaceholder: "Colar ID do registro (UUID) para {{label}}",
-    lookupHelpText: "Insira o ID do registro do objeto referenciado. Um seletor será adicionado em breve.",
+    lookupPlaceholder: "ID do registro para {{label}}",
+    lookupHelpText: "Este parâmetro não tem um objeto de referência configurado, portanto o seletor de registros não está disponível. Insira um ID de registro ou peça a um administrador para corrigir o parâmetro da ação.",
   },
   actionConfirm: {
     title: "Confirmar ação",
