@@ -68,6 +68,20 @@ describe('row-actions column sticky-right', () => {
     expect(container.querySelector('td.right-0')).not.toBeNull(); // the actions column
   });
 
+  it('pins the actions COLUMN HEADER to the right, not just the body cells', async () => {
+    // Regression: the header's own `relative` position class (added for the
+    // resize handle) was clobbering the injected `sticky right-0` via
+    // tailwind-merge, so the title scrolled away while its cells stayed pinned.
+    renderGrid();
+    await waitFor(() => expect(screen.getAllByTestId('row-action-inline-open').length).toBeGreaterThan(0));
+    const headers = Array.from(document.querySelectorAll('th'));
+    const actionsHeader = headers[headers.length - 1];
+    expect(actionsHeader).toBeTruthy();
+    expect(actionsHeader.className).toContain('sticky');
+    expect(actionsHeader.className).toContain('right-0');
+    expect(actionsHeader.className).not.toContain('relative');
+  });
+
   it('still surfaces the actions inline button (no regression from pinning)', async () => {
     renderGrid();
     await waitFor(() => expect(screen.getAllByTestId('row-action-inline-open').length).toBe(ROWS.length));

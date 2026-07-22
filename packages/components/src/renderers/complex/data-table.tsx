@@ -1333,6 +1333,15 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                 const isDragging = draggedColumn === index;
                 const isDragOver = dragOverColumn === index;
                 const isFrozen = frozenColumns > 0 && index < frozenColumns;
+                // Right-pinned columns (e.g. the auto-pinned row-actions column)
+                // carry their sticky class via `col.className`. The header cell
+                // otherwise appends a `relative` position utility below, which —
+                // because `cn` is tailwind-merge — would win over that `sticky`
+                // and let the header scroll away while its body cells stay pinned.
+                // Detect it here so we skip `relative` and re-assert the pin.
+                const isPinnedRight = typeof col.className === 'string'
+                  && /\bsticky\b/.test(col.className)
+                  && /\bright-0\b/.test(col.className);
                 const frozenOffset = isFrozen
                   ? measuredStickyLefts?.[(selectable ? 1 : 0) + (showRowNumbers ? 1 : 0) + index]
                     ?? columns.slice(0, index).reduce((sum, c, i) => {
@@ -1355,7 +1364,14 @@ const DataTableRenderer = ({ schema }: { schema: DataTableSchema }) => {
                       col.align === 'right' && 'text-right',
                       col.align === 'center' && 'text-center',
                       isFit && 'whitespace-nowrap',
-                      'relative group bg-background',
+                      'group bg-background',
+                      // `relative` anchors the resize handle; a sticky cell is
+                      // already its own positioning context, so only add it when
+                      // the column isn't right-pinned (else it clobbers sticky).
+                      !isPinnedRight && 'relative',
+                      // Re-assert the pin AFTER col.className so tailwind-merge
+                      // keeps it, and bump above body pinned cells (z-10).
+                      isPinnedRight && 'sticky right-0 z-20',
                       isFrozen && 'sticky z-20',
                       isFrozen && index === frozenColumns - 1 && 'border-r-2 border-border shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]',
                     )}
