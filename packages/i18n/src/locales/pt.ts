@@ -1947,6 +1947,14 @@ const pt = {
       yearsAgo: "há {{count}} anos",
     },
   },
+  approvals: {
+    approve: 'Aprovar',
+    reject: 'Rejeitar',
+    comment: 'Comentário (opcional)',
+    approveSuccess: 'Aprovado',
+    rejectSuccess: 'Rejeitado',
+    rejectConfirm: 'Rejeitar esta solicitação de aprovação?',
+  },
   approvalsInbox: {
     loadMore: 'Carregar mais',
     loadingMore: 'Carregando…',

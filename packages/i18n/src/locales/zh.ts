@@ -2562,6 +2562,14 @@ const zh = {
         yearsAgo: '{{count}} 年前',
       },
     },
+  approvals: {
+    approve: '批准',
+    reject: '驳回',
+    comment: '审批意见(可选)',
+    approveSuccess: '已批准',
+    rejectSuccess: '已驳回',
+    rejectConfirm: '确定驳回该审批请求吗?',
+  },
   approvalsInbox: {
     loadMore: '加载更多',
     loadingMore: '加载中…',

@@ -1949,6 +1949,14 @@ const de = {
       yearsAgo: "vor {{count}} Jahren",
     },
   },
+  approvals: {
+    approve: 'Genehmigen',
+    reject: 'Ablehnen',
+    comment: 'Kommentar (optional)',
+    approveSuccess: 'Genehmigt',
+    rejectSuccess: 'Abgelehnt',
+    rejectConfirm: 'Diese Genehmigungsanfrage ablehnen?',
+  },
   approvalsInbox: {
     loadMore: 'Mehr laden',
     loadingMore: 'Lädt…',

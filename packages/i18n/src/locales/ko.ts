@@ -1949,6 +1949,14 @@ const ko = {
       yearsAgo: "{{count}}년 전",
     },
   },
+  approvals: {
+    approve: '승인',
+    reject: '반려',
+    comment: '의견(선택 사항)',
+    approveSuccess: '승인됨',
+    rejectSuccess: '반려됨',
+    rejectConfirm: '이 승인 요청을 반려하시겠습니까?',
+  },
   approvalsInbox: {
     loadMore: '더 보기',
     loadingMore: '불러오는 중…',

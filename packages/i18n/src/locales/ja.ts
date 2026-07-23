@@ -1949,6 +1949,14 @@ const ja = {
       yearsAgo: "{{count}}年前",
     },
   },
+  approvals: {
+    approve: '承認',
+    reject: '却下',
+    comment: 'コメント(任意)',
+    approveSuccess: '承認しました',
+    rejectSuccess: '却下しました',
+    rejectConfirm: 'この承認リクエストを却下しますか?',
+  },
   approvalsInbox: {
     loadMore: 'さらに読み込む',
     loadingMore: '読み込み中…',

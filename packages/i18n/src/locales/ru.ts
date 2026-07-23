@@ -1947,6 +1947,14 @@ const ru = {
       yearsAgo: "{{count}} лет назад",
     },
   },
+  approvals: {
+    approve: 'Утвердить',
+    reject: 'Отклонить',
+    comment: 'Комментарий (необязательно)',
+    approveSuccess: 'Утверждено',
+    rejectSuccess: 'Отклонено',
+    rejectConfirm: 'Отклонить этот запрос на согласование?',
+  },
   approvalsInbox: {
     loadMore: 'Загрузить ещё',
     loadingMore: 'Загрузка…',
