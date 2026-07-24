@@ -187,3 +187,34 @@ describe('loop / map collection is a template, not a CEL predicate', () => {
     expect(decisionCond.refMode).toBeUndefined();
   });
 });
+
+describe('notify node — first-class static config editor (#1895)', () => {
+  const fields = fieldsForNodeType('notify');
+  const ids = fields.map((f) => f.id);
+
+  it('surfaces the core notify config fields (was empty — no static editor before)', () => {
+    expect(fields.length).toBeGreaterThan(0);
+    expect(ids).toEqual(
+      expect.arrayContaining(['recipients', 'title', 'message', 'channels', 'topic', 'severity']),
+    );
+  });
+
+  it('models recipients + channels as stringList and message as textarea', () => {
+    expect(fields.find((f) => f.id === 'recipients')!.kind).toBe('stringList');
+    expect(fields.find((f) => f.id === 'channels')!.kind).toBe('stringList');
+    expect(fields.find((f) => f.id === 'message')!.kind).toBe('textarea');
+  });
+
+  it('writes each field under node.config (matching the built-in node descriptor)', () => {
+    for (const f of fields) {
+      expect(f.path[0]).toBe('config');
+    }
+    expect(fields.find((f) => f.id === 'title')!.path).toEqual(['config', 'title']);
+  });
+
+  it('offers the descriptor severity levels', () => {
+    const severity = fields.find((f) => f.id === 'severity')!;
+    expect(severity.kind).toBe('select');
+    expect(severity.options!.map((o) => o.value)).toEqual(['info', 'warning', 'critical']);
+  });
+});

@@ -10,6 +10,7 @@ import * as React from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  Bell,
   ChevronRight,
   Code,
   CircleDot,
@@ -85,6 +86,8 @@ export function nodeIcon(type: string): LucideIcon {
     case 'http_request':
     case 'webhook':
       return Globe;
+    case 'notify':
+      return Bell;
     case 'script':
     case 'script_task':
       return Code;
@@ -248,6 +251,7 @@ export function nodeTone(type: string): NodeTone {
       return TONES.record;
     case 'http':
     case 'http_request':
+    case 'notify':
     case 'connector_action':
     case 'script':
     case 'webhook':
@@ -312,6 +316,7 @@ export function nodeCategory(type: string): NodeCategory {
       return 'Human';
     case 'http':
     case 'http_request':
+    case 'notify':
     case 'connector_action':
     case 'script':
     case 'webhook':
@@ -341,6 +346,7 @@ export const NODE_PALETTE: PaletteItem[] = [
   { type: 'approval', label: 'Approval', hint: 'Pause for a human decision', category: 'Human' },
   { type: 'screen', label: 'Screen', hint: 'Collect input from a user', category: 'Human' },
   { type: 'http', label: 'HTTP request', hint: 'Call an external API', category: 'Integration' },
+  { type: 'notify', label: 'Notify', hint: 'Send a notification to users', category: 'Integration' },
   { type: 'connector_action', label: 'Connector', hint: 'Run an integration action', category: 'Integration' },
   { type: 'script', label: 'Script', hint: 'Run custom code', category: 'Integration' },
   { type: 'subflow', label: 'Subflow', hint: 'Invoke another flow', category: 'Flow' },
@@ -385,6 +391,10 @@ export function defaultNodeExtras(type: string): Record<string, unknown> {
       // Seed a node-model approval: at least one approver + spec defaults. The
       // author wires the out-edges with labels `approve` / `reject`.
       return { config: { approvers: [{ type: 'manager' }], behavior: 'first_response', lockRecord: true } };
+    case 'notify':
+      // Seed a sensible notify node: inbox channel + one empty recipient slot,
+      // matching the built-in node's defaults (framework#1895).
+      return { config: { channels: ['inbox'], recipients: [] } };
     case 'http':
     case 'http_request':
       return { config: { method: 'GET' } };

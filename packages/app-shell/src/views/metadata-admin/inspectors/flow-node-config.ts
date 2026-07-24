@@ -666,6 +666,31 @@ const FLOW_NODE_CONFIG: Record<string, FlowConfigField[]> = {
     cfg('outputVariable', 'Output variable', 'text', { placeholder: 'subResult' }),
     { id: 'timeoutMs', path: ['timeoutMs'], label: 'Timeout (ms)', kind: 'number', placeholder: '60000' },
   ],
+  // `notify` — outbound notification (ADR-0012), dispatched via the messaging
+  // service. Config keys mirror the built-in node's server descriptor
+  // (service-automation `notify-node.ts` configSchema): title + ≥1 recipient
+  // are required at execute time; channels default to inbox. Surfaced here as a
+  // first-class static editor so the node is authorable offline, not only when
+  // the running engine publishes its descriptor (framework#1878/#1895).
+  notify: [
+    cfg('recipients', 'Recipients', 'stringList', { help: 'User id(s) / audience selector(s) to notify. At least one is required.' }),
+    cfg('title', 'Title', 'text', { placeholder: 'Your request was approved', help: 'Notification title (required).' }),
+    cfg('message', 'Message', 'textarea', { placeholder: 'Supports {var} template references.', help: 'Notification body.' }),
+    cfg('channels', 'Channels', 'stringList', { help: 'Channels to fan out to (default: inbox — e.g. inbox · email · push).' }),
+    cfg('topic', 'Topic', 'text', { placeholder: 'notify', help: 'Event topic (default: "notify").' }),
+    cfg('severity', 'Severity', 'select', {
+      options: [
+        { value: 'info', label: 'Info' },
+        { value: 'warning', label: 'Warning' },
+        { value: 'critical', label: 'Critical' },
+      ],
+      help: 'Notification severity.',
+    }),
+    // Click-through target (#2675): deep-link the notification to a record.
+    cfg('sourceObject', 'Link object', 'text', { placeholder: 'sys_approval_request', help: 'Object of the record the notification links to (requires Link record id).' }),
+    cfg('sourceId', 'Link record id', 'text', { help: 'Record id the notification links to (requires Link object).' }),
+    cfg('url', 'Click-through URL', 'text', { help: 'Explicit link; overrides the one synthesized from Link object/record.' }),
+  ],
   connector_action: [
     at('connectorConfig', 'connectorId', 'Connector', 'reference', { ref: { kind: 'connector' }, placeholder: 'slack · email · salesforce' }),
     // actionId is polymorphic on the chosen connector: the picker lists THAT

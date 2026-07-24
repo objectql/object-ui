@@ -9,6 +9,15 @@ describe('mergePalette', () => {
     expect(mergePalette(NODE_PALETTE, [])).toEqual(NODE_PALETTE);
   });
 
+  it('offers `notify` as a first-class Integration palette entry (#1895)', () => {
+    const notify = NODE_PALETTE.find((i) => i.type === 'notify');
+    expect(notify).toBeDefined();
+    expect(notify!.category).toBe('Integration');
+    // Authorable offline (static entry), not only when the engine publishes a
+    // descriptor — mergePalette keeps it when no descriptors are present.
+    expect(mergePalette(NODE_PALETTE, []).some((i) => i.type === 'notify')).toBe(true);
+  });
+
   it('overlays the engine label/description onto a matching base entry, keeping its position', () => {
     const base = [
       { type: 'decision', label: 'Decision', hint: 'Branch on a condition' },
